@@ -34,8 +34,36 @@ devcontainer_cli() {
   fi
 }
 
-is_running() { [ -n "$(docker ps -q --filter "name=^${CONTAINER}$" 2>/dev/null)" ]; }
-exists() { [ -n "$(docker ps -aq --filter "name=^${CONTAINER}$" 2>/dev/null)" ]; }
+# Every subcommand below talks to Docker, so a missing CLI is answered once, here,
+# rather than left for each of them to improvise (issue #269). On the supported
+# Windows path this is nearly always Docker Desktop's WSL integration being off for
+# this distro, so the message says that instead of "command not found".
+require_docker() {
+  command -v docker >/dev/null 2>&1 || die "the docker CLI was not found on PATH.
+                 On WSL2 this usually means Docker Desktop is not running, or its
+                 integration is not enabled for this distro (Settings > Resources >
+                 WSL integration). Elsewhere, install Docker or start the daemon."
+}
+
+# Both predicates test the EXIT STATUS as well as the output, which
+# `inside_target_container` below already did and these did not (issue #269).
+# Testing output alone reads any output as a result: WSL's command_not_found
+# handler writes its 228-byte "could not be found in this WSL 2 distro" message to
+# STDOUT, so `2>/dev/null` does not suppress it, the substitution captures it, and
+# `-n` is true. `status` then reported a running container on a machine with no
+# Docker at all, and `shell`/`run` skipped their clean "not running" diagnostic to
+# fail incoherently inside `docker exec`. The check has to be able to tell "no
+# output" from "output that happens to be an error".
+is_running() {
+  local out
+  out="$(docker ps -q --filter "name=^${CONTAINER}$" 2>/dev/null)" || return 1
+  [ -n "$out" ]
+}
+exists() {
+  local out
+  out="$(docker ps -aq --filter "name=^${CONTAINER}$" 2>/dev/null)" || return 1
+  [ -n "$out" ]
+}
 
 # The container mounts the host Docker socket so Testcontainers works (ADR-29),
 # which also hands anything running inside it the authority to stop that same
@@ -118,12 +146,16 @@ warn_if_stale() {
 }
 
 cmd_up() {
+  require_docker
   devcontainer_cli up --workspace-folder "$REPO_ROOT" || die "devcontainer up failed"
   warn_if_stale
 }
 
 cmd_rebuild() {
+  # The refusal comes first, so it never depends on Docker answering; a container
+  # that could refuse always has a CLI anyway.
   inside_target_container && refuse_from_inside rebuild
+  require_docker
   # Remove by name rather than relying on `--remove-existing-container`. That
   # flag finds the container through a `devcontainer.local_folder` label, and
   # the two launchers disagree about the same folder: VS Code on Windows records
@@ -137,6 +169,7 @@ cmd_rebuild() {
 }
 
 cmd_shell() {
+  require_docker
   is_running || die "$CONTAINER is not running. Start it with: $0 up"
   warn_if_stale
   # docker exec rather than `devcontainer exec`: it is faster, and containerEnv
@@ -158,6 +191,7 @@ cmd_shell() {
 
 cmd_run() {
   [ "$#" -gt 0 ] || die "run needs a command, e.g. $0 run 'pnpm build'"
+  require_docker
   is_running || die "$CONTAINER is not running. Start it with: $0 up"
   local ws
   ws="$(workspace_dir)"
@@ -166,6 +200,7 @@ cmd_run() {
 }
 
 cmd_status() {
+  require_docker
   if is_running; then
     echo "running: $CONTAINER"
     docker ps --filter "name=^${CONTAINER}$" --format '  ports: {{.Ports}}'
@@ -183,6 +218,7 @@ cmd_stop() {
   # Guard before the is_running probe, so the refusal does not depend on the
   # daemon answering: the point is that this path never reaches `docker stop`.
   inside_target_container && refuse_from_inside stop
+  require_docker
   is_running || {
     echo "$CONTAINER is not running"
     return 0

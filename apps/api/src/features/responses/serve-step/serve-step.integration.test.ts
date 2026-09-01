@@ -35,7 +35,7 @@ import {
   latestAnswers,
   markSubmitted,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -45,7 +45,6 @@ import { importSessionKeys, mintSessionToken } from "../session-token.js";
 import { registerStartSession } from "../start-session/route.js";
 import { registerServeStep } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
@@ -131,11 +130,11 @@ beforeAll(async () => {
     groups: { public: [registerStartSession, registerServeStep] },
   });
   internalToken = internalTokenFor(deps.config);
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- seed helpers -----------------------------------------------------------
 
@@ -483,7 +482,7 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
       semanticsVersion: "1",
     });
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   /** The one error an empty post must produce, whatever else the question asks. */
   const EMPTY_ERROR = {

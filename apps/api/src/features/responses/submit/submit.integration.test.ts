@@ -36,7 +36,7 @@ import {
   insertFormVersion,
   markInProgress,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -48,7 +48,6 @@ import { importSessionKeys, mintSessionToken } from "../session-token.js";
 import { registerStartSession } from "../start-session/route.js";
 import { registerSubmit } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 
@@ -116,11 +115,11 @@ beforeAll(async () => {
 
   await seedQuestions();
   await seedForm("frm_auto_quote", "auto", GOLDEN as unknown as VersionInput["compiled"]);
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- seed helpers -----------------------------------------------------------
 

@@ -211,9 +211,16 @@ export function isLoopbackHost(host: string): boolean {
  * {@link secureCookies} above), but the *rule* must not drift - the two apps disagreeing
  * about exactly this is what issue #292 was filed about. There is no shared package for a
  * Next BFF's server code, the same call `MIN_PASSWORD_LENGTH` above makes, so it is a
- * copy, and the test matrices in
- * `config.test.ts` on both sides assert the same cases so a change made to one and not
- * the other shows up as a red test. **Change one, change the other.**
+ * copy. **Change one, change the other** - as a reminder, not as a guarantee.
+ *
+ * This used to claim that the `config.test.ts` matrices on both sides assert the same
+ * cases, so a one-sided change goes red. Nothing computes that (issue #412), and the two
+ * had already drifted when it was checked: this side's matrix carried the raw `0`/`no`/
+ * `off` spellings and the portal's did not, which is the gap behind issue #409. An
+ * unenforced guarantee in a comment is worse than no comment, because it stops the next
+ * reader checking. Making it real means a case table both suites import, which needs a
+ * home for cross-app test fixtures that this repository does not have yet; #412 holds
+ * that decision.
  */
 /**
  * The respondent portal's public origin (`QCMS_PORTAL_BASE_URL`), or `undefined`.

@@ -4,6 +4,9 @@
   "private": false,
   "description": "qcms domain kernel: schemas, rules DSL + evaluator, publish invariants (placeholder, task 001)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

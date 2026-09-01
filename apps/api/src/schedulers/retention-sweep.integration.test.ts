@@ -25,7 +25,7 @@ import {
   markDeliveryDelivered,
   recordDeliveryFailure,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -33,17 +33,15 @@ import { loadConfig, type Config } from "../config.js";
 import { createRetentionSweepScheduler } from "./retention-sweep.js";
 import { makeDeps, validEnv } from "../test-support.js";
 
-const BOOT_TIMEOUT = 120_000;
-
 let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 /** Seed a form + one published version so a session has valid FKs. */
 async function seedForm(id: string): Promise<{ formId: FormId; version: number }> {

@@ -30,9 +30,12 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { startTestDb, type TestDb } from "./harness.js";
-
-const BOOT_TIMEOUT = 120_000;
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  TEST_POSTGRES_IMAGE,
+  type TestDb,
+} from "./harness.js";
 
 /** How many transactions to run at once. Below the node-postgres default pool size. */
 const CONCURRENCY = 4;
@@ -57,11 +60,11 @@ beforeAll(async () => {
     serverLog += chunk.toString();
   });
   logs.on("error", () => undefined);
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 /**
  * Emit a WARNING through the raw client and wait until it shows up in the
@@ -218,12 +221,105 @@ describe("startTestDb infrastructure failure reporting (issue #150)", () => {
     expect(failure?.cause).toBeDefined();
   }, 60_000);
 
-  it("classifies a non-registry reaper failure as a start failure", async () => {
-    const failure = await captureStartFailure({
-      bootInfrastructure: () => Promise.reject(new Error("Failed to connect to Reaper")),
-    });
+  it(
+    "classifies a non-registry reaper failure as a start failure",
+    async () => {
+      const failure = await captureStartFailure({
+        bootInfrastructure: () => Promise.reject(new Error("Failed to connect to Reaper")),
+      });
 
-    expect(failure?.message).toContain("Could not START the Testcontainers Ryuk reaper");
-    expect(failure?.message).not.toContain("Could not PULL");
-  }, 60_000);
+      expect(failure?.message).toContain("Could not START the Testcontainers Ryuk reaper");
+      expect(failure?.message).not.toContain("Could not PULL");
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
+
+/**
+ * Issue #171, and the same misattribution shape as #150 one layer down.
+ *
+ * `PULL_FAILURE_MARKERS` carries `connection refused` and `context deadline
+ * exceeded` because Docker really does report registry trouble that way. A dead
+ * daemon socket produces the same words, so before this every failure to REACH
+ * Docker was announced as a failure to PULL an image - complete with an image
+ * reference, a registry and the mirror knob that redirects it, none of which are
+ * involved when nothing ever reached a registry. The reader is then sent to check
+ * a mirror that is working while the socket under their feet is dead.
+ *
+ * Both phases are covered, because both classify: the infrastructure boot (which
+ * is where a dead daemon is actually met first, since `getContainerRuntimeClient`
+ * is the first thing to touch the socket) and the container start.
+ *
+ * Injected rather than forced, for the reason the #150 block gives: stopping the
+ * daemon under a running suite is not something a test may do, and the wordings
+ * below are the ones dockerode and testcontainers-node emit for it.
+ */
+describe("startTestDb daemon-connectivity failure reporting (issue #171)", () => {
+  const DAEMON_DOWN_MESSAGES = [
+    "connect ECONNREFUSED /var/run/docker.sock",
+    "connect ENOENT /var/run/docker.sock",
+    "Could not find a working container runtime strategy",
+    "Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?",
+  ];
+
+  it.each(DAEMON_DOWN_MESSAGES)(
+    "reports %s as daemon connectivity, not as an image pull",
+    async (message) => {
+      const failure = await captureStartFailure({
+        bootInfrastructure: () => Promise.reject(new Error(message)),
+      });
+
+      expect(failure?.message).toContain("Could not REACH the Docker daemon");
+      // The three things the old message said and should not have: a pull, an
+      // image to blame for it, and a mirror to go and check.
+      expect(failure?.message).not.toContain("Could not PULL");
+      expect(failure?.message).not.toContain(TEST_POSTGRES_IMAGE);
+      expect(failure?.message).not.toMatch(/fix:.*(QCMS_TEST_POSTGRES_IMAGE|RYUK_CONTAINER_IMAGE)/);
+      // Still actionable, and still carrying the original wording.
+      expect(failure?.message).toContain(message);
+      expect(failure?.cause).toBeDefined();
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "keeps a genuine registry failure classified as a pull",
+    async () => {
+      // The other direction, and the reason the daemon markers name the socket or
+      // the daemon rather than matching a bare errno: an unreachable REGISTRY also
+      // produces a refused connection, and it must still be reported as one.
+      const failure = await captureStartFailure({
+        bootInfrastructure: () => Promise.reject(new Error(HUB_TIMEOUT_MESSAGE)),
+      });
+
+      expect(failure?.message).toContain("Could not PULL the Testcontainers Ryuk reaper image");
+      expect(failure?.message).not.toContain("Could not REACH the Docker daemon");
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "does not poison the image cache when the daemon was the problem",
+    async () => {
+      // A pull failure is remembered per image so later files fail fast (issue #74).
+      // A daemon that went away is not a property of the image, and remembering it
+      // as one would fail every later file in the worker with a registry message
+      // for a machine that has since recovered.
+      const image = "localhost:1/qcms-daemon-probe:16-alpine";
+      const daemonFailure = await captureStartFailure({
+        image,
+        bootInfrastructure: () =>
+          Promise.reject(new Error("connect ECONNREFUSED /var/run/docker.sock")),
+      });
+      expect(daemonFailure?.message).toContain("Could not REACH the Docker daemon");
+
+      const second = await captureStartFailure({
+        image,
+        bootInfrastructure: () =>
+          Promise.reject(new Error("connect ECONNREFUSED /var/run/docker.sock")),
+      });
+      expect(second?.message).not.toContain("not retried");
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
 });

@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 // Only the argument handling is covered here. Everything past it talks to a
 // Docker daemon, which belongs to a live environment rather than the unit gate.
@@ -91,5 +94,99 @@ describe("devcontainer.sh", () => {
     expect(res.status).toBe(0);
     expect(res.stdout).toContain("devcontainer.sh");
     expect(res.stdout).toContain("rebuild");
+  });
+});
+
+/**
+ * Issue #269: the probes tested whether `docker ps` produced OUTPUT, not whether it
+ * SUCCEEDED, so on a WSL2 host with no Docker CLI the command_not_found handler's
+ * message - written to stdout, so `2>/dev/null` does not touch it - was captured
+ * and read as a container id. `status` printed `running: qcms-dev-container` on a
+ * machine with no engine, no CLI and no container, and `shell`/`run` skipped the
+ * clean "not running" diagnostic to fail inside `docker exec` instead.
+ *
+ * Both halves are driven here rather than reasoned about: a stub `docker` that
+ * behaves exactly like that handler, and a PATH with no `docker` on it at all.
+ */
+describe("devcontainer.sh docker probes (issue #269)", () => {
+  const stubs: string[] = [];
+
+  afterAll(() => {
+    for (const dir of stubs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  /** A PATH whose only entry holds the given executables. */
+  function pathWith(executables: Record<string, string>): string {
+    const dir = mkdtempSync(join(tmpdir(), "devcontainer-stub-"));
+    stubs.push(dir);
+    for (const [name, body] of Object.entries(executables)) {
+      const file = join(dir, name);
+      writeFileSync(file, `#!/usr/bin/env bash\n${body}\n`);
+      chmodSync(file, 0o755);
+    }
+    return dir;
+  }
+
+  /**
+   * The two tools this script cannot run without: the interpreter it is spawned
+   * with, and `dirname`, which its first line uses to find the repository. Linking
+   * exactly those into an otherwise empty PATH is what makes "docker is absent"
+   * literally true rather than approximately so.
+   */
+  function withShellTools(dir: string): string {
+    for (const tool of ["bash", "dirname"]) {
+      const real = spawnSync("/usr/bin/env", ["sh", "-c", `command -v ${tool}`], {
+        encoding: "utf8",
+      }).stdout.trim();
+      symlinkSync(real, join(dir, tool));
+    }
+    return dir;
+  }
+
+  it("does not claim the container is running when docker errors onto stdout", () => {
+    // The reproduction, byte for byte in shape: output on stdout, non-zero exit.
+    const dir = pathWith({
+      docker: `echo "The command 'docker' could not be found in this WSL 2 distro."\nexit 1`,
+    });
+
+    const res = run(["status"], { PATH: `${dir}:${process.env.PATH ?? ""}` });
+
+    expect(res.stdout).not.toContain("running: qcms-dev-container");
+    // It reports what it can actually see instead.
+    expect(res.stdout).toContain("not created");
+  });
+
+  it("refuses shell with the diagnostic rather than falling through to docker exec", () => {
+    const dir = pathWith({
+      docker: `echo "The command 'docker' could not be found in this WSL 2 distro."\nexit 1`,
+    });
+
+    const res = run(["shell"], { PATH: `${dir}:${process.env.PATH ?? ""}` });
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("is not running");
+  });
+
+  it("dies naming Docker Desktop's WSL integration when the CLI is absent entirely", () => {
+    const dir = withShellTools(pathWith({}));
+
+    const res = run(["status"], { PATH: dir });
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("docker CLI was not found");
+    expect(res.stderr).toContain("WSL integration");
+    expect(res.stdout).not.toContain("running: qcms-dev-container");
+  });
+
+  it("still refuses a destructive verb from inside the container without a docker CLI", () => {
+    // Order matters: the refusal must not become reachable only when Docker is
+    // present, or the guard would evaporate in exactly the degraded environment
+    // where a confused operator is most likely to try `stop`.
+    const dir = withShellTools(pathWith({}));
+
+    const res = run(["stop"], { ...INSIDE, PATH: dir });
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain("refusing to stop qcms-dev-container from inside");
   });
 });

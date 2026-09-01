@@ -16,7 +16,7 @@
  * Requires Docker.
  */
 
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../app.js";
@@ -25,7 +25,6 @@ import type { Deps } from "../deps.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "./admin-auth.js";
 
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 /** The pinned instant every seeded session is anchored to (fixedClock's). */
 const NOW = new Date("2026-07-20T00:00:00.000Z");
@@ -43,11 +42,11 @@ let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 interface Composed {
   readonly app: ReturnType<typeof createApp>;

@@ -63,9 +63,11 @@ const FAST_FAILURE_BUDGET_MS = 60_000;
  * to sit above the budget, or an over-budget run would die on an opaque Vitest
  * timeout instead of on the assertion that names the elapsed time. Derived rather
  * than written out so the two cannot drift apart. Scoped to those two tests, and
- * nothing outside this file changes. The pattern has since been reused once, for
- * the pair that gained a readiness wait in issue #140 (`SIGTERM_TEST_TIMEOUT_MS`);
- * the three tests with no derived wait of their own keep the 30s they had.
+ * nothing outside this file changes. The pattern has since been reused twice: for
+ * the pair that gained a readiness wait in issue #140 (`SIGTERM_TEST_TIMEOUT_MS`),
+ * and for the descendant-reaping test in issue #165
+ * (`DESCENDANT_TEST_TIMEOUT_MS`); the two tests with no wait of their own keep the
+ * 30s they had.
  */
 const BUDGET_TEST_TIMEOUT_MS = FAST_FAILURE_BUDGET_MS + 30_000;
 
@@ -92,6 +94,27 @@ const WRAPPER_BOOT_BUDGET_MS = 60_000;
  * itself a process spawn and so is one of the things load stretches.
  */
 const SIGTERM_TEST_TIMEOUT_MS = WRAPPER_BOOT_BUDGET_MS + 30_000;
+
+/**
+ * Ceiling on one `waitUntilGone` poll: how long a signalled process is given to
+ * leave the process table, including the moment it spends as a zombie waiting to
+ * be reaped. Generous for what it measures, because the answer is normally
+ * immediate and the cost is only ever paid by a failing run.
+ */
+const DESCENDANT_EXIT_BUDGET_MS = 10_000;
+
+/**
+ * Per-test timeout for "leaves no surviving descendant behind after a fail-fast
+ * exit", derived for the reason `BUDGET_TEST_TIMEOUT_MS` and
+ * `SIGTERM_TEST_TIMEOUT_MS` are (issue #165). That test was the last one here
+ * carrying a bare `30_000` while containing three serial waits of its own: a
+ * wrapper boot chain, then two `waitUntilGone` polls. Under the ~50x starvation
+ * that reproduces #140 the boot alone measured a little over 20s, so 30s left the
+ * budget marginal and the failure it produced was an opaque Vitest timeout rather
+ * than the assertion that names which process survived. Adding up what the test
+ * actually waits for keeps the diagnosis in the message.
+ */
+const DESCENDANT_TEST_TIMEOUT_MS = WRAPPER_BOOT_BUDGET_MS + DESCENDANT_EXIT_BUDGET_MS * 2;
 
 /**
  * Claim a port from the ephemeral range and release it again. Most tests here
@@ -220,7 +243,7 @@ function isAlive(pid: number): boolean {
  * Wait for `pid` to disappear. Polled rather than asserted outright because a
  * SIGKILLed process lingers as a zombie until whoever inherited it reaps it.
  */
-async function waitUntilGone(pid: number, timeoutMs = 10_000): Promise<boolean> {
+async function waitUntilGone(pid: number, timeoutMs = DESCENDANT_EXIT_BUDGET_MS): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (!isAlive(pid)) return true;
@@ -442,46 +465,52 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     SIGTERM_TEST_TIMEOUT_MS,
   );
 
-  it("leaves no surviving descendant behind after a fail-fast exit", async () => {
-    // The real tree is pnpm -> next dev -> next-server, and `sh -c` forwards no
-    // signals, so killing the direct child reaches at most the first of those.
-    // Nothing else will finish the job: Playwright group-SIGKILLs the webServer
-    // only while it is still alive, and skips that cleanup once the wrapper has
-    // self-exited. A survivor here would hold the port for the next run to latch
-    // onto via `reuseExistingServer`.
-    //
-    // The grandchild is `detached`, so it sits in its own process group: killing a
-    // group cannot be what reaps it, only walking the tree can.
-    const wrapper = startWrapper(
-      `import { spawn } from "node:child_process";\n` +
-        `const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {\n` +
-        `  detached: true,\n` +
-        `  stdio: "ignore",\n` +
-        `});\n` +
-        `process.stdout.write(\`pids \${process.pid} \${grandchild.pid}\\n\`);\n` +
-        `process.stdout.write("Unhandled Rejection: Error: boom\\n");\n` +
-        `setInterval(() => {}, 1000);\n`,
-      await freePort(),
-    );
+  it(
+    "leaves no surviving descendant behind after a fail-fast exit",
+    async () => {
+      // The real tree is pnpm -> next dev -> next-server, and `sh -c` forwards no
+      // signals, so killing the direct child reaches at most the first of those.
+      // Nothing else will finish the job: Playwright group-SIGKILLs the webServer
+      // only while it is still alive, and skips that cleanup once the wrapper has
+      // self-exited. A survivor here would hold the port for the next run to latch
+      // onto via `reuseExistingServer`.
+      //
+      // The grandchild is `detached`, so it sits in its own process group: killing a
+      // group cannot be what reaps it, only walking the tree can.
+      const wrapper = startWrapper(
+        `import { spawn } from "node:child_process";\n` +
+          `const grandchild = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], {\n` +
+          `  detached: true,\n` +
+          `  stdio: "ignore",\n` +
+          `});\n` +
+          `process.stdout.write(\`pids \${process.pid} \${grandchild.pid}\\n\`);\n` +
+          `process.stdout.write("Unhandled Rejection: Error: boom\\n");\n` +
+          `setInterval(() => {}, 1000);\n`,
+        await freePort(),
+      );
 
-    const { code } = await wrapper.ended;
-    expect(code).not.toBe(0);
+      const { code } = await wrapper.ended;
+      expect(code).not.toBe(0);
 
-    const pids = /pids (\d+) (\d+)/.exec(wrapper.stdout());
-    // Guards the test itself: without this the assertions below could pass by
-    // never having had a tree to reap.
-    expect(pids, `stub never reported its pids; stdout was:\n${wrapper.stdout()}`).not.toBeNull();
-    const stubPid = Number(pids?.[1]);
-    const grandchildPid = Number(pids?.[2]);
-    expect(Number.isInteger(stubPid)).toBe(true);
-    expect(Number.isInteger(grandchildPid)).toBe(true);
+      const pids = /pids (\d+) (\d+)/.exec(wrapper.stdout());
+      // Guards the test itself: without this the assertions below could pass by
+      // never having had a tree to reap.
+      expect(pids, `stub never reported its pids; stdout was:\n${wrapper.stdout()}`).not.toBeNull();
+      const stubPid = Number(pids?.[1]);
+      const grandchildPid = Number(pids?.[2]);
+      expect(Number.isInteger(stubPid)).toBe(true);
+      expect(Number.isInteger(grandchildPid)).toBe(true);
 
-    expect(await waitUntilGone(stubPid), `stub ${stubPid} survived the fail-fast exit`).toBe(true);
-    expect(
-      await waitUntilGone(grandchildPid),
-      `grandchild ${grandchildPid} survived the fail-fast exit`,
-    ).toBe(true);
-  }, 30_000);
+      expect(await waitUntilGone(stubPid), `stub ${stubPid} survived the fail-fast exit`).toBe(
+        true,
+      );
+      expect(
+        await waitUntilGone(grandchildPid),
+        `grandchild ${grandchildPid} survived the fail-fast exit`,
+      ).toBe(true);
+    },
+    DESCENDANT_TEST_TIMEOUT_MS,
+  );
 
   it(
     "disarms the startup watch once the server is reachable",

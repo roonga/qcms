@@ -1,5 +1,5 @@
 import { authSession, authTwoFactor, authUser, countAdminUsers } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { generate } from "otplib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -48,7 +48,6 @@ import { createAdminAuth } from "./instance.js";
  * which would hide exactly the regression this file exists to catch.
  */
 
-const BOOT_TIMEOUT = 120_000;
 /** Generated per run: a literal password is a hard-coded credential the lint gate flags. */
 const PASSWORD = `fixture-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 const EMAIL = "policy.admin@example.test";
@@ -160,11 +159,11 @@ beforeAll(async () => {
   );
   expect(created.ok, "the fixture admin should be created").toBe(true);
   expect(await countAdminUsers(testDb.db)).toBe(1);
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("semantics 3 and 4: two-step enrollment, then a withheld session (SEC-1)", () => {
   let sessionCookie = "";

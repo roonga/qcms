@@ -518,6 +518,108 @@ describe.skipIf(!HAS_PROCFS)("agent-loop.sh session process groups", () => {
   );
 });
 
+/**
+ * Issue #258: a second interrupt during the reap grace used to reap nothing.
+ *
+ * `reap_session_group` clears `session_pgid` before any kill, so a signal landing
+ * inside the SIGTERM grace re-entered `on_signal`, found the variable empty,
+ * reaped nothing and re-raised. The supervisor died at rc=143 having sent the
+ * group only a SIGTERM, so a descendant that ignores SIGTERM survived - under a
+ * log line saying the session and everything it spawned had been stopped. The
+ * likely trigger is a human pressing Ctrl+C twice, not an exotic race.
+ *
+ * The Code Owner ruled on 2026-08-01 that a second interrupt escalates: it cuts
+ * the grace short, goes straight to SIGKILL, and says so in the log.
+ */
+describe.skipIf(!HAS_PROCFS)("agent-loop.sh second interrupt (issue #258)", () => {
+  /** A descendant that ignores SIGTERM, which is what makes the grace observable. */
+  const SIGTERM_IGNORING_DESCENDANT = [
+    `bash -c 'trap "" TERM; while :; do sleep 1; done' >/dev/null 2>&1 &`,
+    'echo "$!" >"$PID_FILE"',
+    // Outlives the interrupts, so the session really is mid-flight.
+    "sleep 600",
+  ].join("\n");
+
+  async function waitFor(predicate: () => boolean, what: string): Promise<void> {
+    const deadline = Date.now() + WAIT_FOR_LOG_MS;
+    while (Date.now() < deadline) {
+      if (predicate()) return;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    throw new Error(`timed out waiting for ${what}`);
+  }
+
+  it(
+    "escalates to SIGKILL instead of leaving a SIGTERM-ignoring descendant behind",
+    async () => {
+      const root = mkdtempSync(join(tmpdir(), "agent-loop-258-"));
+      workspaces.push(root);
+      mkdirSync(join(root, "scripts"));
+      mkdirSync(join(root, "bin"));
+      const copied = join(root, "scripts", "agent-loop.sh");
+      copyFileSync(SUPERVISOR, copied);
+
+      const stub = join(root, "bin", "claude");
+      const pidFile = join(root, "background.pid");
+      writeFileSync(
+        stub,
+        `#!/usr/bin/env bash\nPID_FILE='${pidFile}'\n${SIGTERM_IGNORING_DESCENDANT}\n`,
+      );
+      chmodSync(stub, 0o755);
+
+      const child = spawn("bash", [copied, "-m", "1"], {
+        detached: true,
+        stdio: "ignore",
+        env: { ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH ?? ""}` },
+      });
+      const supervisorPid = child.pid;
+      if (supervisorPid === undefined) throw new Error("the supervisor process did not start");
+      spawnedPids.push(-supervisorPid);
+      const ended = new Promise<void>((resolve) => child.on("exit", () => resolve()));
+
+      const logFile = join(root, "agent-loop.log");
+      const readLog = () => (existsSync(logFile) ? readFileSync(logFile, "utf8") : "");
+
+      // The session has to be up and its descendant recorded before the first
+      // signal, or this would be the launch-window case a sibling test covers.
+      await waitFor(
+        () => existsSync(pidFile) && /^[1-9]\d*$/.test(readFileSync(pidFile, "utf8").trim()),
+        "the session stub to record its descendant",
+      );
+      const backgroundPid = readBackgroundPid(pidFile);
+      spawnedPids.push(backgroundPid);
+
+      process.kill(supervisorPid, "SIGTERM");
+      // Aimed at the grace rather than at a moment: this line is printed
+      // immediately before the SIGTERM to the group, and the grace that follows
+      // it is five seconds long.
+      await waitFor(() => /terminating its process group/.test(readLog()), "the reap to start");
+      process.kill(supervisorPid, "SIGTERM");
+
+      await ended;
+
+      // The whole point: the operator asked twice and the group is gone.
+      expect(
+        isRunning(backgroundPid),
+        `descendant ${backgroundPid} survived a second interrupt`,
+      ).toBe(false);
+      // And the escalation is visible, so a rough kill is never a silent one.
+      expect(readLog()).toContain("escalating to SIGKILL");
+    },
+    WAIT_FOR_LOG_MS * 4,
+  );
+
+  it("forwards SIGQUIT, which Ctrl+backslash sends to the whole foreground group", () => {
+    // Without a QUIT trap the supervisor died and the session's group - which job
+    // control deliberately put outside that foreground group - survived, which is
+    // the orphan the forwarding exists to prevent (rider 2 on issue #258).
+    const source = readFileSync(SUPERVISOR, "utf8");
+
+    expect(source).toContain("trap 'on_signal QUIT' QUIT");
+    expect(source).toContain("trap 'deferred_signal=QUIT' QUIT");
+  });
+});
+
 describe("agent-loop.sh port seat (R8)", () => {
   it("defaults the single conductor to seat zero", () => {
     const res = runWithStubbedClaude("done", "-m", "1");

@@ -118,6 +118,33 @@ function resolveConfiguredImage(): string | undefined {
   return configured === undefined || configured.length === 0 ? undefined : configured;
 }
 
+/**
+ * Hook budget for a `beforeAll`/`afterAll`/`beforeEach` that boots, seeds or tears
+ * down a container-backed fixture.
+ *
+ * Every integration file needs one, because Vitest's default hook timeout is
+ * nowhere near a container boot, and until issue #746 each file wrote out its own
+ * `const BOOT_TIMEOUT = 120_000`. Twenty-six copies of a number is twenty-six
+ * places to miss when the number turns out to be wrong, so it lives here now, next
+ * to the boot it is a budget for.
+ *
+ * **Why 240s and not 120s.** A boot that takes longer than two minutes is a boot
+ * under contention, not a broken one: on 2026-08-31 three untouched integration
+ * files in three lanes failed this hook during a forced turbo run with 18 uncached
+ * tasks booting containers at once, and each passed in seconds in isolation. The
+ * work is serial per container (image lookup, daemon start, Postgres init, the
+ * readiness poll) and every stage of it stretches with load, so the honest budget
+ * is a multiple of the idle case rather than a tight bound on it. Doubling costs
+ * nothing on a passing run - a hook timeout is only ever spent by a failing one -
+ * and a genuinely stuck boot still fails in bounded time rather than hanging.
+ *
+ * This is deliberately NOT the per-test timeout. Tests that talk to an already
+ * booted container keep their own, tighter budgets: a query that takes minutes is
+ * a defect, and hiding that behind the boot's allowance is how a real hang becomes
+ * a slow suite instead of a red one.
+ */
+export const CONTAINER_BOOT_TIMEOUT_MS = 240_000;
+
 /** Absolute path to the package-owned migrations folder. */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
@@ -204,9 +231,40 @@ async function bootTestcontainersInfrastructure(): Promise<void> {
 }
 
 /**
+ * Wordings that mean the Docker **daemon** could not be reached at all: no socket,
+ * nothing listening on it, or no permission to open it. Matched case-insensitively
+ * against the whole error chain, and matched FIRST (issue #171).
+ *
+ * Order is the whole point. `connection refused` and `context deadline exceeded`
+ * are real registry wordings, so they belong in {@link PULL_FAILURE_MARKERS} - but
+ * they are also exactly what a dead `/var/run/docker.sock` produces, and a
+ * dead-socket failure classified as a pull sends the reader to check a registry,
+ * a mirror and `QCMS_TEST_POSTGRES_IMAGE`, none of which are involved. That is the
+ * same misattribution shape as issue #150, one layer down: the phase and the
+ * connectivity of the daemon decide, and only then does the text.
+ *
+ * `Could not find a working container runtime strategy` is testcontainers-node's
+ * own summary when every strategy failed to connect, which is the form the
+ * failure usually reaches this file in.
+ *
+ * Every marker names the daemon or its socket. A bare errno is deliberately NOT
+ * one: `connect ECONNREFUSED 127.0.0.1:1` is what a genuinely unpullable registry
+ * reference produces, and a socket path or the daemon's own wording is the only
+ * part of the text that separates the two.
+ */
+const DAEMON_FAILURE_MARKERS: readonly RegExp[] = [
+  /cannot connect to the docker daemon/i,
+  /is the docker daemon running/i,
+  /docker daemon is not running/i,
+  /could not find a working container runtime strategy/i,
+  /docker\.sock/i,
+];
+
+/**
  * Substrings that mark a container-start failure as an image-pull failure rather
  * than a Postgres or Docker-daemon problem. Matched case-insensitively against
- * the whole error chain. Docker surfaces registry trouble as an opaque
+ * the whole error chain, and only once {@link DAEMON_FAILURE_MARKERS} has ruled
+ * out a daemon-connectivity failure. Docker surfaces registry trouble as an opaque
  * `(HTTP code 500) server error - Get "https://registry-1.docker.io/v2/": ...`,
  * so the HTTP-code shape has to be part of the signal.
  */
@@ -250,6 +308,22 @@ function describeCause(error: unknown): string {
   return parts.join(" <- ");
 }
 
+/** What a container-start failure actually was, decided daemon-first (issue #171). */
+type FailureKind = "daemon" | "pull" | "other";
+
+/**
+ * Classify a flattened error chain.
+ *
+ * Daemon connectivity is asked about first, so the generic registry wordings in
+ * {@link PULL_FAILURE_MARKERS} cannot claim a failure that never reached a
+ * registry at all.
+ */
+function classifyFailure(detail: string): FailureKind {
+  if (DAEMON_FAILURE_MARKERS.some((marker) => marker.test(detail))) return "daemon";
+  if (PULL_FAILURE_MARKERS.some((marker) => marker.test(detail))) return "pull";
+  return "other";
+}
+
 /**
  * The message for a failure that happened before any Postgres container was
  * asked for: Testcontainers' own infrastructure could not come up.
@@ -261,9 +335,16 @@ function describeCause(error: unknown): string {
  */
 function describeInfrastructureFailure(cause: unknown): string {
   const detail = describeCause(cause);
-  const isPullFailure = PULL_FAILURE_MARKERS.some((marker) => marker.test(detail));
+  const kind = classifyFailure(detail);
+
+  // A dead daemon socket is not a registry problem and names no image, so it gets
+  // its own message rather than a reaper-pull one with an image and a mirror knob
+  // in it (issue #171). Nothing in the Testcontainers stack works without a
+  // daemon, so this is also the failure to report first when it applies.
+  if (kind === "daemon") return describeDaemonFailure(detail);
+
   return [
-    isPullFailure
+    kind === "pull"
       ? "Could not PULL the Testcontainers Ryuk reaper image - Testcontainers' own infrastructure failed, NOT the test Postgres image."
       : "Could not START the Testcontainers Ryuk reaper - Testcontainers' own infrastructure failed, NOT the test Postgres image.",
     "  component: Testcontainers Ryuk reaper (boots before any container of ours)",
@@ -272,6 +353,28 @@ function describeInfrastructureFailure(cause: unknown): string {
     "  fix:       on ephemeral CI runners set TESTCONTAINERS_RYUK_DISABLED=true (nothing needs reaping" +
       " when the runner is destroyed); otherwise point RYUK_CONTAINER_IMAGE at a reachable mirror of the reaper.",
     `  note:      QCMS_TEST_POSTGRES_IMAGE does not cover this image - it redirects only Postgres (currently ${TEST_POSTGRES_IMAGE}).`,
+  ].join("\n");
+}
+
+/**
+ * The message for "there is no Docker to talk to", from either phase.
+ *
+ * It names no image and no registry on purpose: neither was reached. Before issue
+ * #171 this text did not exist and the failure was reported as a pull of whichever
+ * image the phase was about, which sent the reader to check a mirror that was
+ * fine while the socket under their feet was dead.
+ */
+function describeDaemonFailure(detail: string): string {
+  return [
+    "Could not REACH the Docker daemon - no container was started and no registry was contacted.",
+    "  component: Docker daemon (everything Testcontainers does goes through it)",
+    `  host:      ${process.env.DOCKER_HOST?.trim() ?? "<DOCKER_HOST unset: the platform default socket>"}`,
+    `  cause:     ${detail}`,
+    "  fix:       start Docker (Docker Desktop, or `systemctl start docker`), and check DOCKER_HOST" +
+      " and the socket's permissions if it is running. Inside the dev container the host socket is" +
+      " bind-mounted, so a daemon stopped on the host looks exactly like this from in there.",
+    "  note:      this is NOT an image-pull failure. QCMS_TEST_POSTGRES_IMAGE and RYUK_CONTAINER_IMAGE" +
+      " change which registry is used and neither is involved when the daemon itself is unreachable.",
   ].join("\n");
 }
 
@@ -315,7 +418,14 @@ async function startContainer(
     return await new PostgreSqlContainer(image).start();
   } catch (cause) {
     const detail = describeCause(cause);
-    const isPullFailure = PULL_FAILURE_MARKERS.some((marker) => marker.test(detail));
+    const kind = classifyFailure(detail);
+
+    // Same discrimination as the infrastructure phase, and with the same
+    // consequence for the cache below: a daemon that went away is not a property
+    // of this image, so it must not poison it for the rest of the run.
+    if (kind === "daemon") throw new Error(describeDaemonFailure(detail), { cause });
+
+    const isPullFailure = kind === "pull";
     const message = [
       isPullFailure
         ? "Could not PULL the test Postgres image - the container registry failed, not Postgres."

@@ -1,5 +1,5 @@
 import { countAdminUsers } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { loadAdminAuthConfig } from "../../config.js";
@@ -44,7 +44,6 @@ import {
  * which only a real database can answer.
  */
 
-const BOOT_TIMEOUT = 120_000;
 const EMAIL = "breach.check@example.test";
 const ADMIN_ORIGIN = "http://localhost:7040";
 
@@ -124,7 +123,7 @@ beforeAll(async () => {
     DATABASE_URL: testDb.connectionUri,
     QCMS_ADMIN_BASE_URL: ADMIN_ORIGIN,
   });
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterEach(() => {
   wire?.restore();
@@ -133,7 +132,7 @@ afterEach(() => {
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("a compromised password is refused (NIST SP 800-63B 3.1.1.2, ASVS 5.0 6.2.12)", () => {
   it("refuses the first-run bootstrap and creates nothing", async () => {

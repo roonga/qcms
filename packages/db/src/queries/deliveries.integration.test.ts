@@ -17,7 +17,7 @@ import { FormId } from "@qcms/core";
 
 import * as schema from "../schema/index.js";
 import { webhookDeliveries } from "../schema/index.js";
-import { startTestDb, type TestDb } from "../testing/harness.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 import {
   claimDueDeliveries,
   createForm,
@@ -36,17 +36,16 @@ import {
 } from "./index.js";
 
 const { Pool } = pg;
-const BOOT_TIMEOUT = 120_000;
 
 let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 let seq = 0;
 

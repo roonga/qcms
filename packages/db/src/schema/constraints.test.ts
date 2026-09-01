@@ -1,18 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { startTestDb, type TestDb } from "../testing/harness.js";
-
-const BOOT_TIMEOUT = 120_000;
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 
 let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("form_drafts enforces at most one open draft per form", () => {
   it("rejects a second draft for the same form", async () => {
