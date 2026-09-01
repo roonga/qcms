@@ -34,6 +34,7 @@ import { DENSITY_LEVELS, densityClass } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
+import { waitForHydration } from "./support/hydration.js";
 import {
   APPEARANCE_FLOORS_PATH,
   APPEARANCE_METRICS_PATH,
@@ -346,6 +347,17 @@ test("a persisted choice paints with no flash, and so does an OS-derived default
 test("the controls are operable from the keyboard alone", async ({ page }) => {
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
+  // This test navigates itself rather than entering through a flow helper, so it is
+  // the one place in the file that has to ask for hydration explicitly (issue #391).
+  // Without it the Tab/Tab/Enter below toggles the NATIVE `<details>` of the SSR
+  // fallback before React attaches, and React then hydrates against a DOM whose
+  // `open` attribute the browser changed underneath it. That is the appearance
+  // panel's `open`-attribute hydration mismatch, which the console-fault gate reds
+  // the run on; it needs the un-hydrated window to be wide enough to Tab through, so
+  // it presents as a load-dependent flake on mobile-chromium rather than as a
+  // failure. Every other entry point in the suite already waits here, through the
+  // flow helpers.
+  await waitForHydration(page);
   const root = page.locator("html");
 
   // Reachable by Tab: the skip link is the page's first focusable, the appearance

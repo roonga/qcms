@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { API_PORT, PORTAL_PORT } from "./harness-config.js";
-import { browserConsoleFault, matchExpectedFailure, scanAppended } from "./gates.js";
+import { browserConsoleFault, matchExpectedFailure, scanAppended, SPEC_ALLOW } from "./gates.js";
 import type { ExpectedRequestFailure } from "./gates.js";
 
 /**
@@ -71,10 +71,17 @@ function nextLogPath(name: string): string {
 }
 
 /** Write `text` as a fresh log file and return the gate's verdict on all of it. */
-function gateVerdict(source: "api" | "postgres" | "portal", text: string): string[] {
+function gateVerdict(
+  source: "api" | "postgres" | "portal",
+  text: string,
+  extraAllow: readonly {
+    readonly source: "api" | "postgres" | "portal";
+    readonly pattern: RegExp;
+  }[] = [],
+): string[] {
   const path = nextLogPath(source);
   writeFileSync(path, `${text}\n`, "utf8");
-  return scanAppended(source, path, 0);
+  return scanAppended(source, path, 0, extraAllow);
 }
 
 interface Case {
@@ -270,6 +277,51 @@ describe("the [browser] exclusion is anchored to the start of the line", () => {
 
   it.each(PREFIXED_BY_THE_HARNESS)("stays silent on $why", ({ line }) => {
     expect(gateVerdict("portal", line)).toEqual([]);
+  });
+});
+
+/**
+ * The spec-scoped allowance added for issue #314, and the property that makes it
+ * narrower than an entry in `SERVER_ALLOW` rather than a rename of one.
+ *
+ * The line it exempts is spelled identically to a real fault, so exempting it
+ * globally would have deleted the `SyntaxError:` coverage `CAUGHT_BY_120` pins.
+ * Binding it to one test keeps both: the same line reds every other test in the
+ * suite, and a different `SyntaxError` reds even the test the allowance is for.
+ */
+describe("the spec-scoped server allowance (issue #314)", () => {
+  const TRUNCATED_JSON = "SyntaxError: Unexpected end of JSON input";
+  const throttled = SPEC_ALLOW.filter(
+    (allow) => allow.file === "anonymous-flow.pw.ts" && allow.source === "portal",
+  );
+
+  it("is registered for exactly the throttled-connection spec", () => {
+    expect(throttled).toHaveLength(1);
+    expect(throttled[0]?.title).toBe(
+      "anonymous at-fault-accident branch completes on a throttled mobile connection",
+    );
+  });
+
+  it("still fails the gate for every test that does not carry it", () => {
+    // The default: `scanAppended` applies no spec allowance at all, which is the
+    // verdict every other test in the suite gets on this line.
+    expect(gateVerdict("portal", TRUNCATED_JSON)).toEqual([TRUNCATED_JSON]);
+  });
+
+  it("stays silent for the test it names", () => {
+    expect(gateVerdict("portal", TRUNCATED_JSON, throttled)).toEqual([]);
+  });
+
+  it("does not cover a different parse fault in the same test", () => {
+    // Anchored to the whole line, so the allowance cannot be widened by accident
+    // into "any SyntaxError this spec provokes".
+    const other = "SyntaxError: Unexpected token '<', \"<!DOCTYPE \"... is not valid JSON";
+    expect(gateVerdict("portal", other, throttled)).toEqual([other]);
+  });
+
+  it("does not cover an unrelated fault in the same test", () => {
+    const fault = "TypeError: Cannot read properties of undefined (reading 'id')";
+    expect(gateVerdict("portal", fault, throttled)).toEqual([fault]);
   });
 });
 

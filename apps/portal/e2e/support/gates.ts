@@ -35,9 +35,10 @@
  */
 
 import { readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
 
 import { test as base, expect } from "@playwright/test";
-import type { ConsoleMessage, Page, Request } from "@playwright/test";
+import type { ConsoleMessage, Page, Request, TestInfo } from "@playwright/test";
 
 import { SERVER_LOG_FILES } from "./harness-config.js";
 
@@ -266,6 +267,56 @@ const SERVER_ALLOW: readonly { readonly source: LogSource; readonly pattern: Reg
   { source: "portal", pattern: /\bError: aborted\b/ },
 ];
 
+/**
+ * Allowances that hold inside ONE named spec and nowhere else (issue #314).
+ *
+ * `SERVER_ALLOW` above is keyed on the line, which is the right shape when the
+ * line itself is unambiguous: nothing but a client abort writes `Error: aborted`.
+ * It is the wrong shape when the benign line and a real fault are spelled
+ * identically, and the truncated-JSON parse error is exactly that case. A
+ * dev-server `SyntaxError: Unexpected end of JSON input` is the sibling of the
+ * `Error: aborted` entry - the same aborted throttled request, seen by whatever
+ * was parsing its body rather than by the socket - but the identical sentence is
+ * also what a genuinely truncated response from a broken handler produces, and
+ * `gates.test.ts` pins that a `SyntaxError:` line must fail the gate.
+ *
+ * So the exemption is bound to the test that provokes it rather than to the words
+ * it is provoked into writing. Outside that one spec the line still reds the run,
+ * which is the property a line-keyed entry would have thrown away.
+ *
+ * Each entry names the spec file and the exact title, because a file-wide
+ * allowance would silently cover tests added to that file later.
+ */
+export const SPEC_ALLOW: readonly {
+  readonly file: string;
+  readonly title: string;
+  readonly source: LogSource;
+  readonly pattern: RegExp;
+}[] = [
+  {
+    // The throttled-connection spec, and the most load-sensitive test in the
+    // suite: it simulates a 500kbit mobile link on purpose, so a request is
+    // genuinely still in flight when the page moves on and the client aborts it.
+    // Under host load the abort lands mid-body often enough to be sampled, and
+    // the dev server logs the parse failure of the truncated body beside the
+    // `Error: aborted` it already logs for the socket. Observed at load average
+    // 5.23 with two foreign container stacks live; the journey itself completed
+    // and every functional assertion in the spec passed (issue #314).
+    file: "anonymous-flow.pw.ts",
+    title: "anonymous at-fault-accident branch completes on a throttled mobile connection",
+    source: "portal",
+    pattern: /^SyntaxError: Unexpected end of JSON input$/,
+  },
+];
+
+/** The spec-scoped allowances that apply to the test now running. */
+function specAllowancesFor(
+  testInfo: TestInfo,
+): readonly { readonly source: LogSource; readonly pattern: RegExp }[] {
+  const file = basename(testInfo.file);
+  return SPEC_ALLOW.filter((allow) => allow.file === file && allow.title === testInfo.title);
+}
+
 type LogSource = "api" | "postgres" | "portal";
 
 /**
@@ -431,8 +482,19 @@ function appendedSince(path: string, offset: number): string {
  *
  * The lines this returns are the stripped ones, so a failing gate prints readable
  * text rather than raw colour bytes.
+ *
+ * `extraAllow` carries the spec-scoped allowances of the test now running (issue
+ * #314) and defaults to none, so `gates.test.ts` reads the unconditional verdict:
+ * a line only one spec is allowed to write must still fail everywhere else, and a
+ * test that could exempt itself by omission would be no gate at all.
  */
-export function scanAppended(source: LogSource, path: string, offset: number): string[] {
+export function scanAppended(
+  source: LogSource,
+  path: string,
+  offset: number,
+  extraAllow: readonly { readonly source: LogSource; readonly pattern: RegExp }[] = [],
+): string[] {
+  const allowed = [...SERVER_ALLOW, ...extraAllow];
   const text = appendedSince(path, offset);
   return text
     .split(/\r?\n/)
@@ -440,7 +502,7 @@ export function scanAppended(source: LogSource, path: string, offset: number): s
     .filter((line) => line.length > 0)
     .filter((line) => isErrorLine(source, line))
     .filter(
-      (line) => !SERVER_ALLOW.some((allow) => allow.source === source && allow.pattern.test(line)),
+      (line) => !allowed.some((allow) => allow.source === source && allow.pattern.test(line)),
     );
 }
 
@@ -654,19 +716,22 @@ export const test = base.extend<{ browserGuard: BrowserFaultGate; serverGuard: v
     // no other fixture must therefore destructure nothing, so the empty pattern
     // is required here, not an oversight.
     // eslint-disable-next-line no-empty-pattern
-    async ({}, use) => {
+    async ({}, use, testInfo) => {
       const before: Offsets = {
         api: byteLength(SERVER_LOG_FILES.api),
         postgres: byteLength(SERVER_LOG_FILES.postgres),
         portal: byteLength(SERVER_LOG_FILES.portal),
       };
       await use();
+      // Read once, after the body, so the allowance is attributed to the test that
+      // actually ran rather than to whatever the file declares (issue #314).
+      const spec = specAllowancesFor(testInfo);
       const bad = [
-        ...scanAppended("api", SERVER_LOG_FILES.api, before.api).map((l) => `[api] ${l}`),
-        ...scanAppended("postgres", SERVER_LOG_FILES.postgres, before.postgres).map(
+        ...scanAppended("api", SERVER_LOG_FILES.api, before.api, spec).map((l) => `[api] ${l}`),
+        ...scanAppended("postgres", SERVER_LOG_FILES.postgres, before.postgres, spec).map(
           (l) => `[postgres] ${l}`,
         ),
-        ...scanAppended("portal", SERVER_LOG_FILES.portal, before.portal).map(
+        ...scanAppended("portal", SERVER_LOG_FILES.portal, before.portal, spec).map(
           (l) => `[portal] ${l}`,
         ),
       ];
