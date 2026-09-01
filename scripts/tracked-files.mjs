@@ -35,12 +35,27 @@ const MAX_BUFFER = 32 * 1024 * 1024;
  * Every file git knows about under `root`, as paths relative to `root`.
  *
  * @param {string} root Absolute path to the directory to enumerate.
- * @param {{ match?: RegExp }} [options] `match` is tested against each relative path.
+ * @param {{ match?: RegExp }} [options] `match` is tested against each relative path. It
+ *   must not carry the `g` or `y` flag; see the refusal below.
  * @returns {string[]} Relative, slash-separated paths, sorted.
  */
 export function trackedFilesUnder(root, options = {}) {
   if (!existsSync(root) || !statSync(root).isDirectory()) {
     throw new Error(`trackedFilesUnder: not a directory: ${root}`);
+  }
+
+  // `RegExp.prototype.test` is STATEFUL on a global or sticky pattern: it advances
+  // `lastIndex` on a hit and resumes from there on the next call, so filtering a list with
+  // one drops roughly every second match and returns a smaller corpus with no error. That
+  // is precisely the fail-open shrink this helper exists to prevent, and it would arrive
+  // through a one-character typo in a caller's pattern. Refused rather than repaired: a
+  // silently stripped flag would hide a caller's misunderstanding of what `match` does,
+  // which is a whole-path predicate, not a scan.
+  if (options.match !== undefined && (options.match.global || options.match.sticky)) {
+    throw new Error(
+      `trackedFilesUnder: match must not be global or sticky (got ${String(options.match)}); ` +
+        "those flags make `test` stateful and silently drop paths",
+    );
   }
 
   const listed = execFileSync(

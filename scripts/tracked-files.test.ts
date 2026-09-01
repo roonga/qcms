@@ -50,6 +50,32 @@ describe("trackedFilesUnder", () => {
     expect(trackedFilesUnder(directory)).toEqual(["new-file.ts"]);
   });
 
+  it("refuses a global match, which would silently drop about half the paths", () => {
+    // Not a style rule. `test` on a `g` pattern advances `lastIndex` and resumes there, so
+    // filtering a list with one returns a SHORTER corpus and no error - the exact fail-open
+    // shrink this helper exists to prevent, reachable by one stray character in a caller's
+    // pattern. Refused rather than repaired, so the caller learns `match` is a whole-path
+    // predicate rather than a scan.
+    expect(() => trackedFilesUnder(join(REPO_ROOT, "scripts"), { match: /\.mjs$/g })).toThrow(
+      /must not be global or sticky/,
+    );
+  });
+
+  it("refuses a sticky match for the same reason", () => {
+    expect(() => trackedFilesUnder(join(REPO_ROOT, "scripts"), { match: /\.mjs$/y })).toThrow(
+      /must not be global or sticky/,
+    );
+  });
+
+  it("shows the shrink the refusal prevents, so the guard is not taken on faith", () => {
+    // The refusal above only earns its place if this is real: the same pattern, applied
+    // the stateful way, loses entries and reports no error.
+    const paths = ["a.mjs", "b.mjs", "c.mjs", "d.mjs"];
+    const stateful = /\.mjs$/g;
+    expect(paths.filter((path) => stateful.test(path)).length).toBeLessThan(paths.length);
+    expect(paths.filter((path) => /\.mjs$/.test(path))).toEqual(paths);
+  });
+
   it("throws rather than returning nothing when the root is not a directory", () => {
     expect(() => trackedFilesUnder(join(REPO_ROOT, "scripts", "no-such-directory"))).toThrow(
       /not a directory/,
