@@ -8,13 +8,15 @@ This is one playbook with three provider variants. You run the repo's own Compos
 
 Postgres is the memory-sensitive component here. The three Node images are `node:24-bookworm-slim` multi-stage builds with a small resident footprint; Postgres is what a too-small box starves first. **2 vCPU / 4 GB is the comfortable floor** for portal + admin + api + Postgres + Caddy on one host, with headroom for a `pg_dump` running beside live traffic. 1 GB works for a demo and will swap under load.
 
-| Provider          | Plan              | vCPU / RAM / disk      | Illustrative monthly                  | Region note                                                                                                                             |
-| ----------------- | ----------------- | ---------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **Hetzner Cloud** | **CX23** (shared) | 2 vCPU / 4 GB / 40 GB  | ~ €3.99 (~ $4.60), 20 TB traffic      | EU only (Germany, Finland) plus Hillsboro/Ashburn US. No AU region: expect ~250-300 ms RTT to Australia.                                |
-| **DigitalOcean**  | Basic droplet     | 2 vCPU / 4 GB / 80 GB  | ~ $24, flat per region                | **Choose the Sydney `SYD1` region** for the AU-based Code Owner: it hosts Basic droplets and keeps RTT in single-digit ms domestically. |
-| **Hostinger**     | **KVM 2**         | 2 vCPU / 8 GB / 100 GB | ~ $7-9 promo, **~ $17-24 on renewal** | Promo price is first-term only. Price the renewal, not the sticker: the increase is roughly 2x. AU data centre available.               |
+| Provider          | Plan              | vCPU / RAM / disk      | Illustrative monthly             | Nearest region to AU                                                                                                       |
+| ----------------- | ----------------- | ---------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| **DigitalOcean**  | Basic droplet     | 2 vCPU / 4 GB / 80 GB  | ~ $24, flat per region           | **Sydney `SYD1` - the only in-region option here.** Single-digit ms RTT domestically; hosts Basic droplets.                |
+| **Hetzner Cloud** | **CX23** (shared) | 2 vCPU / 4 GB / 40 GB  | ~ $7, 20 TB traffic              | **No AU region.** Singapore is the nearest edge; expect ~90-120 ms RTT to Australia from there, more from the EU/US sites. |
+| **Hostinger**     | **KVM 2**         | 2 vCPU / 8 GB / 100 GB | ~ $9 promo, **~ $15 on renewal** | **No AU region.** Singapore is the nearest; not an AU-latency option. Promo is first-term only.                            |
 
-Sizing logic: all three clear the 2 vCPU / 4 GB floor. Hetzner is the cheapest by a wide margin but strands an AU audience on latency, so it suits an EU deployment or a cost-first test box. DigitalOcean's flat regional pricing and a real Sydney region make it the straightforward AU choice. Hostinger's KVM 2 gives the most RAM per dollar in year one; budget for the renewal so it does not surprise you at month 13.
+**Region first, then price.** Of these three, **only DigitalOcean has an Australian region.** For the AU-based Code Owner and an AU audience, **DigitalOcean's Sydney `SYD1` droplet at ~ $24 is the in-region default recommendation** - it is the only one that keeps respondents on domestic latency. Hetzner's CX23 at ~ $7 is the **cheapest overall** and a fine choice for an EU/global audience or a cost-first test box, but its nearest edge to Australia is Singapore, so accept the added latency if you pick it. Hostinger's KVM 2 gives the most RAM per dollar in year one but is likewise Singapore-nearest, and its renewal is roughly double the promo, so budget for that at month 13. Do not treat Hetzner or Hostinger as AU-latency options; they are not.
+
+Sizing logic: all three clear the 2 vCPU / 4 GB floor, and 4 GB is the number that matters because Postgres needs the RAM. A 1 vCPU / 2 GB box (around $13-15 on DigitalOcean) is a size too small for this stack under any real load, not a cheaper variant of it.
 
 ## 2. Prepare the host (Ubuntu 24.04 + Docker CE)
 
