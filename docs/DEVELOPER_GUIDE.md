@@ -314,7 +314,7 @@ bash scripts/agent-loop.sh --help
 
 This is the only supervisor. It launches `/next-work` in a fresh headless root session for every iteration. Durable state lives in claims, branches, PR comments, `HANDOFF.md`, and the ledger. `NEXT-WORK: LANDED` and `RESUMED` continue; `AWAITING-HUMAN`, `BLOCKED`, and `NOTHING` stop. A session crash without a sentinel waits for the retry interval and then recovers from repository state. Progress is written to `agent-loop.log`.
 
-Each iteration owns a process group. When the root session exits or the supervisor is interrupted, every process that session spawned is terminated before another iteration starts.
+Each iteration owns a process group. When the root session exits or the supervisor is interrupted, every process that session spawned is terminated before another iteration starts: SIGTERM first, then SIGKILL for anything still there after a five-second grace. **A second Ctrl+C during that grace escalates** - it skips the rest of the wait, SIGKILLs the group immediately, and logs that it did (issue #258). That is what an insistent interrupt means to an operator, and before it existed a descendant that ignores SIGTERM outlived the supervisor while the log said everything had been stopped.
 
 ## Editing skills/agents while a loop is running
 

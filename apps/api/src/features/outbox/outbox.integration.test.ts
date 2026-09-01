@@ -49,7 +49,7 @@ import {
   webhookDeliveries,
   type DeliveryAttemptRecord,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -59,7 +59,6 @@ import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerOutboxOps } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 /** The handler's own ceiling on `?limit`, restated so a change to it fails here. */
@@ -207,11 +206,11 @@ beforeAll(async () => {
       lastResponseSnippet: "upstream unavailable",
     });
   }
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 function headers(): Record<string, string> {
   return {
@@ -588,7 +587,7 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the delivery 
       slug: "ops-id-shape",
       defaultLocale: "en",
     });
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   async function redeliverRaw(id: string): Promise<{ status: number; body: unknown }> {
     const res = await app.request(`/admin/forms/${FORM_ID_SHAPE}/deliveries/${id}/redeliver`, {
@@ -782,7 +781,7 @@ describe("form scope on redeliver (issue #305)", () => {
         semanticsVersion: "1",
       })
     ).version;
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   /** A real submitted session on `FORM_SCOPE_OWNER`, so erasure has a target. */
   async function seedOwnerSession(sessionId: string): Promise<SessionId> {

@@ -4,6 +4,9 @@
   "private": false,
   "description": "qcms FormDefinition-to-A2UI compiler: the pure projection from a published snapshot to A2UI documents (task 011)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

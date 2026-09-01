@@ -1,5 +1,5 @@
 import { authTwoFactor } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { symmetricEncrypt } from "better-auth/crypto";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -41,7 +41,6 @@ import { createAdminAuth, type AdminAuth } from "./instance.js";
  * Requires Docker (real Postgres, real library, real crypto).
  */
 
-const BOOT_TIMEOUT = 120_000;
 /** Generated per run: a literal password is a hard-coded credential the lint gate flags. */
 const PASSWORD = `fixture-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 const EMAIL = "codes.admin@example.test";
@@ -140,11 +139,11 @@ beforeAll(async () => {
     password: PASSWORD,
   });
   issued = await enroll(authWith([{ version: 1, value: SECRET_V1 }]));
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("at rest", () => {
   it("stores no issued code, in any encoding a database reader could recover", async () => {

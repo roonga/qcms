@@ -4,6 +4,9 @@
   "private": false,
   "description": "qcms A2UI renderer: the controlled A2UIStepRenderer over vendored a2-react-aria components (ADR-22)",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

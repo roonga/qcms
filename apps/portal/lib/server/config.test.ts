@@ -78,9 +78,12 @@ describe("secureCookies", () => {
 /**
  * The boot-time refusal (issue #292 point 1).
  *
- * **This matrix is paired with `apps/admin/lib/server/config.test.ts`.** The two apps
- * disagreeing about exactly this decision is what the issue was filed about, so the same
- * cases are asserted on both sides and a change made to one and not the other goes red.
+ * **The admin's `config.test.ts` covers the same decision**, because the two apps
+ * disagreeing about exactly this is what the issue was filed about. Nothing computes that
+ * the two case lists match, though, and they had already drifted when someone looked
+ * (issue #412): the admin carried the raw `0`/`no`/`off` cases and this file did not,
+ * which is the gap behind issue #409. A case added here and not there goes unnoticed, so
+ * adding one means opening the other file, not trusting a gate.
  *
  * The positive controls come first on purpose: a red then distinguishes "the refusal
  * broke" from "the fixture was never a configuration that boots".

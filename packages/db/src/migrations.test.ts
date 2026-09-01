@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { applyMigrations, startTestDb, type TestDb } from "./testing/harness.js";
-
-// Testcontainers boots a real Postgres; give container startup room.
-const BOOT_TIMEOUT = 120_000;
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  applyMigrations,
+  startTestDb,
+  type TestDb,
+} from "./testing/harness.js";
 
 /** Every table the schema declares (13 domain + 5 better-auth). */
 const EXPECTED_TABLES = [
@@ -47,11 +49,11 @@ describe("@qcms/db migrations", () => {
       // Fresh container, then the full package-owned migration set via the
       // official Drizzle migrator - the exact path adopters run.
       testDb = await startTestDb();
-    }, BOOT_TIMEOUT);
+    }, CONTAINER_BOOT_TIMEOUT_MS);
 
     afterEach(async () => {
       await testDb?.teardown();
-    }, BOOT_TIMEOUT);
+    }, CONTAINER_BOOT_TIMEOUT_MS);
 
     it("creates every table on an empty database", async () => {
       const tables = await publicTables(testDb);
@@ -74,11 +76,11 @@ describe("@qcms/db migrations", () => {
     beforeEach(async () => {
       // No migrations yet - we apply them incrementally below.
       testDb = await startTestDb({ migrate: false });
-    }, BOOT_TIMEOUT);
+    }, CONTAINER_BOOT_TIMEOUT_MS);
 
     afterEach(async () => {
       await testDb?.teardown();
-    }, BOOT_TIMEOUT);
+    }, CONTAINER_BOOT_TIMEOUT_MS);
 
     it("applies 0000 (tables), then 0001 (triggers), each taking effect in turn", async () => {
       // Apply only migration 0000: tables exist, triggers do not.

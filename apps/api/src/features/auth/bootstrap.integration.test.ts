@@ -1,5 +1,5 @@
 import { authUser, countAdminUsers } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { validEnv } from "../../test-support.js";
@@ -23,7 +23,6 @@ import { createAdminAuth, type AdminAuth } from "./instance.js";
  * proves that slice is sufficient.
  */
 
-const BOOT_TIMEOUT = 120_000;
 /**
  * Generated per run, not written down: a literal here is a hard-coded credential the
  * lint gate flags, and the point of the fixture is only that it is long enough to be
@@ -42,11 +41,11 @@ beforeAll(async () => {
   );
   expect(config.databaseUrl).toBe(testDb.connectionUri);
   auth = createAdminAuth({ db: testDb.db, adminAuth: config.adminAuth });
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("createInitialAdmin against an empty database", () => {
   it("refuses a weak password and an invalid email before touching the database", async () => {

@@ -11,7 +11,8 @@
 #           -s, --stop-after-task ID  e.g. "010" - stop once this task lands
 # Stop:   Ctrl+C anytime - the running session and every process it spawned are
 #         terminated with it, and the worst case is one interrupted task, which
-#         the next run's stale-claim recovery picks up.
+#         the next run's stale-claim recovery picks up. A second Ctrl+C while that
+#         is happening skips the grace period and SIGKILLs the group at once.
 set -uo pipefail
 
 parallel=1
@@ -64,7 +65,7 @@ while [ $# -gt 0 ]; do
       shift 2
       ;;
     -h | --help)
-      sed -n '2,14p' "$0"
+      sed -n '2,15p' "$0"
       exit 0
       ;;
     *)
@@ -110,6 +111,10 @@ log() {
 session_reap_grace_sec=5
 session_pgid=""
 own_pgid="$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')"
+# The group a reap is currently working on, and the flag a second interrupt sets.
+# Together they are what makes an insistent operator heard (issue #258).
+reaping_pgid=""
+escalate_reap=0
 
 group_alive() { # $1 = pgid
   kill -0 -- "-$1" 2>/dev/null
@@ -118,35 +123,81 @@ group_alive() { # $1 = pgid
 # Terminate everything left in the finished session's process group. Idempotent:
 # it clears session_pgid first, so the EXIT trap after a signal handler is a
 # no-op rather than a second round of kills against a recycled id.
+#
+# While the SIGTERM grace below is running, `reaping_pgid` holds the group, so a
+# signal arriving mid-reap has something to act on: before issue #258 it found
+# session_pgid already cleared, reaped nothing, and re-raised, which left a
+# SIGTERM-ignoring descendant alive under a log line claiming everything the
+# session spawned had been stopped.
 reap_session_group() {
   local pgid="$session_pgid" waited=0
   session_pgid=""
   [ -n "$pgid" ] || return 0
-  # Never signal the supervisor's own group.
+  # Never signal the supervisor's own group. Unreachable in the current shape -
+  # session_pgid is always `$!`, a fresh child pid, and own_pgid is a live group
+  # leader's - and kept anyway because it is the one mistake here that would be
+  # fatal rather than untidy, and because how the group id is obtained is exactly
+  # the kind of thing a later change touches.
   if [ -n "$own_pgid" ] && [ "$pgid" = "$own_pgid" ]; then
     log "WARNING: session shares the supervisor's process group ($pgid) - not reaping, orphans may survive"
     return 0
   fi
+  # Nothing left in the group: the normal path after a session that exited
+  # cleanly, and also what a failed `set -m` looks like from here (the group was
+  # never created, so `kill -0` on it fails). Silent on purpose - this runs once
+  # per iteration and a warning would fire on every clean one - so the failed
+  # job-control case is a silent possible orphan rather than a logged one.
   group_alive "$pgid" || return 0
+
+  reaping_pgid="$pgid"
+  escalate_reap=0
   log "session left processes running - terminating its process group ($pgid)"
   kill -TERM -- "-$pgid" 2>/dev/null
   while [ "$waited" -lt $((session_reap_grace_sec * 10)) ]; do
-    group_alive "$pgid" || return 0
+    group_alive "$pgid" || {
+      reaping_pgid=""
+      return 0
+    }
+    # A second interrupt means what it means to every operator: stop waiting.
+    # The Code Owner ruled on 2026-08-01 that it cuts the grace short and goes
+    # straight to SIGKILL, and that the escalation is logged so the operator can
+    # see that it happened (issue #258).
+    if [ "$escalate_reap" = 1 ]; then
+      log "second interrupt - not waiting out the ${session_reap_grace_sec}s grace, killing process group $pgid now"
+      break
+    fi
     sleep 0.1
     waited=$((waited + 1))
   done
   kill -KILL -- "-$pgid" 2>/dev/null
   waited=0
   while [ "$waited" -lt $((session_reap_grace_sec * 10)) ]; do
-    group_alive "$pgid" || return 0
+    group_alive "$pgid" || {
+      reaping_pgid=""
+      return 0
+    }
     sleep 0.1
     waited=$((waited + 1))
   done
+  reaping_pgid=""
   log "WARNING: process group $pgid still present after SIGKILL - check for stuck processes"
 }
 
 # Forward supervisor signals to the active session group.
+#
+# Re-entrant by design: bash defers a trapped signal until the running foreground
+# command returns, so a signal arriving during the reap's `sleep 0.1` re-enters
+# this function. That second entry escalates and RETURNS rather than re-raising,
+# leaving the first entry to finish the kill and re-raise once. Returning is what
+# keeps the escalation meaningful: re-raising here would kill the supervisor
+# mid-grace, which is precisely the shape that let a SIGTERM-ignoring descendant
+# survive an operator pressing Ctrl+C twice.
 on_signal() { # $1 = signal name
+  if [ -n "$reaping_pgid" ]; then
+    escalate_reap=1
+    log "received SIG$1 while already stopping the session - escalating to SIGKILL"
+    return 0
+  fi
   log "received SIG$1 - stopping the current session and everything it spawned"
   reap_session_group
   trap - "$1"
@@ -155,6 +206,11 @@ on_signal() { # $1 = signal name
 trap 'on_signal INT' INT
 trap 'on_signal TERM' TERM
 trap 'on_signal HUP' HUP
+# SIGQUIT too (issue #258): Ctrl+backslash goes to the whole foreground group, and
+# without this the supervisor died on it while the session's own group - which
+# job control put outside that foreground group - survived, which is the orphan
+# the forwarding exists to prevent.
+trap 'on_signal QUIT' QUIT
 trap reap_session_group EXIT
 # ----------------------------------------------------------------------------
 
@@ -175,6 +231,7 @@ for ((i = 1; i <= max_iterations; i++)); do
   trap 'deferred_signal=INT' INT
   trap 'deferred_signal=TERM' TERM
   trap 'deferred_signal=HUP' HUP
+  trap 'deferred_signal=QUIT' QUIT
   # Job control creates a process group; a headless session reads from /dev/null.
   set -m
   claude -p "$prompt" --model claude-opus-5 --permission-mode bypassPermissions \
@@ -185,6 +242,7 @@ for ((i = 1; i <= max_iterations; i++)); do
   trap 'on_signal INT' INT
   trap 'on_signal TERM' TERM
   trap 'on_signal HUP' HUP
+  trap 'on_signal QUIT' QUIT
   [ -z "$deferred_signal" ] || on_signal "$deferred_signal"
   wait "$session_pid"
   reap_session_group

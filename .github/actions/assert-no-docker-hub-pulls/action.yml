@@ -20,7 +20,15 @@ runs:
     - name: Assert no Docker Hub image pulls during the test run
       shell: bash
       run: |
-        set -uo pipefail
+        # `-e` is load-bearing, not boilerplate (issue #171). Without it a failing
+        # `docker image ls` or `comm` fell through to `[ -z "${new_images}" ]`, which is
+        # true for an empty variable however it got empty, and the step then printed
+        # "zero pulls" as a verdict about the test run when it was really a verdict about
+        # its own tooling. That is the confident-wrong-evidence class this guard exists to
+        # avoid, one layer down. Every command below whose non-zero exit is EXPECTED sits
+        # inside an `if` or a loop condition: the two `docker pull`s in the paired
+        # `test-postgres-image` action, and the `read` that ends the while loop here.
+        set -euo pipefail
 
         echo "Testcontainers configuration this job ran with:"
         echo "  QCMS_TEST_POSTGRES_IMAGE=${QCMS_TEST_POSTGRES_IMAGE:-<unset>}"

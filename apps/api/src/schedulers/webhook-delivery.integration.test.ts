@@ -51,7 +51,7 @@ import {
   webhookDeliveries,
   type DeliveryRow,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -63,7 +63,6 @@ import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-
 import { RESPONSE_SNIPPET_MAX, runDeliveryPass, SIGNATURE_MASK } from "./outbox-delivery.js";
 
 const { Pool } = pg;
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 // --- in-test HTTP receiver --------------------------------------------------
@@ -165,12 +164,12 @@ beforeAll(async () => {
   deps = makeDeps({ db: testDb.db, env: baseEnv, clock: systemClock });
   adminSessionToken = (await seedAdminSession(testDb.db, { at: new Date(), label: "operator" }))
     .token;
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await receiver.close();
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 /**
  * Seed a form + published version, and one active webhook per given path.

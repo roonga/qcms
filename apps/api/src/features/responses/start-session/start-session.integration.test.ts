@@ -32,7 +32,7 @@ import {
   insertSecureLink,
   revokeSecureLink,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -41,7 +41,6 @@ import type { ChallengeVerifier } from "../challenge.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerStartSession } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
@@ -64,11 +63,11 @@ beforeAll(async () => {
   app = createApp(deps, PUBLIC_ONLY, { groups: { public: [registerStartSession] } });
   internalToken = internalTokenFor(deps.config);
   linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]));
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- request helpers --------------------------------------------------------
 

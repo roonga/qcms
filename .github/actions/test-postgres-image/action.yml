@@ -55,7 +55,10 @@ runs:
         IMAGE_TAG: ${{ inputs.tag }}
         REPOSITORY_OWNER: ${{ github.repository_owner }}
       run: |
-        set -uo pipefail
+        # Both `docker pull`s below are expected to fail sometimes and both sit inside an
+        # `if`, so `-e` changes nothing about the fallback path and does end the step on a
+        # failure of the plumbing around them (issue #171).
+        set -euo pipefail
 
         upstream="postgres:${IMAGE_TAG}"
         owner="$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
@@ -92,7 +95,12 @@ runs:
     - name: Snapshot the runner's images (baseline for the no-Docker-Hub check)
       shell: bash
       run: |
-        set -uo pipefail
+        # `-e` for the reason the paired assertion needs it (issue #171): a failed
+        # `docker image ls` here wrote an EMPTY baseline, and an empty baseline makes
+        # every image on the runner look newly pulled, or - once `comm` has also failed -
+        # makes none of them look pulled at all. Either way the later step reports on a
+        # snapshot that was never taken. Fail here instead, where the cause is visible.
+        set -euo pipefail
         snapshot="${RUNNER_TEMP}/qcms-images-before.txt"
         docker image ls --format '{{.Repository}}:{{.Tag}}' | sort -u > "${snapshot}"
         echo "QCMS_DOCKER_IMAGE_SNAPSHOT=${snapshot}" >> "${GITHUB_ENV}"

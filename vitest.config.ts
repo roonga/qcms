@@ -51,8 +51,19 @@ export default defineConfig({
           include: ["e2e/**/*.e2e.ts"],
           // Each scenario file boots its own Testcontainers Postgres; give the
           // suite room for image pull + boot on a cold CI runner.
+          //
+          // The two are deliberately unequal since issue #746. A boot is the only
+          // thing here that stretches with how many other containers the machine is
+          // starting at the same moment, and 120s stopped covering that during a
+          // forced turbo run with 18 uncached tasks (three files in three lanes
+          // failed their hook on 2026-08-31 and each passed in seconds alone). The
+          // hook budget is doubled to match `CONTAINER_BOOT_TIMEOUT_MS` in
+          // `@qcms/db/testing`, which is where the same number lives for every other
+          // integration file. The per-TEST budget stays where it was on purpose: a
+          // scenario running against a container that is already up and taking
+          // minutes is a defect, and widening this would hide it.
           testTimeout: 120_000,
-          hookTimeout: 120_000,
+          hookTimeout: 240_000,
         },
       },
       // Repo tooling that is neither a package nor an app: the dev container's

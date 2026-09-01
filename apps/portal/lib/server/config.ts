@@ -135,9 +135,18 @@ export function isLoopbackHost(host: string): boolean {
  * agree with each other and with better-auth in the API, which is a different
  * question from the respondent portal's), but the *rule* must not drift - the two
  * apps disagreeing about exactly this is what issue #292 was filed about. There is
- * no shared package for a Next BFF's server code, so it is a copy, and the test
- * matrices in `config.test.ts` on both sides assert the same cases so a change made
- * to one and not the other shows up as a red test. **Change one, change the other.**
+ * no shared package for a Next BFF's server code, so it is a copy. **Change one,
+ * change the other** - and read that as the reminder it is, not as a guarantee.
+ *
+ * This used to claim that the `config.test.ts` matrices on both sides assert the same
+ * cases, so a one-sided change goes red. Nothing computes that (issue #412), and the
+ * two had already drifted when it was checked: the admin's matrix carried the raw
+ * `0`/`no`/`off` spellings and the portal's did not, which is exactly the gap that let
+ * the portal report `QCMS_SECURE_COOKIES is unset` for a variable that was set (issue
+ * #409). An unenforced guarantee in a comment is worse than no comment, because it
+ * stops the next reader checking. Making it real means a case table both suites
+ * import, which needs a home for cross-app test fixtures that this repository does not
+ * have yet; #412 holds that decision.
  */
 export function assertSecureCookiesConfigured(): void {
   if (secureCookies()) return;

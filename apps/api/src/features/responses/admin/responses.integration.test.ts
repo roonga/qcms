@@ -30,7 +30,7 @@ import {
   insertSubmission,
   markSubmitted,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -40,7 +40,6 @@ import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/adm
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 let testDb: TestDb;
@@ -60,11 +59,11 @@ beforeAll(async () => {
   });
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- request helpers --------------------------------------------------------
 

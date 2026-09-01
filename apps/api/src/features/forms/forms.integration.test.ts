@@ -38,7 +38,7 @@ import {
   listQuestionVersions,
   publishQuestionVersion,
 } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -47,7 +47,6 @@ import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerForms } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 let testDb: TestDb;
@@ -65,11 +64,11 @@ beforeAll(async () => {
   app = createApp(deps, ADMIN_ONLY, { groups: { admin: [registerAdminAuth, registerForms] } });
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- request helpers (channel token + a real admin session on every call) ----
 
@@ -494,7 +493,7 @@ describe("preview-condition: the rule test bench (033)", () => {
     await seedPublishedQuestion("q_bench_followup", "Tell us more");
     await post("/forms", { formId, slug: "bench", defaultLocale: "en" });
     await put(`/forms/${formId}/draft`, { definition });
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("reports a match for answers the condition accepts", async () => {
     const res = await bench(formId, {
@@ -682,7 +681,7 @@ describe("per-form settings (033 settings panel)", () => {
 
   beforeAll(async () => {
     await post("/forms", { formId, slug: "settings", defaultLocale: "en" });
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("defaults to challenge off and no min-time override, and the detail read carries them", async () => {
     const res = await get(`/forms/${formId}`);
@@ -767,7 +766,7 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     await seedPublishedQuestion("q_preview_followup", "How many?");
     await post("/forms", { formId, slug: "preview", defaultLocale: "en" });
     await put(`/forms/${formId}/draft`, { definition });
-  }, BOOT_TIMEOUT);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("compiles the submitted draft and stamps both versions", async () => {
     const res = await preview(formId, { definition });

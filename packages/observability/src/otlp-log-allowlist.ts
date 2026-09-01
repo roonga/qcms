@@ -1,8 +1,22 @@
 import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 
+/**
+ * The exported event vocabulary. An unlisted `msg` is replaced with
+ * `application.event`, which is the correct fail direction for privacy (ADR-34) and a
+ * silent one for observability: a new call site simply loses its body in the exported
+ * signal. `./otlp-log-allowlist.coverage.test.ts` is what turns that silence into a red
+ * - it scans every message literal in the workspace and requires each to be listed here
+ * or recorded there as intentionally opaque (issue #490).
+ */
 const SAFE_EVENTS = new Set([
   "api.call",
   "auth.api.call",
+  // The two retention-sweep redaction records (issue #490). Both are the evidence that a
+  // redaction pass ran, which is the operationally interesting part, and both carry a
+  // count and nothing else: the sweep exists to destroy the bytes it is counting, so a
+  // call site that logged one of them would defeat itself long before this set saw it
+  // (`apps/api/src/schedulers/retention-sweep.ts`).
+  "delivery response snippets redacted",
   "handled error",
   "http exception",
   "listening",
@@ -21,6 +35,7 @@ const SAFE_EVENTS = new Set([
   // files, chosen by the request but never written by it.
   "origin.belt.refused",
   "outbox delivery pass",
+  "outbox payload answers redacted",
   "request",
   "retention sweep",
   "scheduler task failed",

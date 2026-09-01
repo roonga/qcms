@@ -11,7 +11,7 @@
 
 import { FormId } from "@qcms/core";
 import { createForm, getWebhook } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -21,7 +21,6 @@ import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../te
 import { decryptWebhookSecret } from "./crypto.js";
 import { registerWebhooks } from "./route.js";
 
-const BOOT_TIMEOUT = 120_000;
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 
 const FORM_ID = FormId.parse("frm_webhooks_it");
@@ -56,11 +55,11 @@ beforeAll(async () => {
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
   await createForm(testDb.db, { formId: FORM_ID, slug: "webhooks-it", defaultLocale: "en" });
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 // --- request helpers --------------------------------------------------------
 

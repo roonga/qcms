@@ -17,7 +17,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId } from "@qcms/core";
 
-import { startTestDb, type TestDb } from "../testing/harness.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 import {
   claimDue,
   claimDueDeliveries,
@@ -37,17 +37,15 @@ import {
   resetForRedelivery,
 } from "./index.js";
 
-const BOOT_TIMEOUT = 120_000;
-
 let testDb: TestDb;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-}, BOOT_TIMEOUT);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 /** Long before any horizon these tests use: the shape of the back catalogue. */
 const LONG_AGO = new Date("2026-01-02T03:04:05.000Z");

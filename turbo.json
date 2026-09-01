@@ -58,6 +58,18 @@
     "DOCKER_AUTH_CONFIG"
   ],
   "tasks": {
+    // The probe task behind `scripts/turbo-passthrough-env.test.ts` (issue #154). It
+    // prints what actually reached a task turbo ran, which is the only way to observe
+    // strict env mode from outside: a test that reads `process.env` inside Vitest is
+    // running on the wrong side of the boundary that strips the variable.
+    //
+    // A root task (`//#`) so no workspace package carries a script it does not own, and
+    // `"cache": false` because the whole value of the run is that it EXECUTED - a
+    // replayed log would report a previous run's environment, which is the same
+    // false-green shape the test exists to catch.
+    "//#env-arrival": {
+      "cache": false
+    },
     "build": {
       "dependsOn": ["^build"],
       "outputs": ["dist/**"]
