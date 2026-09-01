@@ -20,16 +20,20 @@
  * tells you where anything new belongs:
  *
  *   - **4-digit `7Sxx`** - stable, long-running, human-facing services. A person may
- *     open these in a browser. `7S00` portal, `7S10` API, `7S20` Postgres, `7S30`
- *     artifacts.
+ *     open these in a browser.
  *   - **5-digit `17Sxx`** - ephemeral test harness. Nothing outside the suite should
- *     ever point at these. `17S00` portal, `17S10` API, `17S30` OTLP receiver,
- *     `17S40` admin.
+ *     ever point at these.
+ *
+ * Which service sits on which slot is deliberately NOT restated here. ADR-37 puts the
+ * table in `docs/PORTS.md` and nowhere else, and the executable copy is
+ * `STABLE_SERVICES` and `HARNESS_SERVICES` below - a prose third copy drifted the
+ * moment the admin, the observability receiver and the database viewer were allocated
+ * (issue #730). Read the table in `docs/PORTS.md`, or read the two records below.
  *
  * `S` is the **seat**: one index, `QCMS_PORT_SEAT`, selecting both blocks together,
  * so a seat is a single number to reason about rather than two knobs to keep in
- * step. Seat 0 is the default and is exactly today's allocation (7000 / 7010 / 7020
- * / 7030), so an existing developer and CI notice nothing.
+ * step. Seat 0 is the default and reproduces the allocation exactly as it stood before
+ * seats existed, so an existing developer and CI notice nothing.
  *
  * ## Why 17xxx and not 7xxxx
  *

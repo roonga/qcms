@@ -274,6 +274,8 @@ A worked example, from the night this allocation was written: a preview stack fo
 
 `pnpm check:ports` matches a number only where the surrounding syntax says "this is a port": a URL authority, a `--port` flag, a `docker run -p` host side, an assignment or property named `port`/`*_PORT`/`*Port`, a devcontainer `appPort`/`forwardPorts` array, a `${VAR:-NNNN}` default, and the prose form `port NNNN`. It deliberately does **not** scan for bare four-digit numbers: years, byte caps, timeouts and pixel sizes are everywhere, and a gate that fired on those would be switched off within a week.
 
+Coverage is tracked text: `.ts .tsx .js .jsx .mjs .cjs .md .yml .yaml .sh`, the container image definitions (`*.Dockerfile`), and the named JSON and env files where a port genuinely gets declared. Image definitions were added by issue #730: a `HEALTHCHECK` dials a URL authority, which is a shape the scanner already recognised, in a file it did not read, so `docker/api.Dockerfile`'s healthcheck port was unscanned rather than exempted. It is exempted now, along with the admin's and the portal's, for the reason under "What this does not cover" below: those are the containers' own listening ports.
+
 The other half of that has to be written down too, because an unwritten limit is how a gate gets trusted beyond its reach - exactly how the #74 GHCR mirror stayed bypassed inside `verify` for weeks. These three evasions were **measured** against a clean tree and all three passed:
 
 | Evasion                                | Why it slips through                                                                                                                                                                                                                   |
@@ -294,6 +296,7 @@ Two more things the numbers can mislead about:
 ## What this does not cover
 
 - **Adopter-facing defaults.** The API's shipped default listen port (3000) is a product default for people deploying QCMS, not an allocation on a QCMS developer's machine (ADR-20: the API container is never published). Every QCMS dev path passes `7S10` explicitly. Likewise `5432` where it names Postgres's own well-known port inside a container.
+- **Container-internal ports.** What a shipped image listens on is the image's business: the three application Dockerfiles' `HEALTHCHECK` dials the server inside the container, and Compose maps the seat's `7Sxx` slot onto it. The host side of every publish mapping is an allocation; the container side never is.
 - **Third-party tools you run yourself.** The optional local trace viewer in `docs/DEVELOPER_GUIDE.md` uses Jaeger's and Aspire's own ports. Those are their allocation, not ours.
 - **Kernel-assigned ports.** Testcontainers, and any test that binds port `0`, are outside this entirely and should stay that way.
 

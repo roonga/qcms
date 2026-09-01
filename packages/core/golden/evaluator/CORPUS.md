@@ -4,7 +4,15 @@ The regression net for the rules evaluator's frozen semantics (task 007,
 ADR-16, invariant I7). Each scenario describes _behavior as data_: a form, a
 set of answers, and the exact `FlowState` the evaluator must produce - under
 `SEMANTICS_VERSION = 1` - forever. The corpus survives refactors, doubles as
-executable documentation of DOMAIN_SCHEMA §3, and is append-only in spirit.
+executable documentation of DOMAIN_SCHEMA §3, and is append-only.
+
+Append-only is enforced now, not asked for (issue #727). `pnpm check:golden-append-only`
+fails any change that modifies, deletes, or renames a file under this directory in the
+diff against the default branch; adding scenarios, forms, and questions is always
+allowed. It reads the diff, never committed history, so the recorded exception below
+stays recorded rather than becoming a permanent red. This file is exempt from the
+guard, because the rule is written here and any future amendment has to be written here
+too.
 
 ## The rule for changing goldens
 

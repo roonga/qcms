@@ -1,17 +1,32 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Append-only guard for the A2UI golden corpus (task 012, ADR-18).
+ * Append-only guard for the golden corpora (task 012, ADR-18 and ADR-16).
  *
- * The stored compiled A2UI is immutable and served forever (R1, ADR-18), so its
- * golden documents are a permanent record: once committed, a golden is never
- * edited or deleted - a breaking A2UI change adds documents under a new spec
- * version instead (see `packages/a2ui-compiler/golden/README.md`).
+ * Two corpora are frozen records rather than fixtures, for two different reasons,
+ * and both are guarded here:
+ *
+ *   - **A2UI compiled documents** (`packages/a2ui-compiler/golden/v*`). The stored
+ *     compiled A2UI is immutable and served forever (R1, ADR-18), so a committed
+ *     golden is never edited or deleted: a breaking A2UI change adds documents
+ *     under a new spec version instead (`packages/a2ui-compiler/golden/README.md`).
+ *   - **Evaluator semantics** (`packages/core/golden/evaluator/`). The forward-pass
+ *     rule semantics are frozen under `SEMANTICS_VERSION` (ADR-16, invariant I7), so
+ *     a scenario whose `expected` block changes is a semantics change: revert it, or
+ *     carry it on a version bump. Until issue #727 that rule existed only as prose in
+ *     that corpus's own `CORPUS.md`, which is exactly the state R8's ports rule was in
+ *     when it drifted.
  *
  * This script fails the build if the diff against the default branch **modifies,
- * deletes, or renames** any file under a guarded `golden/` directory. Adding new
- * golden files is always allowed. It is a git-history guard, not a content test:
- * `pnpm test` already asserts the goldens match live compiler output.
+ * deletes, or renames** any file under a guarded prefix. Adding new golden files is
+ * always allowed. It is a git-history guard, not a content test: `pnpm test` and
+ * `pnpm test:golden-drift` already assert both corpora match live output.
+ *
+ * **It guards changes, never committed history.** The diff basis is the merge base
+ * with the default branch, so anything already on that branch is history the guard
+ * does not re-examine. That is what lets the corpus carry the one recorded Code Owner
+ * exception (issue #128, `answered-falsy-values`, amended in place on 2026-08-31)
+ * without this gate turning it into a permanent red.
  *
  * Usage:  node scripts/check-golden-append-only.mjs
  * Env:    DEFAULT_BRANCH (default "main") - the branch additions are diffed against.
@@ -20,13 +35,28 @@
 import { execFileSync } from "node:child_process";
 
 /**
- * Path prefixes under which every committed file is append-only. This guards the
- * versioned corpus directories (`golden/v1/`, `golden/v2/`, …) - the immutable
- * data - but deliberately NOT `golden/README.md`, whose own prose must stay
- * editable to record each new spec version (workshop retro, Stage 6: the guard
- * froze the README it tells you to update).
+ * Path prefixes under which every committed file is append-only.
+ *
+ * `packages/a2ui-compiler/golden/v` deliberately names the versioned corpus
+ * directories (`golden/v1/`, `golden/v2/`, …) - the immutable data - and so is
+ * already shaped to leave `golden/README.md` editable, whose prose must record each
+ * new spec version (workshop retro, Stage 6: the guard froze the README it tells you
+ * to update).
+ *
+ * The evaluator corpus keeps its prose beside its data instead, so the same property
+ * needs the explicit exemption below rather than a prefix that happens to miss it.
  */
-const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v"];
+const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v", "packages/core/golden/evaluator/"];
+
+/**
+ * Files inside a guarded prefix that are prose about the corpus, not corpus data.
+ *
+ * Exact repo-relative paths, so an exemption cannot leak to a neighbour. `CORPUS.md`
+ * states the append-only rule, the `SEMANTICS_VERSION` bump procedure, and the record
+ * of exceptions granted - a guard that froze it would freeze the document a future
+ * amendment has to be written into, which is the Stage 6 mistake one directory over.
+ */
+const PROSE_EXEMPTIONS = new Set(["packages/core/golden/evaluator/CORPUS.md"]);
 
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
@@ -53,6 +83,9 @@ function resolveBaseRef() {
 }
 
 function isGuarded(filePath) {
+  if (PROSE_EXEMPTIONS.has(filePath)) {
+    return false;
+  }
   return GUARDED_PREFIXES.some((prefix) => filePath.startsWith(prefix));
 }
 
@@ -98,17 +131,29 @@ function main() {
 
   if (violations.length > 0) {
     console.error(
-      "check-golden-append-only: the golden corpus is APPEND-ONLY (ADR-18) - a committed",
+      "check-golden-append-only: the golden corpora are APPEND-ONLY (ADR-16, ADR-18) - a",
     );
-    console.error("golden is never modified or deleted. The following changes are forbidden:\n");
+    console.error(
+      "committed golden is never modified or deleted. The following changes are forbidden:\n",
+    );
     for (const violation of violations) {
       console.error(`  ${violation}`);
     }
     console.error(
-      "\nIf a compiler change altered this output, revert it or bump the A2UI spec version",
-    );
-    console.error(
-      "(add a v2/ directory, leave v1/ untouched) - see packages/a2ui-compiler/golden/README.md.",
+      [
+        "",
+        "Adding new golden files is always allowed; changing a committed one is not.",
+        "",
+        "  packages/a2ui-compiler/golden/v*   the served compiled A2UI (R1, ADR-18). If a",
+        "    compiler change altered this output, revert it or bump the A2UI spec version:",
+        "    add a v2/ directory and leave v1/ untouched. See that corpus's README.md.",
+        "",
+        "  packages/core/golden/evaluator/    the frozen rule semantics (ADR-16, I7). If an",
+        "    evaluator change altered an expected FlowState, it changed the semantics:",
+        "    revert it, or carry it on a SEMANTICS_VERSION bump with the ADR that justifies",
+        "    it. See that corpus's CORPUS.md, which this guard leaves editable.",
+        "",
+      ].join("\n"),
     );
     process.exit(1);
   }

@@ -12,7 +12,8 @@ Implement exactly the task or issue the conductor gives you.
 4. Add tests at the highest applicable layer and update every document named by the work order.
 5. Commit after meaningful increments so interruption recovery never depends on uncommitted state.
 6. Run the applicable checks from `CONTRIBUTING.md`. Done requires `pnpm verify`, plus `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` for portal, admin, or `@qcms/ui` changes. Force Docker-backed suites with `pnpm exec turbo run test --force` and confirm they executed.
-7. Do not update the task ledger, open or merge the PR, push `main`, or perform a human sign-off.
+7. Report a gate's own exit code, captured as `cmd > gate.log 2>&1; rc=$?; echo "EXIT=$rc"`. The harness shell is zsh, where the bash spelling `${PIPESTATUS[0]}` is unset, so an idiom built on it silently falls through to whatever `$?` held a moment earlier and prints `EXIT=0` for a run that had just failed (issue #481). Never use `PIPESTATUS`; where a pipeline's first element is genuinely what matters, zsh spells it `$pipestatus[1]`.
+8. Do not update the task ledger, open or merge the PR, push `main`, or perform a human sign-off.
 
 If work cannot finish, leave the branch green and commit `HANDOFF.md`. Its first line must be one of:
 
