@@ -136,6 +136,14 @@ export function VersionView({
               values={answers.values}
               onChange={handleChange}
               specVersion={snapshot.a2uiSpecVersion}
+              // The document is embedded in a page that already has an `h1` (the route's,
+              // naming the version), and it carries the outline it would have as a whole
+              // page on the portal: a form-title `h1` on the first step. Rendered
+              // untouched, this route had two `<h1>`s - a document-outline defect, and an
+              // ambiguous heading-by-level query for every test that touches it (issue
+              // #537). Only the levels move; the compiled typography is left alone, so
+              // this still shows what a respondent saw.
+              headingLevelOffset={1}
             />
           </PreviewThemeIsland>
 
