@@ -4,7 +4,7 @@
 
 **Audience:** an operator who already lives on Azure and wants QCMS to look like the rest of what they run. This is the sensible hyperscaler option for QCMS: Container Apps gives you TLS, custom domains, free certificates, an internal-only service, IP restrictions, and scale-to-idle without a load balancer to rent by the hour, so the fixed monthly floor is much lower than the AWS ECS plan ([`docs/deploy/aws.md`](aws.md)). It is still more moving parts than a single VM (`docs/deploy-ingress.md` Recipe A); reach for it when Azure is already your home.
 
-All prices below are approximate US-region on-demand list, **retrieved 2026-09-01**. They move; **confirm each at signup** with the Azure pricing calculator for your region. Sources are at the foot of the document.
+All prices below are approximate **East US** on-demand list, **retrieved 2026-09-01**. **Confirm each at signup** with the Azure pricing calculator for your region: they move, and an AU region runs higher. Azure has a genuine Australia East region if you need data residency; the verified cost map in [`docs/deploy.md`](../deploy.md) (#759, priced from Azure's first-party pricing APIs) prices this deployment in `australiaeast`, where the figures run at the upper end of the range below. Sources are at the foot of the document.
 
 ## 1. Service mapping
 
@@ -179,19 +179,19 @@ jobs:
 
 ## 6. Cost, ease, and the two gotchas
 
-A minimal always-on deployment, US region, list price, **retrieved 2026-09-01, confirm at signup**. Container Apps bills per-second for allocated vCPU and memory, after a monthly free grant per subscription (the first 180,000 vCPU-seconds, 360,000 GiB-seconds, and 2 million requests are free):
+A minimal always-on deployment, East US, list price, **retrieved 2026-09-01, confirm at signup**. Container Apps bills per-second for allocated vCPU and memory, after a monthly free grant per subscription (the first 180,000 vCPU-seconds, 360,000 GiB-seconds, and 2 million requests are free). With every app at `min-replicas 1`, the always-warm allocation - not request volume - sets the floor, and the free grants cover only a fraction of it:
 
-| Line item                                      | Basis                                                                    | ~$/mo                                          |
-| ---------------------------------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
-| Container App: api (min 1 replica)             | schedulers keep it warm; active + idle mix, after free grants            | 12 - 18                                        |
-| Container Apps: portal + admin (min 1 replica) | mostly idle rate after free grants                                       | 10 - 15                                        |
-| PostgreSQL Flexible Server `B1ms` + 32 GB      | ~$12 compute + storage; **$0 for the first 12 months on a free account** | 13 - 15                                        |
-| Log Analytics ingestion                        | small                                                                    | 0 - 3                                          |
-| **Total**                                      |                                                                          | **~$38 - 48** (**~$25** with the DB free year) |
+| Line item                                      | Basis                                                         | ~$/mo         |
+| ---------------------------------------------- | ------------------------------------------------------------- | ------------- |
+| Container App: api (min 1 replica)             | schedulers keep it warm; active + idle mix, after free grants | 18 - 30       |
+| Container Apps: portal + admin (min 1 replica) | allocated warm; idle rate with request bursts, after grants   | 14 - 30       |
+| PostgreSQL Flexible Server `B1ms` + 32 GB      | ~$12 compute + storage; free for the first 12 months (below)  | 13 - 15       |
+| Log Analytics ingestion                        | small                                                         | 0 - 5         |
+| **Total**                                      |                                                               | **~$45 - 80** |
 
 **The idle-vs-active caveat, and why the api is the expensive app.** Container Apps bills allocated vCPU and memory at a lower **idle** rate while a replica is running but below its activation threshold, and a higher **active** rate while it is processing. A user-facing app with `min-replicas 1` and little traffic sits mostly at the idle rate. **The api cannot: its in-process schedulers - the outbox deliverer and the retention sweep (`docs/deploy-enterprise.md` §5) - keep it doing work, so it lives between the two rates rather than settling into idle.** That is the price of the schedulers, and it is why the api line is the largest of the three even though it serves no public traffic.
 
-**Cheapest-viable trim (~$22/mo):** set portal and admin to **`min-replicas 0`** so they scale to zero when idle (accepting a cold start on the first request after quiet), keep the api at `min-replicas 1` because it must run the schedulers, and take the **DB free year** on a free account. That leaves the api's warm replica and a nearly-free database as the whole standing cost, with the free grants absorbing most of the portal/admin bursts.
+**Cheapest-viable trim:** set portal and admin to **`min-replicas 0`** so they scale to zero when idle (accepting a cold start on the first request after quiet), keep the api at `min-replicas 1` because it must run the schedulers, and take the **DB free year** on a free account. That leaves the api's warm replica plus a free-year database as the whole standing cost, with the free grants absorbing most of the portal/admin bursts. Only with both levers pulled - the free-account DB allowance and portal/admin scaled to zero - does the bill approach **~$22/mo**; the always-warm api undercuts any lower figure, because its schedulers keep it off the idle floor (the caveat above). Once the DB free year ends, or if a warm portal/admin is required, expect the ~$45 - 80/mo range.
 
 **Ease rating: moderate.** Much gentler than the AWS ECS plan - no load balancer, no NAT, no target groups, free certificates - but the VNet-integration-plus-private-DNS setup for Postgres and the federated-credential subject matching are the two places people lose an afternoon.
 

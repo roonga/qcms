@@ -2,9 +2,9 @@
 
 **Status:** the concrete plan behind [`docs/deploy.md`](../deploy.md), and the actionable expansion of **Recipe B** in [`docs/deploy-ingress.md`](../deploy-ingress.md) (ECS + ALB). Read that first: this document adds the pipeline, the task definitions, the secrets, and the bill, but the ingress invariants, the HSTS-at-ALB rule, and the trusted-proxy-hop reasoning live there and are not repeated in full.
 
-**Audience:** an operator who already runs on AWS, has an infrastructure-as-code habit, and wants QCMS on ECS. Be honest with yourself before you start: **this is the enterprise trajectory, and it is overkill for a solo launch.** Roughly two-thirds of the monthly bill is the load balancer, the public IPv4 rent, and log ingestion, none of which is compute. If you are one person shipping one questionnaire, a single VM with the Caddy overlay (`docs/deploy-ingress.md` Recipe A) or a Fly.io / VPS recipe is cheaper and simpler by a wide margin. Come here when an organization already lives on ECS and wants QCMS to look like everything else it runs.
+**Audience:** an operator who already runs on AWS, has an infrastructure-as-code habit, and wants QCMS on ECS. Be honest with yourself before you start: **this is the enterprise trajectory, and it is overkill for a solo launch.** Close to half the monthly bill is the load balancer, the public IPv4 rent, and log ingestion, none of which is compute - and a private-subnet design adds a NAT gateway on top of that. If you are one person shipping one questionnaire, a single VM with the Caddy overlay (`docs/deploy-ingress.md` Recipe A) or a Fly.io / VPS recipe is cheaper and simpler by a wide margin. Come here when an organization already lives on ECS and wants QCMS to look like everything else it runs.
 
-All prices below are US East (N. Virginia) on-demand list, **retrieved 2026-09-01**. They move; **confirm each at signup** with the AWS pricing calculator for your region. Sources are listed at the foot of the document.
+All prices below are for **`us-east-1`** (US East, N. Virginia) on-demand list, **retrieved 2026-09-01**. **Confirm each at signup** with the AWS pricing calculator for your region: they move, and an AU region runs higher. AWS has a genuine Sydney region (`ap-southeast-2`) if you need data residency; the verified cost map in [`docs/deploy.md`](../deploy.md) (#759, priced from AWS's first-party pricing APIs) prices this deployment in `ap-southeast-2` and lands at ~$72 - 78/mo, consistent with the table below. Sources are listed at the foot of the document.
 
 ## 1. Service mapping
 
@@ -181,25 +181,26 @@ jobs:
 
 ## 6. Cost, ease, and the two gotchas
 
-A minimal always-on deployment, US East, list price, **retrieved 2026-09-01, confirm at signup**:
+A minimal always-on deployment, `us-east-1`, list price, **retrieved 2026-09-01, confirm at signup**:
 
-| Line item                     | Basis                                             | ~$/mo         |
-| ----------------------------- | ------------------------------------------------- | ------------- |
-| ALB (base)                    | $0.0225/hr                                        | 16            |
-| ALB (LCU, light traffic)      | $0.008/LCU-hr                                     | 6 - 12        |
-| Public IPv4 addresses         | $0.005/hr each (ALB interfaces + task public IPs) | 11 - 18       |
-| CloudWatch Logs               | $0.50/GB ingest + $0.03/GB-mo                     | 4 - 6         |
-| **Non-compute subtotal**      | **the edge and the plumbing**                     | **~$45**      |
-| Fargate: portal + admin + api | small tasks, always on                            | 21 - 30       |
-| RDS `db.t4g.micro` + storage  | $0.016/hr + gp3                                   | 13 - 15       |
-| **Total**                     |                                                   | **~$66 - 79** |
+| Line item                              | Basis                               | ~$/mo         |
+| -------------------------------------- | ----------------------------------- | ------------- |
+| ALB (base)                             | $0.0225/hr                          | 16            |
+| ALB (LCU, light traffic)               | $0.008/LCU-hr                       | 6             |
+| Public IPv4 addresses (ALB, 2 AZ)      | $0.005/hr each                      | 7             |
+| CloudWatch Logs                        | $0.50/GB ingest + $0.03/GB-mo       | 3             |
+| **Fixed edge subtotal**                | **LB + IPv4 + logs, the plumbing**  | **~$32**      |
+| Fargate: portal + admin + api          | small tasks, always on              | 26 - 32       |
+| RDS `db.t4g.micro` + storage           | $0.016/hr + gp3                     | 14            |
+| **Total (public subnets, no NAT)**     |                                     | **~$72 - 78** |
+| _add:_ NAT gateway, if private subnets | ~$0.059/hr per AZ + data processing | _+~$43/AZ_    |
 
-The honest headline: **~$45 of that is the ALB, the public IPv4 rent, and log ingestion - none of it compute.** You pay it whether the questionnaire serves ten responses a month or ten thousand. That is the number to weigh against a $5 - 12/mo VPS running the same four containers.
+The honest headline: **~$32 of that is the ALB, the public IPv4 rent, and log ingestion - none of it compute.** You pay it whether the questionnaire serves ten responses a month or ten thousand. And if a policy forces the tasks into private subnets, a NAT gateway adds **~$43/mo per Availability Zone** on top - more than the entire compute line - which is why the topology below avoids it. That fixed floor is the number to weigh against a $5 - 12/mo VPS running the same four containers.
 
 **Cheapest-viable trims:**
 
 - **Graviton / ARM Fargate.** Rebuild the images for `arm64` and set the task CPU architecture to `ARM64`: about 20% off the compute line for no behaviour change. The base images are `node:24-bookworm-slim`, which is multi-arch.
-- **No NAT gateway.** The textbook "enterprise" pattern puts the tasks in private subnets and adds a NAT gateway so they can pull from ECR and reach webhooks and `api.pwnedpasswords.com` - that is **~$33/mo plus data processing**, on its own more than QCMS's entire compute bill. Avoid it: run the tasks in **public** subnets with a security group that **denies all inbound** except the ALB SG (and, for the api, the two BFF SGs). The ALB still reaches them by SG rule, and outbound egress goes through the task's own public IP. The deny-inbound SG is what keeps a public subnet safe. (VPC endpoints for ECR and SSM are the alternative if you are required to keep private subnets.)
+- **No NAT gateway.** The textbook "enterprise" pattern puts the tasks in private subnets and adds a NAT gateway so they can pull from ECR and reach webhooks and `api.pwnedpasswords.com` - that is **~$43/mo per Availability Zone plus data processing**, on its own more than QCMS's entire compute bill. Avoid it: run the tasks in **public** subnets with a security group that **denies all inbound** except the ALB SG (and, for the api, the two BFF SGs). The ALB still reaches them by SG rule, and outbound egress goes through the task's own public IP. The deny-inbound SG is what keeps a public subnet safe. (VPC endpoints for ECR and SSM are the alternative if you are required to keep private subnets.)
 - **Ship logs to shorter retention** or to a cheaper sink if the CloudWatch line grows.
 
 **Ease rating: hard.** Not because any one piece is exotic, but because a correct deployment is an ALB, two target groups and three listener rules, three ECS services, Service Connect, four security groups, an RDS instance, ACM, SSM parameters, two IAM roles, and an OIDC pipeline - and several of those are load-bearing for security, not just for uptime. Budget infrastructure-as-code and a day, not an afternoon.
