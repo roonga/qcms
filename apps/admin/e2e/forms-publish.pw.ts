@@ -4,7 +4,7 @@ import { PORTAL_PORT } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { domShape } from "./support/dom-shape.js";
+import { domShape, headingTags, withDemotedHeadings } from "./support/dom-shape.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
   addRule,
@@ -221,6 +221,22 @@ test("the preview's step DOM deep-matches the portal's (exit criterion 3)", asyn
    * its own renderer, its own projection, or its own compiler, and this is what fails -
    * which is the point, because a screenshot could not tell.
    *
+   * ## The one deliberate difference (issue #537)
+   *
+   * Heading LEVELS, and nothing else. The portal serves the document as the whole page, so
+   * its `h1` is the page's `h1`. The admin embeds it in a page that already has one, and
+   * rendering it untouched gave that route two top-level headings: a document-outline
+   * defect, and an ambiguous heading-by-level query for anything testing it. So the
+   * embedding surfaces pass `headingLevelOffset={1}` and the renderer lowers the levels at
+   * render time, touching nothing else - the stored bytes are untouched (ADR-18) and the
+   * compiled `size`/`weight` are left alone, so the preview still shows what a respondent
+   * saw.
+   *
+   * That is asserted rather than normalized away: the respondent's shape is demoted by the
+   * same one level before the comparison, so the two trees must still match element for
+   * element AND the offset must be exactly one. A preview that demoted twice, or not at
+   * all, or that turned a heading into a `<p>`, still fails here.
+   *
    * ## Why not a screenshot
    *
    * The two apps legitimately differ in theme tokens, fonts and surrounding chrome (ADR-30,
@@ -251,7 +267,19 @@ test("the preview's step DOM deep-matches the portal's (exit criterion 3)", asyn
   // A sanity check first, so a failure below reads as a divergence rather than as two
   // empty trees agreeing with each other.
   expect(author.children.length, "the preview should render controls").toBeGreaterThan(0);
-  expect(author).toEqual(respondent);
+
+  // The embed's one deliberate difference, stated before the deep comparison so a
+  // regression in it reads as "the headings moved" rather than as an unexplained tree
+  // diff. The document carries an h1 (form title) and an h2 (step title); embedded, they
+  // are an h2 and an h3.
+  const respondentHeadings = headingTags(respondent);
+  expect(respondentHeadings.length, "the compiled step should carry headings").toBeGreaterThan(0);
+  expect(headingTags(author), "the embedded preview demotes by exactly one level").toEqual(
+    headingTags(withDemotedHeadings(respondent, 1)),
+  );
+  expect(headingTags(author), "an embedded document must not claim the page").not.toContain("h1");
+
+  expect(author).toEqual(withDemotedHeadings(respondent, 1));
 });
 
 test("history renders the stored compiled document and never previews (exit criterion 4)", async ({
@@ -272,10 +300,14 @@ test("history renders the stored compiled document and never previews (exit crit
   // The list's heading names the SECTION, and only the section (Code Owner, 2026-08-26).
   // Issue 679 made it "{section}: {slug}" to end five sibling sections sharing one heading,
   // and five section names do that on their own; the slug half was repeating the breadcrumb
-  // directly above it. The page's own heading is the first `<h1>`, in the chrome: the
-  // version body below renders the stored A2UI document, which carries the form's title as
-  // an `<h1>` of its own (a page inside a page), so a role query by level is ambiguous on
-  // the detail route.
+  // directly above it.
+  //
+  // `.first()` is belt and braces now rather than a workaround. It was a workaround: the
+  // detail route rendered the stored document's own form-title `<h1>` beside the chrome's,
+  // so a role query by level was ambiguous there and this file used document order to pick
+  // the right one. Issue #537 removed the ambiguity at its source - an embedded document's
+  // headings are demoted a level, so the chrome's is the only `<h1>` on either route - and
+  // the assertion below now says so directly.
   await expect(page.locator("h1").first()).toHaveText("Version history");
   await expect(
     page.locator("h1").first(),
@@ -289,6 +321,19 @@ test("history renders the stored compiled document and never previews (exit crit
   // slug, identical to the list's and to every other section's, and nothing in the page
   // chrome named the version at all. The form stays in the breadcrumb as context.
   await expect(page.locator("h1").first()).toHaveText("Version 1");
+
+  // Issue #537: and it is the ONLY `<h1>`. The stored document supplies a form-title
+  // heading of its own, which used to render here untouched and give the page two
+  // top-level headings - two competing answers to "what is this page" for anyone
+  // navigating by heading level. The embedded document is demoted a level instead, so the
+  // form title is still shown, one rank down, under the heading that names the page.
+  await expect(page.locator("h1"), "an embedded document must not claim the page").toHaveCount(1);
+  const versionView = page.getByTestId("qcms-version-view");
+  await expect(versionView.locator("h1")).toHaveCount(0);
+  // Demoted, not dropped: the document's own headings are still on the page, one rank
+  // down. An assertion that only counted `h1`s would pass against a preview that had lost
+  // its headings entirely.
+  expect(await versionView.locator("h2").count()).toBeGreaterThan(0);
   await expect(page.locator('[aria-label="Breadcrumb"]')).toContainText(FORM_SLUG);
   // Said once: the body's own "Viewing v1" heading went when the page took the subject.
   await expect(page.getByRole("heading", { name: /^Version 1$|^Viewing v1$/u })).toHaveCount(1);
