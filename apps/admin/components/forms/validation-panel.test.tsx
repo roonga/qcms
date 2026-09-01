@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { blankDraft } from "../../lib/forms/draft.ts";
 import type { FormIssue } from "../../lib/forms/types.ts";

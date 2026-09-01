@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { DraftForm, FormSettings, PinnableQuestion } from "../../lib/forms/types.ts";
 import { stripTags } from "../test-support/markup.ts";

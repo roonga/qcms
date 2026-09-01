@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { DeliveryItem } from "../../lib/ops/types.ts";
 import { stripTags } from "../test-support/markup.ts";
