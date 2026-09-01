@@ -1,6 +1,6 @@
 import { FormId, QuestionId } from "@qcms/core";
 import { getDraft, getQuestionVersion } from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { adminLogin, buildEnv, composeApi, MOUNT, type ComposedApi } from "./harness.js";
@@ -50,11 +50,11 @@ beforeAll(async () => {
   testDb = await startTestDb();
   api = composeApi(testDb.db, buildEnv({ DATABASE_URL: testDb.connectionUri }), MOUNT.all);
   adminSessionToken = await adminLogin(testDb.db);
-}, 120_000);
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   await testDb?.teardown();
-});
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 /** The dry-run verdict for a form's stored draft, over the real admin route. */
 async function validateStoredDraft(formId: string): Promise<{ valid: boolean; issues: Issue[] }> {

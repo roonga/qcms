@@ -124,9 +124,18 @@ function resolveConfiguredImage(): string | undefined {
  *
  * Every integration file needs one, because Vitest's default hook timeout is
  * nowhere near a container boot, and until issue #746 each file wrote out its own
- * `const BOOT_TIMEOUT = 120_000`. Twenty-six copies of a number is twenty-six
- * places to miss when the number turns out to be wrong, so it lives here now, next
- * to the boot it is a budget for.
+ * `const BOOT_TIMEOUT = 120_000` (twenty-six of them, plus one bare `120_000` in
+ * `apps/api/e2e/support/seed-fixtures.test.ts` that a search for the constant name
+ * would have missed). Twenty-seven copies of a number is twenty-seven places to
+ * miss when the number turns out to be wrong, so it lives here now, next to the
+ * boot it is a budget for.
+ *
+ * **It governs both ends of the same wait.** {@link startContainer} passes it to
+ * `withStartupTimeout`, because Testcontainers' own wait strategy defaults to 120s
+ * and would otherwise give up first - which is exactly what happened on the gate
+ * run that followed the first version of this change: `Port 35482 not bound after
+ * 120000ms` from inside `.start()`, while the hook that called it still held twice
+ * that budget unused. A raise on one side alone is decoration.
  *
  * **Why 240s and not 120s.** A boot that takes longer than two minutes is a boot
  * under contention, not a broken one: on 2026-08-31 three untouched integration
@@ -415,7 +424,15 @@ async function startContainer(
   }
 
   try {
-    return await new PostgreSqlContainer(image).start();
+    // The startup budget has to be raised HERE as well as on the calling hook, or
+    // raising the hook buys nothing (issue #746). Testcontainers' own wait strategy
+    // defaults to 120s, so under load it gave up first and the hook's larger budget
+    // was never reached: the failure arrived as `Port 35482 not bound after
+    // 120000ms` from inside `.start()`, with the Vitest hook still holding time it
+    // could not use. One constant now governs both ends of the same wait.
+    return await new PostgreSqlContainer(image)
+      .withStartupTimeout(CONTAINER_BOOT_TIMEOUT_MS)
+      .start();
   } catch (cause) {
     const detail = describeCause(cause);
     const kind = classifyFailure(detail);
