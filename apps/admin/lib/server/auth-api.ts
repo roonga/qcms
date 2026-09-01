@@ -73,7 +73,7 @@ export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
  * better-auth renames its own cookies when it is issuing secure ones:
  * `createCookieGetter` builds the name as `${secureCookiePrefix}${prefix}.${cookieName}`
  * and sets `secureCookiePrefix` to `__Secure-` whenever `advanced.useSecureCookies` is
- * true (better-auth 1.7.1, the pinned version: `dist/cookies/index.mjs:23` decides the
+ * true (better-auth 1.7.2, the pinned version: `dist/cookies/index.mjs:23` decides the
  * prefix, `:28-32` composes the name). So the cookie
  * this app has to find is `qcms_admin.two_factor` in development and
  * `__Secure-qcms_admin.two_factor` in any deployment with secure cookies on - which is
