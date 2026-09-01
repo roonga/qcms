@@ -130,13 +130,13 @@ function resolveConfiguredImage(): string | undefined {
  * miss when the number turns out to be wrong, so it lives here now, next to the
  * boot it is a budget for.
  *
- * **It governs both ends of the same wait.** {@link startContainer} passes it to
- * `withStartupTimeout`, because Testcontainers' own wait strategy defaults to 120s
- * and would otherwise give up first - which is exactly what happened on the gate
- * run that followed the first version of this change: a `not bound after 120000ms`
- * failure from inside `.start()`, naming the ephemeral port Docker had just mapped,
- * while the hook that called it still held twice that budget unused. A raise on one
- * side alone is decoration.
+ * **It governs both ends of the same wait**, through
+ * {@link CONTAINER_STARTUP_TIMEOUT_MS}. Testcontainers' own wait strategy defaults
+ * to 120s and would otherwise give up first, which is exactly what happened on the
+ * gate run that followed the first version of this change: a `not bound after
+ * 120000ms` failure from inside `.start()`, naming the ephemeral port Docker had
+ * just mapped, while the hook that called it still held twice that budget unused. A
+ * raise on one side alone is decoration.
  *
  * **Why 240s and not 120s.** A boot that takes longer than two minutes is a boot
  * under contention, not a broken one: on 2026-08-31 three untouched integration
@@ -154,6 +154,23 @@ function resolveConfiguredImage(): string | undefined {
  * a slow suite instead of a red one.
  */
 export const CONTAINER_BOOT_TIMEOUT_MS = 240_000;
+
+/**
+ * What {@link startContainer} hands Testcontainers' own wait strategy: the hook
+ * budget less a margin, so the container gives up FIRST.
+ *
+ * The margin is the whole point. With the two budgets equal, which one expires
+ * first is a race, and losing it costs the diagnosis: Vitest reports `Hook timed
+ * out in 240000ms` and names nothing, while this harness's message names the image,
+ * where it came from, the underlying cause and what to do about it. Observed on a
+ * gate run - one suite died on the opaque form while the harness sat 30s away from
+ * producing the useful one. So the container is always the first to speak.
+ *
+ * Same derivation discipline as `apps/portal/e2e/support/portal-server.test.ts`,
+ * where each per-test timeout is its inner wait plus headroom for the same reason: a
+ * wait that reaches its ceiling must fail on the message that explains it.
+ */
+const CONTAINER_STARTUP_TIMEOUT_MS = CONTAINER_BOOT_TIMEOUT_MS - 30_000;
 
 /** Absolute path to the package-owned migrations folder. */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
@@ -430,10 +447,10 @@ async function startContainer(
     // defaults to 120s, so under load it gave up first and the hook's larger budget
     // was never reached: the failure arrived from inside `.start()` as a `not bound
     // after 120000ms` on the ephemeral port Docker had just mapped, with the Vitest
-    // hook still holding time it could not use. One constant now governs both ends
-    // of the same wait.
+    // hook still holding time it could not use. The margin below the hook budget is
+    // what keeps the failure diagnosable - see CONTAINER_STARTUP_TIMEOUT_MS.
     return await new PostgreSqlContainer(image)
-      .withStartupTimeout(CONTAINER_BOOT_TIMEOUT_MS)
+      .withStartupTimeout(CONTAINER_STARTUP_TIMEOUT_MS)
       .start();
   } catch (cause) {
     const detail = describeCause(cause);
