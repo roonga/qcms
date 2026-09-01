@@ -44,7 +44,7 @@ aws ecs run-task \
   --task-definition qcms-migrate \
   --launch-type FARGATE \
   --network-configuration "$SUBNETS_AND_SG" \
-  --overrides '{"containerOverrides":[{"name":"migrate","command":["node","node_modules/@qcms/db/dist/migrate.js"]}]}' \
+  --overrides '{"containerOverrides":[{"name":"migrate","command":["qcms-db-migrate"]}]}' \
   --started-by "gha-${GITHUB_RUN_ID}"
 ```
 
@@ -136,7 +136,7 @@ jobs:
           TASK_ARN=$(aws ecs run-task --cluster "$CLUSTER" \
             --task-definition qcms-migrate --launch-type FARGATE \
             --network-configuration "$NETWORK_CONFIG" \
-            --overrides '{"containerOverrides":[{"name":"migrate","command":["node","node_modules/@qcms/db/dist/migrate.js"]}]}' \
+            --overrides '{"containerOverrides":[{"name":"migrate","command":["qcms-db-migrate"]}]}' \
             --query 'tasks[0].taskArn' --output text)
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
           CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \

@@ -43,7 +43,7 @@ az containerapp job create \
   --name qcms-migrate --resource-group qcms --environment qcms-env \
   --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
   --image "$REGISTRY/qcms-api:$TAG" \
-  --command "node" "node_modules/@qcms/db/dist/migrate.js" \
+  --command "qcms-db-migrate" \
   --secrets ... --env-vars "DATABASE_URL=secretref:database-url" ...
 ```
 
