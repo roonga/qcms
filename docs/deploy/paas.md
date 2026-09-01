@@ -64,8 +64,15 @@ services:
     dockerfilePath: ./docker/portal.Dockerfile
     plan: starter
     envVars:
-      - key: QCMS_API_BASE_URL # the API's internal address
-        fromService: { name: qcms-api, type: pserv, property: hostport }
+      - key: QCMS_API_BASE_URL
+        # MUST carry an http:// scheme. Both BFFs build fetch URLs as
+        # `${QCMS_API_BASE_URL}/...` with no scheme handling, and the private hop is
+        # plain HTTP (the SEC-9 model). Render's `fromService`/`hostport` yields a bare
+        # `host-hash:port` with NO scheme, and a Blueprint cannot prepend one; the
+        # internal host also carries an unpredictable hash. So set this in the dashboard
+        # to the API's full internal URL from its Connect > Internal tab, with http://
+        # in front, e.g. http://qcms-api-a1b2:3000.
+        sync: false
       - key: QCMS_INTERNAL_TOKEN
         sync: false
       - key: QCMS_PORTAL_BASE_URL
@@ -79,7 +86,9 @@ services:
     plan: starter
     envVars:
       - key: QCMS_API_BASE_URL
-        fromService: { name: qcms-api, type: pserv, property: hostport }
+        # Same as the portal: set in the dashboard to http://<api internal host>:<port>.
+        # See the portal service above for why a Blueprint cannot supply this value.
+        sync: false
       - key: QCMS_INTERNAL_TOKEN
         sync: false
       - key: QCMS_ADMIN_BASE_URL
@@ -89,7 +98,7 @@ services:
 Notes that matter:
 
 - **`preDeployCommand` is the migration step.** Render runs it once per deploy, after the build and before the new instance takes traffic, which is exactly the one-shot-before-serve ordering `docker-compose.yml` gets from its dependency graph. Point it at the same migrate entrypoint the `migrate` service uses. It runs on the service it is declared on, so declaring it on the API (the process that holds `DATABASE_URL`) is correct.
-- **`QCMS_API_BASE_URL` is `fromService` `hostport`**, resolving to the private service's internal `host:port` over plain HTTP. The front ends reach the API on Render's private network; nothing routes the API from the internet.
+- **`QCMS_API_BASE_URL` must carry an `http://` scheme, and a Blueprint cannot supply it.** The front ends reach the API on Render's private network over plain HTTP (the SEC-9 model), but both BFFs build fetch URLs as `${QCMS_API_BASE_URL}/...` with no scheme handling, so a bare host:port fails every call. Render's `fromService`/`hostport` yields exactly that bare `host-hash:port`, and the internal host carries an unpredictable hash, so set this value in the dashboard from the API's Connect > Internal tab with `http://` prepended, marked `sync: false` in the Blueprint. (Railway does not hit this, because its variable references interpolate into a string: see section 3.)
 - **`sync: false` keeps secrets out of git.** Render prompts for each in the dashboard on first deploy. Generate every one with a CSPRNG at 32+ chars; the API refuses a placeholder.
 - Leave `QCMS_SECURE_COOKIES` / `QCMS_ADMIN_SECURE_COOKIES` unset; `NODE_ENV=production` in the images marks cookies `Secure`, correct behind Render's TLS.
 
@@ -199,4 +208,3 @@ The portal and admin may scale more freely; only the API carries the background 
 - `docs/deploy-ingress.md` - the ingress invariants both platforms must satisfy, and the forwarded-address model behind the hop counts.
 - `docs/operations.md` - the generated environment reference, health semantics, and the upgrade procedure.
 - `docs/backup-restore.md` - the dump, the restore order, the drill, and the key caveat.
-</content>

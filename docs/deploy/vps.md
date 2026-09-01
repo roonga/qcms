@@ -136,13 +136,17 @@ docker compose \
 
 **Every** later command against this stack needs the same three `-f` flags: `down`, `logs`, `ps`, `pull`. The migration ordering is enforced by the Compose dependency graph, not by you sequencing commands: `migrate` waits on `postgres` being `service_healthy`, runs the `qcms-db-migrate` bin once with `restart: "no"`, and `api` declares `depends_on: migrate: condition: service_completed_successfully`. So `api` cannot start until the one-shot migration has exited 0, and `--wait` holds the command until every long-running service passes its healthcheck. There is no migrate-on-boot race because there is exactly one migrator by construction.
 
-Bootstrap the first administrator once the stack is healthy (pass the password per-command so it never lands in `.env` or a `ps` listing):
+Bootstrap the first administrator once the stack is healthy. Put the password in the **invoking shell's** environment and pass `--env` by **name only**, so the value rides the environment rather than the docker CLI's argv, which is world-readable in a `ps` listing (`docs/operations.md`, issue #440). Never put it in `.env`, and never write `--env QCMS_ADMIN_PASSWORD=<value>`.
 
 ```sh
+# The value is set on the invoking command, and --env forwards it by name only.
+QCMS_ADMIN_PASSWORD='the-password' \
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml -f docker-compose.ghcr.yml \
   exec --env QCMS_ADMIN_PASSWORD api \
   env QCMS_ADMIN_EMAIL=you@example.org node dist/create-admin.js
 ```
+
+Prefix the line with a space (or use your shell's equivalent) so the password does not land in shell history.
 
 Verify, per `docs/deploy-ingress.md`:
 
@@ -196,7 +200,7 @@ Rehearse the restore: `pnpm qcms:drill-restore` is the assertion that a dump pro
 
 ## 9. Delivery workflow (GitHub Actions)
 
-`.github/workflows/images.yml` already **builds** all three images with SBOM and provenance (task 036), but publishes nothing: no deploy pipeline exists yet (issue #360). ADR-20 forbids ever publishing an `api` image to a public route, but a **private** registry image is exactly what a server pull needs. Step 0 of wiring delivery is therefore "add push-to-GHCR"; the workflow below does that and then pulls on the box over SSH, keeping `.env` server-side.
+`.github/workflows/images.yml` already **builds** all three images with SBOM and provenance (task 036), but publishes nothing: no deploy pipeline exists yet (issue #360). ADR-20's rule is about the runtime network, not the registry: it says the API publishes **no host port** and is reachable only by the two BFFs on the internal network, which stays true however the image is distributed. Whether to publish the images to a registry at all is a separate distribution decision, still pending Code Owner confirmation (issue #763). This recipe assumes that decision lands as a **private** GHCR image, which is what a server pull needs. Step 0 of wiring delivery is therefore "add push-to-GHCR"; the workflow below does that and then pulls on the box over SSH, keeping `.env` server-side.
 
 This is a documented template, not a live `.github/workflows/` file: the platform is not chosen yet, so committing it would claim a decision the Code Owner has not made.
 
@@ -274,6 +278,3 @@ Top two gotchas:
 - `docs/operations.md` - the generated environment reference, health semantics, the upgrade procedure, and key-rotation runbooks.
 - `docs/backup-restore.md` - the dump, the restore order, and the drill.
 - `docs/deploy/paas.md` - the managed-container alternative for an operator who would rather not own a box.
-</content>
-
-</invoke>
