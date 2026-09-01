@@ -287,14 +287,17 @@ export function adminBaseUrl(): string {
  * the authoring app's own Cobalt; the shared spelling is what stops the two sides being
  * configured into disagreeing by a rename.
  *
- * **Setting it in both services is the operator's job today, not composition's.**
- * `docker-compose.yml` passes this variable to neither the `admin` nor the `portal`
- * service, so under the shipped Compose file both fall back to the base theme however
- * the host environment is set. It is documented as an operator-set variable in
- * `apps/admin/.env.example`, `apps/portal/.env.example` and the `docs/operations.md`
- * table, which is the whole of the wiring that exists. Issue #499 tracks passing it
- * through Compose; until that lands, do not read this function as evidence that a
- * Compose deployment has been given a value.
+ * **Composition forwards it to both services, as of issue #499.** `docker-compose.yml`
+ * names it on `portal` and on `admin` with the `${VAR:-}` default shape, so one value in
+ * `.env` reaches both images and an author's preview cannot disagree with what the
+ * deployment serves. Before that it was named on neither, and setting it reached nothing
+ * silently. It is documented as an operator-set variable in `apps/admin/.env.example`,
+ * `apps/portal/.env.example` and the `docs/operations.md` table.
+ *
+ * This app takes the theme and nothing else from the portal's appearance group. Issue
+ * #752 forwarded the other six knobs (corners, mode, density, font, the curated font
+ * list, the brand mark) to the `portal` service only, because the authoring app's own
+ * chrome is never adopter-themeable (ADR-26) and reads none of them.
  *
  * Read here rather than in the island itself because the island is a client component
  * and `lib/server/` is unreachable from one by construction (the R2 import-surface

@@ -233,4 +233,19 @@ The browser suite rides on the one root Playwright config as the `admin-chromium
 and shares the portal harness's Postgres and composed API, so `pnpm verify:browser` runs
 it and so does CI's browser job.
 
+**Writing a `renderToStaticMarkup` test: stub `Dialog`, or the test reads nothing**
+(issue #628). Several files under `app/(shell)/` and `components/` render a server
+component to a static string, because those reads happen in the Next server process where
+Playwright's `page.route()` cannot reach them, so it is the only layer that can observe a
+failed read or an empty state at all. It has one trap and the trap is silent: a react-aria
+`Dialog` renders through a `Modal`, a `Modal` renders through a portal, and a portal has
+nowhere to go in a static render, so `renderToStaticMarkup` returns **the empty string for
+the entire tree** containing one. No error, no warning, and an empty string is
+indistinguishable from a component that legitimately renders nothing. Every test at this
+layer that reaches a dialog therefore stands one in through
+`vi.mock("@/components/kit", ...)`; `app/(shell)/table-anchors.test.tsx` shows the
+spread-the-real-kit form for when only `Dialog` needs replacing. Behaviour that lives
+inside the dialog belongs in `e2e/*.pw.ts`, where a browser has somewhere to put the
+portal.
+
 Swapping better-auth for an external IdP: `docs/auth-swap.md`.

@@ -34,7 +34,7 @@ import { logSignInThrottleState, warnIfBreachCheckDisabled } from "./features/au
 import { adminAuthFor } from "./features/auth/route.js";
 import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";
 import type { Deps } from "./deps.js";
 import { createJsonLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
@@ -66,6 +66,14 @@ export function main(telemetry: Telemetry): void {
       logger.warn(message);
     });
   }
+
+  // One line naming the deprecated Turnstile site-key spelling, whenever it is set
+  // (issue #331). Unconditional on mount and independent of the challenge flag: an
+  // operator who has the old variable in their environment file wants to hear about it
+  // whether or not the flag is on today, and the whole point of the deprecation window is
+  // that they meet the notice before the fallback goes. The value is never echoed (SEC-8).
+  const turnstileWarning = turnstileSiteKeyDeprecationWarning(process.env);
+  if (turnstileWarning !== undefined) logger.warn(turnstileWarning);
 
   const pool = new Pool({ connectionString: config.databaseUrl });
   const db = drizzle(pool, { schema });
