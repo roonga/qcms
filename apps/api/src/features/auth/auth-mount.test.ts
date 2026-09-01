@@ -144,6 +144,71 @@ describe("ADR-09: no identity provider in a respondent-only process", () => {
   });
 });
 
+/**
+ * The API's read of `QCMS_ADMIN_SECURE_COOKIES` carries no loopback guard, and relies on
+ * the admin BFF refusing to boot instead (issue #402, and the long comment beside that
+ * read in `apps/api/src/config.ts`).
+ *
+ * The reliance has one premise: **a browser can reach better-auth only through the admin
+ * BFF.** Two of the four legs of that premise are properties of this app's route tree and
+ * are asserted here. The other two live outside it - Compose publishes no host port for
+ * the API (`scripts/compose-config.test.ts`), and the admin still calls
+ * `assertSecureCookiesConfigured` at boot (`scripts/check-bff-config-guards.test.ts`) -
+ * and are asserted from the repo root, where a change to another app cannot be served
+ * from this package's turbo cache.
+ *
+ * Written as a loop over the whole allowlist rather than over one representative endpoint
+ * on purpose: the failure this guards against is a new endpoint added to
+ * `ALLOWED_AUTH_ENDPOINTS` that reaches better-auth by some path the channel token does
+ * not cover, and a spot check cannot see that.
+ */
+describe("issue #402: the admin BFF is the only path to better-auth", () => {
+  /** `"POST /sign-in/email"` as a request this app will route. */
+  function requestFor(entry: string, headers: Record<string, string>): [string, RequestInit] {
+    const [method = "GET", path = "/"] = entry.split(" ");
+    const body =
+      method === "GET"
+        ? undefined
+        : JSON.stringify({ email: "intruder@example.test", password: SYNTHETIC_PASSWORD });
+    return [
+      `/api/auth${path}`,
+      { method, headers: { "content-type": "application/json", ...headers }, ...(body ? { body } : {}) },
+    ];
+  }
+
+  it.each(ALLOWED_AUTH_ENDPOINTS)(
+    "refuses %s without the SEC-4 channel token, which a browser cannot hold",
+    async (entry) => {
+      const { app } = compose(ALL);
+      const res = await app.request(...requestFor(entry, {}));
+      expect(res.status).toBe(401);
+      expect(((await res.json()) as ErrBody).error.code).toBe("unauthorized");
+    },
+  );
+
+  it.each(ALLOWED_AUTH_ENDPOINTS)(
+    "does not mount %s at all in a process without the admin surface",
+    async (entry) => {
+      const { deps, app } = compose(PUBLIC_ONLY);
+      const res = await app.request(
+        ...requestFor(entry, { "x-qcms-internal-token": internalTokenFor(deps.config) }),
+      );
+      expect(res.status).toBe(404);
+    },
+  );
+
+  it("sets no CORS header on the refusal, so no browser origin is ever granted the hop", async () => {
+    const { app } = compose(ALL);
+    const res = await app.request("/api/auth/sign-in/email", {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "https://admin.example.test" },
+      body: JSON.stringify({ email: "intruder@example.test", password: SYNTHETIC_PASSWORD }),
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    expect(res.headers.get("access-control-allow-credentials")).toBeNull();
+  });
+});
+
 describe("path derivation", () => {
   it("strips the base path and normalizes the root", () => {
     expect(authSubPath("http://api.test/api/auth/get-session")).toBe("/get-session");

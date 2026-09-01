@@ -1,5 +1,10 @@
 # syntax=docker/dockerfile:1
-FROM node:24-bookworm-slim AS build
+# Base image pinned by digest as well as tag (issue #372): the tag is what a human
+# reads, the digest is what is actually pulled, so a rebuild months from now produces
+# the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
+# ecosystem in `.github/dependabot.yml` moves the tag and the digest together, and
+# records why pinning and that coverage had to land in one change.
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS build
 
 WORKDIR /workspace
 RUN corepack enable
@@ -26,7 +31,7 @@ RUN pnpm install --frozen-lockfile
 RUN pnpm --filter qcms-portal... build
 RUN pnpm --filter qcms-portal deploy --legacy --prod /opt/qcms
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="qcms-portal" \

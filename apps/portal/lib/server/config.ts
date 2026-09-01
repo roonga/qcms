@@ -32,6 +32,116 @@ export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
 }
 
+/**
+ * Value prefixes that mark a secret as one of the shipped examples rather than real
+ * material (SEC-8: "a deployment with placeholder secrets must refuse to boot").
+ *
+ * **A deliberate copy of `PLACEHOLDER_PREFIXES` in `apps/api/src/config.ts`**, which is
+ * where this control was built by task 040 and which remains the definition of record.
+ * There is no shared package for a Next BFF's server code, the same call
+ * `isLoopbackHost` below and the admin's `MIN_PASSWORD_LENGTH` make, so the vocabulary
+ * is duplicated - and duplicated vocabularies drift, which is the whole of issues #401
+ * and #402. It is therefore not left to a comment: `scripts/check-bff-config-guards.test.ts`
+ * runs the API's list, this one and the admin's against one corpus from the repo root
+ * and fails on any disagreement, so a spelling added on one side and not the others is
+ * a red rather than a silence.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused exactly as
+ * `replace-with-...` is; matching on the prefix rather than on the exact shipped strings
+ * keeps the guard working when the example wording changes.
+ */
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  "replace-",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/** True when `raw` is one of the shipped placeholders rather than real material. */
+export function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * The variables this app holds that are secret material. One, today: the portal reads no
+ * signing key and no database credential, and its base URLs are settings rather than
+ * secrets (a placeholder there is caught by the cookie guard below or by a visibly broken
+ * redirect, not by this).
+ */
+const SECRET_VARS: readonly string[] = ["QCMS_INTERNAL_TOKEN"];
+
+/**
+ * Refuse to boot when a secret still holds an example-file placeholder (issue #491).
+ *
+ * ## Why this app needs its own copy of a guard the API already has
+ *
+ * Task 040 closed a HIGH finding by making the API refuse to boot on a placeholder:
+ * every shipped example file fills its secrets with `replace-with-a-random-32-character-...`,
+ * which is longer than the 32-character floor that was the only validation running, so a
+ * half-configured deployment booted on key material published in a public repository.
+ * That guard went into `apps/api/src/config.ts` only, deliberately, to keep the change out
+ * of the browser-gated app trees.
+ *
+ * With the API refusing, a **composed** deployment does not come up at all, so this is not
+ * a hole in the shipped stack - it is protected by the strictest reader. The reason to
+ * close it anyway is the one the two apps' config modules keep supplying: "the other guy
+ * validates it" is exactly the reasoning that produced #401 and #402, and a BFF started on
+ * its own, or against an API someone relaxed, would present a published token and discover
+ * it as an authentication failure at the first request rather than as a refusal at boot.
+ * A boot refusal names the variable; a 401 does not.
+ *
+ * ## What it reports
+ *
+ * The variable name and nothing else. SEC-8 forbids echoing the value even when the value
+ * is known to be worthless, because the same code path would handle a real one.
+ *
+ * The value is split on commas and whitespace before matching, because the API accepts
+ * `QCMS_INTERNAL_TOKEN` as a rotation list (first signs, all verify). A placeholder hiding
+ * among real entries is refused the same as a lone one.
+ *
+ * ## Where it runs
+ *
+ * `instrumentation.ts`, beside {@link assertSecureCookiesConfigured}, for the same reason:
+ * Next calls `register()` once per server process before anything serves, so the failure is
+ * a boot failure rather than a 500 on the first request.
+ *
+ * An **unset** or empty value is passed rather than refused. That is a different defect,
+ * `internalToken()` already fails loudly on it, and `register()` also runs in build-time
+ * server workers where the variable is legitimately absent - the same reason the cookie
+ * guard tolerates a missing base URL.
+ *
+ * ## Twin
+ *
+ * `apps/admin/lib/server/config.ts` carries this guard over the same variable. **Change
+ * one, change the other** - and unlike the cookie guard's twin note, that reminder is
+ * backed by a check: `scripts/check-bff-config-guards.test.ts` asserts both apps carry the
+ * guard, that both call it at boot, and that all three placeholder vocabularies agree.
+ */
+export function assertNoPlaceholderSecrets(): void {
+  const offenders = SECRET_VARS.filter((name) => {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === "") return false;
+    return raw
+      .split(/[\s,]+/)
+      .filter((entry) => entry !== "")
+      .some((entry) => looksLikePlaceholder(entry));
+  });
+  if (offenders.length === 0) return;
+
+  throw new Error(
+    [
+      "Refusing to start: a required secret still holds a placeholder value from an example file.",
+      `  observed: ${offenders.join(", ")} matches one of the shipped placeholder shapes (the value is not printed, SEC-8).`,
+      "  effect: this deployment would authenticate its calls to the API with a value published in a public repository, so anyone could open the SEC-4 internal channel.",
+      "  remedy: generate real secrets (`openssl rand -base64 32`) and set the same value here and on the api service. See docs/operations.md.",
+    ].join("\n"),
+  );
+}
+
 /** Public portal origin used for redirects produced inside the container. */
 export function portalBaseUrl(): string {
   let base = required("QCMS_PORTAL_BASE_URL");

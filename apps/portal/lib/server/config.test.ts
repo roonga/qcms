@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { assertSecureCookiesConfigured, portalBaseUrl, secureCookies } from "./config.js";
+import {
+  assertNoPlaceholderSecrets,
+  assertSecureCookiesConfigured,
+  looksLikePlaceholder,
+  portalBaseUrl,
+  secureCookies,
+} from "./config.js";
 
 /**
  * The server-only BFF configuration readers (task 029, extended for the Compose
@@ -219,5 +225,90 @@ describe("assertSecureCookiesConfigured", () => {
       // public origin, so nothing secret can reach a log through this path.
       expect(message).not.toMatch(/token|secret|password|key/i);
     });
+  });
+});
+
+/**
+ * The placeholder boot refusal (issue #491, SEC-8).
+ *
+ * The fixture is the **literal** value from the committed example files rather than an
+ * invented string, so this goes red the moment the guard stops covering what an operator
+ * would actually copy. The API's equivalent (`apps/api/src/config-placeholders.test.ts`)
+ * makes the same choice for the same reason.
+ *
+ * Agreement between this app's vocabulary, the admin's and the API's is not asserted
+ * here: it cannot be, because a cross-app assertion inside one app's Vitest project is
+ * cached against that project's own inputs and would report green having never read the
+ * file that broke it (`scripts/check-origin-guards.test.ts` records that lesson at
+ * length). It is asserted from the repo root, in
+ * `scripts/check-bff-config-guards.test.ts`.
+ */
+describe("assertNoPlaceholderSecrets", () => {
+  /** Verbatim from the committed example files. */
+  const SHIPPED = "replace-with-a-random-32-character-internal-token";
+
+  it("passes a real-looking token", () => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", "8f2c1a9e4b7d6053a1c8e2f4b6d809173a5c7e1b9d0f2468");
+    expect(() => assertNoPlaceholderSecrets()).not.toThrow();
+  });
+
+  it("passes an unset or empty value, which is a different defect with its own error", () => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", undefined);
+    expect(() => assertNoPlaceholderSecrets()).not.toThrow();
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", "");
+    expect(() => assertNoPlaceholderSecrets()).not.toThrow();
+  });
+
+  it("the shipped placeholder is long enough to pass a length floor, which is why this exists", () => {
+    expect(SHIPPED.length).toBeGreaterThanOrEqual(32);
+  });
+
+  it("refuses the shipped placeholder and names the variable", () => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", SHIPPED);
+    expect(() => assertNoPlaceholderSecrets()).toThrow(/QCMS_INTERNAL_TOKEN/);
+    expect(() => assertNoPlaceholderSecrets()).toThrow(/Refusing to start/);
+  });
+
+  it.each([
+    "replace_with_a_random_32_character_internal_token",
+    "REPLACE-WITH-A-RANDOM-32-CHARACTER-INTERNAL-TOKEN",
+    "  replace-with-a-random-32-character-internal-token  ",
+    "change-me-change-me-change-me-change-me",
+    "changeme-changeme-changeme-changeme-abc",
+    "your-internal-token-goes-right-here-ok",
+    "example-value-not-for-production-use-x",
+    "placeholder-value-not-for-production-x",
+    "<generate a 32 character secret here>",
+    "replace-before-you-deploy-a-real-key",
+  ])("refuses the other spellings an example file might carry: %s", (value) => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", value);
+    expect(() => assertNoPlaceholderSecrets()).toThrow(/QCMS_INTERNAL_TOKEN/);
+  });
+
+  it("refuses a placeholder hiding among real entries in a rotation list", () => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", `8f2c1a9e4b7d6053a1c8e2f4b6d80917,${SHIPPED}`);
+    expect(() => assertNoPlaceholderSecrets()).toThrow(/QCMS_INTERNAL_TOKEN/);
+  });
+
+  it("never echoes the refused value, only the variable name (SEC-8)", () => {
+    vi.stubEnv("QCMS_INTERNAL_TOKEN", SHIPPED);
+    let message = "";
+    try {
+      assertNoPlaceholderSecrets();
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error);
+    }
+    expect(message).toContain("QCMS_INTERNAL_TOKEN");
+    expect(message).not.toContain(SHIPPED);
+  });
+
+  it("looksLikePlaceholder does not treat real material as a placeholder", () => {
+    for (const value of [
+      "8f2c1a9e4b7d6053a1c8e2f4b6d809173a5c7e1b9d0f2468ace13579bdf02468",
+      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "correct-horse-battery-staple-and-then-some-more",
+    ]) {
+      expect(looksLikePlaceholder(value)).toBe(false);
+    }
   });
 });

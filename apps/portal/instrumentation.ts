@@ -31,7 +31,7 @@ import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 
-import { assertSecureCookiesConfigured } from "./lib/server/config";
+import { assertNoPlaceholderSecrets, assertSecureCookiesConfigured } from "./lib/server/config";
 import { redactingSpanProcessor } from "./lib/server/telemetry-redaction";
 
 /** The service name reported when `OTEL_SERVICE_NAME` is not set. */
@@ -56,7 +56,11 @@ function apiOrigin(): string | undefined {
 }
 
 /**
- * Refuse to start on a cookie configuration a browser will not protect (issue #292).
+ * Refuse to start on a configuration this process must not serve.
+ *
+ * Two refusals, both boot-time and both fatal: a cookie policy a browser will not
+ * protect (issue #292) and a secret still holding an example-file placeholder
+ * (issue #491). Their reasoning lives beside each assertion in `lib/server/config.ts`.
  *
  * `register()` is the only hook either app has that runs once at boot rather than on
  * a request, so this is where "refuse to boot" lives. **Exiting rather than only
@@ -77,9 +81,14 @@ function apiOrigin(): string | undefined {
  *
  * The twin is `apps/admin/instrumentation.ts`. **Change one, change the other.**
  */
-function refuseInsecureCookieConfiguration(): void {
+function refuseUnsafeConfiguration(): void {
   try {
     assertSecureCookiesConfigured();
+    // Second because the cookie refusal is the older one and its message is the one an
+    // operator following `.env.compose.example` is most likely to need. Both are boot
+    // refusals with the same exit shape, so a deployment carrying both defects sees the
+    // first, fixes it, and is told about the second on the next start.
+    assertNoPlaceholderSecrets();
   } catch (error) {
     process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);
     if (typeof process.exit === "function") process.exit(1);
@@ -88,7 +97,7 @@ function refuseInsecureCookieConfiguration(): void {
 }
 
 export function register(): void {
-  refuseInsecureCookieConfiguration();
+  refuseUnsafeConfiguration();
 
   const endpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT?.trim();
   if (endpoint === undefined || endpoint === "") return;
