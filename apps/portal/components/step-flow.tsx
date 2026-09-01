@@ -20,6 +20,7 @@ import {
   isRecorded,
   recordedAnswers,
   visibleErrors,
+  withConfirmed,
   withIssued,
   withRejection,
   withRollback,
@@ -208,6 +209,14 @@ export function StepFlow({
   // holds the record because a commit moment must see the write the commit moment
   // before it made, which is a gesture away, not a render away.
   const lastPostedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
+  // The same record narrowed to what the SERVER has actually confirmed: the answers
+  // it served this step with, plus every post it has since accepted. Never an
+  // optimistic entry. It exists only to answer "what was true before this post" for
+  // a rollback, and it has to be a second record rather than a reading of the first,
+  // because the first deliberately holds in-flight values (issue #169: with two
+  // overlapping refusals of one question, the second post's predecessor in the
+  // optimistic record is the first post's refused value).
+  const confirmedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
   // Each question's ADR-31 commit moment, read out of the compiled step document
   // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
   // so a question the projection is about to reveal is already classified.
@@ -328,13 +337,24 @@ export function StepFlow({
       // carrying it is in flight. Re-posting is a redundant append that also flips
       // `busy` at the wrong moment and races the advance guard.
       if (isRecorded(lastPostedRef.current, name, value)) return;
-      const previous = lastPostedRef.current[name];
       const key = answerKey(value);
       lastPostedRef.current = withIssued(lastPostedRef.current, name, value);
       queueRef.current = queueRef.current.then(async () => {
         const accepted = await sendAnswer(name, value);
-        if (accepted) return;
-        lastPostedRef.current = withRollback(lastPostedRef.current, name, key, previous);
+        if (accepted) {
+          confirmedRef.current = withConfirmed(confirmedRef.current, name, value);
+          return;
+        }
+        // The predecessor is read HERE rather than at issue time, and out of the
+        // confirmed record rather than the optimistic one. The queue is serial, so
+        // by now every earlier post for this question has resolved and the confirmed
+        // record is current (issue #169).
+        lastPostedRef.current = withRollback(
+          lastPostedRef.current,
+          confirmedRef.current,
+          name,
+          key,
+        );
       });
     },
     [sendAnswer],
@@ -471,6 +491,7 @@ export function StepFlow({
           snapshotRef.current = next;
           setValues((prev) => ({ ...prev, ...next.values }));
           lastPostedRef.current = withServerHeld(lastPostedRef.current, next.values);
+          confirmedRef.current = withServerHeld(confirmedRef.current, next.values);
           setSnapshot(next);
         } else if (res.status === 401) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);

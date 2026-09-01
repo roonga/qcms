@@ -122,27 +122,56 @@ export function withIssued(
 }
 
 /**
+ * The record with this question's value marked as HELD BY THE SERVER, called when
+ * a post is accepted (issue #169).
+ *
+ * Identical arithmetic to `withIssued`, deliberately kept as its own name because
+ * the two write different records: `withIssued` writes the optimistic one that
+ * dedupes posts, this one writes the confirmed one that `withRollback` restores
+ * from. Conflating them is the defect #169 records.
+ */
+export function withConfirmed(
+  confirmed: PostedRecord,
+  name: string,
+  value: A2UIAnswerValue | undefined,
+): PostedRecord {
+  return { ...confirmed, [name]: answerKey(value) };
+}
+
+/**
  * The record with an issued post's optimistic entry undone, called when that post
  * was NOT accepted.
  *
  * Without this, recording on issue would be worse than recording on resolution: a
  * refused value would be remembered as held, and the respondent could never retry
  * it (the retry would be deduped into silence, which matters the moment the same
- * body could succeed later - a transient failure, a changed constraint). Restoring
- * `previous` also has to restore ABSENCE when there was none, because "no entry"
+ * body could succeed later - a transient failure, a changed constraint). The
+ * restore has to restore ABSENCE when the server holds nothing, because "no entry"
  * is what tells a `completion` clear that the question was never answered.
  *
  * The rollback is conditional (compare and swap): if the record no longer holds
  * `key`, a newer post for this question has been issued since and its entry is the
  * current truth, so this stale rollback must not clobber it.
+ *
+ * **What it restores comes from `confirmed`, never from `record` (issue #169).**
+ * The rollback's contract is "restore what was true before this post", and the only
+ * keys that were ever true are the ones the server seeded or accepted. Reading the
+ * value the optimistic record happened to hold when this post was issued breaks
+ * that on two overlapping refusals of the same question: post A records X, post B
+ * is issued before A resolves and captures X as its predecessor, both are refused,
+ * and B's rollback reinstates X - a value the server refused. The record then
+ * claims the client holds X, so re-entering X is deduped into silence until a
+ * navigation's `withServerHeld` merge heals it. Taking the predecessor from the
+ * confirmed record makes that unrepresentable rather than merely unlikely.
  */
 export function withRollback(
   record: PostedRecord,
+  confirmed: PostedRecord,
   name: string,
   key: string,
-  previous: string | undefined,
 ): PostedRecord {
   if (record[name] !== key) return record;
+  const previous = confirmed[name];
   const next = { ...record };
   if (previous === undefined) delete next[name];
   else next[name] = previous;
