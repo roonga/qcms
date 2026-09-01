@@ -9,9 +9,47 @@ name: Images
 # pushed everything it built would be wrong twice over. What it buys today is that a
 # Dockerfile change that breaks the build, or drops the version stamp, fails here
 # instead of at an adopter's first `docker compose build`.
+#
+# THIS JOB IS NOT A REQUIRED CONTEXT. `protect-main` requires exactly four
+# (`verify (node-24)`, `api-e2e`, `portal-e2e`, `full-stack-e2e`), so a red build here
+# reports beside a mergeable pull request rather than blocking it. It is not alone:
+# `codeql.yml`'s analyze job and `audit.yml` are in the same position, and that set is
+# recorded here rather than left to be rediscovered (issue #468, whose own subject -
+# `create-app-e2e` - is a repository-administration change and stays with the Code
+# Owner). Enforced and merely reported are different properties; this workflow is the
+# second kind, on purpose, because a Docker build is slow and its failures are
+# infrastructural rather than semantic.
 on:
+  # Every push, still - a branch is where a broken Dockerfile is cheapest to find, and
+  # this workflow publishes no required context, so it is not part of the duplicate-run
+  # problem #496 and #525 were about. What it WAS doing is paying five minutes of image
+  # building for pushes that cannot change an image: probe PR #526 changed one markdown
+  # file under `plan/` and still cost 5m2s (issue #529, measured).
+  #
+  # `paths-ignore` skips a push only when EVERY changed path matches, so any push that
+  # also touches real source still builds. The two entries are inert by construction
+  # rather than by judgement: the three Dockerfiles copy `apps`, `packages`, `scripts`
+  # and `tooling` and never `plan/`, and no image's behaviour is decided by a Markdown
+  # file anywhere in the tree. Anything less obvious than that belongs on the built
+  # side of the line - a filter that silently stops building is a worse outcome than
+  # the waste it replaces.
   push:
+    paths-ignore:
+      - "**/*.md"
+      - "plan/**"
   workflow_dispatch:
+
+# Workflow plus ref, so each branch keeps its own lane and a second push replaces the
+# run in flight rather than grinding out three image builds for a tree nobody will
+# merge (issue #529, same shape as `ci.yml` and `e2e.yml`).
+#
+# `main` is carved out of cancellation for the reason `ci.yml` records: two back-to-back
+# merges share one group, and cancelling the first leaves no verdict for the commit that
+# landed. `workflow_dispatch` is keyed on the run id instead, so a routine push can never
+# cancel a manually requested build.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read

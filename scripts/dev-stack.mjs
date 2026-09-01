@@ -353,7 +353,19 @@ async function ignoreDuplicate(fn) {
 // ---------------------------------------------------------------------------
 // 3. Start the API and one front end, wired together.
 // ---------------------------------------------------------------------------
-function startChild(name, command, args, env) {
+/**
+ * Spawn one tracked child of this launcher.
+ *
+ * Exported for the issue #350 regression test, which needs a child this module is
+ * tracking without booting a database, an API and `next dev` to get one.
+ *
+ * @param {string} name
+ * @param {string} command
+ * @param {string[]} args
+ * @param {Record<string, string>} env
+ * @returns {import("node:child_process").ChildProcess}
+ */
+export function startChild(name, command, args, env) {
   const child = spawn(command, args, {
     cwd: REPO_ROOT,
     env: { ...process.env, ...env },
@@ -714,12 +726,63 @@ export function reapChildTree(child) {
   return tree;
 }
 
+/** Set by {@link reapAllChildren}, so the choke point can never run twice. */
+let reaped = false;
+
+/**
+ * Reap every child this launcher started. **The only place that reaps.**
+ *
+ * Wired to `process.on("exit")` rather than called from each ending, which is issue
+ * #350 and is a shape choice rather than a convenience. Before it, only `shutdown()`
+ * reaped, so Ctrl+C left the seat clean and the two paths a developer actually hits by
+ * accident did not: `fail()` exits 1 on an unexpected child exit (the API crashes
+ * mid-session) and on a readiness timeout (the front end never comes up), and both left
+ * a `next-server` holding this seat's `7S00`/`7S40`.
+ *
+ * The consequence is the one issue #318 documented and issue #295 then measured: the
+ * next `verify:browser` run at that seat meets a live server it did not start. It is now
+ * refused by name rather than adopted, but a refused run is still a run that cannot
+ * start, so the launcher has to stop producing the orphan.
+ *
+ * `exit` is the right hook because every ending passes through it - `process.exit` from
+ * either path, a thrown error, a normal end of the event loop - and because it is
+ * synchronous, which is exactly what `reapChildTree` is (`spawnSync` + `process.kill`).
+ * Writing a second reap LOOP beside `shutdown()`'s would have been the alternative, and
+ * two copies of a teardown are what `dev-portal.mjs` and `dev-admin.mjs` sharing one
+ * `shutdown()` already exists to prevent. So there is one loop, in one function, and the
+ * `reaped` latch makes calling it twice a no-op - which the signal path does, because it
+ * reaps before printing "stopped" (a launcher that says so before it is true is its own
+ * small defect) and then exits through this same handler.
+ */
+function reapAllChildren() {
+  if (reaped) return;
+  reaped = true;
+  for (const { child } of children) reapChildTree(child);
+}
+
+/**
+ * Register every teardown hook, before any child can exist.
+ *
+ * Ordering is the point: a child spawned before these are installed is a child no
+ * ending reaps. Exported so the issue #350 regression test can build the same wiring
+ * around a stand-in child instead of a whole stack.
+ *
+ * @returns {void}
+ */
+export function installShutdownHandlers() {
+  // Every ending goes through `exit`, including `fail()`'s `process.exit(1)` on an
+  // unexpected child exit or a readiness timeout, which is what issue #350 reported.
+  process.on("exit", reapAllChildren);
+  process.on("SIGINT", () => shutdown("SIGINT"));
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+}
+
 function shutdown(signal) {
   if (shuttingDown) return;
   shuttingDown = true;
   process.stdout.write("\n");
   log(`received ${signal}; stopping ${children.map((c) => c.name).join(" + ")}...`);
-  for (const { child } of children) reapChildTree(child);
+  reapAllChildren();
   log("stopped. The Postgres container is still running.");
   log(
     `Remove it with:  COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT} docker compose -f docker-compose.dev.yml down`,
@@ -852,8 +915,7 @@ function printAdminBanner() {
  */
 export async function runDevStack({ frontend, name }) {
   label = name;
-  process.on("SIGINT", () => shutdown("SIGINT"));
-  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  installShutdownHandlers();
 
   try {
     // Said before anything is built, so it is still on screen when the stack is up: an

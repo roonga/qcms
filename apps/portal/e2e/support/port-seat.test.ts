@@ -1,3 +1,4 @@
+import { type ChildProcess, spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
 import { tmpdir } from "node:os";
@@ -13,8 +14,10 @@ import {
   MIN_PORT_SEAT,
   PORT_SEAT,
   PORT_SEAT_ENV_VAR,
+  type ReadinessProbe,
   type SeatPortOccupant,
   adoptableServices,
+  adoptionRefusal,
   assertSeatChosen,
   assertSeatPortsOutsideEphemeralRange,
   assertSeatPortsUsable,
@@ -24,6 +27,7 @@ import {
   harnessPorts,
   isAdoptable,
   occupantOfPort,
+  probeServiceReady,
   resolvePortSeat,
   stablePort,
 } from "./port-seat.js";
@@ -90,6 +94,51 @@ async function listenOnFreePort(): Promise<{ port: number; server: Server }> {
 /** A synthetic occupant, for the parts of the refusal that need no real socket. */
 function occupant(overrides: Partial<SeatPortOccupant> = {}): SeatPortOccupant {
   return { service: "portal", port: 17_000, pid: 4242, cwd: "/elsewhere/qcms", ...overrides };
+}
+
+/**
+ * Readiness stubs, so the structural half of the rule is testable without a server.
+ *
+ * Injected rather than mocked: the real probe spawns a child process against a real
+ * port, which these cases have no reason to pay for. The probe ITSELF is covered
+ * against real listeners in its own describe block below.
+ */
+const alwaysReady: ReadinessProbe = () => true;
+const neverReady: ReadinessProbe = () => false;
+
+/** Child fixtures started by a test, killed even if an expectation throws. */
+const spawned: ChildProcess[] = [];
+
+afterEach(() => {
+  for (const child of spawned.splice(0)) child.kill("SIGKILL");
+});
+
+/**
+ * An HTTP server answering `status`, in a SEPARATE process, on a port it picks itself.
+ *
+ * It has to be a separate process. `probeServiceReady` is synchronous by construction
+ * (`spawnSync`), so it blocks this thread's event loop for the whole probe - and an
+ * in-process fixture server would therefore never get to answer, deadlocking against
+ * the very call under test. Measured, not theorised: the first version of this suite
+ * had the server in-process and every probe timed out.
+ *
+ * The port is reported by the child rather than chosen here, so nothing races another
+ * seat, and the listener is left dual-stack (no bind address) because the probe asks
+ * for `localhost` and this machine may resolve that either way.
+ */
+async function serveInChildProcess(status: number): Promise<number> {
+  const source = `require("node:http")
+    .createServer((request, response) => { response.writeHead(${String(status)}); response.end(); })
+    .listen(0, function () { console.log(this.address().port); });`;
+  const child = spawn(process.execPath, ["-e", source], { stdio: ["ignore", "pipe", "ignore"] });
+  spawned.push(child);
+  const port = await new Promise<number>((resolve, reject) => {
+    child.stdout.once("data", (chunk: Buffer) => resolve(Number(chunk.toString().trim())));
+    child.once("error", reject);
+    child.once("exit", () => reject(new Error("fixture server exited before it listened")));
+  });
+  if (!Number.isInteger(port)) throw new Error("fixture server reported no port");
+  return port;
 }
 
 /** A checkout shape whose `.git` is a directory (a normal clone, and CI). */
@@ -274,15 +323,32 @@ describe("assertSeatPortsUsable", () => {
     expect(call).toThrow(PORT_SEAT_ENV_VAR);
   });
 
-  it("adopts a dev server from THIS worktree, which is what local reuse is for", () => {
+  it("adopts a LIVE dev server from THIS worktree, which is what local reuse is for", () => {
     expect(() =>
-      assertSeatPortsUsable(0, "/repo/qcms", [occupant({ cwd: "/repo/qcms" })]),
+      assertSeatPortsUsable(0, "/repo/qcms", [occupant({ cwd: "/repo/qcms" })], alwaysReady),
     ).not.toThrow();
     // A trailing slash is how `HARNESS_REPO_ROOT` arrives and not how `/proc` reports
     // a cwd, so the comparison has to survive it or every reuse would be refused.
     expect(() =>
-      assertSeatPortsUsable(0, "/repo/qcms/", [occupant({ cwd: "/repo/qcms" })]),
+      assertSeatPortsUsable(0, "/repo/qcms/", [occupant({ cwd: "/repo/qcms" })], alwaysReady),
     ).not.toThrow();
+  });
+
+  it("refuses an orphan from this worktree that no longer answers (issue #295)", () => {
+    // The whole of issue #295 in one case. A run killed mid-suite leaves its
+    // `next-server` reparented to pid 1, listening on the seat, cwd still inside this
+    // worktree - structurally indistinguishable from the case above, and it answers
+    // nothing. Adopting it was hours of two-minute timeouts; refusing names it.
+    const call = () =>
+      assertSeatPortsUsable(
+        0,
+        "/repo/qcms",
+        [occupant({ pid: 1234, cwd: "/repo/qcms/apps/portal" })],
+        neverReady,
+      );
+    expect(call).toThrow("pid 1234");
+    expect(call).toThrow("did not answer");
+    expect(call).toThrow("orphan");
   });
 
   it("refuses an occupant it cannot attribute, rather than assuming it is ours", () => {
@@ -337,13 +403,24 @@ describe("adoptableServices", () => {
     // run claims it a second later: with reuse OFF that ends in EADDRINUSE, which is
     // the direction the race has to fail in. With reuse ON it would end in a green
     // suite run against the winner's tree, which is issue #255 exactly.
-    expect(adoptableServices(0, "/repo/qcms", [])).toEqual(new Set());
+    expect(adoptableServices(0, "/repo/qcms", [], alwaysReady)).toEqual(new Set());
   });
 
   it("adopts only a same-worktree dev server", () => {
     const mine = occupant({ cwd: "/repo/qcms" });
     const theirs = occupant({ service: "admin", cwd: "/repo/other" });
-    expect(adoptableServices(0, "/repo/qcms", [mine, theirs])).toEqual(new Set(["portal"]));
+    expect(adoptableServices(0, "/repo/qcms", [mine, theirs], alwaysReady)).toEqual(
+      new Set(["portal"]),
+    );
+  });
+
+  it("adopts nothing when this worktree's own servers no longer answer", () => {
+    // The `reuseExistingServer` half of issue #295. Refusing the run is one outcome;
+    // the flag has to come back empty too, or a future caller that only reads this set
+    // would still hand an orphan to Playwright.
+    const portal = occupant({ cwd: "/repo/qcms/apps/portal" });
+    const admin = occupant({ service: "admin", cwd: "/repo/qcms/apps/admin" });
+    expect(adoptableServices(0, "/repo/qcms", [portal, admin], neverReady)).toEqual(new Set());
   });
 
   it("recognises a dev server by its APP directory, not the repo root", () => {
@@ -352,25 +429,84 @@ describe("adoptableServices", () => {
     // unadoptable, which the first concurrent-seat proof run caught.
     const portal = occupant({ cwd: "/repo/qcms/apps/portal" });
     const admin = occupant({ service: "admin", cwd: "/repo/qcms/apps/admin" });
-    expect(adoptableServices(0, "/repo/qcms", [portal, admin])).toEqual(
+    expect(adoptableServices(0, "/repo/qcms", [portal, admin], alwaysReady)).toEqual(
       new Set(["portal", "admin"]),
     );
     // A sibling worktree whose path merely starts with the same characters is not us.
-    expect(isAdoptable(occupant({ cwd: "/repo/qcms-other/apps/portal" }), "/repo/qcms")).toBe(
-      false,
-    );
+    expect(
+      isAdoptable(occupant({ cwd: "/repo/qcms-other/apps/portal" }), "/repo/qcms", alwaysReady),
+    ).toBe(false);
   });
 });
 
 describe("isAdoptable", () => {
   it("is false for a different tree, an unknown tree, and a non-reusable service", () => {
-    expect(isAdoptable(occupant({ cwd: "/other" }), "/repo/qcms")).toBe(false);
-    expect(isAdoptable(occupant({ cwd: undefined }), "/repo/qcms")).toBe(false);
-    expect(isAdoptable(occupant({ service: "api", cwd: "/repo/qcms" }), "/repo/qcms")).toBe(false);
+    expect(isAdoptable(occupant({ cwd: "/other" }), "/repo/qcms", alwaysReady)).toBe(false);
+    expect(isAdoptable(occupant({ cwd: undefined }), "/repo/qcms", alwaysReady)).toBe(false);
+    expect(
+      isAdoptable(occupant({ service: "api", cwd: "/repo/qcms" }), "/repo/qcms", alwaysReady),
+    ).toBe(false);
   });
 
-  it("is true only for a reusable service in this exact tree", () => {
-    expect(isAdoptable(occupant({ cwd: "/repo/qcms" }), "/repo/qcms")).toBe(true);
-    expect(isAdoptable(occupant({ service: "admin", cwd: "/repo/qcms" }), "/repo/qcms")).toBe(true);
+  it("is true only for a reusable service in this exact tree that answers", () => {
+    expect(isAdoptable(occupant({ cwd: "/repo/qcms" }), "/repo/qcms", alwaysReady)).toBe(true);
+    expect(
+      isAdoptable(occupant({ service: "admin", cwd: "/repo/qcms" }), "/repo/qcms", alwaysReady),
+    ).toBe(true);
+    expect(isAdoptable(occupant({ cwd: "/repo/qcms" }), "/repo/qcms", neverReady)).toBe(false);
+  });
+
+  it("names why it refused, so the message can say more than 'held by pid N'", () => {
+    // The four cases are ordered cheapest-first on purpose: only the last one spawns a
+    // probe, so a foreign or unattributable occupant costs nothing to reject.
+    expect(adoptionRefusal(occupant({ service: "api" }), "/repo/qcms", neverReady)).toBe(
+      "not-reusable",
+    );
+    expect(adoptionRefusal(occupant({ cwd: undefined }), "/repo/qcms", neverReady)).toBe(
+      "unattributable",
+    );
+    expect(adoptionRefusal(occupant({ cwd: "/other" }), "/repo/qcms", neverReady)).toBe(
+      "foreign-tree",
+    );
+    expect(adoptionRefusal(occupant({ cwd: "/repo/qcms" }), "/repo/qcms", neverReady)).toBe(
+      "not-ready",
+    );
+    expect(
+      adoptionRefusal(occupant({ cwd: "/repo/qcms" }), "/repo/qcms", alwaysReady),
+    ).toBeUndefined();
+  });
+});
+
+describe("probeServiceReady", () => {
+  // The probe itself, against real sockets. Everything above stubs it, so without
+  // these three cases the mechanism that decides adoption would be untested.
+
+  it("is true for a server answering below the 400 ceiling", async () => {
+    const port = await serveInChildProcess(200);
+    expect(probeServiceReady(occupant({ port }))).toBe(true);
+  });
+
+  it("is false for a server answering 500, which is not serving this app", async () => {
+    // Issue #381's case, one level up: any HTTP answer used to count as alive, and a
+    // portal 500ing on every request (an unbuilt `@qcms/ui`) looked exactly like a
+    // healthy one. A server in that state is not something to adopt either.
+    const port = await serveInChildProcess(500);
+    expect(probeServiceReady(occupant({ port }))).toBe(false);
+  });
+
+  it("is false for a listener that accepts and never answers, which is the orphan", async () => {
+    // A bare TCP listener with no HTTP behind it stands in for the reparented
+    // `next-server`: the port is held, the kernel completes the handshake from the
+    // listen backlog, and nothing ever comes back. This one can stay in-process
+    // precisely because nothing in-process has to run for the connect to succeed.
+    // A shorter budget than the real 5s one, because the wait IS the assertion.
+    const { port } = await listenOnFreePort();
+    expect(probeServiceReady(occupant({ port }), 750)).toBe(false);
+  });
+
+  it("is false for a port with nothing on it at all", async () => {
+    const { port, server } = await listenOnFreePort();
+    await close(server);
+    expect(probeServiceReady(occupant({ port }), 750)).toBe(false);
   });
 });
