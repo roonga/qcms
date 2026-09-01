@@ -1,7 +1,11 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+// Plain JavaScript with a hand-written declaration file beside it, imported by relative
+// path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
+import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
 
 /**
  * Which screens carry a rail, and what each one's section carries, checked against the route
@@ -80,21 +84,25 @@ const NO_SECTION = [
 ];
 
 /**
- * Every Next route pattern under one directory, read from the tree.
+ * Every Next route pattern under one directory, read from the repository.
  *
- * The same walk `measure.test.ts` makes, minus its slot skip: here the slot tree is the
- * subject rather than the thing being excluded, so the walk is pointed at one root or the
- * other and route groups still contribute no segment.
+ * Pointed at one root or the other: here the slot tree is the subject rather than the thing
+ * being excluded, so a `@slot` segment *inside* the enumeration is dropped while `@rail` as
+ * the root itself is not. Route groups still contribute no segment.
+ *
+ * The set comes from `git ls-files` rather than a directory walk, so a compiled `page.tsx`
+ * left under `.next-dev` by a dev server cannot be read as a screen (issue #641).
  */
 function routePatternsUnder(directory: string, prefix: string): string[] {
-  const entries = readdirSync(directory, { withFileTypes: true });
-  const patterns = entries.some((entry) => entry.isFile() && entry.name === "page.tsx")
-    ? [prefix]
-    : [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name.startsWith("@")) continue;
-    const segment = entry.name.startsWith("(") ? prefix : `${prefix}/${entry.name}`;
-    patterns.push(...routePatternsUnder(`${directory}/${entry.name}`, segment));
+  const patterns: string[] = [];
+  for (const relative of trackedFilesUnder(directory, { match: /(?:^|\/)page\.tsx$/ })) {
+    const segments = relative.split("/").slice(0, -1);
+    if (segments.some((segment) => segment.startsWith("@"))) continue;
+    const route = segments
+      .filter((segment) => !segment.startsWith("("))
+      .map((segment) => `/${segment}`)
+      .join("");
+    patterns.push(`${prefix}${route}`);
   }
   return patterns;
 }

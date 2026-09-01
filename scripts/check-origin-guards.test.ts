@@ -1,7 +1,9 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
  * Every state-changing BFF route handler in every Next app carries SEC-9's CSRF belt
@@ -139,30 +141,36 @@ interface NextApp {
 /**
  * Every app under `apps/` that has an `app/` directory.
  *
- * Derived from disk rather than listed here on purpose: a third Next app added later
- * is covered the day it lands, which is the failure mode this whole file is about. The
- * self-check below asserts the derivation still finds the two that exist today, so a
+ * Derived from the repository rather than listed here on purpose: a third Next app added
+ * later is covered the day it lands, which is the failure mode this whole file is about.
+ * The self-check below asserts the derivation still finds the two that exist today, so a
  * discovery that silently stops finding anything is a red rather than a vacuous pass.
+ *
+ * The catalogue is git's, not the working directory's (issue #641): a build leaves
+ * `apps/<app>/.next` and a dev server leaves `apps/<app>/.next-dev`, both of which a walk
+ * reads as source.
  */
 function nextApps(): NextApp[] {
   const appsDir = `${REPO_ROOT}apps`;
-  return readdirSync(appsDir, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => ({ name: entry.name, appDir: `${appsDir}/${entry.name}/app` }))
-    .filter((app) => existsSync(app.appDir));
+  const names = new Set<string>();
+  for (const relative of trackedFilesUnder(appsDir)) {
+    const [name, second] = relative.split("/");
+    if (name !== undefined && second === "app") names.add(name);
+  }
+  return [...names]
+    .sort((a, b) => a.localeCompare(b))
+    .map((name) => ({ name, appDir: `${appsDir}/${name}/app` }));
 }
 
-/** Every `route.ts` / `route.tsx` under `dir`, recursively, as repo-relative paths. */
+/**
+ * Every `route.ts` / `route.tsx` under `dir`, recursively, as repo-relative paths.
+ *
+ * Enumerated through git for the same reason {@link nextApps} is.
+ */
 function routeFiles(dir: string, prefix: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      out.push(...routeFiles(`${dir}/${entry.name}`, `${prefix}${entry.name}/`));
-      continue;
-    }
-    if (/^route\.tsx?$/.test(entry.name)) out.push(`${prefix}${entry.name}`);
-  }
-  return out;
+  return trackedFilesUnder(dir, { match: /(?:^|\/)route\.tsx?$/ }).map(
+    (relative) => `${prefix}${relative}`,
+  );
 }
 
 /** The given lines with comment lines dropped and trailing comments cut. */
