@@ -365,6 +365,8 @@ more than its removal buys.
 
 ## Related
 
+- Which platform to run a recipe on, what it costs, and the invariants a platform with no VM has
+  to reproduce for itself: [`docs/deploy.md`](deploy.md).
 - **ADR-20** and the operability budget: `docs/adr/core.md` and `docs/PROJECT_GOAL.md` §7.
 - **SEC-9** (transport and browser security), plus the body-limit and header controls the edge
   mirrors: `docs/SECURITY_DESIGN.md` §5.
