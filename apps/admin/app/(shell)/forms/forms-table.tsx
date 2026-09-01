@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import type { FormListItem } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { formatDay } from "@/lib/i18n/format";
 
 /**
  * The form library table (task 033).
@@ -101,6 +102,6 @@ function publishedCell(form: FormListItem): string {
     ? t("forms.version.value", { version: form.latestVersion })
     : t("forms.version.valueAt", {
         version: form.latestVersion,
-        date: form.publishedAt.slice(0, 10),
+        date: formatDay(form.publishedAt),
       });
 }

@@ -4,8 +4,9 @@ import type { ReactNode } from "react";
 import { StatusTag } from "@/components/questions/status-tag";
 import { RailDisclosure } from "@/components/rail-disclosure";
 import { t, tPlural } from "@/lib/i18n/en";
+import { formatDay } from "@/lib/i18n/format";
 import type { QuestionVersion } from "@/lib/questions/types";
-import { isoDay, latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
+import { latestPublishedVersion, versionRailItems } from "@/lib/questions/version-rail";
 
 /**
  * The question detail screen's rail, built to `plan/admin-shell-poc/question-editor-poc.html`
@@ -147,7 +148,7 @@ export function QuestionVersionsRail({
                     <span className="qcms-question-rail__version-date">
                       {item.publishedAt === null
                         ? t("questions.detail.unpublished")
-                        : t("questions.detail.publishedAt", { date: isoDay(item.publishedAt) })}
+                        : t("questions.detail.publishedAt", { date: formatDay(item.publishedAt) })}
                     </span>
                   </Link>
                 </li>

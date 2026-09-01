@@ -37,17 +37,6 @@ export interface VersionRailItem {
 }
 
 /**
- * ISO day.
- *
- * Rendered on the server, so no locale or timezone can shift it on hydration: a date
- * formatted here and the same date formatted in the browser would differ across the
- * international date line, and this one is a governance record.
- */
-export function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-/**
  * Which version the address selects.
  *
  * Newest by default, because an author arriving from the library wants what is current,

@@ -142,9 +142,11 @@ describe("the question rail's markup", () => {
     expect(html).toContain('data-status="deprecated"');
   });
 
-  it("says when each version was published, as an ISO day, and says so when it never was", async () => {
+  it("says when each version was published, locale-aware, and says so when it never was", async () => {
     const html = await render();
-    expect(html).toContain("Published 2026-05-14");
+    // ADR-27, through `lib/i18n/format`: a rendered date, pinned to UTC so the server and
+    // the browser agree, rather than the wire representation with its tail cut off (issue 277).
+    expect(html).toContain("Published May 14, 2026");
     expect(html).toContain("Never published");
   });
 

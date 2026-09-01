@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { QuestionDefinitionView, QuestionStatus, QuestionVersion } from "./types.ts";
-import { isoDay, latestPublishedVersion, selectVersion, versionRailItems } from "./version-rail.ts";
+import { latestPublishedVersion, selectVersion, versionRailItems } from "./version-rail.ts";
 
 /**
  * What the question rail carries, as a decision rather than as pixels (issue 650).
@@ -112,11 +112,5 @@ describe("the digest's published version", () => {
         version(2, "deprecated", "2026-01-01T00:00:00.000Z"),
       ]),
     ).toBe(1);
-  });
-});
-
-describe("the published date", () => {
-  it("is the ISO day of the instant, cut on the server so no timezone can shift it", () => {
-    expect(isoDay("2026-05-14T23:45:00.000Z")).toBe("2026-05-14");
   });
 });
