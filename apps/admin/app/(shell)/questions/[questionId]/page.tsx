@@ -7,8 +7,9 @@ import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
+import { formatDay } from "@/lib/i18n/format";
 import { pageMetadata } from "@/lib/page-title";
-import { isoDay, selectVersion } from "@/lib/questions/version-rail";
+import { selectVersion } from "@/lib/questions/version-rail";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
@@ -93,7 +94,7 @@ export default async function QuestionDetailPage({
         </div>
         <p className="text-sm text-(--color-text-muted)">
           {t("questions.detail.slug")}: {detail.data.slug} · {t("questions.detail.created")}:{" "}
-          {isoDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}
+          {formatDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}
           {t(`questions.type.${selected.definition.type}`)}
         </p>
       </div>

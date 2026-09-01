@@ -42,14 +42,12 @@ import type {
  * keyboard - is `apps/admin/e2e/questions-rail.pw.ts`, because every one of those is a
  * computed style or an interaction rather than markup.
  *
- * ## The alias bridge, and the stubbed slot
+ * ## The stubbed slot
  *
- * Same device the app's other component tests use: the admin imports itself through `@/` and
- * the Vitest project has no resolver for it, so each factory hands back the real module by
- * its relative path. The lifecycle actions are NOT rendered here even in stub form beyond a
- * marker element: they are a react-aria `Dialog` subtree, which `renderToStaticMarkup` yields
- * the empty string for (issue 628), and they are exercised where a browser is
- * (`e2e/questions-lifecycle.pw.ts`).
+ * The rail's own tree is real. The lifecycle actions are NOT rendered here even in stub form
+ * beyond a marker element: they are a react-aria `Dialog` subtree, which
+ * `renderToStaticMarkup` yields the empty string for (issue 628), and they are exercised
+ * where a browser is (`e2e/questions-lifecycle.pw.ts`).
  */
 
 vi.mock("next/link", () => ({
@@ -59,10 +57,6 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-vi.mock("@/components/questions/status-tag", () => import("./status-tag.tsx"));
-vi.mock("@/components/rail-disclosure", () => import("../rail-disclosure.tsx"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/questions/version-rail", () => import("../../lib/questions/version-rail.ts"));
 
 const DEFINITION = { type: "shortText" } as unknown as QuestionDefinitionView;
 
@@ -148,9 +142,11 @@ describe("the question rail's markup", () => {
     expect(html).toContain('data-status="deprecated"');
   });
 
-  it("says when each version was published, as an ISO day, and says so when it never was", async () => {
+  it("says when each version was published, locale-aware, and says so when it never was", async () => {
     const html = await render();
-    expect(html).toContain("Published 2026-05-14");
+    // ADR-27, through `lib/i18n/format`: a rendered date, pinned to UTC so the server and
+    // the browser agree, rather than the wire representation with its tail cut off (issue 277).
+    expect(html).toContain("Published May 14, 2026");
     expect(html).toContain("Never published");
   });
 

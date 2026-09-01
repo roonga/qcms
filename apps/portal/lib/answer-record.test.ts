@@ -6,6 +6,7 @@ import {
   isRecorded,
   recordedAnswers,
   visibleErrors,
+  withConfirmed,
   withIssued,
   withRejection,
   withRollback,
@@ -109,7 +110,7 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
     const held = afterAnswering();
     // The respondent replaces "Ada" with something the API refuses.
     const issued = withIssued(held, "q_name", "123");
-    const rolledBack = withRollback(issued, "q_name", answerKey("123"), held["q_name"]);
+    const rolledBack = withRollback(issued, held, "q_name", answerKey("123"));
     // What the server actually has is what it had before the refusal...
     expect(isRecorded(rolledBack, "q_name", "Ada")).toBe(true);
     // ...and re-entering the refused value posts rather than being deduped into
@@ -123,7 +124,7 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
     // server holds nothing" and "the server holds a retraction" to decide whether
     // a clear is a retraction at all (ADR-31 amended x ADR-33).
     const issued = withIssued({}, "q_dob", "1990-05-17");
-    const rolledBack = withRollback(issued, "q_dob", answerKey("1990-05-17"), undefined);
+    const rolledBack = withRollback(issued, {}, "q_dob", answerKey("1990-05-17"));
     expect(holdsAnswer(rolledBack, "q_dob")).toBe(false);
     expect(isRecorded(rolledBack, "q_dob", undefined)).toBe(false);
   });
@@ -131,11 +132,55 @@ describe("rolling the record back when a post is refused (issue #122, symptom 2)
   it("does not clobber a newer post issued for the same question", () => {
     // Two commits, then the FIRST comes back refused. Its rollback is stale: the
     // second post is the current truth about what the server is being told.
-    const first = withIssued(afterAnswering(), "q_name", "123");
+    const held = afterAnswering();
+    const first = withIssued(held, "q_name", "123");
     const second = withIssued(first, "q_name", "Grace");
-    const rolledBack = withRollback(second, "q_name", answerKey("123"), first["q_name"]);
+    const rolledBack = withRollback(second, held, "q_name", answerKey("123"));
     expect(rolledBack).toBe(second);
     expect(isRecorded(rolledBack, "q_name", "Grace")).toBe(true);
+  });
+
+  it("restores absence rather than a refused predecessor when two refusals overlap", () => {
+    // Issue #169, the interleaving #122's compare-and-swap did not cover. Two posts
+    // for one question are in flight at once and BOTH come back refused.
+    //
+    // The question starts unanswered, so nothing has ever been confirmed for it.
+    const confirmed: PostedRecord = {};
+    // Post A is issued for "123"...
+    const afterA = withIssued(confirmed, "q_name", "123");
+    // ...and post B for "456" is issued before A resolves.
+    const afterB = withIssued(afterA, "q_name", "456");
+
+    // A resolves first and is refused. Its rollback is stale: B's entry is the
+    // current truth about what the server is being told, so the CAS declines.
+    const afterARollback = withRollback(afterB, confirmed, "q_name", answerKey("123"));
+    expect(afterARollback).toBe(afterB);
+
+    // Then B is refused. Reading its predecessor out of the record it was issued
+    // against would reinstate "123" - a value the server refused and never held -
+    // and re-entering "123" would then be deduped into silence. The predecessor
+    // comes from the confirmed record instead, which holds nothing for this
+    // question, so the rollback restores ABSENCE.
+    const afterBRollback = withRollback(afterARollback, confirmed, "q_name", answerKey("456"));
+    expect(holdsAnswer(afterBRollback, "q_name")).toBe(false);
+    // Both refused values are postable again, which is the symptom stated directly.
+    expect(isRecorded(afterBRollback, "q_name", "123")).toBe(false);
+    expect(isRecorded(afterBRollback, "q_name", "456")).toBe(false);
+  });
+
+  it("restores the last ACCEPTED value when two later refusals overlap", () => {
+    // The same interleaving over a question the server does hold an answer for. The
+    // rollback must land on "Ada", the accepted value, and not on either refusal.
+    const confirmed = withConfirmed({}, "q_name", "Ada");
+    const afterA = withIssued(confirmed, "q_name", "123");
+    const afterB = withIssued(afterA, "q_name", "456");
+
+    const afterARollback = withRollback(afterB, confirmed, "q_name", answerKey("123"));
+    const afterBRollback = withRollback(afterARollback, confirmed, "q_name", answerKey("456"));
+
+    expect(isRecorded(afterBRollback, "q_name", "Ada")).toBe(true);
+    expect(isRecorded(afterBRollback, "q_name", "123")).toBe(false);
+    expect(isRecorded(afterBRollback, "q_name", "456")).toBe(false);
   });
 
   it("keeps a retraction and a re-answer of the retracted value both postable", () => {

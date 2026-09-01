@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { t } from "@/lib/i18n/en";
+import { formatDay } from "@/lib/i18n/format";
 import { textOf } from "@/lib/questions/definition";
 import type { QuestionListItem } from "@/lib/questions/types";
 
@@ -107,16 +108,11 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
               </td>
               <td className="qcms-cell--num">v{question.latestVersion}</td>
               <td>{t(`questions.status.${question.latestStatus}`)}</td>
-              <td className="qcms-cell--num qcms-cell--drop">{isoDay(question.createdAt)}</td>
+              <td className="qcms-cell--num qcms-cell--drop">{formatDay(question.createdAt)}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
-}
-
-/** ISO day. Formatted on the server so the client renders the identical string. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
 }

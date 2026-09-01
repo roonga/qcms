@@ -63,22 +63,37 @@ export interface HydrationWaitOptions {
    * non-hydrating page is rejected without burning the default wait.
    */
   readonly timeout?: number;
+  /**
+   * The node to read React's attachment from, when the default is not on the page.
+   *
+   * The default probes a STEP control, so it is the wrong question on any page that
+   * is not a step: the form entry page (`/f/<slug>`) renders no `primary-action` at
+   * all, and waiting for one there hangs until the test times out rather than
+   * failing with a useful message (issue #391, found the expensive way).
+   *
+   * A caller passing one is making the same claim the default makes and must make
+   * it truthfully: the node has to be **React-owned**, or the wait watches something
+   * React never touches. Prefer the element whose hydration the test actually
+   * depends on.
+   */
+  readonly probe?: string;
 }
 
-/** Wait until React has attached to the current step, and prove it observed that. */
+/** Wait until React has attached to the page, and prove it observed that. */
 export async function waitForHydration(
   page: Page,
   options: HydrationWaitOptions = {},
 ): Promise<void> {
+  const { probe = HYDRATION_PROBE, ...waitOptions } = options;
   const marker = await page.waitForFunction(
-    (probe: string) => {
-      const el = document.querySelector(probe);
+    (selector: string) => {
+      const el = document.querySelector(selector);
       if (el === null) return null;
       // Own enumerable property, set by React on the host node as it hydrates.
       return Object.keys(el).find((key) => key.startsWith("__react")) ?? null;
     },
-    HYDRATION_PROBE,
-    options,
+    probe,
+    waitOptions,
   );
   expect(
     await marker.jsonValue(),

@@ -136,38 +136,14 @@ let linksResult: unknown = { ok: true, data: [] };
 let libraryResult: unknown = { ok: true, data: [] };
 
 /**
- * The subjects are redirected to the real modules rather than stubbed, for the reason
+ * The subjects carry no registration at all and run for real, for the reason
  * `empty-and-table-states.test.tsx` gives: a stand-in shaped like the thing under test
  * only asserts that the stand-in is shaped like the thing under test. `EmptyState` is
- * §3's panel and is what "no empty claim" is measured against, and `read-state` is the
- * contract itself.
+ * §3's panel and is what "no empty claim" is measured against, `read-state` is the
+ * contract itself, and `DeliveryDashboard` is one of the four sites listed above.
  */
-vi.mock("@/components/ops/webhook-config", () => import("../../components/ops/webhook-config"));
-vi.mock(
-  "@/components/ops/delivery-dashboard",
-  () => import("../../components/ops/delivery-dashboard"),
-);
-vi.mock("@/components/forms/secure-links", () => import("../../components/forms/secure-links"));
-vi.mock("@/components/forms/form-builder", () => import("../../components/forms/form-builder"));
 // The seam the builder publishes its steps through, for the rail beside it.
-vi.mock("@/lib/forms/builder-bridge", () => import("../../lib/forms/builder-bridge"));
-vi.mock("@/components/empty-state", () => import("../../components/empty-state"));
-vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
-vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));
-vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition"));
-vi.mock("@/lib/forms/links", () => import("../../lib/forms/links"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
-vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection"));
-vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues"));
-vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition"));
-vi.mock("@/components/searchable-select", () => import("../../components/searchable-select"));
-vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid"));
-vi.mock("@/lib/forms/settings", () => import("../../lib/forms/settings"));
-vi.mock("@/components/row-menu", () => import("../../components/row-menu"));
 vi.mock("@/lib/announce", () => ({ announce: () => undefined }));
-vi.mock("@/lib/forms/types", () => import("../../lib/forms/types"));
-vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state"));
-vi.mock("@/components/forms/link-state-tag", () => import("../../components/forms/link-state-tag"));
 vi.mock("@/components/ops/ops-tags", () => ({
   cancelledReasonText: (reason: string) => reason,
   DeliveryStatusTag: () => <span data-testid="qcms-delivery-status-stub" />,
@@ -205,17 +181,12 @@ vi.mock("@/components/forms/builder-breadcrumb", () => ({
 vi.mock("@/lib/server/config", () => ({ portalBaseUrl: () => undefined }));
 // Redirected to the real module rather than stubbed: it is a pure function and this file
 // wants the page's real answer about whether a link exists, not a fixed one.
-vi.mock("@/lib/forms/public-link", () => import("../../lib/forms/public-link.ts"));
 // The rules table writes an issue count the way the rail's step rows write theirs, which
 // is why it reaches for the rail's helper. Redirected to the real module: it is a pure
 // pluralisation and this file wants the real words.
-vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
-vi.mock("@/lib/forms/rule-sentence", () => import("../../lib/forms/rule-sentence.ts"));
-vi.mock("@/lib/forms/rule-targets", () => import("../../lib/forms/rule-targets.ts"));
 // Pure cookie helpers, redirected to the real module: this file wants the page's real
 // answer about whether the concurrent notice has been dismissed, which with no cookie on
 // the request is "no".
-vi.mock("@/lib/builder-notice", () => import("../../lib/builder-notice.ts"));
 vi.mock("@/lib/ops/unexpected", () => ({ unexpected: () => "ops.error.unexpected" }));
 
 // The page reads one cookie - whether the concurrent-edit notice has been dismissed - and
@@ -272,11 +243,6 @@ vi.mock("./forms/actions", () => ({
  * rather than about the sentence it holds today. That is what makes "the failed read does
  * not print the empty sentence" a precise claim rather than a substring guess.
  */
-// The real title helper: `generateMetadata` is not what these tests render, so the module
-// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
-// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
-vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
-
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,
@@ -575,20 +541,22 @@ describe("the form builder's library read states (issues 572, 544)", () => {
 
     expect(page).toContain('data-testid="qcms-alert"');
     expect(page).toContain("forms.error.libraryFailed");
-    // TWO VOCABULARIES IN ONE ASSERTION SET, and it is not an oversight. The grid's
-    // library-owned cells are resolved inside `lib/forms/pin-grid.ts`, which is redirected
-    // to the REAL module here (it is the subject) and therefore imports the REAL catalog
-    // by relative path - so those cells carry English, while everything a component
-    // renders through the mocked `@/lib/i18n/en` carries its key.
+    // ONE VOCABULARY THROUGHOUT, which this set did not have before the `@/` alias
+    // resolved under Vitest (issues 252, 566, 652). `lib/forms/pin-grid.ts` is the subject
+    // here so it runs for real, and it reaches the catalog by relative path while the
+    // components reach it as `@/lib/i18n/en`. Those were two module ids, so the stub
+    // caught only the second: the library-owned cells came back in English and everything
+    // else came back as keys. They are one module now, the stub reaches both, and every
+    // assertion is again about WHICH string a branch chose.
     //
     // Both tags below say the library was asked and answered. It was not asked.
-    expect(grid).not.toContain("Version not found");
+    expect(grid).not.toContain("forms.step.pinMissing");
     expect(grid).not.toContain('data-pin-state="missing"');
-    expect(grid).not.toContain("No label in the library");
-    expect(grid).toContain('data-fallback="Label not known"');
+    expect(grid).not.toContain("forms.step.labelMissing");
+    expect(grid).toContain('data-fallback="forms.step.labelUnknown"');
     // And the form screen the page actually opens on says nothing about the library
     // either, which is the claim the warning above it would otherwise contradict.
-    expect(page).not.toContain("Version not found");
+    expect(page).not.toContain("forms.step.pinMissing");
     expect(page).not.toContain('data-pin-state="missing"');
   });
 
@@ -613,9 +581,9 @@ describe("the form builder's library read states (issues 572, 544)", () => {
     // exists for, so gating it on the read must not delete it.
     const grid = await renderPinGrid();
 
-    expect(grid).toContain("Version not found");
+    expect(grid).toContain("forms.step.pinMissing");
     expect(grid).toContain('data-pin-state="missing"');
-    expect(grid).toContain('data-fallback="No label in the library"');
+    expect(grid).toContain('data-fallback="forms.step.labelMissing"');
     expect(await renderBuilder()).not.toContain("forms.error.libraryFailed");
   });
 });

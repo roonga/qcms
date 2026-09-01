@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { blankDraft } from "../../lib/forms/draft.ts";
 import type { FormIssue } from "../../lib/forms/types.ts";
@@ -54,20 +54,14 @@ import type { BuilderStatus } from "./validation-panel.tsx";
  */
 
 /**
- * The `@/` alias is a Next/tsconfig path that Vitest resolves nothing for (the root config
- * is deliberately the only one, task 001, and it declares no alias). The panel's two value
- * imports are redirected to the real modules by relative path rather than stubbed: the
- * sentence the panel renders IS the subject here, so a fake `t` returning its own key
- * would assert nothing about what an author reads. `@/lib/forms/types` is `import type`
- * and erases, so it needs no entry.
+ * The panel's two value imports are left real rather than stubbed: the sentence the panel
+ * renders IS the subject here, so a fake `t` returning its own key would assert nothing
+ * about what an author reads.
  */
-vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
 // The bridge the panel reads to find out which step screen is showing, so an issue link
-// naming an unrendered pin can switch to it. Redirected to the real module rather than
-// stubbed: with no builder mounted it publishes nothing and `useBuilderRail` returns
-// `undefined`, which is exactly the state these assertions render in.
-vi.mock("@/lib/forms/builder-bridge", () => import("../../lib/forms/builder-bridge.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
+// naming an unrendered pin can switch to it. Left real rather than stubbed: with no
+// builder mounted it publishes nothing and `useBuilderRail` returns `undefined`, which is
+// exactly the state these assertions render in.
 
 const DRAFT = blankDraft("frm_validation_panel");
 

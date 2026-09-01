@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 
 import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../lib/forms/types.ts";
 
@@ -52,18 +52,6 @@ import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../li
  * that is the point of including them: the rail was already honest and the fix had to
  * leave it that way.
  */
-
-vi.mock("@/components/kit", () => import("../kit.tsx"));
-vi.mock("@/components/empty-state", () => import("../empty-state.tsx"));
-vi.mock("@/components/row-menu", () => import("../row-menu.tsx"));
-vi.mock("@/lib/announce", () => import("../../lib/announce.ts"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
-vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
-vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
-vi.mock("@/lib/forms/rule-targets", () => import("../../lib/forms/rule-targets.ts"));
-vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition.ts"));
 
 const DEFINITION = {
   questionId: "q_at_fault_accident",

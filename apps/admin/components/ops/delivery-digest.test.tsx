@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { DeliveryItem } from "../../lib/ops/types.ts";
 import { stripTags } from "../test-support/markup.ts";
@@ -38,12 +38,6 @@ import { stripTags } from "../test-support/markup.ts";
  * `qcms-delivery-facts` assertion fails on a missing element, and the heading test finds
  * `<h4>` where it expects `<h3>` (that `<h4>`-under-`<h2>` skip is issue #541).
  */
-
-vi.mock("@/components/empty-state", () => import("../empty-state.tsx"));
-vi.mock("@/components/ops/ops-tags", () => import("./ops-tags.tsx"));
-vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/ops/erasure", () => import("../../lib/ops/erasure.ts"));
 
 const { t, tPlural } = await import("../../lib/i18n/en.ts");
 const { DeliveryRows } = await import("./delivery-dashboard.tsx");

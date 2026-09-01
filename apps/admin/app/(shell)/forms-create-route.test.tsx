@@ -87,16 +87,11 @@ const QUESTION_ROW = {
 };
 
 /**
- * The `@/` alias is a Next/tsconfig path and Vitest resolves nothing for it (issue 652;
- * the root config is deliberately the only one, task 001, and declares no alias). Modules
- * whose output IS part of the claim are redirected to the real thing by relative path;
- * modules that are only scenery are replaced.
+ * Only scenery is replaced. Anything whose output is part of a claim below runs for real,
+ * which `apps/admin/vitest.config.ts` makes possible by resolving `@/` the way Next does
+ * (issues 252, 566, 652): before that alias existed, every `@/` specifier a page reached
+ * transitively needed an entry here whether or not it was being faked.
  */
-vi.mock("@/components/empty-state", () => import("../../components/empty-state"));
-vi.mock("@/lib/questions/errors", () => import("../../lib/questions/errors"));
-vi.mock("@/lib/questions/types", () => import("../../lib/questions/types"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft"));
-vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state"));
 
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
@@ -114,11 +109,6 @@ vi.mock("@/lib/server/questions", () => ({
  * this file noticing, while "the list screen names no part of the create copy" stays a
  * precise claim rather than a substring guess.
  */
-// The real title helper: `generateMetadata` is not what these tests render, so the module
-// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
-// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
-vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
-
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,

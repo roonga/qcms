@@ -50,8 +50,6 @@ const SESSION = {
 /** Every upstream call this file's `GET` makes, in order, with its filter argument. */
 const exportCalls: Array<Record<string, unknown>> = [];
 
-vi.mock("@/lib/ops/export", () => import("../../../../../lib/ops/export"));
-vi.mock("@/lib/ops/response-filters", () => import("../../../../../lib/ops/response-filters"));
 vi.mock("@/lib/server/session", () => ({
   requireAdminSessionForRequest: () => Promise.resolve(SESSION),
 }));

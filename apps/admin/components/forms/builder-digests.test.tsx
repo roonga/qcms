@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import type { DraftForm, FormSettings, PinnableQuestion } from "../../lib/forms/types.ts";
 import { stripTags } from "../test-support/markup.ts";
@@ -34,14 +34,6 @@ import { stripTags } from "../test-support/markup.ts";
  *
  * The assertions fail if summary headings or digest test identifiers are removed.
  */
-
-/** The `@/` alias is a Next/tsconfig path; Vitest resolves nothing for it (task 001). */
-vi.mock("@/components/kit", () => import("../kit.tsx"));
-vi.mock("@/lib/forms/builder-state", () => import("../../lib/forms/builder-state.ts"));
-vi.mock("@/lib/forms/condition", () => import("../../lib/forms/condition.ts"));
-vi.mock("@/components/searchable-select", () => import("../searchable-select.tsx"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
 const { t } = await import("../../lib/i18n/en.ts");
 const { FormSettingsPanel } = await import("./form-settings-panel.tsx");

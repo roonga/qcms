@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 /**
  * Issue 679: the five section routes of one form name their section in the `<h1>`.
@@ -61,8 +61,6 @@ import { describe, expect, it, vi } from "vitest";
 // The real kit, and the real catalog: this file is about which string the heading holds,
 // so a `t` that answers with its own key would assert nothing. `Breadcrumb` reaches no
 // react-aria `Modal`, so nothing here meets the empty-markup trap of issue 628.
-vi.mock("@/components/kit", () => import("../../components/kit.tsx"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
 const { FormPageHeader } = await import("../../components/forms/form-page-header.tsx");
 const { messages } = await import("../../lib/i18n/en.ts");
