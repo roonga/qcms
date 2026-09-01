@@ -42,7 +42,7 @@ ingress hardening, an access gate for the admin, and a backup target.
 ```
                  respondents                       operator
                      |                                 |
-            Cloudflare (proxied DNS,          Cloudflare Access (free =<50 users)
+            Cloudflare (proxied DNS,          Cloudflare Access (free <=50 users)
              WAF, DDoS - free plan)                     |
                      |                          cloudflared Tunnel (outbound)
                      v                                 |
@@ -101,9 +101,12 @@ For a portal fronted by Cloudflare in front of Caddy (Recipe A), you must do **b
    Cloudflare's IP ranges and let Caddy **append** rather than set, so the respondent's address
    survives as a distinct entry. This is exactly the change `docs/deploy-ingress.md` "Stacking
    another proxy" prescribes.
-2. **Raise the hop count** to match: `QCMS_ADMIN_TRUSTED_PROXY_HOPS=2` (and/or
-   `QCMS_PORTAL_TRUSTED_PROXY_HOPS=2`) per deploy, because the chain is now
-   `<client>, <cloudflare>, <caddy-saw>` and the count runs from the right.
+2. **Raise the hop count** for the hostname you fronted. This section is about the portal, so that
+   is `QCMS_PORTAL_TRUSTED_PROXY_HOPS=2` per deploy, because the chain is now
+   `<client>, <cloudflare>, <caddy-saw>` and the count runs from the right. Raise
+   `QCMS_ADMIN_TRUSTED_PROXY_HOPS` only if you also put Cloudflare in front of the admin hostname;
+   the two are separate variables precisely so you can proxy one without touching the other
+   (`docs/deploy-ingress.md`, "Both recipes need `1`, for different reasons").
 
 **Doing only step 2 is the bypass.** If you raise the hop count without making Caddy trust and append
 for Cloudflare's ranges, the entry the app reads is one a client can write, and per-address rate
@@ -118,8 +121,9 @@ local app as the one proxy in front of it, so `QCMS_ADMIN_TRUSTED_PROXY_HOPS=1`.
 
 ## R2 for backups
 
-If your database is external free-tier Postgres (Path B in `docs/deploy/fly.md`), backups are your
-responsibility, and Cloudflare R2 is a clean destination: **zero egress fees**, and a free tier of
+If you own your database's backups - external free-tier Postgres (Path C in `docs/deploy/fly.md`),
+or a self-run database (Path B) - Cloudflare R2 is a clean destination: **zero egress fees**, and a
+free tier of
 10 GB storage plus generous monthly operations - comfortably more than a solo instance's `pg_dump`
 history needs, at $0.
 

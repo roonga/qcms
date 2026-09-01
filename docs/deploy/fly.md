@@ -3,7 +3,7 @@
 **Audience:** an operator who wants the solo QCMS topology running without owning a VM, on a
 container-native platform. This is the recommended no-VM middle tier: cheaper and simpler than a
 cloud load balancer (Recipe B in `docs/deploy-ingress.md`), more managed than a single VM (Recipe
-A). **Prerequisite reading:** `docs/deploy-ingress.md` (the trusted-proxy hop model and the four
+A). **Prerequisite reading:** `docs/deploy-ingress.md` (the trusted-proxy hop model and the six
 ingress invariants), `docs/operations.md` (the per-variable environment reference and health
 semantics), and `docs/backup-restore.md` (the `pg_dump` drill this doc reuses).
 
@@ -54,11 +54,14 @@ primary_region = "syd"   # your region
 
 [deploy]
   # The one-shot migration, run before the new release is promoted. This is the
-  # exact compose semantics: docker-compose.yml runs @qcms/db's migrate entrypoint
-  # as the `migrate` one-shot and gates `api` on its success. Fly's release_command
-  # runs in a throwaway machine with this app's env and secrets, and a non-zero exit
-  # aborts the deploy - the same "migrate must pass before the API starts" contract.
-  release_command = "node node_modules/@qcms/db/dist/migrate.js"
+  # exact compose semantics: docker-compose.yml runs `qcms-db-migrate` (the bin
+  # @qcms/db puts on PATH) as the `migrate` one-shot and gates `api` on its success.
+  # Use the bin, not a deep `node .../dist/migrate.js` path: that path bypasses the
+  # package's exports map and breaks when the layout changes (issue #294). Fly's
+  # release_command runs in a throwaway machine with this app's env and secrets, and
+  # a non-zero exit aborts the deploy - the same "migrate must pass before the API
+  # starts" contract.
+  release_command = "qcms-db-migrate"
 
 [env]
   PORT = "3000"
@@ -325,9 +328,15 @@ not negotiable: it is always-on by design.
 
 `.github/workflows/images.yml` already builds all three images with an SBOM, provenance, and a
 version stamp, but by design **it does not publish or deploy** (issue #360: nothing is published
-yet, and ADR-20 forbids ever publishing the API image to a public registry as a product artifact -
-here it goes to a private GHCR path the deploy pulls from). This workflow adds the missing half:
-build and push to GHCR, then deploy each app by digest.
+yet). This workflow adds the missing half: build and push to GHCR, then deploy each app by digest.
+
+A note on the API image, so this doc does not overstate a decision. ADR-20's text is a **runtime
+network** property - "The API publishes no host port" - not a rule about image distribution. Whether
+and where the API image is published to a registry is a separate distribution decision, still open
+for the Code Owner (issue #763); this doc does not settle it. What the deploy below needs is only
+that the API image is reachable **by the deploy**, so it pushes to a **private** GHCR path the Fly
+deploy pulls from. That is the conservative default while #763 is undecided, and it keeps the API
+image off a public registry without asserting that ADR-20 requires it.
 
 ```yaml
 name: Deploy (Fly)
