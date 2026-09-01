@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { createJsonLogger } from "@qcms/observability/logger";
@@ -15,6 +15,9 @@ import {
   originBeltRefusal,
   routeOutcome,
 } from "./origin-belt-log";
+// Plain JavaScript with a hand-written declaration file beside it, imported by relative
+// path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
+import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
 
 /**
  * The refusal line's own tests (issue #578). `origin-guard.test.ts` covers the other
@@ -79,17 +82,16 @@ const MUTATING_VERBS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 /** A named top-level exported handler, `async` or not. */
 const EXPORTED_HANDLER = /^export (?:async )?function (\w+)\s*\(/m;
 
-/** Every `route.ts` / `route.tsx` under `dir`, as paths relative to `APP_DIR`. */
+/**
+ * Every `route.ts` / `route.tsx` under `dir`, as paths relative to `APP_DIR`.
+ *
+ * Enumerated through git rather than by walking the directory, so a compiled handler left
+ * under `.next-dev` by a dev server is not read as a route (issue #641).
+ */
 function routeFiles(dir: string, prefix: string): string[] {
-  const out: string[] = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.isDirectory()) {
-      out.push(...routeFiles(`${dir}/${entry.name}`, `${prefix}${entry.name}/`));
-      continue;
-    }
-    if (/^route\.tsx?$/.test(entry.name)) out.push(`${prefix}${entry.name}`);
-  }
-  return out;
+  return trackedFilesUnder(dir, { match: /(?:^|\/)route\.tsx?$/ }).map(
+    (relative) => `${prefix}${relative}`,
+  );
 }
 
 /** The Next path template of a route file: `f/[formSlug]/start/route.ts` -> `/f/{formSlug}/start`. */

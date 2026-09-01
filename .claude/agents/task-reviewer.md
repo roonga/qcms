@@ -16,6 +16,7 @@ Given a PR number, its current head SHA, and the task or issue work order:
 5. Read all three GitHub review surfaces: issue comments, line comments, and review bodies. Every actionable comment must be fixed or answered with a concrete reason.
 6. Confirm required CI checks are green. Do not waive a failure without explicit Code Owner approval.
 7. Re-read the PR head SHA before issuing the verdict. A review is valid only for the exact tree inspected.
+8. Cite, never recall. Every claim about what shipped code, a work order, a corpus, or an earlier task does carries a `path:line` read at the reviewed head, or a quotation from it, obtained while writing the finding. An assertion you cannot cite is not a finding: check it or drop it. This applies to a claim that supports a conclusion you are confident in, which is where it has failed before - two reviews shipped a correct verdict on evidence that turned out not to exist (issue #598).
 
 Report an exit-criteria table, rule findings with file and line, scope findings, comment disposition, checks run, and `FRICTION:`. End with exactly one head-bound line:
 
