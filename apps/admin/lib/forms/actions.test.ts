@@ -13,11 +13,10 @@ import type { DraftForm } from "./types.ts";
  * `app/(shell)/forms/actions.ts` is a `"use server"` module and cannot export the helpers
  * it guards with (Next allows only async exports there), so the guards are exercised
  * through the actions themselves. Its imports are written with the app's `@/` alias, which
- * only Next's bundler resolves - Vitest does not - so each one is declared below. The
- * three that are pure app logic (`draft`, `errors`, `builder-state`) are **pass-through**:
- * the factory re-exports the real module, so what runs here is the shipped code and not a
- * stand-in. Only the genuinely external edges are faked: Next's cache/navigation and the
- * two `lib/server` modules that reach a session store and the API over the network.
+ * `apps/admin/vitest.config.ts` resolves the same way Next does (issue 652). Only the
+ * genuinely external edges are faked: Next's cache/navigation and the two `lib/server`
+ * modules that reach a session store and the API over the network. Everything that is pure
+ * app logic (`draft`, `errors`, `builder-state`) runs as shipped.
  *
  * The test file lives under `lib/` rather than beside its subject because `app/` is
  * route-scanned by Next; no test file in either app sits inside it.
@@ -95,10 +94,6 @@ vi.mock("@/lib/server/links", () => ({
   listLinks: () => Promise.resolve({ ok: true, data: [] }),
   revokeLink: () => Promise.resolve({ ok: true, data: { linkId: "lnk_1", revokedAt: "" } }),
 }));
-vi.mock("@/lib/forms/draft", async () => await import("./draft.ts"));
-vi.mock("@/lib/forms/errors", async () => await import("./errors.ts"));
-vi.mock("@/lib/forms/builder-state", async () => await import("./builder-state.ts"));
-vi.mock("@/lib/i18n/en", async () => await import("../i18n/en.ts"));
 
 const {
   createFormAction,

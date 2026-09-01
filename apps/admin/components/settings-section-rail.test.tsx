@@ -34,18 +34,11 @@ import type { SettingsSectionId } from "../lib/settings-sections.ts";
  * asserted in `apps/admin/e2e/settings-rail.pw.ts`, along with the 240px track and the
  * collapse boundary, which are computed styles rather than markup.
  *
- * ## The alias bridge
+ * ## Nothing here is stubbed
  *
- * Same device the app's other component tests use: the admin imports itself through `@/` and
- * the Vitest project has no resolver for it, so each factory hands back the real module by
- * its relative path. Nothing here is stubbed, including the switch - a static render never
- * reaches the store's setter, and the value it reads is the prop.
+ * Including the switch: a static render never reaches the store's setter, and the value it
+ * reads is the prop.
  */
-
-vi.mock("@/components/rail-disclosure", () => import("./rail-disclosure.tsx"));
-vi.mock("@/lib/i18n/en", () => import("../lib/i18n/en.ts"));
-vi.mock("@/lib/settings-sections", () => import("../lib/settings-sections.ts"));
-vi.mock("@/lib/settings-panel", () => import("../lib/settings-panel.ts"));
 
 async function render(initial: SettingsSectionId = SETTINGS_SECTION_IDS.account): Promise<string> {
   const { SettingsSectionRail } = await import("./settings-section-rail.tsx");

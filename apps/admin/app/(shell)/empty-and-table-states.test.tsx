@@ -104,31 +104,21 @@ const ERASURE = {
 };
 
 /**
- * The `@/` alias is a Next/tsconfig path and Vitest resolves nothing for it here (the
- * root config is deliberately the only one, task 001, and it declares no alias). Every
- * other file at this layer works around that by mocking each `@/` import away, which is
- * fine for a dependency whose behaviour is not the subject. `EmptyState` IS the subject,
- * so it is redirected to the real module by relative path rather than replaced: a stub
- * shaped like the panel would only assert that the stub is shaped like the panel. The
- * three `@/lib/questions/*` modules are pure helpers the question list needs, and get the
- * same treatment for the same reason - stubbing them would change what the page renders.
+ * `EmptyState` IS the subject here, so it is absent from the registrations below and runs
+ * for real: a stub shaped like the panel would only assert that the stub is shaped like
+ * the panel. The three `@/lib/questions/*` modules are pure helpers the question list
+ * needs and are left real for the same reason - stubbing them would change what the page
+ * renders.
  */
-vi.mock("@/components/empty-state", () => import("../../components/empty-state"));
-vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition"));
-vi.mock("@/lib/questions/errors", () => import("../../lib/questions/errors"));
-vi.mock("@/lib/questions/types", () => import("../../lib/questions/types"));
-vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format"));
 
 /**
- * `DeadLetters` is the subject of the issue 543 block, so it too is redirected to the
- * real module rather than stubbed (`forms-list-states.test.tsx` stubs it for the opposite
+ * `DeadLetters` is the subject of the issue 543 block, so it too is left real rather than
+ * stubbed (`forms-list-states.test.tsx` stubs it for the opposite
  * reason: there the queue is noise around a form list). Its two non-render helpers are
  * stubbed, because neither runs during a static render and neither changes the markup:
  * `focusPostAction` is called from an effect, and `unexpected` only from a rejected
  * action's `catch`.
  */
-vi.mock("@/components/ops/dead-letters", () => import("../../components/ops/dead-letters"));
-vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
 
 /**
  * `ResponseBrowser` is the subject of the issue 521/572 block, so it is redirected to the
@@ -136,11 +126,6 @@ vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
  * they compute page links, export choices and the answer preview, and stubbing them would
  * change the markup the assertions read.
  */
-vi.mock("@/components/ops/response-browser", () => import("../../components/ops/response-browser"));
-vi.mock("@/lib/ops/browse", () => import("../../lib/ops/browse"));
-vi.mock("@/lib/ops/export", () => import("../../lib/ops/export"));
-vi.mock("@/lib/ops/answers", () => import("../../lib/ops/answers"));
-vi.mock("@/lib/ops/response-filters", () => import("../../lib/ops/response-filters"));
 vi.mock("@/components/forms/form-page-header", () => ({
   FormPageHeader: () => <div data-testid="qcms-form-page-header-stub" />,
 }));
@@ -184,11 +169,6 @@ vi.mock("@/lib/server/webhook-ops", () => ({
  * without this file noticing, and it is also what makes "the failed read does not print
  * the empty sentence" a precise claim rather than a substring guess.
  */
-// The real title helper: `generateMetadata` is not what these tests render, so the module
-// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
-// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
-vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
-
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,

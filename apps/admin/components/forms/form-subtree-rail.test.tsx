@@ -33,12 +33,10 @@ import type { RailCurrent } from "../../lib/forms/subtree-rail.ts";
  * `apps/admin/e2e/rail.pw.ts`, because every one of those is a computed style or an
  * interaction rather than markup.
  *
- * ## The alias bridge
+ * ## What is stubbed
  *
- * Same device the app's other component tests use: the admin imports itself through `@/`
- * and the Vitest project has no resolver for it, so each factory hands back the real
- * module by its relative path. Nothing here is a stub except `next/link`, which needs one
- * because it reaches for a router that does not exist outside a Next render.
+ * Nothing except `next/link`, which needs one because it reaches for a router that does
+ * not exist outside a Next render.
  */
 
 vi.mock("next/link", () => ({
@@ -48,10 +46,6 @@ vi.mock("next/link", () => ({
     </a>
   ),
 }));
-vi.mock("@/components/rail-frame", () => import("../rail-frame.tsx"));
-vi.mock("@/components/rail-disclosure", () => import("../rail-disclosure.tsx"));
-vi.mock("@/lib/forms/subtree-rail", () => import("../../lib/forms/subtree-rail.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 
 const STEPS: readonly DraftStep[] = [
   { stepId: "stp_about", title: { en: "About you" }, items: [] },

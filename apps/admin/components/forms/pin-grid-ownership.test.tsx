@@ -37,12 +37,9 @@ import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../li
  * menu's five entries while it is open, the version pin still being operable at 390 - is
  * `apps/admin/e2e/pin-grid.pw.ts`.
  *
- * ## The alias bridge
+ * ## Nothing below is a stub
  *
- * The admin app imports itself through the `@/` alias, and the Vitest project has no
- * resolver for it: this app's existing component tests all mock every `@/` import away.
- * These factories are not stubs - each hands back the real module by its relative path -
- * so what renders below is the real component tree, including the vendored kit.
+ * What renders is the real component tree, including the vendored kit.
  *
  * ## Red-first
  *
@@ -51,17 +48,6 @@ import type { DraftForm, DraftStep, FormIssue, PinnableQuestion } from "../../li
  * `<table>` at all (the list was a `<ul>` of flex rows), no `data-owner` anywhere, no
  * copy control, and three of the five row controls were plain trailing buttons.
  */
-
-vi.mock("@/components/kit", () => import("../kit.tsx"));
-vi.mock("@/components/empty-state", () => import("../empty-state.tsx"));
-vi.mock("@/components/row-menu", () => import("../row-menu.tsx"));
-vi.mock("@/lib/announce", () => import("../../lib/announce.ts"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
-vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
-vi.mock("@/lib/forms/issues", () => import("../../lib/forms/issues.ts"));
-vi.mock("@/lib/forms/pin-grid", () => import("../../lib/forms/pin-grid.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition.ts"));
 
 const DEFINITION = {
   questionId: "q_at_fault_accident",

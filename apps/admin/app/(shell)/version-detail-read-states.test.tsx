@@ -101,28 +101,16 @@ let versionResult: unknown = { ok: true, data: SNAPSHOT };
 
 /**
  * `FormPageHeader` is the subject here, not a stand-in for it: the whole question is
- * whether the header renders, so a stub answering "yes" would assert nothing. Its own
- * `Breadcrumb` is stubbed below, in the kit, which is where the rest of this suite draws
- * the same line.
- */
-vi.mock(
-  "@/components/forms/form-page-header",
-  () => import("../../components/forms/form-page-header"),
-);
-
-/**
- * Leaf modules redirected to the real thing, for the reason the neighbouring files give:
- * a stand-in shaped like the subject only asserts that the stand-in is shaped like the
- * subject. `page-headings` IS the id the `h1` assertion is about, and `form-rail` is the
- * degrade policy the rail block below is testing.
+ * whether the header renders, so a stub answering "yes" would assert nothing. It carries
+ * no registration and runs for real. Its own `Breadcrumb` is stubbed below, in the kit,
+ * which is where the rest of this suite draws the same line.
  *
- * They have to be listed at all because this project resolves `@/` through the mock
- * registry rather than a Vitest alias: an unmocked `@/...` specifier fails to resolve at
- * import time, which is why every sibling file carries a long redirection list.
+ * `page-headings` and `form-rail` are deliberately absent from the registrations below:
+ * they run for real. `page-headings` IS the id the `h1` assertion is about, and
+ * `form-rail` is the degrade policy the rail block below is testing, so a stand-in shaped
+ * like either would only assert that the stand-in is shaped like the subject.
  */
-vi.mock("@/lib/page-headings", () => import("../../lib/page-headings"));
-vi.mock("@/lib/server/form-rail", () => import("../../lib/server/form-rail"));
-// Stubbed rather than bridged: this route is not the builder, so `interactiveSteps` is
+// Stubbed rather than left real: this route is not the builder, so `interactiveSteps` is
 // false and the rail renders the plain step anchors instead of this component. The mock
 // exists only so the slot's import resolves without pulling react-aria into a test about
 // what a failed read renders.
@@ -134,11 +122,6 @@ vi.mock("@/components/forms/rail-steps", () => ({ RailSteps: () => null }));
  * the catalog holds today. The version number in the `h1` is the load-bearing parameter:
  * it is the one the failed read did not supply.
  */
-// The real title helper: `generateMetadata` is not what these tests render, so the module
-// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
-// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
-vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
-
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string, params?: Readonly<Record<string, string | number>>) =>
     params === undefined ? key : `${key}(${Object.values(params).join(",")})`,
@@ -186,21 +169,16 @@ vi.mock("@/lib/server/config", () => ({
 }));
 
 /**
- * The reads, registered twice against one pair of variables.
+ * The reads, registered once and reaching two consumers.
  *
- * Two modules consume this file by two specifiers: the route imports `@/lib/server/forms`,
- * and `lib/server/form-rail.ts` (redirected to the real module above, because its degrade
- * policy is what the rail block asserts) imports its neighbour as `./forms.ts`. The alias
- * form does not resolve here, so registering only it would leave the rail reading the real
- * module and reaching for the network. Both entries answer from `formDetailResult` and
- * `versionResult`, so a test still sets a failure in one place.
+ * Two modules consume this file by two specifiers: the route imports `@/lib/server/forms`
+ * and `lib/server/form-rail.ts` (real here, because its degrade policy is what the rail
+ * block asserts) imports its neighbour as `./forms.ts`. Both spellings resolve to one
+ * module id now that `@/` is aliased (issue 652), so one registration answers both; it
+ * used to need two, and a suite that registered only the alias form left the rail reading
+ * the real module and reaching for the network.
  */
 vi.mock("@/lib/server/forms", () => ({
-  getForm: () => Promise.resolve(formDetailResult),
-  getFormVersion: () => Promise.resolve(versionResult),
-  validateDraft: () => Promise.resolve({ ok: true, data: { valid: true, issues: [] } }),
-}));
-vi.mock("../../lib/server/forms.ts", () => ({
   getForm: () => Promise.resolve(formDetailResult),
   getFormVersion: () => Promise.resolve(versionResult),
   validateDraft: () => Promise.resolve({ ok: true, data: { valid: true, issues: [] } }),

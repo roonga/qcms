@@ -16,14 +16,7 @@ import { stripTags } from "./test-support/markup.ts";
  * What a press does is `lib/recovery-copy.test.ts`, because the admin has no jsdom layer and
  * a `useState` transition is not observable in a static render. That the two are wired
  * together is `e2e/recovery-copy.pw.ts`.
- *
- * The alias bridge is the device the app's other component tests use: the admin imports
- * itself through `@/` and the Vitest project has no resolver for it.
  */
-
-vi.mock("@/lib/i18n/en", () => import("../lib/i18n/en.ts"));
-vi.mock("@/lib/recovery-copy", () => import("../lib/recovery-copy.ts"));
-vi.mock("@/components/kit", () => import("./kit.tsx"));
 
 const { t } = await import("../lib/i18n/en.ts");
 const { RecoveryCodes } = await import("./recovery-codes.tsx");

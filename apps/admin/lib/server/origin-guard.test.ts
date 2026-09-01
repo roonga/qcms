@@ -175,18 +175,11 @@ beforeEach(() => {
 });
 
 /*
- * The `@/` alias is a tsconfig path that Next resolves and Vitest does not, so a route
- * module imported here cannot load its own dependencies by that specifier. These entries
- * are alias plumbing rather than test doubles: each hands back the **real** module,
- * reached by a relative path from this file.
- *
- * `route-helpers` in particular must be the real module: it is where the belt under test
- * lives, and mocking it would make every assertion below a tautology. `session` is the
- * real module too, so the redirect paths the handlers use are the ones the app uses -
+ * `route-helpers` and `config` carry no registration at all: they are where the belt under
+ * test lives, and faking either would make every assertion below a tautology. `session` is
+ * the real module too, so the redirect paths the handlers use are the ones the app uses -
  * only its request guard is a spy, because it reaches the API.
  */
-vi.mock("@/lib/server/config", async () => await import("./config.ts"));
-vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers.ts"));
 vi.mock("@/lib/server/session", async () => ({
   ...(await import("./session.ts")),
   requireAdminSessionForRequest: seams.requireAdminSessionForRequest,

@@ -46,13 +46,11 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * tree for both that class and for `onRowAction`, so the marker cannot come back and a
  * fifth table cannot quietly adopt the retired pattern.
  *
- * ## The alias bridge
+ * ## What is real and what is not
  *
- * The admin app imports itself through `@/`, and the Vitest project resolves nothing for
- * it. Each factory below hands back the REAL module by its relative path rather than a
- * stub, because the markup these components emit is the whole subject: a stub shaped like
- * a table would only assert that the stub is shaped like a table.
- *
+ * The markup these components emit is the whole subject, so almost nothing is stubbed: a
+ * stub shaped like a table would only assert that the stub is shaped like a table. The
+ * one exception is spelled out below.
  */
 
 /**
@@ -71,16 +69,6 @@ vi.mock("@/components/kit", async () => {
     ),
   };
 });
-vi.mock("@/components/empty-state", () => import("../../components/empty-state.tsx"));
-vi.mock("@/lib/forms/draft", () => import("../../lib/forms/draft.ts"));
-vi.mock("@/lib/forms/picker-selection", () => import("../../lib/forms/picker-selection.ts"));
-vi.mock("@/lib/forms/types", () => import("../../lib/forms/types.ts"));
-vi.mock("@/lib/forms/version-diff", () => import("../../lib/forms/version-diff.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format.ts"));
-vi.mock("@/lib/questions/definition", () => import("../../lib/questions/definition.ts"));
-vi.mock("@/lib/questions/types", () => import("../../lib/questions/types.ts"));
-vi.mock("@/lib/read-state", () => import("../../lib/read-state.ts"));
 
 const { QuestionsTable } = await import("../../components/questions/questions-table.tsx");
 const { FormsTable } = await import("./forms/forms-table.tsx");

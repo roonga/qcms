@@ -39,12 +39,6 @@ import { stripTags } from "../test-support/markup.ts";
  * `<h4>` where it expects `<h3>` (that `<h4>`-under-`<h2>` skip is issue #541).
  */
 
-vi.mock("@/components/empty-state", () => import("../empty-state.tsx"));
-vi.mock("@/components/ops/ops-tags", () => import("./ops-tags.tsx"));
-vi.mock("@/lib/i18n/format", () => import("../../lib/i18n/format.ts"));
-vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
-vi.mock("@/lib/ops/erasure", () => import("../../lib/ops/erasure.ts"));
-
 const { t, tPlural } = await import("../../lib/i18n/en.ts");
 const { DeliveryRows } = await import("./delivery-dashboard.tsx");
 

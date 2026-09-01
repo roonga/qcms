@@ -16,14 +16,7 @@ import type { SettingsSectionId } from "../lib/settings-sections.ts";
  * A static render is the right layer for that: `hidden` is an attribute, the heading's text is
  * a string, and both are decided before any browser is involved. What needs one is the switch
  * across the two React trees, which is `apps/admin/e2e/settings-rail.pw.ts`.
- *
- * The alias bridge is the same device the app's other component tests use: the admin imports
- * itself through `@/` and the Vitest project has no resolver for it.
  */
-
-vi.mock("@/lib/i18n/en", () => import("../lib/i18n/en.ts"));
-vi.mock("@/lib/settings-sections", () => import("../lib/settings-sections.ts"));
-vi.mock("@/lib/settings-panel", () => import("../lib/settings-panel.ts"));
 
 /** Each panel's body is a sentence naming it, so a mis-keyed panel is visible in the output. */
 const PANELS = {
