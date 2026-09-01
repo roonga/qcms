@@ -45,7 +45,14 @@ export function TombstoneCard({ tombstone }: { readonly tombstone: Tombstone }) 
   // A card that arrives because an operator just erased something takes focus; a card
   // that arrives because someone opened the URL does not. The difference is a request
   // left by the erase path, never the mount itself (issue #308, `post-action-focus`).
-  useEffect(() => claimPostActionFocus(TOMBSTONE_HEADING_ID), []);
+  //
+  // The request is claimed by session id as well as by element id, so THIS response's
+  // erasure is the only one that can move focus here. Every tombstone in the app renders
+  // the same heading id, and the detail screen re-arms the request on any unmount, so
+  // without the session id a stray request was collectable by whichever tombstone
+  // mounted next (issue #357).
+  const { sessionId } = tombstone;
+  useEffect(() => claimPostActionFocus(TOMBSTONE_HEADING_ID, sessionId), [sessionId]);
 
   return (
     <section

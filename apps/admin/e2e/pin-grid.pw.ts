@@ -52,6 +52,34 @@ import {
  * a live-resize frame being sampled before a container-query screen settled, and loading
  * at the target width costs nothing and cannot be wrong.
  *
+ * ## WHAT THAT 390 ASSERTION CANNOT SEE, and why it stays anyway (issue 639)
+ *
+ * It ran, it passed, and it passed throughout the period the builder was overflowing by
+ * 71px at 320. That is not a bug in the assertion - it measures the right property - it
+ * is a property of the DATA it measures. **The fixture below is authored through the app,
+ * so it carries only what the app's own happy path produces: no version state tag, no
+ * rule card, no long author-supplied strings, no deprecated pins, no unpublished
+ * versions.** Both of the first two were contributors to issue 616's overflow, and both
+ * exist on the seeded `frm_auto_quote` this spec deliberately does not use. So the
+ * assertion is correct, the screen was wrong, and the two never met. That is the exact
+ * hazard issue 639 was filed to make visible: a guard that exists, asserts the right
+ * thing, runs on every CI run, and is structurally incapable of observing the defect.
+ *
+ * **`reflow.pw.ts` does NOT supersede it, and the reason is worth being precise about**,
+ * because "the new sweep covers this" was the tempting answer and it is wrong. That spec
+ * sweeps every route under `app/(shell)` at 390 and 320 against the seeded fixture, so it
+ * has the rich data this one lacks - but the pin grid is not on a route. The builder's
+ * step screen is a rail SELECTION behind `/forms/[formId]`, and the selection defaults to
+ * `{ kind: "form" }`, so the sweep's `goto` lands on the form screen and the pin grid is
+ * never rendered in it. The two specs are therefore complementary rather than redundant:
+ * `reflow.pw.ts` owns document width across the route surface with real content, and this
+ * assertion owns it for the one screen a URL cannot reach, with the fixture that screen's
+ * other tests need.
+ *
+ * The residual gap is stated rather than left implicit: **nothing measures the pin grid at
+ * 320, or at any width against a form carrying a version tag and a rule card.** Closing it
+ * means either a rail selection the reflow sweep can drive, or a richer fixture here.
+ *
  * ## Why the questions are authored rather than taken from the seed
  *
  * The library is authored through the UI the way an author builds one, because the version

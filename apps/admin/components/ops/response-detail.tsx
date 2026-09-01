@@ -115,15 +115,23 @@ export function ResponseDetail({
   // by id for the same reason the tombstone's is: a ref cannot reach out of the tree.
   useEffect(() => {
     if (tombstone === null) return undefined;
-    requestPostActionFocus(TOMBSTONE_HEADING_ID);
-    const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID);
+    const { sessionId } = tombstone;
+    requestPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
+    const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     return () => {
       settled?.();
       // Erasing revalidates this response's own route, and the route then renders the
       // SAME url as its own tombstone - which unmounts this subtree a few hundred
       // milliseconds after the focus above landed, dropping focus back to the body. So
       // re-arm on the way out: the card that replaces this one takes the request.
-      requestPostActionFocus(TOMBSTONE_HEADING_ID);
+      //
+      // The re-arm is still unconditional, because a cleanup runs before its successor
+      // exists and so cannot observe one. What makes that safe is the SUBJECT carried
+      // with the request (issue #357): it names this response, so only this response's
+      // tombstone can claim it. An operator who navigates away inside the TTL and opens
+      // a different erased response no longer has focus taken on arrival, which is the
+      // steal the TTL alone was left to prevent and did not.
+      requestPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     };
   }, [tombstone]);
 
