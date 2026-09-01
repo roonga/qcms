@@ -56,35 +56,57 @@ removal in a new `@a2ra/core`, a mapping change that alters existing documents):
 
 1. Create a **new** directory (the next `vN/`) alongside the existing ones. Do
    not touch any existing `vN/`.
-2. Seed the corpus forms' `v2/` goldens from the new compiler output and
-   hand-review them.
-3. Point the corpus runner at the new version for the current compiler while
-   keeping `v1/` rendered and asserted for as long as `v1` documents remain in
-   any store - old stored snapshots still resolve against their original spec
-   version (ADR-18, the stored copy is served forever).
+2. Seed the corpus forms' goldens into it from the new compiler output and
+   hand-review them (the diff against the previous generation is the review: it
+   must show the intended mapping change and the `compilerVersion` stamp, and
+   nothing else).
+3. Point the corpus runner at the new generation for the current compiler while
+   keeping every earlier one rendered and asserted, for as long as documents
+   compiled under it remain in any store - a stored snapshot resolves against its
+   original generation forever (ADR-18, the stored copy is served forever).
+4. Add the generation to the three places that enumerate them:
+   `src/golden-corpus.test.ts` (`GOLDEN_DIR` and `RETAINED_GENERATIONS`),
+   `packages/ui/src/test-support/golden.ts` (`VERSIONS`, the renderer's conformance
+   input), and the log in `docs/a2ui-mapping.md`. `apps/api/e2e/support/fixtures.ts`
+   derives the current one from the compiler stamp and needs no edit.
 
-Every `vN/` directory remains in the tree and rendered forever; a spec bump is
+Every `vN/` directory remains in the tree and rendered forever; a generation bump is
 purely additive. The machinery to _select_ a version per stored snapshot is
-built when a real per-snapshot dispatch need arrives. Current versions on disk:
-`v1/` and `v2/` (v2 added by task 026's honeypot node). New goldens are always a
-**fresh file add** - never a rename/move into a `vN/` directory (the append-only
-guard reads a rename as a deletion of the old path and fails).
+built when a real per-snapshot dispatch need arrives. Current generations on disk:
+
+| Generation | Compiler | What it added                                                                                                          |
+| ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `v1/`      | `0.0.0`  | The task-011 launch mapping.                                                                                          |
+| `v2/`      | `0.1.0`  | Task 026's `Honeypot` decoy, last in every step.                                                                      |
+| `v3/`      | `0.2.0`  | Issue #186: `size` and `weight` on every heading, so a form title and a step title stop rendering at the body default. |
+
+New goldens are always a **fresh file add** - never a rename/move into a `vN/`
+directory (the append-only guard reads a rename as a deletion of the old path and
+fails). This README is deliberately outside the guard, because it is the file the
+guard's own procedure tells you to update.
 
 ## Layout
 
 ```
 golden/
   README.md   this file
-  v1/         one <form>.a2ui.json per corpus form, at A2UI spec v1
+  v1/         one <form>.a2ui.json per corpus form, at generation v1
+  v2/         the same forms as compiler 0.1.0 emitted them
+  v3/         the current generation
 ```
 
-| Golden                            | Core fixture                          | What it pins                                                                                                          |
-| --------------------------------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `v1/kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`       | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
-| `v1/insurance.a2ui.json`          | `forms/valid/insurance.json`          | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
-| `v1/minimal.a2ui.json`            | `forms/valid/minimal.json`            | Smallest form: one step, one control.                                                                                 |
-| `v1/constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`  | Every constraint-bearing control in a single dense step.                                                              |
-| `v1/deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json` | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
+Each corpus form has one `<form>.a2ui.json` per generation it existed for (the last
+two joined in task 048, so they have no `v1/` document):
+
+| Golden                         | Fixture                                        | What it pins                                                                                                          |
+| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`                | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
+| `insurance.a2ui.json`          | `forms/valid/insurance.json`                   | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
+| `minimal.a2ui.json`            | `forms/valid/minimal.json`                     | Smallest form: one step, one control.                                                                                 |
+| `constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`           | Every constraint-bearing control in a single dense step.                                                              |
+| `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`          | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
+| `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json` | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
+| `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
 
 ## Adding a golden
 

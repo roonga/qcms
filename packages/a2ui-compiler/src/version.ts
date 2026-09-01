@@ -15,13 +15,20 @@
 /**
  * This package's version (mirrors `package.json`; guarded by `version.test.ts`).
  *
- * Bumped 0.0.0 → 0.1.0 in task 026: the compiler now emits a honeypot decoy in
- * every step document (a mapping change that alters existing output), so the
- * stamp changes and the frozen goldens move to a new generation directory
+ * Bumped 0.0.0 → 0.1.0 in task 026: the compiler emits a honeypot decoy in every
+ * step document (a mapping change that alters existing output), so the stamp
+ * changed and the frozen goldens moved to a new generation directory
  * (`golden/v2/`, `golden/README.md` spec-bump procedure). `golden/v1/` stays a
  * faithful record of what `0.0.0` produced (ADR-18, append-only).
+ *
+ * Bumped 0.1.0 → 0.2.0 for issue #186, by the same rule and for the same reason:
+ * every compiled heading now carries `size` and `weight`, so every corpus form's
+ * output changes and `golden/v3/` is the new current generation. `golden/v2/`
+ * joins `v1/` as retained. A snapshot published under `0.1.0` is served from its
+ * stored bytes and never recompiled, so a stamp change reshapes what the compiler
+ * emits NEXT and nothing that already exists.
  */
-export const COMPILER_VERSION = "0.1.0";
+export const COMPILER_VERSION = "0.2.0";
 
 /**
  * The pinned `@a2ra/core` package version whose Zod schemas the compiled output

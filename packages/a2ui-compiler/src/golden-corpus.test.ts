@@ -20,20 +20,27 @@ import { compileForm } from "./compile.js";
 import type { A2UINode, CompiledForm } from "./types.js";
 
 /**
- * A2UI golden corpus runner (task 012, ADR-18; generation bumped in 026). Each
- * corpus form is a `@qcms/core` fixture; the runner rebuilds its published
- * {@link FrozenSnapshot} through the real publish path (`compileDraft`, task
- * 008), compiles it with the launch compiler (`compileForm`, task 011), and
- * asserts the output equals the committed golden document under the **current**
- * generation directory `golden/v2/`.
+ * A2UI golden corpus runner (task 012, ADR-18; generation bumped in 026 and by
+ * issue #186). Each corpus form is a `@qcms/core` fixture; the runner rebuilds
+ * its published {@link FrozenSnapshot} through the real publish path
+ * (`compileDraft`, task 008), compiles it with the launch compiler
+ * (`compileForm`, task 011), and asserts the output equals the committed golden
+ * document under the **current** generation directory `golden/v3/`.
  *
- * `golden/v2/` is the second frozen generation: task 026 taught the compiler to
- * emit a honeypot decoy in every step document (a mapping change that alters
- * existing output), which under the append-only policy (ADR-18) is handled by a
- * new directory rather than editing `golden/v1/`. `golden/v1/` stays committed
- * as the faithful record of what compiler `0.0.0` produced and is still
- * asserted spec-valid below - old stored snapshots resolve against it forever
- * (`golden/README.md` spec-bump procedure).
+ * Each generation is a mapping change that altered existing output, handled by a
+ * new directory rather than by editing the previous one (ADR-18, append-only):
+ *
+ * - `v1/` - compiler `0.0.0`, the original corpus (task 012).
+ * - `v2/` - compiler `0.1.0`, task 026's honeypot decoy in every step document.
+ * - `v3/` - compiler `0.2.0`, issue #186: every compiled heading carries `size`
+ *   and `weight`, so a form title and a step title stop rendering at body size
+ *   and body weight.
+ *
+ * Every earlier generation stays committed as the faithful record of what that
+ * compiler produced, and is still asserted spec-valid below. They are never
+ * recompiled: the live compiler emits the current generation, and a stored
+ * snapshot is served from its own bytes forever (`golden/README.md` spec-bump
+ * procedure).
  *
  * These goldens are three contracts at once (`golden/README.md`): the
  * compiler's regression net, the renderer's conformance input (028), and the
@@ -52,8 +59,26 @@ const CORE_FIXTURES = fileURLToPath(new URL("../../core/fixtures/", import.meta.
  * forms may pin only questions from it).
  */
 const LOCAL_FIXTURES = fileURLToPath(new URL("../fixtures/corpus/", import.meta.url));
-const GOLDEN_DIR = fileURLToPath(new URL("../golden/v2/", import.meta.url));
-const GOLDEN_V1_DIR = fileURLToPath(new URL("../golden/v1/", import.meta.url));
+const GOLDEN_DIR = fileURLToPath(new URL("../golden/v3/", import.meta.url));
+
+/**
+ * The frozen generations, oldest first, and what is still true of each. Retained
+ * forever (ADR-18) and asserted spec-valid rather than recompiled.
+ *
+ * The per-generation assertion is what stops "retained" collapsing into "present":
+ * `v1` predates the honeypot and must not have one, `v2` has the honeypot and
+ * predates issue #186's heading typography and must not have that. Each pins the
+ * property that made its successor a new generation, from the older side.
+ */
+const RETAINED_GENERATIONS: readonly {
+  readonly dir: string;
+  readonly compiler: string;
+  readonly hasHoneypot: boolean;
+  readonly hasHeadingTypography: boolean;
+}[] = [
+  { dir: "v1", compiler: "0.0.0", hasHoneypot: false, hasHeadingTypography: false },
+  { dir: "v2", compiler: "0.1.0", hasHoneypot: true, hasHeadingTypography: false },
+];
 
 /**
  * Corpus membership: form fixture → golden document filename. `local: true` reads
@@ -191,7 +216,7 @@ function assertValidA2uiNode(node: A2UINode): void {
   parseNode(node);
 }
 
-describe("A2UI golden corpus (v2 - current generation)", () => {
+describe("A2UI golden corpus (v3 - current generation)", () => {
   for (const { fixture, golden, local } of CORPUS) {
     describe(golden, () => {
       const compiled = compileForm(buildSnapshot(fixture, local === true), {});
@@ -248,40 +273,92 @@ describe("A2UI golden corpus (v2 - current generation)", () => {
           expect(fields.filter((n) => n.type === "Honeypot").length).toBe(1);
         }
       });
+
+      it("gives every heading a size and weight above the body's (issue #186)", () => {
+        // The assertion #186 asks for, and the reason it is here rather than in a
+        // renderer test: the defect was that headings looked exactly like the body copy
+        // beside them, which no gate could see, because the elements were correct and only
+        // the typography was absent. Asserted against the vendored `Text` component's own
+        // defaults, so a future flip of THOSE cannot silently reintroduce it - the compiled
+        // document has to state the intent, not inherit it.
+        const TEXT_DEFAULT_SIZE = "md";
+        const TEXT_DEFAULT_WEIGHT = "normal";
+
+        const headings = compiled.documents.flatMap((doc) =>
+          walk(doc.root).filter(
+            (node) => node.type === "Text" && /^h[1-6]$/u.test(String(node.props?.as ?? "")),
+          ),
+        );
+        expect(headings.length).toBeGreaterThan(0);
+
+        for (const node of headings) {
+          const props = node.props ?? {};
+          expect(props.size, `${String(props.as)} must carry a size`).toBeDefined();
+          expect(props.weight, `${String(props.as)} must carry a weight`).toBeDefined();
+          expect(props.size).not.toBe(TEXT_DEFAULT_SIZE);
+          expect(props.weight).not.toBe(TEXT_DEFAULT_WEIGHT);
+        }
+
+        // And the two levels differ from each other, so the form title outranks the step
+        // title rather than merely outranking the body.
+        const h1 = headings.find((node) => node.props?.as === "h1")?.props;
+        const h2 = headings.find((node) => node.props?.as === "h2")?.props;
+        expect(h2).toBeDefined();
+        if (h1 !== undefined) {
+          expect(h1.size).not.toBe(h2?.size);
+          expect(h1.weight).not.toBe(h2?.weight);
+        }
+      });
     });
   }
 });
 
 /**
- * The frozen `v1/` generation remains a valid contract forever (ADR-18, the
- * stored copy is served for the life of any snapshot compiled under it). We do
- * *not* recompile it - the live compiler now emits v2 - but every committed v1
- * document must still parse as a spec-valid `@a2ra/core` document so the
- * vendored renderer keeps rendering old stored snapshots.
+ * Every frozen generation remains a valid contract forever (ADR-18, the stored copy
+ * is served for the life of any snapshot compiled under it). They are *not*
+ * recompiled - the live compiler emits the current generation - but every committed
+ * document must still parse as a spec-valid `@a2ra/core` document, so the vendored
+ * renderer keeps rendering old stored snapshots.
+ *
+ * Each generation also carries the assertion that made its successor a new
+ * generation, from the older side: `v1` has no honeypot, `v2` has one and no heading
+ * typography. Without those, "retained" would mean nothing more than "the file is
+ * still on disk", and a directory quietly regenerated under a later compiler would
+ * pass.
  */
-describe("A2UI golden corpus (v1 - retained, still spec-valid)", () => {
-  // Iterated from disk, not from CORPUS: `v1/` is a closed historical set, so a
-  // corpus entry appended after it was frozen (task 048's two) has no v1 document
-  // and must not be looked for.
-  const v1Goldens = readdirSync(GOLDEN_V1_DIR)
-    .filter((file) => file.endsWith(".a2ui.json"))
-    .sort();
+describe.each(RETAINED_GENERATIONS)(
+  "A2UI golden corpus ($dir - retained, compiler $compiler)",
+  ({ dir, hasHoneypot, hasHeadingTypography }) => {
+    const generationDir = fileURLToPath(new URL(`../golden/${dir}/`, import.meta.url));
 
-  for (const golden of v1Goldens) {
-    it(`${golden} remains a valid @a2ra/core document`, () => {
-      const text = readFileSync(path.join(GOLDEN_V1_DIR, golden), "utf8");
-      const doc = JSON.parse(text) as CompiledForm;
-      for (const document of doc.documents) {
-        for (const node of walk(document.root)) {
+    // Iterated from disk, not from CORPUS: each retained generation is a closed
+    // historical set, so a corpus entry appended after it was frozen (task 048's two
+    // are absent from `v1/`) has no document there and must not be looked for.
+    const goldens = readdirSync(generationDir)
+      .filter((file) => file.endsWith(".a2ui.json"))
+      .sort();
+
+    for (const golden of goldens) {
+      it(`${golden} remains a valid @a2ra/core document`, () => {
+        const text = readFileSync(path.join(generationDir, golden), "utf8");
+        const doc = JSON.parse(text) as CompiledForm;
+        const nodes = doc.documents.flatMap((document) => walk(document.root));
+        for (const node of nodes) {
           expect(() => {
             assertValidA2uiNode(node);
           }).not.toThrow();
         }
-      }
-      // v1 predates the honeypot: no decoy node in the retained generation.
-      for (const document of doc.documents) {
-        expect(walk(document.root).some((n) => n.type === "Honeypot")).toBe(false);
-      }
-    });
-  }
-});
+
+        expect(nodes.some((node) => node.type === "Honeypot")).toBe(hasHoneypot);
+
+        const headings = nodes.filter(
+          (node) => node.type === "Text" && /^h[1-6]$/u.test(String(node.props?.as ?? "")),
+        );
+        expect(headings.length).toBeGreaterThan(0);
+        expect(headings.some((node) => node.props?.size !== undefined)).toBe(
+          hasHeadingTypography,
+        );
+      });
+    }
+  },
+);
