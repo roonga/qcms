@@ -244,6 +244,14 @@ export default defineConfig({
         // `lib/server/theme.test.ts`, and `appearance.pw.ts` drives the same
         // server-side resolution through the density cookie, which is the path a
         // respondent actually takes.
+        //
+        // That makes density the ONE appearance knob whose config path no browser
+        // exercises, while the five above it are all set to a non-default value for
+        // exactly that reason. The asymmetry is deliberate and is recorded as such
+        // (issue #196, option 3) beside the other five, in
+        // `apps/portal/e2e/support/harness-config.ts` - including the two shapes that
+        // would close it and why neither was taken. Read that before "fixing" this
+        // line: setting it here is what would break `theming.pw.ts`.
       },
     },
     {

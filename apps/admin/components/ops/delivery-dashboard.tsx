@@ -276,12 +276,18 @@ export function DeliveryRows({
             // is present, which is why the gate never said so.
             //
             // The alternative (render the panel always and hide it) was assessed and
-            // rejected: it would put a `data-testid="qcms-delivery-detail"` node in every
-            // row, and the specs that address that test id unscoped would become
-            // strict-mode multi-match failures. Hiding it with `hidden`/`display:none`
-            // also removes it from find-in-page, so the "expanded content becomes
-            // findable" argument for always rendering does not survive the hiding the
-            // accessibility tree requires.
+            // rejected on its merits: hiding it with `hidden`/`display:none` removes it
+            // from find-in-page too, so the "expanded content becomes findable" argument
+            // for always rendering does not survive the hiding the accessibility tree
+            // requires.
+            //
+            // It was ALSO blocked at the time by two specs addressing
+            // `qcms-delivery-detail` across the whole document, which a panel per row would
+            // have turned into strict-mode multi-match failures. That was a test-suite
+            // constraint standing in for a design argument, and issue 547 removed it:
+            // `a11y-axe.pw.ts` and `responses-ops.pw.ts` now reach the panel through the
+            // opened row's own `aria-controls`. So a future change here is decided by the
+            // find-in-page reasoning above and by nothing else.
             aria-controls={isOpen ? panelId : undefined}
             onClick={onToggle}
           >

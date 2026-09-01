@@ -1,6 +1,13 @@
 import type { Page } from "@playwright/test";
 
-import { addStep, createForm, openStep, pinQuestion, waitForSaved } from "./forms.js";
+import {
+  addStep,
+  createForm,
+  openStep,
+  pinQuestion,
+  savedStamp,
+  waitForSaveAfter,
+} from "./forms.js";
 import { confirmLifecycle, createDraft } from "./questions.js";
 
 /**
@@ -86,10 +93,21 @@ export async function createRailFixture(page: Page, run: string): Promise<RailFi
   await addStep(page, RAIL_LONG_STEP_TITLE);
   await openStep(page, RAIL_LONG_STEP_TITLE);
   await pinQuestion(page, questionId, 1);
+  // ANCHORED ON THE LAST PIN, not merely settled after it (issue 754). The lines below the
+  // fixture navigate away to the question library, so this wait is its only guarantee that
+  // the second step reached the server - and `waitForSaved` could not give it: the first
+  // step's pin has already put "Last saved" on the strip, so it would return immediately
+  // and leave the second pin's debounce in flight.
+  //
+  // The baseline is read HERE, before the second step exists, rather than after it. An
+  // empty step pauses autosave, and the pause cancels whatever the first pin had armed
+  // without clearing "Saving..." off the strip (issue 569), so a baseline taken between the
+  // two would be waiting on a save that was already cancelled.
+  const beforeSecondPin = await savedStamp(page);
   await addStep(page, RAIL_SHORT_STEP_TITLE);
   await openStep(page, RAIL_SHORT_STEP_TITLE);
   await pinQuestion(page, secondId, 1);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeSecondPin);
 
   // Deprecation is a property of a published version and needs a successor to exist
   // first, which is the same order `questions-lifecycle.pw.ts` walks.

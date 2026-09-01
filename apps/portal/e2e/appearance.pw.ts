@@ -191,6 +191,12 @@ test("each control switches its axis and the choice survives a reload", async ({
   expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bhc\b/u);
   expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bfont-atkinson\b/u);
   expect(html).toMatch(/<html[^>]*\bclass="[^"]*\bdensity-compact\b/u);
+  // This line is the only browser evidence the density RESOLVER has, and that is worth
+  // knowing rather than assuming (issue #196). Theme, corners, font and brand each reach a
+  // browser from `QCMS_PORTAL_*` as well, because the harness runs them at a non-default
+  // value; `QCMS_PORTAL_DENSITY` is deliberately unset, so the env leg of the same resolver
+  // is proven only in `lib/server/theme.test.ts`. The reasoning, and the two shapes that
+  // would close it, are in `support/harness-config.ts` beside the constants it is about.
 
   // ...and the controls agree with the page after the reload, so a respondent who
   // reopens the panel sees their own choices selected.

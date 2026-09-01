@@ -1081,11 +1081,22 @@ async function sweepDeliveries(
 
   // The disclosure panel, open. Its `<pre>` holds the consumer's answer, which is tall
   // enough to scroll - so this is the state `scrollable-region-focusable` measures.
-  await deliveries
-    .getByRole("button", { name: /^Show request and response/ })
-    .first()
-    .click();
-  const detail = page.getByTestId("qcms-delivery-detail");
+  //
+  // ADDRESSED THROUGH THE ROW THAT OPENED IT (issue 547). A document-level
+  // `getByTestId("qcms-delivery-detail")` reads as "the one panel that exists", which is
+  // true only while the dashboard renders panels conditionally. That is an implementation
+  // choice rather than a property of the screen, and it already blocked the better-shaped
+  // fix for issue 520: rendering every row's panel and hiding it would have made this
+  // locator a strict-mode multi-match. The opened row's `aria-controls` names its own
+  // panel, so this says what it means and survives that change.
+  const openedRow = deliveries.locator("tbody tr[data-delivery-id]").first();
+  await openedRow.getByRole("button", { name: /^Show request and response/ }).click();
+  const panelId =
+    (await openedRow
+      .getByRole("button", { name: /^Hide request and response/ })
+      .getAttribute("aria-controls")) ?? "";
+  expect(panelId, "the open row names its panel").toMatch(/^qcms-delivery-detail-/);
+  const detail = page.locator(`#${panelId}`);
   await expect(detail.getByTestId("qcms-delivery-response-code")).toHaveText("500");
   const snippet = detail.getByTestId("qcms-delivery-response-body");
   await expect(snippet).toContainText('"line_21"');

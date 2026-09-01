@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Checkbox, DatePicker, Dialog, NumberField } from "@/components/kit";
@@ -10,6 +10,7 @@ import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
 import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -57,6 +58,30 @@ const REVOKE_DELAY_MS = 60_000;
  * at the time, and the thing it would cut off here is the mint dialog closing and focus
  * returning to the Mint button: the operator would hear that links exist and lose where
  * they are standing. Polite queues behind that and is spoken immediately after it.
+ *
+ * ## Why the minted panel takes focus, and what happens when it is dismissed (issue 379)
+ *
+ * The announcement above tells a screen-reader operator that links exist. It does not put
+ * them anywhere near the copy button, and the panel's token is shown exactly once - so an
+ * operator who tabs past the panel, or presses Done to get back to where they were, has
+ * lost the links for good. Of the three shapes issue 379 put up, this implements the first
+ * one in its automatic form: **focus moves to the panel on a successful mint.** A skip-link
+ * affordance was the alternative, and it was not taken because it is one more thing to
+ * find at the exact moment the operator has something unrecoverable on screen; the panel is
+ * this screen's whole answer to what they just pressed, so landing on it is the honest
+ * destination rather than an interruption.
+ *
+ * **To the panel's own heading**, which is #308's precedent rather than a fresh call: a
+ * heading carries a role and a name, so it announces where focus went without an
+ * `aria-label` on a generic wrapper, and reading on from it reaches the "cannot be shown
+ * again" sentence, then each URL and its copy button. Not the live region, which would say
+ * the same sentence twice, and not the first copy button, which would announce a control
+ * without the sentence that explains why pressing it matters.
+ *
+ * **Dismiss puts focus back on Mint links.** Moving focus in without moving it out trades
+ * one lost place for another: Done unmounts the element holding focus, so the browser's
+ * default is `<body>` at the top of the document. Mint links is where the operator was
+ * standing when this began and is the control that would start the next batch.
  *
  * The screen contract names a `switch` for the one-time control. The vendored a2ra set has no
  * Switch, and hand-writing one is exactly what ADR-22 forbids, so this uses the vendored
@@ -110,6 +135,13 @@ export function SecureLinks({
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [oneTime, setOneTime] = useState(false);
   const [count, setCount] = useState(1);
+
+  // WHERE FOCUS GOES WHEN THE MINTED PANEL IS DISMISSED (issue 379). A ref on the wrapper
+  // and not on the control, because the vendored `Button` takes no `ref` and ADR-22 forbids
+  // giving it one; `library-picker.tsx` reaches its search field the same way. The div is
+  // rendered whenever minting is possible at all, which is the only state that can produce
+  // a panel to dismiss.
+  const mintTrigger = useRef<HTMLDivElement>(null);
 
   const runMint = useCallback(() => {
     startTransition(() => {
@@ -179,7 +211,7 @@ export function SecureLinks({
       </div>
 
       {canMint ? (
-        <div>
+        <div ref={mintTrigger}>
           <Button
             variant="primary"
             size="md"
@@ -240,6 +272,10 @@ export function SecureLinks({
           onCopy={copy}
           onDismiss={() => {
             setMinted(IDLE_MINT);
+            // Before the browser can fall back to `<body>`: Done unmounts the element that
+            // holds focus, so leaving this to the default strands a keyboard operator at
+            // the top of the document (issue 379, the same failure #308 documents).
+            focusPostAction(mintTrigger.current?.querySelector("button") ?? null);
           }}
         />
       )}
@@ -376,6 +412,15 @@ function MintedPanel({
   readonly onCopy: (url: string) => void;
   readonly onDismiss: () => void;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // ON MOUNT, which is exactly once per mint: `SecureLinks` clears the result before it
+  // opens the dialog, so this component is unmounted between batches and a second mint
+  // remounts it. `focusPostAction` focuses now and again on the next frame, which is what
+  // makes it the last word rather than a race with React Aria returning focus to Mint links
+  // as the dialog closes in the same commit.
+  useEffect(() => focusPostAction(heading.current), []);
+
   const download = useCallback(() => {
     // A blob URL rather than a server round trip: the URLs are already here and sending
     // them back up so the server can send them down again would put bearer credentials
@@ -405,7 +450,15 @@ function MintedPanel({
       data-testid="qcms-minted-links"
       className="flex flex-col gap-3 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
     >
-      <h3 id="qcms-minted-heading" className="text-base font-semibold text-(--color-text)">
+      {/* Focusable so a successful mint can land the operator on the thing they just made
+          (issue 379). `-1` keeps it out of the tab order: it is a destination, not a stop -
+          the same shape `ops/tombstone-card.tsx` uses for the same reason. */}
+      <h3
+        id="qcms-minted-heading"
+        ref={heading}
+        tabIndex={-1}
+        className="text-base font-semibold text-(--color-text)"
+      >
         {tPlural("forms.links.mintedTitle.one", "forms.links.mintedTitle.other", links.length)}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("forms.links.mintedOnce")}</p>

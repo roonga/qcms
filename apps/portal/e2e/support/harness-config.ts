@@ -133,6 +133,38 @@ export const HARNESS_BRAND_LOGO =
   "aGVpZ2h0PSIyNCIgdmlld0JveD0iMCAwIDI0IDI0Ij48cmVjdCB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHJ4PSI0IiBmaW" +
   "xsPSIjM2Y2ZjhmIi8+PC9zdmc+";
 
+/*
+ * Per-deployment DENSITY config: THERE IS NO `HARNESS_DENSITY`, and that is a decision
+ * rather than the one knob nobody got round to (issue #196, option 3).
+ *
+ * Every constant above is deliberately non-default so that its config path is proven end to
+ * end: theme, corners, font, font list, brand name and brand logo all reach a browser from
+ * `QCMS_PORTAL_*` rather than from a shipped default that would have matched anyway.
+ * `QCMS_PORTAL_DENSITY` is the one appearance knob that does not, and the asymmetry is
+ * recorded here because this file is the list a reader consults to find out what the
+ * harness proves.
+ *
+ * The reason is a genuine conflict between two things worth proving, not an oversight.
+ * `theming.pw.ts` measures the Comfortable spacing values on rendered controls - a 44px
+ * control height, 36px of card padding, an 8px field gap - and those numbers only mean
+ * anything while the base level is what the server actually serves. Setting the harness to
+ * Compact would invalidate a set of measurements that exist to prove the spacing group
+ * reaches the vendored controls at all. The harness boots ONE shared portal through
+ * `webServer`, so covering both would mean a second server or a per-test restart.
+ *
+ * What that leaves uncovered is narrower than "density is untested", and the difference
+ * matters: the SAME server-side resolution is driven end to end through the density
+ * **cookie** in `appearance.pw.ts`, which is the path a respondent actually takes, and
+ * `lib/server/theme.test.ts` unit-tests the env var against every value plus the typo
+ * fallback. The only path with no browser behind it is specifically "the env var, with no
+ * cookie present", which is one `oneOf` call away from a path that has one.
+ *
+ * The two shapes that would close it are recorded so nobody re-derives them: a spec that
+ * boots its own portal on an overridden env, or parameterising `theming.pw.ts` by the
+ * served density so the harness could run Compact. The second couples that spec to the
+ * resolver it is trying to measure independently, which is why neither was taken.
+ */
+
 /** Absolute path of the fixtures the specs read (written by globalSetup). */
 export const FIXTURES_PATH = fileURLToPath(
   new URL("../../.playwright/fixtures.json", import.meta.url),
