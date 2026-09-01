@@ -133,9 +133,10 @@ function resolveConfiguredImage(): string | undefined {
  * **It governs both ends of the same wait.** {@link startContainer} passes it to
  * `withStartupTimeout`, because Testcontainers' own wait strategy defaults to 120s
  * and would otherwise give up first - which is exactly what happened on the gate
- * run that followed the first version of this change: `Port 35482 not bound after
- * 120000ms` from inside `.start()`, while the hook that called it still held twice
- * that budget unused. A raise on one side alone is decoration.
+ * run that followed the first version of this change: a `not bound after 120000ms`
+ * failure from inside `.start()`, naming the ephemeral port Docker had just mapped,
+ * while the hook that called it still held twice that budget unused. A raise on one
+ * side alone is decoration.
  *
  * **Why 240s and not 120s.** A boot that takes longer than two minutes is a boot
  * under contention, not a broken one: on 2026-08-31 three untouched integration
@@ -427,9 +428,10 @@ async function startContainer(
     // The startup budget has to be raised HERE as well as on the calling hook, or
     // raising the hook buys nothing (issue #746). Testcontainers' own wait strategy
     // defaults to 120s, so under load it gave up first and the hook's larger budget
-    // was never reached: the failure arrived as `Port 35482 not bound after
-    // 120000ms` from inside `.start()`, with the Vitest hook still holding time it
-    // could not use. One constant now governs both ends of the same wait.
+    // was never reached: the failure arrived from inside `.start()` as a `not bound
+    // after 120000ms` on the ephemeral port Docker had just mapped, with the Vitest
+    // hook still holding time it could not use. One constant now governs both ends
+    // of the same wait.
     return await new PostgreSqlContainer(image)
       .withStartupTimeout(CONTAINER_BOOT_TIMEOUT_MS)
       .start();
