@@ -349,15 +349,20 @@ test("the controls are operable from the keyboard alone", async ({ page }) => {
   await page.goto(`/f/${slug}`);
   // This test navigates itself rather than entering through a flow helper, so it is
   // the one place in the file that has to ask for hydration explicitly (issue #391).
-  // Without it the Tab/Tab/Enter below toggles the NATIVE `<details>` of the SSR
-  // fallback before React attaches, and React then hydrates against a DOM whose
-  // `open` attribute the browser changed underneath it. That is the appearance
-  // panel's `open`-attribute hydration mismatch, which the console-fault gate reds
-  // the run on; it needs the un-hydrated window to be wide enough to Tab through, so
-  // it presents as a load-dependent flake on mobile-chromium rather than as a
-  // failure. Every other entry point in the suite already waits here, through the
-  // flow helpers.
-  await waitForHydration(page);
+  // Without it the Tab/Tab/Enter below toggles the NATIVE `<details>` before React
+  // attaches, and React then hydrates against a DOM whose `open` attribute the
+  // browser changed underneath it. That is the appearance panel's `open`-attribute
+  // hydration mismatch, which the console-fault gate reds the run on; it needs the
+  // un-hydrated window to be wide enough to Tab through, so it presents as a
+  // load-dependent flake on mobile-chromium rather than as a failure.
+  //
+  // The PROBE is the panel's own summary, not the helper's default. The default
+  // watches a step control, and this page is not a step: `/f/<slug>` is the entry
+  // page and renders no `primary-action` at all, so the default hangs to the test
+  // timeout instead of waiting for anything. The summary is the right node on its
+  // own terms too - it is React-owned (`components/appearance-controls.tsx` is a
+  // client component) and it is the exact element the keypresses below toggle.
+  await waitForHydration(page, { probe: '[data-testid="appearance"] > summary' });
   const root = page.locator("html");
 
   // Reachable by Tab: the skip link is the page's first focusable, the appearance
