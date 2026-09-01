@@ -177,7 +177,7 @@
           "values": {
             "type": "object",
             "additionalProperties": {
-              "nullable": true
+              "$ref": "#/components/schemas/AnswerValue"
             },
             "description": "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
             "example": {
@@ -220,6 +220,27 @@
         "required": [
           "stepId"
         ]
+      },
+      "AnswerValue": {
+        "anyOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "number"
+          },
+          {
+            "type": "boolean"
+          },
+          {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "pattern": "^opt_[a-z0-9_]+$"
+            }
+          }
+        ],
+        "description": "One answer in its canonical encoding (DOMAIN_SCHEMA 2.4): an NFC string (shortText, longText, date, singleChoice), a finite number, a boolean, or a duplicate-free array of optionIds (multiChoice). Never null - an unanswered or retracted question is an absent key."
       },
       "FlowStateProjection": {
         "type": "object",

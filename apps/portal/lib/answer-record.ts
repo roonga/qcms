@@ -44,8 +44,36 @@ export type RejectedAnswers = Readonly<Record<string, RejectedAnswer | undefined
  * to compare element-wise. Absence encodes as `null` - the same body the
  * retraction posts - and no real `A2UIAnswerValue` can collide with it, because
  * every string is quoted: the shortText answer `"null"` encodes as `"\"null\""`.
+ *
+ * **Arrays are sorted into a copy before encoding (issue #167).** A multiChoice
+ * value is a SET to the kernel (ADR-21: `valuesEqual` compares option ids
+ * order-insensitively), so a key that read `["a","b"]` and `["b","a"]` as
+ * different answers gave the client and the server different notions of "the same
+ * answer". Nothing writes a different order today - every writer traces back to
+ * the checkbox adapter, which emits in document order - so the only consequence
+ * was one redundant append to the append-only ledger, never a wrong or a lost
+ * answer. Canonicalizing here is what stops the next writer having to rediscover
+ * that the two notions differed.
+ *
+ * The copy is deliberate: the argument is the value on screen, and sorting it in
+ * place would reorder the respondent's selection in the rendered control.
+ *
+ * The sort is the ONLY canonicalization. Object key order, string normalization
+ * and number formatting stay untouched on purpose: this key exists to agree with
+ * what the server stores, and a client that folded together values the server
+ * keeps apart would suppress a post the ledger wants. So the key is now CLOSER to
+ * `valuesEqual` rather than equal to it, and the residue is worth naming rather
+ * than leaving as "nearly equal": `valuesEqual` compares strings after NFC
+ * normalization, and it treats a duplicated option id as the same set (the
+ * canonical `MultiChoiceAnswerValue` is duplicate-free). Neither is reachable
+ * from this client - the renderer emits NFC text and the checkbox adapter cannot
+ * emit a duplicate - and folding either one here would mean this key deciding
+ * something the server's canonical form decides, which is exactly the coupling
+ * the single-seam design avoids.
  */
 export function answerKey(value: A2UIAnswerValue | undefined): string {
+  // Sorted into a COPY: `value` is the value currently rendered in the control.
+  if (Array.isArray(value)) return JSON.stringify([...value].sort());
   return JSON.stringify(value ?? null);
 }
 

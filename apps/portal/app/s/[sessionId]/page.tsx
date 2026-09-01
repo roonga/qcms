@@ -42,6 +42,23 @@ export default async function FlowPage({
           <MessageScreen tone="success" title={t("completion.title")} body={t("completion.body")} />
         );
       }
+      if (error.code === "UNSUPPORTED_SEMANTICS_VERSION") {
+        // ADR-16's semantics gate (issue #723 gave the serve/answer routes this
+        // typed 409; issue #743 gives it a screen). The snapshot this session is
+        // pinned to records evaluation semantics this release does not implement,
+        // so nothing the respondent does can move the flow forward: not a retry,
+        // not a reload, not starting again. That makes it its own terminal screen
+        // rather than the generic "we could not reach the server" - which invites
+        // exactly the retry that cannot work - and rather than the recovery page,
+        // which invites a restart that lands on the same refusal.
+        return (
+          <MessageScreen
+            tone="error"
+            title={t("formSuperseded.title")}
+            body={t("formSuperseded.body")}
+          />
+        );
+      }
       if (error.status === 401 || error.code === "SESSION_NOT_FOUND") {
         return <Recovery />;
       }

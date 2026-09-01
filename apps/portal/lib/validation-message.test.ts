@@ -5,6 +5,7 @@ import { missingRequiredEntries } from "./error-summary";
 import {
   authorMessageFor,
   defaultAnswerMessage,
+  errorCodeOf,
   errorDetailsOf,
   firstAnswerRejection,
   type AnswerRejection,
@@ -137,6 +138,33 @@ describe("errorDetailsOf", () => {
     expect(errorDetailsOf(undefined)).toBeUndefined();
     expect(errorDetailsOf({})).toBeUndefined();
     expect(errorDetailsOf({ error: "boom" })).toBeUndefined();
+  });
+});
+
+describe("errorCodeOf", () => {
+  it("reads the API's typed code out of the same BFF envelope (issue #743)", () => {
+    // The code is what separates a permanent refusal from a transient one: the
+    // flow branches on UNSUPPORTED_SEMANTICS_VERSION to reload into the terminal
+    // screen instead of inviting a retry that cannot succeed. The status alone
+    // will not do it - 409 is also how a stale post of a hidden question is
+    // refused, and that one is recoverable.
+    expect(errorCodeOf({ error: { code: "UNSUPPORTED_SEMANTICS_VERSION" } })).toBe(
+      "UNSUPPORTED_SEMANTICS_VERSION",
+    );
+    expect(errorCodeOf({ error: { code: "QUESTION_NOT_VISIBLE", details: {} } })).toBe(
+      "QUESTION_NOT_VISIBLE",
+    );
+  });
+
+  it("returns undefined rather than guessing, for a body carrying no code", () => {
+    // A 502 the BFF wrote itself, an unparseable payload, a code that is not a
+    // string: the caller has to fall through to its generic failure handling, so
+    // an absent code must never read as a match.
+    expect(errorCodeOf(undefined)).toBeUndefined();
+    expect(errorCodeOf({})).toBeUndefined();
+    expect(errorCodeOf({ error: "boom" })).toBeUndefined();
+    expect(errorCodeOf({ error: { details: {} } })).toBeUndefined();
+    expect(errorCodeOf({ error: { code: 409 } })).toBeUndefined();
   });
 });
 

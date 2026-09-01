@@ -44,6 +44,7 @@ import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
 import { registerStartSession } from "../start-session/route.js";
 import { registerServeStep } from "./route.js";
+import { HeldValues } from "./schema.js";
 
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -549,7 +550,35 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
     await postAnswer(sessionId, sessionToken, "q_preexisting_conditions", ["opt_asthma"]);
     const blank = await postAnswer(sessionId, sessionToken, "q_medical_history", "   ");
     expect(blank.status).toBe(200);
-    expect(((await blank.json()) as StepBody).values.q_medical_history).toBe("   ");
+    const blankBody = (await blank.json()) as StepBody;
+    expect(blankBody.values.q_medical_history).toBe("   ");
+
+    // 5. The published `values` contract, exercised on real served bytes (issue
+    //    #153). `HeldValues` is the canonical AnswerValue map rather than
+    //    `z.unknown()`, so this fails loudly the day the projection emits
+    //    something outside the encodings the ledger stores, and it pins that a
+    //    canonical value round-trips unchanged (zero behaviour change intended).
+    const parsed = HeldValues.safeParse(blankBody.values);
+    expect(parsed.success).toBe(true);
+    expect(parsed.data).toEqual(blankBody.values);
+    // Every canonical encoding is accepted, the multiChoice array and the two
+    // string-shaped types (date, singleChoice) that the untagged union folds
+    // into its text member included.
+    expect(
+      HeldValues.safeParse({
+        q_full_name: "Ada Lovelace",
+        q_dob: "1990-05-04",
+        q_preexisting_conditions: ["opt_asthma", "opt_diabetes"],
+        q_coverage_level: "opt_gold",
+        q_at_fault_accident: true,
+        q_accident_count: 4,
+      }).success,
+    ).toBe(true);
+    // `null` is not an AnswerValue and never appears in this map: an unanswered
+    // or retracted question is an ABSENT key (ADR-33 - `latestAnswers` resolves a
+    // tombstone to unanswered). The schema refuses it now instead of publishing
+    // it as legal, which is what the unconstrained `z.unknown()` did.
+    expect(HeldValues.safeParse({ q_medical_history: null }).success).toBe(false);
 
     // Only the real answers are on the ledger; both refusals wrote nothing, and
     // neither left a tombstone - a refusal is not a retraction.

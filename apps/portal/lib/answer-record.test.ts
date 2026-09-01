@@ -58,6 +58,34 @@ describe("answerKey", () => {
     expect(answerKey(["a"])).not.toBe(answerKey("a"));
     expect(answerKey(["a", "b"])).toBe(answerKey(["a", "b"]));
   });
+
+  it("reads a multiChoice selection as a set, as the kernel does (issue #167, ADR-21)", () => {
+    // `valuesEqual` compares option ids order-insensitively, so a key that told
+    // these two apart gave the client and the server different notions of "the
+    // same answer" - one redundant append to an append-only ledger.
+    expect(answerKey(["opt_a", "opt_b"])).toBe(answerKey(["opt_b", "opt_a"]));
+    expect(answerKey(["opt_a", "opt_b", "opt_c"])).toBe(answerKey(["opt_c", "opt_a", "opt_b"]));
+    // A genuinely different member set is still a different answer. Order
+    // insensitivity is not membership insensitivity.
+    expect(answerKey(["opt_a", "opt_b"])).not.toBe(answerKey(["opt_a", "opt_c"]));
+    expect(answerKey(["opt_a", "opt_b"])).not.toBe(answerKey(["opt_a"]));
+  });
+
+  it("sorts into a copy, leaving the rendered selection untouched (issue #167)", () => {
+    // The argument is the value on screen; sorting it in place would reorder the
+    // respondent's own selection in the control.
+    const selection = ["opt_b", "opt_a"];
+    answerKey(selection);
+    expect(selection).toEqual(["opt_b", "opt_a"]);
+  });
+
+  it("keeps absence distinct from every reordered array too (issue #167)", () => {
+    // The property the whole design rests on survives the canonicalization: an
+    // empty selection, a one-member selection and absence stay three states.
+    expect(answerKey([])).not.toBe(answerKey(undefined));
+    expect(answerKey(["null"])).not.toBe(answerKey(undefined));
+    expect(answerKey([])).not.toBe(answerKey(["opt_a"]));
+  });
 });
 
 describe("the record of what the server holds", () => {
@@ -102,6 +130,53 @@ describe("recording a post when it is issued (issue #122, symptom 1)", () => {
   it("still recognises a genuine change made while a post is in flight", () => {
     const record = withIssued({}, "q_accident", false);
     expect(isRecorded(record, "q_accident", true)).toBe(false);
+  });
+});
+
+describe("a multiChoice selection through the record (issue #167)", () => {
+  it("dedupes a reorder, posts a changed set, and posts both halves of retract-then-re-answer", () => {
+    // Driven as a sequence, because what the record HELD when each gesture
+    // arrived is the whole question - a single call cannot show it.
+
+    // 1. Resume: the server holds a two-member selection.
+    let record = recordedAnswers({ q_cover: ["opt_a", "opt_b"] });
+
+    // 2. The respondent unchecks and rechecks, so the adapter hands back the same
+    //    members in a different order. The kernel would call that the same answer
+    //    (ADR-21), so the client must post nothing rather than append a duplicate.
+    expect(isRecorded(record, "q_cover", ["opt_b", "opt_a"])).toBe(true);
+
+    // 3. A genuinely different member set is a new thing to say, and posting it
+    //    records it at ISSUE time (issue #122).
+    expect(isRecorded(record, "q_cover", ["opt_a", "opt_c"])).toBe(false);
+    record = withIssued(record, "q_cover", ["opt_a", "opt_c"]);
+    // ...and the reorder of the NEW set is deduped in turn.
+    expect(isRecorded(record, "q_cover", ["opt_c", "opt_a"])).toBe(true);
+
+    // 4. The respondent clears the control: a retraction, distinct from every
+    //    selection including the empty one, so it posts.
+    expect(isRecorded(record, "q_cover", undefined)).toBe(false);
+    expect(holdsAnswer(record, "q_cover")).toBe(true);
+    record = withIssued(record, "q_cover", undefined);
+    expect(holdsAnswer(record, "q_cover")).toBe(false);
+
+    // 5. Re-answering the set that was just retracted posts as well: the ledger
+    //    holds a tombstone, so this is genuinely new information even though the
+    //    members are the ones from step 3, in any order.
+    expect(isRecorded(record, "q_cover", ["opt_c", "opt_a"])).toBe(false);
+    record = withIssued(record, "q_cover", ["opt_c", "opt_a"]);
+    expect(isRecorded(record, "q_cover", ["opt_a", "opt_c"])).toBe(true);
+  });
+
+  it("adopts a served step's selection whatever order the response lists it in", () => {
+    // The response echoes the ledger's stored order, which need not be the order
+    // the control renders; a navigation must not leave the record disagreeing
+    // with the screen.
+    const merged = withServerHeld(
+      withIssued({}, "q_cover", ["opt_a", "opt_b"]),
+      { q_cover: ["opt_b", "opt_a"] },
+    );
+    expect(isRecorded(merged, "q_cover", ["opt_a", "opt_b"])).toBe(true);
   });
 });
 

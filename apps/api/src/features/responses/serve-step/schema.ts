@@ -17,6 +17,7 @@
  */
 
 import { z } from "@hono/zod-openapi";
+import { AnswerValue } from "@qcms/core";
 
 /** Path params for the session-scoped serving routes. */
 export const SessionParams = z.object({
@@ -98,6 +99,28 @@ export const StepProgress = z
   .openapi("StepProgress");
 
 /**
+ * One canonical `AnswerValue` (DOMAIN_SCHEMA §2.4), published as a named
+ * component so the contract is expressed in the document rather than asserted in
+ * a description (issue #153).
+ *
+ * The kernel's schema is reused verbatim - `@qcms/core`'s `AnswerValue` is the
+ * one definition of what an answer may be, and a parallel spelling here would be
+ * a second definition free to drift from the one the ledger actually enforces.
+ * The union is untagged on purpose (a date and a singleChoice option are both
+ * strings); pairing a value with its question type is `validateAnswer`'s job, so
+ * the document says "one of the canonical encodings" and no more.
+ *
+ * `null` is deliberately outside it. A retraction is an ABSENT key here (ADR-33,
+ * `latestAnswers` resolves a tombstone to unanswered), so a null value in this
+ * map would be a bug, and the schema now refuses it rather than documenting it as
+ * legal.
+ */
+const CanonicalAnswerValue = AnswerValue.openapi("AnswerValue", {
+  description:
+    "One answer in its canonical encoding (DOMAIN_SCHEMA 2.4): an NFC string (shortText, longText, date, singleChoice), a finite number, a boolean, or a duplicate-free array of optionIds (multiChoice). Never null - an unanswered or retracted question is an absent key.",
+});
+
+/**
  * The answers the server already holds for the questions on the RENDERED step
  * (issue #146), keyed by questionId, in the canonical `AnswerValue` encoding the
  * ledger stores. A question with no current answer is simply absent, and a
@@ -119,7 +142,7 @@ export const StepProgress = z
  * answers over their own session-authed request, and they are never logged
  * (SEC-8).
  */
-export const HeldValues = z.record(z.string(), z.unknown()).openapi({
+export const HeldValues = z.record(z.string(), CanonicalAnswerValue).openapi({
   description:
     "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
   example: { q_at_fault_accident: true, q_accident_count: 2 },
