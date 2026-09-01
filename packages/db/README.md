@@ -78,11 +78,31 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 `src/testing/harness.ts` boots a real Postgres in a throwaway container
 (Testcontainers) and migrates it to head - the same path adopters run. It is a
-test-only utility, excluded from the build and published at the `@qcms/db/testing`
-subpath. Adopters import it by that subpath, which is what the example below
-shows. This package's own tests live inside the package, so they reach the same
-module by relative path instead (`../testing/harness.js`) and never exercise the
-subpath: that is why the subpath has tests of its own (`harness-deps.test.ts`).
+test-only utility, and it is **built and published like the main entry**: the
+`@qcms/db/testing` subpath resolves to `dist/testing/harness.js` plus its `.d.ts`.
+Adopters import it by that subpath, which is what the example below shows. This
+package's own tests live inside the package, so they reach the same module by
+relative path instead (`../testing/harness.js`) and never exercise the subpath:
+that is why the subpath has tests of its own (`harness-deps.test.ts`).
+
+The subpath used to point at the TypeScript source, and that was one defect wearing
+two faces (issues #382 and #407). Vitest transformed the source, so every in-repo
+importer was happy and nothing in the manifest said the entry point was
+Vitest-only; plain `node` refused it with
+`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`, and a TypeScript adopter who had not
+installed the optional peers below could not get past `tsc` at all - six `TS2307`s
+naming packages they had been told they did not need, standing in front of the
+actionable runtime message written for exactly that moment. Building the subpath
+answers both: the runtime gets JavaScript, the typechecker gets declarations, and
+those declarations name neither optional peer, so a consumer typechecks clean
+whether or not they run with `skipLibCheck`.
+
+One consequence worth knowing before you reach for it. `TestDb.container` is typed
+as `StartedTestPostgres`, a small structural interface this package owns, rather
+than as Testcontainers' `StartedPostgreSqlContainer`. That is what keeps the
+optional peers off the declaration surface. It names `logs()`, `getConnectionUri()`
+and `stop()`; if you need more of the upstream container, widen the interface and
+`harness-types.test.ts` will hold it against the real type.
 
 ```ts
 import { withTestDb, startTestDb } from "@qcms/db/testing";
@@ -126,9 +146,11 @@ acquire a Docker client it never uses (issue #156). They stay devDependencies of
 this package as well, so the workspace's own suites have them. Importing
 `@qcms/db/testing` without them resolves fine; the first `startTestDb()` then
 fails with a message naming both packages and the command above, rather than
-Node's bare `Cannot find package`. The harness is consumed under Vitest, which
-transforms its TypeScript source; a plain `node` import of the subpath is not
-supported.
+Node's bare `Cannot find package`. That holds under any runner: the subpath is
+compiled JavaScript, so plain `node` loads it as readily as Vitest does, and
+because the two imports are dynamic and the declarations name neither package, an
+absent peer is a runtime message rather than a resolution error or a typecheck
+failure.
 
 On Linux CI (`ubuntu-latest`) this works out of the box. The harness
 sets an empty `DOCKER_AUTH_CONFIG` before Testcontainers loads so image pulls are

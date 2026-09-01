@@ -10,6 +10,8 @@ export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer
 export { NATIVE_FIELD_KIND_PREFIX, SUBMIT_NODE_TYPE, withNativeSubmit } from "./native-submit.ts";
 export type { NativeFieldKind, NativeSubmitOptions } from "./native-submit.ts";
 
+export { withDemotedHeadings } from "./heading-demotion.ts";
+
 export { QcmsFieldContext, useQcmsField } from "./field-context.tsx";
 export type {
   A2UIAnswerValue,

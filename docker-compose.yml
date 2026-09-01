@@ -169,6 +169,31 @@ services:
       # question as this deployment serves it. It is not on the `api-env` anchor
       # because neither the API nor the one-shot migration renders anything.
       QCMS_PORTAL_THEME: ${QCMS_PORTAL_THEME:-}
+      # The rest of the appearance group `apps/portal/lib/server/theme.ts` reads, and it
+      # is one group rather than six knobs: theme, corners, mode, density, font, the
+      # curated font list and the brand mark are the whole of what an operator can say
+      # about how the portal looks, and forwarding one of them while dropping the others
+      # is the same silent failure #499 was about, six more times (issue #752). Every one
+      # is documented in `apps/portal/.env.example`, `docs/theming.md` and the
+      # `docs/operations.md` table, so before this the documentation described knobs the
+      # shipped Compose file could not deliver.
+      #
+      # Empty means unset throughout, so each falls back to the portal's own documented
+      # default and an unrecognised value degrades to that default rather than throwing
+      # (theme.ts is deliberately tolerant: presentation config must not take a
+      # deployment down).
+      #
+      # Portal only, unlike the theme above. The admin reads `QCMS_PORTAL_THEME` for its
+      # preview island and reads none of these: its own chrome is never adopter-themeable
+      # (ADR-26), so forwarding a brand name or a font curation to it would name a
+      # variable nothing in that image reads.
+      QCMS_PORTAL_CORNERS: ${QCMS_PORTAL_CORNERS:-}
+      QCMS_PORTAL_MODE: ${QCMS_PORTAL_MODE:-}
+      QCMS_PORTAL_DENSITY: ${QCMS_PORTAL_DENSITY:-}
+      QCMS_PORTAL_FONT: ${QCMS_PORTAL_FONT:-}
+      QCMS_PORTAL_FONTS: ${QCMS_PORTAL_FONTS:-}
+      QCMS_PORTAL_BRAND_NAME: ${QCMS_PORTAL_BRAND_NAME:-}
+      QCMS_PORTAL_BRAND_LOGO: ${QCMS_PORTAL_BRAND_LOGO:-}
       # The api service's twin; the reasoning is written out there. Both apps read the
       # same variable name and each defaults its own service name, so one endpoint
       # here traces the whole BFF hop.

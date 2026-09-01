@@ -43,9 +43,47 @@ export interface StepResolver {
   readonly resolveStep: (step: Step, context: StepResolverContext) => A2UIDocument;
 }
 
+/**
+ * The typography each heading level carries into the compiled document (issue #186).
+ *
+ * ## Why the compiler sets these at all
+ *
+ * `heading()` used to emit `{ as }` and nothing else, and the vendored `Text` component
+ * defaults the two props that carry visual weight (`size: "md"`, `weight: "normal"` in
+ * `packages/ui/src/components/a2ui/text/text.styles.ts`). So every compiled form title and
+ * step title rendered at body size and body weight: semantically correct `h1`/`h2`
+ * elements that a sighted respondent could not tell apart from the question labels around
+ * them. Nothing caught it and nothing could - axe checks that a heading IS a heading, not
+ * that it LOOKS like one, so `a11y-axe.pw.ts` passed throughout.
+ *
+ * The intent belongs in the document rather than in a renderer default, because the
+ * document is what is stored and served forever (ADR-18): a renderer that later changed
+ * its default would silently restyle every published form, and a renderer that is not ours
+ * has nothing to read the intent from at all. The corpus is the renderer-compat contract
+ * (`golden/README.md`), so a prop that appears here is a prop the renderer must honour.
+ *
+ * ## Why two steps of contrast rather than one
+ *
+ * The form title is the page; the step title is a section of it. `2xl/bold` against
+ * `xl/semibold` against the body's `md/normal` gives each of the three a distinct size AND
+ * weight, which is what keeps the hierarchy legible across a respondent's own font choice:
+ * the portal offers several faces (`QCMS_PORTAL_FONTS`), and a size step alone reads
+ * differently between them in a way a weight step does not.
+ *
+ * Values come from the `Text` schema's own enums (`xs`…`2xl`, `normal`…`bold`), not from a
+ * `--type-*` theme token. Pointing them at tokens would mean editing the vendored `Text`
+ * component, which is a byte-for-byte upstream copy (ADR-22) and outside this fix, so
+ * `--type-step-title` still has no consumer inside the renderer. That is the half of #186
+ * left standing, and it is reported rather than forced.
+ */
+const HEADING_STYLE = {
+  h1: { size: "2xl", weight: "bold" },
+  h2: { size: "xl", weight: "semibold" },
+} as const;
+
 /** A `Text` heading node (`h1` form title, `h2` step title) - the page outline. */
 function heading(as: "h1" | "h2", text: string): A2UINode {
-  return { type: "Text", props: { as }, children: text };
+  return { type: "Text", props: { as, ...HEADING_STYLE[as] }, children: text };
 }
 
 /**

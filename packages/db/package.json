@@ -13,8 +13,8 @@
       "default": "./dist/index.js"
     },
     "./testing": {
-      "types": "./src/testing/harness.ts",
-      "default": "./src/testing/harness.ts"
+      "types": "./dist/testing/harness.d.ts",
+      "default": "./dist/testing/harness.js"
     },
     "./migrate": {
       "types": "./dist/migrate.d.ts",

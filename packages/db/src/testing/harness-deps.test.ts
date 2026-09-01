@@ -187,6 +187,64 @@ describe("the published @qcms/db/testing subpath", () => {
     }
   });
 
+  /**
+   * Resolution and typecheck, the two halves of what "published" has to mean here
+   * (issues #382 and #407).
+   *
+   * The subpath used to point at raw TypeScript. Vitest transformed it, so every
+   * in-repo importer was happy and nothing said the entry point was Vitest-only: plain
+   * `node` refused it with `ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING` (#382), and a
+   * TypeScript adopter without the optional peers got six `TS2307`s out of the source
+   * file, which is a wall in front of the actionable runtime message #156 wrote (#407).
+   *
+   * Both were one defect: the export condition. It now points at compiled output like
+   * the main entry, so the runtime gets JavaScript and the typechecker gets a `.d.ts`.
+   * These read the manifest and the emitted declarations rather than trusting either.
+   */
+  describe("resolves to built output, not to source", () => {
+    const dist = new URL("../../dist/testing/", import.meta.url);
+
+    const exportsMap = (
+      manifest as unknown as {
+        readonly exports?: Record<string, Record<string, string>>;
+      }
+    ).exports;
+
+    it("points ./testing at dist, so any runner can load it", () => {
+      const testing = exportsMap?.["./testing"];
+      expect(testing?.types).toBe("./dist/testing/harness.d.ts");
+      expect(testing?.default).toBe("./dist/testing/harness.js");
+    });
+
+    it("emits both files, so the export condition is not a promise about nothing", () => {
+      // `test` depends on `build` in turbo.json, so this is a real precondition rather
+      // than an ordering hope. A missing file here means the subpath was excluded from
+      // the build again, which is exactly how #382 happened.
+      for (const file of ["harness.js", "harness.d.ts", "docker-auth-config.js"]) {
+        expect(existsSync(new URL(file, dist)), `dist/testing/${file} is missing`).toBe(true);
+      }
+    });
+
+    it("keeps the optional peers out of the emitted declarations", () => {
+      // The #407 regression net, and the reason `TestDb.container` is typed structurally
+      // (see StartedTestPostgres in harness.ts). If either peer reappears in an import
+      // position here, an adopter who has not installed them cannot run `tsc` at all,
+      // and `skipLibCheck: true` would hide that from most of them while leaving it for
+      // anyone strict - the outcome #407 calls the worse of the two, because it looks
+      // resolved. Import positions only: the prose in the file's own comments names both
+      // packages on purpose.
+      const declarations = readFileSync(new URL("harness.d.ts", dist), "utf8");
+      const specifiers = [...declarations.matchAll(/(?:from|import\()\s*["']([^"']+)["']/gu)].map(
+        (match) => match[1],
+      );
+      expect(specifiers.length).toBeGreaterThan(0);
+      expect(
+        specifiers.filter((specifier) => specifier?.includes("testcontainers")),
+        "an optional peer reached the exported declaration surface",
+      ).toEqual([]);
+    });
+  });
+
   // The two wordings an absent peer actually produces: Node's own, and Vite's,
   // which is what a Vitest-based consumer sees. Both were observed against a
   // packed tarball installed outside this workspace (issue #156).

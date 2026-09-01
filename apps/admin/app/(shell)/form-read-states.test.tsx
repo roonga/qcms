@@ -254,6 +254,13 @@ vi.mock("@/lib/i18n/en", () => ({
  * `MenuPopover` renders its children, which the real one does only once opened. That is
  * the point for the move-pin block below: the popover's contents are what an operator
  * reads after pressing the trigger, and this is the only layer that can read them at all.
+ *
+ * `Dialog` is a different case and is REQUIRED rather than convenient (issue #628). A
+ * react-aria `Dialog` renders through a `Modal`, a `Modal` renders through a portal, and
+ * a portal has nowhere to go in a static render: the real component makes
+ * `renderToStaticMarkup` return the EMPTY STRING for the whole tree containing it, not
+ * just for the dialog. Drop this stub and every assertion in this file passes over
+ * nothing, silently - no error, no warning, just `""`.
  */
 vi.mock("@/components/kit", () => ({
   Alert: ({ variant, children }: { variant?: string; children?: ReactNode }) => (

@@ -3,9 +3,9 @@
 import "./docker-auth-config.js";
 
 import { readFileSync } from "node:fs";
+import type { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import type { StartedPostgreSqlContainer } from "@testcontainers/postgresql";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
@@ -29,6 +29,51 @@ interface TestcontainersApi {
   readonly PostgreSqlContainer: typeof import("@testcontainers/postgresql").PostgreSqlContainer;
   readonly getContainerRuntimeClient: typeof import("testcontainers").getContainerRuntimeClient;
   readonly getReaper: typeof import("testcontainers").getReaper;
+}
+
+/**
+ * The started-container surface {@link TestDb} publishes, declared here rather than
+ * re-exported from `@testcontainers/postgresql` (issues #382 and #407).
+ *
+ * ## Why a hand-written type for something upstream already names
+ *
+ * This is the only place a Testcontainers type reached the **exported** surface of this
+ * module, and therefore the only thing that put the optional peers into the emitted
+ * `.d.ts`. An adopter who installs `@qcms/db` and does not install the two optional peers
+ * (which is the supported shape - they are `peerDependenciesMeta.optional`, and the whole
+ * point of the lazy load below) then could not run `tsc` at all: six `TS2307`s naming
+ * packages they were told they did not need, which is a wall in front of the actionable
+ * runtime message {@link MISSING_TESTCONTAINERS_MESSAGE} was written for (#407).
+ *
+ * `skipLibCheck: true` would hide it, and hiding it for the default setting while leaving
+ * it for `skipLibCheck: false` is the worse outcome of the two, because it looks resolved.
+ * So the peers are removed from the declaration surface outright: the interfaces and the
+ * `typeof import(...)` references above are module-internal and are erased from the
+ * emitted declarations, and this is what takes their place on the exported one.
+ *
+ * ## What it costs, and what pins it
+ *
+ * The type is structural rather than upstream's nominal one, so it names only what a
+ * consumer of this harness actually uses. `harness-types.test.ts` asserts a real
+ * `StartedPostgreSqlContainer` is assignable to it, so the two cannot drift apart
+ * unnoticed: that test lives in this repository, where the peers ARE installed.
+ */
+export interface StartedTestPostgres {
+  /** Stream the container's server log. See {@link TestDb.container} for the use case. */
+  logs(options?: { since?: number; tail?: number }): Promise<Readable>;
+  /** The libpq connection string, as {@link TestDb.connectionUri} already carries it. */
+  getConnectionUri(): string;
+  /**
+   * Do not call this directly - use {@link TestDb.teardown}, which is idempotent.
+   *
+   * Declared with no parameters and an `unknown` result on purpose. Upstream takes a
+   * `Partial<StopOptions>` and resolves a `StoppedTestContainer`, and naming either here
+   * would put a Testcontainers type back on the exported surface, which is the whole
+   * thing this interface exists to avoid. A method with fewer parameters accepts one with
+   * more optional ones, so the assignability test still passes and the harness's own
+   * `container.stop()` call still typechecks.
+   */
+  stop(): Promise<unknown>;
 }
 
 /**
@@ -141,7 +186,7 @@ export interface TestDb {
    * logs (e.g. the portal e2e's server-side log gate, task 045). Do not stop it
    * directly - use {@link TestDb.teardown}.
    */
-  readonly container: StartedPostgreSqlContainer;
+  readonly container: StartedTestPostgres;
   /** Stop the client and the container. Idempotent. */
   teardown(): Promise<void>;
 }
@@ -295,7 +340,7 @@ function describeInfrastructureFailure(cause: unknown): string {
 async function startContainer(
   image: string,
   bootInfrastructure: () => Promise<void>,
-): Promise<StartedPostgreSqlContainer> {
+): Promise<StartedTestPostgres> {
   const alreadyFailed = unpullableImages.get(image);
   if (alreadyFailed !== undefined) {
     throw new Error(`${alreadyFailed}\n  note: not retried (this image already failed to pull)`);

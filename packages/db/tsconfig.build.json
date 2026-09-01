@@ -1,5 +1,10 @@
 {
   "extends": "./tsconfig.json",
   "include": ["src"],
-  "exclude": ["**/*.test.ts", "src/testing/**"]
+  // `src/testing/**` used to be excluded here, so the `./testing` export had to point at
+  // raw TypeScript and could only be loaded by a transforming runner (issues #382, #407).
+  // It is a published subpath, so it is built like the main entry; only the tests are
+  // excluded. `docker-auth-config.ts` compiles with it, which is required: `harness.js`
+  // imports it as its first statement, for the side effect.
+  "exclude": ["**/*.test.ts"]
 }

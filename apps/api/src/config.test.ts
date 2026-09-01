@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
 
-import { challengeEnforceable, ConfigError, loadConfig, MIN_SECRET_LENGTH } from "./config.js";
+import {
+  challengeEnforceable,
+  ConfigError,
+  loadConfig,
+  MIN_SECRET_LENGTH,
+  turnstileSiteKeyDeprecationWarning,
+} from "./config.js";
 import { synthSecret, validEnv } from "./test-support.js";
 
 describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
@@ -348,7 +354,9 @@ describe("feature-flag registry (ADR-24)", () => {
     } catch (err) {
       message = (err as ConfigError).message;
     }
-    expect(message).toContain("TURNSTILE_SITE_KEY");
+    // Names the canonical spelling only (issue #331): offering both would re-teach the
+    // ambiguity that made an operator set two variables for one key.
+    expect(message).toContain("QCMS_TURNSTILE_SITE_KEY");
     expect(message).toContain("TURNSTILE_SECRET_KEY");
   });
 
@@ -356,7 +364,7 @@ describe("feature-flag registry (ADR-24)", () => {
     const config = loadConfig(
       validEnv({
         QCMS_FLAG_CHALLENGE_PROVIDER: "turnstile",
-        TURNSTILE_SITE_KEY: "site-key",
+        QCMS_TURNSTILE_SITE_KEY: "site-key",
         TURNSTILE_SECRET_KEY: "secret-key",
       }),
     );
@@ -364,6 +372,81 @@ describe("feature-flag registry (ADR-24)", () => {
     expect(config.challenge).toEqual({
       provider: "turnstile",
       turnstile: { siteKey: "site-key", secretKey: "secret-key" },
+    });
+  });
+
+  /**
+   * The site key's two spellings (issue #331). The portal read
+   * `QCMS_TURNSTILE_SITE_KEY` and this process read `TURNSTILE_SITE_KEY`, so an operator
+   * had to set both for one key and setting only one produced a deployment that boots and
+   * silently runs with half the challenge off. The prefixed name is now canonical and the
+   * bare one is a fallback with a boot warning.
+   */
+  describe("the deprecated TURNSTILE_SITE_KEY spelling", () => {
+    const turnstile = (overrides: Record<string, string>) =>
+      validEnv({
+        QCMS_FLAG_CHALLENGE_PROVIDER: "turnstile",
+        TURNSTILE_SECRET_KEY: "secret-key",
+        ...overrides,
+      });
+
+    it("still configures the challenge, so an existing deployment keeps working", () => {
+      const config = loadConfig(turnstile({ TURNSTILE_SITE_KEY: "old-key" }));
+      expect(config.challenge).toEqual({
+        provider: "turnstile",
+        turnstile: { siteKey: "old-key", secretKey: "secret-key" },
+      });
+    });
+
+    it("loses to the canonical name when both are set", () => {
+      // Every working deployment today has both, because it had to. The canonical one has
+      // to win, or the migration would be "set the new name and nothing changes".
+      const config = loadConfig(
+        turnstile({ TURNSTILE_SITE_KEY: "old-key", QCMS_TURNSTILE_SITE_KEY: "new-key" }),
+      );
+      expect(config.challenge).toEqual({
+        provider: "turnstile",
+        turnstile: { siteKey: "new-key", secretKey: "secret-key" },
+      });
+    });
+
+    it("is ignored when blank, so an emptied line does not read as configured", () => {
+      let message = "";
+      try {
+        loadConfig(turnstile({ TURNSTILE_SITE_KEY: "   ", QCMS_TURNSTILE_SITE_KEY: "" }));
+      } catch (err) {
+        message = (err as ConfigError).message;
+      }
+      expect(message).toContain("QCMS_TURNSTILE_SITE_KEY is required");
+    });
+
+    it("warns at boot, naming the deprecation and never the value (SEC-8)", () => {
+      const warning = turnstileSiteKeyDeprecationWarning({ TURNSTILE_SITE_KEY: "old-key" });
+      expect(warning).toBeDefined();
+      expect(warning).toContain("TURNSTILE_SITE_KEY is deprecated");
+      expect(warning).toContain("QCMS_TURNSTILE_SITE_KEY");
+      expect(warning).not.toContain("old-key");
+    });
+
+    it("says which value is in force when both are set and they disagree", () => {
+      const agreeing = turnstileSiteKeyDeprecationWarning({
+        TURNSTILE_SITE_KEY: "same",
+        QCMS_TURNSTILE_SITE_KEY: "same",
+      });
+      const disagreeing = turnstileSiteKeyDeprecationWarning({
+        TURNSTILE_SITE_KEY: "old",
+        QCMS_TURNSTILE_SITE_KEY: "new",
+      });
+      expect(agreeing).toContain("same value");
+      expect(disagreeing).toContain("DIFFERENT value");
+    });
+
+    it("says nothing when the deprecated spelling is absent or blank", () => {
+      expect(turnstileSiteKeyDeprecationWarning({})).toBeUndefined();
+      expect(turnstileSiteKeyDeprecationWarning({ TURNSTILE_SITE_KEY: "  " })).toBeUndefined();
+      expect(
+        turnstileSiteKeyDeprecationWarning({ QCMS_TURNSTILE_SITE_KEY: "new-key" }),
+      ).toBeUndefined();
     });
   });
 
@@ -378,7 +461,7 @@ describe("feature-flag registry (ADR-24)", () => {
         loadConfig(
           validEnv({
             QCMS_FLAG_CHALLENGE_PROVIDER: "turnstile",
-            TURNSTILE_SITE_KEY: "site-key",
+            QCMS_TURNSTILE_SITE_KEY: "site-key",
             TURNSTILE_SECRET_KEY: "secret-key",
           }),
         ).flags,

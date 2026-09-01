@@ -818,3 +818,470 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/minima
   },
 ]
 `;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/author-messages/stp_extras and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Extras and notes",
+    "role": "heading2",
+  },
+  {
+    "name": "Which extras are fitted?",
+    "role": "group",
+  },
+  {
+    "name": "Tow bar",
+    "role": "checkbox",
+  },
+  {
+    "name": "Roof rack",
+    "role": "checkbox",
+  },
+  {
+    "name": "Dash camera",
+    "role": "checkbox",
+  },
+  {
+    "name": "Anything else about the vehicle?",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/author-messages/stp_vehicle and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Author-supplied validation messages",
+    "role": "heading1",
+  },
+  {
+    "name": "The vehicle",
+    "role": "heading2",
+  },
+  {
+    "name": "Last service date",
+    "role": "group",
+  },
+  {
+    "name": "Registration plate",
+    "role": "textbox",
+  },
+  {
+    "name": "Odometer reading *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Last service date",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Last service date",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Last service date",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/boolean-labels/stp_usage and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Boolean label overrides",
+    "role": "heading1",
+  },
+  {
+    "name": "How the vehicle is used",
+    "role": "heading2",
+  },
+  {
+    "name": "Do you tow a trailer?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Is the vehicle garaged overnight?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Is the vehicle under finance?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes, I tow",
+    "role": "radio",
+  },
+  {
+    "name": "No, I never tow",
+    "role": "radio",
+  },
+  {
+    "name": "Garaged",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/constraints-heavy/stp_every_constraint and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Constraints heavy",
+    "role": "heading1",
+  },
+  {
+    "name": "Every constraint variant",
+    "role": "heading2",
+  },
+  {
+    "name": "Any at-fault accident in the last 3 years?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+  {
+    "name": "How many? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/deep-nesting-rules/stp_source and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Deep nesting rules",
+    "role": "heading1",
+  },
+  {
+    "name": "Source answers",
+    "role": "heading2",
+  },
+  {
+    "name": "Any at-fault accident in the last 3 years?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "How many? *",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/deep-nesting-rules/stp_target and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Conditional detail",
+    "role": "heading2",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/insurance/stp_history and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Vehicle insurance quote",
+    "role": "heading1",
+  },
+  {
+    "name": "Driving history",
+    "role": "heading2",
+  },
+  {
+    "name": "Any at-fault accident in the last 3 years?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "How many? *",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/kitchen-sink/stp_about and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Kitchen sink",
+    "role": "heading1",
+  },
+  {
+    "name": "About you",
+    "role": "heading2",
+  },
+  {
+    "name": "Date of birth",
+    "role": "group",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+  {
+    "name": "month, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "day, Date of birth",
+    "role": "spinbutton",
+  },
+  {
+    "name": "year, Date of birth",
+    "role": "spinbutton",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/kitchen-sink/stp_cover and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Your cover",
+    "role": "heading2",
+  },
+  {
+    "name": "Which coverage level would you like?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Basic",
+    "role": "radio",
+  },
+  {
+    "name": "Standard",
+    "role": "radio",
+  },
+  {
+    "name": "Premium",
+    "role": "radio",
+  },
+  {
+    "name": "No cover for now",
+    "role": "radio",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/kitchen-sink/stp_history and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Driving history",
+    "role": "heading2",
+  },
+  {
+    "name": "Any at-fault accident in the last 3 years?",
+    "role": "radiogroup",
+  },
+  {
+    "name": "Yes",
+    "role": "radio",
+  },
+  {
+    "name": "No",
+    "role": "radio",
+  },
+  {
+    "name": "Do any of these conditions apply to you?",
+    "role": "group",
+  },
+  {
+    "name": "Diabetes",
+    "role": "checkbox",
+  },
+  {
+    "name": "Asthma",
+    "role": "checkbox",
+  },
+  {
+    "name": "Heart disease",
+    "role": "checkbox",
+  },
+  {
+    "name": "None of the above",
+    "role": "checkbox",
+  },
+  {
+    "name": "How many? *",
+    "role": "textbox",
+  },
+  {
+    "name": "Relevant medical history",
+    "role": "textbox",
+  },
+]
+`;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/minimal/stp_only and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Minimal",
+    "role": "heading1",
+  },
+  {
+    "name": "The only step",
+    "role": "heading2",
+  },
+  {
+    "name": "Full name",
+    "role": "textbox",
+  },
+]
+`;

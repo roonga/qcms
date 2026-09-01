@@ -422,7 +422,7 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
     schema: z.enum(["none", "turnstile"]),
     fallback: "none",
     description:
-      "Abuse-control challenge provider (026). `turnstile` requires TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY.",
+      "Abuse-control challenge provider (026). `turnstile` requires QCMS_TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY.",
   },
   {
     key: "adminTwoFactor",
@@ -730,12 +730,82 @@ function parseFlags(env: Env, issues: string[]): Flags {
   return result as unknown as Flags;
 }
 
+/** The canonical Turnstile site-key variable, and the spelling the portal has always read. */
+export const TURNSTILE_SITE_KEY_VAR = "QCMS_TURNSTILE_SITE_KEY";
+
+/** The pre-#331 spelling this process still accepts, with a boot warning. */
+export const DEPRECATED_TURNSTILE_SITE_KEY_VAR = "TURNSTILE_SITE_KEY";
+
+/**
+ * The one-line boot warning for a deployment still on the deprecated site-key spelling,
+ * or `undefined` when there is nothing to say.
+ *
+ * ## Why the prefixed spelling won (issue #331)
+ *
+ * The same key was read under two names: the portal's `QCMS_TURNSTILE_SITE_KEY`
+ * (`apps/portal/lib/server/challenge.ts`) and this process's bare `TURNSTILE_SITE_KEY`.
+ * An operator had to set both, nothing in the repository said so, and setting only one
+ * produced a deployment that boots, looks configured, and silently runs with the
+ * challenge half-disabled - the half that is set works and the other behaves as if the
+ * feature were off.
+ *
+ * `QCMS_TURNSTILE_SITE_KEY` is the canonical name because the house convention prefixes
+ * operator-facing variables with `QCMS_`, and because it is the spelling the browser-facing
+ * app already used, so the name that survives is the one an operator has most likely met.
+ *
+ * ## Why a fallback rather than a cutover
+ *
+ * A working deployment today has BOTH set (it had to), so accepting the old name costs
+ * nothing and a hard cutover would silently disable the challenge on any deployment that
+ * had only the old one. The warning is the migration prompt: it names the variable, the
+ * replacement, and the fact that the old name is going away.
+ *
+ * Returned rather than logged, for the same reason the rest of this module collects issues
+ * rather than printing them: `loadConfig` is pure and testable, and `main.ts` owns the
+ * logger. Same shape as `warnIfBreachCheckDisabled`.
+ */
+export function turnstileSiteKeyDeprecationWarning(env: Env): string | undefined {
+  const canonical = env[TURNSTILE_SITE_KEY_VAR]?.trim();
+  const deprecated = env[DEPRECATED_TURNSTILE_SITE_KEY_VAR]?.trim();
+  if (deprecated === undefined || deprecated === "") return undefined;
+
+  // Three cases, and the operator needs to be told which one they are in, because the
+  // remedy differs: with only the old name set their configuration still works and they
+  // should rename it, while with both set the new one is already in force and the old
+  // line is dead - silently so, and misleadingly if the two values disagree.
+  const tail = describeTurnstileOverlap(canonical, deprecated);
+  return `${DEPRECATED_TURNSTILE_SITE_KEY_VAR} is deprecated (issue #331): ${tail}`;
+}
+
+/** The half of the warning that says which value is in force. Never echoes a value. */
+function describeTurnstileOverlap(canonical: string | undefined, deprecated: string): string {
+  if (canonical === undefined || canonical === "") {
+    return `its value is being used; set ${TURNSTILE_SITE_KEY_VAR} instead and remove it.`;
+  }
+  if (canonical === deprecated) {
+    return `${TURNSTILE_SITE_KEY_VAR} is set to the same value and wins; remove the deprecated one.`;
+  }
+  return `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
+}
+
 function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["challenge"] {
   if (flags.challengeProvider === "turnstile") {
-    const siteKey = env.TURNSTILE_SITE_KEY;
+    // Canonical first, deprecated second. Both are read rather than one, so an existing
+    // deployment that set only the old name keeps working; see
+    // `turnstileSiteKeyDeprecationWarning` for why this name won and why the old one is
+    // accepted at all.
+    const canonicalSiteKey = env[TURNSTILE_SITE_KEY_VAR];
+    const siteKey =
+      canonicalSiteKey !== undefined && canonicalSiteKey.trim() !== ""
+        ? canonicalSiteKey
+        : env[DEPRECATED_TURNSTILE_SITE_KEY_VAR];
     const secretKey = env.TURNSTILE_SECRET_KEY;
     if (!siteKey || siteKey.trim() === "") {
-      issues.push(`TURNSTILE_SITE_KEY is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`);
+      // Names the canonical variable only. A message that offered both spellings would
+      // re-teach the ambiguity this issue removed.
+      issues.push(
+        `${TURNSTILE_SITE_KEY_VAR} is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`,
+      );
     }
     if (!secretKey || secretKey.trim() === "") {
       issues.push(`TURNSTILE_SECRET_KEY is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`);

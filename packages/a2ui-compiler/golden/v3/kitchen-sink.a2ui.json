@@ -127,9 +127,9 @@
               {
                 "type": "CheckboxGroup",
                 "props": {
-                  "label": "Which optional cover do you want?",
+                  "label": "Do any of these conditions apply to you?",
                   "description": "Select all that apply",
-                  "name": "q_optional_cover",
+                  "name": "q_preexisting_conditions",
                   "isRequired": true,
                   "orientation": "vertical"
                 },
@@ -137,22 +137,29 @@
                   {
                     "type": "Checkbox",
                     "props": {
-                      "value": "opt_breakdown",
-                      "label": "Breakdown"
+                      "value": "opt_diabetes",
+                      "label": "Diabetes"
                     }
                   },
                   {
                     "type": "Checkbox",
                     "props": {
-                      "value": "opt_windscreen",
-                      "label": "Windscreen"
+                      "value": "opt_asthma",
+                      "label": "Asthma"
                     }
                   },
                   {
                     "type": "Checkbox",
                     "props": {
-                      "value": "opt_legal",
-                      "label": "Legal"
+                      "value": "opt_heart_disease",
+                      "label": "Heart disease"
+                    }
+                  },
+                  {
+                    "type": "Checkbox",
+                    "props": {
+                      "value": "opt_none",
+                      "label": "None of the above"
                     }
                   }
                 ]
@@ -160,8 +167,8 @@
               {
                 "type": "TextArea",
                 "props": {
-                  "label": "Anything else about your driving history?",
-                  "name": "q_extra_detail",
+                  "label": "Relevant medical history",
+                  "name": "q_medical_history",
                   "maxLength": 2000
                 }
               },

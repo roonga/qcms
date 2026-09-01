@@ -30,6 +30,56 @@ export interface DomShape {
   readonly children: readonly DomShape[];
 }
 
+/** The heading tags a rendered document can carry. */
+const HEADING_TAGS = ["h1", "h2", "h3", "h4", "h5", "h6"] as const;
+
+type HeadingTag = (typeof HEADING_TAGS)[number];
+
+function isHeadingTag(tag: string): tag is HeadingTag {
+  return (HEADING_TAGS as readonly string[]).includes(tag);
+}
+
+/**
+ * Return `shape` with every heading tag lowered by `by` levels, clamped at `h6`.
+ *
+ * ## Why the fidelity comparison needs this
+ *
+ * The admin's preview and the portal's rendering are the same document through the same
+ * renderer, and the parity test says so by comparing their DOM. Since issue #537 there is
+ * exactly ONE deliberate difference between them: an embedding host passes
+ * `headingLevelOffset={1}`, so the document's `h1` renders as `h2` inside a page that
+ * already has an `h1` of its own. Without that the admin routes had two top-level
+ * headings, which is a document-outline defect and made a heading-by-level query ambiguous
+ * on the route.
+ *
+ * The offset is applied to the RESPONDENT's shape before comparing, rather than erased
+ * from both sides. Erasing it - mapping every heading to one sentinel tag - would also
+ * stop the test noticing a preview that demoted by two levels, or by none, or that turned
+ * a heading into a `<p>`. Demoting the expected side keeps the assertion total: the trees
+ * must still match element for element, and the offset must be exactly the one the host
+ * asked for.
+ */
+export function withDemotedHeadings(shape: DomShape, by: number): DomShape {
+  // `h6` spelled out rather than read back off the array: the index access is
+  // `HeadingTag | undefined` under `noUncheckedIndexedAccess`, and a fallback that needs
+  // its own fallback reads worse than the literal it would resolve to.
+  const tag = isHeadingTag(shape.tag)
+    ? (HEADING_TAGS[Math.min(HEADING_TAGS.indexOf(shape.tag) + by, HEADING_TAGS.length - 1)] ??
+      "h6")
+    : shape.tag;
+  return {
+    ...shape,
+    tag,
+    children: shape.children.map((child) => withDemotedHeadings(child, by)),
+  };
+}
+
+/** Every heading tag in `shape`, in document order. */
+export function headingTags(shape: DomShape): string[] {
+  const own = isHeadingTag(shape.tag) ? [shape.tag] : [];
+  return [...own, ...shape.children.flatMap((child) => headingTags(child))];
+}
+
 /**
  * Attributes dropped wholesale: each is either a generated identity or a reference to one.
  * Kept in the browser-side function below, which cannot close over module scope.

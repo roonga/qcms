@@ -10,6 +10,7 @@ import type {
   QcmsFieldContextValue,
 } from "./field-context.tsx";
 import { QcmsFieldContext } from "./field-context.tsx";
+import { withDemotedHeadings } from "./heading-demotion.ts";
 import { withNativeSubmit, type NativeSubmitOptions } from "./native-submit.ts";
 import { registryForSpecVersion } from "./registry.tsx";
 
@@ -43,6 +44,26 @@ export interface A2UIStepRendererProps {
    * document is never mutated (ADR-18).
    */
   readonly nativeSubmit?: NativeSubmitOptions;
+  /**
+   * Lower the document's own headings by this many levels, for a host that EMBEDS the
+   * document in a page that already has an `<h1>` (issue #537).
+   *
+   * A compiled step carries its own outline - the form title as `h1`, the step title as
+   * `h2` - which is right when the document is the page, as it is on the portal. An admin
+   * preview or version view is a document inside a page, and rendering it untouched gives
+   * that page two `<h1>`s: a document-outline defect, and an ambiguous
+   * `getByRole("heading", { level: 1 })` for anything testing the route.
+   *
+   * `1` is the answer for every current embed (the host page's `h1` is the page, the
+   * document's headings start at `h2`). Absent or `0` leaves the document's own levels
+   * alone, which is what the portal wants.
+   *
+   * Render-time only, and only the `as` prop moves: `size` and `weight` are left as
+   * compiled so the embed still shows what a respondent sees. The stored document is
+   * never mutated (ADR-18). See `heading-demotion.ts` for why this side of the contract
+   * yields rather than the host chrome.
+   */
+  readonly headingLevelOffset?: number;
 }
 
 const NO_VALUES: A2UIValues = Object.freeze({});
@@ -70,6 +91,7 @@ export function A2UIStepRenderer({
   locale = "en-US",
   specVersion,
   nativeSubmit,
+  headingLevelOffset = 0,
 }: A2UIStepRendererProps) {
   const registry = registryForSpecVersion(specVersion);
   const native = nativeSubmit !== undefined;
@@ -77,13 +99,18 @@ export function A2UIStepRenderer({
     () => ({ values, errors, onChange, onBlur, locale, native }),
     [values, errors, onChange, onBlur, locale, native],
   );
-  // Render-time only (ADR-18): in native mode the root Form gains action/method
-  // and a submit control; the stored `document.root` bytes are never mutated.
-  const root = useMemo(
-    () =>
-      nativeSubmit === undefined ? document.root : withNativeSubmit(document.root, nativeSubmit),
-    [document.root, nativeSubmit],
-  );
+  // Render-time only (ADR-18): in native mode the root Form gains action/method and a
+  // submit control, and an embedding host can lower the document's own heading levels.
+  // The stored `document.root` bytes are never mutated by either.
+  //
+  // Demotion runs first, so it sees only the compiled document's own headings. The
+  // submit control carries no heading and the order is therefore not load-bearing today,
+  // but reversing it would make the appended node's future contents subject to a
+  // transform that is meant to be about stored content alone.
+  const root = useMemo(() => {
+    const demoted = withDemotedHeadings(document.root, headingLevelOffset);
+    return nativeSubmit === undefined ? demoted : withNativeSubmit(demoted, nativeSubmit);
+  }, [document.root, headingLevelOffset, nativeSubmit]);
   return (
     <I18nProvider locale={locale}>
       <QcmsFieldContext.Provider value={ctx}>

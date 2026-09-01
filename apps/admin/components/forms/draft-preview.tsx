@@ -243,6 +243,12 @@ export function DraftPreview({
               values={answers}
               onChange={handleChange}
               specVersion={state.preview.a2uiSpecVersion}
+              // Same embed as the version view, and the same reason (issue #537): this
+              // route's own `h1` names the page ("Draft preview: <slug>"), and the compiled
+              // document arrives carrying the outline it would have as a whole page on the
+              // portal. #537 was filed against version-detail and flagged this route as
+              // likely to share the defect; it does, so both are corrected in one pass.
+              headingLevelOffset={1}
             />
             {/* A visible step whose every question is currently hidden renders as an empty
                 box, which reads as a broken preview rather than as the branch state it is.

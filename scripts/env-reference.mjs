@@ -209,12 +209,20 @@ export const ENV_REFERENCE = [
       "Public origin of the **admin app**, not of this API. Required when `QCMS_MOUNT` includes `admin`: it is the origin better-auth scopes cookies to and the only origin it trusts, so it must match what the browser sees exactly.",
   },
   {
-    name: "TURNSTILE_SITE_KEY",
+    name: "QCMS_TURNSTILE_SITE_KEY",
     process: "api",
     requirement: "conditional",
     fallback: "",
     description:
-      "Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise.",
+      "Turnstile site key. Required when `QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`, ignored otherwise. The **same variable the portal reads**, spelled identically (issue #331): it is one public key, so one name.",
+  },
+  {
+    name: "TURNSTILE_SITE_KEY",
+    process: "api",
+    requirement: "optional",
+    fallback: "",
+    description:
+      "**Deprecated** (issue #331). The pre-consolidation spelling of `QCMS_TURNSTILE_SITE_KEY`, still read as a fallback so an existing deployment keeps working; the API logs a one-line warning at boot when it is set. `QCMS_TURNSTILE_SITE_KEY` wins if both are set. Set the prefixed name and delete this one.",
   },
   {
     name: "TURNSTILE_SECRET_KEY",
@@ -569,7 +577,7 @@ export const ENV_REFERENCE = [
     requirement: "conditional",
     fallback: "",
     description:
-      "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. Note the prefix: the API reads the same key under the unprefixed `TURNSTILE_SITE_KEY`, so today you set both. Issue #331 consolidates the two spellings onto this prefixed one.",
+      "Turnstile site key for the rendered widget. Required when the portal's challenge provider is `turnstile`. The **same variable the API reads** since issue #331 consolidated the two spellings onto this one, so set it once for both processes; the API still accepts the deprecated bare `TURNSTILE_SITE_KEY` and warns at boot.",
   },
   {
     name: "QCMS_PORTAL_THEME",

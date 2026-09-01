@@ -94,8 +94,21 @@ authority.
 Each step compiles to one A2UI document:
 
 - Root: `Form` → `Flex(direction: "column")`.
-- Headings: form title as `Text(as: "h1")` on the first step only; step title as
-  `Text(as: "h2")` on every step - the renderer maps these to the page heading outline.
+- Headings: form title as `Text(as: "h1", size: "2xl", weight: "bold")` on the first
+  step only; step title as `Text(as: "h2", size: "xl", weight: "semibold")` on every
+  step - the renderer maps these to the page heading outline.
+  **The size and weight are part of the mapping, not a renderer default** (issue #186,
+  generation `v3`). The vendored `Text` defaults to `size: "md"`, `weight: "normal"`,
+  which is the body treatment, so a document that named only `as` produced headings
+  typographically identical to the question labels beside them: correct outline,
+  invisible hierarchy, and no gate could see it (axe checks that a heading is a
+  heading, not that it looks like one). Stating the intent in the stored document is
+  what makes it survive a renderer that changes its defaults, and what gives a
+  non-QCMS renderer anything to read.
+  A host that embeds a compiled document inside a page with its own `<h1>` lowers the
+  levels at render time instead (`A2UIStepRenderer`'s `headingLevelOffset`, issue
+  #537); the stored bytes are never touched, and the typography above is deliberately
+  left alone so an embedded preview still shows what a respondent saw.
 - Every control carries `label` and, when the question has help text, `description`
   (upstream renders these with the correct ARIA associations; component-level a11y is
   tested upstream per ADR-22).
@@ -158,17 +171,22 @@ a real control's `name`.
 
 ### Golden generations (the maintainable log)
 
-The golden corpus is append-only (ADR-18), and its `golden/README.md` is itself
-under the append-only guard - so this list, not that README, is the living
-record of compiled-output generations:
+The golden corpus is append-only (ADR-18). The guard covers the versioned
+directories (`golden/v1/`, `golden/v2/`, …) and deliberately not `golden/README.md`,
+whose prose has to stay editable to record each new generation; this list is still
+the living record, and the two are kept in step:
 
 - **`golden/v1/`** - compiler `0.0.0`: the task-011 launch mapping (no honeypot).
   Retained untouched and still asserted a valid `@a2ra/core` document forever
   (old stored snapshots render against it).
 - **`golden/v2/`** - compiler `0.1.0` (task 026): adds the `Honeypot` decoy last
-  in every step. The current generation the corpus runner recompiles against.
+  in every step. Retained.
+- **`golden/v3/`** - compiler `0.2.0` (issue #186): every heading carries `size`
+  and `weight`, so a form title and a step title no longer render at the `Text`
+  component's body defaults. The current generation the corpus runner recompiles
+  against.
 
-A future breaking change adds `golden/v3/` and appends here.
+A future breaking change adds `golden/v4/` and appends here.
 
 ## Locale
 

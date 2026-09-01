@@ -398,6 +398,79 @@ describe("managed portal theme plumbing (ADR-30, issue #499)", () => {
   });
 });
 
+/**
+ * The rest of the portal's appearance group (issue #752).
+ *
+ * #499 was one knob; six more had the identical defect behind it, because the
+ * portal's appearance is a GROUP, not a single setting. `apps/portal/lib/server/theme.ts`
+ * reads seven `QCMS_PORTAL_*` variables, `apps/portal/.env.example`, `docs/theming.md`
+ * and the `docs/operations.md` table document all seven, and before this the shipped
+ * Compose file named exactly one of them. Setting the other six in `.env` reached
+ * nothing, silently, with the documentation still saying they worked.
+ *
+ * The first test derives the list from the module rather than restating it, which is what
+ * makes this a gate against the NEXT knob rather than a record of these seven. A regex
+ * over source is a weak reader in general; here it is the right strength, because the
+ * only thing it has to see is a literal `process.env.QCMS_PORTAL_*` read, which is the
+ * one form that module uses and the one form Compose has to answer.
+ */
+describe("portal appearance-group plumbing (ADR-30, issue #752)", () => {
+  /** Every `QCMS_PORTAL_*` variable `apps/portal/lib/server/theme.ts` actually reads. */
+  const appearanceVars = (() => {
+    const source = readFileSync(`${REPOSITORY_ROOT}/apps/portal/lib/server/theme.ts`, "utf8");
+    const names = new Set<string>();
+    for (const match of source.matchAll(/process\.env\.(QCMS_PORTAL_[A-Z0-9_]+)/gu)) {
+      names.add(match[1]!);
+    }
+    return [...names].sort();
+  })();
+
+  it("reads the group off the portal's own config module, so the list cannot go stale", () => {
+    // A sanity floor on the derivation itself: if the regex ever stops matching, every
+    // assertion below would pass over an empty list and this block would certify nothing.
+    expect(appearanceVars.length).toBeGreaterThanOrEqual(7);
+    expect(appearanceVars).toContain("QCMS_PORTAL_BRAND_NAME");
+  });
+
+  it("names every appearance variable on the portal service", () => {
+    const environment = service(solo, "portal").environment;
+    for (const name of appearanceVars) {
+      expect(environment, `portal must forward ${name}`).toHaveProperty(name);
+    }
+  });
+
+  it("leaves each one empty by default, so the portal applies its own documented fallback", () => {
+    // Reachability, not a new default, exactly as in the theme block above. Resolved with
+    // every variable forced empty rather than reusing `solo`, because `composeConfig`
+    // inherits `process.env` and the browser harness exports two of these
+    // (playwright.config.ts sets QCMS_PORTAL_CORNERS and QCMS_PORTAL_FONTS).
+    const unset = composeConfig({
+      files: ["docker-compose.yml"],
+      env: Object.fromEntries(appearanceVars.map((name) => [name, ""])),
+    });
+    const environment = service(unset, "portal").environment;
+    for (const name of appearanceVars) {
+      expect(environment?.[name], `${name} must default to empty`).toBe("");
+    }
+  });
+
+  it("keeps the group off the admin, the API and the one-shot migration", () => {
+    // The admin is the deliberate asymmetry. It takes QCMS_PORTAL_THEME because its
+    // preview island opens in the deployment's respondent theme, and it reads none of
+    // the rest: the authoring app's own chrome is never adopter-themeable (ADR-26), so
+    // naming a brand mark or a font curation here would forward a value nothing in that
+    // image reads. Asserted rather than left implicit, so "the admin takes the theme"
+    // does not later get generalised into "the admin takes the appearance group".
+    const rest = appearanceVars.filter((name) => name !== "QCMS_PORTAL_THEME");
+    for (const serviceName of ["admin", "api", "migrate"]) {
+      const environment = service(solo, serviceName).environment;
+      for (const name of rest) {
+        expect(environment, `${serviceName} must not forward ${name}`).not.toHaveProperty(name);
+      }
+    }
+  });
+});
+
 describe("admin TOTP policy plumbing (SEC-1)", () => {
   it("names the variable on both sides, so the documented escape hatch is reachable", () => {
     // Same failure shape as the OTLP block above, and found the same way: the

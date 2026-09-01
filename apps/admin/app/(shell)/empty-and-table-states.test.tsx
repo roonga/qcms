@@ -174,7 +174,17 @@ vi.mock("@/lib/i18n/en", () => ({
   tPlural: (one: string) => one,
 }));
 
-/** Marked stand-ins, so the real components' own markup never confuses the assertions. */
+/**
+ * Marked stand-ins, so the real components' own markup never confuses the assertions.
+ *
+ * `Dialog` is not one of those, and the difference matters to whoever copies this block
+ * next (issue #628). A react-aria `Dialog` renders through a `Modal`, a `Modal` renders
+ * through a portal, and a portal has nowhere to go in a static render: the real component
+ * makes `renderToStaticMarkup` return the EMPTY STRING for the whole tree containing it,
+ * not just for the dialog. So without this stub every assertion in this file would pass
+ * over nothing, with no error and no warning to say so. It is a property of the layer,
+ * not a convenience.
+ */
 vi.mock("@/components/kit", () => ({
   Alert: ({ variant, children }: { variant?: string; children?: ReactNode }) => (
     <div data-testid="qcms-alert" data-variant={variant}>
@@ -185,6 +195,7 @@ vi.mock("@/components/kit", () => ({
   Card: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-card-stub">{children}</div>
   ),
+  // Required, not cosmetic. See the block comment above: the real one empties the render.
   Dialog: ({ children }: { children?: ReactNode }) => (
     <div data-testid="qcms-dialog-stub">{children}</div>
   ),
