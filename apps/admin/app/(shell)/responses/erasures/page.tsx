@@ -1,12 +1,19 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { erasureReasonText } from "@/components/ops/ops-tags";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { listErasures } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("ops.erasures.title"));
+}
 
 /**
  * The erasure log (task 035; screen contract "erasure log screen - compliance evidence").

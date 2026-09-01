@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { FormPageHeader } from "@/components/forms/form-page-header";
@@ -6,10 +7,21 @@ import { ResponseBrowser } from "@/components/ops/response-browser";
 import { formatList } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { parseResponseQuery } from "@/lib/ops/response-filters";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { getForm } from "@/lib/server/forms";
 import { listResponses } from "@/lib/server/responses";
 import { requireAdminSession } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("responses", formId));
+}
 
 /**
  * One form's response browser (task 035; screen contract "browser toolbar / table").

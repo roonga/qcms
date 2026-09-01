@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/kit";
@@ -6,12 +7,28 @@ import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { isoDay, selectVersion } from "@/lib/questions/version-rail";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { saveDraftAction } from "../actions";
+
+/**
+ * The browser-tab title for this route (issue #536).
+ *
+ * The question id, which is what this screen's `<h1>` shows and what R6 makes permanent.
+ * It is an identifier rather than prose, so there is nothing here for the catalog to hold.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ questionId: string }>;
+}): Promise<Metadata> {
+  const { questionId } = await params;
+  return pageMetadata(questionId);
+}
 
 /**
  * One question: a rendered preview and the editor for the selected version (task 032;

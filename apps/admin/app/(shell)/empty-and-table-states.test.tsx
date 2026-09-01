@@ -184,6 +184,11 @@ vi.mock("@/lib/server/webhook-ops", () => ({
  * without this file noticing, and it is also what makes "the failed read does not print
  * the empty sentence" a precise claim rather than a substring guess.
  */
+// The real title helper: `generateMetadata` is not what these tests render, so the module
+// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
+// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
+vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
+
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,

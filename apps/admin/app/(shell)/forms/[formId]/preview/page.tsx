@@ -1,14 +1,26 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { DraftPreview } from "@/components/forms/draft-preview";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { previewDraftAction } from "../../actions";
+
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("preview", formId));
+}
 
 /**
  * The live preview of a form's draft (task 034; screen contract "preview").

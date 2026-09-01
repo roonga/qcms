@@ -1,9 +1,11 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Card, Select, TextField } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { QUESTION_TYPES, type QuestionStatus, type QuestionType } from "@/lib/questions/types";
 import { listQuestions } from "@/lib/server/questions";
@@ -53,6 +55,11 @@ function parseType(raw: SearchParam): QuestionType | undefined {
 function firstValue(raw: SearchParam): string {
   const value = Array.isArray(raw) ? raw[0] : raw;
   return value ?? "";
+}
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("questions.title"));
 }
 
 export default async function QuestionsPage({

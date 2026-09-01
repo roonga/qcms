@@ -1,5 +1,5 @@
 import type { ResponseFilterField } from "./response-filters.ts";
-import { dayFilter, versionFilter } from "./response-filters.ts";
+import { dayEnd, dayFilter, dayStart, versionFilter } from "./response-filters.ts";
 
 /**
  * The export request, decided in one place (task 035).
@@ -22,6 +22,12 @@ import { dayFilter, versionFilter } from "./response-filters.ts";
  * Since issue 551 the module owns both ends of that link: {@link exportQuery} writes it
  * and {@link parseExportFilters} reads it back, so the shapes cannot drift apart. The
  * validation itself is borrowed rather than invented - see {@link parseExportFilters}.
+ *
+ * The day boundary is borrowed too, since issue #312. `dayStart` and `dayEnd` were
+ * defined here and the response browser's parser concatenated the same two suffixes
+ * inline, which is the duplication the paragraph above argues against, carried by the
+ * module making the argument. Both now come from `response-filters.ts`, beside the
+ * `dayFilter` that decides what counts as a day in the first place.
  */
 
 /** The formats the export route offers. */
@@ -61,26 +67,6 @@ export function exportQuery(choice: ExportChoice): string {
   if (choice.from.trim() !== "") search.set("from", dayStart(choice.from.trim()));
   if (choice.to.trim() !== "") search.set("to", dayEnd(choice.to.trim()));
   return `?${search.toString()}`;
-}
-
-/**
- * Widen a chosen calendar day to the instant it begins / ends, in UTC.
- *
- * The same decision `endOfDay` records for link expiry, and for the same reason: the
- * controls ask for a day because that is the question an operator has, the API wants
- * an instant, and doing the widening in the operator's local zone would make the
- * exported set depend on the machine it was exported from. UTC is what every
- * timestamp on these screens is rendered in (`lib/i18n/format.ts`), so the filter and
- * the column agree. A value that already carries a time passes through untouched.
- */
-const DAY_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-
-export function dayStart(value: string): string {
-  return DAY_ONLY.test(value) ? `${value}T00:00:00.000Z` : value;
-}
-
-export function dayEnd(value: string): string {
-  return DAY_ONLY.test(value) ? `${value}T23:59:59.999Z` : value;
 }
 
 /**

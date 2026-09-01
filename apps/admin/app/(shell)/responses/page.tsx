@@ -1,9 +1,16 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("ops.area.responses.title"));
+}
 
 /**
  * The responses area (task 035, replacing 031's placeholder).
@@ -60,7 +67,7 @@ export default async function ResponsesPage() {
                   className="qcms-text-link"
                   href={`/forms/${encodeURIComponent(form.formId)}/responses`}
                 >
-                  {t("ops.area.responses.pickForm", { title: form.slug })}
+                  {t("ops.area.responses.pickForm", { slug: form.slug })}
                 </Link>
               </li>
             ))}

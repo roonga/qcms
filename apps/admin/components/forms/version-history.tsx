@@ -147,10 +147,24 @@ export function VersionHistory({
         </table>
       </div>
 
+      {/* An `h2`, not an `h3` (issue #540). This panel sits directly under the page's
+          `<h1>` with nothing between them, so the level was skipped and the heading
+          outline - the structure a screen-reader user navigates an admin screen by -
+          had a hole in it. axe's `heading-order` rule reported it in every mode from
+          the day issue #511 switched the rule on, and it was muted in that file's debt
+          register while the fix waited for this issue; both entries are deleted with
+          this change, which is what puts the compare panel back under the sweep.
+
+          Promoted rather than given a new `h2` above it: the two content regions on
+          this screen are the version table and this panel, the table is named by its
+          own `<caption>`, and inventing a heading for it to make this one a legal `h3`
+          would add a landmark to the outline rather than correct it. The panel's own
+          `aria-labelledby` still points here, and the visual size is set by the class
+          rather than by the tag, so nothing on screen moves. */}
       <section aria-labelledby="qcms-diff-heading" className="flex flex-col gap-3">
-        <h3 id="qcms-diff-heading" className="text-base font-semibold text-(--color-text)">
+        <h2 id="qcms-diff-heading" className="text-base font-semibold text-(--color-text)">
           {t("forms.history.compare")}
-        </h3>
+        </h2>
         <div className="flex flex-wrap items-end gap-3">
           <Select
             label={t("forms.history.olderLabel")}

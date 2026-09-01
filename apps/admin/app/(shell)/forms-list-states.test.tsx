@@ -92,6 +92,11 @@ vi.mock("@/lib/read-state", () => import("../../lib/read-state"));
  * branch chose, not about the sentence it happens to hold today - which is what leaves
  * #514 free to rewrite the copy without touching this file.
  */
+// The real title helper: `generateMetadata` is not what these tests render, so the module
+// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
+// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
+vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
+
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
 }));

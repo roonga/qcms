@@ -1,11 +1,18 @@
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { pendingEnrollment } from "@/lib/server/enrollment";
 import { requireEnrollingSession, SIGN_IN_PATH } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("enroll.title"));
+}
 
 /**
  * 2FA enrollment (task 031; screen contract state `2FA-enroll`).

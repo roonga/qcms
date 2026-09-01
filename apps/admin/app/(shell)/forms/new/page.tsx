@@ -1,11 +1,18 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { Card } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { createFormAction } from "../actions";
 import { CreateForm } from "./create-form";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("forms.create.title"));
+}
 
 /**
  * Creating a form (issue 685; the affordance itself is task 033's, moved).

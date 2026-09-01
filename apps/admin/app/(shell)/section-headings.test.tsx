@@ -36,7 +36,10 @@ import { describe, expect, it, vi } from "vitest";
  * `responses-poc.html` compose both parts. They were drawn before this rail carried the
  * form's name on every one of these screens. Ruled on by the Code Owner rather than
  * transcribed, the same way 679 itself was - the two POCs disagreed on the connector, and
- * `forms.section.heading` was the string that resolved it. That string is now unused.
+ * `forms.section.heading` was the string that resolved it. That string went unused by the
+ * amendment and was deleted from the catalog by issue #538's dead-key sweep, so the
+ * assertion below is now belt to the type checker's brace: `t` takes a `MessageKey`, and
+ * a key that is not in the catalog no longer type-checks anywhere in the app.
  *
  * ## The builder is the deliberate asymmetry, and this file pins it
  *

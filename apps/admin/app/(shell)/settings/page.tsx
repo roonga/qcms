@@ -1,9 +1,17 @@
+import type { Metadata } from "next";
+
 import { Alert, Button, Card, TextField } from "@/components/kit";
 import { SettingsPanels } from "@/components/settings-panels";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
 import { requireAdminSession } from "@/lib/server/session";
 import { SETTINGS_HEADING_ID, settingsSectionFromParams } from "@/lib/settings-sections";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("nav.settings"));
+}
 
 /**
  * Settings (task 031; screen contract "Settings area at launch: account (change password →

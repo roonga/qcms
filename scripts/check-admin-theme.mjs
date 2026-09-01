@@ -143,7 +143,7 @@ export function findLiteralColours(text) {
 /**
  * Every quoted VALUE in the catalog, with keys and comments excluded.
  *
- * Keys are excluded because they are identifiers, not text: `area.forms.title` is
+ * Keys are excluded because they are identifiers, not text: `questions.empty.title` is
  * never read aloud. Comments are excluded because they are for the next author -
  * the catalog's own header describes the app by its directory name, which is correct
  * and must not fail a gate about what an operator sees. A string is a key when the

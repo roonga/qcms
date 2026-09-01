@@ -23,11 +23,34 @@ export const messages = {
   "app.title": "QCMS",
   "app.description": "Author questionnaires, publish forms, and review responses.",
 
+  // The browser-tab title, one pattern for every route (issue #536). Until this landed,
+  // `app/layout.tsx` set a single static `app.title` and no route defined
+  // `generateMetadata`, so every screen in the app produced the tab text "QCMS" - and an
+  // operator working several responses or several forms side by side, which is how this
+  // app is used, could not tell one tab from another at all.
+  //
+  // Page name FIRST. A tab strip truncates from the right, and the tail is the half every
+  // tab shares; leading with "QCMS - " would spend the surviving characters saying the
+  // same word on every tab. The app name is kept rather than dropped because a tab is
+  // also a browser history entry and a bookmark, where the product name is the context
+  // nothing else supplies. `lib/page-title.ts` is the only caller.
+  "app.pageTitle": "{page} - QCMS",
+  // A form's section screen, for the tab only. The `<h1>` on those screens deliberately
+  // says the section alone (Code Owner, 2026-08-26): the breadcrumb above it and the rail
+  // beside it both name the form, so composing both there repeated two crumbs a line
+  // below them. A tab has no breadcrumb and no rail, so it is the one place the pairing
+  // still earns its width - six sibling screens of one form, and several forms open at
+  // once, is the exact case that made the sections indistinguishable.
+  //
+  // `{formId}` rather than `{slug}`: the route knows its `formId` from its own params,
+  // and reading the slug would mean a second `GET /admin/forms/{id}` per render purely to
+  // name a tab. The id is what the address bar already shows and what R6 makes permanent.
+  "title.formSection": "{section}: {formId}",
+
   "action.skipToContent": "Skip to content",
   "action.signIn": "Sign in",
   "action.signOut": "Sign out",
   "action.verify": "Verify",
-  "action.continue": "Continue",
   "action.savePassword": "Change password",
   "action.changePassword": "Change password",
 
@@ -68,7 +91,6 @@ export const messages = {
   "enroll.title": "Set up two-factor authentication",
   "enroll.intro":
     "Scan this code with your authenticator app, then enter the six-digit code it shows.",
-  "enroll.qrAlt": "QR code for enrolling this account in your authenticator app",
   "enroll.manualLabel": "Setup key (use this if you cannot scan the code)",
   "enroll.codeLabel": "Six-digit code from your app",
 
@@ -120,17 +142,6 @@ export const messages = {
   // cannot set, so the active row is not marked by colour alone.
   "settings.rail.label": "Settings sections",
 
-  // The area screens tasks 033-035 replace. Each says what it will hold so the
-  // shell is navigable and reviewable now, and so an empty page never reads as a
-  // bug. (Questions is no longer among them: task 032
-  // replaced its placeholder with the real library.)
-  "area.forms.title": "Forms",
-  "area.forms.pending": "The form builder and condition editor land in task 033.",
-  "area.responses.title": "Responses",
-  "area.responses.pending": "Response browsing, export, and erasure land in task 035.",
-  "area.webhooks.title": "Webhooks",
-  "area.webhooks.pending": "Webhook configuration and delivery history land in task 035.",
-
   // ---------------------------------------------------------------------------
   // The question library (task 032).
   //
@@ -172,10 +183,20 @@ export const messages = {
   "questions.column.created": "Created",
 
   "questions.empty.title": "Nothing in the library yet",
+  // The command names the ONE path that reaches the stack a reader of this screen is
+  // most likely looking at (issue #618). It used to say "run pnpm qcms:seed-fixtures
+  // against a development database", and against the composed stack `pnpm dev:up`
+  // creates there was no way to do that: the loader takes a `DATABASE_URL` and that
+  // stack's Postgres publishes no host port. Worse than useless, because the sentence
+  // had a success mode that changed nothing on screen - run against the separate dev
+  // database it CAN reach, the command reports success and this library stays empty.
+  // `pnpm dev:seed` runs the same loader inside the network (`scripts/dev-compose.mjs`,
+  // documented in `docs/DEVELOPER_GUIDE.md`), so the remedy and the screen are on one
+  // database. It is still qualified as a development command, because this screen
+  // cannot know which database backs it and a deployed instance has no dev stack.
   "questions.empty.body":
-    "Create the first question. To explore with the sample insurance library instead, run pnpm qcms:seed-fixtures against a development database.",
+    "Create the first question. To explore with the sample insurance library instead, run pnpm dev:seed against a local development stack.",
   "questions.empty.filtered": "No question matches this search.",
-  "questions.count": "{count} of {total} questions.",
 
   "questions.status.draft": "Draft",
   "questions.status.published": "Published",
@@ -216,8 +237,6 @@ export const messages = {
   "questions.editor.saved": "Draft saved.",
   "questions.editor.constraints": "Constraints",
   "questions.editor.noConstraints": "This type has no constraints to set.",
-  "questions.editor.problems":
-    "The engine rejected this draft. The details are on the fields below.",
   "questions.editor.frozen":
     "This version is frozen: its content can never change again. Create a new version to make an edit.",
 
@@ -341,7 +360,6 @@ export const messages = {
 
   "questions.detail.versions": "Versions",
   "questions.detail.version": "Version {version}",
-  "questions.detail.selected": "Showing",
   "questions.detail.publishedAt": "Published {date}",
   "questions.detail.unpublished": "Never published",
   "questions.detail.slug": "Slug",
@@ -460,17 +478,16 @@ export const messages = {
   "forms.create.localeHint": "The locale every step and question must have text for.",
   "forms.create.submit": "Create form",
   "forms.create.submitting": "Creating the form...",
-  "forms.create.idPreview": "This form will be created as {formId}, permanently.",
 
   "forms.builder.crumbs": "Forms",
-  "forms.builder.crumbBuilder": "Builder",
   "forms.builder.crumbLabel": "Breadcrumb",
-  // The builder's own `<h1>`, and since issue 679 the builder's alone. Its five sibling
-  // sections compose `forms.section.heading` instead, because their subject is a collection
-  // belonging to the form; on the builder the subject IS the form, so the bare slug is the
-  // heading rather than a heading that has not been written yet.
+  // The identity line under the heading on every form screen. This paragraph used to say
+  // the builder's five sibling sections composed `forms.section.heading` while the builder
+  // headed itself with the bare slug; neither half survived. The Code Owner's 2026-08-26
+  // amendment heads all six with the section's name alone, that key is gone with issue
+  // #538's sweep, and `app/(shell)/section-headings.test.tsx` is where the reasoning for
+  // both now lives.
   "forms.builder.formId": "Form ID",
-  "forms.builder.locale": "Default locale",
   "forms.builder.status": "Status",
   "forms.builder.draftSource.open": "Editing the saved draft.",
   "forms.builder.draftSource.seeded":
@@ -518,7 +535,6 @@ export const messages = {
   "forms.validation.notChecked":
     "This draft has not been checked yet. The check runs on your first change, and again when you publish.",
 
-  "forms.steps.title": "Steps",
   "forms.steps.add": "Add step",
   "forms.steps.newTitle": "New step title",
   "forms.steps.addDone": "Add",
@@ -533,14 +549,12 @@ export const messages = {
   "forms.steps.issuesOne": "1 issue",
   "forms.steps.issues": "{count} issues",
   "forms.steps.untitled": "Untitled step",
-  "forms.steps.empty": "No steps yet. Add the first one to start pinning questions.",
   "forms.steps.confirmRemoveTitle": "Remove step {title}?",
   "forms.steps.confirmRemoveBody":
     "The step and its pins go with it. Rules that named the step are left exactly as they are, so a rule pointing at it will be reported as a dangling reference rather than being rewritten for you.",
   "forms.steps.confirmRemove": "Remove step",
 
   "forms.step.heading": "Step: {title}",
-  "forms.step.titleLabel": "Step title",
   "forms.step.pins": "Questions in this step",
   "forms.step.empty": "No questions pinned yet.",
   "forms.step.addQuestion": "Add question from library",
@@ -785,7 +799,6 @@ export const messages = {
   "forms.operand.noOptions": "The pinned version of this question declares no options.",
   "forms.operand.unsupported": "This operator does not apply to this question's type.",
 
-  "forms.json.title": "Condition JSON",
   "forms.json.label": "Condition JSON for rule {ruleId}",
   "forms.json.note":
     "The same condition as the pickers above, in the engine's own DSL. Editing here updates the pickers; the pickers are the primary surface (ADR-19). Autocomplete offers operators, pinned question IDs, and the option IDs of the referenced question's pinned version.",
@@ -916,9 +929,9 @@ export const messages = {
 
   // The `forms.tab.*` names outlived the tab strip they were written for: the §7 rail
   // carries the same six sections on all eight form screens (issue 561), the breadcrumb
-  // builds its last crumb from the same names, and since issue 679 the section screens'
-  // own `<h1>` is composed from them too, so all six are still one place. Only the strip's
-  // own landmark label went with `form-tabs.tsx`.
+  // builds its last crumb from the same names, the section screens' own `<h1>` is one of
+  // them, and issue #536 composes each screen's browser-tab title from them, so all six
+  // are still one place. Only the strip's own landmark label went with `form-tabs.tsx`.
   //
   // "Version history" rather than "History" (issue 679). Three things pushed the same way
   // and none of them was consistency for its own sake. The screen's approved drawing names
@@ -930,7 +943,13 @@ export const messages = {
   // composed into a heading, where "History: Life insurance" could as easily mean the
   // form's edit history or its responses. The rail follows the screen's name by the rule
   // `plan/admin-design-contracts.md` §7 records, which anticipates exactly this rename.
-  "forms.section.heading": "{section}: {slug}",
+  //
+  // `forms.section.heading` ("{section}: {slug}") stood here until issue #538's sweep.
+  // The Code Owner's 2026-08-26 amendment took it out of the `<h1>`, which left it
+  // defined and read by nothing; `app/(shell)/section-headings.test.tsx` records why the
+  // heading no longer composes it. The browser-tab title issue #536 adds does compose a
+  // section name with a form's identity, but from the route's `formId` rather than a slug
+  // it would have to fetch, so it carries its own key (`title.formSection`).
   // "Form details" rather than "Builder" since 2026-08-26 (Code Owner). The row leads to
   // the screen carrying the form's own title, settings, rules, test bench and validation,
   // and `admin-shell-poc.html` labels it for its subject rather than for the tool. It also
@@ -971,7 +990,6 @@ export const messages = {
   // did not happen and roughly how much there is to fix - not the list read aloud.
   "forms.publish.blockedAnnounce.one": "Publish blocked: 1 issue to fix, listed below.",
   "forms.publish.blockedAnnounce.other": "Publish blocked: {count} issues to fix, listed below.",
-  "forms.publish.goToIssue": "Go to",
   "forms.publish.published": "Published as v{version}.",
   "forms.publish.viewHistory": "View version history",
   "forms.publish.failed": "The form was not published. {message}",
@@ -1013,7 +1031,6 @@ export const messages = {
   "forms.preview.complete": "Every required question on every visible step is answered.",
   "forms.preview.stamps": "Compiler {compilerVersion} · A2UI spec {a2uiSpecVersion}",
 
-  "forms.history.heading": "Version history",
   "forms.history.intro":
     "Every published version, frozen exactly as it was. Viewing one renders the compiled documents stored at publish time, which is what respondents on that version saw (ADR-18).",
   "forms.history.emptyTitle": "Not published yet",
@@ -1155,7 +1172,6 @@ export const messages = {
 
   "ops.common.none": "-",
   "ops.common.cancel": "Cancel",
-  "ops.common.close": "Close",
   "ops.common.working": "Working…",
   "ops.common.copy": "Copy",
   "ops.common.copied": "Copied to the clipboard.",
@@ -1165,15 +1181,30 @@ export const messages = {
   "ops.area.responses.title": "Responses",
   "ops.area.responses.intro":
     "Responses are held per form. Open a form to browse, export or erase what it collected.",
-  "ops.area.responses.pickForm": "Open responses for {title}",
+  // `{slug}` and not `{title}` (issue #312). Both list screens are fed `form.slug`, and
+  // they can be fed nothing else: `GET /admin/forms` answers with `FormListItem`, which
+  // carries no title at all. A placeholder named for a value the caller cannot supply is
+  // a promise the catalog cannot keep, and the slug is what these screens identify a form
+  // by everywhere else ("Open a form from the link in its Slug column").
+  "ops.area.responses.pickForm": "Open responses for {slug}",
   "ops.area.responses.noForms": "No forms exist yet, so nothing has been collected.",
   "ops.area.responses.erasureLog": "Erasure log",
   "ops.area.responses.formsFailed": "The form list could not be loaded. {message}",
 
   "ops.area.webhooks.title": "Webhook operations",
+  // "screen", not "tab" (issue #651). This sentence is the one place the app explains the
+  // deployment-wide / per-form split to an operator who has landed here looking for where
+  // to add an endpoint, so sending them to a control that does not exist is the specific
+  // failure it was written to prevent. Issue #561 replaced the in-header section strip
+  // with the `@rail` slot on all eight form-scoped screens and deleted `form-tabs.tsx`;
+  // a form's siblings are now rows in a navigation column beside the content, listed
+  // under "Sections" (`forms.rail.sections`). The clause naming the list below is what
+  // makes the sentence actionable rather than merely accurate - the destination is one
+  // click away on this page.
   "ops.area.webhooks.intro":
-    "The dead-letter queue below covers every form. Endpoints are configured per form, on the form's Webhooks tab.",
-  "ops.area.webhooks.pickForm": "Configure webhooks for {title}",
+    "The dead-letter queue below covers every form. Endpoints are configured per form, on that form's Webhooks screen - open one from the list below.",
+  // `{slug}`, for the same reason as `ops.area.responses.pickForm` above.
+  "ops.area.webhooks.pickForm": "Configure webhooks for {slug}",
   "ops.area.webhooks.noForms": "No forms exist yet, so there is nothing to deliver.",
 
   // The response browser.
@@ -1271,7 +1302,6 @@ export const messages = {
   // The response detail.
   "ops.detail.heading": "Response {sessionId}",
   "ops.detail.back": "Back to responses",
-  "ops.detail.summary": "Summary",
   "ops.detail.answers": "Locked answers",
   "ops.detail.answersIntro":
     "The answers as submitted, captioned with the wording of the question version this form version pinned.",
@@ -1289,9 +1319,13 @@ export const messages = {
     "The audit anchor: re-deriving it from the locked answers proves they have not changed.",
   "ops.detail.noAnswer": "Not answered",
   "ops.detail.emptyAnswer": "Answered with an empty value",
+  // "screen", not "tab", and the link's own label with it (issue #651). Same staleness as
+  // `ops.area.webhooks.intro`: the tab strip went with `form-tabs.tsx` in issue #561, and
+  // the anchor beside this sentence goes to the form's Links screen, which is a row in the
+  // rail rather than a tab in a header.
   "ops.detail.secureLinkNote":
-    "This response came in through a secure link. Link lifecycle is on the form's Links tab.",
-  "ops.detail.secureLinkGo": "Open the Links tab",
+    "This response came in through a secure link. Link lifecycle is on the form's Links screen.",
+  "ops.detail.secureLinkGo": "Open the Links screen",
   "ops.detail.flagged": "Flagged: {reason}",
   "ops.detail.flaggedNote":
     "The response is stored, and its webhook event is withheld until it is released.",
@@ -1452,7 +1486,16 @@ export const messages = {
   "ops.deliveries.attemptsHint":
     "Attempts that failed. A delivery that succeeded first time shows zero.",
   "ops.deliveries.latency": "{ms} ms",
-  "ops.deliveries.noAttempt": "No attempt has been made yet.",
+  // Two states reach this sentence and it used to describe only one (issue #312). A row
+  // that has never been tried and a row that was redelivered are identical here on
+  // purpose: `resetDeliveryForRedelivery` clears the whole last-attempt record rather
+  // than the error alone, precisely so a cleared error cannot sit beside a stale
+  // `last_status: 500` (`packages/db/src/queries/deliveries.ts`). So "yet" was a claim
+  // about history the panel cannot make. What it CAN say is true of both: nothing has
+  // been attempted since this delivery was queued, and the second sentence names the
+  // reason a row with attempts behind it can read that way.
+  "ops.deliveries.noAttempt":
+    "No attempt on record: nothing has been sent since this delivery was queued. Redelivering clears the previous attempt, so a row queued again reads the same as one never tried.",
   "ops.deliveries.showDetail": "Show request and response for {event}",
   "ops.deliveries.hideDetail": "Hide request and response for {event}",
   // The row trigger's digest (issue 519; `plan/admin-ux-audit.md` §3.8). Three facts,
@@ -1518,8 +1561,18 @@ export const messages = {
   "ops.error.sessionNotFound": "There is no such session.",
   "ops.error.submissionNotFound": "That session has not been submitted.",
   "ops.error.webhookNotFound": "That endpoint no longer exists for this form.",
+  // Stated as the deployment's rule rather than as an absolute one (issue #312). The https
+  // requirement and the private-address ban are both lifted by
+  // `QCMS_WEBHOOK_ALLOW_PRIVATE`, which on-prem topologies that post to internal systems
+  // legitimately set (`apps/api/src/features/webhooks/ssrf.ts`), so the old sentence told
+  // an operator working in one of those deployments a rule their own API does not enforce.
+  // The flag is NOT named: ADR-24's "clients receive behavior, not flag values" is
+  // absolute since 2026-08-31, and an admin screen has no business printing an
+  // environment variable at an author either way. "unless this deployment allows private
+  // targets" is the behaviour statement that leaves the sentence true in both
+  // configurations without saying which one is in force.
   "ops.error.webhookUrlRejected":
-    "That URL was refused: it must be an absolute https URL that does not point at a private address.",
+    "That URL was refused. A webhook target must be an absolute URL, and unless this deployment allows private targets it must also use https and must not point at a private or reserved address.",
   "ops.error.deliveryNotFound": "That delivery no longer exists.",
   // A server action that REJECTED rather than returning a failure state - a transport
   // error, or a body that would not parse. Deliberately says nothing about the thrown

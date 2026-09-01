@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
@@ -6,9 +7,29 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { VersionView } from "@/components/forms/version-view";
 import { t } from "@/lib/i18n/en";
 import { VERSION_HEADING_ID } from "@/lib/page-headings";
+import { pageMetadata } from "@/lib/page-title";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
+
+/**
+ * The browser-tab title for this route (issue #536).
+ *
+ * The version, and the form it belongs to: `Version 3: frm_life_insurance`. Composed the
+ * same way a section screen's is, because a stored version IS what this screen is about -
+ * the version number takes the section's place in `title.formSection`. Both halves come
+ * from the route's own params, so an unreadable snapshot still gets the right tab.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string; version: string }>;
+}): Promise<Metadata> {
+  const { formId, version } = await params;
+  return pageMetadata(
+    t("title.formSection", { section: t("forms.history.versionHeading", { version }), formId }),
+  );
+}
 
 /**
  * One published version, rendered from its stored compiled documents (task 034, ADR-18).

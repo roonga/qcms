@@ -1,11 +1,18 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button } from "@/components/kit";
 import { RecoveryCodes } from "@/components/recovery-codes";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { owedRecoveryCodes } from "@/lib/server/enrollment";
 import { currentAdminSession, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("recovery.title"));
+}
 
 /**
  * The one-time recovery-code display (task 031; screen contract state

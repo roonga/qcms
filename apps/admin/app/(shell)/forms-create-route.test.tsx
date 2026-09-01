@@ -114,6 +114,11 @@ vi.mock("@/lib/server/questions", () => ({
  * this file noticing, while "the list screen names no part of the create copy" stays a
  * precise claim rather than a substring guess.
  */
+// The real title helper: `generateMetadata` is not what these tests render, so the module
+// only has to resolve. Pointed at the real one rather than stubbed, so a change to the
+// helper cannot be absorbed by a stand-in nobody maintains (issue #536).
+vi.mock("@/lib/page-title", () => import("../../lib/page-title.ts"));
+
 vi.mock("@/lib/i18n/en", () => ({
   t: (key: string) => key,
   tPlural: (one: string) => one,
