@@ -10,7 +10,7 @@ and one of those disagree, they are right.
 QCMS is four containers and one durable thing: the respondent portal, the authoring admin, the API,
 and Postgres (`docker-compose.yml`). Only the database has to survive. That is a small enough shape
 that the interesting question is not "can this platform run it" but "what does this platform charge
-for keeping one Node process warm", and the answers differ by roughly a factor of eight.
+for keeping one Node process warm", and the answers differ by more than a factor of ten.
 
 ## The recommendation
 
@@ -29,40 +29,58 @@ and the fourth of them is a security control.
 
 ## The tiers
 
-Prices are illustrative, in US dollars, gathered 2026-09-01, for roughly 2 vCPU and 4 GB with a
-persistent volume. **Confirm every one of them at signup**: vendor pricing moves, and regional
-pricing moves more. Ease is 1 (most work) to 5 (least).
+Prices are illustrative, in US dollars, read off the vendors' own pricing pages on 2026-09-01, for
+a stack sized around 2 vCPU and 4 GB with a persistent volume. **Confirm every one of them at
+signup**: vendor pricing moves (Hetzner raised these twice in 2026), regional pricing moves more,
+and a promotional rate is not a renewal rate. Ease is 1 (most work) to 5 (least).
 
-| Platform                    | Tier                     | ~Monthly  | Ease | AU region             | Note                                                                          |
-| --------------------------- | ------------------------ | --------- | ---- | --------------------- | ----------------------------------------------------------------------------- |
-| Hetzner CX23                | own-a-box                | $8-9      | 3    | no (EU and US only)   | Cheapest credible box. Recipe A unmodified. EU latency from Australia.        |
-| DigitalOcean droplet (SYD1) | own-a-box                | $13-15    | 3    | yes, Sydney           | Recipe A unmodified, in-region. The default recommendation below.             |
-| Hostinger KVM 2             | own-a-box                | $8-12     | 3    | check at signup       | Same shape as the two above; verify the region list before committing.        |
-| Fly.io                      | container-native         | $10-50    | 4    | yes, `syd`            | No VM to patch. Machines must be pinned always-on, see invariant 3.           |
-| Azure Container Apps        | container-native         | $22-48    | 3    | yes, Australia East   | Managed Postgres beside it. Scale-to-zero must be turned off.                 |
-| Render                      | managed PaaS             | ~$27      | 5    | check at signup       | Fixed monthly, near-zero ops. Three services plus a managed Postgres.         |
-| Railway                     | managed PaaS             | $10-20    | 5    | check at signup       | Usage-metered, so the bill moves with traffic rather than being fixed.        |
-| AWS ECS + Fargate           | cloud LB                 | $66-79    | 1    | yes, `ap-southeast-2` | This is **Recipe B** in `docs/deploy-ingress.md`. Overkill for a solo launch. |
-| Cloudflare                  | ingress only, not a host | free tier | n/a  | global edge           | Cannot host the stack. Ideal in front of one, see below.                      |
+| Platform                 | Tier                     | ~Monthly             | Ease | AU region                | Note                                                                            |
+| ------------------------ | ------------------------ | -------------------- | ---- | ------------------------ | ------------------------------------------------------------------------------- |
+| Hetzner CX23             | own-a-box                | ~$7                  | 3    | no, Singapore is nearest | 2 vCPU / 4 GB / 40 GB, plus the IPv4 charge. Cheapest credible box.             |
+| DigitalOcean Basic, SYD1 | own-a-box                | $24                  | 3    | yes, Sydney              | 2 vCPU / 4 GB. Recipe A unmodified and in-region. The default recommendation.   |
+| Hostinger KVM 2          | own-a-box                | $9 promo, $15 renew  | 3    | no, Singapore is nearest | 2 vCPU / 8 GB. The promotional rate needs a multi-year prepay.                  |
+| Fly.io                   | container-native         | $30-35, or $55-65    | 4    | yes, `syd`               | Lower figure self-running Postgres on a Machine, higher with Managed Postgres.  |
+| Azure Container Apps     | container-native         | $45-80               | 3    | yes, Australia East      | Three apps at minimum one replica, plus Flexible Server B1ms.                   |
+| Render                   | managed PaaS             | $27 floor, ~$81 real | 5    | no, Singapore is nearest | The floor is three 0.5 vCPU / 512 MB instances; the next size up is $25 each.   |
+| Railway                  | managed PaaS             | $15-30               | 5    | no, Singapore is nearest | Metered on measured usage, so the bill moves with load rather than being fixed. |
+| AWS ECS + Fargate        | cloud LB                 | $72-78               | 1    | yes, `ap-southeast-2`    | **Recipe B** in `docs/deploy-ingress.md`. Add ~$43 per AZ for a NAT gateway.    |
+| Cloudflare               | ingress only, not a host | free tier            | n/a  | global edge              | Cannot host the stack. Ideal in front of one, see below.                        |
 
-Three notes on that table.
+**Only four of them have an Australian region**: DigitalOcean, Fly.io, Azure and AWS. Hetzner,
+Hostinger, Render and Railway all stop at Singapore, which is the closest thing to in-region they
+offer. For an asynchronous questionnaire that is usually a preference rather than a requirement,
+but it is the one axis where the cheapest option and the local option are not the same option.
+
+Three further notes on that table.
 
 **AWS is a real answer to a question this project is not asking.** Recipe B is written out in
 `docs/deploy-ingress.md` and is correct: an ALB, three ECS services, no target group for the API.
-It costs five to eight times a droplet, and most of that is the load balancer and the managed
-database rather than compute. Choose it when an organisation already runs AWS and the account,
-the VPC and the on-call rotation exist. Do not choose it to launch.
+It costs three times a Sydney droplet and ten times a Hetzner box, and only about $32 of that is
+compute: the rest is the load balancer and the managed database. The figure also assumes tasks in
+public subnets. Put them in private ones, as most reference architectures do, and a NAT gateway
+adds roughly $43 per availability zone before any data transfer, which is more than the whole
+own-a-box tier. Choose AWS when an organisation already runs AWS and the account, the VPC and the
+on-call rotation exist. Do not choose it to launch.
 
 **Cloudflare cannot host this stack, and it is worth being precise about why**, because the
-platform is otherwise so attractive that the question keeps coming back. Workers have no persistent
-local disk, so there is nowhere for Postgres to live and Cloudflare offers no managed Postgres of
-its own. Execution is request-scoped and idles out, which collides directly with invariant 3 below:
-the API's outbox deliverer and retention sweep are timers inside a long-lived process, not HTTP
+platform is otherwise so attractive that the question keeps coming back. Three separate blocks.
+Workers are event-driven with a per-request CPU ceiling and no filesystem, so there is nowhere for a
+long-lived process to live. Cloudflare Containers are longer-lived but sleep after a default ten
+minutes of inactivity and get a **fresh disk from the image** on restart, which is the opposite of
+what a database needs. And there is no Cloudflare Postgres to point at instead: D1 is SQLite, and
+Hyperdrive is a connection pool and query cache in front of somebody else's Postgres rather than a
+database of its own.
+
+The sleep model is the one that would bite hardest, because it collides with invariant 3 below: the
+API's outbox deliverer and retention sweep are timers inside a long-lived process, not HTTP
 handlers, and a platform that stops the process between requests stops them too.
 
-**What Cloudflare is excellent at is the layer in front.** Put it ahead of whichever host you pick
-and take the WAF, Access on the admin hostname, and R2 for off-host backup storage, mostly on free
-tiers. That choice is not free of consequences: it adds a proxy hop, which is invariant 4.
+**What Cloudflare is excellent at is the layer in front.** Put it ahead of whichever host you pick.
+The free plan carries one managed WAF ruleset (the broad Cloudflare and OWASP rulesets are Pro and
+above, so "free WAF" means high-signal rules rather than full coverage), Zero Trust Access is free
+up to 50 users, and R2 gives 10 GB with **no egress charge**, which makes it a good home for the
+off-host backups `docs/backup-restore.md` asks for. That choice is not free of consequences: it
+adds a proxy hop, which is invariant 4.
 
 ## The five invariants
 
@@ -91,12 +109,12 @@ from the API image.
 
 A platform with no Compose file reproduces it as a pipeline gate that blocks the release:
 
-| Platform             | The gate                                                                    |
-| -------------------- | --------------------------------------------------------------------------- |
-| Fly.io               | `release_command`, which runs against the new release before it is promoted |
-| Render, Railway      | the pre-deploy command                                                      |
-| Azure Container Apps | a job execution, run and awaited before the app revision is activated       |
-| AWS ECS              | `run-task` on the migration task definition, waited on before the deploy    |
+| Platform             | The gate                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| Fly.io               | `[deploy] release_command`, a one-off Machine on the new image; a non-zero exit aborts the deploy |
+| Render, Railway      | the pre-deploy command, which runs after the build and before it is deployed                      |
+| Azure Container Apps | a manually triggered job execution, awaited before the new app revision is activated              |
+| AWS ECS              | `run-task` on the migration task definition, waited on before the service deploy                  |
 
 The failure to avoid is running the migration as a sidecar or an init step of the API service
 itself, which reintroduces the race the separate step exists to prevent.
@@ -117,8 +135,9 @@ is a webhook consumer reporting late or missing deliveries days later, and the d
 `docs/operations.md` under webhook dead-letters.
 
 On Fly.io that means the API machine is pinned always-on rather than auto-stopped. On Azure
-Container Apps it means a minimum replica count of one. On Render and Railway it means a paid
-always-on service rather than a free sleeping one. Exactly one process may carry `internal`: two
+Container Apps it means a minimum replica count of one, which is also why the cheapest ACA figure in
+the table is not the scale-to-zero one. On Render and Railway it means a paid always-on service, not
+a sleeping free one. Exactly one process may carry `internal`: two
 copies give you two deliverers and two sweeps, which is doubled polling for no throughput
 (`docs/deploy-enterprise.md` §5).
 
@@ -237,15 +256,29 @@ of a given platform live beside it:
 
 For this project as it stands, solo and cost-sensitive with an Australian owner, the default is a
 **DigitalOcean droplet in Sydney** running Recipe A: in-region latency, one box to patch, and the
-Compose file used as shipped. **Hetzner CX23** is the same deployment for roughly half the money if
-European latency for respondents is acceptable, which for an asynchronous questionnaire it often is.
+Compose file used as shipped. **Hetzner CX23** is the identical deployment for under a third of the
+money, and the trade is European latency, which for an asynchronous questionnaire is usually
+acceptable. That is the one real decision in the cheap tier, and it is a latency question rather
+than a technical one, because the deployment is the same either way.
 
-**Fly.io** is the answer if the preference is container-native with no VM to maintain, and the
-price of that preference is remembering invariant 3 every time a machine is reconfigured.
-**Render** buys the least operational work for a fixed monthly figure. **AWS** waits until an
-organisation is already there.
+**Fly.io** is the answer if the preference is container-native with no VM to maintain. It has a
+Sydney region, and its price depends on a second decision: Managed Postgres roughly doubles the
+bill, and running Postgres yourself on a Machine is the cheaper half of the range but is a shape Fly
+now says it will not support. **Render** buys the least operational work, but read its floor
+carefully: $27 buys three 0.5 vCPU / 512 MB instances, which is tight for two Next processes, and
+the next size up triples the bill. **AWS** waits until an organisation is already there.
 
 None of those choices invalidates this document. The invariants are the same five in every column.
+
+## Where these numbers came from
+
+Each figure was read on 2026-09-01 from the vendor's own published pricing, and for AWS and Azure
+from their machine-readable price lists (the AWS Price List Bulk API for `ap-southeast-2`, the Azure
+Retail Prices API for `australiaeast`) rather than from a marketing page. Two carry a caveat worth
+repeating rather than hiding: Hetzner's plan table is script-rendered, so the CX23 monthly figure is
+derived from Hetzner's own published hourly rate rather than read off the plan page, and
+Cloudflare's Zero Trust seat allowance is widely corroborated but was not confirmable from a
+first-party page. Treat every number here as a starting estimate and confirm it at signup.
 
 ## Related
 
