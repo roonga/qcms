@@ -274,6 +274,53 @@ describe("Ctrl+C reaps the whole front-end tree (issue #318)", () => {
   );
 
   itOnPosix(
+    "reaps the tree on an abnormal exit too, not only on a signal (issue #350)",
+    async () => {
+      // The half #281 left open. `shutdown()` reaped, so Ctrl+C was clean; `fail()`
+      // called `process.exit(1)` and reaped nothing, so an API crash or a readiness
+      // timeout left a `next-server` holding this seat's port - reparented to pid 1,
+      // still listening, and adopted by the next `verify:browser` run.
+      //
+      // It has to be asserted in a SEPARATE process, because the property is about what
+      // survives this launcher's death: the reap runs in a `process.on("exit")` handler,
+      // and the pids only become orphans once that process is gone. So a child node
+      // process builds the real wiring (`installShutdownHandlers` + `startChild`, both
+      // from the module under test), reports the tree it created, and exits 1 the way
+      // `fail()` does. Nothing here calls `reapChildTree`; if the handler is not wired,
+      // the sleeps outlive their launcher and this fails.
+      const script = `
+        const stack = await import(${JSON.stringify(new URL("./dev-stack.mjs", import.meta.url).href)});
+        stack.installShutdownHandlers();
+        const child = stack.startChild("fixture", ${JSON.stringify(SHELL as string)}, ["-c", "sleep 30 & sleep 30 & wait"], {});
+        let descendants = [];
+        for (let attempt = 0; attempt < 100 && descendants.length < 2; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+          descendants = stack.descendantsOf(child.pid);
+        }
+        process.stdout.write(JSON.stringify([child.pid, ...descendants]));
+        process.exit(1);
+      `;
+      const launcher = spawn(process.execPath, ["--input-type=module", "-e", script], {
+        stdio: ["ignore", "pipe", "inherit"],
+      });
+      let reported = "";
+      launcher.stdout.on("data", (chunk: Buffer) => (reported += chunk.toString()));
+      const [code] = (await once(launcher, "exit")) as [number | null, string | null];
+      expect(code).toBe(1);
+
+      const tree = JSON.parse(reported) as number[];
+      // Two sleeps plus the shell, or the fixture never got far enough to prove anything.
+      expect(tree.length).toBeGreaterThanOrEqual(3);
+      for (const pid of tree) {
+        expect(await waitUntilGone(pid), `pid ${pid} outlived the launcher that started it`).toBe(
+          true,
+        );
+      }
+    },
+    30_000,
+  );
+
+  itOnPosix(
     "signals nothing for a child that has already exited",
     async () => {
       // The recycled-pid hazard. `child.kill()` is a no-op after exit because Node knows

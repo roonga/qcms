@@ -75,11 +75,13 @@ import {
  * noisy `EADDRINUSE`, with it a collision is a silent green run against another tree,
  * and that asymmetry is why issue #255 is a gate-integrity item rather than an
  * inconvenience. So it is no longer `!CI`. It is on only for a dev server that is
- * already listening and whose working directory is inside this exact worktree, which
- * is the case it was actually there for. When the port is free at config load the flag
- * is off, so a run that loses the bind race to a process arriving a second later fails
- * loudly instead of adopting the winner. That is the direction a race has to fail in,
- * and it is precisely what a probe on its own cannot deliver.
+ * already listening, whose working directory is inside this exact worktree, and which
+ * answers a readiness request right now (issue #295: an orphan from a killed run
+ * satisfies the first two and answers nothing, and adopting one turns the next run into
+ * hours of timeouts). When the port is free at config load the flag is off, so a run
+ * that loses the bind race to a process arriving a second later fails loudly instead of
+ * adopting the winner. That is the direction a race has to fail in, and it is precisely
+ * what a probe on its own cannot deliver.
  *
  * It runs exactly once per invocation: Playwright reloads this config in every worker,
  * by which time globalSetup has bound the API and OTLP ports, and those two are never
