@@ -95,6 +95,7 @@ function messageLiterals(): ReadonlyMap<string, readonly string[]> {
     const source = stripComments(readFileSync(join(REPO_ROOT, file), "utf8"));
     for (const match of source.matchAll(call)) {
       const message = match[1];
+      if (message === undefined) continue;
       const files = found.get(message) ?? [];
       if (!files.includes(file)) files.push(file);
       found.set(message, files);
