@@ -14,14 +14,23 @@
  *
  * ## What the scan can and cannot see
  *
- * It reads tracked files with `git ls-files` rather than walking directories, because a
- * directory walk also reads build output an earlier gate left behind (issue #629). It
- * matches a **double-quoted string literal** as the first argument of a call whose
- * callee ends in `logger.<level>` (`logger.info`, `serverLogger.warn`,
- * `deps.logger.error`), with comments stripped textually first.
+ * It walks the filesystem with `readdirSync`, descending only into each workspace
+ * member's `src` and `lib` (see {@link SOURCE_ROOTS}), and matches a **double-quoted
+ * string literal** as the first argument of a call whose callee ends in
+ * `logger.<level>` (`logger.info`, `serverLogger.warn`, `deps.logger.error`), with
+ * comments stripped textually first.
  *
- * Three limits, written down because an unstated limit is how this file's own defect
- * class starts:
+ * A walk rather than `git ls-files` because this package's lint forbids resolving a
+ * command off `PATH` (`sonarjs/no-os-command-from-path`), and an `eslint-disable` to
+ * spawn Git for a list two `readdirSync` calls can produce is the wrong trade. The
+ * usual objection to a walk is that it also reads build output an earlier gate left
+ * behind (issue #629), and the `src`/`lib` restriction is what answers it: `dist`,
+ * `.next` and `.next-dev` are siblings of those directories, never inside them. The
+ * cost is that an untracked scratch file under `src` is scanned as if it shipped,
+ * which fails loudly and in the safe direction.
+ *
+ * Three more limits, written down because an unstated limit is how this file's own
+ * defect class starts:
  *
  * - **A non-literal message is invisible to it.** `serverLogger.warn(ORIGIN_BELT_REFUSED,
  *   ...)` and the sign-in throttle messages are constants, and `logger.warn(message)` in
