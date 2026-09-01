@@ -17,7 +17,7 @@ QCMS is four containers (`docker-compose.yml`). On Azure that becomes three Cont
 | api            | Container App                                                         | **internal** ingress only (`ingress.external = false`)                        | **has no public endpoint at all** - reachable only by other apps in the environment               |
 | postgres       | Azure Database for PostgreSQL Flexible Server, `B1ms`, private access | none                                                                          | VNet-integrated (delegated subnet + private DNS zone), reachable only from the environment's VNet |
 
-The api's privacy is **a platform property here, not a firewall rule you maintain.** With `ingress.external = false`, Azure gives the api an endpoint that resolves only inside the Container Apps environment; there is no public hostname to lock down and nothing to accidentally expose. That is ADR-20 invariant 1 ("the API is never publicly routable") delivered by the platform, which is a stronger guarantee than the AWS plan's two-layer security-group fencing.
+The api's privacy is **a platform property here, not a firewall rule you maintain.** With `ingress.external = false`, Azure gives the api an endpoint that resolves only inside the Container Apps environment; there is no public hostname to lock down and nothing to accidentally expose. That is the "API and Postgres are never publicly reachable" property (ADR-20; invariant 4 of `docs/deploy-ingress.md`) delivered by the platform, which is a stronger guarantee than the AWS plan's two-layer security-group fencing.
 
 Point the BFFs at the api by its internal name:
 
@@ -73,7 +73,7 @@ done
 1. **Azure Front Door in front of the two public apps**, with a rule-set action that appends `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`. This keeps HSTS at the edge where SEC-9 wants it, but it adds Front Door's cost and another hop (and, if you also run WAF on Front Door, HSTS is not added to requests WAF blocks).
 2. **An environment-gated HSTS header emitted by the two Next apps themselves.** This is a **small code change** - the portal and admin already set `Content-Security-Policy` and the other SEC-9 headers - but it moves one header off the TLS-terminating layer and into the app, which is precisely what SEC-9 argues against ("only the layer that actually terminates TLS can honestly promise it is always available"). It is defensible here because on Container Apps the app **is** always behind the managed-TLS edge, but it is a documented amendment to SEC-9's model, not a free configuration toggle.
 
-Do not ship an Azure deploy with neither. Flag it, get the decision, record it. The api never terminates TLS and never gets a certificate regardless (invariant 1).
+Do not ship an Azure deploy with neither. Flag it, get the decision, record it. The api never terminates TLS and never gets a certificate regardless (invariant 1 of `docs/deploy-ingress.md`).
 
 ## 4. Secrets and private networking
 
@@ -219,4 +219,3 @@ A minimal always-on deployment, East US, list price, **retrieved 2026-09-01, con
 - Security headers on Container Apps (the response-header limitation and Front Door workaround): <https://techcommunity.microsoft.com/blog/appsonazureblog/implementing-security-headers-in-azure-app-service-and-azure-container-apps/4464250>
 - PostgreSQL Flexible Server private access (VNet integration): <https://learn.microsoft.com/en-us/azure/postgresql/network/concepts-networking-private>
 - Federated identity credential subject matching (case sensitivity): <https://learn.microsoft.com/en-us/azure/developer/github/connect-from-azure-openid-connect>
-</content>

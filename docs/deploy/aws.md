@@ -193,14 +193,14 @@ A minimal always-on deployment, `us-east-1`, list price, **retrieved 2026-09-01,
 | Fargate: portal + admin + api          | small tasks, always on              | 26 - 32       |
 | RDS `db.t4g.micro` + storage           | $0.016/hr + gp3                     | 14            |
 | **Total (public subnets, no NAT)**     |                                     | **~$72 - 78** |
-| _add:_ NAT gateway, if private subnets | ~$0.059/hr per AZ + data processing | _+~$43/AZ_    |
+| _add:_ NAT gateway, if private subnets | ~$0.045/hr per AZ + data processing | _+~$33/AZ_    |
 
-The honest headline: **~$32 of that is the ALB, the public IPv4 rent, and log ingestion - none of it compute.** You pay it whether the questionnaire serves ten responses a month or ten thousand. And if a policy forces the tasks into private subnets, a NAT gateway adds **~$43/mo per Availability Zone** on top - more than the entire compute line - which is why the topology below avoids it. That fixed floor is the number to weigh against a $5 - 12/mo VPS running the same four containers.
+The honest headline: **~$32 of that is the ALB, the public IPv4 rent, and log ingestion - none of it compute.** You pay it whether the questionnaire serves ten responses a month or ten thousand. And if a policy forces the tasks into private subnets, a NAT gateway adds **~$33/mo per Availability Zone** on top - more than the entire compute line - which is why the topology below avoids it. That fixed floor is the number to weigh against a $5 - 12/mo VPS running the same four containers.
 
 **Cheapest-viable trims:**
 
 - **Graviton / ARM Fargate.** Rebuild the images for `arm64` and set the task CPU architecture to `ARM64`: about 20% off the compute line for no behaviour change. The base images are `node:24-bookworm-slim`, which is multi-arch.
-- **No NAT gateway.** The textbook "enterprise" pattern puts the tasks in private subnets and adds a NAT gateway so they can pull from ECR and reach webhooks and `api.pwnedpasswords.com` - that is **~$43/mo per Availability Zone plus data processing**, on its own more than QCMS's entire compute bill. Avoid it: run the tasks in **public** subnets with a security group that **denies all inbound** except the ALB SG (and, for the api, the two BFF SGs). The ALB still reaches them by SG rule, and outbound egress goes through the task's own public IP. The deny-inbound SG is what keeps a public subnet safe. (VPC endpoints for ECR and SSM are the alternative if you are required to keep private subnets.)
+- **No NAT gateway.** The textbook "enterprise" pattern puts the tasks in private subnets and adds a NAT gateway so they can pull from ECR and reach webhooks and `api.pwnedpasswords.com` - that is **~$33/mo per Availability Zone plus data processing**, on its own more than QCMS's entire compute bill. Avoid it: run the tasks in **public** subnets with a security group that **denies all inbound** except the ALB SG (and, for the api, the two BFF SGs). The ALB still reaches them by SG rule, and outbound egress goes through the task's own public IP. The deny-inbound SG is what keeps a public subnet safe. (VPC endpoints for ECR and SSM are the alternative if you are required to keep private subnets.)
 - **Ship logs to shorter retention** or to a cheaper sink if the CloudWatch line grows.
 
 **Ease rating: hard.** Not because any one piece is exotic, but because a correct deployment is an ALB, two target groups and three listener rules, three ECS services, Service Connect, four security groups, an RDS instance, ACM, SSM parameters, two IAM roles, and an OIDC pipeline - and several of those are load-bearing for security, not just for uptime. Budget infrastructure-as-code and a day, not an afternoon.
@@ -227,6 +227,3 @@ The honest headline: **~$32 of that is the ALB, the public IPv4 rent, and log in
 - Amazon CloudWatch (Logs) pricing: <https://aws.amazon.com/cloudwatch/pricing/>
 - App Runner WAF and private-service source-IP limitation: <https://docs.aws.amazon.com/apprunner/latest/dg/network-pl.html>
 - Aurora Serverless v2 scaling to zero and what prevents auto-pause: <https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/aurora-serverless-v2-auto-pause.html>
-</content>
-
-</invoke>
