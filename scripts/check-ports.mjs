@@ -171,6 +171,11 @@ export const ALLOWED = [
     why: "the same container-internal port, as route-table fixture data for the parser tests. Nothing dials it.",
   },
   {
+    file: "docs/deploy/fly.md",
+    value: 3000,
+    why: "the app containers' own listening port, in the Fly.io fly.toml examples (the `internal_port` value). A container-internal port is the image's business and never a QCMS host allocation (same reason as apps/api/src/main.ts, the shipped default). Fly reaches it on 6PN by that internal port.",
+  },
+  {
     file: "apps/api/src/openapi-document.ts",
     value: 5432,
     why: "Postgres's own well-known port, in an adopter-facing example connection string.",
