@@ -16,8 +16,9 @@
  *
  * It reads tracked files with `git ls-files` rather than walking directories, because a
  * directory walk also reads build output an earlier gate left behind (issue #629). It
- * matches a **double-quoted string literal** as the first argument of a `*logger.<level>(`
- * call, with comments stripped textually first.
+ * matches a **double-quoted string literal** as the first argument of a call whose
+ * callee ends in `logger.<level>` (`logger.info`, `serverLogger.warn`,
+ * `deps.logger.error`), with comments stripped textually first.
  *
  * Three limits, written down because an unstated limit is how this file's own defect
  * class starts:
@@ -34,8 +35,7 @@
  * - **A template literal is not matched**, which is deliberate: an interpolated message
  *   cannot be an allowlist member anyway, and would arrive blanked.
  */
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -67,18 +67,47 @@ const INTENTIONALLY_OPAQUE = new Set([
   "outbox event has no resolvable formId; consuming without fan-out",
 ]);
 
-/** Tracked TypeScript sources that ship, excluding tests and Playwright harnesses. */
+/**
+ * Directories that hold shipped source. Only `src` and `lib` are walked, which is
+ * what keeps build output out of the scan without a skip list: `dist`, `.next` and
+ * `.next-dev` are siblings of these, never inside them (issue #629 is the same trap
+ * from the other side, where a walk read what an earlier gate had left behind).
+ */
+const SOURCE_ROOTS = ["apps", "packages"] as const;
+const SOURCE_DIRS = new Set(["src", "lib"]);
+
+/** Every `.ts`/`.tsx` file under a workspace member's `src` or `lib`, tests aside. */
 function shippedSources(): readonly string[] {
-  const tracked = execFileSync("git", ["ls-files", "apps", "packages"], {
-    cwd: REPO_ROOT,
-    encoding: "utf8",
-  }).split("\n");
-  return tracked.filter(
-    (file) =>
-      /\.(ts|tsx|mts)$/.test(file) &&
-      !/\.(test|e2e|pw)\.[a-z]+$/.test(file) &&
-      !/(^|\/)(e2e|__tests__|test-support)\//.test(file),
-  );
+  const found: string[] = [];
+
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(join(REPO_ROOT, dir), { withFileTypes: true })) {
+      const path = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+        if (["e2e", "__tests__", "test-support"].includes(entry.name)) continue;
+        walk(path);
+        continue;
+      }
+      if (!/\.(ts|tsx|mts)$/.test(entry.name)) continue;
+      if (/\.(test|e2e|pw)\.[a-z]+$/.test(entry.name)) continue;
+      found.push(path);
+    }
+  };
+
+  for (const root of SOURCE_ROOTS) {
+    for (const member of readdirSync(join(REPO_ROOT, root), { withFileTypes: true })) {
+      if (!member.isDirectory()) continue;
+      for (const child of readdirSync(join(REPO_ROOT, root, member.name), {
+        withFileTypes: true,
+      })) {
+        if (child.isDirectory() && SOURCE_DIRS.has(child.name)) {
+          walk(`${root}/${member.name}/${child.name}`);
+        }
+      }
+    }
+  }
+  return found;
 }
 
 /** Remove block and line comments, so a message quoted in prose is not read as a call. */
@@ -88,8 +117,10 @@ function stripComments(source: string): string {
 
 /** Every double-quoted message literal handed to a logger, with the files it came from. */
 function messageLiterals(): ReadonlyMap<string, readonly string[]> {
-  const call =
-    /(?:^|[^A-Za-z0-9_$])[A-Za-z0-9_$.]*[Ll]ogger\.(?:debug|info|warn|error)\(\s*"((?:[^"\\]|\\.)*)"/g;
+  // Deliberately `[^"\n]*` rather than an escape-aware alternation: the unrolled
+  // form backtracks super-linearly, and no message in the workspace contains an
+  // escaped double quote (the one message with an inner quote uses single quotes).
+  const call = /[Ll]ogger\.(?:debug|info|warn|error)\(\s*"([^"\n]*)"/g;
   const found = new Map<string, string[]>();
   for (const file of shippedSources()) {
     const source = stripComments(readFileSync(join(REPO_ROOT, file), "utf8"));
