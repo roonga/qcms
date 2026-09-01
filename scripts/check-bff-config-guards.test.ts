@@ -136,16 +136,19 @@ describe("issue #491: the placeholder vocabularies agree across every reader", (
   it.each([
     ["portal", portalAssert],
     ["admin", adminAssert],
-  ])("%s refuses to boot on the shipped internal-token placeholder", (_app, assertNoPlaceholders) => {
-    const previous = process.env.QCMS_INTERNAL_TOKEN;
-    process.env.QCMS_INTERNAL_TOKEN = "replace-with-a-random-32-character-internal-token";
-    try {
-      expect(() => assertNoPlaceholders()).toThrow(/QCMS_INTERNAL_TOKEN/);
-    } finally {
-      if (previous === undefined) delete process.env.QCMS_INTERNAL_TOKEN;
-      else process.env.QCMS_INTERNAL_TOKEN = previous;
-    }
-  });
+  ])(
+    "%s refuses to boot on the shipped internal-token placeholder",
+    (_app, assertNoPlaceholders) => {
+      const previous = process.env.QCMS_INTERNAL_TOKEN;
+      process.env.QCMS_INTERNAL_TOKEN = "replace-with-a-random-32-character-internal-token";
+      try {
+        expect(() => assertNoPlaceholders()).toThrow(/QCMS_INTERNAL_TOKEN/);
+      } finally {
+        if (previous === undefined) delete process.env.QCMS_INTERNAL_TOKEN;
+        else process.env.QCMS_INTERNAL_TOKEN = previous;
+      }
+    },
+  );
 });
 
 /**
@@ -170,8 +173,16 @@ describe("issue #491: the placeholder vocabularies agree across every reader", (
  */
 describe("issue #402: the guards the API's unguarded cookie read depends on", () => {
   const APPS = [
-    { name: "portal", config: "apps/portal/lib/server/config.ts", boot: "apps/portal/instrumentation.ts" },
-    { name: "admin", config: "apps/admin/lib/server/config.ts", boot: "apps/admin/instrumentation.ts" },
+    {
+      name: "portal",
+      config: "apps/portal/lib/server/config.ts",
+      boot: "apps/portal/instrumentation.ts",
+    },
+    {
+      name: "admin",
+      config: "apps/admin/lib/server/config.ts",
+      boot: "apps/admin/instrumentation.ts",
+    },
   ];
 
   it.each(APPS)("$name defines the cookie-security boot refusal", ({ config }) => {

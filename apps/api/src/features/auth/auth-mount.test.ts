@@ -172,7 +172,11 @@ describe("issue #402: the admin BFF is the only path to better-auth", () => {
         : JSON.stringify({ email: "intruder@example.test", password: SYNTHETIC_PASSWORD });
     return [
       `/api/auth${path}`,
-      { method, headers: { "content-type": "application/json", ...headers }, ...(body ? { body } : {}) },
+      {
+        method,
+        headers: { "content-type": "application/json", ...headers },
+        ...(body ? { body } : {}),
+      },
     ];
   }
 

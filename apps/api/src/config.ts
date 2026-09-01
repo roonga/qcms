@@ -891,7 +891,7 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
     //
     // Why that is safe today, stated as a dependency rather than left as a silence: a
     // browser reaches better-auth only through the admin BFF (R2, ADR-09, ADR-20 - the
-    // API container publishes no host port, `/api/auth/*` is mounted only where
+    // API container publishes no host port, the `/api/auth` group is mounted only where
     // `QCMS_MOUNT` includes `admin`, and every endpoint on it is behind the SEC-4
     // internal token a browser cannot hold). In the configuration this read would
     // matter for, that BFF refuses to start, so these cookies are never issued to a
@@ -900,9 +900,9 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
     // **What would have to change for the reliance to become unsafe**, which is the
     // part a future reader needs:
     //
-    //   1. A route to `/api/auth/*` that does not pass through the admin BFF - the API
-    //      container gaining a published port, an ingress upstream pointing at it, or a
-    //      second consumer of better-auth.
+    //   1. A route into the `/api/auth` group that does not pass through the admin
+    //      BFF - the API container gaining a published port, an ingress upstream
+    //      pointing at it, or a second consumer of better-auth.
     //   2. An admin app that keeps the cookies but drops the boot refusal, or a
     //      deployment running the API's admin mount with some other authoring front end.
     //   3. Anything that makes this value decide a cookie a browser can see directly.
