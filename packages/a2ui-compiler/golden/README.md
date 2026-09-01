@@ -76,8 +76,8 @@ built when a real per-snapshot dispatch need arrives. Current generations on dis
 
 | Generation | Compiler | What it added                                                                                                          |
 | ---------- | -------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `v1/`      | `0.0.0`  | The task-011 launch mapping.                                                                                          |
-| `v2/`      | `0.1.0`  | Task 026's `Honeypot` decoy, last in every step.                                                                      |
+| `v1/`      | `0.0.0`  | The task-011 launch mapping.                                                                                           |
+| `v2/`      | `0.1.0`  | Task 026's `Honeypot` decoy, last in every step.                                                                       |
 | `v3/`      | `0.2.0`  | Issue #186: `size` and `weight` on every heading, so a form title and a step title stop rendering at the body default. |
 
 New goldens are always a **fresh file add** - never a rename/move into a `vN/`
@@ -98,13 +98,13 @@ golden/
 Each corpus form has one `<form>.a2ui.json` per generation it existed for (the last
 two joined in task 048, so they have no `v1/` document):
 
-| Golden                         | Fixture                                        | What it pins                                                                                                          |
-| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`                | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
-| `insurance.a2ui.json`          | `forms/valid/insurance.json`                   | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
-| `minimal.a2ui.json`            | `forms/valid/minimal.json`                     | Smallest form: one step, one control.                                                                                 |
-| `constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`           | Every constraint-bearing control in a single dense step.                                                              |
-| `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`          | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
+| Golden                         | Fixture                                         | What it pins                                                                                                          |
+| ------------------------------ | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `kitchen-sink.a2ui.json`       | `forms/valid/kitchen-sink.json`                 | Every question type across 3 steps; h1 on step 1, h2 on each; required/help/constraint props.                         |
+| `insurance.a2ui.json`          | `forms/valid/insurance.json`                    | The DOMAIN_SCHEMA §6 flow: boolean + number in one step.                                                              |
+| `minimal.a2ui.json`            | `forms/valid/minimal.json`                      | Smallest form: one step, one control.                                                                                 |
+| `constraints-heavy.a2ui.json`  | `forms/valid/constraints-heavy.json`            | Every constraint-bearing control in a single dense step.                                                              |
+| `deep-nesting-rules.a2ui.json` | `forms/valid/deep-nesting-rules.json`           | A depth-8 rule form; proves the compiled A2UI is a plain projection (rules apply at serve time, not in the document). |
 | `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json` | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
 | `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
 

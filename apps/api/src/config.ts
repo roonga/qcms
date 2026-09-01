@@ -769,13 +769,23 @@ export function turnstileSiteKeyDeprecationWarning(env: Env): string | undefined
   const deprecated = env[DEPRECATED_TURNSTILE_SITE_KEY_VAR]?.trim();
   if (deprecated === undefined || deprecated === "") return undefined;
 
-  const tail =
-    canonical === undefined || canonical === ""
-      ? `its value is being used; set ${TURNSTILE_SITE_KEY_VAR} instead and remove it.`
-      : canonical === deprecated
-        ? `${TURNSTILE_SITE_KEY_VAR} is set to the same value and wins; remove the deprecated one.`
-        : `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
+  // Three cases, and the operator needs to be told which one they are in, because the
+  // remedy differs: with only the old name set their configuration still works and they
+  // should rename it, while with both set the new one is already in force and the old
+  // line is dead - silently so, and misleadingly if the two values disagree.
+  const tail = describeTurnstileOverlap(canonical, deprecated);
   return `${DEPRECATED_TURNSTILE_SITE_KEY_VAR} is deprecated (issue #331): ${tail}`;
+}
+
+/** The half of the warning that says which value is in force. Never echoes a value. */
+function describeTurnstileOverlap(canonical: string | undefined, deprecated: string): string {
+  if (canonical === undefined || canonical === "") {
+    return `its value is being used; set ${TURNSTILE_SITE_KEY_VAR} instead and remove it.`;
+  }
+  if (canonical === deprecated) {
+    return `${TURNSTILE_SITE_KEY_VAR} is set to the same value and wins; remove the deprecated one.`;
+  }
+  return `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
 }
 
 function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["challenge"] {

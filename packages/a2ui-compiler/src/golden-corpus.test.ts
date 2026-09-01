@@ -216,6 +216,17 @@ function assertValidA2uiNode(node: A2UINode): void {
   parseNode(node);
 }
 
+/**
+ * The heading level of a `Text` node, or `undefined` for anything that is not a
+ * heading. A node's `props` are `unknown`-valued, so the narrowing is the point:
+ * `as` may legitimately be `p`, `span` or `label`, and may be absent entirely.
+ */
+function headingLevel(node: A2UINode): string | undefined {
+  if (node.type !== "Text") return undefined;
+  const as: unknown = node.props?.as;
+  return typeof as === "string" && /^h[1-6]$/u.test(as) ? as : undefined;
+}
+
 describe("A2UI golden corpus (v3 - current generation)", () => {
   for (const { fixture, golden, local } of CORPUS) {
     describe(golden, () => {
@@ -284,25 +295,23 @@ describe("A2UI golden corpus (v3 - current generation)", () => {
         const TEXT_DEFAULT_SIZE = "md";
         const TEXT_DEFAULT_WEIGHT = "normal";
 
-        const headings = compiled.documents.flatMap((doc) =>
-          walk(doc.root).filter(
-            (node) => node.type === "Text" && /^h[1-6]$/u.test(String(node.props?.as ?? "")),
-          ),
-        );
+        const headings = compiled.documents
+          .flatMap((doc) => walk(doc.root))
+          .map((node) => ({ level: headingLevel(node), props: node.props ?? {} }))
+          .filter((entry) => entry.level !== undefined);
         expect(headings.length).toBeGreaterThan(0);
 
-        for (const node of headings) {
-          const props = node.props ?? {};
-          expect(props.size, `${String(props.as)} must carry a size`).toBeDefined();
-          expect(props.weight, `${String(props.as)} must carry a weight`).toBeDefined();
+        for (const { level, props } of headings) {
+          expect(props.size, `${level!} must carry a size`).toBeDefined();
+          expect(props.weight, `${level!} must carry a weight`).toBeDefined();
           expect(props.size).not.toBe(TEXT_DEFAULT_SIZE);
           expect(props.weight).not.toBe(TEXT_DEFAULT_WEIGHT);
         }
 
         // And the two levels differ from each other, so the form title outranks the step
         // title rather than merely outranking the body.
-        const h1 = headings.find((node) => node.props?.as === "h1")?.props;
-        const h2 = headings.find((node) => node.props?.as === "h2")?.props;
+        const h1 = headings.find((entry) => entry.level === "h1")?.props;
+        const h2 = headings.find((entry) => entry.level === "h2")?.props;
         expect(h2).toBeDefined();
         if (h1 !== undefined) {
           expect(h1.size).not.toBe(h2?.size);
@@ -351,13 +360,9 @@ describe.each(RETAINED_GENERATIONS)(
 
         expect(nodes.some((node) => node.type === "Honeypot")).toBe(hasHoneypot);
 
-        const headings = nodes.filter(
-          (node) => node.type === "Text" && /^h[1-6]$/u.test(String(node.props?.as ?? "")),
-        );
+        const headings = nodes.filter((node) => headingLevel(node) !== undefined);
         expect(headings.length).toBeGreaterThan(0);
-        expect(headings.some((node) => node.props?.size !== undefined)).toBe(
-          hasHeadingTypography,
-        );
+        expect(headings.some((node) => node.props?.size !== undefined)).toBe(hasHeadingTypography);
       });
     }
   },

@@ -28,21 +28,22 @@ const forms = loadGoldenForms();
 const firstSteps = forms.map(({ version, form, compiled }) => ({
   label: `${version}/${form}`,
   specVersion: compiled.a2uiSpecVersion,
-  document: compiled.documents[0]!,
+  document: compiled.documents[0],
 }));
+
+/** One real compiled root, for the assertions that are about the function, not the corpus. */
+const SAMPLE_ROOT = firstSteps[0].document.root;
 
 describe("withDemotedHeadings", () => {
   it("leaves the document alone at offset 0, so the portal path is untouched", () => {
-    const root = firstSteps[0]!.document.root;
-    expect(withDemotedHeadings(root, 0)).toBe(root);
-    expect(withDemotedHeadings(root, -1)).toBe(root);
+    expect(withDemotedHeadings(SAMPLE_ROOT, 0)).toBe(SAMPLE_ROOT);
+    expect(withDemotedHeadings(SAMPLE_ROOT, -1)).toBe(SAMPLE_ROOT);
   });
 
   it("never mutates the stored document (ADR-18: the compiled bytes are served forever)", () => {
-    const root = firstSteps[0]!.document.root;
-    const before = JSON.stringify(root);
-    withDemotedHeadings(root, 1);
-    expect(JSON.stringify(root)).toBe(before);
+    const before = JSON.stringify(SAMPLE_ROOT);
+    withDemotedHeadings(SAMPLE_ROOT, 1);
+    expect(JSON.stringify(SAMPLE_ROOT)).toBe(before);
   });
 
   it("clamps at h4, the deepest level the Text schema accepts", () => {

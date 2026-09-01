@@ -44,8 +44,9 @@ import type { FormVersionSnapshot } from "../../lib/forms/types.ts";
 // The real renderer: this file is about what `A2UIStepRenderer` emits for an embedded
 // document, so a stub would assert nothing at all.
 vi.mock("@/components/kit", () => import("../../components/kit.tsx"));
-vi.mock("@/components/preview-theme-island", () =>
-  import("../../components/preview-theme-island.tsx"),
+vi.mock(
+  "@/components/preview-theme-island",
+  () => import("../../components/preview-theme-island.tsx"),
 );
 vi.mock("@/lib/i18n/en", () => import("../../lib/i18n/en.ts"));
 vi.mock("@/lib/page-headings", () => import("../../lib/page-headings.ts"));

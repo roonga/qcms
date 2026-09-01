@@ -57,17 +57,30 @@ function isHeadingLevel(value: unknown): value is HeadingLevel {
 /** The level `level` becomes after `by` steps of demotion, clamped at the last level. */
 function demotedLevel(level: HeadingLevel, by: number): HeadingLevel {
   const index = Math.min(HEADING_LEVELS.indexOf(level) + by, HEADING_LEVELS.length - 1);
-  return HEADING_LEVELS[index]!;
+  return HEADING_LEVELS[index] ?? HEADING_LEVELS[HEADING_LEVELS.length - 1];
 }
 
-/** Normalize an `A2Node`'s `children` union, keeping a string body as a string. */
+/**
+ * Map an `A2Node`'s `children` union.
+ *
+ * `children` is `A2Node | A2Node[] | string | undefined`, and each arm answers
+ * differently: a text body and an absent body are returned as they are, a single child
+ * is mapped, an array is mapped elementwise. Expressed as one conditional chain rather
+ * than three returns so the function has a single exit and one declared result type.
+ */
+function mapNodeChildren(
+  children: A2Node | A2Node[],
+  map: (child: A2Node) => A2Node,
+): A2Node | A2Node[] {
+  return Array.isArray(children) ? children.map(map) : map(children);
+}
+
 function mapChildren(
   children: A2Node["children"],
   map: (child: A2Node) => A2Node,
 ): A2Node["children"] {
-  if (children === undefined || typeof children === "string") return children;
-  if (Array.isArray(children)) return children.map(map);
-  return map(children);
+  const isNodes = children !== undefined && typeof children !== "string";
+  return isNodes ? mapNodeChildren(children, map) : children;
 }
 
 /**
