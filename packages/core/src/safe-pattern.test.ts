@@ -6,7 +6,9 @@ import {
   SAFE_PATTERN_MAX_LENGTH,
   checkSafePattern,
   classSetAmbiguity,
+  compilesUnderV,
   isSafePattern,
+  toVSafePattern,
 } from "./index.js";
 
 const ACCEPTED: readonly string[] = [
@@ -132,5 +134,71 @@ describe("classSetAmbiguity (issue #53)", () => {
 
   it("returns only the operator it found, never the pattern", () => {
     expect(classSetAmbiguity("^[s&&t]+$")).toBe("&&");
+  });
+});
+
+/**
+ * The three patterns this repository's own fixtures carry that a browser
+ * refuses (issue #53). They are named here rather than read off disk because
+ * this is the kernel's test and two of the three files belong to other
+ * packages; the API's boundary test posts the same three fresh, which is what
+ * proves reject-new-only actually bites.
+ */
+const FIXTURE_V_INVALID: readonly { readonly where: string; readonly pattern: string }[] = [
+  {
+    where: "core fixtures/questions/valid/short-text.json",
+    pattern: "^[A-Za-z][A-Za-z .,'-]{0,99}$",
+  },
+  {
+    where: "a2ui-compiler fixtures/corpus/questions/q-msg-plate.json",
+    pattern: "^[A-Z0-9][A-Z0-9-]{2,7}$",
+  },
+  { where: "api e2e/support/fixtures/q-am-plate.json", pattern: "^[A-Z0-9][A-Z0-9-]{2,7}$" },
+];
+
+describe("compilesUnderV and toVSafePattern (issues #52, #53)", () => {
+  it.each(FIXTURE_V_INVALID)("$where is refused by a browser's compiler", ({ pattern }) => {
+    // These parse and serve perfectly well; a browser is what rejects them.
+    expect(checkSafePattern(pattern)).toBeUndefined();
+    expect(compilesUnderV(pattern)).toBe(false);
+  });
+
+  it.each(FIXTURE_V_INVALID)(
+    "$where has a v-safe spelling with the same meaning",
+    ({ pattern }) => {
+      const suggestion = toVSafePattern(pattern);
+      expect(suggestion).toBeDefined();
+      expect(suggestion).not.toBe(pattern);
+      expect(compilesUnderV(suggestion as string)).toBe(true);
+      // Same matched set: the rewrite only escapes literals `v` reserves.
+      const before = compiled(pattern, "u");
+      const after = compiled(suggestion as string, "u");
+      for (const sample of ["Ann-Marie O'Neil", "ABC-123", "", "-", "a", "ZZ9"]) {
+        expect(after.test(sample)).toBe(before.test(sample));
+      }
+    },
+  );
+
+  it("returns a pattern a browser already accepts byte-identical", () => {
+    // The guarantee that keeps a working `&&` intersection from being rewritten.
+    expect(toVSafePattern("^[a-z]{2,10}$")).toBe("^[a-z]{2,10}$");
+    expect(toVSafePattern(AMBIGUOUS_AMP)).toBe(AMBIGUOUS_AMP);
+  });
+
+  it("gives up rather than guess when the rewrite would not be provably safe", () => {
+    // A mid-class dash is a range operator under `u`, so escaping it could
+    // change the matched set. Omission is the correct degradation: the API is
+    // the validation authority (R2), a wrong pattern is not.
+    expect(compilesUnderV("^[a-z-A]+$")).toBe(false);
+    expect(toVSafePattern("^[a-z-A]+$")).toBeUndefined();
+  });
+
+  it("escapes a doubled punctuator that only 'v' reserves", () => {
+    const suggestion = toVSafePattern("^[a!!b-]+$");
+    expect(suggestion).toBe("^[a\\!\\!b\\-]+$");
+  });
+
+  it("leaves an already-escaped character alone", () => {
+    expect(toVSafePattern("^[\\]\\-a-z^]{1,20}$")).toBe("^[\\]\\-a-z^]{1,20}$");
   });
 });

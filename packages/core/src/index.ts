@@ -81,7 +81,9 @@ export {
   type SafePatternIssueCode,
   checkSafePattern,
   classSetAmbiguity,
+  compilesUnderV,
   isSafePattern,
+  toVSafePattern,
 } from "./safe-pattern.js";
 
 export {

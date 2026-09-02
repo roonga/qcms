@@ -27,6 +27,20 @@ reveal cannot happen while the respondent is still inside the checkbox group; it
 lands later than the author almost certainly intended. A cross-step target does
 not warn, which is the point of the classification rather than an omission.
 
+**`compilesUnderV` and `toVSafePattern`** (issues #52, #53): the authoring-time
+half of the browser-compatibility rule for `pattern`. Browsers compile the HTML
+`pattern` attribute with the `v` flag, whose character-class grammar is narrower
+than the `u` semantics `checkSafePattern` validates against, so a pattern such as
+`^[A-Za-z][A-Za-z .,'-]{0,99}$` is dropped by the browser and the field loses its
+native hint. `toVSafePattern` returns an equivalent spelling when the rewrite is
+provably meaning-preserving, the original when a browser already accepts it, and
+`undefined` when neither holds. The API's question-authoring boundary uses these
+to refuse a v-invalid pattern on a new or edited definition; `checkSafePattern`
+is deliberately unchanged, because it also parses every stored definition, seed
+fixture and golden-corpus input, and refusing there would retroactively
+invalidate published content (R1) and change what the append-only corpus compiles
+(ADR-18).
+
 **`PATTERN_CLASS_SET_AMBIGUOUS`** (issue #53): a shortText `pattern` whose
 character class carries an unescaped `&&` or `--`, where the pattern compiles
 under both the `u` and the `v` regex flag. `[a&&b]` is `{a, &, b}` under `u` and

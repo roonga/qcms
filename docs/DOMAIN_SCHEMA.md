@@ -149,6 +149,13 @@ Constraints objects use `.prefault({})` (Zod 4: `.default` returns its value ver
 
 The composite-group rules are deliberately conservative: some rejected patterns are harmless, but every accepted pattern is linear-time-safe on a backtracking engine.
 
+**Browser compatibility of `pattern`, and where it is enforced (issue #53, Code Owner 2026-09-02).** A browser compiles the HTML `pattern` attribute with the **`v`** flag, whose character-class grammar is strictly narrower than the `u` semantics above: a bare `-` at the edge of a class (`[A-Za-z .,'-]`, which occurs throughout this repository's own corpus) is a literal under `u` and a `SyntaxError` under `v`, so the browser drops native validation for the field and logs an error. The stance is **reject-new-only**, and the enforcement point is what implements it:
+
+- **The authoring API refuses a v-invalid pattern** on any new or edited definition (`requireDefinition` in the questions slice, `PATTERN_NOT_BROWSER_SAFE`), naming why and offering `toVSafePattern`'s equivalent spelling where one is provably meaning-preserving. The admin surfaces the same suggestion live on the pattern field before a save is attempted.
+- **`checkSafePattern` is unchanged**, and deliberately so. It runs inside `QuestionDefinition`'s refinements, which every stored definition, seed fixture and golden-corpus input also parses through; refusing there would retroactively invalidate content that is already published and serving correctly (R1) and would change what the append-only corpus compiles (ADR-18).
+- **Stored patterns keep serving**, repaired on their way to the DOM by the renderer's normalize-or-omit path (issue #52). That path stays: published A2UI is immutable and keeps its original `pattern` forever.
+- The **silent `u`/`v` divergence** for `&&` and `--` inside a class (`[a&&b]` compiles under both and means different things under each) is a publish **warning**, not a refusal - see §4.1. Refusal and warning are deliberately distinguishable outcomes: invalid is refused, ambiguous-but-legal is advised on.
+
 ### 2.3 Form definition
 
 A form is ordered steps of pinned question references plus visibility rules. Pins are `{questionId, version}` pairs - the question-level versioning of ADR-02 with launch-minimal UX (manual pinning).
