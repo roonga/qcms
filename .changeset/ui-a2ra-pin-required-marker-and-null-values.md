@@ -54,4 +54,6 @@ clear**. The one attribute React actually reports differing is `inputMode` (`num
 the server, `decimal` on the touch client), which is environment detection inside
 `@react-aria/numberfield` rather than anything about duplicate providers. #151 stays open
 with the dedup recorded as a real improvement that was not the fix, and the new spec is
-`fixme` rather than allowlisted.
+`test.fail` rather than allowlisted: Playwright RUNS that test and requires it to fail, so
+the day the cause is fixed the run goes red for passing unexpectedly. (`test.fixme`, which
+this spec used first, would not have run it at all and so could never have noticed.)

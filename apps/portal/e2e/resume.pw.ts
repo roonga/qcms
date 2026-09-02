@@ -256,8 +256,7 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
 
 /**
  * Issue #151: a step containing a NumberField survives a RELOAD without a React
- * hydration mismatch. **Currently marked as an expected failure: the mismatch is
- * real and unfixed.**
+ * hydration mismatch. **Currently `test.fail`: the mismatch is real and unfixed.**
  *
  * The gate has always been armed - `gates.ts` fails any spec that logs a console
  * error, and a hydration mismatch is one - but no spec had ever reloaded a step
@@ -293,52 +292,69 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  * react-aria SSR defect in the vendored stack, not a QCMS one, and fixing it means
  * upstream work rather than anything at this seam.
  *
- * It is marked as an expected failure and NOT allowlisted, deliberately: #151
- * forbids silencing the warning, and an allowlist entry would blind every other spec
- * in the suite to the same shape. Playwright's expected-failure marker keeps the
- * reload assertion in the tree, keeps it out of the green count honestly, and turns
- * into a live gate the day the cause is fixed, because Playwright FAILS a test
- * marked this way once it starts passing.
+ * `test.fail`, and not allowlisted. Allowlisting is out because #151 forbids
+ * silencing the warning and an entry would blind every other spec in the suite to
+ * the same shape. Which expected-failure marker to use is the part worth writing
+ * down, because this file had it wrong first time round:
+ *
+ * - The marker it used first was the SKIP-with-intent one, which Playwright does
+ *   not run past. A test that never runs can never notice that its defect was
+ *   fixed, so the self-arming property claimed for it did not exist.
+ * - `test.fail` RUNS the test "and ensures that it is actually failing" (its own
+ *   API docs). The day the cause is fixed this body passes, and Playwright fails
+ *   the run with "Expected to fail, but passed." That property is real, and it was
+ *   confirmed against this Playwright version rather than taken on trust.
+ *
+ * Safe to run rather than skip because the failure is deterministic: the mismatch
+ * is one attribute on every reload of this step, not a race.
+ *
+ * The limit of `test.fail`, stated because it is easy to miss: it accepts ANY
+ * failure, so a future unrelated regression inside this body would also satisfy it
+ * and pass silently. It buys "this defect is still here", not "everything else in
+ * this body still works". The body's assertions are documentation of the intended
+ * end state until the marker comes off, at which point they start gating for real.
  */
-test.fixme("reloading a step that contains a NumberField hydrates without a mismatch", async ({
-  page,
-}) => {
-  test.setTimeout(120_000);
-  const { kitchenSinkSlug } = readFixtures();
+test.fail(
+  "reloading a step that contains a NumberField hydrates without a mismatch",
+  async ({ page }) => {
+    test.setTimeout(120_000);
+    const { kitchenSinkSlug } = readFixtures();
 
-  await startKitchenSink(page, kitchenSinkSlug);
-  await fillText(page, KS.fullName, "Ada Lovelace");
-  await enterDate(page, "05171990");
-  await continueStep(page);
+    await startKitchenSink(page, kitchenSinkSlug);
+    await fillText(page, KS.fullName, "Ada Lovelace");
+    await enterDate(page, "05171990");
+    await continueStep(page);
 
-  await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
-  await answerNumber(page, "2");
-  // q_optional_cover (required) is deliberately left unanswered, so this step is
-  // still the first incomplete one and the reload comes back to it.
+    await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+    await answerNumber(page, "2");
+    // q_optional_cover (required) is deliberately left unanswered, so this step is
+    // still the first incomplete one and the reload comes back to it.
 
-  const log = watchAnswerPosts(page);
-  await resume(page);
+    const log = watchAnswerPosts(page);
+    await resume(page);
 
-  // The NumberField is present on the hydrated document and shows what the server
-  // holds. Without this the test could pass on a step that never rendered one.
-  const count = page.getByRole("textbox", { name: KS.count });
-  await expect(count).toBeVisible();
-  await expect(count).toHaveValue("2");
+    // The NumberField is present on the hydrated document and shows what the server
+    // holds. Without this the test could pass on a step that never rendered one.
+    const count = page.getByRole("textbox", { name: KS.count });
+    await expect(count).toBeVisible();
+    await expect(count).toHaveValue("2");
 
-  // The field is labelled and reads back its stored answer. The mismatch itself is
-  // left to the console gate below rather than asserted attribute by attribute:
-  // which of `role` and the `aria-value*` set a browser ends up with is react-aria's
-  // decision and varies by pointer type, so pinning the set here would make this
-  // spec brittle about the wrong thing.
-  await expect(count).toHaveAccessibleName(KS.count);
+    // The field is labelled and reads back its stored answer. The mismatch itself is
+    // left to the console gate below rather than asserted attribute by attribute:
+    // which of `role` and the `aria-value*` set a browser ends up with is react-aria's
+    // decision and varies by pointer type, so pinning the set here would make this
+    // spec brittle about the wrong thing.
+    await expect(count).toHaveAccessibleName(KS.count);
 
-  // Rendering a resumed step posts nothing (the #146 property, re-asserted here
-  // because this reload lands on a step no other test resumes onto).
-  expect(log).toEqual([]);
+    // Rendering a resumed step posts nothing (the #146 property, re-asserted here
+    // because this reload lands on a step no other test resumes onto).
+    expect(log).toEqual([]);
 
-  // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
-  // any console error, and "A tree hydrated but some attributes of the server
-  // rendered HTML didn't match the client properties" is one. There is deliberately
-  // no allowlist entry for it (#151 forbids silencing rather than fixing), which is
-  // why this test is marked as an expected failure rather than green.
-});
+    // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
+    // any console error, and "A tree hydrated but some attributes of the server
+    // rendered HTML didn't match the client properties" is one. There is deliberately
+    // no allowlist entry for it (#151 forbids silencing rather than fixing), which is
+    // why this test is `test.fail` rather than green. The fault the gate raises here
+    // arrives from the fixture TEARDOWN, after this body has run clean.
+  },
+);

@@ -225,7 +225,7 @@ function FieldBlur({
  * type allows it) keys as `undefined` for the plain `key={props.name}` adapters,
  * exactly as it reconciled before. The DatePicker's key is composite, so the same
  * control keys as the string `"undefined:0"` there; both are stable, which is all
- * the key has to be (Copilot nit on #149, carried through #148).
+ * the key has to be (review nit on #149, carried through #148).
  */
 
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
