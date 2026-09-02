@@ -306,6 +306,43 @@ protecting authentication.
 | App reachable **directly**, hop count left at `1`                           | The same as "hop count too high", with one hop: there is no proxy, so the only entry in the chain is one the client wrote. Set `0`. Note that no recipe here exposes either app directly, and the base Compose file binds both to loopback (`QCMS_BIND_ADDRESS`) for exactly this class of reason. |
 | Ingress **appends** where this document says set, with no `trusted_proxies` | Same as "hop count too high": the entry the BFF reads is one the client wrote.                                                                                                                                                                                                                     |
 
+### The default Compose stack has no proxy, so every admin shares one sign-in bucket
+
+This section is written for a deployment that **has** an ingress. The stack this repository ships
+by default does not, and the consequence is worth stating plainly rather than leaving an operator
+to derive it from the table above (issue #482).
+
+Three facts compose on the shipped default:
+
+1. `docker/api.Dockerfile` sets `NODE_ENV=production`, so better-auth's limiter is on.
+2. `docker-compose.yml` puts no proxy in front of the admin, so the admin BFF sees no inbound
+   `X-Forwarded-For`, resolves no address, and sets no `X-QCMS-Client-Address`.
+3. With no vouched address better-auth keys every caller into one bucket.
+
+The sign-in rule is three attempts per ten seconds, **shared**. So on the default stack three
+sign-in attempts from any caller hold admin sign-in closed for every administrator until the window
+rolls, and a caller repeating them holds it closed indefinitely. `/two-factor/*` has its own bucket
+with the same property.
+
+This is fail-safe rather than fail-open - the failure is refusal, not admission - so it costs
+**availability**, not confidentiality, and it is why the default topology has not changed: ADR-20
+holds that TLS and ingress are operator infrastructure, and the proxy recipe here is deliberately
+not a standing product container.
+
+**The API says so at every boot.** While the throttle is on and nothing in the API's environment
+declares a proxy in front of the admin, the API logs a warning naming the consequence and the
+remedy. Silence it by fixing the deployment, not the variable: put a proxy in front of the admin
+hostname (either recipe above), then set `QCMS_ADMIN_TRUSTED_PROXY_HOPS` on **both** the `admin`
+and `api` services. The `admin` service is the one that acts on the count; the `api` service reads
+only whether it is set, because it never faces the internet and cannot see the admin's inbound
+chain. Setting it on `api` without a real proxy silences the line and keeps the shared bucket,
+which is the same shape of mistake as a hop count higher than the proxies that exist.
+
+`.env.compose.example` therefore ships `QCMS_ADMIN_TRUSTED_PROXY_HOPS` **commented out**: on a
+stack with no proxy, a value there would declare one that does not exist. Uncomment it when you add
+the ingress. It changes nothing for the `admin` service either way, whose own default is already
+`1`.
+
 ### Privacy
 
 A client address is personal data. It is used as a rate-limit bucket key and nothing else: it is

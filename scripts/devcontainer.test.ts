@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -188,5 +188,41 @@ describe("devcontainer.sh docker probes (issue #269)", () => {
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("refusing to stop qcms-dev-container from inside");
+  });
+});
+
+/**
+ * The blast-radius layer of issue #260 (Code Owner decision, 2026-09-02).
+ *
+ * The container mounts the host Docker socket, which is full daemon authority, and the
+ * refusals above close only the path that goes through this script. A direct
+ * `docker stop` from inside never reaches them.
+ *
+ * The restart policy narrows what an ending costs, and only for the **crash class**.
+ * Measured on Docker 29.6.2: a crash exit restarts and `RestartCount` climbs, while a
+ * `docker stop` or `docker kill` through the socket ends `status=exited` with
+ * `RestartCount=0` and stays down - the restart manager treats every explicit stop as
+ * manual, and the daemon cannot tell an API client inside the container from one
+ * outside. So this does not cover the deliberate-stop path, and the comment beside the
+ * argument says so rather than claiming the harm is gone.
+ *
+ * Asserted because it is one word in a JSON file that no other test would miss, and
+ * because `up` silently ignores changed `runArgs` on a running container, so the way
+ * this regresses is silent in both directions.
+ */
+describe("the dev container comes back from a crash (issue #260)", () => {
+  it("declares a restart policy in runArgs", () => {
+    const config = readFileSync(
+      fileURLToPath(new URL("../.devcontainer/devcontainer.json", import.meta.url)),
+      "utf8",
+    );
+    // Read as text rather than parsed: the file carries JSONC comments, and the comment
+    // beside this argument is where the reasoning lives.
+    expect(config).toContain('"--restart=unless-stopped"');
+    // `unless-stopped` rather than `always`. The two behave identically for a stop
+    // issued through the socket - both skip the policy - so the difference is a daemon
+    // restart or host reboot, where `always` would revive a container an operator had
+    // deliberately stopped from the host.
+    expect(config).not.toContain('"--restart=always"');
   });
 });

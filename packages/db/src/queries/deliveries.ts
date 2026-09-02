@@ -376,6 +376,31 @@ export async function recordDeliveryFailure(
  * endpoint then refuses. The row is not hidden from the operator - the delivery
  * dashboard ({@link listRecentDeliveries}) shows it with its cancelled state and
  * reason, which is where "what happened to that delivery" gets answered.
+ *
+ * **Payload-redacted rows are excluded too** (issue #433, Code Owner decision
+ * 2026-09-02). An event whose `answers` have been removed is exactly as unsendable
+ * as a cancelled one - {@link redeliveryRefusalFor} refuses both, one line apart -
+ * so the same worklist argument reaches it, and the precedent 059 set is followed
+ * rather than a second convention invented for the same "a row that can never be
+ * sent still looks actionable" problem. Without this, every aged-out row costs an
+ * operator one pointless Redeliver to discover.
+ *
+ * Issue #329's retention sweep is why it stopped being a corner. Before it, redacted
+ * rows came only from erasure; after it, "every event past the redelivery window" is
+ * eventually every event, so what the queue does with them is the ordinary case
+ * rather than a rare display question.
+ *
+ * The rejected alternatives, recorded so this is not re-argued: **badging** the row
+ * in place (it keeps the worklist honest, but then cancelled rows are hidden while
+ * aged-out rows show, and an operator cannot see a reason for the distinction) and
+ * **leaving it** (the pointless Redeliver above). Discoverability is preserved the
+ * same way it is for cancellation: the delivery detail view answers "what happened
+ * to that delivery".
+ *
+ * The filter is on `outbox.payload_redacted_at`, the column {@link claimDueDeliveries}
+ * and {@link redeliveryRefusalFor} already read, rather than on a delivery-level
+ * mirror of it. Redaction is a property of the **event**, and one event can have a
+ * delivery per webhook.
  */
 export async function listDeadLetterDeliveries(
   exec: Executor,
@@ -400,7 +425,13 @@ export async function listDeadLetterDeliveries(
     .from(webhookDeliveries)
     .innerJoin(outbox, eq(webhookDeliveries.outboxId, outbox.id))
     .innerJoin(webhooks, eq(webhookDeliveries.webhookId, webhooks.webhookId))
-    .where(and(isNotNull(webhookDeliveries.deadLetteredAt), isNull(webhookDeliveries.cancelledAt)))
+    .where(
+      and(
+        isNotNull(webhookDeliveries.deadLetteredAt),
+        isNull(webhookDeliveries.cancelledAt),
+        isNull(outbox.payloadRedactedAt),
+      ),
+    )
     .orderBy(desc(webhookDeliveries.deadLetteredAt));
   return limit === undefined ? base : base.limit(limit);
 }

@@ -98,29 +98,35 @@ test("error-summary entries land focus on each question type's value control", a
   // The hydrated flow owns the jump-to-field handler; the SSR paint does not.
   await expect(page.getByTestId("flow-announcer")).toBeAttached();
 
-  // Each question is ANSWERED while focus is still in it, before the next entry
-  // is activated. Two reasons, and only the second one was ever a workaround:
+  // This spec used to answer every question BEFORE activating the next summary
+  // entry, and the note here separated two reasons for it:
   //
-  // 1. This spec walks all three steps, and `continueStep` only advances when the
-  //    current step's required questions are satisfied. Answering them is what
-  //    makes the walk possible, not a concession to a gate.
-  // 2. Leaving a required question empty posts `null` on blur, which the API
-  //    rejects with a 422 (correctly: the value is invalid), and the browser logs
-  //    that as a `console.error` the shared gate used to fail on unconditionally.
+  // 1. The walk needs it. `continueStep` only advances when the current step's
+  //    required questions are satisfied, so each step is answered before Continue.
+  //    That is not a concession to a gate, and it stays.
+  // 2. A workaround. Leaving a required question empty posted `null` on blur, the
+  //    API rejected that 422, and the browser logged a `console.error` the shared
+  //    gate fails on. So focus could never be moved OUT of an unanswered control -
+  //    in a spec whose subject is keyboard traversal.
   //
-  // Issue #166 added a per-test declaration for a deliberate failed request, so
-  // that second reason is no longer a hard constraint. This spec KEEPS the
-  // behaviour anyway: declaring the 422 here would make a focus spec fail whenever
-  // the null-post policy changes, and that policy is exactly what issue #168 is
-  // open on. The subject here is where focus lands, so it stays off that hook.
+  // Reason 2 is gone (issue #168, Code Owner decision 2026-09-02): a retraction is
+  // posted only when the control holds an answer, so focus entering and leaving a
+  // never-answered control posts nothing at all. Removing this distortion was named
+  // as part of that acceptance, because it was the strongest argument in the issue
+  // for settling the question. The walk below now crosses an empty control on
+  // purpose - a `blur` control in step 1 and a `groupExit` group in step 2 - which
+  // is both the realistic keyboard journey and a live check on the suppression: a
+  // regression re-reds this spec through the console gate.
 
   // --- Step 1: shortText and the DatePicker (the #76 regression) ------------
   await expectMissing(page, ["q_full_name", "q_dob"]);
+  await expectEntryFocuses(page, "q_full_name", { tag: "INPUT", type: "text", role: null });
+  // Focus leaves q_full_name still empty. Its commit moment is `blur`, so before
+  // #168 this posted a null the API answered 422 and the console gate failed on.
   // The date field's value control is an editable SEGMENT, not an input: a span
-  // carrying role=spinbutton. Before the fix this focused nothing at all.
+  // carrying role=spinbutton. Before the #76 fix this focused nothing at all.
   await expectEntryFocuses(page, "q_dob", { tag: "SPAN", type: null, role: "spinbutton" });
   await enterDate(page, "05171990");
-  await expectEntryFocuses(page, "q_full_name", { tag: "INPUT", type: "text", role: null });
   await fillText(page, KS.fullName, "Ada Lovelace");
   await continueStep(page);
 
@@ -131,13 +137,15 @@ test("error-summary entries land focus on each question type's value control", a
     type: "checkbox",
     role: null,
   });
-  // Also reveals q_extra_detail (containsAny rule), used further down.
-  await checkOption(page, "Breakdown");
+  // And out of the checkbox GROUP with nothing checked: the `groupExit` moment,
+  // the other half of what #168 suppressed.
   await expectEntryFocuses(page, "q_at_fault_accident", {
     tag: "INPUT",
     type: "radio",
     role: null,
   });
+  // Also reveals q_extra_detail (containsAny rule), used further down.
+  await checkOption(page, "Breakdown");
 
   // --- Step 2, branch inserted: the NumberField -----------------------------
   // Answering Yes reveals q_accident_count, whose field wraps its input in two

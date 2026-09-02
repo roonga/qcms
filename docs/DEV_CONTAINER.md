@@ -31,6 +31,54 @@ In VS Code, _Reopen in Container_ does the same thing, and its integrated termin
 
 **`stop`, `down` and `rebuild` refuse to run from inside the container they target.** The container mounts the host Docker socket so Testcontainers works (ADR-29), which also means a process inside it can destroy the container it is running in, killing every session in there with no surviving process able to report why. That happened on 2026-08-01: a clean exit 0, 4m38s of downtime, and a `137` from the killed processes that reads exactly like an out-of-memory kill (issues #244, #260). Run those three from the host. The guard identifies the container by the `QCMS_DEVCONTAINER` marker in `containerEnv`, falling back to matching the shell's hostname against the container id, because `containerEnv` does not reach a container that is already running.
 
+### What the mounted Docker socket really lets a process do
+
+Written plainly rather than reassuringly, because the guard above covers less than its wording
+might suggest (issue #260).
+
+`.devcontainer/devcontainer.json` mounts the host Docker socket through the
+`docker-outside-of-docker` feature. That is **full daemon authority**, not a scoped grant. Any
+process inside the container can stop, kill or remove any container on the host, including the one
+it is running in.
+
+What is in place, and what each layer actually buys:
+
+| Layer                                                                                   | Covers                                                                                                                 | Does not cover                                                                                                                                                                                                        |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `refuse_from_inside` in `scripts/devcontainer.sh` (`stop`, `down`, `rebuild`)           | Every caller of the wrapper, which is how the destructive path was actually reached in practice                        | A direct `docker stop`, `docker rm`, or any Docker SDK call. None of them goes near the script.                                                                                                                       |
+| `scripts/devcontainer.test.ts` asserting the refusal instead of executing a real `stop` | The one test that first exercised the capability, twice, on 2026-08-01                                                 | Any future test or script that decides to drive the daemon itself.                                                                                                                                                    |
+| `--restart=unless-stopped` in `runArgs`                                                 | The **crash class**: a crash exit, an OOM kill, a daemon restart or a host reboot brings the container back on its own | A deliberate `docker stop` or `docker kill`, from inside or outside - see the measurement below. Work held only on the container's overlay filesystem also goes with any of it: commit, or keep it on the bind mount. |
+
+**What the restart policy covers, measured rather than assumed.** On Docker 29.6.2:
+
+| Ending                                       | Result                                        |
+| -------------------------------------------- | --------------------------------------------- |
+| Crash exit (and OOM kill)                    | Restarted; `RestartCount` climbs              |
+| `docker stop` / `docker kill` via the socket | `status=exited`, `RestartCount=0`, stays down |
+
+Docker's restart manager treats **any** explicit stop as manual and skips the policy, and the
+daemon cannot distinguish an API client inside the container from one outside. So there is no
+inside/outside split here: a `docker stop` issued from a shell in this container is as final as one
+issued from the host. The policy is worth keeping - it turns the crash class into a blip, and it is
+why `pnpm devcontainer stop` from the host still behaves as you expect - but it does **not** absorb
+the destructive path issue #260 is about. That path is covered only by the `refuse_from_inside`
+guards, and only for callers of `scripts/devcontainer.sh`.
+
+**The socket proxy was considered and deliberately not built** (Code Owner decision, 2026-09-02).
+The instinct - filter the socket so the container cannot stop itself - does not survive contact
+with what off-the-shelf proxies do. They filter by API **endpoint**, and Testcontainers
+legitimately needs container create, start, stop and remove; any proxy permissive enough for the
+`@qcms/db` suite to pass still permits stopping this container. Real prevention would need
+filtering by container **identity or label**: bespoke work, a new standing component in the dev
+environment, and Ryuk's reaping has to keep working through it.
+
+So the honest statement is the narrow one: the authority remains, the promise has not become a
+property, and what changed is that one class of ending - the crash - no longer costs the
+environment. A deliberate stop through the socket still does.
+
+If a second incident happens that the restart policy does not absorb, the label-filtering proxy is
+the next step, and this decision should be reopened rather than treated as settled.
+
 ### Why a wrapper rather than the raw CLI
 
 The raw equivalents work fine:

@@ -215,10 +215,14 @@ describe("the boot line agrees with what the limiter actually does", () => {
       (_message: string, fields?: Record<string, unknown>): void => {
         lines.push({ level, fields: fields ?? {} });
       };
-    const state = await logSignInThrottleState(auth, {
-      info: record("info"),
-      warn: record("warn"),
-    });
+    const state = await logSignInThrottleState(
+      auth,
+      { info: record("info"), warn: record("warn") },
+      // A proxy declared, so the issue #482 shared-bucket line has nothing to say and
+      // this case still asserts exactly one boot line. Its own coverage is in
+      // `sign-in-throttle-state.test.ts`.
+      { QCMS_ADMIN_TRUSTED_PROXY_HOPS: "1" },
+    );
 
     // Measured, not assumed: an address no other case in this file uses, one attempt
     // more than the allowance.

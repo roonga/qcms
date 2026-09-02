@@ -107,9 +107,31 @@
   // property of THIS config, not of the allocation - `docs/PORTS.md` defines seats
   // 0-9 and records what a second container seat would need (a distinct name and
   // distinct publishes), marked as design intent rather than something exercised.
+  //
+  // `--restart=unless-stopped` is the blast-radius layer of issue #260 (Code Owner
+  // decision, 2026-09-02). This container mounts the host Docker socket so
+  // Testcontainers works (ADR-29), and that is full daemon authority: any process
+  // inside can stop the container it is running in, taking every session with it -
+  // measured once at 4m38s of unexplained downtime. `scripts/devcontainer.sh`
+  // refuses `stop`/`down`/`rebuild` from inside, which closes the accidental path,
+  // but a direct `docker stop` never goes near that script.
+  //
+  // What this policy does and does not cover, MEASURED on Docker 29.6.2 rather than
+  // assumed: a crash exit restarts (`RestartCount` climbs), and so does an OOM kill,
+  // a daemon restart or a host reboot. A `docker stop` or `docker kill` issued
+  // THROUGH the mounted socket does not: the container ends `status=exited` with
+  // `RestartCount=0` and stays down. Docker's restart manager treats any explicit
+  // stop as manual and skips the policy, and the daemon cannot tell an API client
+  // inside the container from one outside, so there is no split to exploit here.
+  //
+  // So this narrows the blast radius to the crash class; it does not cover the
+  // deliberate-stop path, which remains guarded only by `refuse_from_inside` and
+  // only for callers of that script. The residual authority, and why the socket
+  // proxy was not built, are recorded plainly in `docs/DEV_CONTAINER.md`.
   "runArgs": [
     "--init",
     "--ipc=host",
+    "--restart=unless-stopped",
     "--add-host=host.docker.internal:host-gateway",
     "--name=qcms-dev-container",
     "--label=com.docker.compose.project=qcms-dev"

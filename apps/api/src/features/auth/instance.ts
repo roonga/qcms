@@ -231,6 +231,115 @@ export const SIGN_IN_THROTTLE_INACTIVE_WARNING =
   "docs/operations.md.";
 
 /**
+ * The variable an operator sets to say how many proxies stand in front of the **admin**
+ * hostname. The admin BFF is what acts on it, counting that many entries from the right
+ * of its own inbound `X-Forwarded-For` before asserting one address on the vouched
+ * header (`apps/admin/lib/server/client-address.ts`, issue #374).
+ *
+ * This process reads it for **one** purpose and never acts on the value: whether it is
+ * set at all is the only thing an operator has told the API about the admin's ingress,
+ * and {@link signInThrottleSharedBucketWarning} needs exactly that. Named as a constant
+ * so `scripts/env-reference.mjs` sees the read and the drift gate makes the API's row in
+ * `docs/operations.md` compulsory.
+ */
+export const ADMIN_TRUSTED_PROXY_HOPS_ENV = "QCMS_ADMIN_TRUSTED_PROXY_HOPS";
+
+/**
+ * The boot line for the composition issue #482 records: the throttle is running, and
+ * nothing says a proxy is in front of the admin to vouch for a caller's address.
+ *
+ * ## What goes wrong
+ *
+ * With no vouched address better-auth resolves none and keys every caller into its one
+ * `no-trusted-ip` bucket (see `advanced.ipAddress` in `createAdminAuth`). The sign-in
+ * rule is three attempts per ten seconds, so on that shape three attempts from anyone
+ * hold the admin sign-in surface closed for **everyone** until the window rolls, and a
+ * sustained caller holds it closed indefinitely. `/two-factor/*` has its own bucket with
+ * the same property.
+ *
+ * That is fail-safe rather than fail-open - the failure is refusal, not admission - so
+ * it is an availability consequence rather than a hole in the control. It is warned
+ * about because it is the property of the shape this project ships as its **default**:
+ * `docker-compose.yml` puts no proxy in front of the admin, and until issue #482 an
+ * operator could learn this only from a documentation page they may never open.
+ *
+ * ## Why every boot, and why a warning rather than a refusal
+ *
+ * The same precedent {@link SIGN_IN_THROTTLE_INACTIVE_WARNING} sets: a state an operator
+ * has to act on is repeated for as long as it holds, so it is met by whoever reads the
+ * log rather than only by whoever read the docs. A refusal would be wrong here - the
+ * proxy-less stack is a supported local shape, and this costs availability rather than
+ * confidentiality.
+ *
+ * ## What it reports, stated honestly
+ *
+ * A **declaration**, not an observation. The API never faces the internet (ADR-20) and
+ * cannot see the admin's inbound chain, so it cannot know whether a proxy exists; what
+ * it can see is whether the operator declared one in this process's environment. A
+ * deployment that sets {@link ADMIN_TRUSTED_PROXY_HOPS_ENV} here without a real proxy in
+ * front of the admin silences this line and keeps the shared bucket - the same class of
+ * mistake `docs/deploy-ingress.md` already warns about for the hop count itself, and the
+ * message says so rather than implying the API checked.
+ *
+ * The message is worded for that gap in the other direction too. A deployment that DOES
+ * have a proxy but set the count only on the `admin` service is vouching for an address
+ * while this line fires, so the line states the shared bucket as the consequence of the
+ * declaration being true rather than as an observed fact, and names "set it here too" as
+ * the remedy for exactly that case. Claiming an unkeyed limiter at a deployment that has
+ * one would be the same defect this whole file exists to avoid: an inference printed as
+ * an observation.
+ *
+ * SEC-8: the value is never echoed, only whether the name is set. It is a topology
+ * count rather than a secret, but the rule is that boot diagnostics name variables and
+ * print no values, and a count is still a fact about the deployment.
+ */
+export const SIGN_IN_THROTTLE_SHARED_BUCKET_WARNING =
+  "sign-in throttling is running, but no proxy is declared in front of the admin in " +
+  "this process's environment (QCMS_ADMIN_TRUSTED_PROXY_HOPS is unset or 0 here). " +
+  "Where that is the truth - and it is on the default Compose stack, which ships no " +
+  "proxy - the admin BFF has no proxy-written X-Forwarded-For entry to resolve and " +
+  "vouches for no client address, so every sign-in attempt shares ONE bucket: three " +
+  "attempts from any caller hold the admin sign-in and two-factor endpoints closed for " +
+  "every administrator until the ten-second window rolls, and a sustained caller holds " +
+  "them closed indefinitely (issue #482). This fails safe - the failure is refusal, " +
+  "not admission - so it costs availability, not confidentiality. Remedy: put a proxy " +
+  "in front of the admin hostname (docs/deploy-ingress.md) and set " +
+  "QCMS_ADMIN_TRUSTED_PROXY_HOPS on BOTH the admin and api services; if a proxy is " +
+  "already there and only the admin service carries the count, setting it here too is " +
+  "what silences this line. This line reports a declaration, not an observation: this " +
+  "process cannot see the admin's inbound chain, so setting that variable without a " +
+  "real proxy silences the line and keeps the shared bucket. See docs/operations.md.";
+
+/**
+ * The shared-bucket warning, or `undefined` when there is nothing to say.
+ *
+ * Two conditions, both required. The throttle has to be **on**, because with it off
+ * there is no bucket to share and {@link SIGN_IN_THROTTLE_INACTIVE_WARNING} is already
+ * saying the larger thing. And no proxy may be declared, because that declaration is the
+ * one signal an operator gives this process about the admin's ingress.
+ *
+ * `0` counts as no proxy rather than as a declaration that silences the line, because
+ * `0` means precisely "trust no forwarded entry" - `docs/operations.md` spells that out
+ * as "every sign-in attempt in one shared bucket", which is this warning's subject. It
+ * is a supported shape (the admin reached over a tunnel, say), and a supported shape
+ * whose availability property an operator should still be told about; the fly.io recipe
+ * sets it deliberately. Anything unparseable is left to the admin's own reader, which
+ * refuses it: this function does not second-guess a value it never acts on.
+ *
+ * `env` is a parameter rather than a `process.env` read so a test states the environment
+ * it is asserting about instead of mutating the process's.
+ */
+export function signInThrottleSharedBucketWarning(
+  state: SignInThrottleState,
+  env: Record<string, string | undefined>,
+): string | undefined {
+  if (!state.enabled) return undefined;
+  const declared = env[ADMIN_TRUSTED_PROXY_HOPS_ENV]?.trim();
+  if (declared !== undefined && declared !== "" && Number(declared) !== 0) return undefined;
+  return SIGN_IN_THROTTLE_SHARED_BUCKET_WARNING;
+}
+
+/**
  * Read the effective state off better-auth's resolved context.
  *
  * Awaiting `$context` forces the instance to finish initialising, which is why the
@@ -257,10 +366,17 @@ export async function readSignInThrottleState(auth: AdminAuth): Promise<SignInTh
  *
  * `addressHeaders` is joined into a scalar rather than logged as an array so it survives
  * the OTel export path, which takes string, number and boolean fields only.
+ *
+ * A **second** line follows when the throttle is on but nothing declares a proxy in
+ * front of the admin (issue #482). It is separate from the active line rather than
+ * folded into it because the two answer different questions - "is the control running"
+ * and "is the control keyed on anything" - and an operator can be entitled to a clean
+ * answer to the first while needing to act on the second.
  */
 export async function logSignInThrottleState(
   auth: AdminAuth,
   logger: Pick<Logger, "info" | "warn">,
+  env: Record<string, string | undefined> = process.env,
 ): Promise<SignInThrottleState> {
   const state = await readSignInThrottleState(auth);
   const fields = {
@@ -269,6 +385,9 @@ export async function logSignInThrottleState(
   };
   if (state.enabled) logger.info(SIGN_IN_THROTTLE_ACTIVE_MESSAGE, fields);
   else logger.warn(SIGN_IN_THROTTLE_INACTIVE_WARNING, fields);
+
+  const sharedBucket = signInThrottleSharedBucketWarning(state, env);
+  if (sharedBucket !== undefined) logger.warn(sharedBucket, fields);
   return state;
 }
 
