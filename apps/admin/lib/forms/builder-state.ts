@@ -36,9 +36,15 @@ export interface SaveDraftState {
   readonly status: "saved" | "error";
   readonly issues: readonly FormIssue[];
   /**
-   * Non-blocking publish advisories (issue #123). Empty whenever `issues` is not:
-   * the kernel advises only on a draft it could actually publish, so a warning is
-   * never part of the reason the count beside it is what it is.
+   * Non-blocking publish advisories (issue #123).
+   *
+   * Empty whenever the **kernel** reports errors, because `compileDraft` advises
+   * only on a draft it could compile. That is narrower than "empty whenever
+   * `issues` is not": `issues` also carries the API's `DEPRECATED_PIN` findings,
+   * so a deprecated pin and a warning about the same draft arrive together.
+   *
+   * What holds either way is the part the panel depends on: a warning is never
+   * part of the reason the count beside it is what it is.
    */
   readonly warnings: readonly FormIssue[];
   readonly code?: string;

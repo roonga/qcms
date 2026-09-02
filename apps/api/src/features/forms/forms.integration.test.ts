@@ -987,6 +987,47 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
     expect(body.warnings).toEqual([]);
   });
 
+  it("a DEPRECATED_PIN issue and a warning coexist, and both are reported", async () => {
+    // The invariant is about the KERNEL, and this is the case that shows why the
+    // wider reading ("warnings is empty whenever issues is not") was false:
+    // `DEPRECATED_PIN` is raised by this layer, not by `compileDraft`, so it can
+    // stand beside an advisory about the same draft.
+    //
+    // The gating is deliberately left alone. This draft genuinely has both facts,
+    // and suppressing the advisory because an unrelated deprecation is open would
+    // drop information the author needs - and would make the warning list depend
+    // on which other problems happen to exist.
+    await seedPublishedQuestion("q_warn_dep", "A field since deprecated");
+    await deprecateQuestionVersion(testDb.db, {
+      questionId: QuestionId.parse("q_warn_dep"),
+      version: 1,
+    });
+
+    const coexistId = "frm_warn_dep";
+    expect(
+      (await post("/forms", { formId: coexistId, slug: "warn-dep", defaultLocale: "en" })).status,
+    ).toBe(201);
+
+    const definition = formDefinition(
+      coexistId,
+      [
+        ["stp_wd_one", ["q_warn_multi", "q_warn_detail"]],
+        ["stp_wd_two", ["q_warn_dep"]],
+      ],
+      [sameStepRule],
+    );
+    const res = await post(`/forms/${coexistId}/draft/validate`, { definition });
+    const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
+
+    // Both arrays non-empty at once, which the old comments said could not happen.
+    expect(body.issues.map((issue) => issue.code)).toContain("DEPRECATED_PIN");
+    expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
+    // The kernel itself found nothing wrong: every issue here is the API layer's.
+    expect(body.issues.every((issue) => issue.code === "DEPRECATED_PIN")).toBe(true);
+    // And the deprecation still blocks the publish, exactly as before.
+    expect(body.valid).toBe(false);
+  });
+
   it("a warned draft publishes: a warning never refuses (#123)", async () => {
     await put(`/forms/${formId}/draft`, { definition: sameStep });
     const res = await post(`/forms/${formId}/publish`);

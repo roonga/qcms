@@ -125,11 +125,24 @@ describe("classSetAmbiguity (issue #53)", () => {
   });
 
   it("is silent for a pattern that does not compile under 'v' at all", () => {
-    // No second reading to disagree with: the render-time normalize-or-omit
+    // No browser reading to disagree with: the render-time normalize-or-omit
     // path (issue #52) owns this case, not the ambiguity advisory.
     expect(compiled(V_INVALID_AMP, "u").source).toBe(V_INVALID_AMP);
     expect(() => compiled(V_INVALID_AMP, "v")).toThrow();
     expect(classSetAmbiguity(V_INVALID_AMP)).toBeUndefined();
+  });
+
+  it("is silent for a pattern that does not compile under 'u' at all", () => {
+    // The mirror case, and the one the guard was added for: `\q{...}` is
+    // `v`-only syntax, so this has a browser reading and no kernel reading. The
+    // `&&` inside it is unambiguously the intersection operator, and naming a
+    // divergence would name one from a reading that does not exist.
+    // `compileDraft` never reaches here with such a pattern (checkSafePattern
+    // compiles under `u` first), but this is a public export.
+    const U_INVALID_AMP = "[\\q{ab}&&\\q{cd}]";
+    expect(() => compiled(U_INVALID_AMP, "u")).toThrow();
+    expect(compiled(U_INVALID_AMP, "v").source).toBe(U_INVALID_AMP);
+    expect(classSetAmbiguity(U_INVALID_AMP)).toBeUndefined();
   });
 
   it("returns only the operator it found, never the pattern", () => {

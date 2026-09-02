@@ -296,10 +296,20 @@ function deprecatedPinGate(
  * snapshot ready to compile and persist. Shared by the advisory paths (PUT
  * draft, validate) and publish itself.
  *
- * `warnings` is empty whenever `issues` is not: the kernel advises only on a
- * draft it could actually publish (issue #123). A warning never contributes to
- * the refusal decision, which is why every caller below tests `issues` rather
- * than a combined count.
+ * `warnings` is empty whenever the **kernel** reports errors, and that is the
+ * real invariant: `compileDraft` advises only on a draft it could compile, so a
+ * kernel error suppresses every warning (issue #123).
+ *
+ * It is **not** true that a warning cannot appear beside an issue. `issues` also
+ * carries this layer's `DEPRECATED_PIN` findings, so a draft that moves a pin
+ * onto a deprecated version *and* reveals a same-step question from a
+ * multiChoice answer has both facts and reports both. That coexistence is
+ * deliberate rather than tolerated: suppressing the advisory because an
+ * unrelated deprecation is open would drop information the author needs, and
+ * would make the warning list depend on which *other* problems happen to exist.
+ *
+ * A warning never contributes to the refusal decision either way, which is why
+ * every caller below tests `issues` rather than a combined count.
  */
 async function validateDraft(
   deps: Deps,

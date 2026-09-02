@@ -293,7 +293,12 @@ export const SavedDraftResponse = z
     draft: z.unknown(),
     /** Advisory validation issues; they do not block saving, but block publish. */
     issues: z.array(PublishIssue),
-    /** Non-blocking publish warnings; empty whenever `issues` is not. */
+    /**
+     * Non-blocking publish warnings. Empty whenever the **kernel** reports
+     * errors, which is narrower than "empty whenever `issues` is not": a
+     * `DEPRECATED_PIN` finding comes from the API layer and can stand beside a
+     * warning about the same draft.
+     */
     warnings: z.array(PublishWarningEntry),
   })
   .openapi("SavedDraftResponse");
@@ -304,7 +309,12 @@ export const ValidateDraftResponse = z
     /** Errors only: a warning describes a draft that would publish. */
     valid: z.boolean().openapi({ example: false }),
     issues: z.array(PublishIssue),
-    /** Non-blocking publish warnings; empty whenever `issues` is not. */
+    /**
+     * Non-blocking publish warnings. Empty whenever the **kernel** reports
+     * errors; a `DEPRECATED_PIN` finding is raised by the API layer and can
+     * stand beside a warning, so a non-empty `issues` does not imply an empty
+     * `warnings`.
+     */
     warnings: z.array(PublishWarningEntry),
   })
   .openapi("ValidateDraftResponse");

@@ -84,22 +84,13 @@ function ConstraintNumber({
 }
 
 /**
- * The pattern field, with a live "try a sample" helper.
+ * The note to show beneath the pattern field, or the **empty string** when
+ * there is nothing to say (issue #53).
  *
- * The helper compiles the expression **in the browser, with JavaScript's own engine**,
- * and says whether a sample answer matches. It is a convenience, not a verdict, and the
- * hint text says so: the kernel accepts a deliberately restricted, RE2-safe subset, so an
- * expression that matches happily here can still be refused on save with
- * `PATTERN_INVALID` or `PATTERN_UNSUPPORTED`. Claiming otherwise would put a second,
- * weaker validator in the BFF, which is the thing R2 exists to prevent - so this one is
- * scoped to answering "did I write what I meant?", which the kernel cannot answer at all.
- *
- * The input is capped at the kernel's own pattern length so a runaway expression cannot
- * be typed here in the first place.
- */
-/**
- * The v-safe spelling to suggest for a pattern, or `undefined` when there is
- * nothing to say (issue #53).
+ * A string rather than `undefined` because every branch that has something to
+ * say returns localized copy, so "nothing to say" is the absence of copy rather
+ * than the absence of a value; the caller renders the paragraph only when the
+ * result is non-empty.
  *
  * A browser compiles the HTML `pattern` attribute under the `v` flag, whose
  * character-class grammar is narrower than the one this expression is authored
@@ -123,6 +114,20 @@ function vSafeNote(pattern: string): string {
     : t("questions.constraint.patternVSuggestion", { suggestion });
 }
 
+/**
+ * The pattern field, with a live "try a sample" helper.
+ *
+ * The helper compiles the expression **in the browser, with JavaScript's own engine**,
+ * and says whether a sample answer matches. It is a convenience, not a verdict, and the
+ * hint text says so: the kernel accepts a deliberately restricted, RE2-safe subset, so an
+ * expression that matches happily here can still be refused on save with
+ * `PATTERN_INVALID` or `PATTERN_UNSUPPORTED`. Claiming otherwise would put a second,
+ * weaker validator in the BFF, which is the thing R2 exists to prevent - so this one is
+ * scoped to answering "did I write what I meant?", which the kernel cannot answer at all.
+ *
+ * The input is capped at the kernel's own pattern length so a runaway expression cannot
+ * be typed here in the first place.
+ */
 function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
   const [sample, setSample] = useState("");
   const pattern = typeof constraints.pattern === "string" ? constraints.pattern : "";

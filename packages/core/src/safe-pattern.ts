@@ -412,12 +412,20 @@ export type ClassSetOperator = "&&" | "--";
  * publish warning; it is a warning rather than a refusal because the pattern
  * is legal and may well be exactly what the author meant.
  *
- * Only patterns that compile under both flags are reported. One that does not
- * compile under `v` has no second reading to disagree with, and the render-time
- * normalize-or-omit path already owns that case.
+ * Only patterns that compile under **both** flags are reported, and the guard
+ * runs in both directions because a divergence needs two readings to diverge
+ * between. One that fails under `v` has no browser reading, and the render-time
+ * normalize-or-omit path already owns that case; one that fails under `u` has no
+ * kernel reading, which `[\q{ab}&&\q{cd}]` is - `\q{...}` is `v`-only syntax.
  */
 export function classSetAmbiguity(pattern: string): ClassSetOperator | undefined {
+  // Both readings have to exist for them to disagree. `compileDraft` only ever
+  // reaches here with a pattern `checkSafePattern` already compiled under `u`,
+  // but this is a public export: `[\q{ab}&&\q{cd}]` is valid under `v` and
+  // invalid under `u`, and reporting it would name a divergence from a reading
+  // that does not exist.
   try {
+    new RegExp(pattern, "u");
     new RegExp(pattern, "v");
   } catch {
     return undefined;
