@@ -112,8 +112,9 @@ function absentIfNoSelection(values: readonly string[]): readonly string[] | und
 }
 
 /**
- * The controlled "nothing is selected" value for the two discrete controls, and
- * why it is `null` rather than `undefined` or `""` (issue #144).
+ * The controlled "nothing is selected" value for the three single-value controls
+ * (RadioGroup, Select and, since issues #148 and #549 landed upstream, DatePicker),
+ * and why it is `null` rather than `undefined` or `""` (issue #144).
  *
  * react-stately's `useControlledState` decides controlled-vs-uncontrolled by
  * `value !== undefined` alone, so `value={undefined}` IS uncontrolled. Passing it
