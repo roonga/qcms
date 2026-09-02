@@ -282,6 +282,28 @@ Those two containers are yours to start and stop; nothing in the repo wires them
 - **Background work is its own trace, correctly.** The API's outbox delivery pass runs on a timer with no inbound request above it, so its `pg.query:*` spans are roots of single-span traces rather than orphans. Request-driven queries do sit under their request span.
 - The Playwright suite's own in-test receiver lives inside the QCMS allocation (`17S30`, so 17030 at seat 0), well away from all of the above, so a running dashboard and a test run cannot collide. See [`docs/PORTS.md`](PORTS.md).
 
+## The browser suite's gates, and measuring them
+
+Every portal Playwright spec imports `test` from `apps/portal/e2e/support/gates.ts` rather than from `@playwright/test`, so two gates run automatically: a **browser-fault gate** (any `console.error`, any `console.warn`, any uncaught `pageerror`) and a **server-log gate** (any error-level line the API, Postgres or the portal dev server wrote during the test). That file is the authority on what each one fails on, and on why every allowlist entry is there.
+
+**To find out what the console actually said, do not patch the gate.** Reviewing a change to `gates.ts` needs the real message population broken down by level, and hand-adding a temporary recorder to that file means editing the file under review in order to review it, then reverting and re-verifying the tree - which cost two people a full suite run each on issue #147. Use the census helper instead:
+
+```ts
+import { censusConsole } from "./support/console-census.js";
+
+const census = censusConsole(page); // BEFORE the first navigation
+
+await startAnonymousFlow(page, slug);
+
+census.report(); // levels and counts, most frequent first
+census.of("warning"); // the text of every warn message
+census.byLevel().get("error") ?? 0; // one level's count
+```
+
+It attaches its own listener and touches no gate state, so it cannot change a verdict: Playwright fans a console event out to every listener. The level is Playwright's own typed union rather than a prefix parsed out of the text - note that Playwright spells `console.warn` as `"warning"`, the DevTools protocol name, which is precisely the distinction a census exists to get right. `apps/portal/e2e/a11y-error-summary.pw.ts` carries a worked example, including the cross-check that asks the gate's exported `browserConsoleFault` which of the observed messages would have failed the run.
+
+**Hydration, when a spec needs the React render rather than the first paint.** The portal server-renders a real, fillable no-JS form which React then replaces wholesale, so "the page" names two different DOMs. `waitForHydration` (`apps/portal/e2e/support/hydration.ts`) waits for `data-qcms-hydrated`, which the page stamps on `<html>` from a mount effect and which is therefore absent from every server render. Entry helpers already call it; a spec that navigates itself calls it directly, on any portal page. To measure or audit the **fallback** on purpose instead, `starveScripts` (`apps/portal/e2e/support/script-starve.ts`) answers the app bundle with an empty 200 while leaving the page scriptable, which is what `test.use({ javaScriptEnabled: false })` cannot do.
+
 ## Running work
 
 | You type             | What happens                                                                                                                              |

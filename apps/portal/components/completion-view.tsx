@@ -1,3 +1,4 @@
+import { HydrationMarker } from "@/components/hydration-marker";
 import { PortalShell } from "@/components/portal-shell";
 import { t } from "@/lib/i18n/en";
 
@@ -21,6 +22,8 @@ export function CompletionView({
 
   return (
     <PortalShell>
+      {/* This root's hydration signal (issue #159). */}
+      <HydrationMarker />
       <div className="flex flex-col gap-5">
         <span
           aria-hidden="true"
