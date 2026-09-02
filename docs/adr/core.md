@@ -234,6 +234,8 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Note.** The admin bullet named TanStack Query until the Code Owner amended it on 2026-08-31 (issue #725). The library was never adopted; server components plus Server Actions are the shipped mechanism, and the bullet now names it and rules a client-side server-state library out rather than permitting one.
 
+**Note.** The admin runs Tailwind's default type scale rather than the portal's `--type-*` floors (issue #442, Code Owner decision 2026-09-02). The mechanism: the `@theme` block in `packages/ui/src/theme-components.css` that raises `--text-sm` and `--text-xs` to those floors is global to a build and no selector can scope it, and that sheet must be imported so the task-058 preview island shows genuine portal treatment, so `apps/admin/app/globals.css` re-pins the five affected variables to Tailwind's defaults. The portal's floors are unaffected. This is surface-specific in the sense the admin bullet already carries, and `docs/admin-constraints.md` already holds WCAG 2.2 AA as a goal the admin builds toward rather than a blocking gate; raising the admin to the floors would reflow 139 call sites across a shipped internal tool. The comment in `apps/admin/app/globals.css` is the local explanation and points here; this Note is the record.
+
 ### ADR-27 - Internationalization in both apps
 
 **Status:** implemented.

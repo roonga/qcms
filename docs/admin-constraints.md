@@ -28,6 +28,19 @@ prefer one design over another. It is not a blocking gate: no admin PR parks on 
 The accessible option wins where it is available at reasonable cost. Where it is not, the
 trade is stated rather than left silent.
 
+**The admin runs Tailwind's default type scale, not the portal's `--type-*` floors.** This is
+a recorded carve-out rather than an oversight (ADR-26, issue #442, Code Owner decision
+2026-09-02). The `@theme` block in `packages/ui/src/theme-components.css` that raises
+`--text-sm` and `--text-xs` to those floors is global to a build and no selector can scope
+it, and that sheet must be imported so the task-058 preview island shows genuine portal
+treatment, so `apps/admin/app/globals.css` re-pins the five affected variables to Tailwind's
+defaults. The portal's floors are unaffected.
+
+Do not delete that re-pin as redundant: it moves 139 call sites in this app. Raising the
+admin to the floors is a separate design task with its own screenshot gate, and it would also
+have to reach the hand-written sub-`1rem` `font-size` declarations in `globals.css`, which
+Tailwind's scale does not govern.
+
 ## Internationalization
 
 **ADR-27.** No hardcoded user-facing strings. Copy lives in the message catalogue and

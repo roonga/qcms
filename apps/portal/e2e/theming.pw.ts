@@ -196,14 +196,31 @@ test("vendored controls consume the spacing tokens", async ({ page }) => {
   const card = page.getByTestId("step-card");
 
   // The shipped Comfortable values: --space-control-h 44px,
-  // --space-control-pad-x 0.9rem, --space-stack 0.5rem, --space-field-gap 2em,
-  // --space-section-pad 2.25rem.
+  // --space-control-pad-x 0.9rem, --space-stack 0.5rem, --space-field-gap 2em.
   expect(await px(input, "min-height")).toBeCloseTo(44, 0);
   expect(await px(input, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(input, "padding-right")).toBeCloseTo(14.4, 0);
   expect(await px(field, "row-gap")).toBeCloseTo(8, 0);
   expect(await px(form, "row-gap")).toBeCloseTo(32, 0);
+
+  // --space-section-pad is the one spacing token with a viewport dimension (issue
+  // #188, Code Owner decision 2026-09-02): 1.25rem below Tailwind's `sm`
+  // breakpoint and 2.25rem at or above it, both declared in `theme.css` under the
+  // scope carrier. This spec runs on the phone project, so 20px is what the
+  // respondent this portal is designed for actually gets.
+  const phone = page.viewportSize();
+  if (phone === null) throw new Error("the spacing spec needs a fixed viewport to resize from");
+  expect(phone.width).toBeLessThan(640);
+  expect(await px(card, "padding-top")).toBeCloseTo(20, 0);
+
+  // The breakpoint measured in the browser rather than read off the sheet, and the
+  // reason no Tailwind variant went back onto the component: the card still carries
+  // a single p-(--space-section-pad), so crossing 640px changes the token and
+  // nothing else changes the card.
+  await page.setViewportSize({ width: 800, height: phone.height });
   expect(await px(card, "padding-top")).toBeCloseTo(36, 0);
+  await page.setViewportSize(phone);
+  expect(await px(card, "padding-top")).toBeCloseTo(20, 0);
 
   // Now prove the TOKEN is what drives each of them, not a coincidence: move every
   // spacing token at the root and every measurement must follow. This is the

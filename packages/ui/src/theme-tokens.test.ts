@@ -171,6 +171,13 @@ interface Block {
   readonly corners: string | null;
   /** A density level class (`density-compact`), or `null` for the base blocks. */
   readonly density: string | null;
+  /**
+   * The `@media` condition the rule sits inside, or `null` at the top level of the
+   * sheet. Only one condition exists today - the `--space-section-pad` breakpoint
+   * (issue #188) - and `the spacing group` asserts that, so a second one cannot be
+   * added without also deciding what it means for the resolution below.
+   */
+  readonly media: string | null;
   readonly specificity: Specificity;
   readonly tokens: Readonly<Record<string, string>>;
 }
@@ -196,35 +203,56 @@ function modeOf(selector: string): Mode | null {
 }
 
 /**
+ * Collect the style rules in one nesting level, recursing into an at-rule body so a
+ * rule inside `@media` is captured with the condition that gates it rather than
+ * silently dropped. Dropping was the previous behaviour and it was the dangerous
+ * one: a media block whose declarations vanish from the parse cannot fail any guard
+ * in this file, so the sheet could grow a viewport that lowers a floor and stay
+ * green. Rules keep source order across levels, which is what the cascade needs.
+ *
+ * Scanned brace by brace rather than split on `}`: the sheet nests now, and a
+ * `selector {body}` regex over the whole file is the shape ESLint rejects for
+ * backtracking.
+ */
+function collectRules(css: string, media: string | null, out: Block[]): void {
+  let index = 0;
+  while (index < css.length) {
+    const brace = css.indexOf("{", index);
+    if (brace < 0) return;
+    const prelude = css.slice(index, brace).trim();
+    const end = endOfGroup(css, brace, "{", "}");
+    const body = css.slice(brace + 1, end - 1);
+    if (prelude.startsWith("@")) {
+      collectRules(body, prelude, out);
+    } else if (prelude.length > 0) {
+      const themeMatch = /\[data-theme="(?<theme>[^"]+)"\]/u.exec(prelude);
+      const cornersMatch = /\.(?<corners>radius-[\w-]+)/u.exec(prelude);
+      const densityMatch = /\.(?<density>density-[\w-]+)/u.exec(prelude);
+      out.push({
+        index: out.length,
+        selector: prelude,
+        theme: (themeMatch?.groups?.theme as Theme | undefined) ?? null,
+        mode: modeOf(prelude),
+        corners: cornersMatch?.groups?.corners ?? null,
+        density: densityMatch?.groups?.density ?? null,
+        media,
+        specificity: specificityOf(prelude),
+        tokens: parseDeclarations(body),
+      });
+    }
+    index = end;
+  }
+}
+
+/**
  * Parse a sheet into cascade-ordered blocks. Comments are stripped first, and
  * EVERY rule is captured rather than only those whose selector starts with the
  * anchor - so a block that quietly loses the scope carrier is picked up here and
  * fails `the scope carrier` guard below instead of vanishing from the resolution.
  */
 function parseBlocks(css: string): readonly Block[] {
-  const withoutComments = css.replaceAll(/\/\*[\s\S]*?\*\//gu, "");
   const blocks: Block[] = [];
-  // Split rather than match: these sheets nest no braces, and a `selector {body}`
-  // regex over the whole file is the shape ESLint rejects for backtracking.
-  for (const chunk of withoutComments.split("}")) {
-    const brace = chunk.indexOf("{");
-    if (brace < 0) continue;
-    const selector = chunk.slice(0, brace).trim();
-    if (selector.length === 0) continue;
-    const themeMatch = /\[data-theme="(?<theme>[^"]+)"\]/u.exec(selector);
-    const cornersMatch = /\.(?<corners>radius-[\w-]+)/u.exec(selector);
-    const densityMatch = /\.(?<density>density-[\w-]+)/u.exec(selector);
-    blocks.push({
-      index: blocks.length,
-      selector,
-      theme: (themeMatch?.groups?.theme as Theme | undefined) ?? null,
-      mode: modeOf(selector),
-      corners: cornersMatch?.groups?.corners ?? null,
-      density: densityMatch?.groups?.density ?? null,
-      specificity: specificityOf(selector),
-      tokens: parseDeclarations(chunk.slice(brace + 1)),
-    });
-  }
+  collectRules(css.replaceAll(/\/\*[\s\S]*?\*\//gu, ""), null, blocks);
   return blocks;
 }
 
@@ -241,6 +269,10 @@ const BLOCKS = parseBlocks(THEME_CSS);
  * those two groups is asserted separately against its own blocks below. Leaving
  * either one in would silently apply the LAST preset in source order to every
  * contrast and floor assertion in the file.
+ *
+ * A rule inside `@media` is excluded for the same reason and resolved separately by
+ * `the spacing group`: this is the narrow baseline, and a viewport override applied
+ * unconditionally here would be an override no viewport actually has.
  */
 function resolveFrom(
   blocks: readonly Block[],
@@ -252,6 +284,7 @@ function resolveFrom(
       (block) =>
         block.corners === null &&
         block.density === null &&
+        block.media === null &&
         (block.theme === null || block.theme === theme) &&
         (block.mode === null || block.mode === mode),
     )
@@ -357,10 +390,16 @@ describe("the scope carrier and the specificity model it is measured with", () =
   /**
    * The same blocks re-emitted with the shared `.hc` layer BEFORE the light/dark
    * blocks: a sheet that is valid CSS, declares identical values, and is wrong.
+   *
+   * Re-emitted from the top-level rules only. What this proves is a claim about the
+   * colour layer's source order, and the media block carries no colour; flattening
+   * it to the top level would make the re-emitted sheet say something the real one
+   * does not, for no gain in the property under test.
    */
   function misordered(): readonly Block[] {
-    const hc = BLOCKS.filter((block) => block.mode === "hc" && block.theme === null);
-    const rest = BLOCKS.filter((block) => !(block.mode === "hc" && block.theme === null));
+    const sheet = BLOCKS.filter((block) => block.media === null);
+    const hc = sheet.filter((block) => block.mode === "hc" && block.theme === null);
+    const rest = sheet.filter((block) => !(block.mode === "hc" && block.theme === null));
     return parseBlocks(
       [...hc, ...rest]
         .map(
@@ -518,7 +557,7 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   });
 });
 
-describe("spacing group: the three density levels", () => {
+describe("spacing group: the three density levels x the two viewports", () => {
   const base = resolve("slate", "light");
   const SPACING_TOKENS = [
     "--space-control-h",
@@ -530,12 +569,30 @@ describe("spacing group: the three density levels", () => {
   /** Compact and Spacious are classes; Comfortable is the base block. */
   const DENSITY_CLASSES = ["density-compact", "density-spacious"] as const;
 
-  /** The five spacing values in force at one density level (task 053). */
-  function atDensity(density: string | null): Readonly<Record<string, string>> {
-    if (density === null) return base;
-    const block = BLOCKS.find((candidate) => candidate.density === density);
-    expect(block, `no ${density} block in theme.css`).toBeDefined();
-    return { ...base, ...block!.tokens };
+  /**
+   * The one breakpoint the sheet has (issue #188): Tailwind's `sm`, so the token
+   * turns over at the same width the step card's old `sm:p-8` turned over at.
+   */
+  const BREAKPOINT = "@media (min-width: 40rem)";
+  /** Below the breakpoint no media rule applies; at or above it, that one does. */
+  const VIEWPORTS = ["narrow", "wide"] as const;
+  type Viewport = (typeof VIEWPORTS)[number];
+
+  /**
+   * The five spacing values in force at one density level and one viewport (task
+   * 053, then issue #188). Resolved from the blocks rather than read off one of
+   * them, because two now contribute at the wide end and the later one wins.
+   */
+  function at(density: string | null, viewport: Viewport): Readonly<Record<string, string>> {
+    const applicable = BLOCKS.filter(
+      (block) =>
+        block.theme === null &&
+        block.mode === null &&
+        block.corners === null &&
+        (block.density === null || block.density === density) &&
+        (block.media === null || viewport === "wide"),
+    ).sort((a, b) => compareSpecificity(a.specificity, b.specificity) || a.index - b.index);
+    return Object.assign({}, ...applicable.map((block) => block.tokens)) as Record<string, string>;
   }
 
   it("declares all five spacing tokens", () => {
@@ -546,7 +603,9 @@ describe("spacing group: the three density levels", () => {
 
   it("Compact and Spacious each override all five tokens", () => {
     for (const density of DENSITY_CLASSES) {
-      const block = BLOCKS.find((candidate) => candidate.density === density);
+      const block = BLOCKS.find(
+        (candidate) => candidate.density === density && candidate.media === null,
+      );
       expect(block, `no ${density} block in theme.css`).toBeDefined();
       for (const token of SPACING_TOKENS) {
         expect(block?.tokens[token], `the ${density} block does not set ${token}`).toBeDefined();
@@ -570,24 +629,83 @@ describe("spacing group: the three density levels", () => {
     }
   });
 
-  it("the control height clears the WCAG 2.5.8 target-size floor at EVERY density", () => {
-    for (const density of [null, ...DENSITY_CLASSES]) {
-      const height = Number.parseFloat(atDensity(density)["--space-control-h"]);
-      expect(height, `--space-control-h at ${density ?? "comfortable"}`).toBeGreaterThanOrEqual(24);
+  // The same boundary for the viewport axis, and the reason the WCAG floors this
+  // file certifies survive issue #188. Every floor assertion above resolves the
+  // sheet at the narrow end; a media query that could set a --type-* or --color-*
+  // token could therefore move a floor or a contrast pair at a width nothing here
+  // measures. Restricting the media block to the spacing group is what makes
+  // "checked once" honest, and it is why only ONE condition is permitted: a second
+  // one would need its own decision about which end of it the floors are read at.
+  it("the sheet has exactly one media query, and it sets ONLY spacing tokens", () => {
+    const conditions = new Set(
+      BLOCKS.map((block) => block.media).filter((media) => media !== null),
+    );
+    expect([...conditions]).toStrictEqual([BREAKPOINT]);
+    for (const block of BLOCKS.filter((candidate) => candidate.media !== null)) {
+      for (const token of Object.keys(block.tokens)) {
+        expect(
+          SPACING_TOKENS.includes(token as (typeof SPACING_TOKENS)[number]),
+          `${BREAKPOINT} sets ${token}, which is not one of the five spacing tokens`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("the control height clears the WCAG 2.5.8 target-size floor at EVERY density x viewport", () => {
+    for (const viewport of VIEWPORTS) {
+      for (const density of [null, ...DENSITY_CLASSES]) {
+        const height = Number.parseFloat(at(density, viewport)["--space-control-h"]);
+        expect(
+          height,
+          `--space-control-h at ${density ?? "comfortable"} / ${viewport}`,
+        ).toBeGreaterThanOrEqual(24);
+      }
     }
   });
 
   // Density is a monotonic scale, not three unrelated presets: Compact is smaller
   // than Comfortable is smaller than Spacious on every token. This is what makes
   // the control a meaningful choice rather than three arbitrary looks, and it
-  // catches a value edited in the wrong block.
-  it("the three levels are ordered Compact < Comfortable < Spacious on every token", () => {
-    const levels = [atDensity("density-compact"), base, atDensity("density-spacious")];
-    for (const token of SPACING_TOKENS) {
-      const values = levels.map((level) => Number.parseFloat(level[token]));
-      expect(values[0], `${token}: compact < comfortable`).toBeLessThan(values[1]);
-      expect(values[1], `${token}: comfortable < spacious`).toBeLessThan(values[2]);
+  // catches a value edited in the wrong block. Checked at BOTH ends of the
+  // breakpoint, which is the property issue #188's decision turns on: a narrow
+  // override that flattened two levels together would leave a respondent on a
+  // phone choosing between two looks that render the same.
+  it("the three levels are ordered Compact < Comfortable < Spacious at both viewports", () => {
+    for (const viewport of VIEWPORTS) {
+      const levels = [
+        at("density-compact", viewport),
+        at(null, viewport),
+        at("density-spacious", viewport),
+      ];
+      for (const token of SPACING_TOKENS) {
+        const values = levels.map((level) => Number.parseFloat(level[token]));
+        expect(values[0], `${token} at ${viewport}: compact < comfortable`).toBeLessThan(values[1]);
+        expect(values[1], `${token} at ${viewport}: comfortable < spacious`).toBeLessThan(
+          values[2],
+        );
+      }
     }
+  });
+
+  // Issue #188 itself: the step card's padding is smaller on a phone than at the
+  // breakpoint, at every density, and --space-section-pad is the only token that
+  // moves. The narrow Comfortable value is the p-5 the card carried before task
+  // 051, so this is a restoration rather than a new number.
+  it("only --space-section-pad moves with the viewport, and only downward on a phone", () => {
+    for (const density of [null, ...DENSITY_CLASSES]) {
+      const narrow = at(density, "narrow");
+      const wide = at(density, "wide");
+      for (const token of SPACING_TOKENS) {
+        if (token === "--space-section-pad") continue;
+        expect(narrow[token], `${token} at ${density ?? "comfortable"}`).toBe(wide[token]);
+      }
+      expect(
+        Number.parseFloat(narrow["--space-section-pad"]),
+        `--space-section-pad at ${density ?? "comfortable"}`,
+      ).toBeLessThan(Number.parseFloat(wide["--space-section-pad"]));
+    }
+    expect(at(null, "narrow")["--space-section-pad"]).toBe("1.25rem");
+    expect(at(null, "wide")["--space-section-pad"]).toBe("2.25rem");
   });
 });
 
