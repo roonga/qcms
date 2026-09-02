@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { cancelledReasonText, DeliveryStatusTag } from "@/components/ops/ops-tags";
+import { OperatorDateTime, useOperatorDateTimeFormat } from "@/components/operator-time";
 import type { ReadState } from "@/lib/read-state";
 import type { DeliveryItem } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
@@ -212,10 +213,19 @@ function deliveryDigest(row: DeliveryItem): string {
   });
 }
 
-function responseBodyText(row: DeliveryItem): string {
+/**
+ * The redaction instant lands inside a catalog sentence rather than in an element of its
+ * own, so this takes the formatter its caller is holding (issue #279) instead of reaching
+ * for one: the caller is the component, and the hydration gate lives in a hook.
+ * `formatDateTime` is the default so the §3.7 test can still call this with a row alone.
+ */
+function responseBodyText(
+  row: DeliveryItem,
+  formatWhen: (iso: string | null | undefined, fallback?: string) => string = formatDateTime,
+): string {
   if (row.responseSnippetRedactedAt !== null) {
     return t("ops.deliveries.redactedBody", {
-      when: formatDateTime(row.responseSnippetRedactedAt, t("ops.common.none")),
+      when: formatWhen(row.responseSnippetRedactedAt, t("ops.common.none")),
     });
   }
   if (row.responseSnippet === null || row.responseSnippet === "") {
@@ -244,6 +254,7 @@ export function DeliveryRows({
   readonly panelId: string;
   readonly onToggle: () => void;
 }) {
+  const formatWhen = useOperatorDateTimeFormat();
   return (
     <>
       <tr data-delivery-id={row.deliveryId} data-status={row.status}>
@@ -261,7 +272,7 @@ export function DeliveryRows({
         </td>
         <td className="qcms-cell--num qcms-cell--drop">{latencyText(row.latencyMs)}</td>
         <td className="qcms-cell--num">
-          {formatDateTime(row.lastAttemptAt, t("ops.common.none"))}
+          <OperatorDateTime iso={row.lastAttemptAt} fallback={t("ops.common.none")} />
         </td>
         <td>
           <button
@@ -317,7 +328,7 @@ export function DeliveryRows({
               {row.cancelledAt !== null && (
                 <p className="text-sm text-(--color-text)" data-testid="qcms-delivery-cancelled">
                   {cancelledReasonText(row.cancelledReason)} {t("ops.deliveries.cancelledAt")}:{" "}
-                  {formatDateTime(row.cancelledAt, t("ops.common.none"))}
+                  <OperatorDateTime iso={row.cancelledAt} fallback={t("ops.common.none")} />
                 </p>
               )}
               {/* The trigger's three facts, in full, at every width (issue 519). This is
@@ -390,7 +401,7 @@ export function DeliveryRows({
                         aria-label={t("ops.deliveries.responseBody")}
                         data-testid="qcms-delivery-response-body"
                       >
-                        {responseBodyText(row)}
+                        {responseBodyText(row, formatWhen)}
                       </pre>
                     </>
                   )}

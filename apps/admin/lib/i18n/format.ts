@@ -26,6 +26,25 @@
  *
  * A second locale swaps `ADMIN_LOCALE` alongside the catalog module and every date follows;
  * nothing here needs to change.
+ *
+ * ## Operator-local display (issue #279)
+ *
+ * The Code Owner accepted UTC deliberately on 2026-08-02 and queued the local-display
+ * follow-up, which is what {@link formatOperatorDateTime} is. It resolves both inputs from
+ * the runtime, which is precisely what the determinism argument above forbids doing during
+ * a server render - so it is **never called during one**. `components/operator-time.tsx`
+ * owns that rule: the server render and the first client render both go through
+ * {@link formatDateTime}, and the swap to this formatter happens in an effect afterwards.
+ * Calling it anywhere else reintroduces the mismatch this module exists to avoid.
+ *
+ * What did *not* change: storage, the values on the wire, `endOfDay`'s UTC widening, and
+ * the mint dialog's expiry promise (`forms.links.expiresAtHint`), which is a statement made
+ * to a respondent in some other zone rather than a convenience for the operator reading it.
+ *
+ * {@link formatDay} also stays UTC. It renders a calendar day for a column where the time
+ * of day carries no meaning, and moving a bare day across a zone boundary changes which day
+ * is named without giving the reader anything to check it against - there is no clock in
+ * the output to name the zone on. Issue #279 asks for the timestamps.
  */
 
 /**
@@ -79,6 +98,61 @@ export function formatDay(iso: string | null | undefined, fallback = ""): string
 export function formatDateTime(iso: string | null | undefined, fallback = ""): string {
   const parsed = instant(iso);
   return parsed === undefined ? fallback : DAY_AND_TIME.format(parsed);
+}
+
+/**
+ * Whether a value is an instant this module can render at all.
+ *
+ * Exported so a caller can decide whether it has something machine-readable to put in a
+ * `<time dateTime>` attribute, which is a different question from what the text says.
+ */
+export function isInstant(iso: string | null | undefined): iso is string {
+  return instant(iso) !== undefined;
+}
+
+/**
+ * The same day and time as {@link formatDateTime}, in the **operator's** locale and zone.
+ *
+ * The zone is still named (`timeZoneName: "short"`), for the reason it always was: a time
+ * without a clock attached is a time the reader has to guess at, and that stays true when
+ * the clock is their own. An operator in Sydney now reads a link's expiry as the local
+ * instant it actually dies at, rather than as a UTC time roughly ten hours behind the day
+ * they picked.
+ *
+ * **This must not run during a server render.** See the module note above and
+ * `components/operator-time.tsx`, which is the only thing that should call it.
+ *
+ * Both inputs are re-resolved on every call rather than captured once at module load. The
+ * cache below keys on what the runtime resolved, so a changed ambient zone produces a new
+ * formatter instead of a stale one - which is what makes the behaviour testable without a
+ * browser, and costs one `resolvedOptions()` call per timestamp.
+ */
+export function formatOperatorDateTime(iso: string | null | undefined, fallback = ""): string {
+  const parsed = instant(iso);
+  return parsed === undefined ? fallback : operatorDayAndTime().format(parsed);
+}
+
+let cachedOperatorFormat: Intl.DateTimeFormat | undefined;
+let cachedOperatorKey: string | undefined;
+
+function operatorDayAndTime(): Intl.DateTimeFormat {
+  // No locale argument: the runtime resolves the operator's own, and `ADMIN_LOCALE` is
+  // the fallback a runtime that resolves nothing usable lands on.
+  const resolved = new Intl.DateTimeFormat(undefined, { timeZone: undefined }).resolvedOptions();
+  const key = `${resolved.locale}|${resolved.timeZone}`;
+  if (cachedOperatorKey !== key || cachedOperatorFormat === undefined) {
+    cachedOperatorKey = key;
+    cachedOperatorFormat = new Intl.DateTimeFormat([resolved.locale, ADMIN_LOCALE], {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: resolved.timeZone,
+      timeZoneName: "short",
+    });
+  }
+  return cachedOperatorFormat;
 }
 
 /**

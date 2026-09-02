@@ -11,7 +11,7 @@ import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/li
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
 
@@ -564,13 +564,13 @@ function LinksTable({
               </td>
               <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
               <td className="qcms-cell--num">
-                {formatDateTime(link.expiresAt, t("forms.links.none"))}
+                <OperatorDateTime iso={link.expiresAt} fallback={t("forms.links.none")} />
               </td>
               <td className="qcms-cell--num">
-                {formatDateTime(link.consumedAt, t("forms.links.none"))}
+                <OperatorDateTime iso={link.consumedAt} fallback={t("forms.links.none")} />
               </td>
               <td className="qcms-cell--num qcms-cell--drop">
-                {formatDateTime(link.createdAt, t("forms.links.none"))}
+                <OperatorDateTime iso={link.createdAt} fallback={t("forms.links.none")} />
               </td>
               <td>
                 {isRevocable(link.state) && (

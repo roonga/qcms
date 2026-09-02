@@ -61,6 +61,23 @@ function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
 }
 
+/**
+ * Pin the browser's clock and locale (issue #279).
+ *
+ * The saved-at sentence renders in the **operator's** zone and locale once hydration has
+ * finished, and `playwright.config.ts` sets neither, so without this the spec would read
+ * whatever the host running the browser is set to: green on a UTC CI runner and red on a
+ * contributor's machine in Sydney, for a reason having nothing to do with the save model.
+ * A zone-dependent assertion is worse than either outcome because it reads as a flake.
+ *
+ * `Asia/Kolkata` because it is never UTC and never shifts for daylight saving, so the
+ * label it produces is the same string every day of the year. That is also what lets the
+ * assertion below prove the display is the *operator's* clock rather than merely
+ * *a* clock: on this context, "UTC" appearing in the sentence would mean the swap never
+ * happened.
+ */
+test.use({ timezoneId: "Asia/Kolkata", locale: "en-US" });
+
 /** Set by the first test, which enrolls the account the second signs in with. */
 let totpSecret = "";
 
@@ -122,7 +139,15 @@ test("the builder states one save model, in ambient chrome outside the validatio
   // 4. The timestamp is governed: date, HH:MM and the zone, no seconds
   //    (`plan/admin-design-contracts.md` §2, amended 2026-08-20).
   const sentence = (await strip.getByTestId("qcms-save-state").textContent()) ?? "";
-  expect(sentence, "the saved-at time names its zone").toMatch(/UTC/u);
+  // The SHAPE, not a literal zone: a label is present and it is not a bare number, so the
+  // reader never has to guess which clock they are on. Both spellings a short zone name
+  // takes are accepted ("GMT+5:30" and an abbreviation like "IST"), because which one the
+  // runtime picks is an ICU detail rather than a promise this screen makes.
+  expect(sentence.trim(), "the saved-at time names its zone").toMatch(/(?:GMT[^\s]*|[A-Z]{2,5})$/u);
+  // And it is the OPERATOR's zone (issue #279). The context above is pinned to a zone that
+  // is never UTC, so a sentence still saying UTC would mean the post-hydration swap never
+  // happened - which is the one way this could regress without anything else going red.
+  expect(sentence, "the saved-at time is on the operator's clock").not.toMatch(/\bUTC\b/u);
   expect(sentence, "no seconds: HH:MM only").not.toMatch(/\d{1,2}:\d{2}:\d{2}/u);
 
   // 5. The panel keeps the issue list and stays the only thing that counts issues.

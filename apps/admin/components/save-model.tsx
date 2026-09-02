@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { useOperatorDateTimeFormat } from "@/components/operator-time";
 import { t, type MessageKey } from "@/lib/i18n/en";
 import { formatDateTime } from "@/lib/i18n/format";
 
@@ -43,9 +44,10 @@ import { formatDateTime } from "@/lib/i18n/format";
  * - **The settled sentence is the live region**, and because it carries no seconds, every
  *   save inside the same minute renders the *identical* string - and an `aria-live` region
  *   announces on change, so identical text is silent. Sustained typing therefore produces
- *   roughly one announcement per minute ("Saved 20 Aug 2026, 02:14 PM UTC"), not one per
- *   debounce settle. A failure is the exception and announces immediately, because that is
- *   the one save state an author has to act on.
+ *   roughly one announcement per minute ("Saved 20 Aug 2026, 02:14 PM GMT+10", in whatever
+ *   zone the operator is in since issue #279), not one per debounce settle. A failure is
+ *   the exception and announces immediately, because that is the one save state an author
+ *   has to act on.
  *
  * The seconds the old indicator carried were load-bearing for one caller - the e2e helper
  * that waits for a *different* sentence to prove a second save landed. That is what
@@ -74,6 +76,7 @@ export function AmbientSaveStatus({
 }) {
   const [modelOpen, setModelOpen] = useState(false);
   const modelId = useId();
+  const formatSavedAt = useOperatorDateTimeFormat();
   return (
     <div className="relative flex flex-col items-end">
       <p
@@ -91,7 +94,7 @@ export function AmbientSaveStatus({
           The strip is anchored to the END of its row, so the control beside it does not
           move as the text grows and shrinks to its left. */}
         <span aria-live="polite" data-testid="qcms-save-state">
-          {isSaving ? t("forms.save.saving") : settledSaveState(hasFailed, savedAt)}
+          {isSaving ? t("forms.save.saving") : settledSaveState(hasFailed, savedAt, formatSavedAt)}
         </span>
         {/* The model sentence, behind a "?" (Code Owner, 2026-08-26). Design-language
           element 7 and `plan/admin-design-contracts.md` §6 ask each screen to STATE how it
@@ -146,9 +149,17 @@ export function AmbientSaveStatus({
 }
 
 /** Where the autosave has got to, once it has got somewhere. */
-function settledSaveState(hasFailed: boolean, savedAt: string | undefined): string {
+function settledSaveState(
+  hasFailed: boolean,
+  savedAt: string | undefined,
+  // The instant goes inside a catalog sentence, so the operator-local formatter arrives as
+  // an argument from the component holding the hydration gate rather than being reached for
+  // here (issue #279). `formatDateTime` is the default, which is also what the gate hands
+  // back before hydration finishes.
+  formatSavedAt: (iso: string | null | undefined, fallback?: string) => string = formatDateTime,
+): string {
   if (hasFailed) return t("forms.save.failed");
-  if (savedAt !== undefined) return t("forms.save.saved", { time: formatDateTime(savedAt) });
+  if (savedAt !== undefined) return t("forms.save.saved", { time: formatSavedAt(savedAt) });
   return t("forms.save.idle");
 }
 

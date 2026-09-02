@@ -7,7 +7,7 @@ import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { ReadState } from "@/lib/read-state";
 import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 
 /** What a webhook mutation hands back to this screen. */
@@ -275,7 +275,7 @@ export function WebhookConfig({
                       {t("ops.webhooks.secretStored")}
                     </td>
                     <td className="qcms-cell--num qcms-cell--drop">
-                      {formatDateTime(hook.createdAt, t("ops.common.none"))}
+                      <OperatorDateTime iso={hook.createdAt} fallback={t("ops.common.none")} />
                     </td>
                     <td>
                       <div className="flex flex-wrap gap-1">
