@@ -50,7 +50,7 @@
     "@a2ra/core": "1.0.0-preview.7",
     "@internationalized/date": "^3.12.3",
     "react-aria-components": "^1.20.0",
-    "zod": "^4.4.3"
+    "zod": "^4.5.4"
   },
   "peerDependencies": {
     "react": "^19.0.0",
