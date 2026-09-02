@@ -601,10 +601,14 @@ async function throwPausedAutosave(page: Page, cause: unknown): Promise<never> {
   const reason =
     (await notice.count()) > 0 ? await notice.getAttribute("data-paused-reason") : null;
   if (reason === null || reason === "") throw cause;
-  const hint = PAUSE_HINTS[reason] ?? "see `unsaveableReason` in `lib/forms/draft.ts`.";
+  // Repo-relative in the MESSAGE, unlike the app-relative paths this file's prose uses:
+  // the reader of this string is standing in a failing test report rather than in the app
+  // whose root the shorter form is implicitly against.
+  const hint = PAUSE_HINTS[reason] ?? "see `unsaveableReason` in `apps/admin/lib/forms/draft.ts`.";
   throw new Error(
     `the draft never saved because AUTOSAVE IS PAUSED (unsaveableReason: ${reason}): ${hint}\n` +
-      "See the note on the smallest persistable form at the top of `e2e/support/forms.ts`.",
+      "See the note on the smallest persistable form at the top of " +
+      "`apps/admin/e2e/support/forms.ts`.",
     { cause },
   );
 }
