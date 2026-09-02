@@ -97,7 +97,7 @@ services:
   # psql fails with "Is a directory". An overlay whose whole audience sits in that
   # container has to carry its own script.
   dev-tools-role:
-    image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
+    image: ${QCMS_POSTGRES_IMAGE:-postgres:18-alpine}
     environment:
       PGHOST: postgres
       PGDATABASE: ${QCMS_DB_NAME:-qcms}

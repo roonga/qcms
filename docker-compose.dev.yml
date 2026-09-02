@@ -19,7 +19,7 @@ name: qcms-dev
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     ports:
       - "${QCMS_DB_PORT:-7020}:5432"
     environment:
