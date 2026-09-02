@@ -111,7 +111,7 @@ export function isInstant(iso: string | null | undefined): iso is string {
 }
 
 /**
- * The same day and time as {@link formatDateTime}, in the **operator's** locale and zone.
+ * The same day and time as {@link formatDateTime}, on the **operator's own clock**.
  *
  * The zone is still named (`timeZoneName: "short"`), for the reason it always was: a time
  * without a clock attached is a time the reader has to guess at, and that stays true when
@@ -119,11 +119,29 @@ export function isInstant(iso: string | null | undefined): iso is string {
  * instant it actually dies at, rather than as a UTC time roughly ten hours behind the day
  * they picked.
  *
+ * ## The ZONE comes from the runtime. The LOCALE deliberately does not.
+ *
+ * Only `timeZone` is resolved from the environment; the locale stays {@link ADMIN_LOCALE},
+ * exactly as it is for {@link formatDay}, {@link formatDateTime} and {@link formatList}.
+ *
+ * That is the narrower reading of issue #279, on purpose. The cost that issue documents is
+ * entirely a ZONE cost - an operator in Sydney picking "today" gets an expiry ten hours
+ * into their next local day, one in US-West gets mid-afternoon - and nothing in it argues
+ * about date shape. Taking the locale as well would put a German operator's `2. Aug. 2026`
+ * inside an English sentence, and it would break the property ADR-27 states in this
+ * module's own header: that a second locale is a configuration change swapping
+ * `ADMIN_LOCALE` alongside the catalog, with every date following. R7 defers a second
+ * locale to Phase 4, so the catalog is English and the dates beside it stay English.
+ *
+ * Widening this to the runtime locale is a one-line change if the Code Owner decides date
+ * shape should follow the reader rather than the catalog. That is a decision rather than a
+ * detail, which is why it is not taken here.
+ *
  * **This must not run during a server render.** See the module note above and
  * `components/operator-time.tsx`, which is the only thing that should call it.
  *
- * Both inputs are re-resolved on every call rather than captured once at module load. The
- * cache below keys on what the runtime resolved, so a changed ambient zone produces a new
+ * The zone is re-resolved on every call rather than captured once at module load. The cache
+ * below keys on what the runtime resolved, so a changed ambient zone produces a new
  * formatter instead of a stale one - which is what makes the behaviour testable without a
  * browser, and costs one `resolvedOptions()` call per timestamp.
  */
@@ -133,22 +151,23 @@ export function formatOperatorDateTime(iso: string | null | undefined, fallback 
 }
 
 let cachedOperatorFormat: Intl.DateTimeFormat | undefined;
-let cachedOperatorKey: string | undefined;
+let cachedOperatorZone: string | undefined;
 
 function operatorDayAndTime(): Intl.DateTimeFormat {
-  // No locale argument: the runtime resolves the operator's own, and `ADMIN_LOCALE` is
-  // the fallback a runtime that resolves nothing usable lands on.
-  const resolved = new Intl.DateTimeFormat(undefined, { timeZone: undefined }).resolvedOptions();
-  const key = `${resolved.locale}|${resolved.timeZone}`;
-  if (cachedOperatorKey !== key || cachedOperatorFormat === undefined) {
-    cachedOperatorKey = key;
-    cachedOperatorFormat = new Intl.DateTimeFormat([resolved.locale, ADMIN_LOCALE], {
+  // `timeZone: undefined` asks the runtime for its own zone rather than naming one. It is
+  // the single input this formatter takes from the environment.
+  const { timeZone } = new Intl.DateTimeFormat(ADMIN_LOCALE, {
+    timeZone: undefined,
+  }).resolvedOptions();
+  if (cachedOperatorZone !== timeZone || cachedOperatorFormat === undefined) {
+    cachedOperatorZone = timeZone;
+    cachedOperatorFormat = new Intl.DateTimeFormat(ADMIN_LOCALE, {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: resolved.timeZone,
+      timeZone,
       timeZoneName: "short",
     });
   }

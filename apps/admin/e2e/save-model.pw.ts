@@ -62,19 +62,25 @@ function questionIdFor(slug: string): string {
 }
 
 /**
- * Pin the browser's clock and locale (issue #279).
+ * Pin the browser's clock (issue #279).
  *
- * The saved-at sentence renders in the **operator's** zone and locale once hydration has
- * finished, and `playwright.config.ts` sets neither, so without this the spec would read
+ * The saved-at sentence renders on the **operator's** clock once hydration has finished,
+ * and `playwright.config.ts` sets no `timezoneId`, so without this the spec would read
  * whatever the host running the browser is set to: green on a UTC CI runner and red on a
  * contributor's machine in Sydney, for a reason having nothing to do with the save model.
  * A zone-dependent assertion is worse than either outcome because it reads as a flake.
  *
  * `Asia/Kolkata` because it is never UTC and never shifts for daylight saving, so the
  * label it produces is the same string every day of the year. That is also what lets the
- * assertion below prove the display is the *operator's* clock rather than merely
- * *a* clock: on this context, "UTC" appearing in the sentence would mean the swap never
+ * assertion below prove the display is the *operator's* clock rather than merely *a*
+ * clock: on this context, "UTC" appearing in the sentence would mean the swap never
  * happened.
+ *
+ * The `locale` is pinned too, but only as a belt: the date SHAPE does not follow the
+ * browser. `formatOperatorDateTime` takes the zone from the runtime and keeps
+ * `ADMIN_LOCALE`, so an operator elsewhere reads their own clock inside English prose
+ * (ADR-27, R7). Pinning it here means a runner with a different default cannot make this
+ * spec's reasoning look conditional on something it does not actually depend on.
  */
 test.use({ timezoneId: "Asia/Kolkata", locale: "en-US" });
 

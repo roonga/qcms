@@ -107,9 +107,26 @@ describe("operator-local date formatting", () => {
     expect(local).not.toContain(INSTANT);
   });
 
+  it("takes the zone from the runtime and the locale from the catalog, not both", () => {
+    // The deliberate half of #279: the ZONE follows the operator, the LOCALE does not.
+    // ADR-27 makes a second locale a configuration change that swaps `ADMIN_LOCALE`
+    // alongside the catalog, and R7 defers that to Phase 4, so an operator elsewhere reads
+    // their own clock inside English prose rather than a German date in an English
+    // sentence.
+    //
+    // Pinned on the month name and the field order, which is the part of the output the
+    // locale actually decides. It bites only where the ambient locale is not English -
+    // which is the case worth catching, and the one a developer on an English machine
+    // cannot see for themselves.
+    const local = inZone("Asia/Kolkata", () => formatOperatorDateTime(INSTANT));
+    expect(local).toMatch(/^Aug \d{1,2}, 2026, /u);
+  });
+
   it("agrees with the UTC formatter when the operator is on UTC", () => {
     // The swap after hydration is invisible for an operator already on UTC, which is what
-    // makes it a display change rather than a data change.
+    // makes it a display change rather than a data change. It is also a second reading on
+    // the locale pin: these two strings can only be equal if both formatters resolved the
+    // same locale, and one of them is `ADMIN_LOCALE` by construction.
     expect(inZone("UTC", () => formatOperatorDateTime(INSTANT))).toBe(formatDateTime(INSTANT));
   });
 
