@@ -105,6 +105,36 @@ Every internal-surface request carries the internal service token
 (`x-qcms-internal-token`, SEC-4) - tests attach `internalTokenFor(config)`.
 `/health` and `/ready` never require it.
 
+### Running one test file (issue #387)
+
+This app's `test` script is `vitest run --root ../.. --project qcms-api
+--project qcms-api-e2e`: one root `vitest.config.ts` owns every project, so a
+direct invocation has to carry the same `--root` and `--project`. Either form
+works, and the path is relative to the **process working directory**, not to
+`--root`:
+
+```sh
+# From apps/api.
+pnpm exec vitest run --root ../.. --project qcms-api src/rate-limit.test.ts
+
+# From the repo root.
+pnpm exec vitest run --project qcms-api apps/api/src/rate-limit.test.ts
+```
+
+Two ways this fails silently, both worth recognising because neither says what
+is wrong. `pnpm --filter qcms-api exec vitest run <path>` drops the `--root`, so
+Vitest walks up to the root config from the wrong side, searches only the
+projects that declare an explicit `root`, and exits `No test files found` - which
+reads as "nothing to run" rather than "your invocation is wrong". And
+`apps/api/src/rate-limit.test.ts` matches nothing when you run it from
+`apps/api`, because that path does not exist relative to where you are standing.
+
+A bare substring (`rate-limit`) works too, and is the loose form: it also matches
+`src/features/responses/rate-limits.test.ts`. In a fresh worktree, run
+`pnpm build` first, or the first workspace import fails with `Failed to resolve
+entry for package "@qcms/db"`; `pnpm test` never shows this because turbo's
+`test` task builds first.
+
 ### Compiled A2UI fixtures (issue #321)
 
 `e2e/support/fixtures/*.a2ui.json` are compiled A2UI documents. `seed.ts` stores

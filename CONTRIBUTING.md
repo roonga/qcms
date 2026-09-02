@@ -7,6 +7,19 @@
 
 The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…37 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
+**Record a ruling at the artifact it changes, not only in the amendment** (issue #631).
+Everyone works to the contracts as they stand on `origin/main`, and that rule is right: `main` is the one state every seat and every executor can independently check.
+Its failure mode is that a ruling can be correct, agreed, and **invisible at `main`** for as long as the amendment recording it sits in an open PR.
+A lane following the rules perfectly then implements the superseded version, and no amount of care prevents that, because the failure is not available to discipline.
+It has happened twice in one night: a brief was assembled against a §2 reading that a still-open PR had already inverted, and an issue was claimed two minutes before the ruling it was guaranteed to need existed. Both were caught by a human relaying into a live session, not by any rule or gate.
+So a decision is written down twice, and the second place is the cheap one.
+**A ruling is commented on the issue or PR whose work it changes, at the moment it is made**, in addition to landing in the ADR or contract amendment that makes it normative.
+The comment is not the authority and does not need to be: it is what makes the pending amendment visible to whoever picks that work up before the amendment merges.
+Two habits fall out of the same reasoning.
+**An issue body that cites a contract clause names the revision it was written against**, so a stale citation is visible rather than assumed current.
+And **when an amendment PR merges, say so on the work it unblocks**, because that is the moment the largest number of rulings are simultaneously true and newly visible, and the moment lanes are most likely to be mid-flight against briefs assembled beforehand.
+What is deliberately **not** proposed is relaxing "write to `main`" so that executors read open PRs: that would make an unmerged, unreviewed, possibly wrong draft normative. The rule is right; what was missing is a handoff at the moment the authority changes.
+
 ## Development environment
 
 **The dev container is the recommended path (ADR-29).** It is the canonical, tested environment: one preinstalled Ubuntu 24.04 box with Node 24, pnpm (from the `packageManager` pin), Docker access, the GitHub CLI, Playwright's Chromium, and a configured zsh. Running the host toolchain directly still works and is fully supported; the container just removes the "works on my machine" class of problem. **On Windows, the container is the supported path** (Docker Desktop or Codespaces) rather than a native-PowerShell checkout.
@@ -55,6 +68,19 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
 - Comments explain _why_, not _what_. JSDoc on exported package APIs. Every `TODO` references an issue number; free-floating TODOs fail review.
 - **No em dash (Unicode U+2014), anywhere** - prose, comments, commit messages, or UI strings. It reads as an AI-generated tell and QCMS is public. Use a colon, comma, parentheses, a period, or a hyphen with surrounding spaces instead. The en dash (`–`) is fine for numeric ranges (`R1–R8`); the hyphen (`-`) is always fine. Enforced by the `check:no-em-dash` gate in CI.
 
+- **Break normative prose across source lines** (issue #658).
+  Markdown renders a paragraph identically whether it is one long source line or several wrapped ones, so this costs nothing at read time and is a pure gain at review time.
+  Git diffs by line. A bullet of two hundred words on a single line answers a one-clause edit with one `+` line and one `-` line, and three things follow, none of them cosmetic.
+  A reviewer cannot see what actually changed without reading both versions side by side.
+  `git blame` attributes the whole bullet to whoever last touched any part of it, so per-clause provenance is lost at the first edit.
+  And a ruling applied to a diff lands on inherited text: a review correctly blocking an assertion cannot distinguish it from pre-existing claims the edit merely carried across a line boundary, which is the failure that produced this rule.
+  So write a new normative document (`docs/`, `docs/adr/`, `PROJECT_INSTRUCTIONS.md`, this file) with a line break at a clause or sentence boundary, and rewrap the lines you are already editing.
+  Two things this rule is not.
+  It is **not** a formatter's job: `.prettierrc` sets only `printWidth`, Prettier's `proseWrap` default is `preserve`, and Prettier therefore reflows no prose here.
+  And it is **not** a licence for a mass reflow, which is why nothing above asks for one.
+  Line breaks move every `file.md:NN` citation into a file, and this repository does cite documents that way: thirty-one such citations across ten target documents today, eighteen of them into `docs/SECURITY_DESIGN.md`.
+  Reflowing a heavily cited document is its own change with its own pass over every inbound citation, and it is decided rather than done in passing.
+
 ### Dependencies (mirrors `a2-react-aria`'s approval policy)
 
 - **Approval thresholds - before adding (or even suggesting) any package or tool, verify it meets one:**
@@ -77,6 +103,28 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 | `better-auth`                      | Young, VC-funded; auth-cloud pivot is the classic risk shape | Narrow scope used (email+password, TOTP, sessions); all data in our own Postgres; swap recipe `docs/auth-swap.md` (031) |
 | `drizzle-orm`                      | Young, VC-funded                                             | No magic used - migrations are plain SQL files, helpers are thin; exit to Kysely/raw SQL is bounded                     |
 | `ai` (Vercel AI SDK) + `@ai-sdk/*` | Vercel-owned - same steering/churn profile as Next/Turborepo | Vendor-agnostic LLM layer for 041 only; confined behind the `DraftAssistant` seam, so a swap touches one adapter file   |
+
+### The release-age hold (`minimumReleaseAge`), and what an exclusion means
+
+**pnpm 11 holds newly published versions back by default, and this repository has not changed that** (issue #455).
+`minimumReleaseAge` defaults to `1440` (minutes, so twenty-four hours) as of pnpm 11; before 11 it was `0`.
+It applies to every dependency, transitive ones included, so a version published in the last day is not installed at all.
+It is a supply-chain control in SEC-11 territory: the window is there so a compromised publish is usually found and yanked before it can reach a lockfile.
+The setting lives in `pnpm-workspace.yaml`, not `.npmrc`.
+
+**What the `pnpm add` output means.** When resolution needs a version younger than the hold, `minimumReleaseAgeStrict` decides what happens.
+It defaults to `true` only when `minimumReleaseAge` is explicitly configured; this repository leaves both unset, so it is **`false`** here and pnpm falls back to the too-new version rather than failing, recording the exception as an entry in a `minimumReleaseAgeExclude` list it writes into `pnpm-workspace.yaml`.
+That is the line reading `Added N entries to minimumReleaseAgeExclude`.
+It is silent in the sense that matters: nothing asks, and the entry is a committed change to a security control that arrives inside an ordinary dependency diff.
+
+**So treat an exclusion as a deliberate act.**
+Three things to check before committing one.
+Whether you needed the new version at all, because the cheapest correct answer is usually to wait for the hold to lapse and re-run `pnpm add` the next day.
+Whether the entry is version-pinned: the exclusion matches by **package name across every version** unless you write a version disjunction (`webpack@4.47.0 || 5.102.1`), and a bare name is a standing exemption that silently covers future releases of that package too.
+And whether it is still needed later, because nothing removes it for you: pruning entries the lockfile no longer resolves needs `minimumReleaseAgeExcludePrune`, which arrived in pnpm 11.22.0 and so is unavailable at the version this repository pins in `package.json`'s `packageManager`.
+An exclusion also carries a comment saying which change introduced it, for the same reason every row in the overrides table below does: an exception with no recorded reason becomes permanent by accident.
+
+**There is no `minimumReleaseAgeExclude` block in `pnpm-workspace.yaml` today**, so there is nothing to annotate inline; this section is what a reader meets instead. Whether to set `minimumReleaseAgeStrict: true`, so that a hold refuses instead of writing an exemption, is a Code Owner call and is not made here.
 
 ### Security overrides (`overrides` in `pnpm-workspace.yaml`)
 
@@ -202,6 +250,16 @@ There is a second cost beyond the lost half hour, and it is the reason this is a
 
 **The browser suite leaves build output behind, so a green is a property of the tree _and_ of what ran before it** (issue #629). `verify:browser`, `pnpm dev:admin` and `pnpm dev:portal` all boot a dev server, which writes `apps/<app>/.next-dev`; a production build writes `apps/<app>/.next`; both leave `next-env.d.ts` and a generated `AGENTS.md` and `CLAUDE.md` beside them. All of it is git-ignored, none of it is cleaned up, and a gate that reads the filesystem by walking directories reads it as source. That is how `apps/admin/app/(shell)/table-anchors.test.tsx` came to fail in every checkout that had run the browser suite and pass on CI, which has no prior dev build: two lanes on the same commit, both results repeatable, both honest, opposite. Two consequences. **Meeting an unexplained red, check what a previous gate left before you suspect your diff** - `git status --ignored apps/admin` and a run from a fresh worktree separate the two in a minute, and note that CI being green is not evidence here, because CI is green precisely for lacking the state that reveals it. **Writing a filesystem-scanning gate, enumerate with `git ls-files`, never a directory walk** (`--cached --others --exclude-standard` when files added but not yet staged should count). `.gitignore` is the repository's one maintained catalogue of what is generated rather than authored; a skip list inside a test is a second copy that only ever lags, and this one had `.next` in it while the dev server had been building into `.next-dev` since issue #54.
 
+**Diagnosing a horizontal overflow: the obvious technique is worse than useless here** (issue #640). The natural first move for "something is wider than the viewport" is to walk the DOM comparing each element's `getBoundingClientRect().right` against the viewport width.
+On a react-aria page that produces, at length, a confident list of wrong answers: the portalled hidden `<select>` react-aria renders for every picker, a hundred times over; every `display: none` compact-drop cell, which has no layout but still answers a rect query; and grid items merely stretched to a track that a sibling widened, which are consequences rather than causes. The real offender is buried among them.
+A technique that fails loudly needs no warning; this one fails plausibly, which is why it is written down.
+**What works instead:** set `element.style.width = "min-content"` and keep only the elements whose minimum is **not** inherited from a child. That separates "this element has an intrinsic minimum" from "this element is wide because something inside it is", which is the actual question, and it found the real chain in one pass on #616.
+
+**And test layout hypotheses in one browser boot, not one per run** (issue #640). The #616 overflow needed **three** changes to reach 320, not one, and only measurement could establish that.
+Testing them the obvious way is one hypothesis per browser boot at roughly five minutes each, which for a cause that is a chain rather than a single rule is the difference between a tractable investigation and an abandoned one.
+**What works:** a throwaway diagnostic spec that injects candidate stylesheet rules in-page and reports `document.documentElement.scrollWidth` after each, four hypotheses per cycle instead of one.
+The diagnostic spec is scaffolding for the investigation; what the #616 lane landed from it is `apps/admin/e2e/reflow.pw.ts`, the 1.4.10 gate, which shows the same `scrollWidth` measurement in its settled form.
+
 **When a rebase moves the lockfile, whether that forces a browser re-run is decidable, so decide it rather than guessing.** The rule (derived on PR #477, 2026-08-14): a rebase or merge that changes `pnpm-lock.yaml` forces `verify:browser` **if and only if** the resolution change reaches a package in either app's **build or runtime closure**. `postcss`, `tailwindcss`, `next`, `react` and `@a2ra/*` are inside it; a dev-only tooling dependency outside the apps' graphs is not. **`pnpm --filter qcms-portal why <pkg>` (or `--filter qcms-admin`) answers which side of the line a given bump is on**, so the question has an answer rather than a worry. Use the filtered form, not a bare `pnpm why` at the workspace root: the root answers a cross-workspace question and will happily show a package that reaches some other workspace member and neither app. Read the output for whether the app itself appears as a consumer, under `dependencies` or `devDependencies` either way, since a build-time dependency that shapes CSS is exactly the case this rule exists for.
 
 That distinction is worth stating because both errors are expensive in different ways. Re-running the suite for every lockfile move burns half an hour on changes that provably cannot affect a rendered page, which is how a gate gets routed around. Skipping it after a `postcss` or `tailwindcss` bump is the failure that unit tests structurally cannot catch, because a CSS pipeline change renders wrongly while every assertion below the browser still passes.
@@ -227,6 +285,36 @@ Run it locally before you push a change of that shape: `QCMS_PORT_SEAT=<0-9> pnp
 **`check:changeset` in one paragraph.** It fails when the diff against `origin/main` touches a publishable package with no changeset **added in the same diff** naming that package (an unreleased changeset already on `main` does not count). The publishable set is derived from each `package.json`'s `private` field plus `.changeset/config.json`'s `ignore`, so it never goes stale. Exempt: markdown anywhere (docs, package READMEs, CHANGELOGs), private packages (`apps/*`), and test files/directories inside a publishable package (`*.test.ts`, `*.e2e.ts`, `e2e/`, `__tests__/`, `test/`) - a test-only change alters nothing a consumer can call, and a changeset that is not required is still allowed. `packages/db/src/testing/` is **not** exempt: it is the published `@qcms/db/testing` subpath. A `changeset version` release diff (which deletes changesets) is passed through, so the release PR is never blocked by the gate it spends. It reads committed state, so commit before you trust its verdict.
 
 **What `turbo run test` hashes, and what a cache hit on CI means** (issue #422). Asked because CI's `verify` reported `7 cached, 14 total` on a dependency-bump PR, and a replayed test task on a PR whose entire content is a dependency change would be answering the wrong question. The answer, measured rather than assumed. **`turbo.json`'s `test` task declares no `inputs`**, so turbo hashes its default set: every non-ignored file in the package (88 of them for `@qcms/db`), `globalDependencies` (`eslint.config.js`, `.prettierrc*`, `tsconfig.base.json`), the hash of the task it depends on (`test` dependsOn `build`), and **the package's external dependency graph resolved from `pnpm-lock.yaml`**, which turbo reports per task as `hashOfExternalDependencies` in `turbo run test --dry=json`. The lockfile is not among the file inputs and does not need to be: changing `@qcms/db`'s resolved `drizzle-orm` version in `pnpm-lock.yaml` moved that task's `hashOfExternalDependencies` from `2e76cd923f964bed` to `6ebd88d4f4509c27`. So a bump invalidates the test cache of exactly the packages whose closure it touches, and leaves the rest alone, which is the behaviour you want. **The cached half of that run was the build half**: `turbo run test` includes the `build` tasks `test` depends on, and CI runs `pnpm build` as its own step first, so those replay from the cache the same job just wrote (the graph is 18 tasks today, 9 build and 9 test, and a local `pnpm verify` reports `10 cached, 18 total` for the same reason). No test task was replayed. **CI keeps no turbo cache between runs at all** - `.github/workflows/ci.yml` caches only the pnpm store (`actions/setup-node` with `cache: pnpm`) and configures no remote cache - so a hit there can only come from earlier in the same job. **The `FULL TURBO` trap is therefore local, not a CI concern:** a fresh worktree resolves the cache to the main checkout's `.turbo/cache`, so a green there can be an artifact of a tree you never ran. That is what `pnpm exec turbo run test --force`, and confirming `0 cached`, is for.
+
+**One forced run is not evidence a suite is stable** (issue #604). The guidance above closes one gap and opens the next.
+A `0 cached` green proves the tests executed once. It does not distinguish a test that passes from a test that passes about half the time.
+**When the diff adds or substantially rewrites a test file, repeat the forced run: three or five times, not once.**
+A single green on new test code proves less than the same green on existing test code, because existing code has been re-run by every prior CI job and the new file has been run by nothing.
+The #517 executor got a clean `0 cached` green on a file it had just added and would have shipped it on that basis; it found the flake only by running four more times for an unrelated reason, and a coin-flip test file lands green and then starts failing on strangers' PRs.
+The cheapest signal, though, is not a repeat count but a **margin check**: a test whose wall time is within a small multiple of its timeout is a flake waiting for a loaded runner, whatever it did on this machine today.
+That is the shape both known instances had, in two packages, found independently: a per-test budget sized for steady-state work applied to a run that also pays a one-off cold module-graph cost, about 5s of budget against about 15ms of actual work, sitting exactly on Vitest's 5s default (issue #603, since closed).
+A reviewer is well placed to ask the question the author cannot ask themselves: was this new test run more than once?
+
+**The cheap-iteration paths skip the build the gate does, and a fresh worktree is where every lane starts** (issue #387). `turbo.json` declares `dependsOn: ["^build"]` on both `lint` and `test`, and `pnpm verify` runs `pnpm build` first, so inside the gate the workspace `dist/` directories always exist.
+Invoke ESLint or Vitest directly and nothing builds them, and the failure does not look like a missing build.
+`pnpm --filter <pkg> lint` in an unbuilt worktree reports thousands of `no-unsafe-*` and "type that could not be resolved" errors on files you never opened, because the typed rules read the same declaration files `tsc` does (measured on this branch: 3,420 errors from `pnpm --filter qcms-api lint`).
+Running one test file the same way fails with `Failed to resolve entry for package "@qcms/db"` at the first workspace import.
+Both read exactly like the branch's own breakage.
+**The remedy is `pnpm build` once per fresh worktree**, or the scoped equivalent, which for lint is now the documented one: `pnpm exec turbo run lint --filter=<pkg>` satisfies the build dependency first and then lints. That invocation did **not** work when #387 was filed, because the `lint` task carried no `dependsOn` at all until issue #560 added it.
+
+**Running a single test file** needs the invocation to match the package's own `test` script, which every package here writes as `vitest run --root ../.. --project <name>` so that one root `vitest.config.ts` owns every project. Two traps follow.
+**Omit `--root` and Vitest resolves the root config anyway, from the wrong side**: `pnpm --filter qcms-api exec vitest run src/rate-limit.test.ts` (or a bare `pnpm exec vitest run <file>` from `packages/db`) walks up, finds the root config, searches only the projects that declare an explicit `root`, and exits `No test files found`, which reads as "nothing to run" rather than "your invocation is wrong".
+**The path filter is relative to the process working directory, not to `--root`.** So `apps/api/src/rate-limit.test.ts` matches nothing when you are standing in `apps/api`, which is the shape that wasted two cycles on #376. Either of these works:
+
+```sh
+# From the package directory: the package's own test script, plus a path relative to here.
+cd apps/api && pnpm exec vitest run --root ../.. --project qcms-api src/rate-limit.test.ts
+
+# From the repo root: no --root needed, path relative to the root.
+pnpm exec vitest run --project qcms-api apps/api/src/rate-limit.test.ts
+```
+
+A bare substring (`rate-limit`) also works and is the loose form: it matched `rate-limits.test.ts` as well, so prefer the path when you mean one file.
 
 **Verifying a packed tarball from outside the workspace** (issue #383). The `pnpm add --ignore-workspace <tarball>` recipe that several issues prescribe **cannot run in this repository**, and meeting its failure without knowing that reads as a broken tarball. `@qcms/db` depends on `@qcms/core` and `@qcms/a2ui-compiler`, which are unpublished; outside the workspace there is no symlink, so pnpm goes to the registry and returns `ERR_PNPM_FETCH_404 GET https://registry.npmjs.org/@qcms%2Fcore`. pnpm 11 reads `overrides` only from `pnpm-workspace.yaml`, and `--ignore-workspace` is precisely the flag that discards that file, so the one mechanism that could redirect those specifiers is unavailable under the flag that needs it. It stays unavailable until the `@qcms/*` scope is published, which is a Stage 5 decision (issue #360). The substitute below is what to use instead, and it is stricter: every `@qcms/*` in the resulting tree comes from a tarball rather than only the package under test.
 
