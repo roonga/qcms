@@ -530,7 +530,8 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "The service token this BFF presents to the API (SEC-4). Must be one of the tokens the API accepts.",
+      "The service token this BFF presents to the API (SEC-4). Must be one of the tokens the API accepts." +
+      " Like the API, this app **refuses to boot** when the value is still an example-file placeholder rather than generated material (issue #491); the refusal names the variable and never prints the value.",
   },
   {
     name: "QCMS_PORTAL_BASE_URL",
@@ -666,7 +667,9 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     secret: true,
-    description: "The service token this BFF presents to the API (SEC-4).",
+    description:
+      "The service token this BFF presents to the API (SEC-4)." +
+      " Like the API, this app **refuses to boot** when the value is still an example-file placeholder rather than generated material (issue #491); the refusal names the variable and never prints the value.",
   },
   {
     name: "QCMS_ADMIN_BASE_URL",

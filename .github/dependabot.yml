@@ -73,3 +73,52 @@ updates:
       # manually) when the engine floor moves.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+  # Container base images (issue #372). This entry is the load-bearing half of
+  # digest pinning and landed in the same change as the digests, deliberately.
+  #
+  # Before it, this file configured two ecosystems and no container image in the
+  # repository was tracked by anything. A floating `node:24-bookworm-slim` at least
+  # picked up Debian patches on every rebuild; a frozen digest with nothing bumping
+  # it is a base image that ages quietly, so pinning on its own would have been a
+  # regression dressed as hardening.
+  #
+  # Behaviour checked against `dependabot-core` rather than assumed, because
+  # GitHub's public documentation does not describe digest handling at all:
+  #
+  #   - With a digest already present, Dependabot moves the tag and the digest
+  #     together (dependabot-core issue #14065).
+  #   - It will NOT add a first digest to a tag-only `FROM`; that sits behind the
+  #     `docker_pin_digests` experiment and is off by default (PR #14071). So the
+  #     first digest on any new `FROM` line is written by hand.
+  #   - `FROM ${ARG}` is unsupported (issue #4597, closed not-planned), which is why
+  #     `docker/lgtm.Dockerfile` and `docker/seed.Dockerfile` are invisible here:
+  #     both take their base from a build argument on purpose, and neither ships to
+  #     an adopter.
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      base-images:
+        patterns: ["*"]
+  # Compose images are a SEPARATE ecosystem from `docker` (GA 2025-02-25), so the
+  # entry above does not see them. This one covers the image references in the
+  # committed Compose files.
+  #
+  # Its reach is smaller than it looks, and that is worth writing down here rather
+  # than rediscovering it from an empty PR queue: most references are written
+  # `${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}` so an operator can point them at a
+  # mirror (issue #74), and a variable-substituted reference is not something
+  # Dependabot resolves. `docker-compose.dev.yml` names `postgres:16-alpine`
+  # literally and is the one this tracks today. Whether the others should lose
+  # their override to gain coverage is a deployment decision this file does not
+  # make; #372 item 4 holds it.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 2
+    groups:
+      compose-images:
+        patterns: ["*"]

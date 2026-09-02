@@ -7,6 +7,21 @@
  * **literal values** from the committed example files rather than invented
  * strings, so the test fails the moment the guard stops covering what an
  * operator would actually copy.
+ *
+ * **This file owns the API/gate pair, and nothing wider (issue #491).** The guard is no
+ * longer the API's alone: `apps/portal/lib/server/config.ts` and
+ * `apps/admin/lib/server/config.ts` now refuse to boot on a placeholder
+ * `QCMS_INTERNAL_TOKEN`, and all four readers have to accept the same spellings or a
+ * value one side waves through boots on another. That agreement is **not** asserted
+ * here, and the reason is turbo rather than taste: a cross-app assertion inside this
+ * package's Vitest project is cached against this package's own inputs, so an edit to
+ * either app would not invalidate it and it would report green having never read the
+ * file that broke it (`scripts/check-origin-guards.test.ts` records that lesson at
+ * length). It is asserted from the repo root, in
+ * `scripts/check-bff-config-guards.test.ts`, which pins each BFF against the same
+ * `PLACEHOLDER_SHAPES` this file pins the API against. The gate is the shared vertex,
+ * so the two halves together are agreement across all four readers - and the corpus
+ * construction below stays the definition of record that the root-level half reuses.
  */
 
 import { describe, expect, it } from "vitest";

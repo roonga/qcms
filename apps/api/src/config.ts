@@ -882,6 +882,41 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       1_000,
       issues,
     ),
+    // **This is the third reader of a two-app rule, and the exemption is deliberate
+    // (issue #402).** The invariant "cookie security may not be downgraded at a
+    // non-loopback origin" is enforced as a boot refusal in
+    // `apps/portal/lib/server/config.ts` and `apps/admin/lib/server/config.ts`
+    // (`assertSecureCookiesConfigured`, issue #292). It is NOT enforced here, and this
+    // process starts on a downgraded off-loopback value that either BFF would refuse.
+    //
+    // Why that is safe today, stated as a dependency rather than left as a silence: a
+    // browser reaches better-auth only through the admin BFF (R2, ADR-09, ADR-20 - the
+    // API container publishes no host port, the `/api/auth` group is mounted only where
+    // `QCMS_MOUNT` includes `admin`, and every endpoint on it is behind the SEC-4
+    // internal token a browser cannot hold). In the configuration this read would
+    // matter for, that BFF refuses to start, so these cookies are never issued to a
+    // browser: the door in front of this one is shut.
+    //
+    // **What would have to change for the reliance to become unsafe**, which is the
+    // part a future reader needs:
+    //
+    //   1. A route into the `/api/auth` group that does not pass through the admin
+    //      BFF - the API container gaining a published port, an ingress upstream
+    //      pointing at it, or a second consumer of better-auth.
+    //   2. An admin app that keeps the cookies but drops the boot refusal, or a
+    //      deployment running the API's admin mount with some other authoring front end.
+    //   3. Anything that makes this value decide a cookie a browser can see directly.
+    //
+    // Any of those means extending `assertSecureCookiesConfigured`'s rule into this
+    // parser (the option not taken here, because the effective-value check reddens every
+    // fixture in `test-support.ts` and that fixture surface is its own change).
+    //
+    // Pinned rather than only written down: `features/auth/auth-mount.test.ts` asserts
+    // the API-side legs - no auth endpoint is reachable without the channel token, and
+    // no auth group exists without the admin mount - and
+    // `scripts/check-bff-config-guards.test.ts` asserts the two legs that live outside
+    // this app, that the admin still carries the boot refusal and that Compose still
+    // publishes no port for the API. If the topology changes, those go red.
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",
