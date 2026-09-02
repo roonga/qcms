@@ -125,9 +125,7 @@ describe("every required control renders the required marker (issue #99)", () =>
   it.each(cases.map((c) => [c.label, c] as const))(
     "%s renders one marker inside its label",
     (_label, { step, specVersion, control }) => {
-      const { container } = render(
-        <A2UIStepRenderer document={step} specVersion={specVersion} />,
-      );
+      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
       const markers = markersIn(fieldWrapper(container, control.name));
       expect(markers).toHaveLength(1);
       // Inside the label, beside the label text, exactly as the six controls that
@@ -141,9 +139,7 @@ describe("every required control renders the required marker (issue #99)", () =>
   it.each(cases.map((c) => [c.label, c] as const))(
     "%s conveys required in the accessibility tree",
     (_label, { step, specVersion, control }) => {
-      const { container } = render(
-        <A2UIStepRenderer document={step} specVersion={specVersion} />,
-      );
+      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
       const wrapper = fieldWrapper(container, control.name);
 
       // The required STATE, which is what assistive technology reports. RAC sets it
@@ -167,11 +163,14 @@ describe("every required control renders the required marker (issue #99)", () =>
   );
 
   it("pins exactly which controls leak the marker into their accessible name", () => {
+    // One case per control TYPE: the property is per-control-type and the corpus
+    // repeats each type across generations and forms, so rendering all 70-odd
+    // cases here would cost seconds to prove nothing the first of each does not.
+    // The per-case assertions above already cover every case individually.
+    const byType = new Map(cases.map((c) => [c.control.type, c]));
     const leaking = new Set<string>();
-    for (const { step, specVersion, control } of cases) {
-      const { container } = render(
-        <A2UIStepRenderer document={step} specVersion={specVersion} />,
-      );
+    for (const { step, specVersion, control } of byType.values()) {
+      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
       const wrapper = fieldWrapper(container, control.name);
       const marker = markersIn(wrapper)[0];
       if (marker?.getAttribute("aria-hidden") !== "true") leaking.add(control.type);

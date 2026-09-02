@@ -55,14 +55,14 @@ enumeration. That is why the sweep above is a loop.
 
 The three that drifted match the four upstream fixes exactly, and nothing else:
 
-| Component     | File                     | Change                                                       | Issue      |
-| ------------- | ------------------------ | ------------------------------------------------------------ | ---------- |
-| `date-picker` | `date-picker.styles.ts`  | `requiredIndicator` token added                              | #99        |
+| Component     | File                     | Change                                                            | Issue           |
+| ------------- | ------------------------ | ----------------------------------------------------------------- | --------------- |
+| `date-picker` | `date-picker.styles.ts`  | `requiredIndicator` token added                                   | #99             |
 | `date-picker` | `DatePicker.tsx`         | required marker in the `<Label>`; guarded parse; `string \| null` | #99, #549, #148 |
-| `date-picker` | `DateRangePicker.tsx`    | required marker in the `<Label>`; guarded parse               | #99, #549  |
-| `date-picker` | `date-picker.shared.tsx` | `parseDateOrNull` / `parseDateRangeOrNull` helpers added      | #549       |
-| `radio`       | `RadioGroup.tsx`         | `value?: string \| null`                                      | #148       |
-| `select`      | `Select.tsx`             | `value?: string \| null`                                      | #148       |
+| `date-picker` | `DateRangePicker.tsx`    | required marker in the `<Label>`; guarded parse                   | #99, #549       |
+| `date-picker` | `date-picker.shared.tsx` | `parseDateOrNull` / `parseDateRangeOrNull` helpers added          | #549            |
+| `radio`       | `RadioGroup.tsx`         | `value?: string \| null`                                          | #148            |
+| `select`      | `Select.tsx`             | `value?: string \| null`                                          | #148            |
 
 The fourth upstream change (#151) is a dependency range on `@a2ra/core`, not a component,
 so it does not appear in this transcript at all. See the PR body for how it was verified.
