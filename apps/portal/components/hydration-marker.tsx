@@ -41,10 +41,16 @@
  * appears only once the swap has committed, which is the guarantee entry helpers
  * actually need.
  *
- * The cleanup removes the attribute, so a client navigation to a root that carries
- * no marker reports honestly rather than leaving a stale claim behind. Within one
- * commit React runs every destroy before every create, and that flush is
- * synchronous, so a navigation between two marked roots has no observable gap.
+ * The cleanup removes the attribute on unmount. As the portal is built today that
+ * branch never runs: every navigation is a full page load (`step-flow.tsx` moves
+ * between screens with `window.location.assign`, and Start and the no-JS path are
+ * native form POSTs), so a document that stamped the marker is discarded rather
+ * than re-rendered. It is there for the day a root is swapped without a page load,
+ * where leaving a stale claim behind would be the failure that matters - a wait
+ * that resolves instantly on a page which has not hydrated is worse than no wait.
+ * Ordering is safe if that day comes: React runs a deleted subtree's destroy
+ * effects before the replacing tree's create effects, so the attribute is removed
+ * and re-added rather than the reverse.
  *
  * Stamping the document element rather than a wrapper element keeps the signal at
  * one selector regardless of which root set it, and it is already how this app
