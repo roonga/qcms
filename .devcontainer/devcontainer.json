@@ -114,13 +114,20 @@
   // inside can stop the container it is running in, taking every session with it -
   // measured once at 4m38s of unexplained downtime. `scripts/devcontainer.sh`
   // refuses `stop`/`down`/`rebuild` from inside, which closes the accidental path,
-  // but a direct `docker stop` never goes near that script. The restart policy does
-  // not remove the authority; it removes the harm the issue is actually about, by
-  // turning environment loss into a brief interruption. Docker treats a stop from
-  // inside the container as a failure the policy covers, and honours an explicit
-  // `docker stop` from outside as a deliberate stop that stays stopped, which is
-  // exactly the split wanted. The residual authority, and why the socket proxy was
-  // not built, are recorded honestly in `docs/DEV_CONTAINER.md`.
+  // but a direct `docker stop` never goes near that script.
+  //
+  // What this policy does and does not cover, MEASURED on Docker 29.6.2 rather than
+  // assumed: a crash exit restarts (`RestartCount` climbs), and so does an OOM kill,
+  // a daemon restart or a host reboot. A `docker stop` or `docker kill` issued
+  // THROUGH the mounted socket does not: the container ends `status=exited` with
+  // `RestartCount=0` and stays down. Docker's restart manager treats any explicit
+  // stop as manual and skips the policy, and the daemon cannot tell an API client
+  // inside the container from one outside, so there is no split to exploit here.
+  //
+  // So this narrows the blast radius to the crash class; it does not cover the
+  // deliberate-stop path, which remains guarded only by `refuse_from_inside` and
+  // only for callers of that script. The residual authority, and why the socket
+  // proxy was not built, are recorded plainly in `docs/DEV_CONTAINER.md`.
   "runArgs": [
     "--init",
     "--ipc=host",
