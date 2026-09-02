@@ -35,6 +35,7 @@ import { buttonClass } from "@/lib/ui";
 import {
   authorMessageFor,
   defaultAnswerMessage,
+  errorCodeOf,
   errorDetailsOf,
   firstAnswerRejection,
 } from "@/lib/validation-message";
@@ -54,6 +55,27 @@ async function readJsonSafely(res: Response): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether a failed response is ADR-16's semantics refusal (issue #743): the
+ * pinned snapshot records evaluation semantics this release does not implement.
+ *
+ * Worth telling apart from every other failure because it is not transient. The
+ * inline failure notice says "we could not reach the server, please try again",
+ * and a 409 means a retry against this deployment gets the same answer, so that
+ * sentence would send the respondent round a loop with no exit.
+ *
+ * Handled by reloading the flow page rather than by rendering a second copy of the
+ * screen here. The page's SSR read meets the same refusal and already owns the
+ * copy (`formSuperseded.*`), so the reload puts the respondent in front of a
+ * terminal screen that is true, and the wording stays in one place instead of
+ * drifting between the hydrated and no-JS paths. Reading the code, not the status
+ * alone: 409 is also how a stale post of a just-hidden question is refused.
+ */
+async function isSupersededSemantics(res: Response): Promise<boolean> {
+  if (res.status !== 409) return false;
+  return errorCodeOf(await readJsonSafely(res)) === "UNSUPPORTED_SEMANTICS_VERSION";
 }
 
 /** The localized branch-change announcement for an inserted/removed count. */
@@ -304,7 +326,7 @@ export function StepFlow({
           setRejected((prev) => withRejection(prev, name, value, message));
           return false;
         }
-        if (res.status === 401) {
+        if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
           return false;
         }
@@ -445,7 +467,7 @@ export function StepFlow({
       }
       if (res.status === 422) {
         setShowMissing(true);
-      } else if (res.status === 401) {
+      } else if (res.status === 401 || (await isSupersededSemantics(res))) {
         window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
         return;
       } else {
@@ -493,7 +515,7 @@ export function StepFlow({
           lastPostedRef.current = withServerHeld(lastPostedRef.current, next.values);
           confirmedRef.current = withServerHeld(confirmedRef.current, next.values);
           setSnapshot(next);
-        } else if (res.status === 401) {
+        } else if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
         } else {
           setFailed(true);

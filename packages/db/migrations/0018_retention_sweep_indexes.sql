@@ -1,0 +1,25 @@
+-- Supporting indexes for the two hourly retention sweeps (issue #434).
+--
+-- Both sweeps were correct and unsupported: each pass read its whole table. The
+-- deliverable in #434 was the MEASUREMENT before the index, because a partial or
+-- expression index is a schema decision with a real write-path cost, and guessing
+-- between the candidates is how a performance fix becomes a write regression. The
+-- numbers behind these two live beside the definitions in `src/schema/outbox.ts`
+-- and `src/schema/deliveries.ts`; the short version is that both candidates
+-- WITHOUT a partial predicate were measured and the planner never chose either at
+-- any scale, so the predicate is the load-bearing half, not the column.
+--
+-- Hand-trimmed rather than committed as `drizzle-kit generate` emitted it. The
+-- generator diffs against the newest committed snapshot, and `0017_account_issuer`
+-- shipped without one (`meta/0017_snapshot.json` is absent), so a fresh generate
+-- re-emits 0017's `ADD COLUMN "issuer"` and its unique index on top of these two
+-- statements. Applied to a database already at 0017, that fails. Those two
+-- statements are removed here; `meta/0018_snapshot.json` records the true head
+-- schema, which also stops the next generate repeating it.
+--
+-- Plain `CREATE INDEX`, not `CONCURRENTLY`: drizzle-kit wraps a migration in a
+-- transaction and `CONCURRENTLY` cannot run inside one. Both tables are small in
+-- every deployment that exists today, and an operator upgrading a large live
+-- database can build these out of band before running the migration.
+CREATE INDEX "outbox_payload_retention_idx" ON "outbox" USING btree (greatest("delivered_at", "dead_lettered_at")) WHERE "outbox"."payload_redacted_at" is null and jsonb_exists("outbox"."payload", 'answers');--> statement-breakpoint
+CREATE INDEX "webhook_deliveries_snippet_retention_idx" ON "webhook_deliveries" USING btree ("last_attempt_at") WHERE "webhook_deliveries"."last_response_snippet" is not null;

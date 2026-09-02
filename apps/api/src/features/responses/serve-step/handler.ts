@@ -196,10 +196,16 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
   return result.value;
 }
 
-/** One rendered step's client-safe contents: which questions, and what is held. */
+/**
+ * One rendered step's client-safe contents: which questions, and what is held.
+ *
+ * `values` borrows `StepResponse`'s own type rather than restating it, so the
+ * canonical-`AnswerValue` contract the schema publishes (issue #153) is the type
+ * the compiler holds this builder to.
+ */
 interface RenderedQuestions {
   readonly visibleQuestions: string[];
-  readonly values: Record<string, unknown>;
+  readonly values: StepResponse["values"];
 }
 
 /**
@@ -219,7 +225,7 @@ function renderedQuestions(
   renderStep: StepId,
 ): RenderedQuestions {
   const visibleQuestions: string[] = [];
-  const values: Record<string, unknown> = {};
+  const values: Record<string, AnswerValue> = {};
   for (const entry of flow.visible) {
     if (entry.stepId !== renderStep) continue;
     visibleQuestions.push(entry.questionId);

@@ -90,6 +90,23 @@ export function errorDetailsOf(body: unknown): unknown {
 }
 
 /**
+ * The typed `code` out of the same BFF error body, or `undefined` when the body
+ * carries none (a proxy page, an empty 502, an unparseable payload).
+ *
+ * Sits beside {@link errorDetailsOf} for the same reason: the envelope's shape is
+ * known in exactly one place, so a client that has to branch on WHICH refusal it
+ * received does not re-derive it. The code is forwarded verbatim from the API
+ * (R2), so this reads the API's vocabulary, never a portal invention.
+ */
+export function errorCodeOf(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null) return undefined;
+  const error = (body as { error?: unknown }).error;
+  if (typeof error !== "object" || error === null) return undefined;
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+/**
  * The constraints an author may decorate, as an object so membership is a plain
  * property test. Typed as an exhaustive `Record` over `AuthorMessages`, so a key
  * added to (or removed from) `@qcms/ui`'s schema is a build error here rather

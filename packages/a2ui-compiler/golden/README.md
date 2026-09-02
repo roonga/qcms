@@ -108,6 +108,16 @@ two joined in task 048, so they have no `v1/` document):
 | `author-messages.a2ui.json`    | `../fixtures/corpus/forms/author-messages.json` | Author-supplied validation messages (ADR-32). Appended in task 048, so `v2/` onwards.                                 |
 | `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
 
+**`kitchen-sink` here is the HEALTH-domain form** (`q_preexisting_conditions`,
+`q_medical_history`), and it is the one the `@qcms/core`, `@qcms/a2ui-compiler`
+and `@qcms/ui` suites load. The vehicle-domain form with the same coverage and a
+different question set (`q_optional_cover`, `q_extra_detail`) is
+`apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json`, which is what the
+API e2e suite, the portal Playwright suite and `pnpm dev:portal` seed. The two
+shared a file name until issue #129; a selector written from one form's question
+ids and run against the other finds nothing rather than failing, so the names now
+carry the domain. See `apps/api/e2e/support/fixtures/README.md`.
+
 ## Adding a golden
 
 Introduce a new golden as a **fresh file add**, never by moving/renaming an existing

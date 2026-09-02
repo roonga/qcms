@@ -177,9 +177,26 @@
           "values": {
             "type": "object",
             "additionalProperties": {
-              "nullable": true
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              ]
             },
-            "description": "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
+            "description": "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding (an NFC string for shortText, longText, date and singleChoice; a finite number; a boolean; a duplicate-free array of optionIds for multiChoice). Absent keys are unanswered (including retracted answers), and a value is never null. Display data only; the flow projection stays the sole authority on visibility and readiness.",
             "example": {
               "q_at_fault_accident": true,
               "q_accident_count": 2

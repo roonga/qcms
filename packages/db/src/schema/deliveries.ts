@@ -153,6 +153,26 @@ export const webhookDeliveries = pgTable(
     index("webhook_deliveries_due_idx")
       .on(t.deliveredAt, t.nextAttemptAt)
       .where(sql`${t.deadLetteredAt} is null`),
+    // The snippet retention sweep's scan (`redactAgedResponseSnippets`, issue
+    // #304), added on the measurement in issue #434.
+    //
+    // **The partial predicate is the load-bearing half, not the column.** A plain
+    // `(last_attempt_at)` index was measured and the planner never chose it at any
+    // scale: it cannot exclude the rows the sweep has already redacted, so the
+    // estimated row count stays near the table size and a sequential scan always
+    // wins. Restricting the index to rows that still hold a snippet is what makes
+    // it selective, and it shrinks as the sweep does its job.
+    //
+    // Measured on Postgres 16 with a 1M-row table (315 MB): sequential scan 140 ms
+    // reading 59,097 blocks, versus a bitmap index scan at 1.6 ms reading 24. The
+    // milliseconds are not the point at an hourly cadence; the blocks are. Each
+    // unindexed pass pulled the whole table through shared_buffers and evicted the
+    // serving working set, once an hour, on a table that only grows. Steady-state
+    // index size is 744 kB (0.17% of the table), peaking at 18 MB against a full
+    // backlog, and the deliverer's own attempt writes showed no measurable cost.
+    index("webhook_deliveries_snippet_retention_idx")
+      .on(t.lastAttemptAt)
+      .where(sql`${t.lastResponseSnippet} is not null`),
     // A stored snippet must carry the attempt time it belongs to (issue #304).
     //
     // This is what the retention sweep ages from, and under SQL's three-valued

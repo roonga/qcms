@@ -56,6 +56,39 @@ export const outbox = pgTable(
     index("outbox_delivery_idx")
       .on(t.deliveredAt, t.nextAttemptAt)
       .where(sql`${t.deadLetteredAt} is null`),
+    // The payload retention sweep's scan (`redactAgedOutboxPayloads`, issue #329),
+    // added on the measurement in issue #434.
+    //
+    // Both halves are needed and neither is sufficient alone. The sweep ages on
+    // `greatest(delivered_at, dead_lettered_at)`, an expression over two columns
+    // that `outbox_delivery_idx` cannot serve; but a bare expression index was
+    // measured too, and the planner never chose it at any scale, for the same
+    // reason as its counterpart on `webhook_deliveries` - without the partial
+    // predicate it cannot exclude rows already redacted, so the row estimate stays
+    // near the table size and a sequential scan wins. The predicate mirrors the
+    // sweep's own filters exactly, which is also what keeps the index small: it
+    // covers only rows that still hold answers, so it shrinks as the sweep works.
+    //
+    // Measured on Postgres 16 with a 1M-row outbox (2.1 GB): the outbox side of
+    // the plan drops from 246,668 blocks to 63. Steady-state size 3.5 MB, peaking
+    // at 21 MB against a full backlog, and about 21 microseconds of index
+    // maintenance per insert - invisible against the ~4 ms durable commit, on a
+    // path that writes one row per submission. The write-amplification worry issue
+    // #434 raises is real for a bulk load and does not survive contact with the
+    // write path QCMS actually has.
+    //
+    // **This removes the outbox scan; it does not make the sweep cheap.** The
+    // correlated NOT EXISTS still hash-anti-joins the whole `webhook_deliveries`
+    // table (150 ms of the remaining 182 ms at 1M rows), and no index fixes it: a
+    // forced nested loop reaches 12 ms using the EXISTING
+    // `webhook_deliveries_event_webhook_uq`, so what is left is a planner
+    // cost-model choice. Closing that means restructuring the query or bounding
+    // the sweep, which is a query decision rather than a schema one.
+    //
+    // `jsonb_exists` is immutable, so it is legal in an index predicate.
+    index("outbox_payload_retention_idx")
+      .on(sql`greatest(${t.deliveredAt}, ${t.deadLetteredAt})`)
+      .where(sql`${t.payloadRedactedAt} is null and jsonb_exists(${t.payload}, 'answers')`),
     // The marker means the answers are gone (issue #329).
     //
     // Both redaction paths write the two together in one UPDATE, and both the claim

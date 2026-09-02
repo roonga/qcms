@@ -96,12 +96,12 @@ export const INSURANCE_GOLDEN_PATH = `packages/a2ui-compiler/golden/${currentGol
 
 export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledForm;
 
-// --- kitchen-sink: all seven question types across three steps (task 045) ----
+// --- vehicle-kitchen-sink: every question type across three steps (task 045) --
 
 /**
- * The `kitchen-sink` form: three steps exercising every question type - short
- * text, date, boolean, number, multi-choice, long text, single choice - with two
- * branch rules (`q_accident_count` shown when `q_at_fault_accident=true`;
+ * The **vehicle** kitchen-sink form: three steps exercising every question type -
+ * short text, date, boolean, number, multi-choice, long text, single choice -
+ * with two branch rules (`q_accident_count` shown when `q_at_fault_accident=true`;
  * `q_extra_detail` shown when an optional-cover option is selected). It is the
  * fixture the portal's explicit-navigation e2e drives (ADR-28).
  *
@@ -110,8 +110,20 @@ export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledFo
  * text) live in this support directory rather than the shared kernel fixtures,
  * whose bytes are frozen by the golden corpus. The compiled golden is generated
  * from these definitions via the a2ui-compiler and committed alongside them.
+ *
+ * **`vehicle-` is load-bearing, not decoration (issue #129).** A different form
+ * with the same coverage and a DIFFERENT question set - the health-domain
+ * `kitchen-sink` in `packages/core/fixtures/forms/valid/`, compiled into
+ * `packages/a2ui-compiler/golden/vN/kitchen-sink.a2ui.json` - used to share this
+ * one's file name. Element lookups written against one form's question ids and
+ * run against the other do not error; they simply find nothing, which reads as a
+ * broken assertion rather than a wrong fixture, and cost a full test-authoring
+ * cycle in issue #98. The golden corpus is append-only (ADR-18), so this side is
+ * the one that could move. See `apps/api/e2e/support/fixtures/README.md`.
  */
-export const KITCHEN_SINK_DEF = readFixture("apps/api/e2e/support/fixtures/kitchen-sink-form.json");
+export const KITCHEN_SINK_DEF = readFixture(
+  "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json",
+);
 
 /** `q_full_name` - short text, required (stp_about). */
 export const Q_FULL_NAME_DEF = readFixture(
@@ -130,10 +142,11 @@ export const Q_COVERAGE_DEF = readFixture(
   "packages/core/fixtures/questions/valid/single-choice.json",
 );
 
-/** Repo-relative path of the kitchen-sink compiled document (regenerable, see below). */
-export const KITCHEN_SINK_COMPILED_PATH = "apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json";
+/** Repo-relative path of the compiled document (regenerable, see below). */
+export const KITCHEN_SINK_COMPILED_PATH =
+  "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json";
 
-/** The committed golden compiled A2UI document for the kitchen-sink form. */
+/** The committed compiled A2UI document for the vehicle kitchen-sink form. */
 export const KITCHEN_SINK_GOLDEN = readFixture(KITCHEN_SINK_COMPILED_PATH) as CompiledForm;
 
 // --- author-messages: ADR-32 messages + ADR-36 boolean labels (task 048) -----
@@ -244,7 +257,7 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
     questions: [Q_ACCIDENT_DEF, Q_ACCIDENT_COUNT_DEF],
   },
   {
-    name: "kitchen-sink",
+    name: "vehicle-kitchen-sink",
     path: KITCHEN_SINK_COMPILED_PATH,
     regenerable: true,
     form: KITCHEN_SINK_DEF,
