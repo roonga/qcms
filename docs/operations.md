@@ -365,22 +365,181 @@ Read on the server only. Since task 056 the admin holds no database credential e
 
 Consumed by the Compose files themselves to build the topology; the containers never see them under these names.
 
-| Variable                    | Required     | Default              | Meaning                                                                                                                                                                                                                          |
-| --------------------------- | ------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `QCMS_DB_PASSWORD` (secret) | **required** | -                    | Postgres superuser password. Compose refuses to start without it.                                                                                                                                                                |
-| `QCMS_DB_NAME`              | optional     | `qcms`               | Database name created on first boot of the Postgres volume.                                                                                                                                                                      |
-| `QCMS_DB_USER`              | optional     | `qcms`               | Database role created on first boot of the Postgres volume.                                                                                                                                                                      |
-| `QCMS_POSTGRES_IMAGE`       | optional     | `postgres:16-alpine` | Postgres image. Override it to pull from a mirror rather than Docker Hub; CI does exactly this.                                                                                                                                  |
-| `QCMS_PORTAL_PORT`          | optional     | `7000`               | Host port the portal is published on. Comes from the stable block in `docs/PORTS.md` (R8); move it to run beside a dev server on the same seat.                                                                                  |
-| `QCMS_ADMIN_PORT`           | optional     | `7040`               | Host port the admin app is published on. Same allocation rules as the portal.                                                                                                                                                    |
-| `QCMS_BIND_ADDRESS`         | optional     | `127.0.0.1`          | Interface the two published apps bind to. The loopback default is a control: a bare publish would listen on every interface, ahead of the host firewall. Widen it only when a separate ingress host must reach these containers. |
-| `QCMS_IMAGE_VERSION`        | optional     | `dev`                | Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm qcms:build-images` derives a real one; a bare `docker compose build` leaves it `dev`.                                                  |
-| `QCMS_CADDY_IMAGE`          | optional     | `caddy:2-alpine`     | Ingress image, used only by the `docker-compose.proxy.yml` overlay.                                                                                                                                                              |
-| `QCMS_PORTAL_DOMAIN`        | conditional  | -                    | Public hostname Caddy serves the portal on. Required by the proxy overlay; unused without it.                                                                                                                                    |
-| `QCMS_ADMIN_DOMAIN`         | conditional  | -                    | Public hostname Caddy serves the admin app on. Required by the proxy overlay; unused without it.                                                                                                                                 |
-| `QCMS_ACME_EMAIL`           | conditional  | -                    | Contact address for the Let's Encrypt account. Required by the proxy overlay; unused without it.                                                                                                                                 |
+| Variable                            | Required     | Default              | Meaning                                                                                                                                                                                                                          |
+| ----------------------------------- | ------------ | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `QCMS_DB_PASSWORD` (secret)         | **required** | -                    | Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the two least-privilege roles below, and nothing that serves traffic holds it (SEC-10).                |
+| `QCMS_DB_MIGRATE_PASSWORD` (secret) | **required** | -                    | Password for `qcms_migrate`, the role that owns the schema and runs the one-shot migration. Held by the `migrate` service and by nothing else. See [Least-privilege database roles](#least-privilege-database-roles).            |
+| `QCMS_DB_APP_PASSWORD` (secret)     | **required** | -                    | Password for `qcms_app`, the role the API runs as: DML on the operational tables, no DDL, not the schema owner. See [Least-privilege database roles](#least-privilege-database-roles).                                           |
+| `QCMS_DB_NAME`                      | optional     | `qcms`               | Database name created on first boot of the Postgres volume.                                                                                                                                                                      |
+| `QCMS_DB_USER`                      | optional     | `qcms`               | Bootstrap superuser created on first boot of the Postgres volume. It creates the split roles and is used for nothing else (SEC-10).                                                                                              |
+| `QCMS_POSTGRES_IMAGE`               | optional     | `postgres:16-alpine` | Postgres image. Override it to pull from a mirror rather than Docker Hub; CI does exactly this.                                                                                                                                  |
+| `QCMS_PORTAL_PORT`                  | optional     | `7000`               | Host port the portal is published on. Comes from the stable block in `docs/PORTS.md` (R8); move it to run beside a dev server on the same seat.                                                                                  |
+| `QCMS_ADMIN_PORT`                   | optional     | `7040`               | Host port the admin app is published on. Same allocation rules as the portal.                                                                                                                                                    |
+| `QCMS_BIND_ADDRESS`                 | optional     | `127.0.0.1`          | Interface the two published apps bind to. The loopback default is a control: a bare publish would listen on every interface, ahead of the host firewall. Widen it only when a separate ingress host must reach these containers. |
+| `QCMS_IMAGE_VERSION`                | optional     | `dev`                | Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm qcms:build-images` derives a real one; a bare `docker compose build` leaves it `dev`.                                                  |
+| `QCMS_CADDY_IMAGE`                  | optional     | `caddy:2-alpine`     | Ingress image, used only by the `docker-compose.proxy.yml` overlay.                                                                                                                                                              |
+| `QCMS_PORTAL_DOMAIN`                | conditional  | -                    | Public hostname Caddy serves the portal on. Required by the proxy overlay; unused without it.                                                                                                                                    |
+| `QCMS_ADMIN_DOMAIN`                 | conditional  | -                    | Public hostname Caddy serves the admin app on. Required by the proxy overlay; unused without it.                                                                                                                                 |
+| `QCMS_ACME_EMAIL`                   | conditional  | -                    | Contact address for the Let's Encrypt account. Required by the proxy overlay; unused without it.                                                                                                                                 |
 
 <!-- END GENERATED: env-reference -->
+
+## Least-privilege database roles
+
+**SEC-10, and the shipped default since issue #492.** QCMS talks to Postgres as two
+roles, never one. The credential the API process holds cannot change the schema; the
+credential that changes the schema is held only by the one-shot migration step and
+never by a process serving traffic.
+
+| Role             | Held by                               | What it gets                                                                                                                                                                                                        |
+| ---------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `qcms_migrate`   | the migration step, and nothing else  | Owns `public` and every object in it, plus `CREATE` on the database so it can add the `reporting` schema. The DDL rights `drizzle-kit migrate` needs, for the length of one run.                                    |
+| `qcms_app`       | every API process                     | `SELECT`, `INSERT`, `UPDATE`, `DELETE` on the operational tables, `SELECT` on the reporting views, `USAGE` on the schemas and sequences. **No `CREATE` on `public`, no DDL of any kind, and not the schema owner.** |
+| `qcms_reporting` | BI/ETL consumers (optional, separate) | `SELECT` on the `reporting` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                 |
+
+The second row is the point. Before this split one credential did both jobs, so the
+process serving respondent and authoring traffic could `DROP TABLE`. It no longer can,
+and that is a property an operator can check rather than a policy to remember:
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` runs the recipe below against a
+real Postgres and asserts every claim in the table above.
+
+The role names are fixed rather than configurable. Only the passwords vary per
+deployment, exactly as with `qcms_reporting`.
+
+### The recipe
+
+Run once, as a superuser or the database owner, **before the first migration**.
+Replace the passwords with values from your secret store; never commit a real one.
+
+```sql
+CREATE ROLE qcms_migrate LOGIN PASSWORD '<from-secret-store>';
+CREATE ROLE qcms_app LOGIN PASSWORD '<from-secret-store>';
+
+-- The migration role owns the schema, and may add the schemas the migrations create
+-- (`reporting`, from migration 0003, and drizzle's own bookkeeping schema). CREATE on
+-- the database rather than ownership of it: owning the database would also allow DROP
+-- DATABASE, which is past what "owns the schema" has to mean.
+ALTER SCHEMA public OWNER TO qcms_migrate;
+GRANT CREATE ON DATABASE qcms TO qcms_migrate;
+
+-- The runtime role: rows in, rows out. USAGE, never CREATE.
+GRANT USAGE ON SCHEMA public TO qcms_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qcms_app;
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO qcms_app;
+
+-- And on whatever the next migration creates, in whichever schema it creates it, so
+-- there is no grant step to remember after an upgrade. Deliberately NOT scoped with
+-- `IN SCHEMA`: `reporting` does not exist yet on a new database, and these have to
+-- reach it when migration 0003 creates it.
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qcms_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+  GRANT USAGE ON SEQUENCES TO qcms_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+  GRANT USAGE ON SCHEMAS TO qcms_app;
+```
+
+`qcms_app` deliberately gets no `TRUNCATE`, no `REFERENCES` and no `TRIGGER`. The two
+sanctioned whole-session delete paths (erasure and the retention purge) are ordinary
+`DELETE` statements passing the `answers_reject_delete` trigger door (ADR-17, migration
+0004), so plain `DELETE` is the right and sufficient grant.
+
+### Upgrading a database that was migrated under one credential
+
+Every QCMS database created before this change has its tables owned by the old single
+credential, and **only an owner may `ALTER` an object**, so the next migration would
+fail. Hand the objects over once, as a superuser, after creating the roles above and
+before the next migration:
+
+```sql
+DO $$
+DECLARE statement text;
+BEGIN
+  FOR statement IN
+    SELECT format('ALTER SCHEMA %I OWNER TO qcms_migrate', nspname)
+      FROM pg_namespace
+     WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
+       AND nspowner <> 'qcms_migrate'::regrole
+    UNION ALL
+    SELECT format('ALTER TABLE %I.%I OWNER TO qcms_migrate', n.nspname, c.relname)
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
+       AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+       AND c.relowner <> 'qcms_migrate'::regrole
+    UNION ALL
+    SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO qcms_migrate',
+                  n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+      FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+     WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+       AND p.proowner <> 'qcms_migrate'::regrole
+    UNION ALL
+    SELECT format('ALTER TYPE %I.%I OWNER TO qcms_migrate', n.nspname, t.typname)
+      FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+     WHERE t.typtype = 'e'
+       AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+       AND t.typowner <> 'qcms_migrate'::regrole
+  LOOP
+    EXECUTE statement;
+  END LOOP;
+END
+$$;
+
+-- Default privileges are not retroactive, so objects that already exist need their
+-- grants directly. Unlike a new database, an upgrading one already has `reporting`.
+GRANT USAGE ON SCHEMA reporting TO qcms_app;
+GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO qcms_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qcms_app;
+```
+
+`REASSIGN OWNED BY <old role> TO qcms_migrate`, which is the statement this looks like
+it should be, does **not** work when the old credential is the cluster's bootstrap
+superuser: that role also owns pinned catalog objects, and Postgres refuses the whole
+statement with `cannot reassign ownership of objects owned by role ... because they are
+required by the database system`. Hence the explicit, scoped pass above. It is safe to
+re-run, and on a database that is already split it changes nothing.
+
+### Where each credential is set
+
+- **Compose.** The `migrate` service's `DATABASE_URL` names `qcms_migrate`; the `api`
+  service's names `qcms_app`. Their passwords are `QCMS_DB_MIGRATE_PASSWORD` and
+  `QCMS_DB_APP_PASSWORD` in `.env`. `QCMS_DB_USER` and `QCMS_DB_PASSWORD` stay the
+  **bootstrap** superuser: it creates the two roles and is then held by nothing that
+  serves traffic. `scripts/compose-config.test.ts` asserts both resolved usernames, so
+  a future edit cannot quietly point the API back at the migration credential.
+- **Enterprise and platform recipes.** One secret per role. The migration task or
+  pre-deploy command gets the `qcms_migrate` URL; every API instance gets the
+  `qcms_app` URL. `docs/deploy-enterprise.md` §4 carries the ordering.
+
+### Bootstrap ordering, and why Compose runs this as a service
+
+The roles have to exist and own the schema **before** the migration runs, so Compose
+adds a `db-roles` one-shot that runs the recipe and that `migrate` depends on with
+`service_completed_successfully`. The chain is
+`postgres (healthy) -> db-roles -> migrate -> api`.
+
+It is a service rather than a script in the Postgres image's
+`/docker-entrypoint-initdb.d`, and that choice is load-bearing: an init script runs
+**only when the data directory is empty**. Every stack that already has data would
+never get the roles, and `migrate` would fail to connect with no clue why. This is the
+same reasoning `docker-compose.dev-tools.yml` records for its `dev-tools-role`
+one-shot. A service that runs on every `up` is idempotent instead, which is what makes
+the upgrade path above work at all, and what lets a password change take effect on the
+next `up`.
+
+### What deliberately keeps a single credential
+
+Two places, both development-only, and neither one a deployment:
+
+- **The Testcontainers harness** (`packages/db/src/testing/harness.ts`) and every suite
+  built on it connect as the container's superuser. Each container is created,
+  migrated and destroyed by one process inside one test file, so there is no
+  long-lived process on the other side of a role boundary for that boundary to
+  protect. The one suite that does need the split creates the roles itself from the
+  recipe above, which is what makes it a test of the recipe rather than of a fixture.
+- **`pnpm dev:portal` / `pnpm dev:admin`** (`scripts/dev-stack.mjs`) and the
+  `docker-compose.dev-tools.yml` toolbox reach the throwaway dev database as its
+  superuser. That launcher migrates and serves from one process by design; splitting
+  the credential there would add a boot step that protects nothing.
 
 ## Upgrading
 
@@ -410,7 +569,9 @@ pnpm qcms:drill-restore   # or your own verified restore path
 # 3. Pull the new images.
 docker compose pull
 
-# 4. Migrate. Nothing else is running the new code yet.
+# 4. Migrate. Nothing else is running the new code yet. Compose runs `db-roles`
+#    first (see "Least-privilege database roles"), so the migration connects as
+#    qcms_migrate whether or not the roles already existed.
 docker compose run --rm migrate
 
 # 5. Restart the services, API first so the BFFs never call an older API.

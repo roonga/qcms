@@ -93,41 +93,41 @@ The images listen on 3000 inside the container and Compose never republishes tha
 
 Legend: **req** required (boot fails without it) · opt optional · cond required only under the stated condition · `-` not read by that process.
 
-| Variable                                                                                                     | portal  | admin   | api-public         | api-internal               | postgres           |
-| ------------------------------------------------------------------------------------------------------------ | ------- | ------- | ------------------ | -------------------------- | ------------------ |
-| `DATABASE_URL`                                                                                               | `-`     | `-`     | **req**            | **req**                    | its own credential |
-| `QCMS_MOUNT`                                                                                                 | `-`     | `-`     | **req** = `public` | **req** = `internal,admin` | `-`                |
-| `QCMS_INTERNAL_TOKEN`                                                                                        | **req** | **req** | **req**            | **req**                    | `-`                |
-| `QCMS_LINK_KEYS`                                                                                             | `-`     | `-`     | **req** (verifies) | **req** (signs)            | `-`                |
-| `QCMS_SESSION_KEYS`                                                                                          | `-`     | `-`     | **req**            | **req**                    | `-`                |
-| `QCMS_APP_KEY`                                                                                               | `-`     | `-`     | **req**            | **req**                    | `-`                |
-| `QCMS_PORTAL_BASE_URL`                                                                                       | **req** | `-`     | **req**            | **req**                    | `-`                |
-| `QCMS_API_BASE_URL`                                                                                          | **req** | **req** | `-`                | `-`                        | `-`                |
-| `QCMS_ADMIN_BASE_URL`                                                                                        | `-`     | **req** | `-`                | **req**                    | `-`                |
-| `QCMS_ADMIN_AUTH_SECRET`                                                                                     | `-`     | `-`     | `-`                | **req**                    | `-`                |
-| `QCMS_SECURE_COOKIES`                                                                                        | opt     | `-`     | `-`                | `-`                        | `-`                |
-| `QCMS_ADMIN_SECURE_COOKIES`                                                                                  | `-`     | opt     | `-`                | opt                        | `-`                |
-| `QCMS_ADMIN_2FA`                                                                                             | `-`     | opt     | opt                | opt                        | `-`                |
-| `QCMS_ADMIN_SESSION_MAX_AGE_MS`                                                                              | `-`     | opt     | opt                | opt                        | `-`                |
-| `QCMS_ADMIN_SESSION_IDLE_MS`                                                                                 | `-`     | `-`     | `-`                | opt                        | `-`                |
-| `QCMS_ADMIN_PASSWORD_BREACH_CHECK`                                                                           | `-`     | `-`     | `-`                | opt                        | `-`                |
-| `QCMS_ADMIN_SIGNIN_THROTTLE`                                                                                 | `-`     | `-`     | `-`                | opt                        | `-`                |
-| `QCMS_FLAG_CHALLENGE_PROVIDER`                                                                               | opt     | `-`     | opt                | leave unset                | `-`                |
-| `QCMS_TURNSTILE_SITE_KEY`                                                                                    | cond    | `-`     | cond               | `-`                        | `-`                |
-| `TURNSTILE_SECRET_KEY`                                                                                       | `-`     | `-`     | cond               | `-`                        | `-`                |
-| `QCMS_SESSION_TTL_MS`                                                                                        | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_RL_*` (8 rate-limit knobs)                                                                             | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_ANTIABUSE_MIN_SUBMIT_MS` / `_HONEYPOT_FIELD`                                                           | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_WEBHOOK_ALLOW_PRIVATE` / `_TIMEOUT_MS` / `_BATCH_SIZE`                                                 | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_OUTBOX_INTERVAL_MS` / `_JITTER_MS`                                                                     | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` / `QCMS_OUTBOX_PAYLOAD_TTL_MS`           | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_BODY_LIMIT_BYTES`                                                                                      | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_READY_DB_TIMEOUT_MS`                                                                                   | `-`     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_PORTAL_THEME` / `_MODE` / `_CORNERS` / `_DENSITY` / `_FONT` / `_FONTS` / `_BRAND_NAME` / `_BRAND_LOGO` | opt     | `-`     | `-`                | `-`                        | `-`                |
-| `PORT` (alias `QCMS_PORT`)                                                                                   | `-`     | `-`     | opt                | opt                        | `-`                |
-| `NODE_ENV`                                                                                                   | opt     | opt     | opt                | opt                        | `-`                |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME`                                                          | opt     | `-`     | opt                | opt                        | `-`                |
-| `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD` / `QCMS_ADMIN_NAME`                                               | `-`     | `-`     | `-`                | bootstrap only             | `-`                |
+| Variable                                                                                                     | portal  | admin   | api-public           | api-internal               | postgres           |
+| ------------------------------------------------------------------------------------------------------------ | ------- | ------- | -------------------- | -------------------------- | ------------------ |
+| `DATABASE_URL`                                                                                               | `-`     | `-`     | **req** = `qcms_app` | **req** = `qcms_app`       | its own credential |
+| `QCMS_MOUNT`                                                                                                 | `-`     | `-`     | **req** = `public`   | **req** = `internal,admin` | `-`                |
+| `QCMS_INTERNAL_TOKEN`                                                                                        | **req** | **req** | **req**              | **req**                    | `-`                |
+| `QCMS_LINK_KEYS`                                                                                             | `-`     | `-`     | **req** (verifies)   | **req** (signs)            | `-`                |
+| `QCMS_SESSION_KEYS`                                                                                          | `-`     | `-`     | **req**              | **req**                    | `-`                |
+| `QCMS_APP_KEY`                                                                                               | `-`     | `-`     | **req**              | **req**                    | `-`                |
+| `QCMS_PORTAL_BASE_URL`                                                                                       | **req** | `-`     | **req**              | **req**                    | `-`                |
+| `QCMS_API_BASE_URL`                                                                                          | **req** | **req** | `-`                  | `-`                        | `-`                |
+| `QCMS_ADMIN_BASE_URL`                                                                                        | `-`     | **req** | `-`                  | **req**                    | `-`                |
+| `QCMS_ADMIN_AUTH_SECRET`                                                                                     | `-`     | `-`     | `-`                  | **req**                    | `-`                |
+| `QCMS_SECURE_COOKIES`                                                                                        | opt     | `-`     | `-`                  | `-`                        | `-`                |
+| `QCMS_ADMIN_SECURE_COOKIES`                                                                                  | `-`     | opt     | `-`                  | opt                        | `-`                |
+| `QCMS_ADMIN_2FA`                                                                                             | `-`     | opt     | opt                  | opt                        | `-`                |
+| `QCMS_ADMIN_SESSION_MAX_AGE_MS`                                                                              | `-`     | opt     | opt                  | opt                        | `-`                |
+| `QCMS_ADMIN_SESSION_IDLE_MS`                                                                                 | `-`     | `-`     | `-`                  | opt                        | `-`                |
+| `QCMS_ADMIN_PASSWORD_BREACH_CHECK`                                                                           | `-`     | `-`     | `-`                  | opt                        | `-`                |
+| `QCMS_ADMIN_SIGNIN_THROTTLE`                                                                                 | `-`     | `-`     | `-`                  | opt                        | `-`                |
+| `QCMS_FLAG_CHALLENGE_PROVIDER`                                                                               | opt     | `-`     | opt                  | leave unset                | `-`                |
+| `QCMS_TURNSTILE_SITE_KEY`                                                                                    | cond    | `-`     | cond                 | `-`                        | `-`                |
+| `TURNSTILE_SECRET_KEY`                                                                                       | `-`     | `-`     | cond                 | `-`                        | `-`                |
+| `QCMS_SESSION_TTL_MS`                                                                                        | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_RL_*` (8 rate-limit knobs)                                                                             | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_ANTIABUSE_MIN_SUBMIT_MS` / `_HONEYPOT_FIELD`                                                           | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_WEBHOOK_ALLOW_PRIVATE` / `_TIMEOUT_MS` / `_BATCH_SIZE`                                                 | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_OUTBOX_INTERVAL_MS` / `_JITTER_MS`                                                                     | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_RETENTION_SWEEP_INTERVAL_MS` / `QCMS_DELIVERY_SNIPPET_TTL_MS` / `QCMS_OUTBOX_PAYLOAD_TTL_MS`           | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_BODY_LIMIT_BYTES`                                                                                      | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_READY_DB_TIMEOUT_MS`                                                                                   | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_PORTAL_THEME` / `_MODE` / `_CORNERS` / `_DENSITY` / `_FONT` / `_FONTS` / `_BRAND_NAME` / `_BRAND_LOGO` | opt     | `-`     | `-`                  | `-`                        | `-`                |
+| `PORT` (alias `QCMS_PORT`)                                                                                   | `-`     | `-`     | opt                  | opt                        | `-`                |
+| `NODE_ENV`                                                                                                   | opt     | opt     | opt                  | opt                        | `-`                |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME`                                                          | opt     | `-`     | opt                  | opt                        | `-`                |
+| `QCMS_ADMIN_EMAIL` / `QCMS_ADMIN_PASSWORD` / `QCMS_ADMIN_NAME`                                               | `-`     | `-`     | `-`                  | bootstrap only             | `-`                |
 
 ### Reading the matrix
 
@@ -147,13 +147,15 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 - **Values that must be byte-identical across processes:** `QCMS_INTERNAL_TOKEN` (or at least, the BFF's token must appear in the API's accepted list), `QCMS_ADMIN_BASE_URL` between admin and `api-internal` (better-auth compares origins by string equality), `QCMS_ADMIN_SECURE_COOKIES` between admin and `api-internal` (they set different cookie families on one origin, and a disagreement makes sign-in loop), and `QCMS_ADMIN_2FA` between admin and `api-internal`.
 - **`QCMS_PORTAL_BASE_URL` is required on both API instances** even though only the authoring one mints link URLs: it is validated unconditionally. Give both the same public portal origin.
 - **Neither BFF holds a database credential.** The API is the only process in either topology with a `DATABASE_URL` (ADR-35 as amended, implemented by task 056). If a deployment template hands the admin one, that is a regression, not a convenience.
+- **The API's credential is the runtime role, never the migration role** (SEC-10, issue #492). Both API instances connect as `qcms_app`, which holds DML on the operational tables and no DDL at all; the migration step in §4 is the only thing that ever connects as `qcms_migrate`, which owns the schema. That is two secrets, not one, and pointing an API instance at the migration credential undoes the control silently. The grants, and the one-time handover for a database migrated before the split, are the "Least-privilege database roles" section of `docs/operations.md`.
 - **Postgres** takes its own server configuration, not QCMS variables. In enterprise it is usually a managed instance rather than a container, which is why the column names a credential instead of a variable list. It is the only stateful component (`docs/ARCHITECTURE.md` §10), so it is the whole of the backup story (`docs/backup-restore.md`).
 
 ## 4. Bootstrap and upgrade order
 
 Migration is a deliberate, separate step rather than migrate-on-boot, precisely because this topology runs more than one API process: a boot-time migration in an N-instance deployment is N racing migrators, and the adopter loses the ability to decide when schema change happens. So:
 
-1. Run the migration once, from the API image (`node node_modules/@qcms/db/dist/migrate.js`), against the database, with nothing else starting.
+0. **First deployment only:** create the two database roles and hand `public` to the migration role, as a superuser, before anything connects. The SQL, and the one-time ownership handover for a database that was migrated under a single credential, are in the "Least-privilege database roles" section of `docs/operations.md`. Roles are cluster-level and environment-specific, so no migration creates them; this step is the operator's, once per database.
+1. Run the migration once, from the API image (`node node_modules/@qcms/db/dist/migrate.js`), against the database **as `qcms_migrate`**, with nothing else starting.
 2. Start or restart `api-internal`, then `api-public`, then the two front ends.
 3. Create the first administrator once, against `api-internal`'s image, with `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` supplied per-command rather than in a stored environment file. There is no self-registration path in any composition (SEC-1), so this command is the only door.
 

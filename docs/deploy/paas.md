@@ -97,7 +97,8 @@ services:
 
 Notes that matter:
 
-- **`preDeployCommand` is the migration step.** Render runs it once per deploy, after the build and before the new instance takes traffic, which is exactly the one-shot-before-serve ordering `docker-compose.yml` gets from its dependency graph. Point it at the same migrate entrypoint the `migrate` service uses. It runs on the service it is declared on, so declaring it on the API (the process that holds `DATABASE_URL`) is correct.
+- **`preDeployCommand` is the migration step.** Render runs it once per deploy, after the build and before the new instance takes traffic, which is exactly the one-shot-before-serve ordering `docker-compose.yml` gets from its dependency graph. Point it at the same migrate entrypoint the `migrate` service uses. It runs on the service it is declared on, so it has to be declared on the API.
+- **That makes Render the one recipe where the SEC-10 credential split is weaker, and it is weaker rather than absent.** The API's own `DATABASE_URL` is the `qcms_app` credential, which holds no DDL and cannot migrate. Render gives a pre-deploy command no environment of its own, so add a second variable on the API service - `QCMS_MIGRATE_DATABASE_URL`, `sync: false` - and spell the command `DATABASE_URL=$QCMS_MIGRATE_DATABASE_URL <migrate entrypoint>`. The serving process still connects as `qcms_app` and still cannot `DROP TABLE`; what Render costs you is that the migration secret is present in that service's environment rather than in a separate one-shot. Every other recipe here, and Compose, keep them fully apart. The role recipe is the "Least-privilege database roles" section of `docs/operations.md`.
 - **`QCMS_API_BASE_URL` must carry an `http://` scheme, and a Blueprint cannot supply it.** The front ends reach the API on Render's private network over plain HTTP (the SEC-9 model), but both BFFs build fetch URLs as `${QCMS_API_BASE_URL}/...` with no scheme handling, so a bare host:port fails every call. Render's `fromService`/`hostport` yields exactly that bare `host-hash:port`, and the internal host carries an unpredictable hash, so set this value in the dashboard from the API's Connect > Internal tab with `http://` prepended, marked `sync: false` in the Blueprint. (Railway does not hit this, because its variable references interpolate into a string: see section 3.)
 - **`sync: false` keeps secrets out of git.** Render prompts for each in the dashboard on first deploy. Generate every one with a CSPRNG at 32+ chars; the API refuses a placeholder.
 - Leave `QCMS_SECURE_COOKIES` / `QCMS_ADMIN_SECURE_COOKIES` unset; `NODE_ENV=production` in the images marks cookies `Secure`, correct behind Render's TLS.
@@ -194,7 +195,7 @@ The portal and admin may scale more freely; only the API carries the background 
 **Render - ease: 5/5.** One declarative Blueprint, fixed billing, a real private-service type. The most hands-off way to run QCMS. Top two gotchas:
 
 1. **Don't leave the API on a free/idle-spindown tier.** The schedulers die with the process; use a paid always-on plan and, with autoscaling, a minimum of 1 instance (section 8).
-2. **`preDeployCommand` must be on the API service.** It is the only service with `DATABASE_URL`; declared elsewhere it cannot migrate. Confirm it runs before the API cuts over on each deploy.
+2. **`preDeployCommand` must be on the API service.** It is the only service that reaches the database; declared elsewhere it cannot migrate. It needs the `qcms_migrate` credential rather than the API's own, which is the section 2 note above. Confirm it runs before the API cuts over on each deploy.
 
 **Railway - ease: 4/5.** Cheapest at low traffic, config-as-code per service, but the wiring is manual and the bill moves with load. Top two gotchas:
 

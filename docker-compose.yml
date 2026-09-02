@@ -41,6 +41,154 @@ services:
       retries: 12
     restart: unless-stopped
 
+  # One-shot: create the two least-privilege roles SEC-10 splits the database
+  # credential into, and hand the schema to the one that migrates. It runs before
+  # `migrate`, because the migration has to connect as a role that already exists.
+  #
+  # ## Why the split (SEC-10, issue #492)
+  #
+  # Until this service existed, one credential did everything: the API connected as
+  # the role that owned the schema, so the process serving respondent traffic could
+  # DROP TABLE. The Code Owner's ruling of 2026-09-02 splits it in two:
+  #
+  #   qcms_migrate  owns the schema and holds the DDL rights drizzle-kit needs.
+  #                 It is used by `migrate` and by nothing else.
+  #   qcms_app      SELECT/INSERT/UPDATE/DELETE on the operational tables and USAGE
+  #                 on sequences. No CREATE on public, no DDL of any kind, and not
+  #                 the schema owner. It is the credential the API runs as.
+  #
+  # The role names are literals rather than variables, exactly as `qcms_reporting`
+  # is in docs/reporting-view.md and `qcms_ro` is in docker-compose.dev-tools.yml:
+  # only the passwords vary per deployment, and a name that can drift is a name an
+  # assertion cannot pin. The operator recipe, the same SQL for a database this file
+  # does not manage, is the "Least-privilege database roles" section of
+  # docs/operations.md.
+  #
+  # ## Why a service rather than a Postgres init script
+  #
+  # The same reason `dev-tools-role` gives in docker-compose.dev-tools.yml: a script
+  # in /docker-entrypoint-initdb.d runs only when the data directory is EMPTY. Every
+  # stack that already has data - which is every stack after the first boot, and
+  # every stack upgrading into this change - would never create the roles, and
+  # `migrate` would fail to connect with no clue why. A one-shot that runs on every
+  # `up` is idempotent instead, which is what makes the upgrade path work at all.
+  #
+  # The SQL is inline rather than mounted for the reason that file also gives: a
+  # relative bind mount resolves on the DAEMON's filesystem, and the canonical
+  # developer seat drives the host daemon from inside a dev container (ADR-29),
+  # where this repository's path does not exist.
+  #
+  # The bootstrap superuser (QCMS_DB_USER) is the only role that can do this work,
+  # and it does no other work in the stack after this container exits.
+  db-roles:
+    image: ${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      PGHOST: postgres
+      PGDATABASE: ${QCMS_DB_NAME:-qcms}
+      PGUSER: ${QCMS_DB_USER:-qcms}
+      PGPASSWORD: ${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}
+      APP_PASSWORD: ${QCMS_DB_APP_PASSWORD:?set QCMS_DB_APP_PASSWORD in .env - the API connects as qcms_app with it}
+      MIGRATE_PASSWORD: ${QCMS_DB_MIGRATE_PASSWORD:?set QCMS_DB_MIGRATE_PASSWORD in .env - the migration connects as qcms_migrate with it}
+    # Passwords reach psql through \getenv rather than through argv, so they are not
+    # in the process list of a container anyone can exec into. The heredoc is quoted,
+    # so the shell expands nothing and what psql reads is exactly what is written.
+    entrypoint:
+      - sh
+      - -c
+      - |
+        exec psql <<'SQL'
+        \set ON_ERROR_STOP on
+        \getenv app_password APP_PASSWORD
+        \getenv migrate_password MIGRATE_PASSWORD
+
+        -- CREATE ROLE has no IF NOT EXISTS, and this runs on every `up`.
+        SELECT 'CREATE ROLE qcms_migrate LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_migrate')\gexec
+        SELECT 'CREATE ROLE qcms_app LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_app')\gexec
+
+        ALTER ROLE qcms_migrate WITH LOGIN PASSWORD :'migrate_password';
+        ALTER ROLE qcms_app WITH LOGIN PASSWORD :'app_password';
+
+        -- CREATE on the database, not ownership of it: the migration role creates the
+        -- `reporting` schema (migration 0003) and drizzle's own bookkeeping schema.
+        -- Owning the database would additionally let it DROP the database, which is
+        -- past what "owns the schema" means.
+        SELECT format('GRANT CREATE ON DATABASE %I TO qcms_migrate', current_database())\gexec
+
+        -- Hand the schema, and everything already in it, to the migration role. Only
+        -- an owner may ALTER an object, so a stack that migrated under the single
+        -- credential would otherwise fail its NEXT migration: the tables are still
+        -- owned by the bootstrap role. On a fresh database this loop finds only the
+        -- `public` schema itself and moves no objects.
+        --
+        -- REASSIGN OWNED BY, which is the statement this looks like it should be, is
+        -- not usable here: the bootstrap role is the initdb superuser, so it also owns
+        -- pinned catalog objects and Postgres refuses ("cannot reassign ownership of
+        -- objects owned by role ... because they are required by the database system").
+        -- Hence an explicit, scoped pass over the non-system schemas.
+        --
+        -- docs/operations.md writes the same four passes as one plpgsql DO block,
+        -- which is what an operator pastes into psql. It cannot be written that way
+        -- HERE: Compose reads `$$` as its own escape for a literal `$`, so a dollar
+        -- quote reaches the container as `DO $` and Postgres rejects it. \gexec is the
+        -- same work in a form that survives interpolation, and the order is the
+        -- schema first, because ALTER TABLE ... OWNER TO requires the new owner to
+        -- hold CREATE on the table's schema.
+        SELECT format('ALTER SCHEMA %I OWNER TO qcms_migrate', nspname)
+        FROM pg_namespace
+        WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
+          AND nspowner <> 'qcms_migrate'::regrole\gexec
+
+        -- Tables, partitioned tables, views, materialized views and sequences.
+        SELECT format('ALTER TABLE %I.%I OWNER TO qcms_migrate', n.nspname, c.relname)
+        FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
+          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+          AND c.relowner <> 'qcms_migrate'::regrole\gexec
+
+        -- The append-only and delete-guard trigger functions (migrations 0001 and
+        -- 0004). CREATE OR REPLACE FUNCTION requires ownership of the existing one.
+        SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO qcms_migrate',
+                      n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+          AND p.proowner <> 'qcms_migrate'::regrole\gexec
+
+        -- The enums, so a later migration can ALTER TYPE ... ADD VALUE.
+        SELECT format('ALTER TYPE %I.%I OWNER TO qcms_migrate', n.nspname, t.typname)
+        FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE t.typtype = 'e'
+          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+          AND t.typowner <> 'qcms_migrate'::regrole\gexec
+
+        -- The runtime role: rows in, rows out, in every schema the migration role
+        -- owns. Driven off pg_namespace rather than written as a list, so `reporting`
+        -- is covered on an existing database without naming a schema that does not
+        -- exist yet on a fresh one.
+        SELECT format('GRANT USAGE ON SCHEMA %I TO qcms_app', nspname)
+        FROM pg_namespace WHERE nspowner = 'qcms_migrate'::regrole\gexec
+        SELECT format('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I TO qcms_app', nspname)
+        FROM pg_namespace WHERE nspowner = 'qcms_migrate'::regrole\gexec
+        SELECT format('GRANT USAGE ON ALL SEQUENCES IN SCHEMA %I TO qcms_app', nspname)
+        FROM pg_namespace WHERE nspowner = 'qcms_migrate'::regrole\gexec
+
+        -- And what the NEXT migration creates, without a grant step after every
+        -- upgrade. Deliberately not scoped with IN SCHEMA: `reporting` does not exist
+        -- on a fresh database at this point, and these have to reach it when
+        -- migration 0003 creates it.
+        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+          GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qcms_app;
+        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+          GRANT USAGE ON SEQUENCES TO qcms_app;
+        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+          GRANT USAGE ON SCHEMAS TO qcms_app;
+        SQL
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
   migrate:
     image: qcms-migrate:local
     build:
@@ -61,7 +209,16 @@ services:
     # puts this image's `node_modules/.bin` there.
     command: ["qcms-db-migrate"]
     environment: &api-env
-      DATABASE_URL: postgres://${QCMS_DB_USER:-qcms}:${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
+      # THE MIGRATION ROLE, and the one place in this file that holds it (SEC-10,
+      # issue #492). It owns the schema and can issue DDL, which is exactly what a
+      # one-shot that runs drizzle-kit needs and exactly what the process serving
+      # traffic must not have.
+      #
+      # This key is on the anchor `api` shares, and `api` OVERRIDES it with the
+      # runtime credential: a key written directly in a mapping wins over one pulled
+      # in by `<<`, so the API never receives this value. `scripts/compose-config.test.ts`
+      # asserts both resolved usernames rather than trusting that sentence.
+      DATABASE_URL: postgres://qcms_migrate:${QCMS_DB_MIGRATE_PASSWORD:?set QCMS_DB_MIGRATE_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_LINK_KEYS: ${QCMS_LINK_KEYS:?set QCMS_LINK_KEYS in .env}
       QCMS_SESSION_KEYS: ${QCMS_SESSION_KEYS:?set QCMS_SESSION_KEYS in .env}
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}
@@ -92,9 +249,12 @@ services:
       # the bootstrap CLI read the same value.
       QCMS_ADMIN_PASSWORD_BREACH_CHECK: ${QCMS_ADMIN_PASSWORD_BREACH_CHECK:-}
       QCMS_MOUNT: all
+    # `db-roles` rather than `postgres`: the migration connects as qcms_migrate, so
+    # the role has to exist and own the schema before this container starts. That
+    # one-shot depends on postgres being healthy, so the ordering still holds.
     depends_on:
-      postgres:
-        condition: service_healthy
+      db-roles:
+        condition: service_completed_successfully
     restart: "no"
 
   api:
@@ -105,6 +265,17 @@ services:
       args: *image-build-args
     environment:
       <<: *api-env
+      # THE RUNTIME ROLE, and the override that makes the SEC-10 split real (issue
+      # #492). It holds SELECT/INSERT/UPDATE/DELETE on the operational tables and
+      # USAGE on sequences: no CREATE on public, no DDL of any kind, not the schema
+      # owner. The process that serves respondent and authoring traffic therefore
+      # cannot DROP TABLE, which is the property this line exists for.
+      #
+      # It must appear AFTER the `<<` merge is written above to read naturally, but
+      # not because of ordering: a directly written key always wins over a merged one.
+      # `docker compose exec api` inherits it, so the bootstrap CLI (`qcms:create-admin`)
+      # runs as this role too, which is correct - creating an administrator is INSERT.
+      DATABASE_URL: postgres://qcms_app:${QCMS_DB_APP_PASSWORD:?set QCMS_DB_APP_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       PORT: 3000
       # Tracing's single switch (ADR-34). Compose forwards only what a service names
       # here, so without this line setting the variable in .env reached nothing and
