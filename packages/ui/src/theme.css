@@ -107,12 +107,29 @@
    24px, because that token is the WCAG 2.5.8 target-size floor. Both are
    asserted by `theme-tokens.test.ts` over this file, and re-measured on rendered
    controls per density by `apps/portal/e2e/appearance.pw.ts`.
+
+   VIEWPORT is the second axis on ONE of the five tokens, --space-section-pad
+   (issue #188, Code Owner decision 2026-09-02). The step card carries a single
+   p-(--space-section-pad) and no Tailwind variant, so the card's phone padding
+   is a token decision rather than a markup one: the blocks below are written
+   mobile-first, and the one @media block at the end of the group raises all
+   three density levels to their wide values at Tailwind's `sm` breakpoint
+   (40rem / 640px). The narrow Comfortable value, 1.25rem, is the p-5 the card
+   carried before task 051, so the phone layout this file ships is the phone
+   layout that was reviewed.
+
+   The same three constraints hold at BOTH ends of the breakpoint, and
+   `theme-tokens.test.ts` now resolves the sheet at each end rather than once:
+   the @media block may set spacing tokens only (so no viewport can reach a
+   1.4.12 floor, which is a --type-* value and is declared nowhere inside a
+   media query), --space-control-h clears 24px at every density x viewport, and
+   Compact < Comfortable < Spacious still holds narrow as well as wide.
    ========================================================================== */
 :is(:root, [data-qcms-theme-scope]) {
   --space-control-h: 44px;
   --space-control-pad-x: 0.9rem;
   --space-field-gap: 2em;
-  --space-section-pad: 2.25rem;
+  --space-section-pad: 1.25rem;
   --space-stack: 0.5rem;
 }
 
@@ -124,7 +141,7 @@
   --space-control-h: 36px;
   --space-control-pad-x: 0.7rem;
   --space-field-gap: 1.25em;
-  --space-section-pad: 1.5rem;
+  --space-section-pad: 0.875rem;
   --space-stack: 0.375rem;
 }
 
@@ -134,8 +151,35 @@
   --space-control-h: 52px;
   --space-control-pad-x: 1.1rem;
   --space-field-gap: 2.75em;
-  --space-section-pad: 3rem;
+  --space-section-pad: 1.75rem;
   --space-stack: 0.75rem;
+}
+
+/* At and above Tailwind's `sm` breakpoint the card gets the roomier padding the
+   flat token shipped: 24px / 36px / 48px. The three levels stay a scale a
+   respondent can feel at either end - the narrow steps are 14px / 20px / 28px,
+   the same 0.7x and 1.33x either side of Comfortable that the wide values use,
+   so choosing Compact on a phone is still a visible choice.
+
+   Only --space-section-pad moves with the viewport. The other four tokens have
+   no width story: control height and the target-size floor are about fingers,
+   not screens, and the gaps are already relative units. Adding them here would
+   put a second unreviewed layout at every width for no stated need.
+
+   Written min-width, so the narrow value above is the default a viewport gets
+   when no media query resolves at all. */
+@media (min-width: 40rem) {
+  :is(:root, [data-qcms-theme-scope]) {
+    --space-section-pad: 2.25rem;
+  }
+
+  :is(:root, [data-qcms-theme-scope]).density-compact {
+    --space-section-pad: 1.5rem;
+  }
+
+  :is(:root, [data-qcms-theme-scope]).density-spacious {
+    --space-section-pad: 3rem;
+  }
 }
 
 /* ==========================================================================

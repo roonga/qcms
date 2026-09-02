@@ -60,8 +60,15 @@
  * `text-xs` from 12px to 14px - 139 call sites, a visible change to chrome that task
  * 055 signed off at the current scale, and not something task 060 ships. The block
  * below re-pins the two steps to Tailwind's defaults, so this app's type scale is
- * exactly what it was. It is a restatement of the status quo, not a new choice; the
- * preview's own type scale is task 058's question to answer, in context.
+ * exactly what it was; the preview's own type scale is task 058's question to
+ * answer, in context.
+ *
+ * That the admin runs Tailwind's default type scale rather than the portal's
+ * `--type-*` floors is a DECISION, and it is recorded in the ADR-26 Note in
+ * `docs/adr/core.md` and in `docs/admin-constraints.md` (issue #442, Code Owner
+ * decision 2026-09-02) - not here. This comment explains the block; those two say
+ * why the condition is permitted and why the block must not be deleted as
+ * redundant. Read them before touching it.
  */
 @theme {
   --text-sm: 0.875rem;

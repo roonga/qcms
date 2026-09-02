@@ -144,38 +144,55 @@ Density is the respondent's control over the spacing group, and it is the only a
 that moves these five values. Comfortable is the base anchor block, so it carries
 no class.
 
-| Token                   | Compact  | Comfortable (default) | Spacious | Applies to                                              |
-| ----------------------- | -------- | --------------------- | -------- | ------------------------------------------------------- |
-| `--space-control-h`     | 36px     | 44px                  | 52px     | input / textarea / date box / select trigger min-height |
-| `--space-control-pad-x` | 0.7rem   | 0.9rem                | 1.1rem   | control and option-row inline padding                   |
-| `--space-field-gap`     | 1.25em   | 2em                   | 2.75em   | question-to-question rhythm                             |
-| `--space-section-pad`   | 1.5rem   | 2.25rem               | 3rem     | step-card padding                                       |
-| `--space-stack`         | 0.375rem | 0.5rem                | 0.75rem  | label-to-control gap, option-row block padding          |
+| Token                   | Compact           | Comfortable (default) | Spacious       | Applies to                                              |
+| ----------------------- | ----------------- | --------------------- | -------------- | ------------------------------------------------------- |
+| `--space-control-h`     | 36px              | 44px                  | 52px           | input / textarea / date box / select trigger min-height |
+| `--space-control-pad-x` | 0.7rem            | 0.9rem                | 1.1rem         | control and option-row inline padding                   |
+| `--space-field-gap`     | 1.25em            | 2em                   | 2.75em         | question-to-question rhythm                             |
+| `--space-section-pad`   | 0.875rem / 1.5rem | 1.25rem / 2.25rem     | 1.75rem / 3rem | step-card padding, narrow / `sm` and wider              |
+| `--space-stack`         | 0.375rem          | 0.5rem                | 0.75rem        | label-to-control gap, option-row block padding          |
 
-Three rules bound what a density level may do, and each is asserted by
+Four rules bound what a density level may do, and each is asserted by
 `packages/ui/src/theme-tokens.test.ts` over the shipped CSS:
 
 1. **Only the five `--space-*` tokens.** A level that could set a `--type-*` value
    could lower a WCAG 1.4.12 floor, and one that could set a `--color-*` value
    could break a contrast pair. Those floors and ratios are asserted against the
    base blocks, so that guarantee is only as good as this boundary.
-2. **`--space-control-h` never below 24px**, at any level: that token is the WCAG
-   2.5.8 target-size floor. Compact's 36px clears it by 12px, and the rendered
-   targets are re-measured per density in `apps/portal/e2e/appearance.pw.ts`.
+2. **`--space-control-h` never below 24px**, at any level and at either viewport:
+   that token is the WCAG 2.5.8 target-size floor. Compact's 36px clears it by
+   12px, and the rendered targets are re-measured per density in
+   `apps/portal/e2e/appearance.pw.ts`.
 3. **Monotonic**: Compact < Comfortable < Spacious on every token, so the control
    is a scale a respondent can reason about rather than three unrelated looks.
+4. **The one media query sets spacing tokens only**, so no viewport can reach a
+   floor either. Every floor and contrast assertion in the token suite resolves
+   the sheet at the narrow end; this boundary is what makes checking it once
+   enough. A second media condition fails the suite deliberately, because it would
+   need its own decision about which end the floors are read at.
 
-**Interaction with issue #188 (open).** `--space-section-pad` is a flat value, so
-the step card lost the responsive `p-5` / `sm:p-8` it had before 051, and on a
-narrow phone Comfortable's 36px spends 72px of width on padding. That question is
-open and is **not** resolved here. What density adds is a second multiplier over
-the same token, and the direction is worth recording: on a 412px phone the card
-spends 48px (Compact), 72px (Comfortable) or 96px (Spacious) of width on padding.
-Compact therefore very nearly restores the pre-051 phone value (24px against the
-old 20px), which means a respondent on a narrow screen has a working escape hatch
-today, even while #188 is unresolved. Whoever settles #188 should keep that in
-mind: if `--space-section-pad` becomes a `clamp()`, each density level supplies its
-own clamp rather than multiplying one.
+**The viewport dimension on `--space-section-pad`** (issue #188, Code Owner
+decision 2026-09-02). The step card carries a single `p-(--space-section-pad)` and
+no Tailwind variant, so the card's phone padding is a token decision. The token is
+therefore declared twice in `theme.css`: mobile-first in the three density blocks,
+then raised by one `@media (min-width: 40rem)` block - Tailwind's `sm`, the same
+width the card's pre-051 `p-5` / `sm:p-8` turned over at. Comfortable's narrow
+value **is** that `p-5`, so the phone layout the token contract ships is the phone
+layout that was reviewed before 051.
+
+On a 412px phone the card now spends 28px (Compact), 40px (Comfortable) or 56px
+(Spacious) of width on padding, against 48 / 72 / 96px while the token was flat.
+The three levels keep the same 0.7x and 1.33x either side of Comfortable that the
+wide values use, which is what keeps the density control a visible choice at the
+narrow end as well as the wide one; the suite asserts the ordering at both.
+
+The other four tokens have no viewport dimension. Control height and the
+target-size floor are about fingers rather than screens, and the gaps are already
+relative units, so adding a width story to them would ship a second layout nobody
+asked for. Rejected alternatives are on the issue: a fluid `clamp()` (hands every
+width a bespoke padding and needs three anchor pairs to keep the levels apart), a
+Tailwind `sm:` variant back on the component (returns the decision to markup), and
+leaving it flat.
 
 ### Group 4: the corner presets
 
