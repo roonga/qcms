@@ -267,3 +267,68 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
 export function isSafePattern(pattern: string): boolean {
   return checkSafePattern(pattern) === undefined;
 }
+
+/**
+ * The two `v`-mode class-set operators, which are ordinary literals in a
+ * `u`-mode character class.
+ */
+export type ClassSetOperator = "&&" | "--";
+
+/**
+ * The silent `u`/`v` divergence inside a character class (issue #53), or
+ * `undefined` when the pattern has none.
+ *
+ * `[a&&b]` compiles under **both** flags. Under `u` it is the set
+ * `{a, &, b}`; under `v` it is the intersection of `{a}` and `{b}`, which is
+ * empty, so the expression can never match. Nothing reports this: there is no
+ * console error and no compile failure, and the kernel validates answers under
+ * `u` while a browser compiles the HTML `pattern` attribute under `v`. So the
+ * same authored pattern means two different things in two places, and neither
+ * of them says so.
+ *
+ * The renderer structurally cannot detect or repair this - by the time a
+ * pattern reaches it, both readings are valid regular expressions - which is
+ * why authoring-time validation is the only layer that can raise it at all.
+ * `compileDraft` turns the result into a `PATTERN_CLASS_SET_AMBIGUOUS`
+ * publish warning; it is a warning rather than a refusal because the pattern
+ * is legal and may well be exactly what the author meant.
+ *
+ * Only patterns that compile under both flags are reported. One that does not
+ * compile under `v` has no second reading to disagree with, and the render-time
+ * normalize-or-omit path already owns that case.
+ */
+export function classSetAmbiguity(pattern: string): ClassSetOperator | undefined {
+  try {
+    new RegExp(pattern, "v");
+  } catch {
+    return undefined;
+  }
+
+  let inClass = false;
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === "\\") {
+      // An escaped character is a literal under both flags, so an escaped
+      // `\&\&` or `\-\-` is unambiguous and must not be reported.
+      i += 2;
+      continue;
+    }
+    if (!inClass) {
+      inClass = ch === "[";
+      // A negation caret is not an element; step past it with the bracket.
+      i += inClass && pattern[i + 1] === "^" ? 2 : 1;
+      continue;
+    }
+    if (ch === "]") {
+      inClass = false;
+      i += 1;
+      continue;
+    }
+    if ((ch === "&" || ch === "-") && pattern[i + 1] === ch) {
+      return ch === "&" ? "&&" : "--";
+    }
+    i += 1;
+  }
+  return undefined;
+}

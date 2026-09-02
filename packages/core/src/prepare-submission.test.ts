@@ -67,7 +67,7 @@ function fixtureSnapshot(file: string): FrozenSnapshot {
   if (!result.ok) {
     throw new Error(`fixture ${file} did not compile: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 // Casts justified: test ids are known-valid `q_*`/`opt_*` literals matching

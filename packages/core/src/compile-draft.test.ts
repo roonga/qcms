@@ -15,6 +15,7 @@ import {
   type FormDefinition,
   type PublishError,
   type PublishResult,
+  type PublishWarning,
   type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
@@ -133,11 +134,19 @@ function errorsOf(result: PublishResult): readonly PublishError[] {
   return result.error;
 }
 
-function snapshotOf(result: PublishResult) {
+function outcomeOf(result: PublishResult) {
   if (!result.ok) {
     throw new Error(`expected ok, got errors: ${JSON.stringify(result.error)}`);
   }
   return result.value;
+}
+
+function snapshotOf(result: PublishResult) {
+  return outcomeOf(result).snapshot;
+}
+
+function warningsOf(result: PublishResult): readonly PublishWarning[] {
+  return outcomeOf(result).warnings;
 }
 
 function at<T>(items: readonly T[], index: number): T {
@@ -722,5 +731,238 @@ describe("compileDraft - error accumulation", () => {
     const first = errorsOf(compileDraft({ ...draft, ...store }));
     const second = errorsOf(compileDraft({ ...draft, ...store }));
     expect(second).toEqual(first);
+  });
+});
+
+describe("compileDraft - blank authored text (issue #366)", () => {
+  it("BLANK_LOCALIZED_TEXT: a whitespace-only question label names the question and locale", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(textQ("q_b", { label: { en: "   " } }))]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "BLANK_LOCALIZED_TEXT",
+        path: { locale: "en", question: "q_b" },
+      }),
+    ]);
+    expect(at(errors, 0).message).toContain('"q_b"');
+    expect(at(errors, 0).message).toContain('"en"');
+  });
+
+  it("BLANK_LOCALIZED_TEXT: the form title and a step title are checked too", () => {
+    const errors = errorsOf(compileDraft(twoStepDraft([], { title: { en: "\t\n " } })));
+    expect(errors).toEqual([
+      expect.objectContaining({ code: "BLANK_LOCALIZED_TEXT", path: { locale: "en" } }),
+    ]);
+  });
+
+  it("BLANK_LOCALIZED_TEXT: a non-default locale is reported and names that locale", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a")),
+          record(textQ("q_b", { label: { en: "Name", "fr-CA": " " } })),
+        ]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "BLANK_LOCALIZED_TEXT",
+        path: { locale: "fr-CA", question: "q_b" },
+      }),
+    ]);
+  });
+
+  it("a blank default-locale value is one error, not also a LOCALE_INCOMPLETE", () => {
+    const draft = twoStepDraft([]);
+    const errors = errorsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([record(boolQ("q_a")), record(textQ("q_b", { label: { en: " " } }))]),
+      }),
+    );
+    expect(errors.map((entry) => entry.code)).toEqual(["BLANK_LOCALIZED_TEXT"]);
+  });
+
+  it("option labels and help text are covered, with the option in the path", () => {
+    const definition = makeForm([["stp_one", ["q_a"]]], []);
+    const errors = errorsOf(
+      compileDraft({
+        definition,
+        ...makeStore([
+          record(
+            multiQ("q_a", ["opt_x", "opt_y"], (optionId) =>
+              optionId === "opt_y" ? { en: "  " } : { en: optionId },
+            ),
+          ),
+        ]),
+      }),
+    );
+    expect(errors).toEqual([
+      expect.objectContaining({
+        code: "BLANK_LOCALIZED_TEXT",
+        path: { locale: "en", question: "q_a", option: "opt_y" },
+      }),
+    ]);
+  });
+
+  it("the LocalizedText schema itself stays permissive (R1: published snapshots keep parsing)", () => {
+    // The rule is a publish gate, not a type tightening: a stored snapshot
+    // containing a blank label is re-parsed on the serving path and must still
+    // parse. Proving the schema still accepts it is the point.
+    expect(() => textQ("q_b", { label: { en: "   " } })).not.toThrow();
+  });
+});
+
+describe("compileDraft - warnings (issue #123)", () => {
+  const CHOICES = "q_choices";
+
+  /** Two steps: a multiChoice and a text question on step one, one on step two. */
+  function multiChoiceDraft(rules: readonly unknown[]): DraftInput {
+    return {
+      definition: makeForm(
+        [
+          ["stp_one", [CHOICES, "q_detail"]],
+          ["stp_two", ["q_later"]],
+        ],
+        rules,
+      ),
+      ...makeStore([
+        record(multiQ(CHOICES, ["opt_a", "opt_b"])),
+        record(textQ("q_detail")),
+        record(textQ("q_later")),
+      ]),
+    };
+  }
+
+  const sameStepRule = {
+    ruleId: "rul_same",
+    when: { op: "contains", questionId: CHOICES, value: "opt_a" },
+    show: ["q_detail"],
+  };
+
+  it("MULTICHOICE_SAME_STEP_TARGET: names the rule, the question read, and the target", () => {
+    const warnings = warningsOf(compileDraft(multiChoiceDraft([sameStepRule])));
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "MULTICHOICE_SAME_STEP_TARGET",
+        path: { rule: "rul_same", question: CHOICES, target: "q_detail", step: "stp_one" },
+      }),
+    ]);
+    const { message } = at(warnings, 0);
+    expect(message).toContain('"rul_same"');
+    expect(message).toContain(`"${CHOICES}"`);
+    expect(message).toContain('"q_detail"');
+  });
+
+  it("a warning never refuses the publish: the snapshot is still returned", () => {
+    const result = compileDraft(multiChoiceDraft([sameStepRule]));
+    expect(result.ok).toBe(true);
+    expect(snapshotOf(result).definition.formId).toBe("frm_test");
+  });
+
+  it("a cross-step target is silent: that is the ordinary case (ADR-31)", () => {
+    const warnings = warningsOf(
+      compileDraft(
+        multiChoiceDraft([
+          {
+            ruleId: "rul_cross",
+            when: { op: "contains", questionId: CHOICES, value: "opt_a" },
+            show: ["q_later"],
+          },
+        ]),
+      ),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("a whole-step target is silent: only a QuestionId target is advised on", () => {
+    const warnings = warningsOf(
+      compileDraft(
+        multiChoiceDraft([
+          {
+            ruleId: "rul_step",
+            when: { op: "contains", questionId: CHOICES, value: "opt_a" },
+            show: ["stp_two"],
+          },
+        ]),
+      ),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("a rule reading a non-multiChoice question targeting the same step is silent", () => {
+    const definition = makeForm(
+      [
+        ["stp_one", ["q_a", "q_b"]],
+        ["stp_two", ["q_c"]],
+      ],
+      [{ ruleId: "rul_bool", when: { op: "equals", questionId: "q_a", value: true }, show: ["q_b"] }],
+    );
+    const warnings = warningsOf(
+      compileDraft({
+        definition,
+        ...makeStore([record(boolQ("q_a")), record(textQ("q_b")), record(textQ("q_c"))]),
+      }),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("a clean draft with nothing to advise carries an empty warning list", () => {
+    expect(warningsOf(compileDraft(twoStepDraft([showBWhenA])))).toEqual([]);
+  });
+
+  it("PATTERN_CLASS_SET_AMBIGUOUS: an unescaped '&&' inside a character class (issue #53)", () => {
+    const draft = twoStepDraft([]);
+    const warnings = warningsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a")),
+          record(textQ("q_b", { constraints: { pattern: "^[a&&b]+$" } })),
+        ]),
+      }),
+    );
+    expect(warnings).toEqual([
+      expect.objectContaining({
+        code: "PATTERN_CLASS_SET_AMBIGUOUS",
+        path: { question: "q_b" },
+      }),
+    ]);
+    expect(at(warnings, 0).message).toContain("&&");
+  });
+
+  it("a single '&' in a class reads the same under both flags and is silent", () => {
+    const draft = twoStepDraft([]);
+    const warnings = warningsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a")),
+          record(textQ("q_b", { constraints: { pattern: "^[a&b]+$" } })),
+        ]),
+      }),
+    );
+    expect(warnings).toEqual([]);
+  });
+
+  it("an ordinary pattern is silent", () => {
+    const draft = twoStepDraft([]);
+    const warnings = warningsOf(
+      compileDraft({
+        ...draft,
+        ...makeStore([
+          record(boolQ("q_a")),
+          record(textQ("q_b", { constraints: { pattern: "^[a-z]+$" } })),
+        ]),
+      }),
+    );
+    expect(warnings).toEqual([]);
   });
 });

@@ -88,6 +88,14 @@ const samples: { raw: unknown; location: string }[] = [
   },
   {
     raw: {
+      code: "BLANK_LOCALIZED_TEXT",
+      message: "Question label is whitespace only",
+      path: { locale: "en", question: "q_coverage_level" },
+    },
+    location: 'locale "en" blank on question "q_coverage_level"',
+  },
+  {
+    raw: {
       code: "RULE_BACKWARD_TARGET",
       message: "Rule target does not appear after the questions its condition reads",
       path: { rule: "rul_accident_followup", target: "q_at_fault_accident" },
@@ -147,7 +155,7 @@ const samples: { raw: unknown; location: string }[] = [
 describe("PublishError", () => {
   it("codes and union variants stay in lockstep (compile-time)", () => {
     expect(codesInLockstep).toBe(true);
-    expect(PublishErrorCode.options).toHaveLength(12);
+    expect(PublishErrorCode.options).toHaveLength(13);
   });
 
   it.each(
@@ -201,7 +209,7 @@ describe("PublishResult contract", () => {
     readFileSync(path.join(FIXTURES_DIR, "forms", "valid", "minimal.json"), "utf8"),
   );
 
-  it("ok carries a frozen-snapshot-shaped value (implementation is task 008)", () => {
+  it("ok carries a frozen snapshot and its warnings (implementation is task 008)", () => {
     const parsed = parseFormDefinition(minimal);
     if (!parsed.ok) {
       throw new Error("minimal fixture did not parse");
@@ -212,11 +220,14 @@ describe("PublishResult contract", () => {
       semanticsVersion: 1,
       schemaVersion: 1,
     };
-    const result: PublishResult = ok(snapshot);
+    const result: PublishResult = ok({ snapshot, warnings: [] });
     expect(result.ok).toBe(true);
     if (result.ok) {
-      expect(result.value.semanticsVersion).toBe(1);
-      expect(result.value.definition.formId).toBe("frm_minimal");
+      expect(result.value.snapshot.semanticsVersion).toBe(1);
+      expect(result.value.snapshot.definition.formId).toBe("frm_minimal");
+      // Warnings ride the success branch (#123), so a publish that raised none
+      // still carries the array and no caller has to test for its absence.
+      expect(result.value.warnings).toEqual([]);
     }
   });
 

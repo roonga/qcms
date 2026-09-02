@@ -53,6 +53,12 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   DUPLICATE_QUESTION_IN_FORM: "forms.issue.duplicateQuestion",
   DUPLICATE_STEP_ID: "forms.issue.duplicateStep",
   DEPRECATED_PIN: "forms.issue.deprecatedPin",
+  BLANK_LOCALIZED_TEXT: "forms.issue.blankText",
+  // Warnings (issue #123) share this table because they share the wire shape and the
+  // renderer: one entry has one sentence, whether it refuses a publish or advises about
+  // one. What separates them is where the panel puts them, not how they are read.
+  MULTICHOICE_SAME_STEP_TARGET: "forms.warning.multiChoiceSameStep",
+  PATTERN_CLASS_SET_AMBIGUOUS: "forms.warning.patternClassSet",
 };
 
 /** The sentence explaining one issue's code. */

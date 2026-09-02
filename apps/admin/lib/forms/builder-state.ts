@@ -35,6 +35,12 @@ export const IDLE_CREATE_FORM: CreateFormState = { status: "idle" };
 export interface SaveDraftState {
   readonly status: "saved" | "error";
   readonly issues: readonly FormIssue[];
+  /**
+   * Non-blocking publish advisories (issue #123). Empty whenever `issues` is not:
+   * the kernel advises only on a draft it could actually publish, so a warning is
+   * never part of the reason the count beside it is what it is.
+   */
+  readonly warnings: readonly FormIssue[];
   readonly code?: string;
   readonly message?: string;
 }
@@ -42,8 +48,10 @@ export interface SaveDraftState {
 /** The result of one debounced dry-run validation. */
 export interface ValidateDraftState {
   readonly status: "ok" | "error";
+  /** Errors only: a warning describes a draft that would publish (issue #123). */
   readonly valid: boolean;
   readonly issues: readonly FormIssue[];
+  readonly warnings: readonly FormIssue[];
   readonly message?: string;
 }
 

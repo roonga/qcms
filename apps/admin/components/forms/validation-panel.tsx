@@ -88,11 +88,22 @@ export type BuilderStatus = "idle" | "validating" | "saved" | "saving" | "error"
 export function ValidationPanel({
   draft,
   issues,
+  warnings = [],
   status,
 }: {
   readonly draft: DraftForm;
   /** The verdict, or `undefined` when no check has landed yet. Never a stand-in for zero. */
   readonly issues: readonly FormIssue[] | undefined;
+  /**
+   * Non-blocking advisories (issue #123): things that would publish and probably will
+   * not behave the way they read. Rendered below the issue list, never counted into it.
+   *
+   * A plain array rather than the three-state value `issues` carries, and the asymmetry
+   * is deliberate. The count above is an assertion an author acts on, so "not checked
+   * yet" had to be distinguishable from "none". A warning list asserts nothing: it
+   * either has something to show or it does not, and an empty one misleads nobody.
+   */
+  readonly warnings?: readonly FormIssue[];
   readonly status: BuilderStatus;
 }) {
   return (
@@ -124,6 +135,31 @@ export function ValidationPanel({
           ))}
         </ul>
       )}
+
+      {/* Warnings, below the issues and visibly a second list (issue #123). Same entry
+          component, so a warning is a link that moves focus exactly as an issue is - the
+          structured path is the same shape and the anchors are the same anchors. What is
+          NOT shared is the count: this heading and sentence stay out of the `aria-live`
+          region above, because that region is the single authority on how many things
+          would block a publish and a warning blocks nothing. Folding the two numbers
+          together is how an author ends up unable to tell which of them stops them. */}
+      {warnings.length > 0 && (
+        <div className="flex flex-col gap-2" data-testid="qcms-validation-warnings">
+          <h3 className="text-sm font-semibold text-(--color-text)">
+            {t("forms.warning.heading")}
+          </h3>
+          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-warning-summary">
+            {warningSummary(warnings)}
+          </p>
+          <ul className="flex flex-col gap-2">
+            {warnings.map((warning, index) => (
+              <li key={`${warning.code}:${locationOf(warning)}:${String(index)}`}>
+                <IssueEntry issue={warning} draft={draft} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -144,6 +180,19 @@ function issueSummary(issues: readonly FormIssue[] | undefined, status: BuilderS
   if (count === 0) return t("forms.validation.none");
   if (count === 1) return t("forms.validation.countOne");
   return t("forms.validation.count", { count });
+}
+
+/**
+ * What the draft's warnings add up to, in one sentence.
+ *
+ * No `"validating"`, `"error"` or not-yet-checked branch, and that is not an omission:
+ * this sentence is only ever rendered beside a non-empty list, so there is no state in
+ * which it would have to speak for a number it does not have.
+ */
+function warningSummary(warnings: readonly FormIssue[]): string {
+  return warnings.length === 1
+    ? t("forms.warning.countOne")
+    : t("forms.warning.count", { count: warnings.length });
 }
 
 /**

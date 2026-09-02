@@ -4,6 +4,7 @@ import type { Result } from "./errors.js";
 import type { FormDefinition } from "./form-definition.js";
 import { OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { LocaleCode } from "./localized-text.js";
+import type { PublishWarning } from "./publish-warning.js";
 import type { QuestionVersionRecord } from "./question-definition.js";
 import { ValidationMessageKey } from "./validation-message.js";
 
@@ -25,6 +26,10 @@ export const PublishErrorCode = z.enum([
   "DANGLING_STEP_REF",
   "UNPUBLISHED_QUESTION_PIN",
   "LOCALE_INCOMPLETE",
+  // A LocalizedText entry whose value is whitespace only (issue #366): the
+  // schema stays permissive so published snapshots keep parsing (R1), so the
+  // publish gate is where a blank label is refused.
+  "BLANK_LOCALIZED_TEXT",
   "RULE_BACKWARD_TARGET",
   "RULE_CYCLE",
   "RULE_DEPTH_EXCEEDED",
@@ -80,6 +85,19 @@ export const PublishError = z.discriminatedUnion("code", [
   // A LocalizedText is missing the form's defaultLocale (invariant I3).
   z.object({
     code: z.literal("LOCALE_INCOMPLETE"),
+    message,
+    path: z.object({
+      locale: LocaleCode,
+      step: StepId.optional(),
+      question: QuestionId.optional(),
+      option: OptionId.optional(),
+    }),
+  }),
+  // A LocalizedText entry carries only whitespace (issue #366). The path is
+  // the LOCALE_INCOMPLETE path: the same locations, a different verdict about
+  // the value found there.
+  z.object({
+    code: z.literal("BLANK_LOCALIZED_TEXT"),
     message,
     path: z.object({
       locale: LocaleCode,
@@ -157,15 +175,49 @@ export type FrozenSnapshot = {
 };
 
 /**
- * The publish contract (DOMAIN_SCHEMA §4.1): `ok(frozenSnapshot)` when every
- * invariant holds, otherwise `err` with **all** publish errors - atomic,
+ * What a *successful* publish yields (issue #123): the frozen snapshot, plus
+ * every advisory the checks raised on the way.
+ *
+ * The warnings ride the success branch rather than a channel of their own, and
+ * that placement is the contract: a warning is by definition something that
+ * did not stop the publish, so a result carrying warnings always carries a
+ * snapshot too. A caller that only reads `snapshot` behaves exactly as it did
+ * before the channel existed.
+ */
+export type PublishOutcome = {
+  readonly snapshot: FrozenSnapshot;
+  /** Non-blocking advisories about a draft that is nonetheless publishable. */
+  readonly warnings: readonly PublishWarning[];
+};
+
+/**
+ * The publish contract (DOMAIN_SCHEMA §4.1): `ok({ snapshot, warnings })` when
+ * every invariant holds, otherwise `err` with **all** publish errors - atomic,
  * nothing persisted, never first-only.
  */
-export type PublishResult = Result<FrozenSnapshot, readonly PublishError[]>;
+export type PublishResult = Result<PublishOutcome, readonly PublishError[]>;
 
 /* v8 ignore next 3 -- compile-time never-exhaustiveness guard; unreachable */
 function assertNeverPublishError(error: never): never {
   throw new Error(`Unhandled publish error code: ${String((error as { code?: unknown }).code)}`);
+}
+
+/**
+ * Where a `LocalizedText` verdict was reached, written for a human. Shared by
+ * the two codes that report on one: a missing default locale and a blank one
+ * name the same sites and differ only in what was found there.
+ */
+function textSite(path: {
+  readonly step?: StepId | undefined;
+  readonly question?: QuestionId | undefined;
+  readonly option?: OptionId | undefined;
+}): string {
+  if (path.option !== undefined && path.question !== undefined) {
+    return `option "${path.option}" of question "${path.question}"`;
+  }
+  if (path.question !== undefined) return `question "${path.question}"`;
+  if (path.step !== undefined) return `step "${path.step}"`;
+  return "form title";
 }
 
 /**
@@ -191,19 +243,10 @@ export function publishErrorLocation(error: PublishError): string {
       return `step "${error.path.step}" in rule "${error.path.rule}"`;
     case "UNPUBLISHED_QUESTION_PIN":
       return `question "${error.path.question}"@${String(error.path.version)} in step "${error.path.step}"`;
-    case "LOCALE_INCOMPLETE": {
-      let at: string;
-      if (error.path.option !== undefined && error.path.question !== undefined) {
-        at = `option "${error.path.option}" of question "${error.path.question}"`;
-      } else if (error.path.question !== undefined) {
-        at = `question "${error.path.question}"`;
-      } else if (error.path.step !== undefined) {
-        at = `step "${error.path.step}"`;
-      } else {
-        at = "form title";
-      }
-      return `locale "${error.path.locale}" missing on ${at}`;
-    }
+    case "LOCALE_INCOMPLETE":
+      return `locale "${error.path.locale}" missing on ${textSite(error.path)}`;
+    case "BLANK_LOCALIZED_TEXT":
+      return `locale "${error.path.locale}" blank on ${textSite(error.path)}`;
     case "RULE_BACKWARD_TARGET":
       return `target "${error.path.target}" of rule "${error.path.rule}"`;
     case "RULE_CYCLE": {

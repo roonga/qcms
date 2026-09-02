@@ -109,7 +109,7 @@ function buildSnapshot(fixture: CompiledFixture): FrozenSnapshot {
   if (!result.ok) {
     throw new Error(`${fixture.name}: the form did not publish: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 /** Serialize a compiled form to its on-disk form (2-space, trailing LF). */

@@ -559,10 +559,17 @@
             "items": {
               "nullable": true
             }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            }
           }
         },
         "required": [
-          "issues"
+          "issues",
+          "warnings"
         ]
       },
       "DraftBody": {
@@ -595,11 +602,18 @@
             "items": {
               "nullable": true
             }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "nullable": true
+            }
           }
         },
         "required": [
           "valid",
-          "issues"
+          "issues",
+          "warnings"
         ]
       },
       "PreviewConditionResponse": {

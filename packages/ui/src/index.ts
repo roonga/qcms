@@ -28,5 +28,14 @@ export type { AuthorMessages } from "./author-messages.ts";
 
 export { documentForVisible } from "./visible.ts";
 
+/**
+ * The render-time `pattern` normalization (issue #29, PR #52), exported so an
+ * authoring surface can offer its output as a suggestion rather than leaving
+ * every render to repair the same string (issue #53). The renderer stays its
+ * primary caller: stored documents are immutable and keep their original
+ * pattern whatever an author does next (R1, ADR-18).
+ */
+export { compilesUnderV, toVSafePattern } from "./v-safe-pattern.ts";
+
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";

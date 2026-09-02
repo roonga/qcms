@@ -1,5 +1,6 @@
 "use client";
 
+import { compilesUnderV, toVSafePattern } from "@qcms/ui";
 import { useState } from "react";
 
 import { Checkbox, DatePicker, NumberField, TextField } from "@/components/kit";
@@ -96,6 +97,32 @@ function ConstraintNumber({
  * The input is capped at the kernel's own pattern length so a runaway expression cannot
  * be typed here in the first place.
  */
+/**
+ * The v-safe spelling to suggest for a pattern, or `undefined` when there is
+ * nothing to say (issue #53).
+ *
+ * A browser compiles the HTML `pattern` attribute under the `v` flag, whose
+ * character-class grammar is narrower than the one this expression is authored
+ * and validated against, so a pattern like `[A-Za-z .,'-]` is dropped by the
+ * browser with a console error. `toVSafePattern` (issue #52) already repairs
+ * that at render time, on every render, forever. Offering its output here lets
+ * the author store the repaired spelling instead, which is the same rule
+ * written so that nothing downstream has to rewrite it.
+ *
+ * Three outcomes, and the middle one is the reason this is message-level rather
+ * than a widget: nothing to say, a suggestion to make, or a warning with no
+ * suggestion behind it (the normalization declines patterns whose rewrite would
+ * not be provably meaning-preserving, and omission is then correct - the API is
+ * the validation authority, R2).
+ */
+function vSafeNote(pattern: string): string {
+  if (pattern === "" || compilesUnderV(pattern)) return "";
+  const suggestion = toVSafePattern(pattern);
+  return suggestion === undefined
+    ? t("questions.constraint.patternVUnsafe")
+    : t("questions.constraint.patternVSuggestion", { suggestion });
+}
+
 function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
   const [sample, setSample] = useState("");
   const pattern = typeof constraints.pattern === "string" ? constraints.pattern : "";
@@ -111,6 +138,8 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
     }
   }
 
+  const vNote = isFrozen ? "" : vSafeNote(pattern);
+
   return (
     <div className="flex flex-col gap-2">
       <TextField
@@ -124,6 +153,17 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
           onChange({ ...constraints, pattern: next === "" ? undefined : next });
         }}
       />
+      {vNote !== "" && (
+        // Polite for the same reason the sample verdict is: it recomputes on every
+        // keystroke, and an assertive region would interrupt the author mid-word.
+        <p
+          aria-live="polite"
+          className="text-sm text-(--color-text-muted)"
+          data-testid="qcms-pattern-v-note"
+        >
+          {vNote}
+        </p>
+      )}
       {!isFrozen && (
         <>
           <TextField

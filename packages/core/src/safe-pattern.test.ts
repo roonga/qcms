@@ -5,6 +5,7 @@ import {
   SAFE_PATTERN_MAX_COMPOSITE_BOUND,
   SAFE_PATTERN_MAX_LENGTH,
   checkSafePattern,
+  classSetAmbiguity,
   isSafePattern,
 } from "./index.js";
 
@@ -72,5 +73,46 @@ describe("checkSafePattern", () => {
   it("never echoes the pattern into the issue message", () => {
     const issue = checkSafePattern("(secret-content+)+");
     expect(issue?.message).not.toContain("secret-content");
+  });
+});
+
+describe("classSetAmbiguity (issue #53)", () => {
+  it("reports '&&' inside a character class, which means two things at once", () => {
+    // `[a&&b]` compiles under both flags: `{a, &, b}` under `u`, and the
+    // intersection of `{a}` and `{b}` (empty, so unmatchable) under `v`.
+    expect(new RegExp("[a&&b]", "u").test("&")).toBe(true);
+    expect(new RegExp("[a&&b]", "v").test("&")).toBe(false);
+    expect(classSetAmbiguity("^[a&&b]+$")).toBe("&&");
+  });
+
+  it("reports '--' inside a character class", () => {
+    // `[!--0]` is the range `!`..`-` plus `0` under `u`, and a class-set
+    // difference under `v`. Both compile, so nothing downstream complains.
+    expect(classSetAmbiguity("^[!--0]+$")).toBe("--");
+  });
+
+  it("is silent for a single occurrence of either character", () => {
+    expect(classSetAmbiguity("^[a&b]+$")).toBeUndefined();
+    expect(classSetAmbiguity("^[a-z-]+$")).toBeUndefined();
+  });
+
+  it("is silent outside a character class, where neither flag reads an operator", () => {
+    expect(classSetAmbiguity("^a&&b$")).toBeUndefined();
+  });
+
+  it("is silent for an escaped pair, which is literal under both flags", () => {
+    expect(classSetAmbiguity("^[a\\-\\-b]+$")).toBeUndefined();
+  });
+
+  it("is silent for a pattern that does not compile under 'v' at all", () => {
+    // No second reading to disagree with: the render-time normalize-or-omit
+    // path (issue #52) owns this case, not the ambiguity advisory.
+    expect(new RegExp("[a&&b-]", "u").source).toBe("[a&&b-]");
+    expect(() => new RegExp("[a&&b-]", "v")).toThrow();
+    expect(classSetAmbiguity("[a&&b-]")).toBeUndefined();
+  });
+
+  it("returns only the operator it found, never the pattern", () => {
+    expect(classSetAmbiguity("^[s&&t]+$")).toBe("&&");
   });
 });

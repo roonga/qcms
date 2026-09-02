@@ -249,6 +249,14 @@ export const messages = {
   "questions.constraint.patternMatch": "The sample matches this pattern.",
   "questions.constraint.patternNoMatch": "The sample does not match this pattern.",
   "questions.constraint.patternUnreadable": "This is not a readable expression yet.",
+  // The #52 normalization, offered at the source (issue #53). A browser compiles the HTML
+  // `pattern` attribute under stricter rules than this expression follows, so the renderer
+  // rewrites it on every render. Storing the rewritten spelling instead makes that
+  // unnecessary; the suggestion means the same thing as what was typed.
+  "questions.constraint.patternVSuggestion":
+    "A browser reads the pattern attribute more strictly than this and would ignore this expression. The same rule written as {suggestion} works everywhere.",
+  "questions.constraint.patternVUnsafe":
+    "A browser reads the pattern attribute more strictly than this and would ignore this expression. Answers are still checked by the engine, but the in-page hint is lost.",
   "questions.constraint.min": "Smallest value",
   "questions.constraint.max": "Largest value",
   "questions.constraint.integer": "Whole numbers only",
@@ -895,6 +903,23 @@ export const messages = {
   "forms.issue.deprecatedPin":
     "This pin points at a deprecated version. It keeps working exactly as it is, and a new pin cannot be made to it.",
   "forms.issue.unknown": "The engine reported an issue this screen has no wording for ({code}).",
+  // Blank authored text (issue #366). The publish gate names the question and the locale;
+  // this is the sentence that says why a value made of spaces is not a value.
+  "forms.issue.blankText":
+    "This text is only whitespace, so it would reach a respondent as no text at all. Type something, or remove the entry.",
+
+  // Warnings (issue #123). Worded apart from the issue list above because the two say
+  // different things: an issue is why a publish is refused, a warning is something that
+  // will publish and probably will not behave the way it reads.
+  "forms.warning.heading": "Worth a look",
+  "forms.warning.countOne": "1 thing would publish but may not behave as written.",
+  "forms.warning.count": "{count} things would publish but may not behave as written.",
+  "forms.warning.multiChoiceSameStep":
+    "A multiple-choice answer is only counted once the respondent leaves the group, so a question revealed on the same step appears after they move on rather than as they tick. A target on a later step reveals when they continue.",
+  "forms.warning.patternClassSet":
+    "This pattern uses a character class the browser and the engine read differently, so it can accept different answers in each. Rewrite the class if the two characters were meant literally.",
+  "forms.warning.unknown":
+    "The engine reported a warning this screen has no wording for ({code}).",
 
   "forms.error.invalidId": "That is not a valid form ID.",
   "forms.error.invalidLocale": "That is not a locale the engine recognises.",

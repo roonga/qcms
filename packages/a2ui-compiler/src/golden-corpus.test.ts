@@ -180,7 +180,7 @@ function buildSnapshot(fixture: string, local = false): FrozenSnapshot {
   if (!result.ok) {
     throw new Error(`fixture ${fixture} did not publish: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 /** Serialize a compiled form to the on-disk golden form (2-space, trailing LF). */

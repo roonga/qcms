@@ -43,6 +43,7 @@ import {
   parseLocaleCode,
   parseQuestionId,
   type PublishError,
+  type PublishWarning,
   type QuestionId,
   type QuestionRef,
   type QuestionVersionRecord,
@@ -290,14 +291,24 @@ function deprecatedPinGate(
 
 /**
  * Run the full publish validation in dry-run: the deprecated-pin gate plus
- * `compileDraft` (008). Returns every issue (all errors, never first-only) and,
- * when the draft is clean, the frozen snapshot ready to compile and persist.
- * Shared by the advisory paths (PUT draft, validate) and publish itself.
+ * `compileDraft` (008). Returns every issue (all errors, never first-only),
+ * every non-blocking warning, and - when the draft is clean - the frozen
+ * snapshot ready to compile and persist. Shared by the advisory paths (PUT
+ * draft, validate) and publish itself.
+ *
+ * `warnings` is empty whenever `issues` is not: the kernel advises only on a
+ * draft it could actually publish (issue #123). A warning never contributes to
+ * the refusal decision, which is why every caller below tests `issues` rather
+ * than a combined count.
  */
 async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
-): Promise<{ issues: PublishIssue[]; snapshot?: FrozenSnapshot }> {
+): Promise<{
+  issues: PublishIssue[];
+  warnings: readonly PublishWarning[];
+  snapshot?: FrozenSnapshot;
+}> {
   const { resolveQuestion, publishedQuestionVersions, statusByPin } = await loadQuestionLookups(
     deps,
     definition,
@@ -315,7 +326,11 @@ async function validateDraft(
   const draft: DraftInput = { definition, resolveQuestion, publishedQuestionVersions };
   const result = compileDraft(draft);
   const issues: PublishIssue[] = [...deprecatedIssues, ...(result.ok ? [] : result.error)];
-  return { issues, ...(result.ok ? { snapshot: result.value } : {}) };
+  return {
+    issues,
+    warnings: result.ok ? result.value.warnings : [],
+    ...(result.ok ? { snapshot: result.value.snapshot } : {}),
+  };
 }
 
 /** True for a Postgres unique-violation (SQLSTATE 23505) on the id/cause. */
@@ -473,9 +488,9 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // Save first (drafts may be temporarily inconsistent), then advise. Advisory
     // issues do not block the save; they block publish.
     await upsertDraft(deps.db, { formId, definition });
-    const { issues } = await validateDraft(deps, definition);
+    const { issues, warnings } = await validateDraft(deps, definition);
 
-    return c.json({ draft: definition, issues }, 200);
+    return c.json({ draft: definition, issues, warnings: [...warnings] }, 200);
   };
 }
 
@@ -492,8 +507,10 @@ export function makeValidateDraftHandler(
     const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const { issues } = await validateDraft(deps, definition);
-    return c.json({ valid: issues.length === 0, issues }, 200);
+    // `valid` keys off errors alone: a warning describes a draft that would
+    // publish, so counting it here would refuse on advice (issue #123).
+    const { issues, warnings } = await validateDraft(deps, definition);
+    return c.json({ valid: issues.length === 0, issues, warnings: [...warnings] }, 200);
   };
 }
 
