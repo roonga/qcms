@@ -149,6 +149,13 @@ Constraints objects use `.prefault({})` (Zod 4: `.default` returns its value ver
 
 The composite-group rules are deliberately conservative: some rejected patterns are harmless, but every accepted pattern is linear-time-safe on a backtracking engine.
 
+**Browser compatibility of `pattern`, and where it is enforced (issue #53, Code Owner 2026-09-02).** A browser compiles the HTML `pattern` attribute with the **`v`** flag, whose character-class grammar is strictly narrower than the `u` semantics above: a bare `-` at the edge of a class (`[A-Za-z .,'-]`, which occurs throughout this repository's own corpus) is a literal under `u` and a `SyntaxError` under `v`, so the browser drops native validation for the field and logs an error. The stance is **reject-new-only**, and the enforcement point is what implements it:
+
+- **The authoring API refuses a v-invalid pattern** on any new or edited definition (`requireDefinition` in the questions slice, `PATTERN_NOT_BROWSER_SAFE`), naming why and offering `toVSafePattern`'s equivalent spelling where one is provably meaning-preserving. The admin surfaces the same suggestion live on the pattern field before a save is attempted.
+- **`checkSafePattern` is unchanged**, and deliberately so. It runs inside `QuestionDefinition`'s refinements, which every stored definition, seed fixture and golden-corpus input also parses through; refusing there would retroactively invalidate content that is already published and serving correctly (R1) and would change what the append-only corpus compiles (ADR-18).
+- **Stored patterns keep serving**, repaired on their way to the DOM by the renderer's normalize-or-omit path (issue #52). That path stays: published A2UI is immutable and keeps its original `pattern` forever.
+- The **silent `u`/`v` divergence** for `&&` and `--` inside a class (`[a&&b]` compiles under both and means different things under each) is a publish **warning**, not a refusal - see §4.1. Refusal and warning are deliberately distinguishable outcomes: invalid is refused, ambiguous-but-legal is advised on.
+
 ### 2.3 Form definition
 
 A form is ordered steps of pinned question references plus visibility rules. Pins are `{questionId, version}` pairs - the question-level versioning of ADR-02 with launch-minimal UX (manual pinning).
@@ -308,15 +315,19 @@ flowchart LR
     B -->|"rule refs/targets resolve, incl.\noptionIds against the pinned version\n(DANGLING_QUESTION_REF / _STEP_REF /\n_OPTION_REF)"| B
     B -->|"rule graph forward-only + acyclic -\nanalyzeRuleGraph (ADR-16, I10:\nRULE_BACKWARD_TARGET / RULE_CYCLE)"| B
     B -->|"condition types check against pinned\nversions - checkRuleTypes (ADR-21:\nRULE_TYPE_MISMATCH); nesting depth\ncap (RULE_DEPTH_EXCEEDED)"| B
-    B -->|"defaultLocale complete for every\nLocalizedText in form and pinned\nversions (LOCALE_INCOMPLETE)"| B
+    B -->|"defaultLocale complete for every\nLocalizedText in form and pinned\nversions (LOCALE_INCOMPLETE); no\nwhitespace-only value in any locale\n(BLANK_LOCALIZED_TEXT)"| B
     B -- any fail --> E["PublishResult.err\nPublishError[] (all errors, not first)"]
-    B -- all hold --> C["FrozenSnapshot: FormDefinition +\nresolved QuestionVersionRecords\n(deep-frozen clone)\n+ semanticsVersion + schemaVersion"]
+    B -- all hold --> C["PublishOutcome:\nFrozenSnapshot (FormDefinition +\nresolved QuestionVersionRecords,\ndeep-frozen clone, + semanticsVersion\n+ schemaVersion)\n+ PublishWarning[] (never blocking)"]
     C --> D["@qcms/a2ui-compiler\nFormDefinition → A2UI docs/step\n+ compilerVersion + a2uiSpecVersion"]
     D --> F["FormVersion vN\ndefinition + compiled + stamps + publishedAt"]
     F --> G["outbox: form.published"]
 ```
 
 **Implementation (task 008, `@qcms/core` `compile-draft.ts`).** The implemented signature is `compileDraft(draft: DraftInput): PublishResult` with `DraftInput = { definition: FormDefinition, resolveQuestion: (questionId, version) => QuestionVersionRecord | undefined, publishedQuestionVersions: ReadonlyMap<QuestionId, ReadonlySet<number>> }` - the caller supplies both lookups; core never does I/O (R3). On success the `FrozenSnapshot` carries the definition plus the resolved `QuestionVersionRecord` per pin (document order), deep-frozen as a clone (the caller's draft stays editable), stamped `{ semanticsVersion: SEMANTICS_VERSION, schemaVersion: SNAPSHOT_SCHEMA_VERSION }`. Compiled A2UI and its stamps are attached by the API slice using 011's compiler (nodes D/F above are 011/013/022) - core does not import the compiler. Parse-level refinements (duplicate step/question pins, the condition depth cap) are re-checked with structured domain paths, so a hand-built definition still yields a complete publish report.
+
+**Warnings (issue #123).** The success branch is `PublishOutcome = { snapshot: FrozenSnapshot, warnings: readonly PublishWarning[] }`. A warning is **never** blocking and is only ever raised on a draft that produced a snapshot, so a result carrying warnings always carries a snapshot too and a caller that reads only `snapshot` behaves as it did before the channel existed. `PublishWarning` mirrors `PublishError`: a closed union on `code`, a human `message`, and a structured domain path, so the admin renders both through one list. Two codes at launch - `MULTICHOICE_SAME_STEP_TARGET` (a rule reading a multiChoice answer whose target sits on the same step; ADR-31 commits multiChoice on group exit, so the reveal cannot happen while the respondent is still inside the group, and a cross-step target is the ordinary case and never warns) and `PATTERN_CLASS_SET_AMBIGUOUS` (a shortText `pattern` whose character class carries an unescaped `&&` or `--` and compiles under both the `u` and `v` regex flags, meaning different things under each with no error anywhere downstream).
+
+**Blank authored text (issue #366).** `BLANK_LOCALIZED_TEXT` refuses a whitespace-only `LocalizedText` value at publish, naming the question and the locale, and every locale is checked rather than only the default. `LocalizedText` itself stays `z.string().min(1)` and is deliberately not tightened to `.trim().min(1)`: published snapshots are re-parsed on the serving path, so a schema tightening would make an already-published form containing a blank label fail to parse at serve time (R1). It does not remove the need for the portal's positional fallback either - a genuinely absent label remains possible whatever this rule says.
 
 ### 4.2 Question versions
 

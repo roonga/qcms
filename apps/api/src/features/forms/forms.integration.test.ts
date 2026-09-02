@@ -393,13 +393,13 @@ describe("stored compiled deep-equals a fresh compile (exit criterion 4)", () =>
     });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    const fresh = compileForm(result.value, {});
+    const fresh = compileForm(result.value.snapshot, {});
 
     expect(stored.compiled).toEqual(fresh);
     // Version stamps present and consistent.
     expect(stored.compilerVersion).toBe(fresh.compilerVersion);
     expect(stored.a2uiSpecVersion).toBe(fresh.a2uiSpecVersion);
-    expect(stored.semanticsVersion).toBe(String(result.value.semanticsVersion));
+    expect(stored.semanticsVersion).toBe(String(result.value.snapshot.semanticsVersion));
     expect(stored.compilerVersion.length).toBeGreaterThan(0);
     expect(stored.a2uiSpecVersion.length).toBeGreaterThan(0);
   });
@@ -902,6 +902,138 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
     });
     expect(foreign.status).toBe(422);
     expect(((await foreign.json()) as ErrBody).error.code).toBe("FORM_ID_MISMATCH");
+  });
+});
+
+// --- 123: publish warnings ride the validate and draft-save responses --------
+
+/** Seed a published multiChoice question, so a rule can read a group answer. */
+async function seedPublishedMulti(id: string, optionIds: readonly string[]): Promise<void> {
+  const questionId = QuestionId.parse(id);
+  const parsed = parseQuestionDefinition({
+    questionId: id,
+    type: "multiChoice",
+    label: { en: id },
+    options: optionIds.map((optionId) => ({ optionId, label: { en: optionId } })),
+  });
+  if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
+  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+  await publishQuestionVersion(testDb.db, { questionId, version: 1 });
+}
+
+describe("publish warnings reach the author without blocking a publish (#123)", () => {
+  const formId = "frm_warn";
+  const layout: [string, string[]][] = [
+    ["stp_warn_one", ["q_warn_multi", "q_warn_detail"]],
+    ["stp_warn_two", ["q_warn_later"]],
+  ];
+  /** Reads a multiChoice answer and reveals a question on the SAME step (ADR-31). */
+  const sameStepRule = {
+    ruleId: "rul_warn",
+    when: { op: "contains", questionId: "q_warn_multi", value: "opt_a" },
+    show: ["q_warn_detail"],
+  };
+  const sameStep = formDefinition(formId, layout, [sameStepRule]);
+
+  beforeAll(async () => {
+    await seedPublishedMulti("q_warn_multi", ["opt_a", "opt_b"]);
+    await seedPublishedQuestion("q_warn_detail", "Tell us more");
+    await seedPublishedQuestion("q_warn_later", "And later");
+    await post("/forms", { formId, slug: "warn", defaultLocale: "en" });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("validate reports the warning and still calls the draft valid", async () => {
+    const res = await post(`/forms/${formId}/draft/validate`, { definition: sameStep });
+    const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
+
+    // The point of the channel: `valid` keys off errors alone, so an advisory does not
+    // turn into a refusal on its way to the screen.
+    expect(body.valid).toBe(true);
+    expect(body.issues).toEqual([]);
+    expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
+    expect(body.warnings[0]?.path).toMatchObject({
+      rule: "rul_warn",
+      question: "q_warn_multi",
+      target: "q_warn_detail",
+      step: "stp_warn_one",
+    });
+  });
+
+  it("the advisory draft save carries the same warning", async () => {
+    const res = await put(`/forms/${formId}/draft`, { definition: sameStep });
+    const body = (await res.json()) as { issues: Issue[]; warnings: Issue[] };
+
+    expect(body.issues).toEqual([]);
+    expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
+  });
+
+  it("a cross-step target is silent: the ordinary case earns no advisory", async () => {
+    const crossStep = formDefinition(formId, layout, [{ ...sameStepRule, show: ["q_warn_later"] }]);
+    const res = await post(`/forms/${formId}/draft/validate`, { definition: crossStep });
+
+    expect(((await res.json()) as { warnings: Issue[] }).warnings).toEqual([]);
+  });
+
+  it("a draft with errors reports no warnings: the kernel advises only on a snapshot", async () => {
+    // A whitespace-only title, which is the #366 publish error rather than a missing
+    // locale: the schema still accepts the value and the publish gate refuses it.
+    const broken = formDefinition(formId, layout, [sameStepRule], "   ");
+    const res = await post(`/forms/${formId}/draft/validate`, { definition: broken });
+    const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
+
+    expect(body.valid).toBe(false);
+    expect(body.issues.map((issue) => issue.code)).toContain("BLANK_LOCALIZED_TEXT");
+    expect(body.warnings).toEqual([]);
+  });
+
+  it("a DEPRECATED_PIN issue and a warning coexist, and both are reported", async () => {
+    // The invariant is about the KERNEL, and this is the case that shows why the
+    // wider reading ("warnings is empty whenever issues is not") was false:
+    // `DEPRECATED_PIN` is raised by this layer, not by `compileDraft`, so it can
+    // stand beside an advisory about the same draft.
+    //
+    // The gating is deliberately left alone. This draft genuinely has both facts,
+    // and suppressing the advisory because an unrelated deprecation is open would
+    // drop information the author needs - and would make the warning list depend
+    // on which other problems happen to exist.
+    await seedPublishedQuestion("q_warn_dep", "A field since deprecated");
+    await deprecateQuestionVersion(testDb.db, {
+      questionId: QuestionId.parse("q_warn_dep"),
+      version: 1,
+    });
+
+    const coexistId = "frm_warn_dep";
+    expect(
+      (await post("/forms", { formId: coexistId, slug: "warn-dep", defaultLocale: "en" })).status,
+    ).toBe(201);
+
+    const definition = formDefinition(
+      coexistId,
+      [
+        ["stp_wd_one", ["q_warn_multi", "q_warn_detail"]],
+        ["stp_wd_two", ["q_warn_dep"]],
+      ],
+      [sameStepRule],
+    );
+    const res = await post(`/forms/${coexistId}/draft/validate`, { definition });
+    const body = (await res.json()) as { valid: boolean; issues: Issue[]; warnings: Issue[] };
+
+    // Both arrays non-empty at once, which the old comments said could not happen.
+    expect(body.issues.map((issue) => issue.code)).toContain("DEPRECATED_PIN");
+    expect(body.warnings.map((warning) => warning.code)).toEqual(["MULTICHOICE_SAME_STEP_TARGET"]);
+    // The kernel itself found nothing wrong: every issue here is the API layer's.
+    expect(body.issues.every((issue) => issue.code === "DEPRECATED_PIN")).toBe(true);
+    // And the deprecation still blocks the publish, exactly as before.
+    expect(body.valid).toBe(false);
+  });
+
+  it("a warned draft publishes: a warning never refuses (#123)", async () => {
+    await put(`/forms/${formId}/draft`, { definition: sameStep });
+    const res = await post(`/forms/${formId}/publish`);
+
+    expect(res.status).toBe(200);
+    expect((await res.json()) as { version: number }).toMatchObject({ version: 1 });
   });
 });
 

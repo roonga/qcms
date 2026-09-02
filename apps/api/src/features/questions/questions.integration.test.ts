@@ -16,6 +16,8 @@
  */
 
 import { A2UI_SPEC_VERSION, COMPILER_VERSION, HONEYPOT_NODE_TYPE } from "@qcms/a2ui-compiler";
+import { parseQuestionDefinition, QuestionId } from "@qcms/core";
+import { createQuestion, createQuestionVersion } from "@qcms/db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -535,3 +537,150 @@ describe("GET /admin/questions/:id/versions/:v/preview (032)", () => {
     expect(((await res.json()) as ErrBody).error.code).toBe("INVALID_QUESTION_ID");
   });
 });
+
+// --- issue #53: the v-flag gate on newly authored patterns -------------------
+
+/**
+ * Reject-new-only, at the authoring boundary (Code Owner, 2026-09-02).
+ *
+ * Browsers compile the HTML `pattern` attribute with the `v` flag, whose
+ * character-class grammar is narrower than the `u` semantics the kernel
+ * validates against. The refusal lives in `requireDefinition` rather than in
+ * `QuestionDefinition`'s refinements, and that placement is the whole ruling:
+ * a definition **arriving** here is refused, while a definition already
+ * **stored** never comes back through this path and keeps reading and serving
+ * (R1). The golden corpus and the seed fixtures parse through
+ * `parseQuestionDefinition` directly, so ADR-18 is untouched.
+ */
+describe("v-invalid patterns are refused at the authoring boundary (#53)", () => {
+  /** The corpus shape from issue #29: fine under `u`, a SyntaxError under `v`. */
+  const V_INVALID = "^[A-Za-z][A-Za-z .,'-]{0,99}$";
+  /** Its provably equivalent spelling, which the refusal offers. */
+  const V_SAFE = "^[A-Za-z][A-Za-z .,'\\-]{0,99}$";
+
+  function withPattern(id: string, pattern: string): Record<string, unknown> {
+    return { ...shortText(id), constraints: { pattern } };
+  }
+
+  function issuesOf(body: ErrBody): Array<{ code: string; message: string; path?: unknown[] }> {
+    return (body.error.details?.issues ?? []) as Array<{
+      code: string;
+      message: string;
+      path?: unknown[];
+    }>;
+  }
+
+  it("refuses a NEW definition, naming why and offering the v-safe spelling", async () => {
+    const res = await post("/questions", {
+      slug: "v-new",
+      definition: withPattern("q_v_new", V_INVALID),
+    });
+
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("INVALID_QUESTION_DEFINITION");
+    const issue = issuesOf(body).find((i) => i.code === "PATTERN_NOT_BROWSER_SAFE");
+    expect(issue).toBeDefined();
+    // The path is what lands it on the pattern control rather than in a summary.
+    expect(issue?.path).toEqual(["constraints", "pattern"]);
+    expect(issue?.message).toContain("'v'");
+    expect(issue?.message).toContain(V_SAFE);
+  });
+
+  it("refuses an EDITED definition on the same terms", async () => {
+    expect(
+      (await post("/questions", { slug: "v-edit", definition: shortText("q_v_edit") })).status,
+    ).toBe(201);
+
+    const res = await put("/questions/q_v_edit/versions/1", {
+      definition: withPattern("q_v_edit", V_INVALID),
+    });
+
+    expect(res.status).toBe(422);
+    const issue = issuesOf((await res.json()) as ErrBody).find(
+      (i) => i.code === "PATTERN_NOT_BROWSER_SAFE",
+    );
+    expect(issue).toBeDefined();
+  });
+
+  it("accepts the v-safe spelling the refusal suggested", async () => {
+    const res = await post("/questions", {
+      slug: "v-accepted",
+      definition: withPattern("q_v_accepted", V_SAFE),
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("refuses without a suggestion when no rewrite is provably safe", async () => {
+    // A mid-class dash is a range operator under `u`, so escaping it could change
+    // the matched set; the normalization declines rather than guess.
+    const res = await post("/questions", {
+      slug: "v-no-fix",
+      definition: withPattern("q_v_no_fix", "^[a-z-A]+$"),
+    });
+
+    expect(res.status).toBe(422);
+    const issue = issuesOf((await res.json()) as ErrBody).find(
+      (i) => i.code === "PATTERN_NOT_BROWSER_SAFE",
+    );
+    expect(issue?.message).toContain("No equivalent spelling");
+  });
+
+  it("leaves a non-shortText question alone: the rule is about patterns", async () => {
+    const res = await post("/questions", {
+      slug: "v-not-text",
+      definition: { questionId: "q_v_bool", type: "boolean", label: { en: "Yes or no" } },
+    });
+    expect(res.status).toBe(201);
+  });
+
+  it("STORED v-invalid content still reads and still serves (R1, reject-new-only)", async () => {
+    // Seeded past the boundary, exactly as content published before this rule
+    // was written sits in the database today.
+    const questionId = QuestionId.parse("q_v_legacy");
+    const parsed = parseQuestionDefinition(withPattern("q_v_legacy", V_INVALID));
+    if (!parsed.ok) throw new Error("legacy fixture did not parse");
+    await createQuestion(testDb.db, { questionId, slug: "v-legacy" });
+    await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
+
+    // Reads: the stored pattern comes back verbatim, unrepaired and unrefused.
+    const read = await get("/questions/q_v_legacy");
+    expect(read.status).toBe(200);
+    const detail = (await read.json()) as {
+      versions: { version: number; definition: { constraints?: { pattern?: string } } }[];
+    };
+    const stored = detail.versions.find((v) => v.version === 1);
+    expect(stored?.definition.constraints?.pattern).toBe(V_INVALID);
+
+    // Serves: the version still compiles to A2UI. The renderer is what repairs
+    // the pattern on its way to the DOM (issue #52), and it is still the only
+    // layer that does.
+    const preview = await get("/questions/q_v_legacy/versions/1/preview");
+    expect(preview.status).toBe(200);
+  });
+
+  it.each([
+    ["core fixtures/questions/valid/short-text.json", "^[A-Za-z][A-Za-z .,'-]{0,99}$"],
+    ["a2ui-compiler fixtures/corpus/questions/q-msg-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
+    ["api e2e/support/fixtures/q-am-plate.json", "^[A-Z0-9][A-Z0-9-]{2,7}$"],
+  ])("the pattern in %s would be refused if authored fresh", async (where, pattern) => {
+    // This is what proves reject-new-only actually bites rather than being a
+    // rule with no reachable subject: every one of these ships in the corpus
+    // today, keeps compiling, and could not be authored again through this API.
+    const slug = `v-fixture-${where.replace(/[^a-z0-9]+/gi, "-").toLowerCase()}`.slice(0, 60);
+    const id = `q_v_fx_${Math.abs(hashOf(where)).toString(36)}`;
+    const res = await post("/questions", { slug, definition: withPattern(id, pattern) });
+
+    expect(res.status).toBe(422);
+    expect(issuesOf((await res.json()) as ErrBody).map((i) => i.code)).toContain(
+      "PATTERN_NOT_BROWSER_SAFE",
+    );
+  });
+});
+
+/** A tiny stable hash, so each fixture row gets its own question id. */
+function hashOf(value: string): number {
+  let hash = 0;
+  for (const ch of value) hash = (hash * 31 + ch.charCodeAt(0)) | 0;
+  return hash;
+}

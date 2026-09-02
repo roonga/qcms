@@ -1,3 +1,7 @@
+import {
+  compilesUnderV as kernelCompilesUnderV,
+  toVSafePattern as kernelToVSafePattern,
+} from "@qcms/core";
 import { render } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -251,4 +255,50 @@ describe("rendered pattern attribute (issue #29)", () => {
     },
     CORPUS_TIMEOUT_MS,
   );
+});
+
+/**
+ * The two copies of the rule agree (issue #53).
+ *
+ * `@qcms/core` owns the authoring-time normalization, because the API's
+ * question boundary refuses a v-invalid pattern and offers the rewrite in the
+ * refusal. This module restates it rather than importing it, for the reason
+ * `author-messages.ts` records for `ValidationMessageKey`: `@qcms/ui` is a
+ * browser package that must not pull the kernel into the client bundle. A
+ * restatement is only safe while something proves the two still say the same
+ * thing, and this is that something - the same stance the round-trip suite
+ * takes for the answer encodings.
+ *
+ * A `.test.tsx` may import `@qcms/core` (`import-surface.test.ts` says so);
+ * the shipped module may not.
+ */
+describe("the kernel and the renderer normalize identically", () => {
+  const CORPUS: readonly string[] = [
+    CORPUS_PATTERN,
+    "^[A-Z0-9][A-Z0-9-]{2,7}$",
+    "^[a-z]{2,10}$",
+    "^[a-z-]+$",
+    "^[-a-z]+$",
+    "^[a&&b]+$",
+    "^[a!!b-]+$",
+    "^[a-z-A]+$",
+    "^[\\]\\-a-z^]{1,20}$",
+    "^[(){}/|]+$",
+    "^\\d{4}$",
+    "",
+  ];
+
+  it.each(CORPUS)("agrees on whether a browser accepts %j", (pattern) => {
+    expect(compilesUnderV(pattern)).toBe(kernelCompilesUnderV(pattern));
+  });
+
+  it.each(CORPUS)("agrees on the v-safe spelling of %j", (pattern) => {
+    expect(toVSafePattern(pattern)).toBe(kernelToVSafePattern(pattern));
+  });
+
+  it("agrees that an absent pattern stays absent", () => {
+    // Only the renderer takes `undefined`: it maps an absent prop to an absent
+    // attribute. The kernel is only ever handed a pattern that exists.
+    expect(toVSafePattern(undefined)).toBeUndefined();
+  });
 });

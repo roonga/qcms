@@ -102,14 +102,24 @@ export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-): Promise<ApiResult<{ readonly issues: readonly FormIssue[] }>> {
-  const result = await read<{ issues?: unknown }>(
+): Promise<
+  ApiResult<{ readonly issues: readonly FormIssue[]; readonly warnings: readonly FormIssue[] }>
+> {
+  const result = await read<{ issues?: unknown; warnings?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
       method: "PUT",
       body: { definition },
     }),
   );
-  return result.ok ? { ok: true, data: { issues: parseIssues(result.data.issues) } } : result;
+  return result.ok
+    ? {
+        ok: true,
+        data: {
+          issues: parseIssues(result.data.issues),
+          warnings: parseIssues(result.data.warnings),
+        },
+      }
+    : result;
 }
 
 /** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */
@@ -117,8 +127,14 @@ export async function validateDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-): Promise<ApiResult<{ readonly valid: boolean; readonly issues: readonly FormIssue[] }>> {
-  const result = await read<{ valid?: unknown; issues?: unknown }>(
+): Promise<
+  ApiResult<{
+    readonly valid: boolean;
+    readonly issues: readonly FormIssue[];
+    readonly warnings: readonly FormIssue[];
+  }>
+> {
+  const result = await read<{ valid?: unknown; issues?: unknown; warnings?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/validate`, {
       method: "POST",
       body: { definition },
@@ -127,7 +143,13 @@ export async function validateDraft(
   if (!result.ok) return result;
   return {
     ok: true,
-    data: { valid: result.data.valid === true, issues: parseIssues(result.data.issues) },
+    data: {
+      valid: result.data.valid === true,
+      issues: parseIssues(result.data.issues),
+      // Same wire shape as an issue (code, message, structured path), so the same
+      // reader parses it and the panel renders it through the same entry (#123).
+      warnings: parseIssues(result.data.warnings),
+    },
   };
 }
 

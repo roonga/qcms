@@ -74,6 +74,18 @@ const TWO_ISSUES: readonly FormIssue[] = [
   { code: "RULE_BACKWARD_TARGET", message: "rule targets an earlier question" },
 ];
 
+/** Real warning codes, so the panel renders their mapped sentences too (issue #123). */
+const ONE_WARNING: readonly FormIssue[] = [
+  {
+    code: "MULTICHOICE_SAME_STEP_TARGET",
+    message: "rule reveals a same-step question from a multiChoice answer",
+  },
+];
+const TWO_WARNINGS: readonly FormIssue[] = [
+  ...ONE_WARNING,
+  { code: "PATTERN_CLASS_SET_AMBIGUOUS", message: "pattern class reads two ways" },
+];
+
 /** The exact sentence the panel may only ever render about a count it actually has. */
 const ALL_CLEAR = "Everything here would pass a publish";
 
@@ -86,9 +98,12 @@ const NOT_CHECKED = "has not been checked yet";
 async function render(
   status: BuilderStatus,
   issues: readonly FormIssue[] | undefined,
+  warnings: readonly FormIssue[] = [],
 ): Promise<string> {
   const { ValidationPanel } = await import("./validation-panel.tsx");
-  return renderToStaticMarkup(<ValidationPanel draft={DRAFT} issues={issues} status={status} />);
+  return renderToStaticMarkup(
+    <ValidationPanel draft={DRAFT} issues={issues} warnings={warnings} status={status} />,
+  );
 }
 
 describe("the validation panel states what it knows", () => {
@@ -162,5 +177,49 @@ describe("the validation panel states what it knows", () => {
     expect(await render("validating", TWO_ISSUES)).toContain("Checking the draft");
     expect(await render("saved", TWO_ISSUES)).toContain("2 issues would block a publish");
     expect(await render("saved", ONE_ISSUE)).toContain("1 issue would block a publish");
+  });
+
+  // --- warnings (issue #123) ------------------------------------------------
+
+  it("renders a warning below the issues, in its own list", async () => {
+    const html = await render("saved", [], ONE_WARNING);
+
+    expect(html).toContain('data-testid="qcms-validation-warnings"');
+    expect(html).toContain('data-issue-code="MULTICHOICE_SAME_STEP_TARGET"');
+    expect(html).toContain("1 thing would publish but may not behave as written");
+  });
+
+  it("a warning is not counted as something that would block a publish", async () => {
+    const html = await render("saved", [], ONE_WARNING);
+
+    // The whole distinction the two channels exist for. A draft with warnings and no
+    // errors publishes, so the authoritative count above still reads as an all-clear.
+    expect(html).toContain(ALL_CLEAR);
+    expect(html, "a warning must not be counted into the blocking total").not.toContain(
+      "1 issue would block a publish",
+    );
+  });
+
+  it("the warning summary stays out of the panel's live region", async () => {
+    const html = await render("saved", [], ONE_WARNING);
+
+    // The `aria-live` region is the single authority on the blocking count, and a
+    // warning blocks nothing. Re-announcing it there would make the number a reader
+    // hears mean two things at once.
+    const live = html.slice(0, html.indexOf('data-testid="qcms-validation-warnings"'));
+    expect(live).not.toContain("may not behave as written");
+  });
+
+  it("renders nothing at all when there are no warnings", async () => {
+    const html = await render("saved", TWO_ISSUES, []);
+
+    expect(html).not.toContain('data-testid="qcms-validation-warnings"');
+    expect(html).not.toContain("Worth a look");
+  });
+
+  it("counts more than one warning", async () => {
+    const html = await render("saved", [], TWO_WARNINGS);
+
+    expect(html).toContain("2 things would publish but may not behave as written");
   });
 });

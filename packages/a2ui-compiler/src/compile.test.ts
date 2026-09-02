@@ -194,7 +194,7 @@ function buildKitchenSinkSnapshot(): FrozenSnapshot {
   if (!result.ok) {
     throw new Error(`fixture snapshot did not publish: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 /** The child nodes of a node, or [] for text/leaf nodes (narrows the union). */

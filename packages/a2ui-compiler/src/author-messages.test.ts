@@ -68,7 +68,7 @@ function snapshotOf(definitions: readonly Record<string, unknown>[]): FrozenSnap
   if (!result.ok) {
     throw new Error(`draft did not publish: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 function childNodes(node: A2UINode): readonly A2UINode[] {

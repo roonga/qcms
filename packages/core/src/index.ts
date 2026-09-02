@@ -76,10 +76,14 @@ export {
   SAFE_PATTERN_MAX_LENGTH,
   SAFE_PATTERN_MAX_BOUND,
   SAFE_PATTERN_MAX_COMPOSITE_BOUND,
+  type ClassSetOperator,
   type SafePatternIssue,
   type SafePatternIssueCode,
   checkSafePattern,
+  classSetAmbiguity,
+  compilesUnderV,
   isSafePattern,
+  toVSafePattern,
 } from "./safe-pattern.js";
 
 export {
@@ -148,9 +152,17 @@ export {
   PublishError,
   type PublishErrorOf,
   type FrozenSnapshot,
+  type PublishOutcome,
   type PublishResult,
   publishErrorLocation,
 } from "./publish-error.js";
+
+export {
+  PublishWarningCode,
+  PublishWarning,
+  type PublishWarningOf,
+  publishWarningLocation,
+} from "./publish-warning.js";
 
 export {
   SNAPSHOT_SCHEMA_VERSION,

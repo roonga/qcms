@@ -171,6 +171,10 @@ export function FormBuilder({
   // does not fire until the author changes something, so this stays `undefined` for as long
   // as the screen genuinely knows nothing, and the surfaces that read it say so.
   const [issues, setIssues] = useState<readonly FormIssue[] | undefined>(undefined);
+  // Warnings track issues rather than living on their own clock: both come back from the
+  // same round trip, and a warning list left standing beside a refreshed issue count would
+  // describe a draft that no longer exists (issue #123).
+  const [warnings, setWarnings] = useState<readonly FormIssue[]>([]);
   const [status, setStatus] = useState<BuilderStatus>("idle");
   // An ISO instant, not a formatted clock time. The strip renders it through the app's one
   // timestamp formatter (`plan/admin-design-contracts.md` §2: date, HH:MM, zone, no
@@ -248,6 +252,7 @@ export function FormBuilder({
           return;
         }
         setIssues(saved.issues);
+        setWarnings(saved.warnings);
         setSaveError(undefined);
         setLastSavedAt(new Date().toISOString());
         setStatus("validating");
@@ -265,6 +270,7 @@ export function FormBuilder({
           return;
         }
         setIssues(validated.issues);
+        setWarnings(validated.warnings);
         setStatus("saved");
       })();
     }, AUTOSAVE_DEBOUNCE_MS);
@@ -525,7 +531,7 @@ export function FormBuilder({
               to the offending rule, step or pin, and those now live on three different
               screens - so what makes them work is `IssueEntry` switching screens before it
               focuses, not the panel sitting beside any one of them. */}
-          <ValidationPanel draft={draft} issues={issues} status={status} />
+          <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
 
           {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
               the rule test bench, and the bench has gone to the rules it tests, so there is

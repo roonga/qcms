@@ -267,3 +267,195 @@ export function checkSafePattern(pattern: string): SafePatternIssue | undefined 
 export function isSafePattern(pattern: string): boolean {
   return checkSafePattern(pattern) === undefined;
 }
+
+/**
+ * True when a browser's `pattern`-attribute compiler (the `v` flag) accepts
+ * this expression.
+ *
+ * Browsers compile the HTML `pattern` attribute with `v`, whose character-class
+ * grammar is strictly narrower than the `u` semantics a question's validation
+ * regex is authored and validated against: a bare `-` at the edge of a class
+ * (`[A-Za-z .,'-]`) is a literal under `u` and a `SyntaxError` under `v`. A
+ * pattern that fails here still validates answers correctly on the server, but
+ * a browser logs "Pattern attribute value ... is not a valid regular
+ * expression" and silently drops the native client-side hint.
+ */
+export function compilesUnderV(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "v");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `v`-reserved characters that a `u`-mode character class treats as ordinary
+ * literals, and that both modes accept escaped. `-`, `\` and `]` need
+ * positional reasoning and are handled by the walk instead.
+ */
+const V_RESERVED_IN_CLASS: ReadonlySet<string> = new Set(["(", ")", "[", "{", "}", "/", "|"]);
+
+/**
+ * `v`-mode `ClassSetReservedDoublePunctuator`s: reserved only when doubled
+ * (`[a!!b]`). Each is a literal in a `u`-mode class and each is escapable under
+ * `v`. `&` is here but is only reached for a pattern that already fails under
+ * `v`, so a working `&&` intersection is never rewritten.
+ */
+const V_RESERVED_WHEN_DOUBLED: ReadonlySet<string> = new Set([..."&!#$%*+,.:;<=>?@^`~"]);
+
+/** Re-spell one class element so `v` reads it exactly as `u` did. */
+function respellClassElement(
+  ch: string,
+  next: string | undefined,
+  firstElement: boolean,
+): { text: string; width: number } {
+  if (ch === "-") {
+    // Escape a `-` only where `u` makes it unambiguously a literal: the class's
+    // first element, or the last before `]`. Any other `-` is a range operator
+    // or an exotic case, and is left alone so the rewrite cannot change meaning.
+    const literal = firstElement || next === "]";
+    return { text: literal ? "\\-" : "-", width: 1 };
+  }
+  if (V_RESERVED_IN_CLASS.has(ch)) return { text: `\\${ch}`, width: 1 };
+  if (V_RESERVED_WHEN_DOUBLED.has(ch) && next === ch) {
+    return { text: `\\${ch}\\${ch}`, width: 2 };
+  }
+  return { text: ch, width: 1 };
+}
+
+/** Rewrite every character class so `v` accepts it with the `u` meaning intact. */
+function respellClasses(pattern: string): string {
+  let out = "";
+  let inClass = false;
+  let firstElement = false;
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    /* v8 ignore next 3 -- bug guard; `i < pattern.length` keeps the index in range */
+    if (ch === undefined) {
+      break;
+    }
+    if (ch === "\\") {
+      // Already escaped: both modes agree, so the pair is copied verbatim.
+      out += pattern.slice(i, i + 2);
+      i += 2;
+      firstElement = false;
+    } else if (!inClass) {
+      const negated = ch === "[" && pattern[i + 1] === "^";
+      out += negated ? "[^" : ch;
+      i += negated ? 2 : 1;
+      inClass = ch === "[";
+      firstElement = inClass;
+    } else if (ch === "]") {
+      inClass = false;
+      out += ch;
+      i += 1;
+    } else {
+      const { text, width } = respellClassElement(ch, pattern[i + 1], firstElement);
+      out += text;
+      i += width;
+      firstElement = false;
+    }
+  }
+  return out;
+}
+
+/**
+ * The `v`-safe spelling of an authored pattern, or `undefined` when there is
+ * none that is provably meaning-preserving (issue #52, issue #53).
+ *
+ * Two steps, in order. **Normalize** when the rewrite provably preserves the
+ * matched set: escape the characters `v` reserves inside a character class that
+ * `u` treats as ordinary literals there, so `[a-z-]` becomes `[a-z\-]`, which
+ * denotes the same set under `v` as the original did under `u`. **Give up**
+ * otherwise, rather than guess.
+ *
+ * A pattern that already compiles under `v` is returned byte-identical, so this
+ * never disturbs a working `&&` or `--` class-set operator.
+ *
+ * This is the authoring-time half of the rule. `@qcms/ui` carries its own
+ * render-time restatement for stored documents, which are immutable and keep
+ * their original `pattern` forever (R1, ADR-18); that copy is deliberately not
+ * an import, because the renderer is a browser package that must not pull the
+ * kernel into the client bundle - the same seam `AuthorMessagesSchema` records.
+ * `packages/ui/src/v-safe-pattern.test.tsx` asserts the two agree.
+ */
+export function toVSafePattern(pattern: string): string | undefined {
+  if (compilesUnderV(pattern)) return pattern;
+  const respelled = respellClasses(pattern);
+  return respelled !== pattern && compilesUnderV(respelled) ? respelled : undefined;
+}
+
+/**
+ * The two `v`-mode class-set operators, which are ordinary literals in a
+ * `u`-mode character class.
+ */
+export type ClassSetOperator = "&&" | "--";
+
+/**
+ * The silent `u`/`v` divergence inside a character class (issue #53), or
+ * `undefined` when the pattern has none.
+ *
+ * `[a&&b]` compiles under **both** flags. Under `u` it is the set
+ * `{a, &, b}`; under `v` it is the intersection of `{a}` and `{b}`, which is
+ * empty, so the expression can never match. Nothing reports this: there is no
+ * console error and no compile failure, and the kernel validates answers under
+ * `u` while a browser compiles the HTML `pattern` attribute under `v`. So the
+ * same authored pattern means two different things in two places, and neither
+ * of them says so.
+ *
+ * The renderer structurally cannot detect or repair this - by the time a
+ * pattern reaches it, both readings are valid regular expressions - which is
+ * why authoring-time validation is the only layer that can raise it at all.
+ * `compileDraft` turns the result into a `PATTERN_CLASS_SET_AMBIGUOUS`
+ * publish warning; it is a warning rather than a refusal because the pattern
+ * is legal and may well be exactly what the author meant.
+ *
+ * Only patterns that compile under **both** flags are reported, and the guard
+ * runs in both directions because a divergence needs two readings to diverge
+ * between. One that fails under `v` has no browser reading, and the render-time
+ * normalize-or-omit path already owns that case; one that fails under `u` has no
+ * kernel reading, which `[\q{ab}&&\q{cd}]` is - `\q{...}` is `v`-only syntax.
+ */
+export function classSetAmbiguity(pattern: string): ClassSetOperator | undefined {
+  // Both readings have to exist for them to disagree. `compileDraft` only ever
+  // reaches here with a pattern `checkSafePattern` already compiled under `u`,
+  // but this is a public export: `[\q{ab}&&\q{cd}]` is valid under `v` and
+  // invalid under `u`, and reporting it would name a divergence from a reading
+  // that does not exist.
+  try {
+    new RegExp(pattern, "u");
+    new RegExp(pattern, "v");
+  } catch {
+    return undefined;
+  }
+
+  let inClass = false;
+  let i = 0;
+  while (i < pattern.length) {
+    const ch = pattern[i];
+    if (ch === "\\") {
+      // An escaped character is a literal under both flags, so an escaped
+      // `\&\&` or `\-\-` is unambiguous and must not be reported.
+      i += 2;
+      continue;
+    }
+    if (!inClass) {
+      inClass = ch === "[";
+      // A negation caret is not an element; step past it with the bracket.
+      i += inClass && pattern[i + 1] === "^" ? 2 : 1;
+      continue;
+    }
+    if (ch === "]") {
+      inClass = false;
+      i += 1;
+      continue;
+    }
+    if ((ch === "&" || ch === "-") && pattern[i + 1] === ch) {
+      return ch === "&" ? "&&" : "--";
+    }
+    i += 1;
+  }
+  return undefined;
+}

@@ -89,7 +89,7 @@ function buildSnapshot(): FrozenSnapshot {
   if (!result.ok) {
     throw new Error(`seam fixture did not publish: ${JSON.stringify(result.error)}`);
   }
-  return result.value;
+  return result.value.snapshot;
 }
 
 const snapshot = buildSnapshot();
