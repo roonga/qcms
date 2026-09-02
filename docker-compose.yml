@@ -134,6 +134,18 @@ services:
       # It is on `api` rather than on the `*api-env` anchor because the anchor is
       # shared with `migrate`, which serves no admin traffic and reads no auth policy.
       QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
+      # A DECLARATION, never acted on here. The admin service is the one that counts
+      # hops off its own inbound X-Forwarded-For; this process reads only whether the
+      # variable is set, to decide the issue #482 boot warning - the throttle is on and
+      # nothing declares a proxy in front of the admin, so better-auth keys every caller
+      # into one `no-trusted-ip` bucket and three attempts from anyone hold admin
+      # sign-in closed for everybody until the ten-second window rolls.
+      #
+      # Deliberately NO `:-1` default, unlike the admin service's line below: a default
+      # would declare a proxy this stack does not ship and silence the warning on
+      # exactly the shape it exists to report. Empty means "nothing declared", which on
+      # the proxy-less default is the truth.
+      QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-}
     depends_on:
       migrate:
         condition: service_completed_successfully

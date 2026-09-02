@@ -98,6 +98,13 @@ function envWithout(): Record<string, string> {
 }
 
 /**
+ * A deployment that has declared a proxy in front of the admin, which is what silences
+ * the issue #482 shared-bucket line. Passed explicitly wherever a case is about
+ * something else, so those cases assert one line rather than two.
+ */
+const PROXIED: Record<string, string> = { QCMS_ADMIN_TRUSTED_PROXY_HOPS: "1" };
+
+/**
  * The subject arrives by dynamic import in `beforeAll`, never as a static import at the
  * top of this file: the `NODE_ENV` stub above has to be in place before anything pulls
  * better-auth in, and a static import would run first. The type comes from the same
@@ -177,12 +184,91 @@ describe("the throttle is on by default, and NODE_ENV cannot turn it off", () =>
 
   it("says so at boot, and says it as the info line", async () => {
     const log = recorder();
-    const state = await logSignInThrottleState(defaulted, log);
+    // A proxy declared, so the issue #482 line has nothing to say and this case is about
+    // the one thing it names. Without it the shared-bucket warning is a second line and
+    // this would be asserting two properties at once.
+    const state = await logSignInThrottleState(defaulted, log, PROXIED);
 
     expect(state.enabled).toBe(true);
     expect(log.lines).toHaveLength(1);
     expect(log.lines[0]?.fields.enabled).toBe(true);
     expect(log.lines[0]?.level).toBe("info");
+  });
+});
+
+/**
+ * The availability consequence issue #482 records: the throttle is on, nothing declares
+ * a proxy in front of the admin, so better-auth vouches for no address and every caller
+ * shares one `no-trusted-ip` bucket. Three sign-in attempts from anyone then hold the
+ * surface closed for every administrator until the ten-second window rolls.
+ *
+ * It is the property of the shape this project ships as its **default**: `docker-compose.yml`
+ * puts no proxy in front of the admin. The ruling is that the process says so at every
+ * boot rather than leaving it to a documentation page an operator may never open, which
+ * is the precedent `QCMS_ADMIN_SIGNIN_THROTTLE=false` set one describe block up.
+ *
+ * The declaration is read from an environment record passed in, never from the process's
+ * own, so each case states the deployment it is asserting about.
+ */
+describe("the shared sign-in bucket on a proxy-less deployment", () => {
+  it("warns when nothing declares a proxy in front of the admin", async () => {
+    const log = recorder();
+    const state = await logSignInThrottleState(defaulted, log, {});
+
+    expect(state.enabled).toBe(true);
+    expect(log.lines).toHaveLength(2);
+    const warning = log.lines[1];
+    expect(warning?.level).toBe("warn");
+    // What an operator has to act on: the consequence, and the remedy by name.
+    expect(warning?.message).toContain("ONE bucket");
+    expect(warning?.message).toContain("QCMS_ADMIN_TRUSTED_PROXY_HOPS");
+    expect(warning?.message).toContain("docs/deploy-ingress.md");
+    // Honest about what it read. This process cannot see the admin's inbound chain, so
+    // the line must not imply it checked for a proxy rather than for a declaration.
+    expect(warning?.message).toContain("a declaration, not an observation");
+  });
+
+  it("is silent once a proxy hop count is configured", async () => {
+    const log = recorder();
+    await logSignInThrottleState(defaulted, log, PROXIED);
+
+    expect(log.lines).toHaveLength(1);
+    expect(log.lines[0]?.level).toBe("info");
+  });
+
+  it.each(["", "   ", "0"])("treats %o as no proxy declared", async (hops) => {
+    // Blank is unset. `0` is the operator saying "trust no forwarded entry", which
+    // `docs/operations.md` spells out as every sign-in attempt in one shared bucket -
+    // the same state, deliberately chosen rather than inherited, and still one an
+    // operator should be told about.
+    const log = recorder();
+    await logSignInThrottleState(defaulted, log, { QCMS_ADMIN_TRUSTED_PROXY_HOPS: hops });
+
+    expect(log.lines).toHaveLength(2);
+    expect(log.lines[1]?.level).toBe("warn");
+  });
+
+  it("says nothing extra when the throttle itself is off", async () => {
+    // With no limiter there is no bucket to share, and the inactive warning is already
+    // saying the larger thing. A second line here would be noise stacked on an alarm.
+    const log = recorder();
+    const state = await logSignInThrottleState(hatched, log, {});
+
+    expect(state.enabled).toBe(false);
+    expect(log.lines).toHaveLength(1);
+    expect(log.lines[0]?.message).toContain("QCMS_ADMIN_SIGNIN_THROTTLE");
+  });
+
+  it("echoes no value, only names (SEC-8)", async () => {
+    // Boot diagnostics name variables and print no values. The hop count is topology
+    // rather than a credential, but the rule does not carve exceptions, and an address
+    // identifies a person (SEC-13).
+    const log = recorder();
+    await logSignInThrottleState(defaulted, log, { QCMS_ADMIN_TRUSTED_PROXY_HOPS: "0" });
+
+    const rendered = JSON.stringify(log.lines);
+    expect(rendered).not.toContain("203.0.113");
+    expect(rendered).not.toMatch(/QCMS_ADMIN_TRUSTED_PROXY_HOPS is set to/);
   });
 });
 
@@ -221,7 +307,7 @@ describe("the boot line agrees with what the limiter actually does", () => {
       [hatched, "203.0.113.22"],
     ] as const) {
       const log = recorder();
-      const state = await logSignInThrottleState(auth, log);
+      const state = await logSignInThrottleState(auth, log, PROXIED);
       const refused = (await overrun(auth, address)).includes(429);
 
       expect(state.enabled).toBe(refused);
@@ -234,7 +320,7 @@ describe("the boot line agrees with what the limiter actually does", () => {
 
   it("names the header the limiter keys on, and never an address", async () => {
     const log = recorder();
-    const state = await logSignInThrottleState(defaulted, log);
+    const state = await logSignInThrottleState(defaulted, log, PROXIED);
 
     // Where the limiter looks, read back off the resolved context. Never what it found:
     // an address identifies a person (SEC-8, SEC-13).

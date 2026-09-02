@@ -16,6 +16,7 @@ import {
 } from "@/lib/a11y";
 import {
   answerKey,
+  commitsOnFocusExit,
   holdsAnswer,
   isRecorded,
   recordedAnswers,
@@ -431,19 +432,25 @@ export function StepFlow({
    * not a commit, leaving the group is. It is also the `blur` commit for number,
    * longText and shortText, and where a `completion` control commits.
    *
-   * A `completion` control (the date) commits ONLY a complete value here: an
-   * unfinished never-answered date is not an answer. The one `null` it can post
-   * is the ADR-33 retraction of a previously-answered value, which travels via
-   * handleChange (the adapter surfaces a clear only after editing ends). See
-   * `visible.ts` for why the DatePicker's own "value is non-empty" signal cannot
-   * be the trigger.
+   * Whether an EMPTY control commits anything here is `commitsOnFocusExit`, which
+   * carries the two rules and the reasoning. In short: a `completion` control (the
+   * date) commits only a complete value, because its one `null` is the ADR-33
+   * retraction and that travels via handleChange once editing ends; and since issue
+   * #168 every moment applies the `holdsAnswer` guard the `completion` moment
+   * already applied, so focus entering and leaving a never-answered control posts
+   * nothing at all. See `visible.ts` for why the DatePicker's own "value is
+   * non-empty" signal cannot be the trigger.
+   *
+   * That guard is one rule extended, not a fourth rule added: the four ADR-31
+   * moments now agree about what a `null` post means, which they did not before.
+   * ADR-31 is unchanged - it describes WHEN a control commits, and "clearing a
+   * previously answered control" already presupposes a prior answer.
    */
   const handleBlur = useCallback(
     (name: string): void => {
       const value = valuesRef.current[name];
-      if ((moments.get(name) ?? DEFAULT_COMMIT_MOMENT) === "completion" && value === undefined) {
-        return;
-      }
+      const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
+      if (!commitsOnFocusExit(lastPostedRef.current, name, value, moment)) return;
       // A control that already committed this value (on change, or on an earlier
       // blur, or before the page was reloaded) posts nothing here: postAnswer owns
       // that dedupe, and since issue #122 it recognises a post still in flight too.

@@ -48,6 +48,8 @@ Clearing or partially editing a previously answered date commits a retraction. S
 
 **Note.** The comments in `apps/portal/lib/visible.ts` and `apps/portal/e2e/commit-moments.pw.ts` used to describe the short-text and date rows as open questions after the amendment above had already settled them. They now state the settled rule (issue #725): short text commits on blur, like the other free-entry rows, and a date commits when editing ends and the date is complete, so a partial date never posts and a complete one posts exactly once.
 
+**Note.** A retraction is posted only when the control holds an answer the record shows the server has (issue #168, Code Owner decision 2026-09-02). This is not a new commit moment and no row above changes: it states the rule every row already presupposes, since "clearing a previously answered control" cannot describe a control that was never answered. It now applies at all four moments rather than at the date's alone, so focus entering and leaving a never-answered control posts nothing.
+
 ### ADR-39 - Link version targeting
 
 **Status:** decided; Phase 4, not built (task 063). Today every link resolves Always latest.

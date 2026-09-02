@@ -20,6 +20,33 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * A boolean env knob, accepting the **same spellings** as the API's `parseBool`
+ * (`apps/api/src/config.ts`) and the admin's `boolEnv`
+ * (`apps/admin/lib/server/config.ts`): `true/1/yes/on` and `false/0/no/off`,
+ * case-insensitive and trimmed, with anything else refused by name.
+ *
+ * That symmetry is the point rather than a nicety (issue #401). The portal used to
+ * recognise only the literal `"true"` and `"false"` and silently fall back to
+ * `NODE_ENV` for everything else, so an operator who wrote `QCMS_SECURE_COOKIES=off`
+ * got a configuration that looked set and was not - the same failure shape issue #292
+ * exists to eliminate, one layer down, and one that also slipped past the off-loopback
+ * refusal because the refusal fires on the effective value.
+ *
+ * The thrown refusal is deliberate and is a boot-behaviour change: a deployment
+ * currently passing a malformed value boots today, ignoring it, and refuses to boot
+ * after. For a security flag a loud boot refusal is the correct fail-closed posture,
+ * and such a deployment is already not getting the setting it asked for.
+ */
+function boolEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  throw new Error(`${name} must be a boolean (true/false)`);
+}
+
 /** The internal API base URL (server-only). No trailing slash. */
 export function apiBaseUrl(): string {
   let base = required("QCMS_API_BASE_URL");
@@ -165,12 +192,14 @@ export function portalBaseUrl(): string {
  * 056. The downgrade this returns is guarded by
  * {@link assertSecureCookiesConfigured}, which refuses to boot when it is asked
  * for at an origin a browser will not protect.
+ *
+ * Parsing is {@link boolEnv}, the strict shared contract the admin and the API
+ * already use (issue #401). An unset or blank variable still defaults from
+ * `NODE_ENV`; anything set but unparseable now throws by name rather than being
+ * silently discarded.
  */
 export function secureCookies(): boolean {
-  const configured = process.env.QCMS_SECURE_COOKIES;
-  if (configured === "true") return true;
-  if (configured === "false") return false;
-  return process.env.NODE_ENV === "production";
+  return boolEnv("QCMS_SECURE_COOKIES", process.env.NODE_ENV === "production");
 }
 
 /**
@@ -276,14 +305,14 @@ export function assertSecureCookiesConfigured(): void {
   // spelling it recognises as false (issue #409). Branching on `raw === "false"`
   // alone told an operator who had written `QCMS_SECURE_COOKIES=off` that the
   // variable was "unset" - while they were looking at the line that sets it - and the
-  // whole job of this line is to say which variable to check. Quoted verbatim and
-  // untrimmed on purpose: this reader compares the raw value, so `" true"` with a
-  // stray space is exactly the case where seeing what was read is the answer.
+  // whole job of this line is to say which variable to check.
   //
-  // This changes only what the message says, never what the reader accepts. Whether
-  // the portal should recognise `off`/`0`/`no` the way the admin's `boolEnv` does is
-  // issue #401, and that is not decided here.
-  const raw = process.env.QCMS_SECURE_COOKIES;
+  // Trimmed, because {@link boolEnv} trims: since issue #401 this reader accepts the
+  // shared vocabulary and refuses anything else at the reader, so an unparseable value
+  // throws before it can reach this line and the only cases left here are a genuine
+  // false spelling or a genuinely unset variable. The message quotes what was compared,
+  // which is now the trimmed value. Identical to the admin twin, deliberately.
+  const raw = process.env.QCMS_SECURE_COOKIES?.trim();
   const observed =
     raw === undefined || raw === ""
       ? 'QCMS_SECURE_COOKIES is unset and NODE_ENV is not "production"'

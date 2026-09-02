@@ -1,5 +1,7 @@
 import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@qcms/ui";
 
+import type { CommitMoment } from "./visible";
+
 /**
  * The flow's record of what the server has said about each answer: the value it
  * holds, and the value it refused (issue #122).
@@ -139,6 +141,48 @@ export function isRecorded(
 export function holdsAnswer(record: PostedRecord, name: string): boolean {
   const key = record[name];
   return key !== undefined && key !== answerKey(undefined);
+}
+
+/**
+ * Whether focus leaving a control is a commit worth posting (issue #168).
+ *
+ * The renderer reports focus leaving the WHOLE control, which is ADR-31's `blur`
+ * moment for number, longText and shortText and its `groupExit` for a multiChoice.
+ * Two rules decide, and both are about the same thing - a post must assert
+ * something:
+ *
+ * - An **empty `completion` control** (the date) commits nothing here. A partial or
+ *   never-finished date is not an answer, and the one `null` such a control can
+ *   post is the ADR-33 retraction, which arrives through the change event once
+ *   editing ends.
+ * - An **empty control that holds no answer** commits nothing either, whatever its
+ *   moment. A retraction needs something to retract: asserting "this question is
+ *   now unanswered" about a question that was never answered says nothing the
+ *   server does not already know, and the server treats it as a no-op anyway. What
+ *   it cost was a round trip per control a respondent tabs through, plus a 422 and
+ *   its `console.error` whenever the question was required.
+ *
+ * Extracted as a pure function rather than left inline in `step-flow.tsx`, because
+ * this is the rule that decides whether a network call happens and it is wrong in
+ * ways nothing on screen shows. The record it reads is the optimistic one, seeded
+ * from the answers the server served the step with (issue #146) and re-merged on
+ * every navigation, so the answer is correct on a RESUMED mount and not only on a
+ * fresh one. An in-flight post counts as held (`withIssued` records at issue time)
+ * and a refused one does not (`withRollback`, issue #169), so a real retraction is
+ * never suppressed.
+ *
+ * A non-empty value always commits: `isRecorded` in the caller is what suppresses a
+ * redundant repeat of it, and that is a different question from this one.
+ */
+export function commitsOnFocusExit(
+  record: PostedRecord,
+  name: string,
+  value: A2UIAnswerValue | undefined,
+  moment: CommitMoment,
+): boolean {
+  if (value !== undefined) return true;
+  if (moment === "completion") return false;
+  return holdsAnswer(record, name);
 }
 
 /**

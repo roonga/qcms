@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   answerKey,
+  commitsOnFocusExit,
   holdsAnswer,
   isRecorded,
   recordedAnswers,
@@ -313,5 +314,96 @@ describe("the field errors a refusal displays (issue #122, symptom 2)", () => {
     // The renderer memoises on the errors object's identity, so an error-free
     // render must not allocate a new one per keystroke.
     expect(visibleErrors({}, { q_name: "Ada" })).toBe(visibleErrors({}, { q_name: "Grace" }));
+  });
+});
+
+/**
+ * Whether focus leaving a control commits anything (issue #168).
+ *
+ * The rule this pins is a **posting policy**, not a repair: a retraction of a
+ * never-held answer conveys nothing the server does not already know, and the API's
+ * `before.has(questionId)` guard already made such a post a no-op, so nothing was
+ * ever stored or lost. What it cost was a round trip per control a respondent tabs
+ * through, a 422 whenever the question was required, and the `console.error` that
+ * followed - which had bent test design, since `e2e/a11y-focus-target.pw.ts`
+ * answered every question first to keep a keyboard-traversal spec off the console
+ * gate. That workaround is gone with this rule.
+ *
+ * Driven here rather than only in the browser because this decides whether a
+ * network call happens at all, and both directions have to hold: a real retraction
+ * must still post (issue #95's whole point), and #146's data-loss scenario - a
+ * RESUMED step, where the record comes from the server's answers rather than from
+ * this client's writes - is the regression to guard against. `answer-dedupe.pw.ts`
+ * and `resume.pw.ts` pin the exact post counts over a real API.
+ */
+describe("what focus leaving a control commits (issue #168)", () => {
+  const MOMENTS = ["blur", "groupExit"] as const;
+
+  it.each(MOMENTS)("posts nothing when an empty %s control was never answered", (moment) => {
+    // The gesture in the issue: focus enters and leaves an untouched control. The
+    // record has no entry for it at all, which is what "never answered" looks like.
+    expect(commitsOnFocusExit({}, "q_name", undefined, moment)).toBe(false);
+  });
+
+  it.each(MOMENTS)("posts the retraction of a held answer at the %s moment", (moment) => {
+    // ADR-33's whole point, and the direction that must NOT be suppressed.
+    expect(commitsOnFocusExit(afterAnswering(), "q_name", undefined, moment)).toBe(true);
+  });
+
+  it.each(MOMENTS)("posts nothing at the %s moment once the retraction landed", (moment) => {
+    // A retraction is not an answer, so a second focus pass over the now-empty
+    // control has nothing left to retract. `isRecorded` would also dedupe this, but
+    // the two rules must agree rather than one covering for the other.
+    const retracted = withIssued(afterAnswering(), "q_name", undefined);
+    expect(holdsAnswer(retracted, "q_name")).toBe(false);
+    expect(commitsOnFocusExit(retracted, "q_name", undefined, moment)).toBe(false);
+  });
+
+  it("is correct on a RESUMED step, where the record came from the server (issue #146)", () => {
+    // The scenario #146 records: the client's own writes are not the authority here,
+    // the served answers are. Tabbing through an untouched resumed control must post
+    // nothing, and clearing one must still retract.
+    const resumed = recordedAnswers({ q_name: "Ada", q_cover: ["opt_a"] });
+    expect(commitsOnFocusExit(resumed, "q_name", undefined, "blur")).toBe(true);
+    expect(commitsOnFocusExit(resumed, "q_cover", undefined, "groupExit")).toBe(true);
+    expect(commitsOnFocusExit(resumed, "q_dob", undefined, "blur")).toBe(false);
+  });
+
+  it("counts an in-flight post as held, and a refused one as not", () => {
+    // `withIssued` records at issue time, so a respondent who answers and then
+    // immediately clears still retracts, even before the first post resolves.
+    const inFlight = withIssued({}, "q_name", "Ada");
+    expect(commitsOnFocusExit(inFlight, "q_name", undefined, "blur")).toBe(true);
+    // And a value the server refused was never held, so clearing it asserts nothing.
+    const rolledBack = withRollback(inFlight, {}, "q_name", answerKey("Ada"));
+    expect(commitsOnFocusExit(rolledBack, "q_name", undefined, "blur")).toBe(false);
+  });
+
+  it("commits a real value whatever the record says", () => {
+    // The suppression is about `null` alone. A repeat of a value already recorded is
+    // suppressed one layer up, by `isRecorded` in the caller, which is a different
+    // question from whether this is a commit at all.
+    expect(commitsOnFocusExit({}, "q_name", "Ada", "blur")).toBe(true);
+    expect(commitsOnFocusExit(afterAnswering(), "q_name", "Ada", "blur")).toBe(true);
+    expect(commitsOnFocusExit({}, "q_cover", ["opt_a"], "groupExit")).toBe(true);
+  });
+
+  it("keeps the completion moment's stricter rule: an empty date never commits here", () => {
+    // The date's clear reaches the flow as a change event once editing ends, not as
+    // a focus exit, so committing an empty one here would post the stale value's
+    // retraction at the wrong moment - or a `null` for a partial date mid-entry.
+    // True even when an answer IS held, which is what separates this from the rule
+    // above.
+    expect(commitsOnFocusExit({}, "q_dob", undefined, "completion")).toBe(false);
+    expect(
+      commitsOnFocusExit(
+        recordedAnswers({ q_dob: "1990-05-17" }),
+        "q_dob",
+        undefined,
+        "completion",
+      ),
+    ).toBe(false);
+    // A complete date still commits.
+    expect(commitsOnFocusExit({}, "q_dob", "1990-05-17", "completion")).toBe(true);
   });
 });

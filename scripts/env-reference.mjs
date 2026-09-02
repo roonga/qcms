@@ -281,6 +281,14 @@ export const ENV_REFERENCE = [
       "Whether cookies set on the admin origin carry `Secure`. It describes the **browser-facing** scheme, which this process cannot observe, so it is a knob rather than only an inference. Must hold the same value in the `api` and `admin` services or the browser keeps one cookie family and drops the other. The `admin` service refuses to start when it is false at a non-loopback `QCMS_ADMIN_BASE_URL` (issue #292), so a downgrade here is refused by the process the browser actually reaches.",
   },
   {
+    name: "QCMS_ADMIN_TRUSTED_PROXY_HOPS",
+    process: "api",
+    requirement: "optional",
+    fallback: "unset",
+    description:
+      "**A declaration this process never acts on.** The `admin` service is what counts hops (see its own row below); this service reads only whether a proxy is declared at all, to decide one boot warning. While it is unset or `0`, and better-auth's per-IP sign-in throttle is on, the API warns at every boot that no client address is vouched for, so every caller shares one bucket: three sign-in attempts from anyone hold admin sign-in and two-factor closed for every administrator until the ten-second window rolls (issue #482). That fails safe - refusal, not admission - so it costs availability rather than confidentiality, and it is the property of the proxy-less default Compose shape. Set it here, to the same count as the `admin` service, once a proxy really is in front of the admin hostname; setting it without one silences the warning and keeps the shared bucket, because this process cannot see the admin's inbound chain.",
+  },
+  {
     name: "QCMS_ADMIN_PASSWORD_BREACH_CHECK",
     process: "api",
     requirement: "optional",
@@ -555,7 +563,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "true when NODE_ENV=production",
     description:
-      "Whether respondent session cookies carry `Secure`. Setting it false is a downgrade, supported only when `QCMS_PORTAL_BASE_URL` is a loopback origin such as `http://localhost:7000`: at any other origin the portal **refuses to start**, naming this variable (issue #292). Leave it unset behind TLS.",
+      "Whether respondent session cookies carry `Secure`. Setting it false is a downgrade, supported only when `QCMS_PORTAL_BASE_URL` is a loopback origin such as `http://localhost:7000`: at any other origin the portal **refuses to start**, naming this variable (issue #292). Leave it unset behind TLS. Accepts `true`/`1`/`yes`/`on` and `false`/`0`/`no`/`off`, case-insensitive and trimmed, the same spellings `QCMS_ADMIN_SECURE_COOKIES` accepts; **anything else refuses to boot** rather than being silently ignored (issue #401). Unset or blank still defaults from `NODE_ENV`.",
   },
   {
     name: "NODE_ENV",

@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -188,5 +188,33 @@ describe("devcontainer.sh docker probes (issue #269)", () => {
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain("refusing to stop qcms-dev-container from inside");
+  });
+});
+
+/**
+ * The blast-radius layer of issue #260 (Code Owner decision, 2026-09-02).
+ *
+ * The container mounts the host Docker socket, which is full daemon authority, and the
+ * refusals above close only the path that goes through this script. A direct
+ * `docker stop` from inside never reaches them. The restart policy does not remove the
+ * authority - the ruling is explicit that it does not - it removes the harm: the
+ * environment comes back on its own instead of vanishing mid-session.
+ *
+ * Asserted because it is one word in a JSON file that no other test would miss, and
+ * because `up` silently ignores changed `runArgs` on a running container, so the way
+ * this regresses is silent in both directions.
+ */
+describe("the dev container restarts itself after a stop from inside (issue #260)", () => {
+  it("declares a restart policy in runArgs", () => {
+    const config = readFileSync(
+      fileURLToPath(new URL("../.devcontainer/devcontainer.json", import.meta.url)),
+      "utf8",
+    );
+    // Read as text rather than parsed: the file carries JSONC comments, and the comment
+    // beside this argument is where the reasoning lives.
+    expect(config).toContain('"--restart=unless-stopped"');
+    // `unless-stopped` rather than `always`, so an explicit `docker stop` from the host
+    // is still honoured and `pnpm devcontainer stop` keeps working.
+    expect(config).not.toContain('"--restart=always"');
   });
 });

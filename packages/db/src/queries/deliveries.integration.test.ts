@@ -184,6 +184,103 @@ describe("webhook-delivery helpers", () => {
 });
 
 /**
+ * What the dead-letter queue does with a row that can never be sent again (issue
+ * #433, Code Owner decision 2026-09-02: exclude).
+ *
+ * The queue is a **worklist**: every row on it is being offered back for redelivery.
+ * Task 059 removed cancelled rows for that reason, and an event whose payload has been
+ * redacted is exactly as unsendable - `redeliveryRefusalFor` refuses both, one line
+ * apart - so it goes for the same reason rather than acquiring a second convention.
+ * Before this, an operator met an aged-out row by pressing Redeliver and reading the
+ * 409 that came back.
+ *
+ * The two exclusions are asserted **together**, in one case each, because the property
+ * worth pinning is that the queue holds only rows a Redeliver would accept. A test for
+ * one filter alone passes while the other is quietly dropped.
+ */
+describe("the dead-letter queue lists only rows that can still be sent", () => {
+  /** Dead-letter one delivery by exhausting its attempts, as the delivery pass would. */
+  async function deadLetter(deliveryId: string): Promise<void> {
+    const from = new Date("2026-07-20T00:00:00.000Z");
+    for (let i = 1; i <= OUTBOX_MAX_ATTEMPTS; i += 1) {
+      await recordDeliveryFailure(testDb.db, deliveryId, `http_500 attempt ${i}`, from);
+    }
+  }
+
+  async function deadLetteredIds(): Promise<string[]> {
+    return (await listDeadLetterDeliveries(testDb.db)).map((row) => row.deliveryId);
+  }
+
+  it("excludes a row whose event payload has been redacted, and keeps a live one", async () => {
+    // A control alongside the subject, seeded and dead-lettered identically. Without
+    // it, a filter that excluded everything would pass this case.
+    const live = await seedEventWithWebhook();
+    const redacted = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId: live.outboxId, webhookId: live.webhookId });
+    await insertDelivery(testDb.db, {
+      outboxId: redacted.outboxId,
+      webhookId: redacted.webhookId,
+    });
+    const liveId = await deliveryIdFor(live.outboxId, live.webhookId);
+    const redactedId = await deliveryIdFor(redacted.outboxId, redacted.webhookId);
+    await deadLetter(liveId);
+    await deadLetter(redactedId);
+
+    // Both on the queue while both are sendable: this is the before-state, so a red
+    // below is the filter and not the seed.
+    const before = await deadLetteredIds();
+    expect(before).toContain(liveId);
+    expect(before).toContain(redactedId);
+
+    // Redact the event the way the retention sweep and erasure both do. These seeds
+    // carry no `answers` key, so the `outbox_redacted_payload_has_no_answers` check
+    // is satisfied by the marker alone.
+    await testDb.client.query(`update outbox set payload_redacted_at = now() where id = $1`, [
+      redacted.outboxId,
+    ]);
+
+    const after = await deadLetteredIds();
+    expect(after).toContain(liveId);
+    expect(after).not.toContain(redactedId);
+  });
+
+  it("still excludes a cancelled row, which task 059 removed for the same reason", async () => {
+    const { outboxId, webhookId, formId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+    await deadLetter(deliveryId);
+    expect(await deadLetteredIds()).toContain(deliveryId);
+
+    await testDb.db
+      .update(webhookDeliveries)
+      .set({ cancelledAt: new Date(), cancelledReason: "session_erased" })
+      .where(eq(webhookDeliveries.id, deliveryId));
+
+    expect(await deadLetteredIds()).not.toContain(deliveryId);
+    // Excluded from the worklist, not hidden from the operator: the delivery dashboard
+    // is where "what happened to that delivery" is answered, and it still shows the row
+    // with its state. That is what makes the exclusion a display decision rather than a
+    // loss of the audit trail, and it has to hold for the redacted row too.
+    const recent = await listRecentDeliveries(testDb.db, formId, 50);
+    expect(recent.map((row) => row.deliveryId)).toContain(deliveryId);
+  });
+
+  it("keeps a redacted row visible on the delivery dashboard", async () => {
+    const { outboxId, webhookId, formId } = await seedEventWithWebhook();
+    await insertDelivery(testDb.db, { outboxId, webhookId });
+    const deliveryId = await deliveryIdFor(outboxId, webhookId);
+    await deadLetter(deliveryId);
+    await testDb.client.query(`update outbox set payload_redacted_at = now() where id = $1`, [
+      outboxId,
+    ]);
+
+    expect(await deadLetteredIds()).not.toContain(deliveryId);
+    const recent = await listRecentDeliveries(testDb.db, formId, 50);
+    expect(recent.map((row) => row.deliveryId)).toContain(deliveryId);
+  });
+});
+
+/**
  * The form a delivery belongs to, resolved through its webhook - the ownership
  * chain the redelivery helpers are scoped by (issue #305). Tests that only hold a
  * delivery id use this rather than threading the form through every seed helper.

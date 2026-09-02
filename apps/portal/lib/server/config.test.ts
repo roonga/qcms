@@ -64,20 +64,53 @@ describe("secureCookies", () => {
     expect(secureCookies()).toBe(false);
   });
 
-  it("falls back to NODE_ENV when the override is unset", () => {
+  it("falls back to NODE_ENV when the override is unset or blank", () => {
     vi.stubEnv("QCMS_SECURE_COOKIES", undefined);
     vi.stubEnv("NODE_ENV", "production");
     expect(secureCookies()).toBe(true);
     vi.stubEnv("NODE_ENV", "development");
     expect(secureCookies()).toBe(false);
-  });
 
-  it("ignores an unrecognized override value and uses NODE_ENV", () => {
-    vi.stubEnv("QCMS_SECURE_COOKIES", "yes");
+    vi.stubEnv("QCMS_SECURE_COOKIES", "  ");
     vi.stubEnv("NODE_ENV", "production");
     expect(secureCookies()).toBe(true);
+  });
+
+  /**
+   * Issue #401, and a deliberate replacement for the case that used to sit here.
+   *
+   * That case pinned the opposite rule: `yes` was "an unrecognized override value"
+   * the reader ignored in favour of `NODE_ENV`. It is rewritten rather than deleted,
+   * because the lenient behaviour it described was real and was ruled away rather
+   * than found broken (Code Owner, 2026-09-02) - the portal now adopts the same
+   * `boolEnv`/`parseBool` contract the admin and the API already use. The silent
+   * fallback was a configuration that looks set and is not, and it also slipped past
+   * the off-loopback refusal below, which fires on the effective value.
+   */
+  it("accepts the API's boolean spellings, so the three processes cannot disagree", () => {
+    // NODE_ENV is stubbed to the opposite of the expected answer in each loop, so a
+    // case that fell back to it instead of parsing the value goes red rather than
+    // passing for the wrong reason.
     vi.stubEnv("NODE_ENV", "development");
-    expect(secureCookies()).toBe(false);
+    for (const raw of ["on", "1", "yes", "TRUE", " true "]) {
+      vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+      expect(secureCookies()).toBe(true);
+    }
+    vi.stubEnv("NODE_ENV", "production");
+    for (const raw of ["off", "0", "no", "FALSE", " false "]) {
+      vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+      expect(secureCookies()).toBe(false);
+    }
+  });
+
+  it("refuses a value that is not a boolean at all, naming the variable", () => {
+    // The other direction of the same ruling: unparseable is a loud boot failure now,
+    // not a silent fall-through to NODE_ENV.
+    vi.stubEnv("NODE_ENV", "production");
+    for (const raw of ["maybe", "banana", "2"]) {
+      vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+      expect(() => secureCookies()).toThrow(/QCMS_SECURE_COOKIES/);
+    }
   });
 });
 
@@ -88,8 +121,9 @@ describe("secureCookies", () => {
  * disagreeing about exactly this is what the issue was filed about. Nothing computes that
  * the two case lists match, though, and they had already drifted when someone looked
  * (issue #412): the admin carried the raw `0`/`no`/`off` cases and this file did not,
- * which is the gap behind issue #409. A case added here and not there goes unnoticed, so
- * adding one means opening the other file, not trusting a gate.
+ * which is the gap behind issue #409. Both sides carry them now that issue #401 gave the
+ * two readers one parser, but nothing computes that either. A case added here and not
+ * there goes unnoticed, so adding one means opening the other file, not trusting a gate.
  *
  * The positive controls come first on purpose: a red then distinguishes "the refusal
  * broke" from "the fixture was never a configuration that boots".
@@ -162,17 +196,25 @@ describe("assertSecureCookiesConfigured", () => {
       expect(() => assertSecureCookiesConfigured()).toThrow(/NODE_ENV is not "production"/);
     });
 
-    it.each(["off", "0", "no", "TRUE", " true"])(
+    it("refuses every false spelling, not only the literal `false`", () => {
+      // Since issue #401 all four spellings parse as false, so all four reach the
+      // guard and all four are refused. Before that ruling `off`/`0`/`no` fell through
+      // to NODE_ENV and the refusal only fired by accident of the environment.
+      vi.stubEnv("NODE_ENV", "production");
+      vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
+      for (const raw of ["false", "0", "no", "off"]) {
+        vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+        expect(() => assertSecureCookiesConfigured()).toThrow(/Refusing to start/);
+      }
+    });
+
+    it.each(["off", "0", "no"])(
       "reports %o as the value it read rather than calling the variable unset",
       (raw) => {
-        // None of these are one of the two literals `secureCookies()` recognises, so
-        // the answer falls through to NODE_ENV and the downgrade is real. Whether the
-        // portal SHOULD recognise the admin's wider vocabulary is issue #401 and is
-        // deliberately not decided here; what this pins is that the message names what
-        // the operator wrote (issue #409). Branching on `raw === "false"` alone told
-        // someone who had written `QCMS_SECURE_COOKIES=off` that it was unset, while
-        // they were looking at the line that sets it - and for ` true` and `TRUE`,
-        // seeing the value quoted back is the whole diagnosis.
+        // What this pins is that the message names what the operator wrote (issue
+        // #409). Branching on `raw === "false"` alone told someone who had written
+        // `QCMS_SECURE_COOKIES=off` that it was unset, while they were looking at the
+        // line that sets it.
         vi.stubEnv("QCMS_SECURE_COOKIES", raw);
         vi.stubEnv("NODE_ENV", "development");
         vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
@@ -188,6 +230,41 @@ describe("assertSecureCookiesConfigured", () => {
         expect(message).not.toContain("is unset");
       },
     );
+
+    it.each(["TRUE", " true", "  false  "])(
+      "no longer reaches this guard with %o, because the reader decided it (issue #401)",
+      (raw) => {
+        // These used to fall through to NODE_ENV and produce a refusal whose message
+        // quoted them back verbatim. The strict reader now settles them first: `TRUE`
+        // and ` true` are Secure-on and the guard returns early, and `  false  ` is a
+        // real downgrade whose message quotes the TRIMMED value, because that is what
+        // was compared. Kept as a pair with the admin twin, which trims for the same
+        // reason.
+        vi.stubEnv("QCMS_SECURE_COOKIES", raw);
+        vi.stubEnv("NODE_ENV", "development");
+        vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
+
+        if (raw.trim().toLowerCase() === "false") {
+          expect(() => assertSecureCookiesConfigured()).toThrow(
+            /QCMS_SECURE_COOKIES is set to "false"/,
+          );
+        } else {
+          expect(() => assertSecureCookiesConfigured()).not.toThrow();
+        }
+      },
+    );
+
+    it("lets an unparseable value fail at the reader rather than reaching the guard", () => {
+      // The boot still fails, and it fails naming the variable - it just fails one
+      // layer earlier, which is the whole of the #401 ruling. The old behaviour was a
+      // refusal that said "unset" about a variable the operator had set.
+      vi.stubEnv("QCMS_SECURE_COOKIES", "banana");
+      vi.stubEnv("NODE_ENV", "development");
+      vi.stubEnv("QCMS_PORTAL_BASE_URL", "https://forms.example.test");
+      expect(() => assertSecureCookiesConfigured()).toThrow(
+        /QCMS_SECURE_COOKIES must be a boolean/,
+      );
+    });
 
     it.each([undefined, ""])("still reports %o as unset, which it is", (raw) => {
       vi.stubEnv("QCMS_SECURE_COOKIES", raw);

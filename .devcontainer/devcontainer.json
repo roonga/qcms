@@ -107,9 +107,24 @@
   // property of THIS config, not of the allocation - `docs/PORTS.md` defines seats
   // 0-9 and records what a second container seat would need (a distinct name and
   // distinct publishes), marked as design intent rather than something exercised.
+  //
+  // `--restart=unless-stopped` is the blast-radius layer of issue #260 (Code Owner
+  // decision, 2026-09-02). This container mounts the host Docker socket so
+  // Testcontainers works (ADR-29), and that is full daemon authority: any process
+  // inside can stop the container it is running in, taking every session with it -
+  // measured once at 4m38s of unexplained downtime. `scripts/devcontainer.sh`
+  // refuses `stop`/`down`/`rebuild` from inside, which closes the accidental path,
+  // but a direct `docker stop` never goes near that script. The restart policy does
+  // not remove the authority; it removes the harm the issue is actually about, by
+  // turning environment loss into a brief interruption. Docker treats a stop from
+  // inside the container as a failure the policy covers, and honours an explicit
+  // `docker stop` from outside as a deliberate stop that stays stopped, which is
+  // exactly the split wanted. The residual authority, and why the socket proxy was
+  // not built, are recorded honestly in `docs/DEV_CONTAINER.md`.
   "runArgs": [
     "--init",
     "--ipc=host",
+    "--restart=unless-stopped",
     "--add-host=host.docker.internal:host-gateway",
     "--name=qcms-dev-container",
     "--label=com.docker.compose.project=qcms-dev"
