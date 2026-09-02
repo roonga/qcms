@@ -127,6 +127,13 @@
       "when": 1786332358657,
       "tag": "0017_account_issuer",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788294847850,
+      "tag": "0018_retention_sweep_indexes",
+      "breakpoints": true
     }
   ]
 }
