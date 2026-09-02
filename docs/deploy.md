@@ -202,15 +202,29 @@ not proxied: the two variables exist because the two hostnames can differ.
 
 ## Delivery through GitHub Actions
 
-Today `.github/workflows/images.yml` builds all three images on every push, with an SBOM, a
-provenance attestation and a real version stamp, and **pushes them nowhere**. That is fine for a
-Compose deployment that builds on the box, and it is the one thing that has to change before any
-other platform is possible, because every VM-less platform pulls images rather than building them.
+`.github/workflows/images.yml` builds all three images on every push, with an SBOM, a provenance
+attestation and a real version stamp, and **publishes them to GHCR on `main`** (issue #763). Step 0
+is done: every VM-less platform pulls images rather than building them, and there is now something
+to pull.
 
 **Step 0, on every platform: push to GHCR.** It is free for this repository, it authenticates with
 the built-in `GITHUB_TOKEN` under `packages: write`, and it introduces no external credential to
 store or rotate. Publishing an image to a registry is a distribution decision and does not touch
 ADR-20, whose subject is host ports and public routing rather than registries.
+
+What is published, and how to pin it:
+
+- `ghcr.io/roonga/qcms-api`, `ghcr.io/roonga/qcms-portal` and `ghcr.io/roonga/qcms-admin`.
+- Two tags per build: the **full commit SHA**, which is immutable, and `latest`, which moves.
+  Deploy from the SHA tag. `latest` is a convenience, and two `main` merges building at once can
+  finish out of order, so it is the one tag whose meaning depends on timing.
+- Not every commit on `main` gets a tag. A docs-only push skips the workflow through `paths-ignore`,
+  which is right because the images would be identical, but it means the newest SHA tag can sit a
+  commit or two behind the branch tip. A `workflow_dispatch` run on `main` mints the tags for
+  whatever commit it checks out.
+- A GHCR package is **private** when the first push creates it. Leave it private for a server that
+  authenticates its pull, or set it public in the package settings if adopters should pull
+  anonymously. That visibility choice belongs to the Code Owner and the workflow does not make it.
 
 The deploy job that follows is per-platform, and only its credential model really varies:
 

@@ -341,17 +341,18 @@ not negotiable: it is always-on by design.
 
 ## CI: build, push, deploy
 
-`.github/workflows/images.yml` already builds all three images with an SBOM, provenance, and a
-version stamp, but by design **it does not publish or deploy** (issue #360: nothing is published
-yet). This workflow adds the missing half: build and push to GHCR, then deploy each app by digest.
+`.github/workflows/images.yml` builds all three images with an SBOM, provenance, and a version
+stamp, and publishes them to GHCR on `main` (issue #763), but it **does not deploy** (issue #360).
+This workflow adds the missing half: deploy each app by digest. If you would rather not build a
+second time, drop the build job and deploy the `ghcr.io/<owner>/qcms-<app>:<commit sha>` tags
+`images.yml` already published.
 
-A note on the API image, so this doc does not overstate a decision. ADR-20's text is a **runtime
-network** property - "The API publishes no host port" - not a rule about image distribution. Whether
-and where the API image is published to a registry is a separate distribution decision, still open
-for the Code Owner (issue #763); this doc does not settle it. What the deploy below needs is only
-that the API image is reachable **by the deploy**, so it pushes to a **private** GHCR path the Fly
-deploy pulls from. That is the conservative default while #763 is undecided, and it keeps the API
-image off a public registry without asserting that ADR-20 requires it.
+A note on the API image. ADR-20's text is a **runtime network** property - "The API publishes no
+host port" - not a rule about image distribution, and the Code Owner confirmed that reading on
+2026-09-02 (issue #763): pushing the API image to a registry does not touch ADR-20. What the deploy
+below needs is only that the API image is reachable **by the deploy**, so it pushes to a GHCR path
+the Fly deploy pulls from. A GHCR package is private when the push first creates it, which is the
+conservative default and is what a credentialed Fly pull wants.
 
 ```yaml
 name: Deploy (Fly)

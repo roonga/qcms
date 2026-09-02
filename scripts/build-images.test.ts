@@ -6,11 +6,16 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   assertArtifact,
+  attestationManifestCount,
+  buildArgv,
   IMAGES,
+  imageReferences,
   imageTag,
   imageVersion,
   inspectOciArtifact,
+  parseArgv,
   PROVENANCE_PREDICATE,
+  REGISTRY,
   SPDX_PREDICATE,
   VERSION_LABEL,
 } from "./build-images.mjs";
@@ -144,5 +149,102 @@ describe("the image set", () => {
       "qcms-api",
       "qcms-portal",
     ]);
+  });
+});
+
+/**
+ * Publishing (issue #763). None of this boots Docker either: what is worth asserting
+ * is the part that decides WHAT gets pushed and WHERE, because a wrong reference is
+ * either a rejected push or, worse, an accepted one under the wrong name.
+ */
+describe("registry references", () => {
+  it("names every tag under the registry and namespace", () => {
+    expect(imageReferences("roonga", "qcms-api", ["abc123", "latest"])).toEqual([
+      `${REGISTRY}/roonga/qcms-api:abc123`,
+      `${REGISTRY}/roonga/qcms-api:latest`,
+    ]);
+  });
+
+  it("rejects an uppercase namespace rather than letting the registry do it", () => {
+    // `github.repository_owner` preserves the case a person typed, and a registry
+    // repository path is lowercase-only. Caught here it reads as a mistake; caught by
+    // GHCR it reads as an outage.
+    expect(() => imageReferences("Roonga", "qcms-api", ["latest"])).toThrow(/lowercase/);
+  });
+
+  it("rejects a tag the reference grammar forbids", () => {
+    // The version stamp contains `+`, which is why imageTag exists; a caller that
+    // forgot to sanitise would otherwise fail deep inside buildx.
+    expect(() => imageReferences("roonga", "qcms-api", ["0.0.1+abc"])).toThrow(/legal image tag/);
+    expect(() => imageReferences("roonga", "qcms-api", [".leading-dot"])).toThrow(
+      /legal image tag/,
+    );
+  });
+
+  it("refuses to push with no tag at all", () => {
+    expect(() => imageReferences("roonga", "qcms-api", [])).toThrow(/at least one --tag/);
+  });
+});
+
+describe("the buildx argument vector", () => {
+  const image = { name: "qcms-api", dockerfile: "docker/api.Dockerfile" };
+
+  it("carries the attestation flags and the version stamp for either exporter", () => {
+    for (const output of ["type=oci,dest=/tmp/x,tar=false", "type=registry"]) {
+      const argv = buildArgv(image, "1.2.3", { tags: ["qcms-api:1.2.3"], output });
+      expect(argv).toContain("--sbom=true");
+      expect(argv).toContain("--provenance=mode=max");
+      expect(argv).toContain("VERSION=1.2.3");
+      expect(argv).toContain(output);
+    }
+  });
+
+  it("repeats --tag once per reference", () => {
+    const argv = buildArgv(image, "1.2.3", {
+      tags: ["ghcr.io/roonga/qcms-api:abc", "ghcr.io/roonga/qcms-api:latest"],
+      output: "type=registry",
+    });
+    expect(argv.filter((entry) => entry === "--tag")).toHaveLength(2);
+  });
+});
+
+describe("the pushed manifest check", () => {
+  it("counts the attestation manifest buildx attaches", () => {
+    const list = JSON.stringify({
+      manifests: [
+        { platform: { architecture: "amd64", os: "linux" } },
+        {
+          platform: { architecture: "unknown", os: "unknown" },
+          annotations: { "vnd.docker.reference.type": "attestation-manifest" },
+        },
+      ],
+    });
+    expect(attestationManifestCount(list)).toBe(1);
+  });
+
+  it("reports none when the export dropped the attestations", () => {
+    // The failure this exists for: an exporter that quietly ships the image alone.
+    const list = JSON.stringify({
+      manifests: [{ platform: { architecture: "amd64", os: "linux" } }],
+    });
+    expect(attestationManifestCount(list)).toBe(0);
+  });
+});
+
+describe("argument parsing", () => {
+  it("reads no push out of the build-only invocation CI uses on a branch", () => {
+    const parsed = parseArgv(["--output", "/tmp/images"]);
+    expect(parsed).toEqual({ outputRoot: "/tmp/images", namespace: undefined, tags: [] });
+  });
+
+  it("reads the namespace and every repeated tag", () => {
+    expect(
+      parseArgv(["--output", "/tmp/i", "--push", "roonga", "--tag", "abc", "--tag", "latest"]),
+    ).toEqual({ outputRoot: "/tmp/i", namespace: "roonga", tags: ["abc", "latest"] });
+  });
+
+  it("refuses --push with no namespace instead of silently building only", () => {
+    expect(() => parseArgv(["--push"])).toThrow(/needs a registry namespace/);
+    expect(() => parseArgv(["--push", "--tag", "latest"])).toThrow(/needs a registry namespace/);
   });
 });
