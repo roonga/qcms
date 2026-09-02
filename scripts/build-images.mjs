@@ -36,6 +36,21 @@
  *
  * That traversal is the whole verification: it checks the artifact an adopter would
  * actually receive, rather than checking that we passed the right flags.
+ *
+ * ## Publishing (issue #763)
+ *
+ * `--push <namespace>` adds a second buildx invocation per image that exports to
+ * `type=registry` instead of an OCI directory, tagged `ghcr.io/<namespace>/<image>`
+ * once per `--tag`. It runs only after the local artifact has passed
+ * {@link assertArtifact}, so nothing reaches a registry that has not already been
+ * proven to carry an SBOM, provenance and a real version stamp. The second
+ * invocation is the same build definition with different tags, so BuildKit answers
+ * it from the cache the first one just filled: it re-exports, it does not rebuild.
+ *
+ * The pushed manifest is then read back with `buildx imagetools inspect --raw` and
+ * checked for an attestation manifest, because "the local copy had an SBOM" and "the
+ * registry copy has one" are different claims and only the second one is what an
+ * adopter pulls.
  */
 
 import { execFileSync } from "node:child_process";
@@ -54,6 +69,16 @@ export const IMAGES = [
 
 /** The buildx builder this script creates on demand; the default driver cannot attest. */
 const BUILDER = "qcms-sbom";
+
+/**
+ * The registry the images publish to (issue #763).
+ *
+ * GHCR and not Docker Hub: it is free for this repository, and a push authenticates
+ * with the built-in `GITHUB_TOKEN` under `packages: write`, so publishing introduces
+ * no credential anyone has to store or rotate. `.github/workflows/mirror-test-images.yml`
+ * already pushes here on the same token.
+ */
+export const REGISTRY = "ghcr.io";
 
 export const SPDX_PREDICATE = "https://spdx.dev/Document";
 export const PROVENANCE_PREDICATE = "https://slsa.dev/provenance/v1";
@@ -180,13 +205,20 @@ export function assertArtifact(directory, version, name) {
 }
 
 /**
+ * The buildx argument vector for one image, with the exporter and tags supplied.
+ *
+ * One function for both the local build and the push, so the two cannot drift on the
+ * flags that decide what the artifact contains. Only `--tag` and `--output` differ:
+ * neither is part of the build graph, so BuildKit serves the push from the cache the
+ * local build filled rather than building the image a second time.
+ *
  * @param {{ name: string, dockerfile: string }} image
  * @param {string} version
- * @param {string} outputRoot
+ * @param {{ tags: string[], output: string }} exporter
+ * @returns {string[]}
  */
-export function buildImage(image, version, outputRoot) {
-  const destination = join(outputRoot, image.name);
-  runProcess(DOCKER, [
+export function buildArgv(image, version, { tags, output }) {
+  return [
     "buildx",
     "build",
     "--builder",
@@ -197,22 +229,191 @@ export function buildImage(image, version, outputRoot) {
     `VERSION=${version}`,
     "--sbom=true",
     "--provenance=mode=max",
-    "--tag",
-    `${image.name}:${imageTag(version)}`,
+    ...tags.flatMap((tag) => ["--tag", tag]),
     "--output",
-    `type=oci,dest=${destination},tar=false`,
+    output,
     ".",
-  ]);
+  ];
+}
+
+/**
+ * The registry references one image publishes under.
+ *
+ * A repository path must be lowercase, and a tag is `[A-Za-z0-9_][A-Za-z0-9._-]{0,127}`.
+ * Both are checked here rather than left to the registry, because a rejected push in
+ * CI reads as an infrastructure failure and this reads as the mistake it is. The owner
+ * arrives from `github.repository_owner`, which preserves the case a person typed.
+ *
+ * @param {string} namespace registry namespace, for example `roonga`.
+ * @param {string} name image name, for example `qcms-api`.
+ * @param {string[]} tags one or more tags to publish the same build under.
+ * @returns {string[]}
+ */
+export function imageReferences(namespace, name, tags) {
+  if (!/^[a-z0-9][a-z0-9._-]*$/.test(namespace)) {
+    throw new Error(
+      `build-images: ${JSON.stringify(namespace)} is not a legal registry namespace; it must be lowercase`,
+    );
+  }
+  if (tags.length === 0) throw new Error("build-images: --push needs at least one --tag");
+  for (const tag of tags) {
+    if (!/^\w[\w.-]{0,127}$/.test(tag)) {
+      throw new Error(`build-images: ${JSON.stringify(tag)} is not a legal image tag`);
+    }
+  }
+  return tags.map((tag) => `${REGISTRY}/${namespace}/${name}:${tag}`);
+}
+
+/**
+ * The attestation manifests in a raw manifest list.
+ *
+ * The test is a CONJUNCTION of all three descriptor properties buildx actually
+ * writes, because this is the one assertion the whole push path exists for and a
+ * permissive test here would report success on an artifact that lost its
+ * attestations. Leaning permissive is the wrong direction for a check whose only
+ * job is to catch that loss.
+ *
+ * Reality, from `docker buildx build --sbom=true --provenance=mode=max` on
+ * buildx v0.35.0 (both descriptors of a single-platform build, verbatim):
+ *
+ * ```json
+ * { "mediaType": "application/vnd.oci.image.manifest.v1+json",
+ *   "digest": "sha256:f5f0b85e...", "size": 476,
+ *   "platform": { "architecture": "amd64", "os": "linux" } }
+ * { "mediaType": "application/vnd.oci.image.manifest.v1+json",
+ *   "digest": "sha256:0e68a698...", "size": 1106,
+ *   "annotations": { "vnd.docker.reference.digest": "sha256:f5f0b85e...",
+ *                    "vnd.docker.reference.type": "attestation-manifest" },
+ *   "platform": { "architecture": "unknown", "os": "unknown" } }
+ * ```
+ *
+ * So the attestation descriptor carries the `unknown/unknown` platform AND the
+ * reference-type annotation, and the image descriptor carries neither. Requiring
+ * both means a descriptor has to be an attestation manifest on the two independent
+ * markers rather than on either one alone: the `unknown/unknown` platform is the
+ * convention that hides these entries from a platform-matching client, and other
+ * non-image entries could adopt it, while the annotation is what names this entry
+ * as the attestation for a specific image.
+ *
+ * The manifest it points at carries `artifactType`
+ * `application/vnd.docker.attestation.manifest.v1+json` and one
+ * `application/vnd.in-toto+json` layer per predicate, which is the layer shape
+ * {@link inspectOciArtifact} already walks for the local artifact. This function
+ * deliberately stops at the descriptor: `imagetools inspect --raw` returns the index
+ * alone, and fetching each referenced manifest would be a second registry round trip
+ * for a weaker question than "did the attestations get pushed at all".
+ *
+ * @param {string} rawManifestList the JSON `buildx imagetools inspect --raw` prints.
+ * @returns {number} how many attestation manifests the list carries.
+ */
+export function attestationManifestCount(rawManifestList) {
+  /** @type {{ manifests?: { platform?: { architecture?: string, os?: string }, annotations?: Record<string, string> }[] }} */
+  const index = JSON.parse(rawManifestList);
+  return (index.manifests ?? []).filter(
+    (entry) =>
+      entry.platform?.architecture === "unknown" &&
+      entry.platform.os === "unknown" &&
+      entry.annotations?.["vnd.docker.reference.type"] === "attestation-manifest",
+  ).length;
+}
+
+/**
+ * @param {{ name: string, dockerfile: string }} image
+ * @param {string} version
+ * @param {string} outputRoot
+ */
+export function buildImage(image, version, outputRoot) {
+  const destination = join(outputRoot, image.name);
+  runProcess(
+    DOCKER,
+    buildArgv(image, version, {
+      tags: [`${image.name}:${imageTag(version)}`],
+      output: `type=oci,dest=${destination},tar=false`,
+    }),
+  );
   assertArtifact(destination, version, image.name);
   process.stdout.write(
     `build-images: ${image.name} ${version} - SBOM, provenance and stamp present\n`,
   );
 }
 
-export function main(argv = process.argv.slice(2)) {
+/**
+ * Publish one already-asserted image to the registry, then read the pushed manifest
+ * back and require the attestations to have survived the export.
+ *
+ * @param {{ name: string, dockerfile: string }} image
+ * @param {string} version
+ * @param {string} namespace
+ * @param {string[]} tags
+ */
+export function pushImage(image, version, namespace, tags) {
+  const references = imageReferences(namespace, image.name, tags);
+  runProcess(DOCKER, buildArgv(image, version, { tags: references, output: "type=registry" }));
+  for (const reference of references) {
+    const raw = captureProcess(DOCKER, ["buildx", "imagetools", "inspect", "--raw", reference]);
+    if (attestationManifestCount(raw) === 0) {
+      throw new Error(
+        `build-images: ${reference} was pushed without an attestation manifest; the SBOM and provenance did not survive the export`,
+      );
+    }
+    process.stdout.write(`build-images: pushed ${reference} with its attestations\n`);
+  }
+}
+
+/**
+ * The value following a flag, or a thrown error naming the flag.
+ *
+ * Every flag this script takes is value-bearing, so a missing value is always a
+ * mistake and never a shorthand. Reading it without this guard produces `undefined`,
+ * which `String()` turns into the literal `"undefined"`: `--output` with no value
+ * would build into a directory named `undefined`, and `--tag` with no value would
+ * push a tag named `undefined`. Both are downstream failures at best and a wrong
+ * artifact at worst, so the parser refuses them here where the message can name the
+ * flag the caller actually got wrong.
+ *
+ * @param {string[]} argv
+ * @param {number} flagIndex position of the flag itself.
+ * @param {string} flag the flag's name, for the message.
+ * @param {string} example a correct invocation to show.
+ * @returns {string}
+ */
+function valueAfter(argv, flagIndex, flag, example) {
+  const value = argv[flagIndex + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`build-images: ${flag} needs a value, for example ${example}`);
+  }
+  return value;
+}
+
+/**
+ * Read `--output`, `--push` and the repeatable `--tag` out of the argument vector.
+ *
+ * @param {string[]} argv
+ * @returns {{ outputRoot: string, namespace: string | undefined, tags: string[] }}
+ */
+export function parseArgv(argv) {
   const outputIndex = argv.indexOf("--output");
+  const pushIndex = argv.indexOf("--push");
+  /** @type {string[]} */
+  const tags = [];
+  for (let index = 0; index < argv.length; index += 1) {
+    if (argv[index] === "--tag") {
+      tags.push(valueAfter(argv, index, "--tag", "--tag latest"));
+    }
+  }
+  const namespace =
+    pushIndex === -1
+      ? undefined
+      : valueAfter(argv, pushIndex, "--push", "--push roonga (a registry namespace)");
   const outputRoot =
-    outputIndex === -1 ? join(REPOSITORY_ROOT, "dist-images") : argv[outputIndex + 1];
+    outputIndex === -1
+      ? join(REPOSITORY_ROOT, "dist-images")
+      : valueAfter(argv, outputIndex, "--output", "--output ./dist-images");
+  return { outputRoot, namespace, tags };
+}
+
+export function main(argv = process.argv.slice(2)) {
+  const { outputRoot, namespace, tags } = parseArgv(argv);
   const version = imageVersion();
   process.stdout.write(`build-images: version ${version}\n`);
   ensureBuilder();
@@ -221,9 +422,13 @@ export function main(argv = process.argv.slice(2)) {
       throw new Error(`build-images: ${image.dockerfile} is missing`);
     }
     buildImage(image, version, outputRoot);
+    if (namespace !== undefined) pushImage(image, version, namespace, tags);
   }
   process.stdout.write(
-    `build-images: all ${String(IMAGES.length)} images built into ${outputRoot}\n`,
+    `build-images: all ${String(IMAGES.length)} images built into ${outputRoot}` +
+      (namespace === undefined
+        ? "\n"
+        : ` and published to ${REGISTRY}/${namespace} as ${tags.join(", ")}\n`),
   );
   return 0;
 }

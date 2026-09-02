@@ -111,7 +111,7 @@ export const JOB_GUARDS = {
   "images.yml#build": {
     mirror: false,
     assert: false,
-    why: "builds and publishes the release images. It needs no test Postgres, and it is outside the Hub assertion for the same build-time reason as full-stack-e2e plus the SBOM scanner image. Documented in the workflow.",
+    why: "builds the three release images on every push and publishes them to GHCR on main (issue #763). It needs no test Postgres, and it is outside the Hub assertion for the same build-time reason as full-stack-e2e plus the SBOM scanner image; its own registry traffic goes to ghcr.io on the built-in token, not to the Hub. Documented in the workflow.",
   },
   "mirror-test-images.yml#mirror": {
     mirror: false,

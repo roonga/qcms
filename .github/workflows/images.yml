@@ -4,11 +4,18 @@ name: Images
 # and a real version stamp, and assert all three are present in the artifact rather
 # than trusting that the right flags were passed.
 #
-# This job builds but does not publish. Publishing is a release concern (Stage 5) and
-# ADR-20 is explicit that the API container is never published at all, so a job that
-# pushed everything it built would be wrong twice over. What it buys today is that a
-# Dockerfile change that breaks the build, or drops the version stamp, fails here
-# instead of at an adopter's first `docker compose build`.
+# This job builds on every push and PUBLISHES on `main` (issue #763). It used to
+# publish nowhere, on the reading that "ADR-20 is explicit that the API container is
+# never published at all". That reading was wrong, and correcting it is part of #763.
+# ADR-20's text (`docs/adr/core.md`) is that the API publishes no host PORT, and
+# `docs/deploy-ingress.md` invariant 4 restates it the same way: a runtime network
+# property, that the api container is never internet-reachable and is reached only by
+# the two BFFs over the internal network. That stays true however the image is
+# distributed. Pushing `ghcr.io/<owner>/qcms-api` is a distribution decision and does
+# not touch ADR-20 (Code Owner ruling of 2026-09-02 on issue #763). The build half is
+# unchanged and still runs on every branch: a Dockerfile change that breaks the build,
+# or drops the version stamp, fails here instead of at an adopter's first
+# `docker compose build`.
 #
 # THIS JOB IS NOT A REQUIRED CONTEXT. `protect-main` requires exactly four
 # (`verify (node-24)`, `api-e2e`, `portal-e2e`, `full-stack-e2e`), so a red build here
@@ -18,7 +25,9 @@ name: Images
 # `create-app-e2e` - is a repository-administration change and stays with the Code
 # Owner). Enforced and merely reported are different properties; this workflow is the
 # second kind, on purpose, because a Docker build is slow and its failures are
-# infrastructural rather than semantic.
+# infrastructural rather than semantic. Publishing does not change that: a failed
+# publish on `main` reports red after a merge that has already landed, and the recovery
+# is a `workflow_dispatch` on `main` rather than a revert.
 on:
   # Every push, still - a branch is where a broken Dockerfile is cheapest to find, and
   # this workflow publishes no required context, so it is not part of the duplicate-run
@@ -33,6 +42,17 @@ on:
   # file anywhere in the tree. Anything less obvious than that belongs on the built
   # side of the line - a filter that silently stops building is a worse outcome than
   # the waste it replaces.
+  #
+  # PUBLISHING COMPOSES WITH THAT FILTER, and the consequence is worth stating rather
+  # than discovering. A docs-only push to `main` still skips the whole workflow, so no
+  # run happens and nothing is published for that commit: there is no
+  # `ghcr.io/<owner>/qcms-api:<that sha>`, and `:latest` keeps pointing at the last
+  # commit that touched a path an image is built from. That is the correct outcome -
+  # the images are byte-identical to the ones already published, so a second copy under
+  # a new tag would only cost registry storage - but it does mean a published tag is
+  # not guaranteed to exist for every commit on `main`. Deploy from a SHA tag that
+  # exists (the run that built it is the evidence it does), and use `workflow_dispatch`
+  # on `main` if a specific commit needs its own tag minted.
   push:
     paths-ignore:
       - "**/*.md"
@@ -47,12 +67,27 @@ on:
 # merges share one group, and cancelling the first leaves no verdict for the commit that
 # landed. `workflow_dispatch` is keyed on the run id instead, so a routine push can never
 # cancel a manually requested build.
+#
+# That carve-out is deliberately kept, and it has one consequence for publishing: two
+# `main` runs can be in flight at once, so if the older one finishes last it wins the
+# race for the moving `:latest` tag. The immutable `:<full sha>` tags are unaffected -
+# each run writes only its own - which is why the SHA tag is the deployable identity
+# and `:latest` is a convenience. Serialising the publish would mean cancelling a
+# pending `main` run, which is exactly the verdict-loss issue #529 carved `main` out
+# of; trading a documented tag race for a lost build verdict is the worse deal.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# `packages: write` is the whole credential story for publishing: GHCR accepts the
+# built-in `GITHUB_TOKEN`, so no external registry secret is stored or rotated. It is
+# granted at workflow level because GitHub has no per-step permission scope, and that
+# is contained: this workflow triggers only on `push` and `workflow_dispatch`, neither
+# of which a fork can fire against this repository, and the push steps themselves are
+# gated to `refs/heads/main` below.
 permissions:
   contents: read
+  packages: write
 
 jobs:
   build:
@@ -81,12 +116,56 @@ jobs:
       - name: Create a buildx builder that can attest
         run: docker buildx create --name qcms-sbom --driver docker-container
 
+      # Publishing is gated on the REF, not on the event. A branch push builds and
+      # pushes nothing, which is what a pull request wants: the image build stays the
+      # cheap early warning it has always been, and no branch can mint a tag anyone
+      # might deploy. Keying on the ref rather than on `github.event_name == 'push'`
+      # also leaves `workflow_dispatch` on `main` as the escape hatch for a commit
+      # whose own push was skipped by `paths-ignore`.
+      - name: Resolve the registry namespace
+        id: registry
+        if: github.ref == 'refs/heads/main'
+        env:
+          REPOSITORY_OWNER: ${{ github.repository_owner }}
+        # A registry repository path must be lowercase and the owner login need not be.
+        run: |
+          set -euo pipefail
+          printf 'namespace=%s\n' \
+            "$(printf '%s' "${REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')" \
+            >> "${GITHUB_OUTPUT}"
+
+      # The built-in token, exactly as mirror-test-images.yml does it. No registry
+      # secret exists to leak, and `packages: write` on GITHUB_TOKEN is scoped to this
+      # repository's own packages.
+      - name: Log in to GHCR
+        if: github.ref == 'refs/heads/main'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
       # Deliberately NOT guarded by .github/actions/assert-no-docker-hub-pulls: the
       # SBOM step pulls docker/buildkit-syft-scanner, and the images build FROM
       # node:24-bookworm-slim. Both are build-time pulls, which is the same exception
       # the full-stack-e2e job already documents for the base image.
       - name: Build the three images with SBOM, provenance and a version stamp
+        if: github.ref != 'refs/heads/main'
         run: pnpm qcms:build-images -- --output "${RUNNER_TEMP}/images"
+
+      # Two tags per image. The full commit SHA is the immutable one and the identity
+      # a deploy should pin; `latest` is the moving convenience. Both are pushed from
+      # the same build, and the script only pushes an image that has already passed
+      # its SBOM, provenance and version-stamp assertions locally, then reads the
+      # pushed manifest back to confirm the attestations survived the export.
+      - name: Build and publish the three images to GHCR
+        if: github.ref == 'refs/heads/main'
+        env:
+          NAMESPACE: ${{ steps.registry.outputs.namespace }}
+        run: |
+          pnpm qcms:build-images -- \
+            --output "${RUNNER_TEMP}/images" \
+            --push "${NAMESPACE}" \
+            --tag "${GITHUB_SHA}" \
+            --tag latest
 
       # The build asserts as it goes and fails the step on a missing attestation.
       # This prints what landed, so the log answers "what was in that build" without

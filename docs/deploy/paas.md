@@ -179,7 +179,7 @@ jobs:
         # (section 2 / 3) before the new instances take traffic.
 ```
 
-Note the ordering is the platform's to enforce via `preDeployCommand`; the hook just says "go". Unlike the VPS recipe, there is no push-to-GHCR step here because the platform builds from the Dockerfiles itself. (For context: `.github/workflows/images.yml` builds the three images in CI today but publishes nothing - issue #360.)
+Note the ordering is the platform's to enforce via `preDeployCommand`; the hook just says "go". Unlike the VPS recipe, there is no push-to-GHCR step here because the platform builds from the Dockerfiles itself. (For context: `.github/workflows/images.yml` builds the three images in CI and publishes them to GHCR on pushes to `main`, issue #763. This recipe does not consume them, because the platform builds its own from the same Dockerfiles. What is still missing for every platform is the deploy pipeline, issue #360.)
 
 ## 8. The always-warm caveat
 
