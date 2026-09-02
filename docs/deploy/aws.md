@@ -57,7 +57,7 @@ CODE=$(aws ecs describe-tasks --cluster qcms --tasks "$TASK_ARN" \
 [ "$CODE" = "0" ] || { echo "migration failed (exit $CODE)"; exit 1; }
 ```
 
-The `qcms-migrate` task definition is the api image with the same secrets and `DATABASE_URL` as the api service, and no schedulers (it exits). It is the ECS twin of the `migrate` one-shot in `docker-compose.yml`.
+The `qcms-migrate` task definition is the api image with the same secrets as the api service and **its own `DATABASE_URL`**, and no schedulers (it exits). It is the ECS twin of the `migrate` one-shot in `docker-compose.yml`, credential split included: this task connects as `qcms_migrate`, which owns the schema, while the api service connects as `qcms_app`, which holds no DDL and could not run this task at all (SEC-10; the recipe is the "Least-privilege database roles" section of `docs/operations.md`). That is two secrets, one per role, and the api task definition must never reference the migration one.
 
 ## 3. TLS at the ALB
 

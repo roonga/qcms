@@ -44,8 +44,10 @@ az containerapp job create \
   --trigger-type Manual --replica-timeout 600 --replica-retry-limit 1 \
   --image "$REGISTRY/qcms-api:$TAG" \
   --command "qcms-db-migrate" \
-  --secrets ... --env-vars "DATABASE_URL=secretref:database-url" ...
+  --secrets ... --env-vars "DATABASE_URL=secretref:migrate-database-url" ...
 ```
+
+The job's `DATABASE_URL` is the **`qcms_migrate`** credential and the api app's is **`qcms_app`** (SEC-10, issue #492): two secrets, one per role, and the api app never references the migration one. A Container Apps Job fits the split cleanly because it has a secret scope of its own. The role recipe is the "Least-privilege database roles" section of `docs/operations.md`.
 
 The pipeline **starts the job and polls it to `Succeeded` before it updates the api app** (Azure Container Apps has no cross-app ordering primitive, so ordering is the pipeline's job):
 

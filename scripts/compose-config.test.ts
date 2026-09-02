@@ -120,6 +120,141 @@ describe("solo compose topology (ADR-20)", () => {
   });
 });
 
+/**
+ * The SEC-10 app/migration credential split (issue #492).
+ *
+ * The Code Owner's ruling of 2026-09-02 is a property of the shipped Compose file,
+ * not only of a document: `migrate` connects as `qcms_migrate`, which owns the schema
+ * and holds the DDL rights, and `api` connects as `qcms_app`, which holds DML and
+ * nothing else. Both values are resolved by Compose here rather than read out of the
+ * YAML, because `api` gets its credential by OVERRIDING a key on the `*api-env`
+ * anchor it shares with `migrate` - and "a directly written key wins over a merged
+ * one" is exactly the kind of claim that deserves a test rather than a comment.
+ *
+ * The recipe both roles come from, and the reasoning for granting DELETE whole, are
+ * in the "Least-privilege database roles" section of `docs/operations.md`.
+ */
+describe("least-privilege database roles (SEC-10, issue #492)", () => {
+  /** The username in a service's resolved `DATABASE_URL`. */
+  function databaseRole(name: string): string {
+    const url = service(solo, name).environment?.DATABASE_URL ?? "";
+    expect(url, `${name} must carry a DATABASE_URL`).not.toBe("");
+    return new URL(url).username;
+  }
+
+  it("runs the migration as the schema-owning role", () => {
+    expect(databaseRole("migrate")).toBe("qcms_migrate");
+  });
+
+  it("runs the API as the DML-only role, never as the migration role", () => {
+    // The whole point of the split: the process that serves respondent and authoring
+    // traffic holds a credential that cannot issue DDL. If the `<<: *api-env` merge
+    // ever stopped being overridden, this is the assertion that fails.
+    expect(databaseRole("api")).toBe("qcms_app");
+    expect(databaseRole("api")).not.toBe(databaseRole("migrate"));
+  });
+
+  it("keeps the bootstrap superuser out of both", () => {
+    // QCMS_DB_USER creates the two roles and is then held by nothing that serves
+    // traffic. A service falling back to it would be the old single-credential world
+    // wearing the new file's name.
+    for (const name of ["api", "migrate"]) {
+      expect(databaseRole(name), `${name} must not use the bootstrap credential`).not.toBe("qcms");
+    }
+  });
+
+  it("creates the roles in a one-shot that the migration waits for", () => {
+    // Ordering is the whole recipe: the roles must exist and own the schema before
+    // drizzle-kit connects. `restart: "no"` because it is a one-shot like `migrate`.
+    const roles = (solo as { services: Record<string, { restart?: string }> }).services["db-roles"];
+    expect(roles).toBeDefined();
+    expect(roles?.restart).toBe("no");
+    expect(publishedPorts(solo, "db-roles")).toEqual([]);
+
+    const dependsOn = (
+      solo as { services: Record<string, { depends_on?: Record<string, unknown> }> }
+    ).services.migrate.depends_on;
+    expect(dependsOn?.["db-roles"]).toMatchObject({
+      condition: "service_completed_successfully",
+    });
+  });
+
+  it("grants the runtime role DML and never CREATE", () => {
+    // Read from the RESOLVED entrypoint, so this asserts the statements the container
+    // will actually run, exactly as the dev-tools read-only role is asserted below.
+    const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
+    expect(sql).toContain("GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public");
+    expect(sql).toContain("GRANT USAGE ON SCHEMA %I TO qcms_app");
+    expect(sql).toContain("ALTER SCHEMA %I OWNER TO qcms_migrate");
+    // No CREATE for the runtime role, in any spelling. A plain text search would be
+    // wrong in both directions here: `GRANT CREATE ON DATABASE` is present and
+    // correct for qcms_migrate, and `CREATE ROLE qcms_app` is present as a string
+    // literal. So the check is per grant statement, per grantee.
+    for (const line of sql.split("\n")) {
+      if (!/\bGRANT\b/.test(line) || !line.includes("qcms_app")) continue;
+      expect(line, `qcms_app must never be granted CREATE: ${line}`).not.toMatch(/\bCREATE\b/);
+    }
+  });
+
+  it("keeps every write grant scoped to public, so reporting stays a read surface", () => {
+    // SEC-10 and the operations table both say qcms_app gets SELECT on the reporting
+    // views and nothing more. The all-schemas pass therefore grants SELECT only, and
+    // every write verb is confined to `public` by name (reviewer finding on PR #782:
+    // an unscoped DML grant reached the reporting views once migration 0003 ran).
+    // Per STATEMENT, not per line: `ALTER DEFAULT PRIVILEGES ... IN SCHEMA public`
+    // carries its scope on the line above its `GRANT`, so a line-wise reader would
+    // call a correctly scoped grant unscoped. `;` and `\gexec` are what end a
+    // statement in this script, and comments are stripped so the prose explaining
+    // why `reporting` gets no write cannot itself match a write verb.
+    const statements = (service(solo, "db-roles").entrypoint ?? [])
+      .join("\n")
+      .replaceAll(/^\s*--.*$/gm, "")
+      .split(/;|\\gexec/)
+      .map((statement) => statement.replaceAll(/\s+/g, " ").trim())
+      .filter((statement) => statement.length > 0);
+
+    const writeGrants = statements.filter(
+      (statement) => /\bGRANT\b/.test(statement) && /\b(INSERT|UPDATE|DELETE)\b/.test(statement),
+    );
+    expect(writeGrants.length).toBeGreaterThan(0);
+    for (const statement of writeGrants) {
+      expect(statement, `a write grant must name public explicitly: ${statement}`).toMatch(
+        /IN SCHEMA public\b/,
+      );
+      expect(
+        statement,
+        `a write grant must not fan out over every schema: ${statement}`,
+      ).not.toContain("%I");
+    }
+
+    // And the unscoped default privilege is the SELECT one, and only the SELECT one:
+    // it is what has to reach `reporting`, which does not exist when this runs.
+    const unscopedDefaults = statements.filter(
+      (statement) =>
+        statement.startsWith("ALTER DEFAULT PRIVILEGES") && !/IN SCHEMA/.test(statement),
+    );
+    expect(unscopedDefaults.length).toBeGreaterThan(0);
+    for (const statement of unscopedDefaults) {
+      expect(
+        statement,
+        `an unscoped default must not carry a write verb: ${statement}`,
+      ).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
+    }
+  });
+
+  it("never tries to reassign a table's linked sequence", () => {
+    // drizzle's bookkeeping table declares `id SERIAL`, so an upgrading database
+    // carries a sequence linked to it, and Postgres refuses ALTER SEQUENCE ... OWNER
+    // TO on a linked sequence outright. Under ON_ERROR_STOP that aborted the whole
+    // one-shot, so `migrate` and `api` never started: the exact path the handover
+    // exists to serve. Excluded via pg_depend, which is order-independent - the
+    // table's own owner change carries its sequence along.
+    const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
+    expect(sql).toContain("pg_depend");
+    expect(sql).toContain("d.deptype IN ('a', 'i')");
+  });
+});
+
 describe("Caddy ingress overlay", () => {
   it("still publishes no host port for api or postgres once layered on", () => {
     for (const service of UNPUBLISHED_SERVICES) {

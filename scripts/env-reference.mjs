@@ -763,7 +763,26 @@ export const ENV_REFERENCE = [
     requirement: "required",
     fallback: "",
     secret: true,
-    description: "Postgres superuser password. Compose refuses to start without it.",
+    description:
+      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the two least-privilege roles below, and nothing that serves traffic holds it (SEC-10).",
+  },
+  {
+    name: "QCMS_DB_MIGRATE_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_migrate`, the role that owns the schema and runs the one-shot migration. Held by the `migrate` service and by nothing else. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_DB_APP_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_app`, the role the API runs as: DML on the operational tables, no DDL, not the schema owner. See [Least-privilege database roles](#least-privilege-database-roles).",
   },
   {
     name: "QCMS_DB_NAME",
@@ -777,7 +796,8 @@ export const ENV_REFERENCE = [
     process: "compose",
     requirement: "optional",
     fallback: "qcms",
-    description: "Database role created on first boot of the Postgres volume.",
+    description:
+      "Bootstrap superuser created on first boot of the Postgres volume. It creates the split roles and is used for nothing else (SEC-10).",
   },
   {
     name: "QCMS_POSTGRES_IMAGE",

@@ -61,7 +61,12 @@ primary_region = "syd"   # your region
   # release_command runs in a throwaway machine with this app's env and secrets, and
   # a non-zero exit aborts the deploy - the same "migrate must pass before the API
   # starts" contract.
-  release_command = "qcms-db-migrate"
+  #
+  # It inherits THIS APP's env, and this app's DATABASE_URL is the SEC-10 runtime
+  # credential, which holds no DDL and cannot migrate. So the command overrides it
+  # for its own run from a second secret. The serving process is untouched and still
+  # connects as qcms_app. See "Secrets" below.
+  release_command = "sh -c 'DATABASE_URL=\"$QCMS_MIGRATE_DATABASE_URL\" qcms-db-migrate'"
 
 [env]
   PORT = "3000"
@@ -257,9 +262,19 @@ at boot. The split follows ADR-35 exactly - the API holds everything, the BFFs h
 internal token.
 
 ```sh
-# API: the database credential plus the full secret set
+# API: the database credentials plus the full secret set.
+#
+# TWO database URLs, and the split between them is SEC-10 (docs/operations.md,
+# "Least-privilege database roles"). DATABASE_URL is the qcms_app role the process
+# serves traffic as: DML only, no DDL, not the schema owner. QCMS_MIGRATE_DATABASE_URL
+# is the qcms_migrate role, read by nothing but the release_command in fly.toml.
+#
+# Fly gives a release_command no environment of its own, so unlike Compose the two
+# secrets live on one app. The control that survives is the one that matters: the
+# long-running process cannot DROP TABLE, whatever a request does to it.
 fly secrets set -a qcms-api \
-  DATABASE_URL="postgres://..." \
+  DATABASE_URL="postgres://qcms_app:..." \
+  QCMS_MIGRATE_DATABASE_URL="postgres://qcms_migrate:..." \
   QCMS_INTERNAL_TOKEN="..." \
   QCMS_APP_KEY="..." \
   QCMS_SESSION_KEYS="..." \

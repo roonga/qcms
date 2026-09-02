@@ -95,7 +95,9 @@ openssl rand -base64 32
 ```ini
 # /opt/qcms/.env   (chmod 600)
 # --- secrets: generate each independently, 32+ chars ---
-QCMS_DB_PASSWORD=...
+QCMS_DB_PASSWORD=...            # bootstrap superuser; creates the two roles below
+QCMS_DB_MIGRATE_PASSWORD=...    # qcms_migrate: owns the schema, migrates (SEC-10)
+QCMS_DB_APP_PASSWORD=...        # qcms_app: what the API runs as, no DDL (SEC-10)
 QCMS_LINK_KEYS=...
 QCMS_SESSION_KEYS=...
 QCMS_INTERNAL_TOKEN=...
@@ -134,7 +136,7 @@ docker compose \
   up --detach --wait
 ```
 
-**Every** later command against this stack needs the same three `-f` flags: `down`, `logs`, `ps`, `pull`. The migration ordering is enforced by the Compose dependency graph, not by you sequencing commands: `migrate` waits on `postgres` being `service_healthy`, runs the `qcms-db-migrate` bin once with `restart: "no"`, and `api` declares `depends_on: migrate: condition: service_completed_successfully`. So `api` cannot start until the one-shot migration has exited 0, and `--wait` holds the command until every long-running service passes its healthcheck. There is no migrate-on-boot race because there is exactly one migrator by construction.
+**Every** later command against this stack needs the same three `-f` flags: `down`, `logs`, `ps`, `pull`. The migration ordering is enforced by the Compose dependency graph, not by you sequencing commands: `db-roles` waits on `postgres` being `service_healthy` and creates the two SEC-10 database roles, `migrate` waits on `db-roles` completing and runs the `qcms-db-migrate` bin once as `qcms_migrate` with `restart: "no"`, and `api` declares `depends_on: migrate: condition: service_completed_successfully` and connects as `qcms_app`. So `api` cannot start until the one-shot migration has exited 0, and `--wait` holds the command until every long-running service passes its healthcheck. There is no migrate-on-boot race because there is exactly one migrator by construction.
 
 Bootstrap the first administrator once the stack is healthy. Put the password in the **invoking shell's** environment and pass `--env` by **name only**, so the value rides the environment rather than the docker CLI's argv, which is world-readable in a `ps` listing (`docs/operations.md`, issue #440). Never put it in `.env`, and never write `--env QCMS_ADMIN_PASSWORD=<value>`.
 
