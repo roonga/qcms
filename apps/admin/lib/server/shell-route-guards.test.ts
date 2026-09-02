@@ -36,10 +36,11 @@ import { describe, expect, it } from "vitest";
  * 1. Every exported function in a `route.ts` under `(shell)` calls
  *    `requireAdminSessionForRequest()` - the guard that answers with a 303 rather than
  *    the 307 a thrown `redirect()` produces (which would re-post the credential) - and
- *    **uses the `Response` it hands back**, by narrowing on `instanceof Response` or by
- *    returning it. That guard returns its refusal instead of throwing, so calling it and
- *    discarding the answer is a call site that compiles, lints clean, and continues
- *    unauthenticated.
+ *    **uses the `Response` it hands back**, either by returning the call directly or by
+ *    binding it and narrowing *that binding* on `instanceof Response`. That guard returns
+ *    its refusal instead of throwing, so calling it and discarding the answer is a call
+ *    site that compiles, lints clean, and continues unauthenticated - and a narrowing of
+ *    some other value in the same handler is not evidence the refusal was honoured.
  * 2. Every exported function in a `"use server"` module under `(shell)` calls
  *    `requireAdminSession()`.
  * 3. A state-changing route handler also calls `isSameOriginPost()` (SEC-9's CSRF belt),
@@ -53,8 +54,9 @@ import { describe, expect, it } from "vitest";
  *    fails loudly and asks to be added here rather than passing silently.
  *
  * All four read a handler's **own** body: its `export` line to its own closing brace,
- * comments removed (see {@link handlerBody}). Neither a neighbour's JSDoc nor a prose
- * mention of a guard's name earns a pass.
+ * comments removed, and refused outright if that slice reaches over another top-level
+ * declaration (see {@link handlerBody}). Neither a neighbour's JSDoc, nor a private helper
+ * below, nor a prose mention of a guard's name earns a pass.
  *
  * Auth-flow handlers (`app/sign-in/submit`, `app/two-factor/**`) sit **outside** the
  * group on purpose and are not scanned: requiring a completed, enrolled session is
@@ -151,6 +153,24 @@ function handlerFiles(dir: string, prefix = ""): HandlerFile[] {
 
 /** A closing brace in the first column: where a top-level function body ends. */
 const BODY_END = /^\}/;
+/**
+ * A declaration at column 0: something a correctly bounded handler body never contains.
+ *
+ * The bound in {@link handlerBody} is "the first column-0 `}` after the export line", and
+ * for the **last** handler in a file nothing stops that search before EOF. So a handler
+ * whose own closing brace is indented swallows every line below it, private helpers
+ * included, and a guard call in one of those helpers satisfies rules 1-3 on the unguarded
+ * handler's behalf (issue #263, N1). This pattern is what restores the fail-closed
+ * property there: a computed body that reaches over another top-level declaration is
+ * evidence the brace search overshot, so the body is reported as empty rather than
+ * trusted, and the rules fail naming the handler.
+ *
+ * Deliberately wider than `function`: `const`, `class` and the type forms all mark a
+ * declaration a handler body cannot legitimately contain, and a shape this parser was not
+ * written for has to fail rather than pass.
+ */
+const TOP_LEVEL_DECLARATION =
+  /^(?:export\s+)?(?:default\s+)?(?:async\s+)?(?:function|class|const|let|var|type|interface|enum)\b/;
 /** A line whose content is a comment, in any of the three spellings Prettier produces. */
 const COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
 /** A trailing `//` comment. The leading `(^|\s)` keeps it off the `//` in a URL literal. */
@@ -179,7 +199,9 @@ function exportedFunctions(source: string): ExportedFunction[] {
 /**
  * The code of the handler starting at `start`, bounded by its own closing brace.
  *
- * Two bounds, closing two different halves of the same defect (found in review of #250).
+ * Three bounds. The first two close the two halves of the defect found in review of #250;
+ * the third closes the one case where those two left the parser able to fail open
+ * (issue #263, N1).
  *
  * **The brace, not the next `export` line.** Slicing forward to the next handler's export
  * line attributes everything in between to the earlier handler: blank lines, private
@@ -193,6 +215,15 @@ function exportedFunctions(source: string): ExportedFunction[] {
  * pass from prose. Without this, `// requireAdminSessionForRequest() is not needed here`
  * inside the handler satisfies rule 1 as readily as calling it.
  *
+ * **No top-level declaration in between.** `limit` is the next handler's `export` line,
+ * so an overshooting brace search is caught for every handler but the last one, where
+ * `limit` is EOF and the search runs to the end of the file. That was the one place the
+ * fail-closed property did not hold (issue #263, N1): a `// prettier-ignore`d last
+ * handler with an indented closing brace absorbed the private helpers below it, and a
+ * guard call in one of those helpers passed rules 1-3 for it. A body that spans a
+ * {@link TOP_LEVEL_DECLARATION} is therefore refused outright, whichever handler it
+ * belongs to.
+ *
  * A body no closing brace bounds (an unformatted file, or a shape this parser was not
  * written for) is reported as empty, which fails rules 1-3 naming the handler. Fail
  * closed and loud: the point of rule 4 is that a guard the scanner cannot read is a
@@ -201,6 +232,7 @@ function exportedFunctions(source: string): ExportedFunction[] {
 function handlerBody(lines: string[], start: number, limit: number): string {
   const end = lines.findIndex((line, index) => index > start && BODY_END.test(line));
   if (end === -1 || end > limit) return "";
+  if (lines.slice(start + 1, end).some((line) => TOP_LEVEL_DECLARATION.test(line))) return "";
   return stripComments(lines.slice(start, end + 1)).join("\n");
 }
 
@@ -254,15 +286,62 @@ function uncheckedMutatingHandlers(source: string): string[] {
  * `await requireAdminSession();` an author writes in a page or an action that does not
  * need the session object. So rule 1 asks for the answer to be used, not only for the
  * call to appear: either narrowed on with `instanceof Response`, or returned directly.
+ *
+ * ## The narrowing has to be of the guard's own result (issue #263, N2)
+ *
+ * A bare `body.includes("instanceof Response")` asked only that the phrase appear
+ * somewhere in the handler, which a handler that calls the guard, throws the answer away
+ * with `void requireAdminSessionForRequest();`, and then narrows something else
+ * (`if (upstream instanceof Response) return upstream;`) satisfies while running
+ * unauthenticated. This route handler shape is not hypothetical: the export route
+ * narrows an `upstream` response two statements below its guard. So the identifier the
+ * guard's result was bound to is captured from the call site, and the narrowing must name
+ * **that** identifier.
  */
-const NARROWS_REFUSAL = "instanceof Response";
 const RETURNS_REFUSAL = [`return ${ROUTE_GUARD}`, `return await ${ROUTE_GUARD}`];
 
-/** Whether a route handler's body does something with the refusal its guard returns. */
+/**
+ * `const session = await requireAdminSessionForRequest();`, capturing the binding name.
+ *
+ * Built from {@link ROUTE_GUARD} rather than spelled out, so a rename of the guard moves
+ * both halves of rule 1 together; the only regex metacharacter in it is the trailing
+ * paren, which is also where optional whitespace is allowed back in.
+ */
+const GUARD_BINDING = new RegExp(
+  String.raw`\b(?:const|let|var)\s+(\w+)\s*=\s*(?:await\s+)?` +
+    ROUTE_GUARD.replace("(", String.raw`\s*\(`),
+);
+
+/**
+ * Whether a route handler's body does something with the refusal its guard returns.
+ *
+ * Line-oriented, and honest about it. What it now catches that the old substring match
+ * did not: a discarded guard beside an unrelated `instanceof Response` narrowing. What an
+ * AST pass would still catch and this does not, all of which need a deliberate hand:
+ *
+ * - a narrowing of the right identifier in unreachable code, or inside a nested closure
+ *   that is never called - this is a text match, not a flow analysis;
+ * - a binding whose name is later rebound to something else (`session = upstream;`) or
+ *   shadowed by an inner declaration reusing the name;
+ * - a `return` of the refusal from a `switch` arm assigned to the binding indirectly.
+ *
+ * It also fails closed on two honest shapes, which is the intended direction: a binding
+ * Prettier wrapped across two lines (`const session =` then `await ...` on the next), and
+ * a destructured binding, which cannot be narrowed on anyway. Both report the handler as
+ * unguarded, and the fix is to write the call site in the house spelling - the same
+ * bargain rule 4 makes, and the same one N3 of issue #263 records for `isRefusal(session)`.
+ */
 function usesRefusal(body: string): boolean {
-  return (
-    body.includes(NARROWS_REFUSAL) || RETURNS_REFUSAL.some((spelling) => body.includes(spelling))
-  );
+  return narrowsGuardResult(body) || RETURNS_REFUSAL.some((spelling) => body.includes(spelling));
+}
+
+/** Whether some identifier the guard's result was bound to is narrowed on `Response`. */
+function narrowsGuardResult(body: string): boolean {
+  return body
+    .split("\n")
+    .map((line) => GUARD_BINDING.exec(line)?.[1])
+    .filter((name) => name !== undefined)
+    .some((name) => new RegExp(String.raw`\b${name}\s+instanceof\s+Response\b`).test(body));
 }
 
 /**
@@ -357,18 +436,40 @@ const GUARD_LINES = [
 /** The misuse from the review: the guard runs, and its refusal is discarded. */
 const DISCARDED_GUARD_LINES = ["  void requireAdminSessionForRequest();"];
 
+/**
+ * The refusal discarded, and a *different* value narrowed on `Response` (issue #263, N2).
+ *
+ * The shape that made rule 1 weaker than it read: the guard runs, its answer goes in the
+ * bin, and the `instanceof Response` a bare substring match was looking for is supplied
+ * by an unrelated proxy response two lines down. Written from the export route's real
+ * upstream-proxy shape, because that is where an author copying house style would find it.
+ */
+const FOREIGN_NARROWING_LINES = [
+  "  void requireAdminSessionForRequest();",
+  "  const upstream = await fetch(new URL(request.url));",
+  "  if (upstream instanceof Response) return upstream;",
+];
+
 /** Paperwork rather than a call: the guard's name appears only inside a comment. */
 const COMMENTED_GUARD_LINES = [
   "  // requireAdminSessionForRequest() is not called here, and session instanceof Response",
   "  // is therefore never checked either.",
 ];
 
+/** The house call site under a name of its own, to pin that rule 1 reads the binding. */
+const RENAMED_GUARD_LINES = [
+  "  const refusal = await requireAdminSessionForRequest();",
+  "  if (refusal instanceof Response) return refusal;",
+];
+
 /** How a fixture handler treats its session guard. */
-type GuardShape = "used" | "discarded" | "commented" | "absent";
+type GuardShape = "used" | "renamed" | "discarded" | "foreign" | "commented" | "absent";
 
 const GUARD_BODY: Readonly<Record<GuardShape, readonly string[]>> = {
   used: GUARD_LINES,
+  renamed: RENAMED_GUARD_LINES,
   discarded: DISCARDED_GUARD_LINES,
+  foreign: FOREIGN_NARROWING_LINES,
   commented: COMMENTED_GUARD_LINES,
   absent: [],
 };
@@ -514,16 +615,54 @@ describe("issue #177: a handler is judged on its own body, whatever follows it",
  * like the `await requireAdminSession();` an author writes in a page or an action when
  * they do not need the session object. Rule 1 is a substring match on the guard's name,
  * so that transliteration used to pass while the request continued unauthenticated.
+ *
+ * Asking for `instanceof Response` anywhere in the body was the first answer, and issue
+ * #263 (N2) recorded why it was not enough: the phrase can come from a value that has
+ * nothing to do with the guard. The cases below hold both directions of the tightening -
+ * the foreign narrowing fails, and a handler that narrows its guard *and* an upstream
+ * response still passes.
  */
 describe("issue #177 rule 1: a route handler must use the refusal its guard returns", () => {
-  it("names a handler that calls the guard and discards its answer", () => {
-    const source = route(handler("DELETE", { guard: "discarded", belted: true }));
+  /**
+   * Each row is a body that mentions the guard without being stopped by it.
+   *
+   * `foreign` is the one issue #263 (N2) added: `instanceof Response` matched anywhere in
+   * the body used to be enough, so a handler that calls the guard, bins the answer, and
+   * narrows an unrelated proxy response two lines down reported `[]` while running
+   * unauthenticated. The phrase is present and the handler is still unguarded; only the
+   * identity of the narrowed binding tells the two apart.
+   */
+  it.each([
+    { shape: "discarded", failing: "calls the guard and discards its answer" },
+    { shape: "foreign", failing: "discards the refusal and narrows a different value" },
+    { shape: "commented", failing: "mentions the guard only in a comment" },
+  ] as const)("names a handler that $failing", ({ shape }) => {
+    const source = route(handler("DELETE", { guard: shape, belted: true }));
     expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
   });
 
-  it("names a handler whose only mention of the guard is in a comment", () => {
-    const source = route(handler("DELETE", { guard: "commented", belted: true }));
-    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+  it("accepts the house call site whatever the binding is called", () => {
+    // Pins the `foreign` failure above to the *identity* of the narrowed value rather than
+    // to the name `session`: rule 1 reads the binding off the call site, so `refusal` does.
+    const source = route(handler("DELETE", { guard: "renamed", belted: true }));
+    expect(unguardedHandlers(source, "route")).toEqual([]);
+  });
+
+  it("accepts a guarded handler that also narrows an upstream response", () => {
+    // The converse of the N2 shape, and the reason it was worth being precise rather than
+    // banning the second narrowing: the export route legitimately narrows an `upstream`
+    // alongside its own guard, and must keep passing.
+    const source = route(
+      [
+        "export async function GET(request: Request): Promise<Response> {",
+        ...GUARD_LINES,
+        "  const upstream = await fetch(new URL(request.url));",
+        "  if (upstream instanceof Response) return upstream;",
+        "  return new Response(null, { status: 204 });",
+        "}",
+      ].join("\n"),
+    );
+    expect(unguardedHandlers(source, "route")).toEqual([]);
   });
 
   it("accepts a handler that returns the guard's result directly", () => {
@@ -552,5 +691,86 @@ describe("issue #177 rule 1: a route handler must use the refusal its guard retu
       "}",
     ].join("\n");
     expect(unguardedHandlers(source, "action")).toEqual([]);
+  });
+});
+
+/**
+ * The last handler in a file cannot borrow a guard from the code below it.
+ *
+ * Issue #263, N1: the one place the parser could fail *open*. Every other bound only ever
+ * shortens a body, so an ambiguity produces a false failure; but the brace search for the
+ * last handler in a file has no next `export` line to stop at, so a handler whose closing
+ * brace is not at column 0 quietly annexed everything to EOF. A private helper below it
+ * that calls the guard and narrows the result then satisfied rules 1 and 3 on its behalf.
+ *
+ * It takes a deliberate `// prettier-ignore` or a file outside the lint globs, which is
+ * why it was recorded rather than treated as reachable by accident. It is closed anyway:
+ * a tripwire with a known way through is not one, and "the parser can only ever be too
+ * strict" is the property that makes the rest of this file worth trusting.
+ */
+describe("issue #263: the last handler in a file is bounded like any other", () => {
+  /** A handler Prettier was told to leave alone, closing at an indent instead of column 0. */
+  const indentedClose = (verb: string): string =>
+    [
+      "// prettier-ignore",
+      `export async function ${verb}(request: Request): Promise<Response> {`,
+      "  const body = await request.text();",
+      "  return new Response(body, { status: 200 });",
+      "  }",
+    ].join("\n");
+
+  /** A private helper below it, carrying both of the checks the handler above skipped. */
+  const auditHelper = [
+    "async function auditLog(request: Request): Promise<void> {",
+    "  const session = await requireAdminSessionForRequest();",
+    "  if (session instanceof Response) return;",
+    "  if (!isSameOriginPost(request)) return;",
+    "}",
+  ].join("\n");
+
+  it("names a last handler whose body would otherwise swallow a private helper", () => {
+    // The demonstration from the issue: with the brace search running to EOF, `DELETE`
+    // reported `rule 1: []` and `rule 3: []` while being completely unguarded.
+    const source = route(indentedClose("DELETE"), auditHelper);
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+    expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
+  });
+
+  it("names it when the trailing code is a class rather than a function", () => {
+    // A `class` bounds a body just as a `function` does, and its own closing brace is at
+    // column 0, so the brace search stops there and reads the annexed lines as the
+    // handler's. The pattern covers the declaration keywords, not `function` alone.
+    const auditClass = [
+      "class AuditLog {",
+      "  async run(request: Request): Promise<void> {",
+      "    const session = await requireAdminSessionForRequest();",
+      "    if (session instanceof Response) return;",
+      "    if (!isSameOriginPost(request)) return;",
+      "  }",
+      "}",
+    ].join("\n");
+    const source = route(indentedClose("DELETE"), auditClass);
+    expect(unguardedHandlers(source, "route")).toEqual(["DELETE"]);
+    expect(uncheckedMutatingHandlers(source)).toEqual(["DELETE"]);
+  });
+
+  it("still passes a well-formed last handler followed by private helpers", () => {
+    // Pins the failures above to the overshooting brace rather than to a helper existing
+    // below a handler, which is the house shape: `forms/[formId]/export/route.ts` has
+    // three of them under its only export.
+    const source = route(handler("DELETE", { belted: true }), auditHelper);
+    expect(unguardedHandlers(source, "route")).toEqual([]);
+    expect(uncheckedMutatingHandlers(source)).toEqual([]);
+  });
+
+  it("still passes the last of several well-formed handlers", () => {
+    // The bound is unchanged for the ordinary case: a final handler with its own column-0
+    // brace reads exactly as far as that brace, helpers or no helpers.
+    const source = route(
+      handler("POST", { documented: true, belted: true }),
+      handler("DELETE", { belted: true }),
+    );
+    expect(unguardedHandlers(source, "route")).toEqual([]);
+    expect(uncheckedMutatingHandlers(source)).toEqual([]);
   });
 });
