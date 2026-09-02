@@ -60,10 +60,10 @@ export { expect };
  * One list covers every gated surface (`console.error`, `console.warn`,
  * `pageerror`) rather than one list per level. That is deliberate and it is the
  * looser of the two options: a shape allowlisted at one level is allowlisted if
- * it is re-emitted at another. Both entries below name a specific known artefact
+ * it is re-emitted at another. Every entry below names a specific known artefact
  * with a specific removal condition, so the level a browser happens to pick for
  * it is not information the gate should depend on, and a per-level split would
- * mean re-justifying the same two shapes twice (issue #147).
+ * mean re-justifying the same shape twice (issue #147).
  *
  * Entries match by **pattern, never by count**. The population drifts run to run:
  * two observers on issue #144 measured 123 and 121 occurrences of the same shape,
@@ -87,19 +87,14 @@ const BROWSER_ALLOW: readonly RegExp[] = [
   // REMOVED BY: nothing here. It goes when the e2e suite stops running against a
   // development React build, not before.
   /eval\(\) is not supported in this environment/,
-  // The documented issue #144 residue, and the one shape that was invisible to
-  // both gates until #147: React emits it as `console.warn`, the browser gate
-  // only looked at `console.error`, and the server gate deliberately excludes
-  // forwarded `[browser]` lines. 25 per suite run, measured.
-  // The DatePicker starts with `value={undefined}` and flips to a string on the
-  // first answer, because the vendored control cannot yet accept
-  // `value?: string | null`, so React sees an uncontrolled input become
-  // controlled. It is a real defect and it is NOT fixed here.
-  // REMOVED BY: issue #148. Once that upstream `value?: string | null` change
-  // lands in the sibling checkout `../a2-react-aria`, the control is genuinely
-  // controlled from first render, the warning stops, and this entry must be
-  // deleted (leaving it would re-open the exact blind spot #147 closed).
-  /^WARN: A component changed from uncontrolled to controlled\./,
+  // The `WARN: A component changed from uncontrolled to controlled.` entry that
+  // sat here was DELETED by issue #148, on its own stated removal condition. The
+  // DatePicker started with `value={undefined}` and flipped to a string on the
+  // first answer, because the vendored control could not accept
+  // `value?: string | null`. That upstream change has landed and been re-vendored
+  // (the a2ra.json pin move), so the adapter passes `null` and the control is
+  // genuinely controlled from first render. The warning is gone rather than
+  // tolerated, which is the only reason an entry is ever allowed to go.
 ];
 
 /**

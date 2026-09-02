@@ -6,7 +6,7 @@ import { getRadioGroupStyles } from "./radio.styles"
 
 interface RadioGroupProps {
 	readonly label?: string
-	readonly value?: string
+	readonly value?: string | null
 	readonly defaultValue?: string
 	readonly isDisabled?: boolean
 	readonly isRequired?: boolean

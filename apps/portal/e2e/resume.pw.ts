@@ -253,3 +253,108 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
     await db.close();
   }
 });
+
+/**
+ * Issue #151: a step containing a NumberField survives a RELOAD without a React
+ * hydration mismatch. **Currently `test.fail`: the mismatch is real and unfixed.**
+ *
+ * The gate has always been armed - `gates.ts` fails any spec that logs a console
+ * error, and a hydration mismatch is one - but no spec had ever reloaded a step
+ * with a NumberField on it. Every path above reaches the number question by
+ * NAVIGATION (Continue), and a navigation does not hydrate a fresh document, so
+ * the situation that trips the gate simply never occurred. That blind spot is what
+ * this test closes; it is the assertion whose absence hid the defect.
+ *
+ * The reload has to land on the number's own step, which `/s/:id` decides by
+ * serving the first INCOMPLETE step. So the boolean is answered (revealing the
+ * number follow-up), the number is answered, and the required multiChoice beside
+ * them is left as the gap: step 2 is therefore where the reload resumes, with the
+ * NumberField rendered from the server's stored answer.
+ *
+ * WHAT THIS TEST ESTABLISHED, running it for the first time. #151 recorded the
+ * strongest available lead as two copies of react-aria-components in the portal's
+ * closure (1.19.0 transitively through `@a2ra/core`, 1.20.0 direct), which is two
+ * SSR id and context providers - and recorded it explicitly as inference rather
+ * than proof. The a2ra pin move deduplicated them (`pnpm why` reports one copy),
+ * and **the mismatch did not clear**. So the dual copy was a real improvement and
+ * was not the cause.
+ *
+ * The actual diff React reports is ONE attribute, and it is not among the five the
+ * issue named:
+ *
+ *     +  inputMode="decimal"     (client)
+ *     -  inputMode="numeric"     (server)
+ *
+ * The `role` and `aria-value*` nulls the issue quoted are printed by React as
+ * unchanged context on both sides, not as the difference. `@react-aria/numberfield`
+ * picks `inputMode` from environment detection that resolves differently with no
+ * DOM, so the server says `numeric` and the touch client says `decimal`. That is a
+ * react-aria SSR defect in the vendored stack, not a QCMS one, and fixing it means
+ * upstream work rather than anything at this seam.
+ *
+ * `test.fail`, and not allowlisted. Allowlisting is out because #151 forbids
+ * silencing the warning and an entry would blind every other spec in the suite to
+ * the same shape. Which expected-failure marker to use is the part worth writing
+ * down, because this file had it wrong first time round:
+ *
+ * - The marker it used first was the SKIP-with-intent one, which Playwright does
+ *   not run past. A test that never runs can never notice that its defect was
+ *   fixed, so the self-arming property claimed for it did not exist.
+ * - `test.fail` RUNS the test "and ensures that it is actually failing" (its own
+ *   API docs). The day the cause is fixed this body passes, and Playwright fails
+ *   the run with "Expected to fail, but passed." That property is real, and it was
+ *   confirmed against this Playwright version rather than taken on trust.
+ *
+ * Safe to run rather than skip because the failure is deterministic: the mismatch
+ * is one attribute on every reload of this step, not a race.
+ *
+ * The limit of `test.fail`, stated because it is easy to miss: it accepts ANY
+ * failure, so a future unrelated regression inside this body would also satisfy it
+ * and pass silently. It buys "this defect is still here", not "everything else in
+ * this body still works". The body's assertions are documentation of the intended
+ * end state until the marker comes off, at which point they start gating for real.
+ */
+test.fail(
+  "reloading a step that contains a NumberField hydrates without a mismatch",
+  async ({ page }) => {
+    test.setTimeout(120_000);
+    const { kitchenSinkSlug } = readFixtures();
+
+    await startKitchenSink(page, kitchenSinkSlug);
+    await fillText(page, KS.fullName, "Ada Lovelace");
+    await enterDate(page, "05171990");
+    await continueStep(page);
+
+    await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+    await answerNumber(page, "2");
+    // q_optional_cover (required) is deliberately left unanswered, so this step is
+    // still the first incomplete one and the reload comes back to it.
+
+    const log = watchAnswerPosts(page);
+    await resume(page);
+
+    // The NumberField is present on the hydrated document and shows what the server
+    // holds. Without this the test could pass on a step that never rendered one.
+    const count = page.getByRole("textbox", { name: KS.count });
+    await expect(count).toBeVisible();
+    await expect(count).toHaveValue("2");
+
+    // The field is labelled and reads back its stored answer. The mismatch itself is
+    // left to the console gate below rather than asserted attribute by attribute:
+    // which of `role` and the `aria-value*` set a browser ends up with is react-aria's
+    // decision and varies by pointer type, so pinning the set here would make this
+    // spec brittle about the wrong thing.
+    await expect(count).toHaveAccessibleName(KS.count);
+
+    // Rendering a resumed step posts nothing (the #146 property, re-asserted here
+    // because this reload lands on a step no other test resumes onto).
+    expect(log).toEqual([]);
+
+    // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
+    // any console error, and "A tree hydrated but some attributes of the server
+    // rendered HTML didn't match the client properties" is one. There is deliberately
+    // no allowlist entry for it (#151 forbids silencing rather than fixing), which is
+    // why this test is `test.fail` rather than green. The fault the gate raises here
+    // arrives from the fixture TEARDOWN, after this body has run clean.
+  },
+);

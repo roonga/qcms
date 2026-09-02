@@ -18,7 +18,7 @@ interface SelectProps {
 	readonly label?: string
 	readonly placeholder?: string
 	readonly items?: SelectItem[]
-	readonly value?: string
+	readonly value?: string | null
 	readonly defaultValue?: string
 	readonly isDisabled?: boolean
 	readonly isRequired?: boolean
