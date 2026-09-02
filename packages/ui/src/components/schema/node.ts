@@ -6,7 +6,7 @@ export type A2NodeInput = {
   children?: A2NodeInput | A2NodeInput[] | string;
 };
 
-// Generic envelope schema only — validates shape, not per-component props.
+// Generic envelope schema only: validates shape, not per-component props.
 // Component schemas (ButtonSchema, TextFieldSchema, …) are separate and intended
 // for consumer-side validation; they are deliberately not composed here so that
 // A2NodeSchema stays open to unknown component types at render time.

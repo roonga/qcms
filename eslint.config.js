@@ -1,5 +1,7 @@
 // Root ESLint flat config - the single lint configuration for the whole workspace.
 // Per-package `lint` scripts run `eslint src`; ESLint resolves this file by walking up.
+import { builtinModules } from "node:module";
+
 import eslint from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
@@ -8,20 +10,31 @@ import tseslint from "typescript-eslint";
  * Node built-ins, in both spellings a bundler-free TypeScript import can take. Shared
  * by the three fetch-purity fences below (`@qcms/core`, `@qcms/a2ui-compiler`, and the
  * API's shipped source) so the ban is one list rather than three that drift.
+ *
+ * **Derived, not written down** (issue #774). The list used to be twelve names typed by
+ * hand, which covered the prefixed spelling completely - `node:*` matches every
+ * `node:`-prefixed specifier including subpaths - and the BARE legacy spelling only
+ * where somebody had remembered to add the name. `import { createServer } from "http"`
+ * passed all three fences, measured rather than assumed, and so did `net`, `tls`, `dns`,
+ * `zlib`, `querystring`, `assert`, `process` and the subpaths of each of those
+ * (`timers/promises`, `dns/promises`). A bare name that WAS listed covered its own
+ * subpaths - the patterns are gitignore-shaped, so `fs` reaches `fs/promises` - which is
+ * why the gap was invisible: the spot checks people ran happened to land on names that
+ * were in the list. Deriving it from `node:module`'s `builtinModules` removes the
+ * remembering: the set is whatever the Node running the lint says the built-ins are, in
+ * both spellings, and it cannot fall behind a name the runtime already ships.
+ *
+ * `node:*` stays at the head as the forward guard. `builtinModules` describes the Node
+ * that runs ESLint, so a built-in introduced by a NEWER Node than the contributor's is
+ * absent from the derived half; the wildcard still catches its prefixed spelling, which
+ * is the only spelling a new built-in gets (prefix-only modules such as `node:test` are
+ * already reported with their prefix, and are passed through unchanged below).
  */
 const nodeBuiltinPatterns = [
   "node:*",
-  "crypto",
-  "fs",
-  "path",
-  "os",
-  "util",
-  "stream",
-  "buffer",
-  "child_process",
-  "worker_threads",
-  "events",
-  "url",
+  ...new Set(
+    builtinModules.flatMap((name) => (name.startsWith("node:") ? [name] : [name, `node:${name}`])),
+  ),
 ];
 
 /**

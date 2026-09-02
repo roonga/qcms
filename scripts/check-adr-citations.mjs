@@ -30,6 +30,7 @@ import { argv } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
+import { VENDORED_SOURCE_PATTERN } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
@@ -48,8 +49,13 @@ const TEXT_FILES = /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|ya?ml|sh|css|sq
  * for the same two: `plan/` is a working and history area whose older drafts may cite
  * numbering that a later decision superseded, and the vendored component sources are
  * upstream's, kept byte-for-byte.
+ *
+ * The vendored half is the single definition in `scripts/vendored-source.mjs`. It was
+ * written here as the whole of `packages/ui/src/components/`, which also skipped four
+ * QCMS-owned subtrees - and three of their files cite ADR-18, ADR-22 and ADR-26
+ * (issue #775).
  */
-const EXCLUDED = [/^plan\//, /^packages\/ui\/src\/components\//];
+const EXCLUDED = [/^plan\//, VENDORED_SOURCE_PATTERN];
 
 /**
  * A citation: the prefix, a hyphen, one to three digits. Case-sensitive, because the
