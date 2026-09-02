@@ -1,6 +1,6 @@
 {
-  "id": "eba8239a-e415-4ad7-9357-41756e60aed3",
-  "prevId": "89f28c70-bf79-443d-99ca-b34d2ebd8fba",
+  "id": "89f28c70-bf79-443d-99ca-b34d2ebd8fba",
+  "prevId": "e49adf0d-d3ff-405d-ace7-85df456741e2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -855,22 +855,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "outbox_payload_retention_idx": {
-          "name": "outbox_payload_retention_idx",
-          "columns": [
-            {
-              "expression": "greatest(\"delivered_at\", \"dead_lettered_at\")",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"outbox\".\"payload_redacted_at\" is null and jsonb_exists(\"outbox\".\"payload\", 'answers')",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {},
@@ -1015,22 +999,6 @@
           ],
           "isUnique": false,
           "where": "\"webhook_deliveries\".\"dead_lettered_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "webhook_deliveries_snippet_retention_idx": {
-          "name": "webhook_deliveries_snippet_retention_idx",
-          "columns": [
-            {
-              "expression": "last_attempt_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"webhook_deliveries\".\"last_response_snippet\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
