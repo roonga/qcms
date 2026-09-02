@@ -183,7 +183,7 @@ describe("least-privilege database roles (SEC-10, issue #492)", () => {
     // Read from the RESOLVED entrypoint, so this asserts the statements the container
     // will actually run, exactly as the dev-tools read-only role is asserted below.
     const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
-    expect(sql).toContain("GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA %I");
+    expect(sql).toContain("GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public");
     expect(sql).toContain("GRANT USAGE ON SCHEMA %I TO qcms_app");
     expect(sql).toContain("ALTER SCHEMA %I OWNER TO qcms_migrate");
     // No CREATE for the runtime role, in any spelling. A plain text search would be
@@ -194,6 +194,64 @@ describe("least-privilege database roles (SEC-10, issue #492)", () => {
       if (!/\bGRANT\b/.test(line) || !line.includes("qcms_app")) continue;
       expect(line, `qcms_app must never be granted CREATE: ${line}`).not.toMatch(/\bCREATE\b/);
     }
+  });
+
+  it("keeps every write grant scoped to public, so reporting stays a read surface", () => {
+    // SEC-10 and the operations table both say qcms_app gets SELECT on the reporting
+    // views and nothing more. The all-schemas pass therefore grants SELECT only, and
+    // every write verb is confined to `public` by name (reviewer finding on PR #782:
+    // an unscoped DML grant reached the reporting views once migration 0003 ran).
+    // Per STATEMENT, not per line: `ALTER DEFAULT PRIVILEGES ... IN SCHEMA public`
+    // carries its scope on the line above its `GRANT`, so a line-wise reader would
+    // call a correctly scoped grant unscoped. `;` and `\gexec` are what end a
+    // statement in this script, and comments are stripped so the prose explaining
+    // why `reporting` gets no write cannot itself match a write verb.
+    const statements = (service(solo, "db-roles").entrypoint ?? [])
+      .join("\n")
+      .replaceAll(/^\s*--.*$/gm, "")
+      .split(/;|\\gexec/)
+      .map((statement) => statement.replaceAll(/\s+/g, " ").trim())
+      .filter((statement) => statement.length > 0);
+
+    const writeGrants = statements.filter(
+      (statement) => /\bGRANT\b/.test(statement) && /\b(INSERT|UPDATE|DELETE)\b/.test(statement),
+    );
+    expect(writeGrants.length).toBeGreaterThan(0);
+    for (const statement of writeGrants) {
+      expect(statement, `a write grant must name public explicitly: ${statement}`).toMatch(
+        /IN SCHEMA public\b/,
+      );
+      expect(
+        statement,
+        `a write grant must not fan out over every schema: ${statement}`,
+      ).not.toContain("%I");
+    }
+
+    // And the unscoped default privilege is the SELECT one, and only the SELECT one:
+    // it is what has to reach `reporting`, which does not exist when this runs.
+    const unscopedDefaults = statements.filter(
+      (statement) =>
+        statement.startsWith("ALTER DEFAULT PRIVILEGES") && !/IN SCHEMA/.test(statement),
+    );
+    expect(unscopedDefaults.length).toBeGreaterThan(0);
+    for (const statement of unscopedDefaults) {
+      expect(
+        statement,
+        `an unscoped default must not carry a write verb: ${statement}`,
+      ).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
+    }
+  });
+
+  it("never tries to reassign a table's linked sequence", () => {
+    // drizzle's bookkeeping table declares `id SERIAL`, so an upgrading database
+    // carries a sequence linked to it, and Postgres refuses ALTER SEQUENCE ... OWNER
+    // TO on a linked sequence outright. Under ON_ERROR_STOP that aborted the whole
+    // one-shot, so `migrate` and `api` never started: the exact path the handover
+    // exists to serve. Excluded via pg_depend, which is order-independent - the
+    // table's own owner change carries its sequence along.
+    const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
+    expect(sql).toContain("pg_depend");
+    expect(sql).toContain("d.deptype IN ('a', 'i')");
   });
 });
 

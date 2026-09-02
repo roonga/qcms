@@ -11,14 +11,23 @@
  * That day is issue #492. Both halves are recipes now, and this file executes both
  * against a real Postgres:
  *
- * 1. **The app/migration split** (`docs/operations.md`, "Least-privilege database
- *    roles"). The container is booted UNMIGRATED, the recipe's roles are created from
+ * 1. **A new database** (`docs/operations.md`, "Least-privilege database roles" > "The
+ *    recipe"). The container is booted UNMIGRATED, the recipe's roles are created from
  *    it, and the real migration set is then applied **as `qcms_migrate`** - which is
  *    the only honest way to assert "the migration role can migrate". Everything after
- *    that is about the runtime role: it reads and writes rows, it can read the
- *    reporting views the export path uses, and it is refused DDL of every shape,
- *    holds no `CREATE` on `public`, and owns nothing.
- * 2. **The reporting role** (`docs/reporting-view.md`, "Connection guidance"),
+ *    that is about the runtime role: it reads and writes rows in `public`, it can
+ *    READ the reporting views the export path uses and cannot write to them, and it is
+ *    refused DDL of every shape, holds no `CREATE` on `public`, and owns nothing.
+ * 2. **An upgrading database** (the same document's "Upgrading a database that was
+ *    migrated under one credential"). This is the path a real adopter takes and it has
+ *    its own failure modes, so it gets its own container: migrate first with the OLD
+ *    single credential, through drizzle's real migrator so its bookkeeping table and
+ *    that table's SERIAL sequence exist bootstrap-owned, then run the handover, then
+ *    assert the NEXT migration succeeds as `qcms_migrate` and the runtime denials hold.
+ *    Reviewer finding on PR #782: the handover aborted on exactly that linked sequence,
+ *    and nothing in this file could see it, because scenario 1 applies migrations with
+ *    `applyMigrations` and never creates drizzle's bookkeeping table at all.
+ * 3. **The reporting role** (`docs/reporting-view.md`, "Connection guidance"),
  *    unchanged from 040: readable reporting views, no reach into the operational
  *    tables, no writes, no DDL.
  *
@@ -29,7 +38,9 @@
  * arranges with its `db-roles` one-shot.
  */
 
-import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@qcms/db/testing";
+import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS, MIGRATIONS_DIR } from "@qcms/db/testing";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -78,12 +89,24 @@ async function refusalFor(client: pg.Client, sql: string): Promise<string | unde
   }
 }
 
-/** Open a client on the same container as `role`. */
-async function connectAs(role: string, password: string): Promise<pg.Client> {
-  const uri = new URL(testDb.connectionUri);
+/**
+ * `container`'s connection string rewritten to authenticate as `role`.
+ *
+ * The container is a parameter rather than the module-level one, because this file
+ * boots two: a new database and an upgrading one. Closing over the first silently
+ * pointed the second scenario's clients at the wrong container, which surfaced as
+ * `password authentication failed` on a role that existed in both.
+ */
+function uriFor(container: TestDb, role: string, password: string): string {
+  const uri = new URL(container.connectionUri);
   uri.username = role;
   uri.password = password;
-  const client = new pg.Client({ connectionString: uri.toString() });
+  return uri.toString();
+}
+
+/** Open a client on `container` as `role`. */
+async function connectAs(container: TestDb, role: string, password: string): Promise<pg.Client> {
+  const client = new pg.Client({ connectionString: uriFor(container, role, password) });
   await client.connect();
   return client;
 }
@@ -115,12 +138,19 @@ beforeAll(async () => {
   );
   await owner.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`);
 
+  // Two layers, and the scoping is the control: the SELECT default is unscoped so it
+  // reaches `reporting` when migration 0003 creates it, and the write defaults name
+  // `public`, so a reporting view gets SELECT and only SELECT.
   await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE}
-       GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO ${APP_ROLE}`,
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT SELECT ON TABLES TO ${APP_ROLE}`,
   );
   await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT USAGE ON SEQUENCES TO ${APP_ROLE}`,
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} IN SCHEMA public
+       GRANT INSERT, UPDATE, DELETE ON TABLES TO ${APP_ROLE}`,
+  );
+  await owner.query(
+    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} IN SCHEMA public
+       GRANT USAGE ON SEQUENCES TO ${APP_ROLE}`,
   );
   await owner.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT USAGE ON SCHEMAS TO ${APP_ROLE}`,
@@ -129,10 +159,10 @@ beforeAll(async () => {
   // The migration itself, run as the role the recipe says runs it. This is the
   // assertion "the migration role can migrate": it applies the real, package-owned
   // migration set, so a grant the migration needs and does not have fails here.
-  migrator = await connectAs(MIGRATE_ROLE, migratePassword);
+  migrator = await connectAs(testDb, MIGRATE_ROLE, migratePassword);
   await applyMigrations(migrator);
 
-  app = await connectAs(APP_ROLE, appPassword);
+  app = await connectAs(testDb, APP_ROLE, appPassword);
 
   // Verbatim from docs/reporting-view.md, "Connection guidance". Unchanged by #492:
   // the reporting role is a third, independent recipe and still runs as the owner.
@@ -143,7 +173,7 @@ beforeAll(async () => {
   await owner.query(
     `ALTER DEFAULT PRIVILEGES IN SCHEMA reporting GRANT SELECT ON TABLES TO ${REPORTING_ROLE}`,
   );
-  reporting = await connectAs(REPORTING_ROLE, reportingPassword);
+  reporting = await connectAs(testDb, REPORTING_ROLE, reportingPassword);
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -231,6 +261,37 @@ describe("the runtime role reads and writes rows, and nothing else", () => {
     }
   });
 
+  it.each(["reporting.responses", "reporting.answers_flat"])(
+    "holds SELECT and nothing more on %s",
+    async (view) => {
+      // SEC-10 and the operations table say the runtime role gets SELECT on the
+      // reporting views. Until the PR #782 review the shipped grants said otherwise:
+      // the DML pass fanned out over every schema the migration role owned, and the
+      // unscoped default privilege extended INSERT/UPDATE/DELETE to future views too.
+      // Inert in practice, because both views are joins and so not auto-updatable -
+      // but a grant that does not match the stated posture is the posture nobody can
+      // trust, and the next view added here might well be updatable.
+      const result = await app.query<{
+        select: boolean;
+        insert: boolean;
+        update: boolean;
+        delete: boolean;
+      }>(
+        `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
+                has_table_privilege(current_user, $1::text, 'INSERT') AS insert,
+                has_table_privilege(current_user, $1::text, 'UPDATE') AS update,
+                has_table_privilege(current_user, $1::text, 'DELETE') AS delete`,
+        [view],
+      );
+      expect(result.rows[0]).toEqual({
+        select: true,
+        insert: false,
+        update: false,
+        delete: false,
+      });
+    },
+  );
+
   it("holds no CREATE on the public schema", async () => {
     const result = await app.query<{ usage: boolean; create: boolean }>(
       `SELECT has_schema_privilege(current_user, 'public', 'USAGE') AS usage,
@@ -281,6 +342,264 @@ describe("the runtime role reads and writes rows, and nothing else", () => {
     const refusal = await refusalFor(app, `SET ROLE ${MIGRATE_ROLE}`);
     expect(refusal).toBeDefined();
     expect(refusal as string).toMatch(/permission denied|must be a member/i);
+  });
+});
+
+/**
+ * Scenario 2: an existing database, migrated under the old single credential.
+ *
+ * This is the path every current adopter takes, and it is not scenario 1 with extra
+ * steps. It has one failure mode of its own that no amount of fresh-install testing
+ * can reach, and PR #782's reviewer hit it: the objects to hand over include
+ * **drizzle's own bookkeeping table**, `drizzle.__drizzle_migrations`, whose `id
+ * SERIAL` column carries a LINKED SEQUENCE. Postgres refuses `ALTER SEQUENCE ...
+ * OWNER TO` on a linked sequence outright, and with `ON_ERROR_STOP` set that aborts
+ * the whole `db-roles` one-shot, so `migrate` and `api` never start.
+ *
+ * Scenario 1 could not see it, and that is the interesting part: it applies
+ * migrations with `applyMigrations`, which deliberately bypasses drizzle's tracker,
+ * so no bookkeeping table and no sequence ever exist there. This block therefore
+ * migrates through **drizzle's real migrator**, exactly as `packages/db/src/migrate.ts`
+ * does, before it does anything else.
+ */
+describe("an upgrading database, migrated under the old single credential", () => {
+  let upgradeDb: TestDb;
+  let bootstrap: pg.Client;
+  let upgradeMigrator: pg.Client;
+  let upgradeApp: pg.Client;
+  /** The migration role's connection string, for the drizzle-migrator test below. */
+  let migrateUri: string;
+  /** Sequences that a migration created as `SERIAL` and Postgres links to their table. */
+  const LINKED_SEQUENCE_QUERY = `
+    SELECT format('%I.%I', n.nspname, c.relname) AS name,
+           pg_get_userbyid(c.relowner) AS owner
+      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+     WHERE c.relkind = 'S'
+       AND EXISTS (SELECT 1 FROM pg_depend d
+                    WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                      AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i'))`;
+
+  beforeAll(async () => {
+    // MIGRATED as the bootstrap superuser, through drizzle's real migrator. That is
+    // the world this scenario exists for: every object, including drizzle's own
+    // bookkeeping table and its linked sequence, owned by the old credential.
+    upgradeDb = await startTestDb({ migrate: true });
+    bootstrap = new pg.Client({ connectionString: upgradeDb.connectionUri });
+    await bootstrap.connect();
+
+    const before = await bootstrap.query<{ name: string; owner: string }>(LINKED_SEQUENCE_QUERY);
+    // A floor on the fixture itself. If drizzle ever stops using SERIAL, this block
+    // would keep passing while testing nothing, which is the failure mode that let
+    // the defect through in the first place.
+    expect(before.rows.length, "the old world must carry a linked sequence").toBeGreaterThan(0);
+    expect(before.rows.every((row) => row.owner !== MIGRATE_ROLE)).toBe(true);
+
+    const migratePassword = ephemeralPassword();
+    const appPassword = ephemeralPassword();
+    await bootstrap.query(`CREATE ROLE ${MIGRATE_ROLE} LOGIN PASSWORD '${migratePassword}'`);
+    await bootstrap.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${appPassword}'`);
+    await bootstrap.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
+    await bootstrap.query(
+      `DO $$ BEGIN
+         EXECUTE format('GRANT CREATE ON DATABASE %I TO ${MIGRATE_ROLE}', current_database());
+       END $$`,
+    );
+
+    // Verbatim from docs/operations.md, "Upgrading a database that was migrated under
+    // one credential". The pg_depend clause is the fix under test.
+    await bootstrap.query(`
+      DO $$
+      DECLARE statement text;
+      BEGIN
+        FOR statement IN
+          SELECT format('ALTER SCHEMA %I OWNER TO ${MIGRATE_ROLE}', nspname)
+            FROM pg_namespace
+           WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
+             AND nspowner <> '${MIGRATE_ROLE}'::regrole
+          UNION ALL
+          SELECT format('ALTER TABLE %I.%I OWNER TO ${MIGRATE_ROLE}', n.nspname, c.relname)
+            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+           WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
+             AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+             AND c.relowner <> '${MIGRATE_ROLE}'::regrole
+             AND NOT (c.relkind = 'S' AND EXISTS (
+                   SELECT 1 FROM pg_depend d
+                    WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                      AND d.refclassid = 'pg_class'::regclass
+                      AND d.deptype IN ('a', 'i')))
+          UNION ALL
+          SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO ${MIGRATE_ROLE}',
+                        n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
+            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+           WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+             AND p.proowner <> '${MIGRATE_ROLE}'::regrole
+          UNION ALL
+          SELECT format('ALTER TYPE %I.%I OWNER TO ${MIGRATE_ROLE}', n.nspname, t.typname)
+            FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
+           WHERE t.typtype = 'e'
+             AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+             AND t.typowner <> '${MIGRATE_ROLE}'::regrole
+        LOOP
+          EXECUTE statement;
+        END LOOP;
+      END
+      $$`);
+
+    await bootstrap.query(`GRANT USAGE ON SCHEMA reporting TO ${APP_ROLE}`);
+    await bootstrap.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO ${APP_ROLE}`);
+    await bootstrap.query(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
+    );
+
+    migrateUri = uriFor(upgradeDb, MIGRATE_ROLE, migratePassword);
+    upgradeMigrator = await connectAs(upgradeDb, MIGRATE_ROLE, migratePassword);
+    upgradeApp = await connectAs(upgradeDb, APP_ROLE, appPassword);
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  afterAll(async () => {
+    await upgradeApp?.end().catch(() => undefined);
+    await upgradeMigrator?.end().catch(() => undefined);
+    await bootstrap?.end().catch(() => undefined);
+    await upgradeDb?.teardown();
+  });
+
+  it("completes the handover at all (it aborted on the linked sequence)", async () => {
+    // If the handover threw, `beforeAll` would have failed and every test here would
+    // report as a setup error - which is what the reviewer saw, and what an operator
+    // would have seen as `db-roles` exiting nonzero with migrate and api never
+    // starting. This is the positive statement of the same fact.
+    const owners = await bootstrap.query<{ count: string }>(
+      `SELECT count(*) AS count
+         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+          AND c.relkind IN ('r', 'p', 'v', 'm')
+          AND pg_get_userbyid(c.relowner) <> $1`,
+      [MIGRATE_ROLE],
+    );
+    expect(Number(owners.rows[0]?.count)).toBe(0);
+  });
+
+  it("moves each linked sequence along with the table that owns it", async () => {
+    // The skipped rows are not left behind: `ALTER TABLE ... OWNER TO` carries a
+    // linked sequence with it, which is why excluding them is complete rather than
+    // merely convenient, and why the exclusion needs no ordering.
+    const after = await bootstrap.query<{ name: string; owner: string }>(LINKED_SEQUENCE_QUERY);
+    expect(after.rows.length).toBeGreaterThan(0);
+    for (const row of after.rows) {
+      expect(row.owner, `${row.name} was left behind by the handover`).toBe(MIGRATE_ROLE);
+    }
+  });
+
+  it("lets the migration role run drizzle's migrator, the way the next upgrade will", async () => {
+    // The real thing rather than a probe: the same `migrate(drizzle(pool), ...)` call
+    // `packages/db/src/migrate.ts` makes, over a pool connected as qcms_migrate. It
+    // reads and writes drizzle's bookkeeping table, which is precisely the object
+    // whose handover the linked sequence was breaking. Every migration is already
+    // applied, so this is the no-op pass a re-run does; the point is that it needs
+    // ownership of that table and its sequence to get that far at all.
+    const pool = new pg.Pool({ connectionString: migrateUri });
+    pool.on("error", () => undefined);
+    try {
+      await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_DIR });
+    } finally {
+      await pool.end();
+    }
+
+    // It ran as the migration role and left the journal intact: one applied row per
+    // migration file, still owned by qcms_migrate. A migrator that had failed to read
+    // its own bookkeeping table would not have got here, and one that had recreated
+    // the table under a different owner would fail the second assertion.
+    const journal = await upgradeMigrator.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations`,
+    );
+    expect(Number(journal.rows[0]?.count)).toBeGreaterThan(0);
+    const journalOwner = await upgradeMigrator.query<{ owner: string }>(
+      `SELECT pg_get_userbyid(relowner) AS owner
+         FROM pg_class WHERE oid = 'drizzle.__drizzle_migrations'::regclass`,
+    );
+    expect(journalOwner.rows[0]?.owner).toBe(MIGRATE_ROLE);
+  });
+
+  it("lets the migration role write drizzle's bookkeeping table and its sequence", async () => {
+    // The narrower statement of the same thing, so a failure names the object. An
+    // INSERT here consumes the SERIAL sequence, which is the row the handover skips.
+    await upgradeMigrator.query("BEGIN");
+    try {
+      const inserted = await upgradeMigrator.query<{ id: number }>(
+        `INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
+         VALUES ('probe_492', 0) RETURNING id`,
+      );
+      // A returned id means the linked sequence was reachable, which is the whole
+      // point: `nextval` on it is what an INSERT into this table does.
+      expect(inserted.rows[0]?.id).toBeGreaterThan(0);
+    } finally {
+      await upgradeMigrator.query("ROLLBACK");
+    }
+  });
+
+  it("lets the migration role issue the DDL a future migration needs", async () => {
+    // Ownership of tables, functions and enums, each checked by the statement a
+    // migration would actually use. Each is reverted where it can be.
+    await upgradeMigrator.query("ALTER TABLE public.sessions ADD COLUMN probe_492 text");
+    await upgradeMigrator.query("ALTER TABLE public.sessions DROP COLUMN probe_492");
+    await upgradeMigrator.query("CREATE TABLE public.probe_492 (id text)");
+    await upgradeMigrator.query("DROP TABLE public.probe_492");
+    await upgradeMigrator.query(
+      `CREATE OR REPLACE FUNCTION answers_reject_delete() RETURNS trigger AS $fn$
+       BEGIN RETURN OLD; END $fn$ LANGUAGE plpgsql`,
+    );
+    // ALTER TYPE ... ADD VALUE is not revertible, which is fine in a throwaway
+    // container and is the statement a real migration uses on an enum.
+    await upgradeMigrator.query(
+      "ALTER TYPE public.access_mode ADD VALUE IF NOT EXISTS 'probe_492'",
+    );
+
+    // Each statement above needed ownership of a different KIND of object, so the
+    // assertion is that the handover reached all of them: the enum carries the added
+    // label, the probe table is gone again, and the trigger function is the one this
+    // test just replaced (proving CREATE OR REPLACE was allowed, not merely accepted).
+    const enumLabels = await upgradeMigrator.query<{ label: string }>(
+      `SELECT unnest(enum_range(NULL::public.access_mode))::text AS label`,
+    );
+    expect(enumLabels.rows.map((row) => row.label)).toContain("probe_492");
+    const leftovers = await upgradeMigrator.query<{ count: string }>(
+      `SELECT count(*)::text AS count FROM pg_tables
+        WHERE schemaname = 'public' AND tablename = 'probe_492'`,
+    );
+    expect(Number(leftovers.rows[0]?.count)).toBe(0);
+    const fn = await upgradeMigrator.query<{ owner: string }>(
+      `SELECT pg_get_userbyid(proowner) AS owner FROM pg_proc
+        WHERE proname = 'answers_reject_delete'`,
+    );
+    expect(fn.rows[0]?.owner).toBe(MIGRATE_ROLE);
+  });
+
+  it("still refuses the runtime role every form of DDL", async () => {
+    for (const sql of [
+      "CREATE TABLE public.smuggled (id text)",
+      "DROP TABLE public.sessions",
+      "ALTER TABLE public.sessions ADD COLUMN smuggled text",
+      "CREATE SCHEMA smuggled",
+      "TRUNCATE public.answers",
+    ]) {
+      const refusal = await refusalFor(upgradeApp, sql);
+      expect(refusal, `${sql} succeeded for the runtime role`).toBeDefined();
+      expect(refusal as string).toMatch(/permission denied|must be owner/i);
+    }
+    const schema = await upgradeApp.query<{ create: boolean }>(
+      `SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS create`,
+    );
+    expect(schema.rows[0]?.create).toBe(false);
+  });
+
+  it("still lets the runtime role read and write rows", async () => {
+    const result = await upgradeApp.query<{ select: boolean; delete: boolean }>(
+      `SELECT has_table_privilege(current_user, 'public.sessions', 'SELECT') AS select,
+              has_table_privilege(current_user, 'public.sessions', 'DELETE') AS delete`,
+    );
+    expect(result.rows[0]).toEqual({ select: true, delete: true });
+    const rows = await upgradeApp.query("SELECT * FROM reporting.responses LIMIT 1");
+    expect(rows.rowCount).not.toBeNull();
   });
 });
 

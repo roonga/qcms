@@ -420,20 +420,32 @@ CREATE ROLE qcms_app LOGIN PASSWORD '<from-secret-store>';
 -- the database rather than ownership of it: owning the database would also allow DROP
 -- DATABASE, which is past what "owns the schema" has to mean.
 ALTER SCHEMA public OWNER TO qcms_migrate;
-GRANT CREATE ON DATABASE qcms TO qcms_migrate;
+
+-- Named from the connection rather than written out, so this is correct whatever
+-- QCMS_DB_NAME (or your own provisioning) called the database. Run it connected to
+-- the QCMS database. If you would rather write the name, it is
+-- `GRANT CREATE ON DATABASE <your database> TO qcms_migrate`.
+DO $$ BEGIN
+  EXECUTE format('GRANT CREATE ON DATABASE %I TO qcms_migrate', current_database());
+END $$;
 
 -- The runtime role: rows in, rows out. USAGE, never CREATE.
 GRANT USAGE ON SCHEMA public TO qcms_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qcms_app;
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO qcms_app;
 
--- And on whatever the next migration creates, in whichever schema it creates it, so
--- there is no grant step to remember after an upgrade. Deliberately NOT scoped with
--- `IN SCHEMA`: `reporting` does not exist yet on a new database, and these have to
--- reach it when migration 0003 creates it.
+-- And on whatever the next migration creates, so there is no grant step to remember
+-- after an upgrade. Two layers, and the scoping is what keeps `reporting` a read
+-- surface. The SELECT default is deliberately UNSCOPED, because `reporting` does not
+-- exist yet on a new database and this has to reach it when migration 0003 creates
+-- it. The write defaults name `public`, so a view created in `reporting` later gets
+-- SELECT and only SELECT. Postgres unions the unscoped and the schema-scoped default
+-- ACLs, so a table created in `public` still ends up with all four.
 ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
-  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO qcms_app;
-ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
+  GRANT SELECT ON TABLES TO qcms_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
+  GRANT INSERT, UPDATE, DELETE ON TABLES TO qcms_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
   GRANT USAGE ON SEQUENCES TO qcms_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
   GRANT USAGE ON SCHEMAS TO qcms_app;
@@ -461,11 +473,21 @@ BEGIN
      WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
        AND nspowner <> 'qcms_migrate'::regrole
     UNION ALL
+    -- A sequence OWNED BY a table column is excluded on purpose: Postgres refuses
+    -- `ALTER SEQUENCE ... OWNER TO` on one ("it is linked to table ..."), and every
+    -- database this block exists for has at least one, because drizzle's own
+    -- `drizzle.__drizzle_migrations` declares `id SERIAL`. Skipping it loses nothing:
+    -- changing a table's owner moves its linked sequence with it.
     SELECT format('ALTER TABLE %I.%I OWNER TO qcms_migrate', n.nspname, c.relname)
       FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
      WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
        AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
        AND c.relowner <> 'qcms_migrate'::regrole
+       AND NOT (c.relkind = 'S' AND EXISTS (
+             SELECT 1 FROM pg_depend d
+              WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                AND d.refclassid = 'pg_class'::regclass
+                AND d.deptype IN ('a', 'i')))
     UNION ALL
     SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO qcms_migrate',
                   n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
@@ -485,7 +507,8 @@ END
 $$;
 
 -- Default privileges are not retroactive, so objects that already exist need their
--- grants directly. Unlike a new database, an upgrading one already has `reporting`.
+-- grants directly. Unlike a new database, an upgrading one already has `reporting`,
+-- and it stays SELECT-only there.
 GRANT USAGE ON SCHEMA reporting TO qcms_app;
 GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO qcms_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qcms_app;
