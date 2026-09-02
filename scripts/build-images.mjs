@@ -265,18 +265,54 @@ export function imageReferences(namespace, name, tags) {
 }
 
 /**
- * The attestation manifests in a raw manifest list, by the descriptor shape buildx
- * writes: an `unknown/unknown` platform plus the attestation reference type.
+ * The attestation manifests in a raw manifest list.
+ *
+ * The test is a CONJUNCTION of all three descriptor properties buildx actually
+ * writes, because this is the one assertion the whole push path exists for and a
+ * permissive test here would report success on an artifact that lost its
+ * attestations. Leaning permissive is the wrong direction for a check whose only
+ * job is to catch that loss.
+ *
+ * Reality, from `docker buildx build --sbom=true --provenance=mode=max` on
+ * buildx v0.35.0 (both descriptors of a single-platform build, verbatim):
+ *
+ * ```json
+ * { "mediaType": "application/vnd.oci.image.manifest.v1+json",
+ *   "digest": "sha256:f5f0b85e...", "size": 476,
+ *   "platform": { "architecture": "amd64", "os": "linux" } }
+ * { "mediaType": "application/vnd.oci.image.manifest.v1+json",
+ *   "digest": "sha256:0e68a698...", "size": 1106,
+ *   "annotations": { "vnd.docker.reference.digest": "sha256:f5f0b85e...",
+ *                    "vnd.docker.reference.type": "attestation-manifest" },
+ *   "platform": { "architecture": "unknown", "os": "unknown" } }
+ * ```
+ *
+ * So the attestation descriptor carries the `unknown/unknown` platform AND the
+ * reference-type annotation, and the image descriptor carries neither. Requiring
+ * both means a descriptor has to be an attestation manifest on the two independent
+ * markers rather than on either one alone: the `unknown/unknown` platform is the
+ * convention that hides these entries from a platform-matching client, and other
+ * non-image entries could adopt it, while the annotation is what names this entry
+ * as the attestation for a specific image.
+ *
+ * The manifest it points at carries `artifactType`
+ * `application/vnd.docker.attestation.manifest.v1+json` and one
+ * `application/vnd.in-toto+json` layer per predicate, which is the layer shape
+ * {@link inspectOciArtifact} already walks for the local artifact. This function
+ * deliberately stops at the descriptor: `imagetools inspect --raw` returns the index
+ * alone, and fetching each referenced manifest would be a second registry round trip
+ * for a weaker question than "did the attestations get pushed at all".
  *
  * @param {string} rawManifestList the JSON `buildx imagetools inspect --raw` prints.
  * @returns {number} how many attestation manifests the list carries.
  */
 export function attestationManifestCount(rawManifestList) {
-  /** @type {{ manifests?: { platform?: { architecture?: string }, annotations?: Record<string, string> }[] }} */
+  /** @type {{ manifests?: { platform?: { architecture?: string, os?: string }, annotations?: Record<string, string> }[] }} */
   const index = JSON.parse(rawManifestList);
   return (index.manifests ?? []).filter(
     (entry) =>
-      entry.platform?.architecture === "unknown" ||
+      entry.platform?.architecture === "unknown" &&
+      entry.platform.os === "unknown" &&
       entry.annotations?.["vnd.docker.reference.type"] === "attestation-manifest",
   ).length;
 }
@@ -325,6 +361,31 @@ export function pushImage(image, version, namespace, tags) {
 }
 
 /**
+ * The value following a flag, or a thrown error naming the flag.
+ *
+ * Every flag this script takes is value-bearing, so a missing value is always a
+ * mistake and never a shorthand. Reading it without this guard produces `undefined`,
+ * which `String()` turns into the literal `"undefined"`: `--output` with no value
+ * would build into a directory named `undefined`, and `--tag` with no value would
+ * push a tag named `undefined`. Both are downstream failures at best and a wrong
+ * artifact at worst, so the parser refuses them here where the message can name the
+ * flag the caller actually got wrong.
+ *
+ * @param {string[]} argv
+ * @param {number} flagIndex position of the flag itself.
+ * @param {string} flag the flag's name, for the message.
+ * @param {string} example a correct invocation to show.
+ * @returns {string}
+ */
+function valueAfter(argv, flagIndex, flag, example) {
+  const value = argv[flagIndex + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`build-images: ${flag} needs a value, for example ${example}`);
+  }
+  return value;
+}
+
+/**
  * Read `--output`, `--push` and the repeatable `--tag` out of the argument vector.
  *
  * @param {string[]} argv
@@ -336,15 +397,18 @@ export function parseArgv(argv) {
   /** @type {string[]} */
   const tags = [];
   for (let index = 0; index < argv.length; index += 1) {
-    if (argv[index] === "--tag" && argv[index + 1] !== undefined)
-      tags.push(String(argv[index + 1]));
+    if (argv[index] === "--tag") {
+      tags.push(valueAfter(argv, index, "--tag", "--tag latest"));
+    }
   }
-  const namespace = pushIndex === -1 ? undefined : argv[pushIndex + 1];
-  if (pushIndex !== -1 && (namespace === undefined || namespace.startsWith("--"))) {
-    throw new Error("build-images: --push needs a registry namespace, for example --push roonga");
-  }
+  const namespace =
+    pushIndex === -1
+      ? undefined
+      : valueAfter(argv, pushIndex, "--push", "--push roonga (a registry namespace)");
   const outputRoot =
-    outputIndex === -1 ? join(REPOSITORY_ROOT, "dist-images") : String(argv[outputIndex + 1]);
+    outputIndex === -1
+      ? join(REPOSITORY_ROOT, "dist-images")
+      : valueAfter(argv, outputIndex, "--output", "--output ./dist-images");
   return { outputRoot, namespace, tags };
 }
 

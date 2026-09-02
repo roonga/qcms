@@ -203,9 +203,11 @@ not proxied: the two variables exist because the two hostnames can differ.
 ## Delivery through GitHub Actions
 
 `.github/workflows/images.yml` builds all three images on every push, with an SBOM, a provenance
-attestation and a real version stamp, and **publishes them to GHCR on `main`** (issue #763). Step 0
-is done: every VM-less platform pulls images rather than building them, and there is now something
-to pull.
+attestation and a real version stamp, and **publishes them to GHCR on pushes to `main`** (issue
+#763). Every VM-less platform pulls images rather than building them, so that publish is step 0 for
+all of them. What is in place is the mechanism: the three packages come into existence on the first
+`main` push after that change lands, and each later `main` push adds tags. Check the registry for
+the tag you mean to deploy rather than assuming it is there.
 
 **Step 0, on every platform: push to GHCR.** It is free for this repository, it authenticates with
 the built-in `GITHUB_TOKEN` under `packages: write`, and it introduces no external credential to

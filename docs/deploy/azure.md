@@ -90,7 +90,7 @@ Only one topology fact matters here: a solo `QCMS_MOUNT=all` app owns the schedu
 
 ## 5. GitHub Actions (OIDC federated credential, no stored keys)
 
-`.github/workflows/images.yml` builds the three images already. A deploy pipeline pushes them, runs the migration job, and updates the apps api-first. Authenticate with a **federated identity credential**: no Azure client secret in GitHub.
+`.github/workflows/images.yml` builds the three images and publishes them to GHCR on `main` (issue #763). A deploy pipeline pushes them on to **ACR**, which is what the Container Apps below are given a credential for, then runs the migration job and updates the apps api-first. Authenticate with a **federated identity credential**: no Azure client secret in GitHub.
 
 ```yaml
 name: deploy-azure

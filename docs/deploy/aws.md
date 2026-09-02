@@ -82,7 +82,7 @@ Because a solo `QCMS_MOUNT=all` process owns the schedulers, only one topology f
 
 ## 5. GitHub Actions (OIDC, no stored keys)
 
-`.github/workflows/images.yml` already builds the three images with SBOM and provenance but does not push or deploy. A deploy pipeline adds push, the migration gate, and an api-first rolling deploy. Authenticate with **OIDC**: no long-lived AWS keys in GitHub.
+`.github/workflows/images.yml` builds the three images with SBOM and provenance and publishes them to GHCR on `main` (issue #763), but it does not deploy. A deploy pipeline adds the migration gate and an api-first rolling deploy, plus a push to **ECR**, which the ECS task definitions below pull from rather than from GHCR: the GHCR copy is the general-purpose artifact, and ECR is this platform's. Authenticate with **OIDC**: no long-lived AWS keys in GitHub.
 
 ```yaml
 name: deploy-aws
