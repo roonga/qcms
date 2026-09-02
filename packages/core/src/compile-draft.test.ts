@@ -903,7 +903,13 @@ describe("compileDraft - warnings (issue #123)", () => {
         ["stp_one", ["q_a", "q_b"]],
         ["stp_two", ["q_c"]],
       ],
-      [{ ruleId: "rul_bool", when: { op: "equals", questionId: "q_a", value: true }, show: ["q_b"] }],
+      [
+        {
+          ruleId: "rul_bool",
+          when: { op: "equals", questionId: "q_a", value: true },
+          show: ["q_b"],
+        },
+      ],
     );
     const warnings = warningsOf(
       compileDraft({

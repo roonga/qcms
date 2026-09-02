@@ -78,8 +78,6 @@ describe("the pattern field surfaces the v-safe spelling (issue #53)", () => {
   });
 
   it("says nothing on a frozen version, which cannot be edited anyway", () => {
-    expect(render({ pattern: V_INVALID }, true)).not.toContain(
-      'data-testid="qcms-pattern-v-note"',
-    );
+    expect(render({ pattern: V_INVALID }, true)).not.toContain('data-testid="qcms-pattern-v-note"');
   });
 });

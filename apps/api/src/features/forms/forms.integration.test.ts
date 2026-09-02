@@ -969,9 +969,7 @@ describe("publish warnings reach the author without blocking a publish (#123)", 
   });
 
   it("a cross-step target is silent: the ordinary case earns no advisory", async () => {
-    const crossStep = formDefinition(formId, layout, [
-      { ...sameStepRule, show: ["q_warn_later"] },
-    ]);
+    const crossStep = formDefinition(formId, layout, [{ ...sameStepRule, show: ["q_warn_later"] }]);
     const res = await post(`/forms/${formId}/draft/validate`, { definition: crossStep });
 
     expect(((await res.json()) as { warnings: Issue[] }).warnings).toEqual([]);

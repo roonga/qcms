@@ -275,18 +275,15 @@ function textSites(
   definition: FormDefinition,
   resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
 ): TextSite[] {
-  const sites: TextSite[] = [];
-  if (definition.title !== undefined) {
-    sites.push({ text: definition.title, subject: "Form title", path: {} });
-  }
+  // Both titles are required by the schema, so neither needs an undefined guard;
+  // the optional texts are guarded inside `questionTextSites`.
+  const sites: TextSite[] = [{ text: definition.title, subject: "Form title", path: {} }];
   for (const step of definition.steps) {
-    if (step.title !== undefined) {
-      sites.push({
-        text: step.title,
-        subject: `Step "${step.stepId}" title`,
-        path: { step: step.stepId },
-      });
-    }
+    sites.push({
+      text: step.title,
+      subject: `Step "${step.stepId}" title`,
+      path: { step: step.stepId },
+    });
   }
   // Pinned question content (unresolved pins were already reported as
   // DANGLING_QUESTION_REF; there is nothing to check for them).
@@ -442,7 +439,7 @@ function checkBlankText(sites: readonly TextSite[]): PublishError[] {
   const errors: PublishError[] = [];
   for (const site of sites) {
     for (const [locale, value] of Object.entries(site.text)) {
-      if (value !== undefined && value.trim() === "") {
+      if (value.trim() === "") {
         errors.push({
           code: "BLANK_LOCALIZED_TEXT",
           message: `${site.subject} is blank in locale "${locale}": a whitespace-only value would reach a respondent as no text at all`,

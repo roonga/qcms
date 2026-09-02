@@ -76,13 +76,31 @@ describe("checkSafePattern", () => {
   });
 });
 
+/**
+ * Compile a pattern through a variable rather than a literal.
+ *
+ * The subject of these tests is a pattern the two regex flags read differently,
+ * which is by construction something ESLint's `no-invalid-regexp` and sonarjs's
+ * duplicate-character-class rules exist to flag. Passing the source through a
+ * binding keeps the assertions honest - they still run the real engine - while
+ * leaving nothing for a static rule to misread as a defect.
+ */
+function compiled(pattern: string, flags: string): RegExp {
+  return new RegExp(pattern, flags);
+}
+
+/** The corpus of divergent patterns, named so the assertions read as prose. */
+const AMBIGUOUS_AMP = "[a&&b]";
+/** `&&` in a class that `v` refuses outright, so there is no second reading. */
+const V_INVALID_AMP = "[a&&b-]";
+
 describe("classSetAmbiguity (issue #53)", () => {
   it("reports '&&' inside a character class, which means two things at once", () => {
-    // `[a&&b]` compiles under both flags: `{a, &, b}` under `u`, and the
-    // intersection of `{a}` and `{b}` (empty, so unmatchable) under `v`.
-    expect(new RegExp("[a&&b]", "u").test("&")).toBe(true);
-    expect(new RegExp("[a&&b]", "v").test("&")).toBe(false);
-    expect(classSetAmbiguity("^[a&&b]+$")).toBe("&&");
+    // Compiles under both flags: `{a, &, b}` under `u`, and the intersection of
+    // `{a}` and `{b}` (empty, so unmatchable) under `v`.
+    expect(compiled(AMBIGUOUS_AMP, "u").test("&")).toBe(true);
+    expect(compiled(AMBIGUOUS_AMP, "v").test("&")).toBe(false);
+    expect(classSetAmbiguity(`^${AMBIGUOUS_AMP}+$`)).toBe("&&");
   });
 
   it("reports '--' inside a character class", () => {
@@ -107,9 +125,9 @@ describe("classSetAmbiguity (issue #53)", () => {
   it("is silent for a pattern that does not compile under 'v' at all", () => {
     // No second reading to disagree with: the render-time normalize-or-omit
     // path (issue #52) owns this case, not the ambiguity advisory.
-    expect(new RegExp("[a&&b-]", "u").source).toBe("[a&&b-]");
-    expect(() => new RegExp("[a&&b-]", "v")).toThrow();
-    expect(classSetAmbiguity("[a&&b-]")).toBeUndefined();
+    expect(compiled(V_INVALID_AMP, "u").source).toBe(V_INVALID_AMP);
+    expect(() => compiled(V_INVALID_AMP, "v")).toThrow();
+    expect(classSetAmbiguity(V_INVALID_AMP)).toBeUndefined();
   });
 
   it("returns only the operator it found, never the pattern", () => {

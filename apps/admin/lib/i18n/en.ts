@@ -918,8 +918,6 @@ export const messages = {
     "A multiple-choice answer is only counted once the respondent leaves the group, so a question revealed on the same step appears after they move on rather than as they tick. A target on a later step reveals when they continue.",
   "forms.warning.patternClassSet":
     "This pattern uses a character class the browser and the engine read differently, so it can accept different answers in each. Rewrite the class if the two characters were meant literally.",
-  "forms.warning.unknown":
-    "The engine reported a warning this screen has no wording for ({code}).",
 
   "forms.error.invalidId": "That is not a valid form ID.",
   "forms.error.invalidLocale": "That is not a locale the engine recognises.",
