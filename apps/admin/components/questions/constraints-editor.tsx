@@ -264,13 +264,22 @@ function NumberPanel(props: PanelProps) {
 function DatePanel({ constraints, onChange, issues, isFrozen }: PanelProps) {
   return (
     <div className="qcms-constraints">
+      {/*
+       * `null`, never an omitted prop, for a bound the author has not set. These two
+       * used to spread `optionalProp("value", ...)`, because the vendored DatePicker
+       * narrowed `value` to `string` and collapsed every empty spelling to
+       * `undefined` internally, so "controlled with no value" was unsayable and an
+       * omitted prop was the closest thing to it. The consequence was a real
+       * uncontrolled-to-controlled flip the first time an author picked a date, which
+       * React reports on the console and which the portal's gate had to allowlist.
+       * Issues #148 and #549 fixed that upstream, so `null` is now both sayable and
+       * the react-aria spelling of "no selection": the control is controlled from
+       * first render and the allowlist entry is deleted.
+       */}
       <DatePicker
         label={t("questions.constraint.earliest")}
         isDisabled={isFrozen}
-        {...optionalProp(
-          "value",
-          typeof constraints.min === "string" ? constraints.min : undefined,
-        )}
+        value={typeof constraints.min === "string" ? constraints.min : null}
         {...fieldErrorProps(issues, "constraints.min")}
         onChange={(next) => {
           onChange({ ...constraints, min: next === "" ? undefined : next });
@@ -279,10 +288,7 @@ function DatePanel({ constraints, onChange, issues, isFrozen }: PanelProps) {
       <DatePicker
         label={t("questions.constraint.latest")}
         isDisabled={isFrozen}
-        {...optionalProp(
-          "value",
-          typeof constraints.max === "string" ? constraints.max : undefined,
-        )}
+        value={typeof constraints.max === "string" ? constraints.max : null}
         {...fieldErrorProps(issues, "constraints.max")}
         onChange={(next) => {
           onChange({ ...constraints, max: next === "" ? undefined : next });

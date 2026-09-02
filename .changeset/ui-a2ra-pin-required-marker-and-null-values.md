@@ -37,9 +37,21 @@ controlled: the last uncontrolled-to-controlled flip at this seam is gone,
 `WARN: A component changed from uncontrolled to controlled.` entry in the portal's
 forwarded-warning gate is deleted on its own stated removal condition.
 
-**#151, the duplicate react-aria-components.** The portal's closure held two copies
-(1.19.0 transitively through `@a2ra/core`, 1.20.0 direct), which is two SSR id and
-context providers and the leading explanation for the NumberField hydration attribute
-mismatch on reload. `@a2ra/core` raises its floor to `react-aria-components@^1.20.0` and
-`@internationalized/date@^3.12.3` upstream; the lockfile here converges on one copy of
-each. `resume.pw.ts` gains the reload of a NumberField step that no spec performed.
+**The admin's date bounds.** `constraints-editor.tsx` omitted its `value` prop entirely
+for "no bound set", because an omitted prop was the closest thing to "controlled with no
+value" that a `value: string` signature allowed. It now passes `null`, so the control is
+controlled from first render and the first date an author picks no longer flips it.
+
+**#151, the duplicate react-aria-components: deduplicated, and NOT the fix.** The
+portal's closure held two copies (1.19.0 transitively through `@a2ra/core`, 1.20.0
+direct), which is two SSR id and context providers and was #151's leading explanation for
+the NumberField hydration attribute mismatch on reload. `@a2ra/core` raises its floor to
+`react-aria-components@^1.20.0` and `@internationalized/date@^3.12.3` upstream, and the
+lockfile here converges on one copy of each. `resume.pw.ts` gains the reload of a
+NumberField step that no spec had ever performed, and running it settled the open
+question the issue flagged as inference rather than proof: **the mismatch does not
+clear**. The one attribute React actually reports differing is `inputMode` (`numeric` on
+the server, `decimal` on the touch client), which is environment detection inside
+`@react-aria/numberfield` rather than anything about duplicate providers. #151 stays open
+with the dedup recorded as a real improvement that was not the fix, and the new spec is
+`fixme` rather than allowlisted.

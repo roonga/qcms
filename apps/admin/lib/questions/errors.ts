@@ -102,10 +102,17 @@ export function fieldErrorProps(
 /**
  * One optional prop, present only when it has a value.
  *
- * Same `exactOptionalPropertyTypes` reason as `fieldErrorProps`: a controlled value that
- * is genuinely absent (no minimum set on a date constraint) has to be an omitted prop
- * rather than an explicit `undefined`, which is also the difference between a react-aria
- * control being controlled-with-no-value and uncontrolled.
+ * Same `exactOptionalPropertyTypes` reason as `fieldErrorProps`: under that flag an
+ * optional prop and a prop explicitly set to `undefined` are different types, so a value
+ * that is genuinely absent has to be an omitted key rather than an explicit `undefined`.
+ *
+ * This used to carry the date constraints' `value` too, on the grounds that an omitted
+ * prop was the only way to say "no bound set" to a control whose `value` was typed
+ * `string`. That reason is gone: issues #148 and #549 widened the vendored controls to
+ * `string | null`, so `null` says it directly and keeps the control CONTROLLED, which an
+ * omitted prop never did (see `constraints-editor.tsx`). Reach for `null` before reaching
+ * for this helper on any react-aria value prop; what is left here is genuinely optional
+ * configuration like `step`.
  */
 export function optionalProp<K extends string, V>(
   key: K,
