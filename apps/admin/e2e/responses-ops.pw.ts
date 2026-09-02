@@ -440,11 +440,24 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
 
       // The attempt record is real: the deliverer never got a response from a refused
       // connection, so there is no status and the error names the transport failure.
-      await deliveries
-        .getByRole("button", { name: /^Show request and response/ })
-        .first()
-        .click();
-      const detail = page.getByTestId("qcms-delivery-detail");
+      //
+      // THE ROW IS NAMED AND THE PANEL IS ITS OWN (issue 547). This used to open the first
+      // row's disclosure and then address `qcms-delivery-detail` across the whole document,
+      // which is only unambiguous while exactly one panel is rendered - a property of the
+      // dashboard rendering the panel conditionally, not a property of the screen. It
+      // already cost one fix its better shape: issue 520 could not render the panel always
+      // and hide it, because that would put a `qcms-delivery-detail` node in every row and
+      // turn this locator into a strict-mode multi-match. Reading the panel off the opened
+      // row's own `aria-controls` says "the panel of the row I opened" and stops caring how
+      // many exist.
+      const openedRow = deliveries.locator("tbody tr[data-delivery-id]").first();
+      await openedRow.getByRole("button", { name: /^Show request and response/ }).click();
+      const panelId =
+        (await openedRow
+          .getByRole("button", { name: /^Hide request and response/ })
+          .getAttribute("aria-controls")) ?? "";
+      expect(panelId, "the open row names its panel").toMatch(/^qcms-delivery-detail-/);
+      const detail = page.locator(`#${panelId}`);
       await expect(detail.getByTestId("qcms-delivery-no-response")).toContainText("network_error");
       // The signature header is present and masked, in the data rather than the render.
       await expect(detail.getByTestId("qcms-delivery-headers")).toContainText("x-qcms-signature");
@@ -455,11 +468,9 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // Asserting only that nothing dangles would also pass if the attribute had simply
       // been deleted in every state, which would be a different defect wearing this
       // fix's clothes.
-      const opened = deliveries.getByRole("button", { name: /^Hide request and response/ });
+      const opened = openedRow.getByRole("button", { name: /^Hide request and response/ });
       await expect(opened).toHaveAttribute("aria-expanded", "true");
-      const panelId = (await opened.getAttribute("aria-controls")) ?? "";
-      expect(panelId, "the open row names its panel").toMatch(/^qcms-delivery-detail-/);
-      await expect(page.locator(`#${panelId}`)).toBeVisible();
+      await expect(detail).toBeVisible();
       expect(
         await danglingAriaControls(page),
         "and no other row names a panel that is not in the document",
@@ -468,7 +479,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // The panel is still the second `tr` of the same row group, not a nested table:
       // the row that holds it is the immediate next sibling of the row that opened it.
       expect(
-        await page.locator(`#${panelId}`).evaluate((element) => {
+        await detail.evaluate((element) => {
           const panelRow = element.closest("tr");
           const summaryRow = panelRow?.previousElementSibling ?? null;
           return {
@@ -482,7 +493,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // Collapsing it again takes the reference away with the panel it named.
       await opened.click();
       await expect(
-        deliveries.getByRole("button", { name: /^Show request and response/ }).first(),
+        openedRow.getByRole("button", { name: /^Show request and response/ }),
       ).toHaveAttribute("aria-expanded", "false");
       expect(await danglingAriaControls(page), "collapsing leaves nothing dangling either").toEqual(
         [],

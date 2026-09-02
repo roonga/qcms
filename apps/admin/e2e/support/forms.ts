@@ -19,6 +19,26 @@ import { fillStable } from "./flow.js";
  * Value). Every helper here therefore takes the rule's own region, found by its
  * `data-rule-id`, rather than reaching for a name that is ambiguous the moment a second
  * rule exists.
+ *
+ * ## THE SMALLEST PERSISTABLE FORM IS NOT "A FORM WITH ONE STEP" (issue 569)
+ *
+ * A step with no pinned question makes the draft unstoreable: `lib/forms/draft.ts`'s
+ * `unsaveableReason` returns `emptyStep`, and `components/forms/form-builder.tsx` responds
+ * by PAUSING autosave rather than posting a draft the API would 422. So the obvious minimal
+ * fixture - {@link createForm} then {@link addStep} - never reaches the server, and the
+ * next `page.goto` back to the form shows no steps at all.
+ *
+ * The failure does not read as "autosave is paused". It reads as "step button not found
+ * after reload", which sends the reader looking at selectors and at timing, and it cost two
+ * probe runs before it was written down. {@link waitForSaved} and {@link waitForSaveAfter}
+ * now name the reason rather than timing out silently, and this is the paragraph they point
+ * at: **the smallest persistable form is one step holding one pin of a PUBLISHED question**,
+ * so the minimal fixture is three gestures of setup (publish a question, create the form,
+ * add the step and pin into it) rather than one.
+ *
+ * The same rule bites twice more. `noSteps` pauses a form that has none yet, and
+ * `ruleWithoutTarget` pauses a rule whose "Then show" is still empty - which is the state
+ * every rule passes through while it is being authored.
  */
 
 /** One text input of the builder, addressed by its accessible name. */
@@ -520,8 +540,77 @@ export async function waitForSaved(page: Page): Promise<void> {
   await readingSaveState(page, async () => {
     // "Last saved ...", not "Saved ...": the strip shows the state alone now, with the
     // model sentence behind a "?" beside it, so the state says which of the two it is.
-    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
+    await expectSavedSentence(page);
   });
+}
+
+/**
+ * The builder's paused-autosave notice, rendered above all three screens.
+ *
+ * `components/forms/form-builder.tsx` puts `SaveNotices` at the top of the builder's own
+ * tree rather than inside the screen switch, so this is findable from a step, from the
+ * rules screen and from the form's own screen alike.
+ */
+function pausedNotice(page: Page): Locator {
+  return page.getByTestId("qcms-autosave-paused");
+}
+
+/**
+ * What a paused autosave means for the caller, per reason, in the caller's terms.
+ *
+ * The sentences the product shows are the author's ("a form needs at least one step");
+ * these are the test author's, because the reader of this message is holding a fixture that
+ * did not persist rather than a form they are building.
+ */
+const PAUSE_HINTS: Readonly<Record<string, string>> = {
+  noSteps: "the draft has no steps yet - add one, and pin a published question into it.",
+  emptyStep:
+    "a step has no pins. The smallest persistable form is one step holding one pin of a " +
+    "PUBLISHED question, so a fixture built as createForm + addStep never reaches the server.",
+  ruleWithoutTarget:
+    'a rule has no "Then show" target. A rule arrives targetless, so commit one before ' +
+    "waiting on a save.",
+};
+
+/**
+ * Wait for the strip to say a save landed, and NAME A PAUSED AUTOSAVE rather than time out
+ * on one (issue 569).
+ *
+ * Without this the whole family of unsaveable-draft traps presents as thirty seconds of
+ * silence followed by "expected to contain text /^Last saved /", which reads like a
+ * selector problem or a slow server and is neither: the draft was never posted, on purpose,
+ * and no amount of waiting will change that. The reason is already in the DOM - the pause
+ * notice carries `data-paused-reason` - so the wait ends by reading it and saying so.
+ *
+ * The read happens on FAILURE rather than before the wait, deliberately. A pause is
+ * computed from the draft on every render, so it is on screen for the frame between an
+ * `addStep` and the pin that fills it; failing fast on a glimpse of it would turn an
+ * ordinary authoring sequence into a red. Thirty seconds of it standing is not a glimpse.
+ */
+async function expectSavedSentence(page: Page): Promise<void> {
+  try {
+    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
+  } catch (cause) {
+    await throwPausedAutosave(page, cause);
+  }
+}
+
+/** Rethrow `cause`, or a sentence naming the pause that is actually holding the save. */
+async function throwPausedAutosave(page: Page, cause: unknown): Promise<never> {
+  const notice = pausedNotice(page);
+  const reason =
+    (await notice.count()) > 0 ? await notice.getAttribute("data-paused-reason") : null;
+  if (reason === null || reason === "") throw cause;
+  // Repo-relative in the MESSAGE, unlike the app-relative paths this file's prose uses:
+  // the reader of this string is standing in a failing test report rather than in the app
+  // whose root the shorter form is implicitly against.
+  const hint = PAUSE_HINTS[reason] ?? "see `unsaveableReason` in `apps/admin/lib/forms/draft.ts`.";
+  throw new Error(
+    `the draft never saved because AUTOSAVE IS PAUSED (unsaveableReason: ${reason}): ${hint}\n` +
+      "See the note on the smallest persistable form at the top of " +
+      "`apps/admin/e2e/support/forms.ts`.",
+    { cause },
+  );
 }
 
 /** The save indicator's current sentence. */
@@ -570,10 +659,28 @@ const SAVING = "Saving...";
  * "Not saved yet" and "The last save failed." are settled states too, and are read rather
  * than waited out: a fresh visit has stored nothing, and a failed save is the caller's wait
  * to report rather than this helper's to hang on.
+ *
+ * ## "Saving..." CAN BE STALE, which is the one way this waits for something that will not
+ * come (issue 569)
+ *
+ * The builder arms its debounce and sets `saving` in the same effect, and the effect's
+ * cleanup cancels the timer when the draft changes. So an edit that makes the draft
+ * unsaveable within the debounce window - adding a step, which is empty until something is
+ * pinned into it - cancels the armed save and leaves the strip saying "Saving..." with
+ * nothing in flight. The pause is what a caller has to act on, so this names it rather than
+ * spending thirty seconds and reporting a locator.
+ *
+ * A caller avoids the state entirely by taking its baseline BEFORE the gesture that pauses
+ * the draft rather than between that gesture and the edit that lifts the pause, which is
+ * what every `addStep` caller in this directory now does.
  */
 export async function savedStamp(page: Page): Promise<string> {
   return readingSaveState(page, async () => {
-    await expect(saveState(page)).not.toHaveText(SAVING, { timeout: 30_000 });
+    try {
+      await expect(saveState(page)).not.toHaveText(SAVING, { timeout: 30_000 });
+    } catch (cause) {
+      await throwPausedAutosave(page, cause);
+    }
     return (await saveStatus(page).getAttribute("data-saved-at")) ?? "";
   });
 }
@@ -603,10 +710,17 @@ export async function savedStamp(page: Page): Promise<string> {
  */
 export async function waitForSaveAfter(page: Page, previous: string): Promise<void> {
   await readingSaveState(page, async () => {
-    await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
-      timeout: 30_000,
-    });
-    await expect(saveState(page)).toContainText(/^Last saved /, { timeout: 30_000 });
+    try {
+      await expect(saveStatus(page)).not.toHaveAttribute("data-saved-at", previous, {
+        timeout: 30_000,
+      });
+    } catch (cause) {
+      // The same rescue `expectSavedSentence` makes, and this is the leg that usually
+      // times out: a paused autosave leaves the PREVIOUS save's instant on the strip, so
+      // it is the stamp that never moves rather than the sentence that never arrives.
+      await throwPausedAutosave(page, cause);
+    }
+    await expectSavedSentence(page);
   });
 }
 

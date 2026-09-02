@@ -5,7 +5,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { domShape, headingTags, withDemotedHeadings } from "./support/dom-shape.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { activeElementId, enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import {
   addRule,
   addStep,
@@ -471,6 +471,19 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   await expect(minted.getByRole("heading", { name: "2 links minted" })).toBeVisible();
   await expect(minted).toContainText("cannot be shown again");
 
+  // FOCUS IS ON THE PANEL, not left behind on Mint links (issue 379). The announcement
+  // below tells an operator that links exist; it does not put them near a copy button, and
+  // a token is shown exactly once, so a panel dismissed without being reached costs the
+  // links permanently. Polled rather than asserted once: the mint dialog closes in the same
+  // commit and React Aria's own focus restore runs a frame later, so this is the state
+  // after both have had their turn.
+  await expect
+    .poll(() => activeElementId(page), {
+      message: "a successful mint should land the operator on the panel it just made",
+      timeout: 10_000,
+    })
+    .toBe("qcms-minted-heading");
+
   // The mint was the one outcome on this screen that announced nothing, because the panel
   // holding the URLs is a sibling of the live region (#377). Mint failure, revoke success,
   // revoke failure and the copy note all announced; the thing the operator had just made
@@ -513,6 +526,17 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   expect(csv).toContain("/l/");
 
   await minted.getByRole("button", { name: "Done" }).click();
+
+  // And dismissing hands focus back rather than dropping it (issue 379). Done unmounts the
+  // heading that holds focus, so without somewhere to send it the operator finishes on
+  // `<body>` at the top of the document - which would trade one lost place for another.
+  // The poll reports where focus actually went when this fails; the assertion after it is
+  // what names the destination, because the vendored button carries no id of its own.
+  await expect
+    .poll(() => activeElementId(page), { message: "focus should leave the dismissed panel" })
+    .not.toBe("qcms-minted-heading");
+  await expect(page.getByRole("button", { name: "Mint links" })).toBeFocused();
+
   const table = page.getByTestId("qcms-links-table");
   await expect(table.getByRole("row")).toHaveCount(3);
   await expect(table.getByText("Active").first()).toBeVisible();

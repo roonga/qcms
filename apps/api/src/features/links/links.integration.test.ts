@@ -56,11 +56,21 @@ let linkKeyA: string;
 // session keys, and app key - only QCMS_LINK_KEYS varies across builds.
 let baseEnv: Record<string, string | undefined>;
 
-/** Build an app over the shared db with a given link-key list. */
-function buildApp(linkKeys: string): { deps: Deps; app: ReturnType<typeof createApp> } {
+/**
+ * Build an app over the shared db with a given link-key list, and optionally a different
+ * request clock.
+ *
+ * The clock is a parameter because ONE display state is derived from it rather than stored:
+ * a link expires by the calendar catching up with its `expiresAt`, so the only way to
+ * observe `expired` without waiting is to ask a later clock about the same rows.
+ */
+function buildApp(
+  linkKeys: string,
+  at: Date = NOW,
+): { deps: Deps; app: ReturnType<typeof createApp> } {
   const d = makeDeps({
     db: testDb.db,
-    clock: fixedClock(NOW),
+    clock: fixedClock(at),
     env: { ...baseEnv, QCMS_LINK_KEYS: linkKeys },
   });
   const a = createApp(d, ALL, {
@@ -135,6 +145,18 @@ async function startFromToken(
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
     body: JSON.stringify({ token }),
   });
+}
+
+/** Every link of FORM_ID as `{ linkId: state }`, read through one app's own clock. */
+async function listStates(
+  targetApp: ReturnType<typeof createApp>,
+): Promise<Record<string, string>> {
+  const res = await targetApp.request(`/admin/forms/${FORM_ID}/links`, {
+    headers: adminHeaders(),
+  });
+  expect(res.status).toBe(200);
+  const { links } = (await res.json()) as { links: Array<{ linkId: string; state: string }> };
+  return Object.fromEntries(links.map((link) => [link.linkId, link.state]));
 }
 
 /** Pull the compact token out of a minted `/l/<token>` URL. */
@@ -253,6 +275,60 @@ describe("secure-link minting → 018 verification loop (exit criterion 1)", () 
     expect(links.some((l) => l.state === "revoked" && l.revokedAt !== null)).toBe(true);
     expect(links.every((l) => ["active", "consumed", "expired", "revoked"].includes(l.state))).toBe(
       true,
+    );
+  });
+
+  it("derives all four display states, including the two no browser fixture reaches", async () => {
+    // Issue 278. `active` and `revoked` are the only states the admin's screenshot gate and
+    // axe sweep have ever rendered, because reaching the other two through the product
+    // needs a respondent and a calendar. Both are ordinary here, and this is the layer that
+    // owns the derivation: `linkState` in `handler.ts` reads the row against the request
+    // clock, and the chip above it is generic over whatever it says
+    // (`components/forms/link-state-tag-states.test.tsx`).
+    //
+    // A MINUTE'S EXPIRY, not `FUTURE`, and the reason is the admin session rather than the
+    // links: the second app below reads these rows through a later clock, and the seeded
+    // better-auth session is checked against that same clock. A clock five months on makes
+    // every admin request a 401 before it can reach a link at all, so the gap between the
+    // two readings is kept to minutes - which is all the derivation needs.
+    const soon = new Date(NOW.getTime() + 60_000).toISOString();
+    const minted = await mint(app, { expiresAt: soon, oneTime: true, count: 3 });
+    expect(minted.status).toBe(201);
+    const { links: fresh } = (await minted.json()) as {
+      links: Array<{ linkId: string; url: string }>;
+    };
+    expect(fresh).toHaveLength(3);
+    const stillOpen = fresh[0]!;
+    const spent = fresh[1]!;
+    const closed = fresh[2]!;
+
+    // CONSUMED is what a one-time link becomes when a respondent walks through it, which is
+    // the whole point of the flag: start-session stamps `consumedAt` on the way past.
+    const started = await startFromToken(app, tokenFromUrl(spent.url));
+    expect(started.status).toBe(201);
+
+    // REVOKED is the operator's own act, and it wins over everything below it.
+    expect((await revoke(FORM_ID, closed.linkId)).status).toBe(200);
+
+    const now = await listStates(app);
+    expect(now[stillOpen.linkId]).toBe("active");
+    expect(now[spent.linkId]).toBe("consumed");
+    expect(now[closed.linkId]).toBe("revoked");
+
+    // EXPIRED is stored nowhere: it is the calendar passing `expiresAt`, so the same three
+    // rows read differently through a clock past that instant. That is also what makes the
+    // precedence order in `linkState` observable - a consumed or revoked link that is also
+    // past its expiry still reports the thing that happened to it, not the thing time did.
+    const afterExpiry = new Date(Date.parse(soon) + 1000);
+    const { app: later } = buildApp(linkKeyA, afterExpiry);
+    const then = await listStates(later);
+    expect(then[stillOpen.linkId]).toBe("expired");
+    expect(then[spent.linkId]).toBe("consumed");
+    expect(then[closed.linkId]).toBe("revoked");
+
+    // All four, from one fixture and two clocks.
+    expect(new Set([...Object.values(now), ...Object.values(then)])).toEqual(
+      new Set(["active", "consumed", "expired", "revoked"]),
     );
   });
 

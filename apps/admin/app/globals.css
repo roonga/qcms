@@ -34,7 +34,12 @@
 /* `lib/measure.ts` holds the route-to-cap table (issue 558) and is therefore the
    one module outside `app` and `components` that names a utility class. Without
    it on the scan list Tailwind never emits `max-w-measure-wide` and the cap
-   silently falls back to the element's fluid width. */
+   silently falls back to the element's fluid width.
+
+   THAT OMISSION IS SILENT, which is why it is now a gate rather than a habit
+   (issue 591): `scripts/check-tailwind-sources.mjs` fails when any bundled source
+   file of either app sits outside every `@source` root here, so the next new
+   directory is a red rather than an element that renders unstyled. */
 @source "../lib";
 @source "../../../packages/ui/src";
 

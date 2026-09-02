@@ -318,6 +318,13 @@ jobs:
       - run: pnpm check:lint-coverage
         if: env.PLAN_ONLY != 'true'
 
+      # Prove that no bundled app module sits outside its stylesheet's Tailwind
+      # `@source` list (issue #591). A class named only in an unscanned file compiles
+      # to nothing, with a green build, a green typecheck and a green lint, so this is
+      # the only place that omission is ever loud.
+      - run: pnpm check:tailwind-sources
+        if: env.PLAN_ONLY != 'true'
+
       # The gate on the two lists above (issue #463). `check:all` in package.json and
       # the steps in this file are the same set, maintained by hand in two places, and
       # they have drifted three times. This step names any check that is in one list

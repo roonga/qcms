@@ -27,6 +27,11 @@
  * `@source` tells Tailwind where the utility-class strings live: the portal's own
  * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
  * because they sit under node_modules-equivalent workspace paths.
+ *
+ * A DIRECTORY MISSING FROM THAT LIST FAILS SILENTLY (issue 591): the class compiles to
+ * nothing, the build succeeds, the typecheck and the lint pass, and the element renders
+ * unstyled. `scripts/check-tailwind-sources.mjs` is the gate that makes the next omission
+ * loud; it is what found `lib/` below still missing here after 558 added it to the app.
  */
 @import "tailwindcss";
 @import "../../../packages/ui/src/theme.css";
@@ -36,6 +41,14 @@
 
 @source "../app";
 @source "../components";
+/* `lib/ui.ts` holds the class strings for the portal's OWN chrome buttons (Continue,
+   Back, Start) rather than the vendored controls, and it was outside this list: six of
+   its utilities - the control radius, the control min-height, the control padding, the
+   focus ring, its offset and the secondary button's border - appear nowhere else in a
+   scanned file and were therefore compiling to nothing. Found by
+   `scripts/check-tailwind-sources.mjs`, which is the same omission issue 558 hit in the
+   QCMS app. */
+@source "../lib";
 @source "../../../packages/ui/src";
 
 /*

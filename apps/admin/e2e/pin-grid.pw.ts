@@ -16,8 +16,9 @@ import {
   pinQuestion,
   pinRowMenuItem,
   pinnedOrder,
+  savedStamp,
   usePinRowMenu,
-  waitForSaved,
+  waitForSaveAfter,
 } from "./support/forms.js";
 
 /**
@@ -99,6 +100,23 @@ import {
  * puts the order back, the insert adds the fourth pin the remove takes out again. That is
  * cheaper than rebuilding a four-question library per test by a wide margin, and it reads
  * as one author's session, which is what it is.
+ *
+ * ## Every test ends anchored on ITS OWN final edit (issue 754)
+ *
+ * Serial tests that share one form make the next `page.goto` the deadline for the previous
+ * test's autosave, so each one has to prove its last gesture reached the server rather than
+ * that a save happened at some point. `waitForSaved` cannot say that after the first save
+ * of a visit: "Last saved ..." from an earlier gesture satisfies it immediately, so it
+ * settles rather than waits and the debounce behind the real edit is still in flight when
+ * the next test navigates. That is the weaker form of the race issues 748 and 750 were, and
+ * PR 753 fixed it in the shared helper by pairing `savedStamp` (which settles the strip
+ * BEFORE reading a baseline) with `waitForSaveAfter` (which watches `data-saved-at` move
+ * off it). Every test below takes the baseline before its last edit and waits for the
+ * instant to move afterwards.
+ *
+ * The last test is the exception, and deliberately so: unpinning the only question on a
+ * step leaves an unsaveable draft, so what it waits for is the builder saying autosave is
+ * PAUSED. Waiting for a save there would wait for something that is never coming.
  */
 
 const EMAIL = uniqueAdminEmail("pingrid");
@@ -165,8 +183,12 @@ test("authors the library and the step the rest of this file edits", async ({ pa
   await addStep(page, "Driving history");
   await pinQuestion(page, COVER_ID, 1);
   await pinQuestion(page, COUNT_ID, 1);
+  // The baseline is taken with the two pins above already stored, so the wait below can
+  // only be satisfied by the third one. Taken before the edit rather than after it, which
+  // is the whole of the 753 pairing.
+  const beforeLastPin = await savedStamp(page);
   await pinQuestion(page, NOTES_ID, 1);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeLastPin);
 
   expect(await pinnedOrder(page)).toEqual([COVER_ID, COUNT_ID, NOTES_ID]);
 });
@@ -289,9 +311,12 @@ test("keyboard reorder still works, and the grip keeps focus across the move", a
   // And back where it started, by the menu's single-pointer path rather than by the keys.
   await usePinRowMenu(page, COVER_ID, "moveUp");
   await expect.poll(async () => pinnedOrder(page)).toEqual([COUNT_ID, COVER_ID, NOTES_ID]);
+  const beforeLastMove = await savedStamp(page);
   await usePinRowMenu(page, COVER_ID, "moveUp");
   await expect.poll(async () => pinnedOrder(page)).toEqual([COVER_ID, COUNT_ID, NOTES_ID]);
-  await waitForSaved(page);
+  // The order the next test opens on is the one this last move made, so it is that move
+  // the next navigation has to be behind rather than any of the three before it.
+  await waitForSaveAfter(page, beforeLastMove);
 });
 
 test("insert below pins into the slot it named, not onto the end", async ({ page }) => {
@@ -299,6 +324,9 @@ test("insert below pins into the slot it named, not onto the end", async ({ page
   await signInWithTotp(page, EMAIL, totpSecret);
   await openBuilder(page);
 
+  // Nothing has been edited yet this visit, so this is the visit's own baseline: on a
+  // fresh load `data-saved-at` is absent and `savedStamp` returns "".
+  const beforeInsert = await savedStamp(page);
   await usePinRowMenu(page, COVER_ID, "insertBelow");
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -310,7 +338,8 @@ test("insert below pins into the slot it named, not onto the end", async ({ page
   await expect
     .poll(async () => pinnedOrder(page))
     .toEqual([COVER_ID, EXTRA_ID, COUNT_ID, NOTES_ID]);
-  await waitForSaved(page);
+  // The next test removes this pin, so it has to be on the server before that test loads.
+  await waitForSaveAfter(page, beforeInsert);
 });
 
 test("remove takes the pin out and leaves focus on a neighbouring grip", async ({ page }) => {
@@ -318,13 +347,15 @@ test("remove takes the pin out and leaves focus on a neighbouring grip", async (
   await signInWithTotp(page, EMAIL, totpSecret);
   await openBuilder(page);
 
+  const beforeRemove = await savedStamp(page);
   await usePinRowMenu(page, EXTRA_ID, "remove");
   await expect.poll(async () => pinnedOrder(page)).toEqual([COVER_ID, COUNT_ID, NOTES_ID]);
 
   // Not `<body>`: a removed row takes the focused element with it, and the browser's
   // default is to strand a keyboard operator at the top of the document.
   await expect(pinGrip(page, COVER_ID)).toBeFocused();
-  await waitForSaved(page);
+  // After the focus assertion, because the wait crosses to the form screen and back.
+  await waitForSaveAfter(page, beforeRemove);
 });
 
 test("the version pin is operable at 390, and the page never scrolls sideways", async ({
@@ -345,12 +376,13 @@ test("the version pin is operable at 390, and the page never scrolls sideways", 
   await expect(page.getByRole("columnheader", { name: "Issues" })).toBeHidden();
   await expect(page.getByRole("columnheader", { name: "Version" })).toBeVisible();
 
+  const beforeVersionMove = await savedStamp(page);
   const trigger = page.getByRole("button", { name: `Move pin for ${COVER_ID}` });
   await expect(trigger).toBeVisible();
   await trigger.click();
   await page.getByRole("menuitem", { name: "Move to v2", exact: true }).click();
   await expect(pinLabel(page, COVER_ID, 2)).toBeVisible();
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeVersionMove);
 
   // Reaching the control by scrolling the page sideways is not "operable at 390": that is
   // SC 1.4.10 Reflow, which axe does not test, so it is measured here.
@@ -367,10 +399,13 @@ test("on a single-pin step, Remove is still reachable with both moves disabled",
   // Its own step rather than unpinning "Driving history" down to one: this runs last, and
   // a step the earlier tests never open cannot change what any of them saw.
   await page.goto(builderPath);
+  // Before the step is added, because an empty step pauses autosave and a baseline taken
+  // during a pause can be waiting on a save the pause already cancelled (issue 569).
+  const beforeExtraPin = await savedStamp(page);
   await addStep(page, "Excess");
   await openStep(page, "Excess");
   await pinQuestion(page, EXTRA_ID, 1);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeExtraPin);
   expect(await pinnedOrder(page)).toEqual([EXTRA_ID]);
 
   // The worst case for roving: the only row is both the first and the last, so TWO
@@ -391,5 +426,13 @@ test("on a single-pin step, Remove is still reachable with both moves disabled",
   // list turns off), so the key that reaches it must also be able to fire it.
   await page.keyboard.press("Enter");
   await expect.poll(async () => pinnedOrder(page)).toEqual([]);
-  await waitForSaved(page);
+
+  // NOT a save wait, and that is the point (issues 569 and 754). Unpinning the only
+  // question leaves a step with no items, which `unsaveableReason` calls `emptyStep` and
+  // the builder answers by pausing autosave rather than posting a draft the API would
+  // refuse. So the outcome of this gesture is the pause, and asserting it is both the
+  // honest end to the test and the place a reader meets the trap.
+  const paused = page.getByTestId("qcms-autosave-paused");
+  await expect(paused).toBeVisible();
+  await expect(paused).toHaveAttribute("data-paused-reason", "emptyStep");
 });

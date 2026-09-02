@@ -12,7 +12,8 @@ import {
   pinQuestion,
   pinQuestions,
   pinnedOrder,
-  waitForSaved,
+  savedStamp,
+  waitForSaveAfter,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
@@ -55,6 +56,19 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * as well. The anchor earns its place twice over: it is also the "Already in this form"
  * refusal, so each test below opens a picker that is already showing one row it cannot
  * choose.
+ *
+ * The trap itself now lives beside `createForm`/`addStep` in `support/forms.ts`, where the
+ * next person to reach for a minimal builder fixture will meet it (issue 569), rather than
+ * only here.
+ *
+ * ## Both saves are anchored on their own edit (issue 754)
+ *
+ * The tests share one form and each begins with a `page.goto`, so a settle-only
+ * `waitForSaved` at the end of a test is a deadline the next navigation can beat: the
+ * strip already says "Last saved" from an earlier gesture, so it returns while the debounce
+ * behind the edit under test is still armed. `savedStamp` before the edit and
+ * `waitForSaveAfter` after it is the pairing PR 753 standardized, and it is what makes the
+ * wait about this test's own work.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -106,11 +120,15 @@ test("authors a library with a two-version question and a step to add into", asy
 
   await createForm(page, `picker-multi-${RUN}`, "Multi select");
   builderPath = new URL(page.url()).pathname;
+  // Before the step, not after it: an empty step pauses autosave, and a baseline read
+  // during a pause can be waiting on a save the pause already cancelled (issue 569). On a
+  // form this new it is "" either way, because nothing has been stored this visit.
+  const beforeAnchor = await savedStamp(page);
   await addStep(page, "Only step");
   // The anchor, without which the step is an unsaveable draft and does not survive the
   // navigations the rest of this file makes.
   await pinQuestion(page, ANCHOR_ID, 1);
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeAnchor);
 });
 
 test("counts what is chosen, on the tally and on the button that will commit it", async ({
@@ -224,6 +242,9 @@ test("adds three questions in one trip, in the order they were chosen", async ({
   await page.goto(builderPath);
   await openStep(page, "Only step");
 
+  // Before the batch, so the wait afterwards can only be satisfied by the batch itself.
+  const beforeBatch = await savedStamp(page);
+
   // THE POINT OF THE ISSUE. Before this, three questions meant opening the dialog three
   // times. `pinQuestions` opens it once, ticks three boxes and presses one button.
   await pinQuestions(page, [
@@ -242,7 +263,7 @@ test("adds three questions in one trip, in the order they were chosen", async ({
     .poll(async () => pinnedOrder(page))
     .toEqual([ANCHOR_ID, GAMMA_ID, ALPHA_ID, BETA_ID]);
   await expect(pinLabel(page, ALPHA_ID, 2)).toBeVisible();
-  await waitForSaved(page);
+  await waitForSaveAfter(page, beforeBatch);
 
   // A question now in the form is refused for a second pin, exactly as it was before.
   await page.getByRole("button", { name: "Add question from library" }).click();
