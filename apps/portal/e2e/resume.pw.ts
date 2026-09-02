@@ -253,3 +253,69 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
     await db.close();
   }
 });
+
+/**
+ * Issue #151: a step containing a NumberField survives a RELOAD without a React
+ * hydration mismatch.
+ *
+ * The gate has always been armed - `gates.ts` fails any spec that logs a console
+ * error, and a hydration mismatch is one - but no spec had ever reloaded a step
+ * with a NumberField on it. Every path above reaches the number question by
+ * NAVIGATION (Continue), and a navigation does not hydrate a fresh document, so
+ * the situation that trips the gate simply never occurred. That blind spot is what
+ * this test closes; it is the assertion whose absence hid the defect.
+ *
+ * The reload has to land on the number's own step, which `/s/:id` decides by
+ * serving the first INCOMPLETE step. So the boolean is answered (revealing the
+ * number follow-up), the number is answered, and the required multiChoice beside
+ * them is left as the gap: step 2 is therefore where the reload resumes, with the
+ * NumberField rendered from the server's stored answer.
+ *
+ * The mismatch itself was `role` and the four `aria-value*` attributes arriving as
+ * null in the server render. Its cause was two copies of react-aria-components in
+ * the portal's closure (1.19.0 transitively through @a2ra/core, 1.20.0 direct),
+ * which is two SSR id and context providers; the a2ra pin move deduplicated them.
+ */
+test("reloading a step that contains a NumberField hydrates without a mismatch", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { kitchenSinkSlug } = readFixtures();
+
+  await startKitchenSink(page, kitchenSinkSlug);
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990");
+  await continueStep(page);
+
+  await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+  await answerNumber(page, "2");
+  // q_optional_cover (required) is deliberately left unanswered, so this step is
+  // still the first incomplete one and the reload comes back to it.
+
+  const log = watchAnswerPosts(page);
+  await resume(page);
+
+  // The NumberField is present on the hydrated document and shows what the server
+  // holds. Without this the test could pass on a step that never rendered one.
+  const count = page.getByRole("textbox", { name: KS.count });
+  await expect(count).toBeVisible();
+  await expect(count).toHaveValue("2");
+
+  // The mismatch was reported on `role` and the four `aria-value*` attributes, and
+  // the SSR markup genuinely LACKS them rather than carrying different values:
+  // react-aria attaches the spinbutton semantics from an effect, which never runs
+  // on the server. Which of those five a browser ends up with is react-aria's
+  // decision and varies by pointer type, so this spec does not pin the set - it
+  // pins that the field is labelled and reads back its stored answer, and leaves
+  // the mismatch itself to the console gate below.
+  await expect(count).toHaveAccessibleName(KS.count);
+
+  // Rendering a resumed step posts nothing (the #146 property, re-asserted here
+  // because this reload lands on a step no other test resumes onto).
+  expect(log).toEqual([]);
+
+  // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
+  // any console error, and "A tree hydrated but some attributes of the server
+  // rendered HTML didn't match the client properties" is one. There is deliberately
+  // no allowlist entry for it (#151 forbids silencing rather than fixing).
+});

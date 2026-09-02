@@ -1,4 +1,4 @@
-import { type DateValue, parseDate } from "@internationalized/date"
+import type { DateValue } from "@internationalized/date"
 import { useContext, useEffect } from "react"
 import {
 	Button,
@@ -11,7 +11,7 @@ import {
 	DatePicker as RACDatePicker,
 } from "react-aria-components"
 import { FormStateContext } from "../../form-state"
-import { CalendarNavigation, PickerHelpText } from "./date-picker.shared"
+import { CalendarNavigation, PickerHelpText, parseDateOrNull } from "./date-picker.shared"
 import { getDatePickerStyles } from "./date-picker.styles"
 
 interface DatePickerProps {
@@ -30,7 +30,7 @@ interface DatePickerProps {
 	readonly firstDayOfWeek?: "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat"
 	readonly validationBehavior?: "aria" | "native"
 	readonly validate?: (value: DateValue | null) => string | string[] | true | null | undefined
-	readonly value?: string
+	readonly value?: string | null
 	readonly defaultValue?: string
 	readonly minValue?: string
 	readonly maxValue?: string
@@ -71,10 +71,10 @@ export function DatePicker({
 
 	return (
 		<RACDatePicker
-			value={value ? parseDate(value) : undefined}
-			defaultValue={defaultValue ? parseDate(defaultValue) : undefined}
-			minValue={minValue ? parseDate(minValue) : undefined}
-			maxValue={maxValue ? parseDate(maxValue) : undefined}
+			value={value === undefined ? undefined : parseDateOrNull(value)}
+			defaultValue={parseDateOrNull(defaultValue) ?? undefined}
+			minValue={parseDateOrNull(minValue) ?? undefined}
+			maxValue={parseDateOrNull(maxValue) ?? undefined}
 			name={name}
 			isDisabled={isDisabled}
 			isRequired={isRequired}
@@ -94,7 +94,17 @@ export function DatePicker({
 			onOpenChange={onOpenChange}
 			className={styles.root}
 		>
-			{label && <Label className={styles.label}>{label}</Label>}
+			{label && (
+				<Label className={styles.label}>
+					{label}
+					{isRequired && (
+						<span aria-hidden="true" className={styles.requiredIndicator}>
+							{" "}
+							*
+						</span>
+					)}
+				</Label>
+			)}
 			<Group className={styles.group}>
 				<DateInput className={styles.input}>
 					{(segment) => <DateSegment segment={segment} className={styles.segment} />}

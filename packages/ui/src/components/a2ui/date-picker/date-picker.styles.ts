@@ -1,6 +1,7 @@
 export const getDatePickerStyles = () => ({
 	root: "flex flex-col gap-1",
 	label: "text-sm font-medium text-(--color-text)",
+	requiredIndicator: "text-(--color-danger)",
 	group: [
 		"flex items-center border border-(--color-border) rounded px-2 py-1 gap-1",
 		"bg-(--color-surface)",

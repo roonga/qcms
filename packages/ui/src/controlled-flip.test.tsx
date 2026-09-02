@@ -129,7 +129,7 @@ describe("answering a control does not flip it between controlled and uncontroll
     expect(flips).toEqual([]);
   });
 
-  it("DatePicker: the one documented exception, and it never displays a stale value", async () => {
+  it("DatePicker: no longer the exception, and it never displays a stale value", async () => {
     const user = userEvent.setup();
     render(<ControlledHost document={stepAbout} />);
 
@@ -137,16 +137,18 @@ describe("answering a control does not flip it between controlled and uncontroll
     month.focus();
     await user.keyboard("05171990");
 
-    // The vendored DatePicker collapses every empty spelling to `undefined`
-    // (`value ? parseDate(value) : undefined`), so an unanswered date IS
-    // uncontrolled and the first complete value flips it once. That single
-    // transition is benign: the value react-stately adopts is the one it just
-    // reported. The harm the flip could do (react-aria redisplaying its own value
-    // in place of the parent's) is prevented by the adapter's remount key, asserted
-    // in the re-target suite below and in `date-retraction.test.tsx`. Removing this
-    // last transition needs `value: string | null` in the vendored component
-    // (upstream, then a re-vendor), which ADR-22 keeps out of this repo.
-    expect(flips).toEqual(["WARN: A component changed from uncontrolled to controlled."]);
+    // This assertion read `["WARN: A component changed from uncontrolled to
+    // controlled."]` until the a2ra pin move that carried issues #148 and #549.
+    // The vendored DatePicker used to collapse every empty spelling to `undefined`
+    // (`value ? parseDate(value) : undefined`), so an unanswered date WAS
+    // uncontrolled and the first complete value flipped it once. Upstream now
+    // accepts `value: string | null` and passes it through, so the adapter's
+    // `NO_SELECTION` reaches react-aria and the date is controlled from the first
+    // render. The harm the flip could have done (react-aria redisplaying its own
+    // value in place of the parent's) is still separately prevented by the
+    // adapter's remount key, asserted in the re-target suite below and in
+    // `date-retraction.test.tsx`.
+    expect(flips).toEqual([]);
   });
 });
 

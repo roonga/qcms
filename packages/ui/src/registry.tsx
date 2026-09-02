@@ -136,14 +136,15 @@ function absentIfNoSelection(values: readonly string[]): readonly string[] | und
  *   `selectedKey != null`, so `null` is never looked up as a key, whereas `""` is
  *   an invalid one.
  *
- * The vendored prop types narrow `value` to `string` while passing it straight
- * through to the react-aria-components control, whose own contract is
- * `string | null`; ADR-22 keeps the vendored files byte-identical, so the null
- * travels through one cast here instead of a component edit. The DatePicker cannot
- * take this route: its vendored body is `value ? parseDate(value) : undefined`, so
- * every empty spelling collapses to `undefined` there (see `DatePickerField`).
+ * The vendored prop types used to narrow `value` to `string` while passing it
+ * straight through to the react-aria-components control, whose own contract is
+ * `string | null`, so the null travelled through a `null as unknown as string`
+ * cast here rather than a vendored edit ADR-22 forbids. Upstream now accepts
+ * `string | null` on all three controls (issue #148), and the DatePicker no longer
+ * collapses every empty spelling to `undefined` internally (issue #549), so the
+ * cast is gone and all three take this constant directly.
  */
-const NO_SELECTION = null as unknown as string;
+const NO_SELECTION = null;
 
 /**
  * The hidden companion that tags one answer field with its transport kind, so the
@@ -215,11 +216,15 @@ function FieldBlur({
  *
  * Keying by questionId makes that re-target a remount, so no control's internal
  * state outlives the question it belongs to. The key is stable for the life of a
- * question, so nothing remounts while the respondent is answering, and a control
- * compiled without a questionId keys as `undefined`, exactly as it reconciled
- * before. Where a remount does cost focus (a question removed above the focused
- * one), the host already restores it - see `recoverFocus` in the portal's step flow
- * (030).
+ * question, so nothing remounts while the respondent is answering. Where a remount
+ * does cost focus (a question removed above the focused one), the host already
+ * restores it - see `recoverFocus` in the portal's step flow (030).
+ *
+ * A control compiled without a questionId (never a real question, but the props
+ * type allows it) keys as `undefined` for the plain `key={props.name}` adapters,
+ * exactly as it reconciled before. The DatePicker's key is composite, so the same
+ * control keys as the string `"undefined:0"` there; both are stable, which is all
+ * the key has to be (Copilot nit on #149, carried through #148).
  */
 
 type TextFieldProps = NonNullable<TextFieldNode["props"]>;
@@ -356,20 +361,17 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
   const modeProps: Partial<ComponentProps<typeof DatePicker>> = native
     ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
     : {
-        // The one control that cannot take `NO_SELECTION`: the vendored body is
-        // `value ? parseDate(value) : undefined`, so every empty spelling arrives at
-        // react-aria as `undefined` (uncontrolled) no matter what is passed here.
-        // A date with no answer is therefore uncontrolled until the first complete
-        // value, which is the one remaining controlled/uncontrolled transition at
-        // this seam (issue #144: benign in itself, since the value react-stately
-        // then adopts is the one it just reported through `onChange`). What it must
-        // never do is DISPLAY its own stale value in place of the parent's absence:
-        // the remount key below is what prevents that, both when the respondent
-        // clears the field and when a projection re-targets the control at another
-        // question. Making it genuinely controlled needs a `value: string | null`
-        // pass-through in the vendored component (upstream a2-react-aria, then a
-        // re-vendor), which ADR-22 keeps out of this repo.
-        value: typeof field.value === "string" ? field.value : undefined,
+        // `NO_SELECTION` (null, never "" and never `undefined`) when unanswered, so
+        // the date stays CONTROLLED like every other adapter here. This used to be
+        // the one control that could not take it: the vendored body was
+        // `value ? parseDate(value) : undefined`, which collapsed every empty
+        // spelling to `undefined` (react-stately's uncontrolled path) no matter what
+        // was passed, leaving one uncontrolled-to-controlled flip per answered date at
+        // this seam (issue #144). Issues #148 and #549 fixed that upstream, so an
+        // empty value now reaches react-aria as `null`, and a stored value
+        // `parseDate` cannot parse renders unselected instead of throwing during
+        // render.
+        value: typeof field.value === "string" ? field.value : NO_SELECTION,
         onChange: (s: string) => field.setValue(s === "" ? undefined : s),
       };
   return (
