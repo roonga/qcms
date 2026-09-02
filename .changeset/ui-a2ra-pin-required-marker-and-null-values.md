@@ -32,8 +32,10 @@ to `string` while passing it straight to react-aria-components, whose own contra
 `string | null`, so the adapter's no-selection value travelled through a documented
 double cast. Upstream accepts `string | null` and the cast is gone. The DatePicker also
 stops collapsing every empty spelling to `undefined` internally, so it is now genuinely
-controlled: the last uncontrolled-to-controlled flip at this seam is gone, and
-`controlled-flip.test.tsx` asserts zero warnings where it used to assert one.
+controlled: the last uncontrolled-to-controlled flip at this seam is gone,
+`controlled-flip.test.tsx` asserts zero warnings where it used to assert one, and the
+`WARN: A component changed from uncontrolled to controlled.` entry in the portal's
+forwarded-warning gate is deleted on its own stated removal condition.
 
 **#151, the duplicate react-aria-components.** The portal's closure held two copies
 (1.19.0 transitively through `@a2ra/core`, 1.20.0 direct), which is two SSR id and

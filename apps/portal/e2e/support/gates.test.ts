@@ -492,9 +492,9 @@ describe("the browser gate fails on an unrecognised console.warn (issue #147)", 
 });
 
 /**
- * The two allowlisted shapes, verbatim as a real run emits them. Both strings
- * below were copied from a live capture of a full `pnpm verify:browser` run, so a
- * drift in the upstream wording shows up here as a failing gate rather than as a
+ * The allowlisted shapes, verbatim as a real run emits them. The string below was
+ * copied from a live capture of a full `pnpm verify:browser` run, so a drift in
+ * the upstream wording shows up here as a failing gate rather than as a
  * silently-dead allowlist entry.
  */
 describe("the allowlisted browser shapes stay silent (issue #147)", () => {
@@ -507,18 +507,16 @@ describe("the allowlisted browser shapes stay silent (issue #147)", () => {
     expect(browserConsoleFault("error", text)).toBeNull();
   });
 
-  it("allows the issue #144 DatePicker residue, which arrives as a warning", () => {
+  it("no longer allowlists the issue #144 DatePicker residue (issue #148)", () => {
+    // This case asserted `toBeNull()` while the entry existed. The upstream
+    // `value?: string | null` change landed and was re-vendored, so the adapter
+    // keeps the DatePicker controlled from first render and the warning is not
+    // emitted at all any more. The entry is deleted, and this assertion is the
+    // tripwire that keeps it deleted: were it re-added to silence a recurrence,
+    // this fails rather than the recurrence going quiet (the #147 blind spot).
     expect(
       browserConsoleFault("warning", "WARN: A component changed from uncontrolled to controlled."),
-    ).toBeNull();
-  });
-
-  it("does not allowlist a different uncontrolled-to-controlled warning by accident", () => {
-    // The entry is anchored, so a fault line that merely quotes the allowlisted
-    // sentence is still a fault - the same "no text smuggled in front of the
-    // marker" property #131 established for the server gate's `[browser]` anchor.
-    const line = "Ignored an error: WARN: A component changed from uncontrolled to controlled.";
-    expect(browserConsoleFault("warning", line)).toBe(`console.warning: ${line}`);
+    ).toBe("console.warning: WARN: A component changed from uncontrolled to controlled.");
   });
 });
 
