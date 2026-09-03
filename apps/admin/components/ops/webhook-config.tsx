@@ -119,8 +119,27 @@ export function WebhookConfig({
   }, []);
 
   const copy = useCallback((secret: string) => {
-    void navigator.clipboard
-      .writeText(secret)
+    // THE CALL IS INSIDE THE CHAIN ON PURPOSE, and that is the whole guard.
+    // `navigator.clipboard` is ABSENT in an insecure context and on older engines -
+    // `lib.dom` says otherwise, which is why nothing here is typed for it - so reading
+    // `.writeText` off it throws a `TypeError` synchronously. Called bare, that throw
+    // happens before any promise exists, the `.catch` below never runs, and the failure
+    // leaves the panel via an uncaught exception: no note, no error, nothing said, on the
+    // one value in this app that is shown exactly once and can never be produced again
+    // (SEC-6).
+    //
+    // Inside a `.then`, a synchronous throw BECOMES a rejection, so an absent clipboard,
+    // an engine that refuses the call, and a write the browser rejects all arrive at the
+    // same `.catch`. This is the shape `public-form-link.tsx` and `secure-links.tsx`
+    // already carry, and both of them write out this reasoning; this call site was the one
+    // that still had the unguarded form. Found by the jsdom component layer added for
+    // issue #352, which is exactly the class of defect it was added to make visible.
+    //
+    // Not a `try` around the call: `sonarjs/no-try-promise` refuses it and is right to,
+    // since a `try` catches the synchronous half and silently lets the asynchronous half
+    // past.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(secret))
       .then(() => {
         setCopyNote(t("ops.common.copied"));
       })
