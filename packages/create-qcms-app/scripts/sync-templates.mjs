@@ -1271,7 +1271,13 @@ export function buildTemplates() {
  */
 const COMPOSE_DOCKERFILE = /^[ \t]*dockerfile:[ \t]*(\S+)[ \t]*$/gm;
 
-/** A host path bind-mounted into a container: `- ./x/y:/somewhere`. */
+/**
+ * A host path bind-mounted into a container, as in
+ * `- ./docker/Caddyfile:/etc/caddy/Caddyfile:ro`.
+ *
+ * The example is spelled out rather than abbreviated because a short one reads as a
+ * Windows drive letter to `check:paths`, which is right to say so.
+ */
 const COMPOSE_BIND_MOUNT = /^[ \t]*-[ \t]+\.\/([^\s:]+):\S/gm;
 
 /**
