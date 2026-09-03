@@ -9,6 +9,14 @@ reviewer friction; task 032 is where it starts existing.
 Refresh this file whenever `a2ra.json`'s pin moves or a component is added, overwritten
 or upgraded. It is evidence, not configuration: nothing reads it.
 
+**Since issue #189 it is no longer the only evidence.** `pnpm check:a2ra-fidelity` compares
+every file in the vendored tree against `packages/ui/a2ra-manifest.json`, a record of
+upstream's own content at the pinned commit, and runs inside `pnpm verify` and CI without
+touching the network. Refresh the manifest in the same change as this transcript
+(`node scripts/check-a2ra-fidelity.mjs --refresh`). The two are not redundant: the gate
+answers "do the bytes still match" on every run, and this file answers "what moved at the
+pin, and what did a human check" once per pin move.
+
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
   `075c3a9324e146a4701d1c47a5cfcc0afccc2f7b`
 - **Previous pin**: `924eac1a04c86fcf0945859ade3de14af3ba7ce7`

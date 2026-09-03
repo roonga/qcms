@@ -94,6 +94,8 @@ import { join } from "node:path";
 import { argv } from "node:process";
 import { pathToFileURL } from "node:url";
 
+import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
+
 // Node on Windows won't resolve `git` -> `git.exe` via execFile without a shell.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
@@ -226,10 +228,16 @@ export function resolvedVersions(lock) {
  * Tracked text files this gate reads. Vendored upstream components are excluded, as
  * they are from every other scan here: their contents are not ours to edit.
  *
+ * The exclusion is `scripts/vendored-source.mjs`'s single definition. It was written
+ * here as the whole of `packages/ui/src/components/`, the same directory-too-wide
+ * spelling issue #775 found in four other gates; this one was not named there and is
+ * corrected in the same pass, since five gates disagreeing about one path is the defect
+ * rather than four.
+ *
  * @returns {string[]}
  */
 function tracked() {
-  const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, ":!packages/ui/src/components/**"], {
+  const out = execFileSync(GIT, ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC], {
     cwd: REPO_ROOT,
     encoding: "utf8",
   });

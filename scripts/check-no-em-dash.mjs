@@ -10,7 +10,8 @@
  * always fine.
  *
  * Deny-by-default over tracked prose/source/config: .md .ts .tsx .js .jsx .mjs
- * .cjs .yml .yaml .sh (vendored a2ra components excluded). This file references
+ * .cjs .yml .yaml .sh (the vendored a2ra component copy excluded, and only that
+ * subtree rather than its QCMS-owned siblings - issue #775). This file references
  * the banned glyph only via its codepoint, so it scans cleanly over itself.
  *
  * NOT covered: .json. The append-only golden corpus (ADR-18) contains em dashes
@@ -22,6 +23,8 @@
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+
+import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 
 // Node on Windows won't resolve `git` -> `git.exe` via execFile without a shell.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
@@ -43,7 +46,7 @@ const GLOBS = [
 function tracked() {
   const out = execFileSync(
     GIT,
-    ["ls-files", "-z", ...GLOBS, ":!packages/ui/src/components/**", ":!plan/**"],
+    ["ls-files", "-z", ...GLOBS, VENDORED_SOURCE_PATHSPEC, ":!plan/**"],
     { encoding: "utf8" },
   );
   return out.split("\0").filter((p) => p !== "");

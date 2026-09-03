@@ -102,18 +102,37 @@ updates:
     groups:
       base-images:
         patterns: ["*"]
+    ignore:
+      # Digest refreshes and minor moves only; a base-image MAJOR is done by hand
+      # (issue #787). The first PR this ecosystem ever opened was #777, proposing
+      # node:24 -> 26-bookworm-slim, and it was red on arrival: Node 26 images no
+      # longer ship corepack and all three Dockerfiles `RUN corepack enable`. It
+      # also crosses the documented `engines >=24` floor, which is a decision about
+      # what QCMS supports rather than a dependency bump. A runtime major changes
+      # what is inside the image, so it belongs with the engines move and the
+      # `@types/node` bump above, in one deliberate change.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   # Compose images are a SEPARATE ecosystem from `docker` (GA 2025-02-25), so the
   # entry above does not see them. This one covers the image references in the
   # committed Compose files.
   #
-  # Its reach is smaller than it looks, and that is worth writing down here rather
-  # than rediscovering it from an empty PR queue: most references are written
-  # `${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}` so an operator can point them at a
-  # mirror (issue #74), and a variable-substituted reference is not something
-  # Dependabot resolves. `docker-compose.dev.yml` names `postgres:16-alpine`
-  # literally and is the one this tracks today. Whether the others should lose
-  # their override to gain coverage is a deployment decision this file does not
-  # make; #372 item 4 holds it.
+  # Its reach was recorded here as smaller than it is, and the correction matters
+  # more than the original note did (issue #787). This comment used to say that a
+  # variable-substituted reference written `${QCMS_POSTGRES_IMAGE:-postgres:16-alpine}`
+  # for the #74 mirror override "is not something Dependabot resolves", and that
+  # `docker-compose.dev.yml`'s literal was therefore the only image tracked. **PR #776
+  # falsified that**: it moved four references across three Compose files, and three of
+  # the four were the variable-default form. Dependabot reads through `${VAR:-...}` and
+  # rewrites the default.
+  #
+  # So the real reach is every image reference in the committed Compose files, and the
+  # real limit is a different one: the tag lives in about two dozen places in this
+  # repository, most of them outside Compose entirely - the Testcontainers harness
+  # default, the #74 GHCR mirror workflow, `scripts/env-reference.mjs`, `docs/`. A
+  # Compose-only bump therefore SPLITS the pin rather than moving it, which is half of
+  # why #776 was closed. #372 item 4 still holds the question of whether the overrides
+  # should go.
   - package-ecosystem: docker-compose
     directory: /
     schedule:
@@ -122,3 +141,12 @@ updates:
     groups:
       compose-images:
         patterns: ["*"]
+    ignore:
+      # Digest refreshes and minor moves only; a major is done by hand (issue #787).
+      # The other half of why #776 was closed: Postgres 16 -> 18 is not an in-place
+      # upgrade for an existing volume, it needs pg_upgrade or a dump and restore, and
+      # an automated PR that silently changes the data directory format of every
+      # developer's and operator's stack is not a dependency bump. Combined with the
+      # split above, a Compose-only major is wrong twice over.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

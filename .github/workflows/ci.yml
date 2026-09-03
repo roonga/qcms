@@ -278,6 +278,20 @@ jobs:
       - run: pnpm check:ports
         if: env.PLAN_ONLY != 'true'
 
+      # No machine-specific path in committed content (issue #268). The rule is as old
+      # as the port rule and decayed the same way: it existed only in prose, so PR #265
+      # shipped 21 fixtures naming one developer's home directory and an automated
+      # reviewer, not a gate, is what caught them. The repository is public.
+      - run: pnpm check:paths
+        if: env.PLAN_ONLY != 'true'
+
+      # ADR-22 vendoring fidelity (issue #189): every file under the vendored
+      # a2-react-aria tree hashes to upstream's content at the commit a2ra.json pins.
+      # Offline by construction - it compares against a manifest generated from upstream
+      # at vendor time - so it needs no network here and cannot pass by skipping.
+      - run: pnpm check:a2ra-fidelity
+        if: env.PLAN_ONLY != 'true'
+
       # SEC-8 secret and log hygiene plus the SEC-12 injection note (task 040):
       # no logger call site passes respondent answer content, no committed
       # `.env*.example` carries a live-looking secret, and no SQL is built by

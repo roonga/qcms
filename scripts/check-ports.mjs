@@ -85,6 +85,7 @@ import {
   harnessPorts,
   stablePort,
 } from "./ports.mjs";
+import { VENDORED_SOURCE_PATHSPEC } from "./vendored-source.mjs";
 
 const GIT = "git";
 
@@ -111,8 +112,14 @@ const GLOBS = [
   ".env.example",
 ];
 
-/** Areas the other gates also skip: vendored upstream code and the scratch area. */
-const EXCLUDES = [":!packages/ui/src/components/**", ":!plan/**"];
+/**
+ * Areas the other gates also skip: vendored upstream code and the scratch area.
+ *
+ * The vendored half is `scripts/vendored-source.mjs`'s single definition, not a path
+ * typed here. It used to exclude the whole of `packages/ui/src/components/`, which is
+ * four QCMS-owned subtrees wider than the upstream copy (issue #775).
+ */
+const EXCLUDES = [VENDORED_SOURCE_PATHSPEC, ":!plan/**"];
 
 /**
  * Ports that are legitimately not ours, pinned to the file that may say so.

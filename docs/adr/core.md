@@ -220,7 +220,7 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Decision.** Both frontends use `a2-react-aria`: `@a2ra/core` is exact-pinned and components are vendored into `@qcms/ui`. No competing component library is allowed. Upgrades are reviewed events and must preserve golden-document conformance.
 
-**Note.** The competing-library lint fence covers `packages/ui` only; the apps hold the rule by consuming `@qcms/ui/kit`. Vendor-tree fidelity is a reviewed artifact (`packages/ui/a2ra-diff.md`), not an automated gate.
+**Note.** The competing-library lint fence covers `packages/ui` only; the apps hold the rule by consuming `@qcms/ui/kit`. **Vendor-tree fidelity became an automated gate on 2026-09-03 (issue #189)**, so the clause that stood here calling it a reviewed artifact and not a gate is corrected rather than left standing: `pnpm check:a2ra-fidelity` compares every file under `src/components/a2ui/` against `packages/ui/a2ra-manifest.json`, a record of upstream's content at the pinned commit, on every `pnpm verify` and in CI, offline. `packages/ui/a2ra-diff.md` remains the reviewed artifact beside it, refreshed at each pin move; the gate is what holds on the days in between. The decision is unchanged - this note records how it is enforced.
 
 ### ADR-26 - Different frontend decisions by surface
 

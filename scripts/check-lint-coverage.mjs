@@ -17,9 +17,10 @@ import { pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { getFileInfo } from "prettier";
 
+import { isVendoredSource } from "./vendored-source.mjs";
+
 /** Extensions ESLint is configured to parse in this workspace. */
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
-const VENDORED_SOURCE_PREFIX = "packages/ui/src/components/a2ui/";
 
 /**
  * Flags that consume the token after them, which would otherwise be read as a file
@@ -68,10 +69,14 @@ export function trackedMarkdownFiles() {
   return splitZ(git(["ls-files", "-z", "*.md"])).sort((a, b) => (a < b ? -1 : 1));
 }
 
-/** Only the byte-for-byte upstream a2ra component copy may bypass ESLint. */
-export function isVendoredSource(file) {
-  return file.startsWith(VENDORED_SOURCE_PREFIX);
-}
+/**
+ * Only the byte-for-byte upstream a2ra component copy may bypass ESLint.
+ *
+ * Re-exported rather than defined here since issue #775: this gate drew the line
+ * correctly and four others drew it a directory too wide, so the prefix now lives in
+ * `scripts/vendored-source.mjs` and every gate reads the same one.
+ */
+export { isVendoredSource };
 
 /** @returns {string[]} every tracked package.json, repo-relative. */
 export function trackedManifests() {

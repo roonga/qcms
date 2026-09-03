@@ -32,6 +32,7 @@ import { argv } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
+import { VENDORED_SOURCE_PATTERN } from "./vendored-source.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
@@ -43,8 +44,14 @@ const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 const TEXT_FILES =
   /\.(md|markdown|ts|tsx|mts|cts|js|jsx|mjs|cjs|json|ya?ml|sh|css|html|txt|sql|toml|Dockerfile)$|(^|\/)(Dockerfile|\.env[^/]*)$/i;
 
-/** Areas the other gates also skip: vendored upstream code kept byte-for-byte. */
-const EXCLUDED = /^packages\/ui\/src\/components\//;
+/**
+ * Areas the other gates also skip: vendored upstream code kept byte-for-byte.
+ *
+ * The single definition in `scripts/vendored-source.mjs`, not a path typed here. This
+ * used to exclude the whole of `packages/ui/src/components/`, four QCMS-owned subtrees
+ * wider than the upstream copy (issue #775).
+ */
+const EXCLUDED = VENDORED_SOURCE_PATTERN;
 
 const LT = "<";
 const CLOSE = `${LT}/`;
