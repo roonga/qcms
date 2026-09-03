@@ -8,7 +8,7 @@ import { focusPostAction } from "@/lib/ops/post-action-focus";
 import type { DeadLetterItem } from "@/lib/ops/types";
 import { unexpected } from "@/lib/ops/unexpected";
 import type { ReadState } from "@/lib/read-state";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 
 /** The outcome of one redelivery request, or of a batch of them. */
@@ -225,7 +225,10 @@ export function DeadLetters({
                         </code>
                       </td>
                       <td className="qcms-cell--num">
-                        {formatDateTime(row.deadLetteredAt, t("ops.common.none"))}
+                        <OperatorDateTime
+                          iso={row.deadLetteredAt}
+                          fallback={t("ops.common.none")}
+                        />
                       </td>
                       <td>
                         <Button

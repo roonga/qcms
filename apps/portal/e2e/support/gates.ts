@@ -538,22 +538,29 @@ function tick(ms: number): Promise<void> {
  * only job is noticing browser-side faults that is the quiet direction: the suite
  * goes green and nothing says otherwise.
  *
- * Two steps, and they are not the same kind of thing:
+ * Three steps, of two different kinds - one guaranteed, one merely bounded - which
+ * is why they are numbered here rather than described as a single settle:
  *
- * 1. **A page round trip is a real flush, not a hope.** Chromium delivers a
- *    session's events and its command responses over one ordered pipe, so an event
- *    the browser generated before we issued `page.evaluate` is dispatched ahead of
- *    that call's reply. Awaiting one therefore guarantees every console message and
- *    page error generated so far has already reached the handlers above. Two round
- *    trips are needed, not one: the first also flushes the `request` events for a
- *    fetch the test's last gesture had just issued, which is what makes the pending
- *    set below complete.
- * 2. **Draining the pending requests is a bound, not a guarantee.** A fault the
- *    page has not generated yet cannot be flushed by anything, and the common shape
- *    of exactly that is a fire-and-forget post whose non-2xx response has not
- *    arrived (the #122 answer post, and the probe above). Waiting for the requests
- *    that were in flight is what makes those faults exist in time to be flushed by
- *    step 3, and a round-trip-only settle was measured NOT to fix the probe.
+ * 1. **A page round trip, which is a real flush rather than a hope.** Chromium
+ *    delivers a session's events and its command responses over one ordered pipe, so
+ *    an event the browser generated before we issued `page.evaluate` is dispatched
+ *    ahead of that call's reply. Awaiting one therefore guarantees every console
+ *    message and page error generated so far has already reached the handlers above.
+ *    It does a second job too: it flushes the `request` events for a fetch the
+ *    test's last gesture had just issued, which is what makes step 2's pending set
+ *    complete rather than short.
+ * 2. **Draining the pending requests, which is a bound and not a guarantee.** A
+ *    fault the page has not generated yet cannot be flushed by anything, and the
+ *    common shape of exactly that is a fire-and-forget post whose non-2xx response
+ *    has not arrived (the #122 answer post, and the probe above). Waiting for the
+ *    requests that were in flight is what makes those faults exist in time to be
+ *    flushed at all - bounded by {@link REQUEST_SETTLE_BUDGET_MS}, because a request
+ *    still open after it is not going to be closed by waiting longer.
+ * 3. **A second page round trip**, which is step 1 again and for step 1's reason:
+ *    the faults step 2 waited into existence still have to be dispatched before a
+ *    verdict is read. This is the step that does the work, and it is why a
+ *    round-trip-only settle (steps 1 and 3 with no drain between them) was measured
+ *    NOT to fix the probe.
  *
  * **The residual window**, stated plainly rather than implied away: a fault whose
  * cause starts after the drain (a timer the page scheduled, a retry, a request
@@ -590,7 +597,9 @@ async function settleBrowserEvents(page: Page, inflight: ReadonlySet<Request>): 
       /* page or context gone */
     }
   };
+  // Step 1: flush what the page has already generated, and complete the pending set.
   await roundTrip();
+  // Step 2: give the requests that were in flight a bounded chance to land.
   const pending = new Set(inflight);
   const deadline = Date.now() + REQUEST_SETTLE_BUDGET_MS;
   while (pending.size > 0 && Date.now() < deadline) {
@@ -599,6 +608,7 @@ async function settleBrowserEvents(page: Page, inflight: ReadonlySet<Request>): 
       if (!inflight.has(request)) pending.delete(request);
     }
   }
+  // Step 3: flush the faults step 2 waited into existence.
   await roundTrip();
 }
 

@@ -24,7 +24,7 @@ import type {
   ResponseDetail as ResponseDetailData,
   Tombstone,
 } from "@/lib/ops/types";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -318,7 +318,9 @@ function Summary({
   return (
     <dl className="qcms-ops-summary" data-testid="qcms-response-summary">
       <dt>{t("ops.detail.submittedAt")}</dt>
-      <dd>{formatDateTime(detail.submittedAt, t("ops.common.none"))}</dd>
+      <dd>
+        <OperatorDateTime iso={detail.submittedAt} fallback={t("ops.common.none")} />
+      </dd>
       <dt>{t("ops.detail.version")}</dt>
       <dd>v{detail.formVersion}</dd>
       <dt>{t("ops.detail.access")}</dt>
@@ -461,7 +463,7 @@ function LedgerTimeline({
                 data-retracted={entry.retracted ? "true" : "false"}
               >
                 <span className="qcms-ledger-when">
-                  {formatDateTime(entry.answeredAt, t("ops.common.none"))}
+                  <OperatorDateTime iso={entry.answeredAt} fallback={t("ops.common.none")} />
                 </span>{" "}
                 <span className="qcms-ledger-what">
                   {labelFor(labels, entry.questionId)}{" "}

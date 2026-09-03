@@ -362,13 +362,14 @@ test("the controls are operable from the keyboard alone", async ({ page }) => {
   // un-hydrated window to be wide enough to Tab through, so it presents as a
   // load-dependent flake on mobile-chromium rather than as a failure.
   //
-  // The PROBE is the panel's own summary, not the helper's default. The default
-  // watches a step control, and this page is not a step: `/f/<slug>` is the entry
-  // page and renders no `primary-action` at all, so the default hangs to the test
-  // timeout instead of waiting for anything. The summary is the right node on its
-  // own terms too - it is React-owned (`components/appearance-controls.tsx` is a
-  // client component) and it is the exact element the keypresses below toggle.
-  await waitForHydration(page, { probe: '[data-testid="appearance"] > summary' });
+  // No probe argument any more (issue #159). This call used to nominate the panel's
+  // own summary, because the wait's default watched a step control and `/f/<slug>`
+  // is not a step: it renders no `primary-action` at all, so the default hung to the
+  // test timeout instead of waiting for anything. The entry page now carries the
+  // `data-qcms-hydrated` marker itself, stamped by the same commit that hydrates
+  // this header, so waiting for it answers the same question without each spec
+  // having to pick a stand-in node correctly.
+  await waitForHydration(page);
   const root = page.locator("html");
 
   // Reachable by Tab: the skip link is the page's first focusable, the appearance

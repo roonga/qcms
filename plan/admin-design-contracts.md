@@ -183,8 +183,16 @@ and flagged. They are governed now.
     clipping row actions on compact screens.
 - **A timestamp column renders date, `HH:MM`, and the zone. No seconds.** Seconds
   cost width in every row to answer a question the detail route already answers.
-  Admin renders UTC with the zone named (task 034; operator-local display is a
-  queued enhancement, not a licence to vary per table).
+  Admin renders the operator's own zone with that zone named (issue #279,
+  against the Code Owner's 2026-08-02 acceptance; task 034 shipped UTC and queued
+  this). It goes through `components/operator-time.tsx` and nothing else, which
+  is what keeps it from varying per table: that component renders the pinned UTC
+  string for the server render and the first client render, then swaps after
+  hydration, so there is no mismatch to report and no second formatting path to
+  drift. Two things stay UTC on purpose - a bare calendar-day column
+  (`formatDay`, which has no clock in its output to name a zone on) and the mint
+  dialog's expiry promise, which states what the API will enforce for a
+  respondent who may be anywhere.
 - **The table wrapper carries no border and no radius.** Six of the nine shipped
   tables had none, the frozen card's table takes its border from the surrounding
   card, and restoring it on the four kit tables would rebuild the two-treatment

@@ -20,7 +20,9 @@
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
+import { censusConsole } from "./support/console-census.js";
 import { readFixtures } from "./support/fixtures.js";
+import { browserConsoleFault } from "./support/gates.js";
 import { waitForHydration } from "./support/hydration.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
 
@@ -34,6 +36,12 @@ function focusedQuestion(page: Page): Promise<string | null> {
 
 test("error summary: each link names its own field and jumps to it", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
+
+  // WORKED EXAMPLE of the console census (issue #162). Opened before the first
+  // navigation, because a listener attached later sees nothing that already
+  // happened. It observes; it never asserts on its own and never touches the gate.
+  const census = censusConsole(page);
+
   await startKitchenSink(page, kitchenSinkSlug);
 
   // Continue with both required questions unanswered surfaces the summary and does
@@ -63,6 +71,41 @@ test("error summary: each link names its own field and jumps to it", async ({ pa
   await fullName.click();
   expect(await focusedQuestion(page)).toBe("q_full_name");
   await expect(page.getByRole("textbox", { name: KS.fullName })).toBeFocused();
+
+  /* ------------------------------------------------------------------------
+     The census, used (issue #162). This is the reviewer workflow the helper
+     exists for, run as live coverage rather than left as a comment: before it,
+     answering "what did the console actually say, and at which level" meant
+     hand-patching `gates.ts` - the very file under review - with a temporary
+     recorder and burning a full suite run.
+     ------------------------------------------------------------------------ */
+
+  // The census is genuinely observing, proven with a message this test emits
+  // itself rather than with a count that depends on dev-server chatter. `info` is
+  // not a gated level, so provoking one cannot red the run - which is also the
+  // point: the census sees levels the gate deliberately ignores, and that is most
+  // of what a gate question needs to know.
+  await page.evaluate(() => {
+    console.info("qcms-census-probe");
+  });
+  expect(
+    census.of("info"),
+    "the census must observe messages, and must type the level rather than parse it",
+  ).toContain("qcms-census-probe");
+
+  // The counts, in the test report, so the next reader gets the measurement rather
+  // than the claim.
+  test.info().annotations.push({ type: "console-census", description: census.report() });
+
+  // And the cross-check that made the census worth building: every message observed
+  // at a GATED level is one the gate's own standing verdict exempts. Derived from
+  // outside `gates.ts`, by asking the exported `browserConsoleFault` - no edit to the
+  // gate, no temporary recorder, no revert-and-re-verify.
+  const wouldFail = census
+    .messages()
+    .filter((message) => browserConsoleFault(message.level, message.text) !== null)
+    .map((message) => `${message.level}: ${message.text}`);
+  expect(wouldFail, "console messages this spec produced that the gate would fail on").toEqual([]);
 });
 
 /**

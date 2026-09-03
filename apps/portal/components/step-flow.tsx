@@ -5,6 +5,7 @@ import type { A2UIAnswerValue, A2UIErrors, A2UIStepDocument, A2UIValues } from "
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 
+import { HydrationMarker } from "@/components/hydration-marker";
 import { PortalShell } from "@/components/portal-shell";
 import {
   diffFlow,
@@ -680,6 +681,14 @@ export function StepFlow({
 
   return (
     <PortalShell progress={progress}>
+      {/* The flow page's hydration signal (issue #159), mounted HERE rather than in
+          `PortalShell` on purpose: `NativeStep` shares that shell and is what the
+          server paints, so a marker there would be stamped during the very window
+          the e2e wait exists to close - the one where a click toggles a native
+          control React is about to unmount and no answer is ever posted. Mounted on
+          the controlled flow, the attribute appears only once the progressive swap
+          has committed. See `components/hydration-marker.tsx`. */}
+      <HydrationMarker />
       <div className="flex flex-col gap-6">
         {/* Polite live region for step and branch-change announcements (030).
             Always present so screen readers register it; content is read on

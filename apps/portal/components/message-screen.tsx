@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { HydrationMarker } from "@/components/hydration-marker";
 import { PortalShell } from "@/components/portal-shell";
 
 export type MessageTone = "neutral" | "error" | "success";
@@ -34,6 +35,8 @@ export function MessageScreen({
 }) {
   return (
     <PortalShell>
+      {/* This root's hydration signal (issue #159). */}
+      <HydrationMarker />
       <div
         className="flex flex-col items-start gap-4"
         {...(tone === "error" ? { role: "alert" } : {})}
