@@ -81,6 +81,7 @@ use `pnpm devcontainer rebuild` after editing `devcontainer.json`.
   And it is **not** a licence for a mass reflow, which is why nothing above asks for one.
   Line breaks move every `file.md:NN` citation into a file, and this repository does cite documents that way: thirty-one such citations across ten target documents today, eighteen of them into `docs/SECURITY_DESIGN.md`.
   Reflowing a heavily cited document is its own change with its own pass over every inbound citation, and it is decided rather than done in passing.
+  That pass covers **live** citations only: a citation inside a baseline-pinned snapshot, one whose own text declares the commit it was verified against, stays with its declared baseline and is not renumbered, because repointing it at today's lines would make the snapshot claim something it never checked.
 
 ### Dependencies (mirrors `a2-react-aria`'s approval policy)
 
