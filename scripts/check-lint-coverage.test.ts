@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  isGeneratedCopy,
   isVendoredSource,
   lintScope,
   lintTargets,
@@ -171,14 +172,24 @@ describe("recognizing the copied source boundary", () => {
   });
 
   it("recognizes only files within the generated scaffolding template tree", () => {
-    expect(isVendoredSource("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
+    expect(isGeneratedCopy("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
       true,
     );
     // The generator, its tests and the hand-written static templates are ordinary
     // source: only the derived `templates/` tree is a copy of something else.
-    expect(isVendoredSource("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
-    expect(isVendoredSource("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
-    expect(isVendoredSource("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
+    expect(isGeneratedCopy("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
+    expect(isGeneratedCopy("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
+    expect(isGeneratedCopy("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
+  });
+
+  it("keeps the two exclusions apart, so neither widens the other", () => {
+    // `isVendoredSource` comes from `scripts/vendored-source.mjs`, the one definition
+    // five gates read (issue #775). The template tree is an ESLint-only exemption and
+    // must never reach that module: four other gates would stop scanning it.
+    expect(isVendoredSource("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
+      false,
+    );
+    expect(isGeneratedCopy("packages/ui/src/components/a2ui/button/Button.tsx")).toBe(false);
   });
 });
 
