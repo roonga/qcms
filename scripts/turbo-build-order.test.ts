@@ -5,6 +5,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { REPOSITORY_ROOT } from "./docker.mjs";
+import { isGeneratedCopy } from "./generated-copy.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
@@ -79,9 +80,45 @@ const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;
  * which fails loudly, naming the surplus edge, for a human to judge. The
  * under-approximation is the dangerous one: it lets a genuine missing edge through in
  * silence, which is the defect this file exists for.
+ *
+ * ## Two surplus demands have been judged, and both were names as data
+ *
+ * `create-qcms-app` (task 037) is the first package in this repository that writes
+ * module specifiers it does not run, and it does so in two different shapes. Both
+ * produced surplus edges here, and adding those edges would have been wrong: an edge
+ * exists to make turbo wait for a `dist` that something opens, and nothing in this
+ * package opens either one.
+ *
+ * Each shape is refused by its own rule below, because they are false for different
+ * reasons. Neither rule is "skip this package": a genuine `@qcms/*` import written in
+ * `packages/create-qcms-app/src/` is still counted, and a test asserts it.
  */
 const SPECIFIER =
   /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["']([^"'\n]+)["']|\brequire\(\s*["']([^"'\n]+)["']\s*\)/g;
+
+/**
+ * Whether the match at `index` began inside a string literal on its own line.
+ *
+ * The first shape of names-as-data: a fixture that HOLDS a program, as
+ * `scripts/sync-templates.test.ts` does when it hands `assertImports` the text
+ * `'import { x } from "@qcms/db";'` to scan. The inner specifier is in import position
+ * within the quoted text and in string position within the file, so tsc never resolves
+ * it and no `dist` is read.
+ *
+ * Counted rather than parsed, deliberately, because {@link SPECIFIER} is deliberately
+ * not a parser either and a half-parser here would be the worse of both. Quotes are
+ * counted on the match's own line up to the match: an odd count of one kind means the
+ * match opened inside a still-open literal of that kind. That is cheap, and it errs
+ * the safe way in both directions - a genuine `import` sits at the head of its line
+ * with no quotes before it, so it is never mistaken for data.
+ */
+function insideStringLiteral(text: string, index: number): boolean {
+  const lineStart = text.lastIndexOf("\n", index) + 1;
+  const before = text.slice(lineStart, index);
+  return ["'", '"', "`"].some(
+    (quote) => before.split(quote).length - 1 > 0 && (before.split(quote).length - 1) % 2 === 1,
+  );
+}
 
 /** How tsc resolves a relative specifier written the way this repository writes them. */
 const RESOLUTION_SUFFIXES = ["", ".ts", ".tsx", ".d.ts", "/index.ts", "/index.tsx"];
@@ -138,28 +175,47 @@ function resolveRelative(fromFile: string, specifier: string): string | undefine
  * Every `@qcms/*` package the tsc program rooted at `directory` reaches, following
  * relative imports across package boundaries the way tsc does.
  */
-function workspaceImportsReachedFrom(directory: string): { packages: Set<string>; files: number } {
+function workspaceImportsReachedFrom(directory: string): {
+  packages: Set<string>;
+  files: number;
+  skippedAsData: number;
+} {
   const queue = trackedFilesUnder(directory, { match: /\.tsx?$/ }).map((path) =>
     join(directory, path),
   );
   const seen = new Set<string>();
   const reached = new Set<string>();
+  let skippedAsData = 0;
   while (queue.length > 0) {
     const file = queue.pop();
     if (file === undefined || seen.has(file)) continue;
+    // The second shape of names-as-data: a whole tree that IS a program, held as
+    // template content. `packages/create-qcms-app/templates/` is stamped into an
+    // adopter's repository verbatim, so its files carry real `import` statements and
+    // real `@qcms/*` specifiers, and this package compiles and lints none of them: its
+    // `tsconfig.json` includes `src`, `scripts` and `e2e`, its `lint` names the same
+    // three, and `eslint.config.js` ignores the tree. `tsc --listFiles` over that
+    // program contains zero files from it. Reading them as reads demanded six build
+    // edges for dists nothing opens. Filtered on the way OUT of the queue rather than
+    // on the way in, so a relative import that reaches into the tree is refused too.
+    if (isGeneratedCopy(relative(REPOSITORY_ROOT, file).replaceAll("\\", "/"))) {
+      skippedAsData += 1;
+      continue;
+    }
     seen.add(file);
-    for (const match of readFileSync(file, "utf8").matchAll(SPECIFIER)) {
+    const text = readFileSync(file, "utf8");
+    for (const match of text.matchAll(SPECIFIER)) {
       const specifier = match[1] ?? match[2];
       if (specifier === undefined || !PLAUSIBLE_SPECIFIER.test(specifier)) continue;
       if (specifier.startsWith(".")) {
         const target = resolveRelative(file, specifier);
         if (target !== undefined) queue.push(target);
-      } else if (specifier.startsWith("@qcms/")) {
+      } else if (specifier.startsWith("@qcms/") && !insideStringLiteral(text, match.index)) {
         reached.add(specifier.split("/").slice(0, 2).join("/"));
       }
     }
   }
-  return { packages: reached, files: seen.size };
+  return { packages: reached, files: seen.size, skippedAsData };
 }
 
 /**
@@ -191,6 +247,60 @@ function orderedBefore(graph: Map<string, string[]>, taskId: string): Set<string
   }
   return closure;
 }
+
+describe("the two names-as-data rules, each proved to fire and each proved narrow", () => {
+  // Both rules REMOVE demands, which is the direction this file calls dangerous: an
+  // over-approximation fails loudly, an under-approximation is silent. So each is
+  // pinned twice, once for the case it must refuse and once for the case it must not.
+
+  it("reads an import at the head of its line as an import", () => {
+    const text = 'import { db } from "@qcms/db";\n';
+    expect(insideStringLiteral(text, text.indexOf("from"))).toBe(false);
+  });
+
+  it("reads a specifier inside a quoted fixture as data", () => {
+    // The exact line in `scripts/sync-templates.test.ts` that demanded @qcms/db.
+    const text = `tree.set("common/apps/portal/lib/rogue.ts", 'import { x } from "@qcms/db";');\n`;
+    expect(insideStringLiteral(text, text.lastIndexOf("from"))).toBe(true);
+  });
+
+  it("does not blind itself to an import that merely follows a balanced string", () => {
+    const text = 'const note = "see below";\nimport { db } from "@qcms/db";\n';
+    expect(insideStringLiteral(text, text.indexOf("from", text.indexOf("import")))).toBe(false);
+  });
+
+  it("skips the generated template tree, and skips nothing else", () => {
+    // Non-vacuous in both directions: the exclusion has to fire for the package it was
+    // judged for, and fire for no other package at all.
+    const reached = workspaceImportsReachedFrom(join(REPOSITORY_ROOT, "packages/create-qcms-app"));
+    expect(reached.skippedAsData).toBeGreaterThan(0);
+    expect(reached.files).toBeGreaterThan(0);
+    for (const pkg of workspacePackages()) {
+      if (pkg.name === "create-qcms-app") continue;
+      expect(
+        workspaceImportsReachedFrom(pkg.directory).skippedAsData,
+        `${pkg.name} had files skipped as data, and only create-qcms-app stamps any`,
+      ).toBe(0);
+    }
+  });
+
+  it("rests on a tsconfig that genuinely excludes the tree", () => {
+    // The whole justification for the second rule. If `templates` ever entered this
+    // program, the files would be compiled and the demands would be real.
+    const tsconfig = JSON.parse(
+      readFileSync(join(REPOSITORY_ROOT, "packages/create-qcms-app/tsconfig.json"), "utf8"),
+    ) as { include?: string[] };
+    expect(tsconfig.include).toStrictEqual(["src", "scripts", "e2e"]);
+  });
+
+  it("still sees the packages a real program reaches, so the walk is not blind", () => {
+    // The floor under both rules. If the walk stopped reaching anything, every
+    // assertion in the suite below would pass while checking nothing.
+    const admin = workspaceImportsReachedFrom(join(REPOSITORY_ROOT, "apps/admin"));
+    expect(admin.packages.size).toBeGreaterThan(2);
+    expect(admin.packages).toContain("@qcms/db");
+  });
+});
 
 describe("turbo orders every dist a program-shaped task reads", () => {
   const packages = workspacePackages();

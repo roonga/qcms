@@ -18,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { getFileInfo } from "prettier";
 
+import { isGeneratedCopy } from "./generated-copy.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
 /** Extensions ESLint is configured to parse in this workspace. */
@@ -80,36 +81,16 @@ export function trackedMarkdownFiles() {
 export { isVendoredSource };
 
 /**
- * The generated scaffolding template tree (task 037), which this gate alone may skip.
+ * Re-exported, not defined here: the generated scaffolding template tree (task 037)
+ * has one spelling, in `scripts/generated-copy.mjs`, for the reason that module gives.
  *
- * Deliberately NOT added to `scripts/vendored-source.mjs`. That module is the one
- * definition of "vendored" and it is read by five gates; widening it would tell four
- * other gates to stop scanning 335 files, which is the exact defect issue #775 closed
- * one directory over. This exemption is about ESLint and nothing else.
- *
- * The templates are derived from `apps/` by `pnpm qcms:sync-templates`, so every file
- * here is byte-identical to a file ESLint already opened at the source. They sit
- * outside every tsconfig, so `projectService` resolves nothing and one template file
- * reports 18 `no-unsafe-*` errors about types that resolve perfectly at the source:
- * the only way to make them pass would be a WEAKER ruleset than the original's, which
- * is a green worth less than the green it duplicates. What covers them instead is
- * stronger than lint: `pnpm check:templates` regenerates the tree and byte-compares,
- * so drift is a red rather than a silence.
- *
- * It is not a `KNOWN_UNLINTED` entry either. That inventory records a real gap, and a
- * provable duplicate is not one.
+ * It is deliberately a SEPARATE concept from `isVendoredSource`. The vendored a2ra
+ * components are upstream-owned but genuinely compiled; the template tree is a copy of
+ * files this repository already lints at the source, sitting outside every tsconfig and
+ * every lint scope. Folding one into the other would tell four other gates to stop
+ * scanning 337 files, which is issue #775's defect one directory over.
  */
-const GENERATED_COPY_PREFIX = "packages/create-qcms-app/templates/";
-
-/**
- * True for a file inside the generated template tree.
- *
- * @param {string} file repo-relative path.
- * @returns {boolean}
- */
-export function isGeneratedCopy(file) {
-  return file.startsWith(GENERATED_COPY_PREFIX);
-}
+export { isGeneratedCopy };
 
 /** @returns {string[]} every tracked package.json, repo-relative. */
 export function trackedManifests() {
