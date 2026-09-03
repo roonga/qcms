@@ -231,6 +231,7 @@ describe("the convention is written where an agent meets it", () => {
   // habit, because the agent files are edited far more often than this script is.
   const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
   const briefings = [
+    "CLAUDE.md",
     ".claude/agents/task-executor.md",
     ".claude/agents/task-reviewer.md",
     ".claude/agents/dev-task.md",
@@ -241,5 +242,61 @@ describe("the convention is written where an agent meets it", () => {
 
   it.each(briefings)("%s tells the reader to use the lane scratch helper", (file) => {
     expect(readFileSync(join(REPO_ROOT, file), "utf8")).toContain("scripts/agent-scratch.mjs");
+  });
+
+  it.each(briefings)("%s does not print the lane override as an unexported prefix", (file) => {
+    // A simple command that is only assignments sets its variables in the current shell
+    // WITHOUT exporting them, in bash and zsh alike, so
+    // `QCMS_AGENT_LANE=x log=$(node scripts/agent-scratch.mjs verify.log)` runs the
+    // script without the variable: the reviewer silently resolves to the executor's
+    // lane, and asking for a named file then deletes the executor's in-progress log.
+    // `--lane` is the spelling that cannot be got wrong, so no briefing may show the
+    // other one.
+    expect(readFileSync(join(REPO_ROOT, file), "utf8")).not.toMatch(
+      /QCMS_AGENT_LANE=\S+\s+\w+=\$\(/,
+    );
+  });
+});
+
+describe("the lane override works the way the briefings spell it", () => {
+  it("takes --lane as an argument", () => {
+    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const worktree = gitWorktree("fix/396-reviewer");
+    const output = execFileSync(
+      "node",
+      [SCRIPT, "--lane", "fix/396-reviewer-review", "verify.log"],
+      { cwd: worktree, encoding: "utf8", env: { ...process.env, QCMS_AGENT_SCRATCH_ROOT: root } },
+    );
+    expect(output.trim()).toBe(join(root, "fix-396-reviewer-review", "verify.log"));
+  });
+
+  it("honours QCMS_AGENT_LANE only when it is genuinely exported", () => {
+    // Both halves matter. Exported, the variable works, so the environment form is not
+    // wrong in itself. Unexported - which is what an assignments-only prefix produces -
+    // the script sees nothing and falls back to the branch, which is the executor's
+    // lane. The shell, not the script, is where that goes wrong, so the fix is the
+    // spelling in the instructions.
+    const root = temporaryDirectory("qcms-agent-scratch-root-");
+    const worktree = gitWorktree("fix/396-reviewer");
+    const exported = execFileSync("node", [SCRIPT, "verify.log"], {
+      cwd: worktree,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        QCMS_AGENT_SCRATCH_ROOT: root,
+        QCMS_AGENT_LANE: "fix/396-reviewer-review",
+      },
+    });
+    expect(exported.trim()).toBe(join(root, "fix-396-reviewer-review", "verify.log"));
+
+    const viaPrefix = execFileSync(
+      "bash",
+      [
+        "-c",
+        `QCMS_AGENT_LANE=fix-396-reviewer-review out=$(node ${SCRIPT} verify.log); printf '%s' "$out"`,
+      ],
+      { cwd: worktree, encoding: "utf8", env: { ...process.env, QCMS_AGENT_SCRATCH_ROOT: root } },
+    );
+    expect(viaPrefix.trim()).toBe(join(root, "fix-396-reviewer", "verify.log"));
   });
 });
