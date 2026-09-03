@@ -56,6 +56,14 @@
  * reach. Treat a clean run as "no machine path written in one of the four recognised
  * shapes", never as "no committed file assumes a location".
  *
+ * Two limits are deliberate rather than incidental, and both are named beside the
+ * patterns that hold them. **A drive path written with a doubled FORWARD slash is not
+ * matched** - only the backslash run is allowed to double, because only backslashes are
+ * escaped, and accepting a doubled forward slash starts matching `a://` shapes. **A
+ * backslash run longer than four is not matched** either; four already covers a literal
+ * nested twice, and a longer run is a regular expression rather than a path. Both are
+ * false-negative directions, chosen so the gate stays believable enough to keep.
+ *
  * It errs the other way once: a URL whose own path begins with the macOS home root reads
  * as a hit. No such URL is in the tree, and the answer if one arrives is an ALLOWED entry
  * with that reason rather than a weaker pattern.
@@ -108,9 +116,20 @@ const PATTERNS = [
   { kind: "posix home", re: /\/home\/([^\s/"'`\\|]+)/g, home: true },
   { kind: "macos home", re: /\/Users\/([^\s/"'`\\|]+)/g, home: true },
   // A letter, a colon, a separator, and something that looks like a path segment. The
-  // leading boundary rejects a URL scheme, whose colon is preceded by a word character
-  // and followed by two separators.
-  { kind: "drive letter", re: /(?<![\w:])([A-Za-z]:[\\/](?![\\/])[\w$.~-]+)/g },
+  // leading boundary rejects a URL scheme, whose colon is preceded by a word character.
+  //
+  // **The backslash run is one to four, and the forward slash is exactly one.** That
+  // asymmetry is the fix for a fail-open this gate shipped with (PR #791 review): the
+  // separator was one character and could not be followed by another, so the raw
+  // spelling was caught while the ESCAPED spelling a committed TS, JS or JSON string
+  // literal actually carries - two backslashes, or four inside a nested literal or a
+  // regular expression - matched nothing. That is the commonest in-source spelling of
+  // the shape, so the gate was blind to it in exactly the files most likely to carry
+  // one. Only backslashes are doubled, because only backslashes are escaped; a Windows
+  // path is never written with a doubled forward slash, and accepting one would start
+  // matching `a://` shapes such as an object literal whose value is a regular
+  // expression, which is how a gate earns the false positive that gets it switched off.
+  { kind: "drive letter", re: /(?<![\w:])([A-Za-z]:(?:\\{1,4}|\/)[\w$.~-]+)/g },
   { kind: "wsl unc", re: /(?:\\{2}|\/{2})(wsl[\w.$-]*)/gi },
 ];
 

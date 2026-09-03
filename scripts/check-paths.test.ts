@@ -59,9 +59,33 @@ describe("pattern detection", () => {
     }
   });
 
+  it("catches a drive path in its ESCAPED spelling, not only its raw one", () => {
+    // The fail-open this gate shipped with (PR #791 review). A committed TS, JS or JSON
+    // file does not carry a raw backslash: it carries the escaped one, and a nested
+    // literal or a regular expression doubles it again. The gate was blind to exactly
+    // the spelling the files most likely to hold a Windows path actually use.
+    for (const depth of [1, 2, 3, 4]) {
+      const separator = BACKSLASH.repeat(depth);
+      const escaped = `const p = "C:${separator}Users${separator}dev";`;
+      expect(
+        pathsIn(escaped).map((hit) => hit.kind),
+        `${String(depth)} backslash`,
+      ).toEqual(["drive letter"]);
+    }
+    expect(pathsIn(`D:${SLASH}work${SLASH}qcms`).map((hit) => hit.kind)).toEqual(["drive letter"]);
+  });
+
   it("does not read a URL scheme as a drive letter", () => {
     expect(pathsIn("https://example.com/a")).toEqual([]);
     expect(pathsIn("git://host/repo")).toEqual([]);
+  });
+
+  it("does not read a one-letter key before a regular expression as a drive letter", () => {
+    // Why only the BACKSLASH run is doubled: a Windows path is never written with a
+    // doubled forward slash, and accepting one would match these, which is how a gate
+    // earns the false positive that gets it switched off.
+    expect(pathsIn("const r = {a://x/.source};")).toEqual([]);
+    expect(pathsIn("const v = c ? a :/re/.test(s);")).toEqual([]);
   });
 
   it("reports the line a path sits on", () => {
