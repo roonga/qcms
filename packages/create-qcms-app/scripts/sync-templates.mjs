@@ -1706,6 +1706,37 @@ export function countInternalReferences(tree) {
   return { files, lines };
 }
 
+/**
+ * The generated block with table presentation collapsed away.
+ *
+ * Prettier owns how a Markdown table is laid out: it pads every cell to the widest in
+ * its column and fills the delimiter row to match. This generator emits compact rows,
+ * because it has no business reimplementing another tool's formatter. Both are right,
+ * and comparing the two raw strings would make `check:templates` and `prettier --check`
+ * permanently unable to be green at the same time.
+ *
+ * So the comparison is on content: inside a table row, runs of whitespace collapse to
+ * one space and a delimiter run of dashes collapses to three. Everything else, prose
+ * and the file manifest included, is compared byte for byte. A cell whose text changed
+ * is still drift; a cell that was merely repadded is not.
+ *
+ * @param {string} block
+ * @returns {string}
+ */
+export function normalizeSeamBlock(block) {
+  return block
+    .split("\n")
+    .map((line) =>
+      line.startsWith("|")
+        ? line
+            .replaceAll(/-{3,}/g, "---")
+            .replaceAll(/[ \t]+/g, " ")
+            .trim()
+        : line,
+    )
+    .join("\n");
+}
+
 /** Replace the generated block, throwing when the markers are missing. */
 export function replaceSeamBlock(text, block) {
   const begin = text.indexOf(SEAM_BEGIN);
@@ -1781,14 +1812,20 @@ export function main(args = argv.slice(2)) {
   if (args.includes("--write")) {
     writeTemplates(tree);
     const path = join(REPOSITORY_ROOT, SEAM_DOC);
-    writeFileSync(path, replaceSeamBlock(readFileSync(path, "utf8"), block));
+    const text = readFileSync(path, "utf8");
+    // Rewritten only when the CONTENT changed. Otherwise a run of this script would
+    // strip Prettier's table padding out of a document nothing had changed, and the
+    // next `pnpm lint` would put it back: a two-command loop that never settles.
+    if (normalizeSeamBlock(currentSeamBlock()) !== normalizeSeamBlock(block)) {
+      writeFileSync(path, replaceSeamBlock(text, block));
+    }
     process.stdout.write(
       `sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR} and the generated block in ${SEAM_DOC}\n`,
     );
     return 0;
   }
   const problems = diffTrees(tree, currentTemplates());
-  if (currentSeamBlock() !== block) {
+  if (normalizeSeamBlock(currentSeamBlock()) !== normalizeSeamBlock(block)) {
     problems.push(`drifted:  ${SEAM_DOC} (the generated block)`);
   }
   if (problems.length > 0) {

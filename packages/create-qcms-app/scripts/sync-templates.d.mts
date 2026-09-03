@@ -39,6 +39,7 @@ export declare function countInternalReferences(tree: Map<string, string>): {
 export declare const GIT_BIN_OVERRIDE_ENV_VAR: string;
 export declare function checkedGitOverride(value: string): string;
 export declare function walk(root: string, base?: string): string[];
+export declare function normalizeSeamBlock(block: string): string;
 export declare function renderEnvExample(
   composeFiles: { text: string; alwaysRuns: boolean }[],
 ): string;
