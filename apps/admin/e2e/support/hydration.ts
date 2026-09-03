@@ -66,3 +66,55 @@ export async function waitForHydration(
     "the hydration wait must resolve on an observed marker, never vacuously",
   ).toBe(HYDRATED_ATTRIBUTE);
 }
+
+/**
+ * Hold every script response until the caller releases it, so a spec decides exactly when
+ * React attaches. Install it BEFORE the navigation, pair it with
+ * `goto(url, { waitUntil: "commit" })`, and always `release()` in a `finally`.
+ *
+ * ## Why the control has to be this precise
+ *
+ * Because the window is not "before hydration", it is "hydration lands **between** the
+ * typing and the submit". Type into the server render and never hydrate, and the value is
+ * intact and the native form POST succeeds - the screen works with no JavaScript at all,
+ * which is the whole point of it. Hydrate first and the typing goes through React. Only
+ * the interleaving loses: the value is typed, the attaching commit overwrites it with
+ * react-aria's empty state, and the Enter that follows submits an empty `required` field.
+ * A regression test therefore has to schedule that interleaving rather than hope for it.
+ *
+ * ## Three amplifiers that do not produce it, measured rather than assumed
+ *
+ * **`Emulation.setCPUThrottlingRate`**, which is how the portal reproduces its version of
+ * this race, does not. The portal's failure is a single click issued the moment a
+ * navigation settles, so throttling delays hydration and nothing else. The admin's is a
+ * keyboard sequence - two tabs, six keystrokes, another tab, Enter - dispatched into the
+ * same throttled renderer, so throttling slows the typing by about as much as it slows
+ * hydration. Four unwaited runs at rate 6 all passed.
+ *
+ * **A fixed script delay with a default `goto`** does not: `waitUntil: "load"` waits for
+ * every subresource, so the navigation swallows the delay and hands back a hydrated page.
+ * One unwaited run at a three-second delay passed for exactly that.
+ *
+ * **A fixed script delay with `waitUntil: "commit"`** does not either, and this is the
+ * instructive one: it moves hydration to AFTER the whole sequence, Enter included, so the
+ * pre-hydration native submit simply works. Two unwaited runs passed, faster than the
+ * waited ones.
+ *
+ * All three are written down because each looks like a working amplifier from the outside,
+ * and each would have shipped a regression test that cannot fail.
+ */
+export function holdScripts(page: Page): { release: () => void } {
+  let open = (): void => {};
+  const gate = new Promise<void>((resolve) => {
+    open = resolve;
+  });
+  void page.route("**/*", async (route) => {
+    if (route.request().resourceType() === "script") await gate;
+    await route.continue();
+  });
+  return {
+    release: () => {
+      open();
+    },
+  };
+}

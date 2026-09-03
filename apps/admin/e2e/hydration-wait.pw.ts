@@ -19,9 +19,13 @@
  *    be produced by a typo in the attribute's name.
  *
  * 3. **A keystroke into the auth loop is not silently discarded.** The last test drives the
- *    real keyboard path with the CPU throttled, which widens the gap between first paint
- *    and React attaching from sub-frame to seconds, and requires the challenge to complete
- *    anyway. Remove the wait from the flow helpers and it reds every run.
+ *    real keyboard path with every script response held back, so the form is on screen and
+ *    focusable while React is still in flight, and requires the challenge to complete
+ *    anyway. Remove the waits and it reds every run. CPU throttling, which is how the
+ *    portal reproduces its version of this race, does NOT work here and was measured not
+ *    to: it slows Playwright's keystrokes into the same renderer, so the gap never opens
+ *    (four unwaited runs at rate 6 all passed). `delayScripts` moves only the half that
+ *    has to move.
  *
  * The mechanism, for whoever debugs this next, because nothing about the failure names it:
  * react-aria's `TextField` receives neither `value` nor `defaultValue`, so it renders a
@@ -43,7 +47,7 @@ import { HYDRATED_ATTRIBUTE } from "../lib/hydration.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, submitSignIn } from "./support/flow.js";
-import { waitForHydration } from "./support/hydration.js";
+import { holdScripts, waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
 
@@ -51,13 +55,8 @@ test.describe.configure({ mode: "serial" });
 const EMAIL = uniqueAdminEmail("hydration");
 let totpSecret = "";
 
-/**
- * Hydration is scheduled work, so it lands after the load event: throttling the CPU
- * stretches that window from sub-frame to seconds without touching the network or the
- * helpers under test. Emulated, not real slowness, which is the point - it turns an
- * intermittent race into a deterministic one.
- */
-const CPU_THROTTLE_RATE = 6;
+/** A six-digit string that is never a valid code: half one is about the field, not auth. */
+const TYPED_PROBE_CODE = "123456";
 
 /** How long the wait is given on a page that must never satisfy it. */
 const REJECTION_BUDGET_MS = 3_000;
@@ -70,11 +69,11 @@ const REJECTION_BUDGET_MS = 3_000;
 const RESOLUTION_BUDGET_MS = 15_000;
 
 /**
- * How long a navigation is given while the CPU is throttled. Above the `expect` default of
- * five seconds because everything in that block is six times slower on purpose, and this
- * test is about whether the keystrokes land, never about how fast they do.
+ * How long the wait is given once a held bundle is released. Above the `expect` default of
+ * five seconds because the release, the download and the commit all still have to happen,
+ * and this test is about whether the value survives, never about how fast it does not.
  */
-const THROTTLED_BUDGET_MS = 30_000;
+const HYDRATION_BUDGET_MS = 30_000;
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -134,28 +133,59 @@ test("enrol this file's account", async ({ page }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
 });
 
-test("the keyboard challenge completes even when hydration is slow", async ({ page }) => {
-  const client = await page.context().newCDPSession(page);
-  await client.send("Emulation.setCPUThrottlingRate", { rate: CPU_THROTTLE_RATE });
-  try {
-    // `submitSignIn` fills through `fillStable`, which owns the wait. Without it the
-    // password is wiped by the attaching commit and this lands back on `/sign-in`.
-    await submitSignIn(page, EMAIL);
-    await expect(page).toHaveURL(/\/two-factor\/challenge$/, { timeout: THROTTLED_BUDGET_MS });
+test("hydration discards what was typed first, which is what the wait exists to prevent", async ({
+  page,
+}) => {
+  // Half one pins the hazard, scheduled rather than hoped for. `holdScripts` keeps React
+  // out of the page until this test lets it in, so the interleaving that loses - type,
+  // THEN hydrate, THEN submit - happens on demand instead of once in every few runs.
+  await submitSignIn(page, EMAIL);
+  await expect(page).toHaveURL(/\/two-factor\/challenge$/);
 
-    // The challenge, driven by keyboard alone, which is the exact path issue #210 parked
-    // on: type into a screen React has not attached to yet and the code is gone by the
-    // time Enter reaches the form.
-    await waitForHydration(page);
-    await page.keyboard.press("Tab"); // skip link
-    await page.keyboard.press("Tab"); // code field
-    await expect(page.getByLabel(/Six-digit code/)).toBeFocused();
-    await page.keyboard.type(await generate({ secret: totpSecret }));
-    await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: "Verify" })).toBeFocused();
-    await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/questions$/, { timeout: THROTTLED_BUDGET_MS });
+  const held = holdScripts(page);
+  try {
+    await page.goto("/two-factor/challenge", { waitUntil: "commit" });
+    const field = page.getByLabel(/Six-digit code/);
+    await expect(field).toBeAttached();
+
+    // Typed into the server render, at full speed, the way an operator with the code
+    // already in front of them types it.
+    await field.focus();
+    await page.keyboard.type(TYPED_PROBE_CODE);
+    await expect(field, "the server-rendered field must accept typing").toHaveValue(
+      TYPED_PROBE_CODE,
+    );
+
+    // Let React in, and it takes the value away. This assertion is deliberately an
+    // assertion about a DEFECT rather than about a feature: react-aria's `TextField` is
+    // handed neither `value` nor `defaultValue`, so it renders a controlled input seeded
+    // empty and the attaching commit writes that empty state over the DOM. It lives in the
+    // vendored tree, which ADR-22 freezes byte-for-byte against upstream, so it is an
+    // upstream fix and a pin move rather than something to patch here. The day that lands,
+    // THIS is the line that will fail, and failing is the correct way to find out: the
+    // waits below exist only for as long as this stays true.
+    held.release();
+    await waitForHydration(page, { timeout: HYDRATION_BUDGET_MS });
+    await expect(field, "hydration overwrites a pre-hydration value (issue #210)").toHaveValue("");
   } finally {
-    await client.send("Emulation.setCPUThrottlingRate", { rate: 1 });
+    held.release();
   }
+
+  // Half two: the same screen, driven the way the helpers drive it - wait first, then
+  // type - and the real code lands and completes the challenge. Remove the wait and the
+  // sequence above is what happens instead: an empty `required` field, a submit the
+  // browser's own constraint validation refuses with no submit event and no request, and a
+  // spec parked on the challenge until its URL assertion times out. `fillStable` cannot
+  // cover this path, because keyboard-only operation is what the a11y spec is proving and
+  // `fill()` would not prove it.
+  await page.goto("/two-factor/challenge");
+  await waitForHydration(page);
+  await page.keyboard.press("Tab"); // skip link
+  await page.keyboard.press("Tab"); // code field
+  await expect(page.getByLabel(/Six-digit code/)).toBeFocused();
+  await page.keyboard.type(await generate({ secret: totpSecret }));
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Verify" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/questions$/);
 });
