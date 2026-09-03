@@ -4,7 +4,7 @@
 
 Record on a form draft whether it carries agent-assisted changes (task 041,
 ADR-25). `form_drafts` gains an `agent_assisted` boolean column (migration
-`0017_draft_agent_provenance`, default `false`), and `upsertDraft` accepts an
+`0019_draft_agent_provenance`, default `false`), and `upsertDraft` accepts an
 optional `agentAssisted` flag.
 
 The flag is **sticky**: the upsert's conflict branch ORs the incoming value with
