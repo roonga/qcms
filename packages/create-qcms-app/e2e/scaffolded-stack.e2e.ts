@@ -59,6 +59,24 @@ function adminHeaders(): Record<string, string> {
   return headers({ "x-qcms-admin-session": adminSession });
 }
 
+/**
+ * What a browser sends on a state-changing portal POST, and what the BFF requires.
+ *
+ * SEC-9's CSRF belt (issue #487) refuses a POST that carries neither a
+ * `Sec-Fetch-Site` of `same-origin` nor an `Origin` equal to `QCMS_PORTAL_BASE_URL`.
+ * A raw `fetch` from a test runner sends neither, so this loop has to say what a
+ * browser would. Sending the CONFIGURED base URL rather than the address this harness
+ * dials is the point: it fails if the scaffolder put the wrong value in `.env`, which
+ * is a thing only an adopter-shaped run can see.
+ */
+function portalPostHeaders(sessionCookie: string): Record<string, string> {
+  return {
+    cookie: sessionCookie,
+    "content-type": "application/json",
+    origin: PORTAL_BASE_URL,
+  };
+}
+
 /** Fetch and parse, failing with the body rather than with `undefined is not an object`. */
 async function json(
   url: string,
@@ -237,7 +255,7 @@ describe("a scaffolded QCMS deployment", () => {
       `${PORTAL}${sessionPath}/answers`,
       {
         method: "POST",
-        headers: { cookie: sessionCookie, "content-type": "application/json" },
+        headers: portalPostHeaders(sessionCookie),
         body: JSON.stringify({ questionId: QUESTION_ID, value: "Alex Respondent" }),
       },
       [200],
@@ -246,7 +264,7 @@ describe("a scaffolded QCMS deployment", () => {
       `${PORTAL}${sessionPath}/submit`,
       {
         method: "POST",
-        headers: { cookie: sessionCookie, "content-type": "application/json" },
+        headers: portalPostHeaders(sessionCookie),
         body: JSON.stringify({}),
       },
       [200],
