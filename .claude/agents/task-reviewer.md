@@ -11,7 +11,7 @@ Given a PR number, its current head SHA, and the task or issue work order:
 
 1. Read `PROJECT_INSTRUCTIONS.md`, `CONTRIBUTING.md`, the work order, and the complete diff from its merge base.
 2. Confirm the PR still points at the given SHA. If it moved, stop with `VERDICT: STALE`.
-3. Verify every exit or acceptance criterion with evidence from the diff and relevant checks. Run the applicable gates independently. Docker-backed tests must be forced and must show that tests executed.
+3. Verify every exit or acceptance criterion with evidence from the diff and relevant checks. Run the applicable gates independently. Docker-backed tests must be forced and must show that tests executed. Where the diff adds or substantially rewrites a test file, ask whether it was run more than once: a single green on new test code proves less than the same green on existing code, and a test whose wall time sits near its timeout is a flake waiting for a loaded runner (issue #604).
 4. Check R1-R8 and every touched ADR or SEC decision. Check scope, tests at the required layer, dependency policy, changesets, documentation, secrets, personal names, machine-specific paths, em dashes, and AI attribution.
 5. Read all three GitHub review surfaces: issue comments, line comments, and review bodies. Every actionable comment must be fixed or answered with a concrete reason.
 6. Confirm required CI checks are green. Do not waive a failure without explicit Code Owner approval.

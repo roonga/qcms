@@ -57,15 +57,40 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * for a call to the global. The portal's own R2 test still does not carry that rule at
  * all, which is its own asymmetry and its own issue.)
  *
+ * ## Exactly what the belt covers, and what it does not
+ *
+ * Four POST route handlers call this function and nothing else does:
+ * `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
+ * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`.
+ * `scripts/check-origin-guards.test.ts` derives that set from disk, so it is a
+ * checked statement rather than a count someone kept up to date by hand.
+ *
+ * **Secure-link entry is outside the belt entirely.** `app/l/[token]/route.ts`
+ * exports only `GET`, and every call site above is a POST, so `/l/{token}` is never
+ * belted. An affected browser starts a secure-link session normally.
+ *
  * ## What this refuses that a respondent might not expect
  *
  * A browser that sends no `Sec-Fetch-Site` at all (Fetch Metadata predates Safari
- * 16.4 and Firefox 90) is refused on the no-JS form path, because the only other
- * signal it sends is that same `Origin: null`, which an attacker's page can also
- * produce by declaring `Referrer-Policy: no-referrer` on itself. Failing closed is
- * the right side to err on for a security belt, and it matches the admin twin, but
- * it is a real cost on a public respondent surface rather than a free one: see the
- * `Referrer-Policy` follow-up noted on issue #487.
+ * 16.4 and Firefox 90) is refused, because the only other signal it sends is that
+ * same `Origin: null`, which an attacker's page can also produce by declaring
+ * `Referrer-Policy: no-referrer` on itself. Failing closed is the right side to err
+ * on for a security belt, and it matches the admin twin, but it is a real cost on a
+ * public respondent surface rather than a free one: see the `Referrer-Policy`
+ * follow-up noted on issue #487.
+ *
+ * **This is not only the no-JS path**, which is how issue #504 framed it after
+ * reading an earlier version of this comment (corrected in issue #579).
+ * `components/entry-view.tsx` renders Begin as a plain `<form method="post">` with
+ * no `onSubmit` and no client interception, so Begin is a navigation POST whether or
+ * not the page hydrated. A refusal therefore blocks anonymous entry with JavaScript
+ * working perfectly. The hydrated `fetch()` path is protected only because it sends a
+ * real `Origin`; a client with neither signal is refused there too.
+ *
+ * So the locked-out population is anonymous-entry respondents plus no-JS secure-link
+ * respondents, not every affected browser. The browser-share numbers are deliberately
+ * not repeated here, because they age: `docs/SECURITY_DESIGN.md` §5 carries them and
+ * `docs/operations.md` carries the operator runbook.
  *
  * ## Twin
  *
