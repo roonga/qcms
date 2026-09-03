@@ -94,3 +94,106 @@ describe("the retention sweeps' supporting indexes (issue #434)", () => {
     expect(plan).toContain("outbox_payload_retention_idx");
   });
 });
+
+/**
+ * The index above removed the sweep's own table scan and left one behind. #434
+ * measured the residue and could not close it: the correlated `NOT EXISTS` was costed
+ * from a row estimate around 200x too high, because Postgres does not apply the
+ * partial expression index's statistics to `greatest(delivered_at, dead_lettered_at) <
+ * $1`. From that premise a hash anti-join over the WHOLE `webhook_deliveries` table is
+ * genuinely the cheaper plan, and it was chosen. Measured at 1M outbox rows and 1M
+ * deliveries with 598 eligible: the lookup that finds those 598 takes 0.4 ms and the
+ * pass takes 77.6 ms, of which about 69 ms per worker is a parallel sequential scan
+ * that yields nothing.
+ *
+ * No index fixes an estimate; naming the candidates does, because an explicit id list
+ * is a cardinality the planner cannot get wrong. These assertions pin the CONSEQUENCE
+ * of that - a per-candidate index probe, and no scan of the deliveries table - rather
+ * than a duration, for the reason the file header already gives: a timing assertion
+ * against a harness database is meaningless, and the plan shape is the property a
+ * future rewrite would silently lose.
+ */
+describe("the payload sweep's anti-join does not read the deliveries table (issue #781)", () => {
+  /**
+   * Rows, unlike the suite above. That suite asserts APPLICABILITY and can do it on an
+   * empty database by pricing a scan absurdly; this one asserts a planner CHOICE, and
+   * on an empty database every plan is free and every such assertion is vacuous - the
+   * negative control below passes for the wrong reason and then never fails.
+   *
+   * 10k is enough for the estimate to matter and cheap enough to seed per run. Payloads
+   * are minimal: what has to be big here is the row COUNT the planner reasons about,
+   * not the bytes.
+   */
+  beforeAll(async () => {
+    await testDb.client.query(
+      `insert into forms (form_id, slug, default_locale) values ('f-781', 's-781', 'en')`,
+    );
+    await testDb.client.query(
+      `insert into webhooks (webhook_id, form_id, url, secret_encrypted)
+       values ('wh-781', 'f-781', 'https://example.invalid/hook', 'enc')`,
+    );
+    await testDb.client.query(
+      `insert into outbox (id, event_type, payload, created_at, delivered_at)
+       select ('00000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid,
+              'response.submitted',
+              jsonb_build_object('answers', jsonb_build_object('q1', g)),
+              now() - interval '90 days', now() - interval '89 days'
+       from generate_series(1, 10000) g`,
+    );
+    await testDb.client.query(
+      `insert into webhook_deliveries (outbox_id, webhook_id, attempts, next_attempt_at,
+                                       delivered_at, created_at, last_attempt_at)
+       select ('00000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid, 'wh-781', 1,
+              now() - interval '89 days', now() - interval '89 days',
+              now() - interval '90 days', now() - interval '89 days'
+       from generate_series(1, 10000) g`,
+    );
+    await testDb.client.query("analyze outbox");
+    await testDb.client.query("analyze webhook_deliveries");
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  const UNSETTLED_DELIVERY = `greatest(d.delivered_at, d.dead_lettered_at, d.cancelled_at) is null
+     or greatest(d.delivered_at, d.dead_lettered_at, d.cancelled_at) >= now()`;
+
+  const ANTI_JOIN = `not exists (
+    select 1 from webhook_deliveries d
+    where d.outbox_id = outbox.id and (${UNSETTLED_DELIVERY}))`;
+
+  const OUTBOX_PREDICATE = `payload_redacted_at is null
+    and jsonb_exists(payload, 'answers')
+    and greatest(delivered_at, dead_lettered_at) < now()`;
+
+  /**
+   * The plan for `statement`, with `enable_seqscan` deliberately LEFT ON: the claim is
+   * that Postgres does not WANT the scan, not that it was forbidden one.
+   */
+  async function naturalPlanFor(statement: string, params: unknown[] = []): Promise<string> {
+    const res = await testDb.client.query<{ "QUERY PLAN": string }>(`explain ${statement}`, params);
+    return res.rows.map((row) => row["QUERY PLAN"]).join("\n");
+  }
+
+  it("probes the deliveries index per candidate when the candidates are named", async () => {
+    const plan = await naturalPlanFor(
+      `select id from outbox
+       where id = any($1::uuid[]) and ${OUTBOX_PREDICATE} and ${ANTI_JOIN}`,
+      [["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]],
+    );
+    // The unique constraint on (outbox_id, webhook_id) is the index the deliveries
+    // table already had, and the one the correlated lookup rides. #434 recorded that
+    // no delivery-side index helped while the anti-join was hash-shaped; the id list
+    // is what changed, not the index.
+    expect(plan).toContain("webhook_deliveries_event_webhook_uq");
+    expect(plan).not.toMatch(/Seq Scan on webhook_deliveries/);
+  });
+
+  it("falls back to reading the deliveries table when they are not", async () => {
+    // The negative control, so the assertion above is known to be about the id list
+    // rather than about an empty harness database. This is the shape #781 reported,
+    // and the shape the sweep still uses above its candidate budget, where a single
+    // read of the deliveries table beats one probe per candidate.
+    const plan = await naturalPlanFor(
+      `select id from outbox where ${OUTBOX_PREDICATE} and ${ANTI_JOIN}`,
+    );
+    expect(plan).toMatch(/Seq Scan on webhook_deliveries/);
+  });
+});
