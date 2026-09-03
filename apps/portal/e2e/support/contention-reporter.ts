@@ -106,7 +106,13 @@ export default class ContentionReporter implements Reporter {
     );
   }
 
-  /** Print the block even when the run is cut short; the machine is the point. */
+  /**
+   * Declare that this reporter writes to stdout.
+   *
+   * Playwright adds progress output of its own when every configured reporter says it
+   * does not print, which would double up on `list`. Saying so here is the honest answer
+   * and keeps the run's output exactly as `list` renders it, plus this reporter's blocks.
+   */
   printsToStdio(): boolean {
     return true;
   }
