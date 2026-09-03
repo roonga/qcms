@@ -13,7 +13,7 @@ import { responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat } from "@/lib/ops/export";
 import { exportQuery, isExportable, versionRequired } from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
@@ -281,7 +281,7 @@ export function ResponseBrowser({
                     </th>
                     <td className="qcms-cell--num">v{row.formVersion}</td>
                     <td className="qcms-cell--num">
-                      {formatDateTime(row.submittedAt, t("ops.common.none"))}
+                      <OperatorDateTime iso={row.submittedAt} fallback={t("ops.common.none")} />
                     </td>
                     <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
                     <td>

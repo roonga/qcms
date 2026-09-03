@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { erasureReasonText } from "@/components/ops/ops-tags";
 import { claimPostActionFocus, TOMBSTONE_HEADING_ID } from "@/lib/ops/post-action-focus";
 import type { Tombstone } from "@/lib/ops/types";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -79,7 +79,9 @@ export function TombstoneCard({ tombstone }: { readonly tombstone: Tombstone }) 
         <dt>{t("ops.tombstone.formVersion")}</dt>
         <dd>v{tombstone.formVersion}</dd>
         <dt>{t("ops.tombstone.erasedAt")}</dt>
-        <dd>{formatDateTime(tombstone.erasedAt, t("ops.common.none"))}</dd>
+        <dd>
+          <OperatorDateTime iso={tombstone.erasedAt} fallback={t("ops.common.none")} />
+        </dd>
         <dt>{t("ops.tombstone.reason")}</dt>
         <dd data-testid="qcms-tombstone-reason">{erasureReasonText(tombstone.reason)}</dd>
       </dl>

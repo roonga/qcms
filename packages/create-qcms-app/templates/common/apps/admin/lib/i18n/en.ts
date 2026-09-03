@@ -1094,10 +1094,14 @@ export const messages = {
   "forms.links.mint": "Mint links",
   "forms.links.mintTitle": "Mint secure links",
   "forms.links.expiresAt": "Expires",
-  // The zone is named here because this is where the promise is made. The instant stored
-  // is the end of the chosen day in UTC (`endOfDay` in the forms actions), and the links
-  // table renders every timestamp in the same zone - so an operator who is not on UTC
-  // would otherwise be told a day and given one up to fourteen hours away from it.
+  // The zone is named here because this is where the promise is made, and it stays UTC
+  // even though the links table went operator-local in issue #279. The two are not in
+  // tension. The stored instant is the end of the chosen day in UTC (`endOfDay` in the
+  // forms actions), so this sentence states the rule the API will actually enforce for a
+  // respondent who may be anywhere, while the table states that same instant on the clock
+  // the operator reading it is on. A dialog promising "the end of your today" would be
+  // promising something the stored value does not say, and two operators picking the same
+  // calendar day would mint links dying up to a day apart.
   "forms.links.expiresAtHint": "The link stops working at the end of this day, UTC, used or not.",
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",

@@ -86,13 +86,13 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (334 files common to both shapes)
+### Scaffolded paths (337 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 323   |
-| `apps/admin/`                                                        | 194   |
+| `apps/`                                                              | 326   |
+| `apps/admin/`                                                        | 195   |
 | `apps/admin/app/`                                                    | 63    |
 | `apps/admin/app/(shell)/`                                            | 47    |
 | `apps/admin/app/(shell)/@rail/`                                      | 20    |
@@ -146,7 +146,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 58    |
+| `apps/admin/components/`                                             | 59    |
 | `apps/admin/components/forms/`                                       | 23    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
@@ -174,7 +174,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/api/src/middleware/`                                           | 6     |
 | `apps/api/src/routes/`                                               | 1     |
 | `apps/api/src/schedulers/`                                           | 4     |
-| `apps/portal/`                                                       | 59    |
+| `apps/portal/`                                                       | 61    |
 | `apps/portal/app/`                                                   | 15    |
 | `apps/portal/app/done/`                                              | 1     |
 | `apps/portal/app/expired/`                                           | 1     |
@@ -189,8 +189,8 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/portal/app/s/[sessionId]/answers/`                             | 1     |
 | `apps/portal/app/s/[sessionId]/step/`                                | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                              | 1     |
-| `apps/portal/components/`                                            | 12    |
-| `apps/portal/lib/`                                                   | 25    |
+| `apps/portal/components/`                                            | 13    |
+| `apps/portal/lib/`                                                   | 26    |
 | `apps/portal/lib/i18n/`                                              | 1     |
 | `apps/portal/lib/server/`                                            | 15    |
 | `docker/`                                                            | 3     |
@@ -215,7 +215,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1510` lines across `281` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1531` lines across `287` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -230,7 +230,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (334)</summary>
+<summary>Every scaffolded file (337)</summary>
 
 ```
 .dockerignore
@@ -333,6 +333,7 @@ apps/admin/components/forms/version-view.tsx
 apps/admin/components/kit.tsx
 apps/admin/components/measured-main.tsx
 apps/admin/components/mode-glyph.tsx
+apps/admin/components/operator-time.tsx
 apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
 apps/admin/components/ops/ops-tags.tsx
@@ -523,6 +524,7 @@ apps/portal/components/brand-mark.tsx
 apps/portal/components/challenge-slot.tsx
 apps/portal/components/completion-view.tsx
 apps/portal/components/entry-view.tsx
+apps/portal/components/hydration-marker.tsx
 apps/portal/components/message-screen.tsx
 apps/portal/components/native-step.tsx
 apps/portal/components/portal-shell.tsx
@@ -534,6 +536,7 @@ apps/portal/lib/a11y.ts
 apps/portal/lib/answer-record.ts
 apps/portal/lib/appearance.ts
 apps/portal/lib/error-summary.ts
+apps/portal/lib/hydration.ts
 apps/portal/lib/i18n/en.ts
 apps/portal/lib/server/api.ts
 apps/portal/lib/server/challenge.ts

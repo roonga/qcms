@@ -4,7 +4,7 @@ import type { Metadata } from "next";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { erasureReasonText } from "@/components/ops/ops-tags";
-import { formatDateTime } from "@/lib/i18n/format";
+import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { listErasures } from "@/lib/server/responses";
@@ -102,7 +102,7 @@ export default async function ErasureLogPage() {
                     </td>
                     <td className="qcms-cell--num">v{row.formVersion}</td>
                     <td className="qcms-cell--num">
-                      {formatDateTime(row.erasedAt, t("ops.common.none"))}
+                      <OperatorDateTime iso={row.erasedAt} fallback={t("ops.common.none")} />
                     </td>
                     <td className="qcms-cell--drop">{erasureReasonText(row.reason)}</td>
                   </tr>
