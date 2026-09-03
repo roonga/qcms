@@ -17,7 +17,8 @@ import { t, tPlural, type MessageKey } from "@/lib/i18n/en";
 import { IssueEntry } from "./validation-panel";
 
 /**
- * The agent-authoring chat panel (task 041; wireframe `admin-agent-panel.md`).
+ * The agent-authoring chat panel (task 041; work order
+ * `docs/features/041-agent-form-building.md`).
  *
  * ## What owns what
  *
@@ -284,6 +285,36 @@ export function AssistPanel({
                     )}
                   </div>
 
+                  {/* The second advisory channel, kept separate from the first for the
+                      reason `validation-panel.tsx` states at length: an issue is why a
+                      publish is refused and a warning blocks nothing, so folding the two
+                      counts together leaves an author unable to tell which one stops
+                      them. Same heading and same summary sentence as the builder's own
+                      panel, because it is the same verdict about the same draft - the
+                      server ran 022's validation once and both surfaces show its two
+                      lists. */}
+                  {proposal.proposal.warnings.length > 0 && (
+                    <div data-testid="qcms-assist-warnings" className="flex flex-col gap-2 text-sm">
+                      <h4 className="font-semibold text-(--color-text)">
+                        {t("forms.warning.heading")}
+                      </h4>
+                      <p className="text-(--color-text-muted)">
+                        {tPlural(
+                          "forms.warning.countOne",
+                          "forms.warning.count",
+                          proposal.proposal.warnings.length,
+                        )}
+                      </p>
+                      <ul className="flex flex-col gap-2">
+                        {proposal.proposal.warnings.map((warning, index) => (
+                          <li key={`${warning.code}:${String(index)}`}>
+                            <IssueEntry issue={warning} draft={draft} />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
                   <div className="flex flex-wrap gap-2">
                     <div data-testid="qcms-assist-accept">
                       <Button variant="primary" size="md" onPress={accept}>
@@ -349,7 +380,7 @@ function computeStatusText(
   proposal: ProposalState | undefined,
 ): string {
   if (working !== undefined) return workingText(working);
-  if (proposal !== undefined) return proposalAnnounce(proposal.diff, proposal.proposal.issues);
+  if (proposal !== undefined) return proposalAnnounce(proposal.diff, proposal.proposal);
   return "";
 }
 
@@ -449,21 +480,30 @@ function workingText(phase: WorkingPhase): string {
     : t("forms.assist.working");
 }
 
-/** The completion announcement the same live region carries once a proposal lands. */
-function proposalAnnounce(
-  diff: readonly DiffEntry[],
-  issues: ProposalState["proposal"]["issues"],
-): string {
+/**
+ * The completion announcement the same live region carries once a proposal lands.
+ *
+ * Both advisory lists, because a reader who only hears this line is the one reader
+ * who cannot glance at the card and see the warning block underneath it. The
+ * publishability sentence keeps its own meaning - a warning never turns
+ * "Validation passes" into a count of issues - and the warning sentence is
+ * appended beside it rather than instead of it.
+ */
+function proposalAnnounce(diff: readonly DiffEntry[], proposal: AssistProposal): string {
   const changes = tPlural(
     "forms.assist.diffCount.one",
     "forms.assist.diffCount.other",
     diff.length,
   );
   const validation =
-    issues.length === 0
+    proposal.issues.length === 0
       ? t("forms.assist.validationClean")
-      : tPlural("forms.validation.countOne", "forms.validation.count", issues.length);
-  return `${changes} ${validation}`;
+      : tPlural("forms.validation.countOne", "forms.validation.count", proposal.issues.length);
+  const warned =
+    proposal.warnings.length === 0
+      ? ""
+      : ` ${tPlural("forms.warning.countOne", "forms.warning.count", proposal.warnings.length)}`;
+  return `${changes} ${validation}${warned}`;
 }
 
 const KIND_LABELS: Readonly<Record<DiffEntry["kind"], MessageKey>> = {

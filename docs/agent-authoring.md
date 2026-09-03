@@ -142,8 +142,8 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 1. You type a description. The admin posts it to its own BFF route, which forwards it to `POST /admin/forms/{id}/draft/assist` with your admin session.
 2. The API builds the bounded context described above and starts one bounded tool loop against the configured provider.
 3. Progress streams back as server-sent events: a working indicator, the assistant's prose as it arrives, and which tool it is using.
-4. When the loop ends, **the server runs the publish validation itself** over the proposed draft and attaches the issues. The panel is never handed an unvalidated proposal.
-5. You see a diff of steps, questions and rules against your current draft, with the validation result beside it.
+4. When the loop ends, **the server runs the publish validation itself** over the proposed draft and attaches both of its advisory lists: the issues that would block a publish, and the warnings that would not. The panel is never handed an unvalidated proposal.
+5. You see a diff of steps, questions and rules against your current draft, with the validation result beside it. It is the same verdict, from the same kernel call, that the builder's own validation panel would show for that draft, so accepting a proposal never changes what you are told about it.
 6. **Accept into draft** saves the proposal through the ordinary draft save. The builder's own autosave and live validation take over; nothing bypasses them.
 7. The draft is marked "includes agent-assisted changes". The mark is sticky and shows on the builder and on the publish confirmation, so whoever publishes knows what they are signing.
 8. You publish, or not, exactly as you would for a hand-authored form.

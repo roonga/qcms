@@ -1,9 +1,9 @@
 import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
 
 /**
- * The proposal diff (task 041, wireframe `admin-agent-panel.md`).
+ * The proposal diff (task 041).
  *
- * The wireframe asks for one thing: what would accepting this proposal add or change,
+ * The deliverable asks for one thing: what would accepting this proposal add or change,
  * grouped as steps, questions (with type) and rules, each line marked `+`/`~` in text
  * rather than by colour alone. This module answers that question and nothing else - it
  * is pure, so its test can hand it two draft-shaped values and read `DiffEntry[]` back
@@ -34,7 +34,7 @@ export interface DiffEntry {
 /**
  * The full diff: every step, pinned question and rule the proposal adds or changes,
  * relative to `current`. Order is steps, then questions, then rules, each in the
- * proposal's own order - the same grouping the wireframe's ASCII sketch shows.
+ * proposal's own order, grouped by kind.
  */
 export function proposalDiff(
   current: DraftForm,

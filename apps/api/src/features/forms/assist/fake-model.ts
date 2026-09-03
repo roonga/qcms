@@ -163,7 +163,7 @@ function libraryHits(results: Map<string, unknown>): LibraryHit[] {
  * The proposal the `default` script makes, and why it has the shape it has.
  *
  * One step carrying both questions, with a forward-only rule that reveals the
- * second when the first is answered (ADR-16). That is the wireframe's own sketch,
+ * second when the first is answered (ADR-16). That is the work order's own example,
  * and it is the arrangement worth exercising end to end: within a single step the
  * reveal is visible without any navigation, so a branch that fails to appear
  * cannot be mistaken for a step that was never reached.

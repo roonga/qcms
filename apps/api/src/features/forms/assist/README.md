@@ -61,10 +61,17 @@ present in the database _before_ it is asserted absent from the payload.
 
 ## The advisory validation is the server's
 
-The terminal `proposal` event always carries `issues`, computed here by calling
-022's `validateDraft` over the proposed draft after the loop ends - even when the
-model already called `validate_draft` itself. The UI is never handed a proposal
-the agent validated for itself.
+The terminal `proposal` event always carries `issues` **and** `warnings`, both
+computed here by calling 022's `validateDraft` over the proposed draft after the
+loop ends - even when the model already called `validate_draft` itself. The UI is
+never handed a proposal the agent validated for itself.
+
+Two lists rather than one because issue #123 split the advisory channel: `issues`
+is why a publish would be refused, `warnings` is a draft that would publish and
+may not behave as written. Both travel, and the panel renders both, so a proposal
+card can never read "Validation passes" over a draft the builder's own validation
+panel will flag one Accept later. The tool results carry both for the same reason
+in the other direction: a model that cannot see a warning cannot act on it.
 
 A proposed question that is not published yet validates as an unpublished pin.
 That is correct rather than a gap: the agent's view of validity and the builder's

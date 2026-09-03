@@ -1,8 +1,7 @@
 import { t } from "@/lib/i18n/en";
 
 /**
- * The agent-assisted provenance marker (task 041, ADR-25; wireframe
- * `admin-agent-panel.md`).
+ * The agent-assisted provenance marker (task 041, ADR-25).
  *
  * Same shape as `StatusTag` (task 032) and the same reason: a plain span rather than
  * a kit component, because this is app chrome rather than a new variant of a vendored

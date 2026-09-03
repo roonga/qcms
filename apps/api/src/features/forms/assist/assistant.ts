@@ -309,7 +309,7 @@ async function* finishTurn(args: {
   // The advisory validation the UI is handed is always the server's own, run
   // here even if the model already called validate_draft: the agent never hands
   // the UI a proposal it validated for itself (041).
-  const issues = await ctx.validate(state.proposedDraft);
+  const { issues, warnings } = await ctx.validate(state.proposedDraft);
 
   yield {
     type: "proposal",
@@ -318,6 +318,7 @@ async function* finishTurn(args: {
       newQuestions: state.newQuestions,
       rationale: outcome.rationale.trim(),
       issues,
+      warnings,
     },
   };
 }

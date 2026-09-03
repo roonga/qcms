@@ -107,6 +107,12 @@ interface DeprecatedPinIssue {
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
 export type PublishIssue = PublishError | DeprecatedPinIssue;
+/**
+ * Re-exported so the assist slice (041) takes the advisory contract from the one
+ * place that produces it, rather than importing half of it from here and half
+ * from `@qcms/core` and letting the two drift.
+ */
+export type { PublishWarning };
 
 // --- typed failures (envelope codes the admin app keys off, 032) ------------
 

@@ -6,7 +6,8 @@ import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
 /**
- * The assist turn's streaming proxy (task 041; wireframe `admin-agent-panel.md`).
+ * The assist turn's streaming proxy (task 041; work order
+ * `docs/features/041-agent-form-building.md`).
  *
  * `POST /admin/forms/:id/draft/assist` answers `text/event-stream`, and this handler
  * does with it exactly what `export/route.ts` does with a CSV or JSON download:
@@ -21,8 +22,8 @@ import { requireAdminSessionForRequest } from "@/lib/server/session";
  * `QCMS_FLAG_AGENT_AUTHORING=none` (the default) means task 041's whole surface is
  * absent, not merely hidden: no chat UI, and - here - no reachable route either. A
  * 404 with no body is what "this route does not exist" looks like from the outside,
- * which is the property the wireframe's "flag off (panel absent... no assist routes
- * mounted)" state asks for. Nothing past this line runs when the flag is off, so an
+ * which is the property exit criterion 1 asks for: flag off means no chat UI and no
+ * assist routes mounted. Nothing past this line runs when the flag is off, so an
  * unauthenticated probe of this path learns nothing about whether a session, a form,
  * or a provider key exists.
  *
@@ -38,8 +39,8 @@ import { requireAdminSessionForRequest } from "@/lib/server/session";
  *
  * A 429 (rate limited, `retry-after`), a 409 (`DRAFT_STALE`, the draft moved under the
  * conversation), a 404 or a 401 all arrive as ordinary JSON envelopes rather than an
- * event stream, and the panel renders each as its own state (wireframe: "rate-limited
- * (alert with retry-after)", "stale draft"). Relaying the status and body as-is, the
+ * event stream, and the panel renders each as its own state (rate-limited, with the
+ * retry-after; stale draft). Relaying the status and body as-is, the
  * same shape `export/route.ts` uses for its own refusal path, is what lets the panel
  * tell them apart without this BFF deciding anything about what they mean (R2).
  */

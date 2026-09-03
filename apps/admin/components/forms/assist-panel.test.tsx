@@ -61,6 +61,7 @@ describe("AssistPanel", () => {
         newQuestions: [],
         rationale: "Added a driving-history step.",
         issues: [{ code: "DANGLING_STEP_REF", message: "That step is not reachable." }],
+        warnings: [],
       },
     };
     vi.stubGlobal(
@@ -88,6 +89,66 @@ describe("AssistPanel", () => {
     });
     expect(screen.getByText(/Added:.*Driving history/)).toBeTruthy();
     expect(screen.getByText("That step is not reachable.")).toBeTruthy();
+    // No warnings on this proposal, so no warning block at all rather than an
+    // empty one asserting there is nothing worth a look.
+    expect(screen.queryByTestId("qcms-assist-warnings")).toBeNull();
+  });
+
+  /**
+   * The proposal card shows the same two lists the builder's validation panel
+   * shows for the same draft (issue #123, ADR-25's "the kernel validates").
+   *
+   * The interesting shape is exactly this one: no issues, one warning. Before the
+   * warnings channel reached this panel it read "Validation passes" and stopped,
+   * over a draft the validation panel flags the moment Accept stores it - the
+   * screen contradicting itself about one draft one debounce apart.
+   */
+  it("shows a warning beside a clean issue list rather than claiming all is well", async () => {
+    const proposal = {
+      proposal: {
+        proposedDraft: DRAFT,
+        newQuestions: [],
+        rationale: "Reused the existing step.",
+        issues: [],
+        warnings: [
+          {
+            code: "MULTICHOICE_SAME_STEP_TARGET",
+            message: "This rule reveals a question on the step it reads from.",
+          },
+        ],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Reuse the step I have");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("qcms-assist-warnings")).toBeTruthy();
+    });
+    // The publishability line still says the draft would publish, because a
+    // warning does not block one. Both statements stand, which is the point.
+    expect(screen.getByText(t("forms.assist.validationClean"))).toBeTruthy();
+    expect(screen.getByText(t("forms.warning.heading"))).toBeTruthy();
+    expect(screen.getByText(t("forms.warning.countOne"))).toBeTruthy();
+    expect(
+      screen.getByText("This rule reveals a question on the step it reads from."),
+    ).toBeTruthy();
   });
 
   it("renders the refused/tool-rejected state as an alert", async () => {

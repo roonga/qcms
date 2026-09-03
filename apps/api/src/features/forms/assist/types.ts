@@ -14,7 +14,7 @@
 
 import type { FormDefinition, QuestionDefinition, QuestionId } from "@qcms/core";
 
-import type { PublishIssue } from "../handler.js";
+import type { PublishIssue, PublishWarning } from "../handler.js";
 
 /** One conversation turn. The session is the whole memory (041 out of scope: anything longer). */
 export interface AssistTurn {
@@ -47,11 +47,24 @@ export interface QuestionLibraryPort {
 }
 
 /**
- * Advisory validation (022) as the agent sees it: give it a candidate draft,
- * get back the same `PublishError[]` the builder's live validation shows. There
- * is no "publish" counterpart, by construction.
+ * Advisory validation (022) as the agent sees it: give it a candidate draft, get
+ * back **both** advisory channels the builder's live validation shows. There is
+ * no "publish" counterpart, by construction.
+ *
+ * Two channels rather than one, since issue #123 split them. `issues` is why a
+ * publish would be refused; `warnings` is a draft that would publish and may not
+ * behave as written. The port carries both because the alternative is an
+ * assistant whose proposal card says "validation passes" over a draft the
+ * builder will flag the moment it is accepted, which is the same claim-more-than-
+ * you-know defect in a different surface. The kernel decides both; this slice
+ * only relays them.
  */
-export type ValidateDraftPort = (definition: FormDefinition) => Promise<readonly PublishIssue[]>;
+export interface DraftVerdict {
+  readonly issues: readonly PublishIssue[];
+  readonly warnings: readonly PublishWarning[];
+}
+
+export type ValidateDraftPort = (definition: FormDefinition) => Promise<DraftVerdict>;
 
 /**
  * Everything one assist turn is allowed to touch.
@@ -78,20 +91,24 @@ export interface AssistContext {
 /**
  * What the agent proposes, after the server has validated it.
  *
- * `issues` is never optional and never client-computed: the slice runs 022's
- * advisory validation over `proposedDraft` before this leaves the process, so
- * the UI can never be handed an unvalidated proposal (041 deliverable).
+ * Neither advisory list is optional and neither is client-computed: the slice
+ * runs 022's advisory validation over `proposedDraft` before this leaves the
+ * process, so the UI can never be handed an unvalidated proposal (041
+ * deliverable). `warnings` rides beside `issues` for the reason
+ * {@link ValidateDraftPort} gives: the panel shows exactly what the builder
+ * would show for the same draft, and a proposal that would publish with a
+ * warning says so here rather than one Accept later.
  */
 export interface AssistProposal {
   readonly proposedDraft: FormDefinition;
   readonly newQuestions: readonly QuestionDefinition[];
   readonly rationale: string;
   readonly issues: readonly PublishIssue[];
+  readonly warnings: readonly PublishWarning[];
 }
 
 /**
- * Machine-readable failure codes the UI renders as its error states (042
- * wireframe).
+ * Machine-readable failure codes the UI renders as its error states.
  *
  * A runtime array rather than a bare union, because both halves of this contract
  * need to be enumerable. `assistant.test.ts` asserts every code here is actually

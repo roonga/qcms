@@ -76,7 +76,7 @@ function contextFor(
     conversation: [{ role: "user", content: message }],
     validate: (definition) => {
       validated.push(definition);
-      return Promise.resolve([]);
+      return Promise.resolve({ issues: [], warnings: [] });
     },
     maxSteps: 8,
     ...overrides,
@@ -117,6 +117,7 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(proposal.proposal.proposedDraft.rules).toHaveLength(1);
     expect(proposal.proposal.proposedDraft.rules[0]?.show).toEqual(["q_accident_detail"]);
     expect(proposal.proposal.issues).toEqual([]);
+    expect(proposal.proposal.warnings).toEqual([]);
     expect(proposal.proposal.rationale).not.toBe("");
 
     // The advisory validation is the server's own, run before the proposal left.
@@ -126,6 +127,44 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(proposal.proposal.proposedDraft.steps[0]?.items[0]?.questionId).toBe(
       "q_at_fault_accident",
     );
+  });
+
+  /**
+   * The second advisory channel (issue #123) reaches the proposal exactly as the
+   * first does.
+   *
+   * The kernel validates everything, and after that split "everything" is two
+   * lists rather than one. A warning describes a draft that WOULD publish, so an
+   * assistant that dropped it would hand the author a proposal card reading
+   * "validation passes" over a draft the builder's own validation panel flags the
+   * moment it is accepted - the same surface disagreeing with itself about one
+   * draft. The port is stubbed here rather than driven through a warning-producing
+   * fixture on purpose: what is under test is that this slice relays what 022's
+   * validation returned, and `packages/core` owns whether a given draft earns a
+   * warning.
+   */
+  it("carries the warnings the server's own validation returned, beside the issues", async () => {
+    const warning = {
+      code: "MULTICHOICE_SAME_STEP_TARGET" as const,
+      message: "This rule reveals a question on the step it reads from.",
+      path: {
+        rule: "rul_x" as never,
+        question: "q_a" as never,
+        target: "q_b" as never,
+        step: "stp_a" as never,
+      },
+    };
+    const { ctx } = contextFor(
+      "a vehicle-insurance quote where an at-fault accident opens a follow-up",
+      { validate: () => Promise.resolve({ issues: [], warnings: [warning] }) },
+    );
+
+    const proposal = (await collect(ctx)).find((e) => e.type === "proposal");
+    if (proposal?.type !== "proposal") throw new Error("unreachable");
+    expect(proposal.proposal.warnings).toEqual([warning]);
+    // Still publishable: a warning is not an issue, and collapsing the two is the
+    // exact confusion issue #123 split them to prevent.
+    expect(proposal.proposal.issues).toEqual([]);
   });
 
   it("reports token counts and step counts, never content", async () => {

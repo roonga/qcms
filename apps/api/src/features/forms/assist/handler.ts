@@ -110,7 +110,13 @@ function buildContext(
     draft,
     questionLibrary: questionLibrary(deps),
     conversation,
-    validate: async (definition) => (await validateDraft(deps, definition)).issues,
+    // Both advisory channels, unedited. `validateDraft` is 022's own, so the
+    // assistant's verdict is the builder's verdict over the same draft rather
+    // than a second opinion that could disagree with it.
+    validate: async (definition) => {
+      const { issues, warnings } = await validateDraft(deps, definition);
+      return { issues, warnings };
+    },
     maxSteps: deps.config.agent.provider === "none" ? 1 : deps.config.agent.maxSteps,
   };
 }

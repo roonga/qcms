@@ -1191,7 +1191,7 @@ export const messages = {
 
   // --- agent-assisted form building (task 041, flag-gated) --------------------
   //
-  // The panel's own copy. Two rules from the wireframe (`admin-agent-panel.md`) and
+  // The panel's own copy. Two rules from the 041 deliverable and
   // ADR-25 shape everything below: Accept "merges the proposal into the working
   // draft; never publishes" (there is no publish/erase/link/webhook affordance here
   // at all, by construction), and every diff line is worded so `+`/`~` is never the

@@ -54,7 +54,7 @@ function contextFixture(message: string): AssistContext {
     draft: draftFixture(),
     questionLibrary: { search: () => Promise.resolve([]) },
     conversation: [{ role: "user", content: message }],
-    validate: () => Promise.resolve([]),
+    validate: () => Promise.resolve({ issues: [], warnings: [] }),
     maxSteps: 8,
   };
 }
@@ -95,6 +95,33 @@ describe("the assist tool allowlist", () => {
     const state = createProposalState();
     await expect(runAssistTool("validate_draft", {}, ctx, state)).resolves.toMatchObject({
       valid: true,
+    });
+  });
+
+  /**
+   * `valid` is about publishability and warnings do not decide it (issue #123),
+   * but the model is still shown them.
+   *
+   * Both halves matter and they pull in opposite directions, which is why they are
+   * asserted together: a `valid: false` here would make the assistant treat a
+   * publishable draft as broken, and a missing `warnings` key would leave it
+   * unable to act on something the author is about to be shown.
+   */
+  it("hands the model the warnings without letting them decide publishability", async () => {
+    const warning = {
+      code: "PATTERN_CLASS_SET_AMBIGUOUS" as const,
+      message: "This pattern's character class is ambiguous.",
+      path: { question: "q_a" as never },
+    };
+    const ctx: AssistContext = {
+      ...contextFixture("hi"),
+      validate: () => Promise.resolve({ issues: [], warnings: [warning] }),
+    };
+    const state = createProposalState();
+    await expect(runAssistTool("validate_draft", {}, ctx, state)).resolves.toEqual({
+      valid: true,
+      issues: [],
+      warnings: [warning],
     });
   });
 });

@@ -2,7 +2,7 @@ import type { FormIssue } from "./types.ts";
 import { parseIssues } from "./issues.ts";
 
 /**
- * The assist SSE stream, parsed client-side (task 041, wireframe `admin-agent-panel.md`).
+ * The assist SSE stream, parsed client-side (task 041).
  *
  * The API relays `apps/api/src/features/forms/assist/types.ts`'s `AssistEvent` union as
  * one `event: <type>\ndata: <json>\n\n` frame per item. This module redeclares that
@@ -28,7 +28,17 @@ export interface AssistProposal {
   /** The kernel's `QuestionDefinition[]` for any questions the proposal introduces. */
   readonly newQuestions: readonly unknown[];
   readonly rationale: string;
+  /** What would block a publish. */
   readonly issues: readonly FormIssue[];
+  /**
+   * What would not block a publish but may not behave as written (issue #123).
+   *
+   * Carried because the panel must show the same two lists the builder shows for
+   * the same draft: a proposal card that said "validation passes" over a draft
+   * the validation panel flags one Accept later would be claiming more than the
+   * server told it.
+   */
+  readonly warnings: readonly FormIssue[];
 }
 
 /**
@@ -195,5 +205,6 @@ function toAssistProposal(raw: unknown): AssistProposal | undefined {
     newQuestions,
     rationale,
     issues: parseIssues(raw["issues"]),
+    warnings: parseIssues(raw["warnings"]),
   };
 }

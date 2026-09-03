@@ -166,8 +166,11 @@ async function proposeDraft(
     };
   }
   state.proposedDraft = definition;
-  const issues = await ctx.validate(definition);
-  return { accepted: true, valid: issues.length === 0, issues };
+  const { issues, warnings } = await ctx.validate(definition);
+  // `valid` is about publishability, so it turns on issues alone: a warning
+  // describes a draft that WOULD publish (issue #123). The warnings ride back
+  // anyway, because a model that cannot see them cannot act on them.
+  return { accepted: true, valid: issues.length === 0, issues, warnings };
 }
 
 async function validateProposal(
@@ -175,8 +178,8 @@ async function validateProposal(
   state: ProposalState,
 ): Promise<Record<string, unknown>> {
   const definition = state.proposedDraft ?? ctx.draft;
-  const issues = await ctx.validate(definition);
-  return { valid: issues.length === 0, issues };
+  const { issues, warnings } = await ctx.validate(definition);
+  return { valid: issues.length === 0, issues, warnings };
 }
 
 /**
@@ -198,13 +201,13 @@ const REGISTRY: Readonly<Record<AssistToolName, AssistToolDef>> = Object.freeze(
   },
   propose_draft: {
     description:
-      "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues for it. Never publishes.",
+      "Propose the complete draft FormDefinition for this form. Returns the advisory validation issues that would block a publish, and the warnings that would not. Never publishes.",
     inputSchema: ProposeDraftInput,
     execute: (input, ctx, state) => proposeDraft(input, ctx, state),
   },
   validate_draft: {
     description:
-      "Run the publish validation over the currently proposed draft and return its issues.",
+      "Run the publish validation over the currently proposed draft and return its blocking issues and its non-blocking warnings.",
     inputSchema: ValidateInput,
     execute: (_input, ctx, state) => validateProposal(ctx, state),
   },

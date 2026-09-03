@@ -73,29 +73,37 @@ describe("readAssistEvents", () => {
     ]);
   });
 
-  it("parses a proposal frame, carrying its issues through", async () => {
-    const body = streamOf([
-      frame("proposal", {
-        proposal: {
-          proposedDraft: { steps: [], rules: [] },
-          newQuestions: [],
-          rationale: "Added a follow-up step.",
-          issues: [{ code: "DANGLING_STEP_REF", message: "no such step" }],
-        },
-      }),
-    ]);
-    const events = await collect(body);
-    expect(events).toEqual([
-      {
-        type: "proposal",
-        proposal: {
-          proposedDraft: { steps: [], rules: [] },
-          newQuestions: [],
-          rationale: "Added a follow-up step.",
-          issues: [{ code: "DANGLING_STEP_REF", message: "no such step" }],
-        },
-      },
-    ]);
+  it("parses a proposal frame, carrying both advisory lists through", async () => {
+    // Both channels, because they are two different claims about the same draft
+    // (issue #123) and a parser that read only the first would silently turn a
+    // warned draft into a clean one on the way to the panel.
+    const proposal = {
+      proposedDraft: { steps: [], rules: [] },
+      newQuestions: [],
+      rationale: "Added a follow-up step.",
+      issues: [{ code: "DANGLING_STEP_REF", message: "no such step" }],
+      warnings: [{ code: "MULTICHOICE_SAME_STEP_TARGET", message: "reveals on the same step" }],
+    };
+    const events = await collect(streamOf([frame("proposal", { proposal })]));
+    expect(events).toEqual([{ type: "proposal", proposal }]);
+  });
+
+  it("reads a proposal frame with no warnings key as no warnings, not as absent", async () => {
+    // Defensive on the same side `parseIssues` already is: the panel maps over
+    // this list, so a missing key has to arrive as `[]` rather than `undefined`.
+    const events = await collect(
+      streamOf([
+        frame("proposal", {
+          proposal: {
+            proposedDraft: { steps: [], rules: [] },
+            newQuestions: [],
+            rationale: "Added a follow-up step.",
+            issues: [],
+          },
+        }),
+      ]),
+    );
+    expect(events[0]).toMatchObject({ type: "proposal", proposal: { warnings: [] } });
   });
 
   it("parses a terminal error frame, preserving order against what came before it", async () => {

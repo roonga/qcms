@@ -14,8 +14,8 @@
 
 ### ADR-25 - Agent-assisted authoring only
 
-**Status:** decided; launch scope, off the launch gate; not built (task 041).
+**Status:** implemented behind a flag that is off by default (task 041); launch scope, off the launch gate.
 
 **Decision.** A flag-gated admin assistant may propose questions and form drafts. The kernel validates every proposal and a human publishes it. The assistant cannot publish, erase, manage links or webhooks, or read response data. The serving path never uses an LLM.
 
-**Note.** Nothing exists yet: no flag, no seam, no assistant dependency. Setting the documented `QCMS_FLAG_AGENT_AUTHORING` fails boot today, and that is ADR-24's fail-fast on an unregistered flag working as designed rather than anything to work around. Registering the flag in the typed environment registry is task 041's first step. The one verifiable clause - no LLM in the serving path - holds. The earlier text said the assistant "is built for launch"; the accurate statement of the decision is that it is in launch scope but does not gate launch.
+**Note.** `QCMS_FLAG_AGENT_AUTHORING` is registered in the typed environment registry (ADR-24) and defaults to `none`, in which state the assist routes are never mounted, no panel renders, and boot requires no provider key. The three clauses that are controls rather than features are structural rather than conventional: the tool registry is module-private and frozen with a single dispatch door, the turn's context object carries no publish call and no answer reader, and the serving path takes no dependency on any of it. Quality is the part no gate in this repository can decide: whether the assistant proposes good questions is a human judgement against a real model, so a green ledger row means the controls hold and says nothing about how good the proposals are. The earlier text said the assistant "is built for launch"; the accurate statement of the decision is that it is in launch scope but does not gate launch.
