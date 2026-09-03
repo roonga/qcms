@@ -159,3 +159,18 @@ export function redirectWithGenericFailure(
 ): Response {
   return redirectAfterPost(`${path}?${marker}=1`);
 }
+
+/**
+ * The one refusal that is allowed to be specific: the new password is in the public
+ * breach corpus (issue #437, Code Owner ruling 2026-09-03).
+ *
+ * Its own function rather than a third member of {@link redirectWithGenericFailure}'s
+ * marker union, because it is the opposite kind of thing. Those markers are opaque on
+ * purpose - the docblock above is the argument for why - and folding a deliberately
+ * informative one in beside them would make that docblock false for one of its own
+ * values. `lib/server/password-refusal.ts` decides when this applies and records what
+ * the ruling accepted; this only carries the decision to the screen.
+ */
+export function redirectWithCompromisedPassword(path: `/${string}`): Response {
+  return redirectAfterPost(`${path}?compromised=1`);
+}

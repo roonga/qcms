@@ -14,8 +14,16 @@ import type { AdminSession } from "./session.ts";
  * decides whether a draft is legal, and `lib/forms/issues.ts` only attributes a verdict it
  * is handed). So a rail costs one extra dry-run validation per render of a form-scoped
  * screen. That cost is stated here rather than hidden: it is the price of the badge the
- * contract asks for, the call writes nothing, and it is the one place to change if issue
- * 561 decides eight screens should share a cheaper source.
+ * contract asks for, and the call writes nothing.
+ *
+ * **That one call is now the whole of the rail's cost** (issue #626). It used to be
+ * three: the slot also re-read the session and re-read the form, both of which the page
+ * beside it had already read in the same request. Those two are memoized per request at
+ * their own definitions (`session.ts`, `forms.ts`) rather than worked around here, which
+ * is what issue 561 concluded when it was pointed at this seam - the duplication was in
+ * the app's server-read strategy, not in the rail's loader. The validation deliberately
+ * did NOT join them: a verdict is per render by definition, and caching it across
+ * requests would be this app deciding what the API decides (R2).
  *
  * NOTHING HERE IS FATAL. A rail is navigation beside a page, never the page, so every
  * failure degrades instead of raising: a form that cannot be read gets no rail at all and

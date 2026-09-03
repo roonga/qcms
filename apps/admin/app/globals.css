@@ -1078,6 +1078,44 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   background-color: var(--color-surface);
+
+  /* THE ID COLUMN'S WIDTH, STATED AS A MEASUREMENT (issue #595).
+
+     `plan/admin-design-contracts.md` §2's 2026-08-21 amendment splits the id rule by
+     minting convention: an opaque id (`ses_`, `lnk_`) renders as prefix-plus-8 with a
+     copy control, and a DERIVED id (`q_`, `opt_`) renders WHOLE, never truncated and
+     never ellipsized. Option ids are derived - `mintOptionId` slugs the author's own
+     label - so fitting one is this column's job, and the amendment moves the width out
+     of the frozen card's hands and into the contract's: rendering a derived id whole is
+     now what the width has to accommodate. The card's 140px was sized for the opaque
+     `opt_8f2ka91m` its mock showed, which is evidence of an intent formed before the
+     rule existed rather than an authority against it.
+
+     14rem / 224px is the room the editor's own content column leaves at the 1280px gate
+     frame, and it is a measurement rather than a taste. The narrower of the two screens
+     carrying this grid is `/questions/new`, which takes the `prose` measure (40rem) on a
+     `<main>` with `p-6`: 640 - 48 = a 592px content column, and the grid's own 1px
+     border leaves 590px for grip + label + id. Off that, 36px is the grip and 224px is
+     here, which leaves the label textarea 330px - still the widest of the three, which
+     is right, because the label is the field being typed into.
+     `/questions/[questionId]` takes `narrow` (45rem) and is 80px wider again, so the
+     column that has to fit is the one measured here.
+
+     What 224px buys: 200px of text after the cell's 0.75rem padding either side, which
+     is 25 characters of the 0.82rem (13.12px) mono face at the ~0.6em advance every
+     entry in `--font-mono` renders at. `opt_roadside_assistance`, the contract's own
+     example of a real label-derived id, is 23 characters and fits with two to spare.
+
+     A LONGER ID WRAPS; IT IS NEVER CUT. No width can be a guarantee, because a derived
+     id is as long as the label an author writes. §9 settles what happens past the cap:
+     losing characters is forbidden by any mechanism, and a wrap that breaks mid-token
+     loses none, so `.qcms-opt-cell--id` wraps with `overflow-wrap: anywhere` - the same
+     answer `.qcms-pinrow__idvalue` gives one screen over, which is what makes the two id
+     columns one answer rather than two. No copy control is added: §2 makes it "welcome"
+     rather than required once a derived id renders whole, and this cell is deliberately
+     text and never a focus target, which is where the minted-once invariant is
+     structural rather than remembered. */
+  --admin-opt-id-col: 14rem;
 }
 
 /* The rounded corners WITHOUT a clip, which is deliberate and is a fix rather than
@@ -1094,8 +1132,8 @@ button {
 
    Rounding the elements that can actually paint into the bottom corners keeps the
    corners and lets an absolutely positioned popup leave the box. It reintroduces no
-   clipping the grid needs, because the grid needed none: the ID cell's truncation
-   is its own `overflow` on its own box, the insert hotzones sit inside the grid, and
+   clipping the grid needs, because the grid needed none: the ID cell wraps inside its
+   own box and clips nothing (issue #595), the insert hotzones sit inside the grid, and
    no row is translated out of it. The one visible consequence is that a row being
    dragged now casts its elevation shadow past the grid's edge instead of having it
    sliced at the border, which is what "elevated" is supposed to look like. */
@@ -1106,7 +1144,7 @@ button {
 }
 .qcms-opt-grid__head {
   display: grid;
-  grid-template-columns: 36px 1fr 140px;
+  grid-template-columns: 36px minmax(0, 1fr) var(--admin-opt-id-col);
   padding-block: 0.5rem;
   border-block-end: 2px solid var(--color-border-strong);
 }
@@ -1133,7 +1171,7 @@ button {
 .qcms-opt-row {
   position: relative;
   display: grid;
-  grid-template-columns: 36px 1fr 140px;
+  grid-template-columns: 36px minmax(0, 1fr) var(--admin-opt-id-col);
   align-items: start;
   min-block-size: var(--admin-control-h);
   border-block-end: 1px solid var(--color-border);
@@ -1163,19 +1201,29 @@ button {
 .qcms-opt-cell--label {
   padding: 0;
 }
-/* `display: block` is load-bearing, not tidying: `text-overflow` only applies to a
-   BLOCK container, and this cell inherits `display: flex` from `.qcms-opt-cell`. With
-   the flex box in place the `ellipsis` below was inert and a long id was cut through
-   mid-glyph, which reads as a layout bug rather than as truncation. */
+/* A derived id renders WHOLE (issue #595; `plan/admin-design-contracts.md` §2's
+   2026-08-21 amendment and §9). This cell used to be `overflow: hidden` with
+   `text-overflow: ellipsis` and `white-space: nowrap` inside the frozen card's 140px,
+   which is tier 1 of §9 - characters lost - and it was the only site in the app that
+   truncated an id. The width above is what accommodates a real one now; this rule is
+   what happens when a still longer one arrives.
+
+   `overflow-wrap: anywhere` rather than a cap: the value breaks mid-token if it has to,
+   which loses nothing, and it is what `.qcms-pinrow__idvalue` already does one screen
+   over, so the app has one answer for a derived id rather than one per column.
+
+   `display: block` stays, for a different reason than it was written for. The old
+   comment recorded that `text-overflow` only acts on a block container and this cell
+   inherits `display: flex` from `.qcms-opt-cell`; the ellipsis is gone, but the flex
+   box would still make the id a flex item rather than wrapping text, so the block box
+   is what lets the value wrap inside the column at all. */
 .qcms-opt-cell--id {
   display: block;
   padding-block-start: 10px;
   font-family: var(--font-mono);
   font-size: 0.82rem;
   color: var(--color-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 .qcms-opt-id--pending {
   font-style: italic;
@@ -1296,11 +1344,17 @@ button {
 
 /* Mid-drag compresses: the elevated row clamps back to one line while it travels
    with the pointer instead of carrying its full wrapped height along. The live
-   drop indicator conveys where it will land; the row itself need not. */
+   drop indicator conveys where it will land; the row itself need not.
+
+   The clamp is a FLOOR, not a fixed height (issue #595). A fixed `block-size` was fine
+   while the ID cell was `overflow: hidden`, because nothing in the row could exceed it;
+   now that an over-long id wraps rather than truncating, a fixed height would push the
+   second line out through the row's bottom edge - visually clipping an id, which is
+   what §9 forbids by any mechanism. The label is separately clamped to one line below,
+   so a row whose id fits is exactly as compressed as it was. */
 .qcms-opt-row.is-dragging {
   z-index: 1;
   align-items: center;
-  block-size: var(--admin-control-h);
   min-block-size: var(--admin-control-h);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface);

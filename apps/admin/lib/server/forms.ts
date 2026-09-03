@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type { PreviewOutcome, PreviewReason } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
 import type {
@@ -70,32 +72,51 @@ export async function createForm(
  * panel *warns* that `challengeRequired` is unenforceable, so a build talking to an API
  * that has not started sending the field errs towards telling the author more rather than
  * towards a switch that silently promises protection it may not have (ADR-24).
+ *
+ * ## Once per request, not once per tree (issue #626)
+ *
+ * `cache()` for the reason `currentAdminSession` carries it: a form-scoped screen is a
+ * page and a `@rail` slot rendered from one request, neither can hand the other a
+ * value, and both need the form, so the same `GET /admin/forms/{id}` went out twice per
+ * render. `lib/server/form-rail.ts` and `lib/server/question-rail.ts` both stated that
+ * cost in prose and named this as the place to change if it ever needed a cache.
+ *
+ * **The memo key is the argument list, by identity.** `session` is an object, so the
+ * dedupe holds only because `currentAdminSession` is memoized too and every caller in
+ * a request therefore holds the *same* session object. The two changes are one change,
+ * and the test that counts a render's reads is what keeps them together.
+ *
+ * Per request and no longer, so nothing here can serve a form a mutation has already
+ * changed: a server action runs before the re-render it triggers, and no action reads a
+ * form. Across requests this memo does not exist.
  */
-export async function getForm(
+export const getForm: (
   session: AdminSession,
   formId: string,
-): Promise<ApiResult<FormDetail>> {
-  const result = await read<Record<string, unknown>>(
-    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
-  );
-  if (!result.ok) return result;
-  const raw = result.data;
-  const defaultLocale = asString(raw["defaultLocale"], "en");
-  return {
-    ok: true,
-    data: {
-      formId: asString(raw["formId"], formId),
-      slug: asString(raw["slug"], formId),
-      defaultLocale,
-      status: raw["status"] === "closed" ? "closed" : "open",
-      draft: parseDraft(raw["draft"], formId, defaultLocale),
-      draftSource: parseDraftSource(raw["draftSource"]),
-      versions: parseVersions(raw["versions"]),
-      settings: parseSettings(raw["settings"]),
-      challengeEnforceable: raw["challengeEnforceable"] === true,
-    },
-  };
-}
+) => Promise<ApiResult<FormDetail>> = cache(
+  async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
+    const result = await read<Record<string, unknown>>(
+      await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
+    );
+    if (!result.ok) return result;
+    const raw = result.data;
+    const defaultLocale = asString(raw["defaultLocale"], "en");
+    return {
+      ok: true,
+      data: {
+        formId: asString(raw["formId"], formId),
+        slug: asString(raw["slug"], formId),
+        defaultLocale,
+        status: raw["status"] === "closed" ? "closed" : "open",
+        draft: parseDraft(raw["draft"], formId, defaultLocale),
+        draftSource: parseDraftSource(raw["draftSource"]),
+        versions: parseVersions(raw["versions"]),
+        settings: parseSettings(raw["settings"]),
+        challengeEnforceable: raw["challengeEnforceable"] === true,
+      },
+    };
+  },
+);
 
 /** `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores. */
 export async function saveDraft(

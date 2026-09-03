@@ -6,6 +6,7 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ResponseBrowser } from "@/components/ops/response-browser";
 import { formatList } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
+import { clampedPage } from "@/lib/ops/paging";
 import { parseResponseQuery } from "@/lib/ops/response-filters";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
@@ -44,6 +45,19 @@ export async function generateMetadata({
  * about a filter it had silently discarded (issue 521). What did not parse is named on
  * screen instead.
  *
+ * ## A page past the end is not an empty form
+ *
+ * `?page=99` on a form with one page of results used to render the empty table under
+ * "Nothing has been submitted to this form yet.", which is a false statement about a
+ * form with submissions (issue #550). It is the third arrival of the same defect: the
+ * screen describing something other than what it read. Filters were the first (521), a
+ * failed read was the second (543/572), and this is a POSITION rather than either -
+ * which is exactly why neither earlier fix reaches it.
+ *
+ * The page is clamped to the last one instead, and `lib/ops/paging.ts` carries the
+ * argument for clamping over the alternative (a distinct past-the-end message), the
+ * cost it accepts, and the reason the rule lives in a module rather than in this file.
+ *
  * ## A failed read is not an empty result
  *
  * The list read reaches the browser as a `ReadState` (`lib/read-state.ts`, issue 543)
@@ -69,10 +83,21 @@ export default async function FormResponsesPage({
 
   const { applied, request, hasFilters, ignored, page } = parseResponseQuery(query);
 
-  const [detail, responses] = await Promise.all([
+  const [detail, firstRead] = await Promise.all([
     getForm(session, formId),
     listResponses(session, formId, { ...request, page }),
   ]);
+
+  // A page past the end of a result set that HAS rows is clamped to the last one
+  // (issue #550, `lib/ops/paging.ts` argues why clamping rather than a third empty
+  // state). The correction costs a second list read, and only in that case: the total
+  // is what says where the end is, and nothing knows it until the first read lands.
+  // An empty set is left exactly as it came back, because its empty message is true.
+  const clamp = firstRead.ok
+    ? clampedPage(page, firstRead.data.total, firstRead.data.pageSize)
+    : undefined;
+  const responses =
+    clamp === undefined ? firstRead : await listResponses(session, formId, { ...request, page: clamp });
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
