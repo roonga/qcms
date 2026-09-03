@@ -22,8 +22,14 @@ import { formatDateTime, formatOperatorDateTime, isInstant } from "@/lib/i18n/fo
  * nothing from the runtime it is executing in. `useState(false)` guarantees that: its
  * initial value is the same constant in Node and in the browser, and effects do not run
  * during hydration's first pass. Only afterwards does the effect flip the flag and cause a
- * second, browser-only render in the operator's own locale and zone. That second render is
- * an ordinary state update, which React is free to produce different output for.
+ * second, browser-only render on the operator's own clock. That second render is an
+ * ordinary state update, which React is free to produce different output for.
+ *
+ * Only the ZONE comes from the runtime. The locale stays `ADMIN_LOCALE`, so an operator
+ * elsewhere reads their own clock inside English prose rather than a German date shape in
+ * an English sentence: ADR-27 makes a second locale a configuration change that swaps
+ * `ADMIN_LOCALE` alongside the catalog, and R7 defers that to Phase 4. The argument, and
+ * the one line that would widen it, live at `formatOperatorDateTime`.
  *
  * The mismatch is therefore impossible by construction rather than avoided by care: there
  * is no code path on which `formatOperatorDateTime` can be reached during a server render,
@@ -46,7 +52,7 @@ import { formatDateTime, formatOperatorDateTime, isInstant } from "@/lib/i18n/fo
 
 /**
  * The date-time formatter this render should use: pinned UTC until hydration finishes,
- * the operator's own locale and zone afterwards.
+ * the operator's own zone afterwards (their locale is not taken; see the module note).
  *
  * A hook rather than only a component, because two callers put the result inside a
  * catalog sentence (`t("...", { time })`) rather than in an element of its own, and there

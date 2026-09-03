@@ -30,9 +30,10 @@
  * ## Operator-local display (issue #279)
  *
  * The Code Owner accepted UTC deliberately on 2026-08-02 and queued the local-display
- * follow-up, which is what {@link formatOperatorDateTime} is. It resolves both inputs from
- * the runtime, which is precisely what the determinism argument above forbids doing during
- * a server render - so it is **never called during one**. `components/operator-time.tsx`
+ * follow-up, which is what {@link formatOperatorDateTime} is. It resolves the ZONE from the
+ * runtime - and only the zone, keeping {@link ADMIN_LOCALE} for the reasons recorded at that
+ * function - which is precisely what the determinism argument above forbids doing during a
+ * server render - so it is **never called during one**. `components/operator-time.tsx`
  * owns that rule: the server render and the first client render both go through
  * {@link formatDateTime}, and the swap to this formatter happens in an effect afterwards.
  * Calling it anywhere else reintroduces the mismatch this module exists to avoid.

@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -29,7 +30,7 @@ import { formatDateTime, formatOperatorDateTime } from "../lib/i18n/format.ts";
 const INSTANT = "2026-08-02T04:36:17.098Z";
 
 /** Render `node` with the process on `zone`, then put the zone back. */
-function markupInZone(zone: string, node: React.ReactNode): string {
+function markupInZone(zone: string, node: ReactNode): string {
   const original = process.env.TZ;
   try {
     process.env.TZ = zone;
