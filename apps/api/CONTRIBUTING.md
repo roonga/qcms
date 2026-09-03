@@ -107,11 +107,15 @@ Every internal-surface request carries the internal service token
 
 ### Running one test file (issue #387)
 
-This app's `test` script is `vitest run --root ../.. --project qcms-api
---project qcms-api-e2e`: one root `vitest.config.ts` owns every project, so a
-direct invocation has to carry the same `--root` and `--project`. Either form
-works, and the path is relative to the **process working directory**, not to
-`--root`:
+This app's `test` script is:
+
+```sh
+vitest run --root ../.. --project qcms-api --project qcms-api-e2e
+```
+
+One root `vitest.config.ts` owns every project, so a direct invocation has to
+carry the same `--root` and `--project`. Either form below works, and the path
+is relative to the **process working directory**, not to `--root`:
 
 ```sh
 # From apps/api.
