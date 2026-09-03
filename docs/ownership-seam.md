@@ -88,130 +88,130 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### Scaffolded paths (335 files common to both shapes)
 
-| Path                                                                 | Files |
-| -------------------------------------------------------------------- | ----- |
-| `(project root)`                                                     | 8     |
-| `apps/`                                                              | 324   |
-| `apps/admin/`                                                        | 195   |
-| `apps/admin/app/`                                                    | 63    |
-| `apps/admin/app/(shell)/`                                            | 47    |
-| `apps/admin/app/(shell)/@rail/`                                      | 20    |
-| `apps/admin/app/(shell)/@rail/forms/`                                | 11    |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 9     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`               | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/`             | 2     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/`              | 2     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`    | 1     |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/`              | 1     |
-| `apps/admin/app/(shell)/@rail/forms/new/`                            | 1     |
-| `apps/admin/app/(shell)/@rail/questions/`                            | 3     |
-| `apps/admin/app/(shell)/@rail/questions/[questionId]/`               | 1     |
-| `apps/admin/app/(shell)/@rail/questions/new/`                        | 1     |
-| `apps/admin/app/(shell)/@rail/responses/`                            | 2     |
-| `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
-| `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
-| `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 14    |
-| `apps/admin/app/(shell)/forms/[formId]/`                             | 9     |
-| `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/responses/`                   | 2     |
-| `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/`       | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/versions/`                    | 2     |
-| `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`          | 1     |
-| `apps/admin/app/(shell)/forms/[formId]/webhooks/`                    | 1     |
-| `apps/admin/app/(shell)/forms/new/`                                  | 2     |
-| `apps/admin/app/(shell)/questions/`                                  | 4     |
-| `apps/admin/app/(shell)/questions/[questionId]/`                     | 1     |
-| `apps/admin/app/(shell)/questions/new/`                              | 1     |
-| `apps/admin/app/(shell)/responses/`                                  | 3     |
-| `apps/admin/app/(shell)/responses/erasures/`                         | 1     |
-| `apps/admin/app/(shell)/settings/`                                   | 3     |
-| `apps/admin/app/(shell)/settings/password/`                          | 1     |
-| `apps/admin/app/(shell)/settings/recovery-codes/`                    | 1     |
-| `apps/admin/app/(shell)/webhooks/`                                   | 2     |
-| `apps/admin/app/healthz/`                                            | 1     |
-| `apps/admin/app/sign-in/`                                            | 2     |
-| `apps/admin/app/sign-in/submit/`                                     | 1     |
-| `apps/admin/app/sign-out/`                                           | 1     |
-| `apps/admin/app/two-factor/`                                         | 8     |
-| `apps/admin/app/two-factor/challenge/`                               | 2     |
-| `apps/admin/app/two-factor/challenge/verify/`                        | 1     |
-| `apps/admin/app/two-factor/enroll/`                                  | 2     |
-| `apps/admin/app/two-factor/enroll/verify/`                           | 1     |
-| `apps/admin/app/two-factor/recovery/`                                | 2     |
-| `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
-| `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
-| `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 58    |
-| `apps/admin/components/forms/`                                       | 23    |
-| `apps/admin/components/ops/`                                         | 7     |
-| `apps/admin/components/questions/`                                   | 9     |
-| `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 66    |
-| `apps/admin/lib/forms/`                                              | 17    |
-| `apps/admin/lib/i18n/`                                               | 2     |
-| `apps/admin/lib/ops/`                                                | 9     |
-| `apps/admin/lib/questions/`                                          | 6     |
-| `apps/admin/lib/server/`                                             | 20    |
-| `apps/api/`                                                          | 70    |
-| `apps/api/src/`                                                      | 67    |
-| `apps/api/src/features/`                                             | 39    |
-| `apps/api/src/features/auth/`                                        | 3     |
-| `apps/api/src/features/forms/`                                       | 3     |
-| `apps/api/src/features/links/`                                       | 3     |
-| `apps/api/src/features/outbox/`                                      | 3     |
-| `apps/api/src/features/questions/`                                   | 3     |
-| `apps/api/src/features/responses/`                                   | 18    |
-| `apps/api/src/features/responses/admin/`                             | 4     |
-| `apps/api/src/features/responses/serve-step/`                        | 3     |
-| `apps/api/src/features/responses/start-session/`                     | 3     |
-| `apps/api/src/features/responses/submit/`                            | 3     |
-| `apps/api/src/features/webhooks/`                                    | 6     |
-| `apps/api/src/middleware/`                                           | 6     |
-| `apps/api/src/routes/`                                               | 1     |
-| `apps/api/src/schedulers/`                                           | 4     |
-| `apps/portal/`                                                       | 59    |
-| `apps/portal/app/`                                                   | 15    |
-| `apps/portal/app/done/`                                              | 1     |
-| `apps/portal/app/expired/`                                           | 1     |
-| `apps/portal/app/f/`                                                 | 2     |
-| `apps/portal/app/f/[formSlug]/`                                      | 2     |
-| `apps/portal/app/f/[formSlug]/start/`                                | 1     |
-| `apps/portal/app/l/`                                                 | 1     |
-| `apps/portal/app/l/[token]/`                                         | 1     |
-| `apps/portal/app/link-error/`                                        | 1     |
-| `apps/portal/app/s/`                                                 | 4     |
-| `apps/portal/app/s/[sessionId]/`                                     | 4     |
-| `apps/portal/app/s/[sessionId]/answers/`                             | 1     |
-| `apps/portal/app/s/[sessionId]/step/`                                | 1     |
-| `apps/portal/app/s/[sessionId]/submit/`                              | 1     |
-| `apps/portal/components/`                                            | 12    |
-| `apps/portal/lib/`                                                   | 25    |
-| `apps/portal/lib/i18n/`                                              | 1     |
-| `apps/portal/lib/server/`                                            | 15    |
-| `docker/`                                                            | 3     |
+| Path | Files |
+| --- | --- |
+| `(project root)` | 8 |
+| `apps/` | 324 |
+| `apps/admin/` | 195 |
+| `apps/admin/app/` | 63 |
+| `apps/admin/app/(shell)/` | 47 |
+| `apps/admin/app/(shell)/@rail/` | 20 |
+| `apps/admin/app/(shell)/@rail/forms/` | 11 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/` | 9 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/links/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/preview/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/` | 2 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/` | 2 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/new/` | 1 |
+| `apps/admin/app/(shell)/@rail/questions/` | 3 |
+| `apps/admin/app/(shell)/@rail/questions/[questionId]/` | 1 |
+| `apps/admin/app/(shell)/@rail/questions/new/` | 1 |
+| `apps/admin/app/(shell)/@rail/responses/` | 2 |
+| `apps/admin/app/(shell)/@rail/responses/erasures/` | 1 |
+| `apps/admin/app/(shell)/@rail/settings/` | 1 |
+| `apps/admin/app/(shell)/@rail/webhooks/` | 1 |
+| `apps/admin/app/(shell)/forms/` | 14 |
+| `apps/admin/app/(shell)/forms/[formId]/` | 9 |
+| `apps/admin/app/(shell)/forms/[formId]/export/` | 1 |
+| `apps/admin/app/(shell)/forms/[formId]/links/` | 1 |
+| `apps/admin/app/(shell)/forms/[formId]/preview/` | 1 |
+| `apps/admin/app/(shell)/forms/[formId]/responses/` | 2 |
+| `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/` | 1 |
+| `apps/admin/app/(shell)/forms/[formId]/versions/` | 2 |
+| `apps/admin/app/(shell)/forms/[formId]/versions/[version]/` | 1 |
+| `apps/admin/app/(shell)/forms/[formId]/webhooks/` | 1 |
+| `apps/admin/app/(shell)/forms/new/` | 2 |
+| `apps/admin/app/(shell)/questions/` | 4 |
+| `apps/admin/app/(shell)/questions/[questionId]/` | 1 |
+| `apps/admin/app/(shell)/questions/new/` | 1 |
+| `apps/admin/app/(shell)/responses/` | 3 |
+| `apps/admin/app/(shell)/responses/erasures/` | 1 |
+| `apps/admin/app/(shell)/settings/` | 3 |
+| `apps/admin/app/(shell)/settings/password/` | 1 |
+| `apps/admin/app/(shell)/settings/recovery-codes/` | 1 |
+| `apps/admin/app/(shell)/webhooks/` | 2 |
+| `apps/admin/app/healthz/` | 1 |
+| `apps/admin/app/sign-in/` | 2 |
+| `apps/admin/app/sign-in/submit/` | 1 |
+| `apps/admin/app/sign-out/` | 1 |
+| `apps/admin/app/two-factor/` | 8 |
+| `apps/admin/app/two-factor/challenge/` | 2 |
+| `apps/admin/app/two-factor/challenge/verify/` | 1 |
+| `apps/admin/app/two-factor/enroll/` | 2 |
+| `apps/admin/app/two-factor/enroll/verify/` | 1 |
+| `apps/admin/app/two-factor/recovery/` | 2 |
+| `apps/admin/app/two-factor/recovery-codes/` | 2 |
+| `apps/admin/app/two-factor/recovery-codes/confirm/` | 1 |
+| `apps/admin/app/two-factor/recovery/verify/` | 1 |
+| `apps/admin/components/` | 58 |
+| `apps/admin/components/forms/` | 23 |
+| `apps/admin/components/ops/` | 7 |
+| `apps/admin/components/questions/` | 9 |
+| `apps/admin/components/test-support/` | 1 |
+| `apps/admin/lib/` | 66 |
+| `apps/admin/lib/forms/` | 17 |
+| `apps/admin/lib/i18n/` | 2 |
+| `apps/admin/lib/ops/` | 9 |
+| `apps/admin/lib/questions/` | 6 |
+| `apps/admin/lib/server/` | 20 |
+| `apps/api/` | 70 |
+| `apps/api/src/` | 67 |
+| `apps/api/src/features/` | 39 |
+| `apps/api/src/features/auth/` | 3 |
+| `apps/api/src/features/forms/` | 3 |
+| `apps/api/src/features/links/` | 3 |
+| `apps/api/src/features/outbox/` | 3 |
+| `apps/api/src/features/questions/` | 3 |
+| `apps/api/src/features/responses/` | 18 |
+| `apps/api/src/features/responses/admin/` | 4 |
+| `apps/api/src/features/responses/serve-step/` | 3 |
+| `apps/api/src/features/responses/start-session/` | 3 |
+| `apps/api/src/features/responses/submit/` | 3 |
+| `apps/api/src/features/webhooks/` | 6 |
+| `apps/api/src/middleware/` | 6 |
+| `apps/api/src/routes/` | 1 |
+| `apps/api/src/schedulers/` | 4 |
+| `apps/portal/` | 59 |
+| `apps/portal/app/` | 15 |
+| `apps/portal/app/done/` | 1 |
+| `apps/portal/app/expired/` | 1 |
+| `apps/portal/app/f/` | 2 |
+| `apps/portal/app/f/[formSlug]/` | 2 |
+| `apps/portal/app/f/[formSlug]/start/` | 1 |
+| `apps/portal/app/l/` | 1 |
+| `apps/portal/app/l/[token]/` | 1 |
+| `apps/portal/app/link-error/` | 1 |
+| `apps/portal/app/s/` | 4 |
+| `apps/portal/app/s/[sessionId]/` | 4 |
+| `apps/portal/app/s/[sessionId]/answers/` | 1 |
+| `apps/portal/app/s/[sessionId]/step/` | 1 |
+| `apps/portal/app/s/[sessionId]/submit/` | 1 |
+| `apps/portal/components/` | 12 |
+| `apps/portal/lib/` | 25 |
+| `apps/portal/lib/i18n/` | 1 |
+| `apps/portal/lib/server/` | 15 |
+| `docker/` | 3 |
 
 ### What each deployment shape adds
 
-| Shape        | Additional paths                                            |
-| ------------ | ----------------------------------------------------------- |
-| `solo`       | `README.md`, `docker-compose.proxy.yml`, `docker/Caddyfile` |
-| `enterprise` | `README.md`                                                 |
+| Shape | Additional paths |
+| --- | --- |
+| `solo` | `README.md`, `docker-compose.proxy.yml`, `docker/Caddyfile` |
+| `enterprise` | `README.md` |
 
 ### Package dependencies stamped into `apps/*/package.json`
 
-| Package               | Range    | What it carries                                                                                                                          | Upgrade story                                                                                                                                                                                                                                                                                                                                     |
-| --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@qcms/core`          | `^0.0.0` | Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.                 | Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note.                                   |
-| `@qcms/a2ui-compiler` | `^0.2.0` | Compiles a published form into the stored A2UI document the portal serves.                                                               | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.                                                |
-| `@qcms/db`            | `^0.0.0` | The schema, the migration history, the query helpers and the reporting view.                                                             | Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them. |
-| `@qcms/ui`            | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on.                                             | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.                                                                                |
-| `@qcms/observability` | `^0.0.0` | The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box. | Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13).                                                               |
-| `@qcms/csv`           | `^0.0.0` | One helper: RFC 4180 quoting plus the spreadsheet formula-injection guard every exported cell passes through.                            | Upgrade freely, and prefer to, for the same reason as `@qcms/observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree.                        |
+| Package | Range | What it carries | Upgrade story |
+| --- | --- | --- | --- |
+| `@qcms/core` | `^0.0.0` | Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens. | Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note. |
+| `@qcms/a2ui-compiler` | `^0.2.0` | Compiles a published form into the stored A2UI document the portal serves. | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted. |
+| `@qcms/db` | `^0.0.0` | The schema, the migration history, the query helpers and the reporting view. | Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them. |
+| `@qcms/ui` | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on. | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite. |
+| `@qcms/observability` | `^0.0.0` | The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box. | Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13). |
+| `@qcms/csv` | `^0.0.0` | One helper: RFC 4180 quoting plus the spreadsheet formula-injection guard every exported cell passes through. | Upgrade freely, and prefer to, for the same reason as `@qcms/observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree. |
 
 ### QCMS-internal references in the scaffolded source
 
