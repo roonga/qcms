@@ -21,6 +21,11 @@ export declare function appManifest(
   versions: Record<string, string>,
 ): Record<string, unknown>;
 export declare function assertImports(tree: Map<string, string>): void;
+export declare function rewriteDependencies(
+  block: Record<string, string> | undefined,
+  versions: Record<string, string>,
+  dropHarness: boolean,
+): Record<string, string>;
 export declare function transformDockerfile(text: string, app: string, role: string): string;
 export declare function assertComposeForwardsTwoFactor(text: string): string;
 export declare function serviceBlocks(text: string): Map<string, string>;

@@ -548,11 +548,15 @@ export function publishedVersions() {
 /**
  * Rewrite one dependency block: `workspace:*` to a real range, harness deps dropped.
  *
+ * Exported for its own test: the throw below is only reachable through `appManifest`
+ * when one of THIS repository's manifests carries the defect, which is not a state a
+ * test can arrange without editing a real manifest.
+ *
  * @param {Record<string, string> | undefined} block
  * @param {Record<string, string>} versions
  * @param {boolean} dropHarness
  */
-function rewriteDependencies(block, versions, dropHarness) {
+export function rewriteDependencies(block, versions, dropHarness) {
   /** @type {Record<string, string>} */
   const rewritten = {};
   for (const [name, range] of Object.entries(block ?? {})) {

@@ -7,7 +7,11 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   appManifest,
   assertComposeForwardsTwoFactor,
+  assertComposeReferences,
   assertImports,
+  assertNoEscapingPaths,
+  assertReadmeClaims,
+  rewriteDependencies,
   buildTemplates,
   diffTrees,
   isExcludedAppPath,
@@ -350,5 +354,108 @@ describe("reading a generated tree (issue #450)", () => {
       .map((path) => path.slice(path.indexOf("/") + 1))
       .sort();
     expect(stamped).toStrictEqual(scanned);
+  });
+});
+
+describe("the guards, proved red rather than merely green (issue #456)", () => {
+  // Every one of these was a blind spot: a guard whose docstring claimed more than its
+  // code did. A guard that has never been seen to fail is a guard nobody has tested,
+  // which is the shape of defect this branch has now met three times.
+  const tree = buildTemplates();
+
+  /** The tree with one file replaced, so each case perturbs exactly one thing. */
+  function withFile(path: string, contents: string): Map<string, string> {
+    const copy = new Map(tree);
+    copy.set(path, contents);
+    return copy;
+  }
+
+  /** The tree with one substitution inside a file it already has. */
+  function edited(path: string, from: string, to: string): Map<string, string> {
+    const before = tree.get(path) ?? "";
+    expect(before).toContain(from);
+    return withFile(path, before.replace(from, to));
+  }
+
+  it("catches a Compose file whose build points at a Dockerfile nobody stamps", () => {
+    // Blind spot B: the docker assets were enumerated by name, so a Compose file could
+    // reference something the generator had never heard of and the gate stayed green
+    // because the generated tree did not have it either.
+    const drifted = edited(
+      "common/docker-compose.yml",
+      "dockerfile: docker/api.Dockerfile",
+      "dockerfile: docker/absent.Dockerfile",
+    );
+    expect(() => assertComposeReferences(drifted)).toThrow(/docker\/absent\.Dockerfile/);
+  });
+
+  it("catches an overlay bind-mounting a host path nobody stamps", () => {
+    const drifted = edited(
+      "solo/docker-compose.proxy.yml",
+      "./docker/Caddyfile:",
+      "./docker/Absent:",
+    );
+    expect(() => assertComposeReferences(drifted)).toThrow(/docker\/Absent/);
+  });
+
+  it("catches a README naming a service the Compose file does not define", () => {
+    // Blind spot G: `templates-static/` had nothing comparing it to anything.
+    const drifted = edited(
+      "solo/README.md.tmpl",
+      "docker compose run --rm migrate",
+      "docker compose run --rm migrator",
+    );
+    expect(() => assertReadmeClaims(drifted)).toThrow(/"migrator" service/);
+  });
+
+  it("catches a README naming a variable nothing reads", () => {
+    const drifted = withFile(
+      "solo/README.md.tmpl",
+      `${tree.get("solo/README.md.tmpl") ?? ""}\nSet QCMS_INVENTED_KNOB in .env.\n`,
+    );
+    expect(() => assertReadmeClaims(drifted)).toThrow(/QCMS_INVENTED_KNOB/);
+  });
+
+  it("catches a NEW KIND of reach out of the project, not just a new instance", () => {
+    // Blind spots D and E together, in the issue's own example. The predecessor shared
+    // one regex with the transform it guarded and scanned `common/apps/` alone, so a
+    // `paths` block in tsconfig.base.json pointing at `../../packages/*` was invisible
+    // twice over: wrong file, wrong kind.
+    const drifted = withFile(
+      "common/tsconfig.base.json",
+      '{ "compilerOptions": { "paths": { "@qcms/core": ["../../packages/core/src"] } } }',
+    );
+    expect(() => assertNoEscapingPaths(drifted)).toThrow(/climbs past the project root/);
+  });
+
+  it("catches a reach that lands on the project root but names nothing stamped there", () => {
+    const drifted = withFile(
+      "common/apps/api/src/app.ts",
+      'import { x } from "../../../scripts/clean-dist.mjs";',
+    );
+    expect(() => assertNoEscapingPaths(drifted)).toThrow(/does not stamp/);
+  });
+
+  it("leaves a legitimate reach to the project root alone", () => {
+    // `apps/<app>/next.config.ts` resolving `../../` is the workspace root, and a
+    // scaffold has one at exactly that depth. A guard that fired here would be turned
+    // off within a week.
+    expect(() => assertNoEscapingPaths(tree)).not.toThrow();
+  });
+
+  it("catches a workspace dependency an adopter could not install", () => {
+    // Blind spot F, and the one that turned out not to be latent at all: two private
+    // packages became runtime dependencies of all three apps while this branch waited.
+    // The old `??` fallback stamped an unknown `workspace:*` verbatim into the
+    // adopter's manifest, where no registry can satisfy it. The message has to name
+    // the package, or the next person reads a resolution error in someone else's
+    // project instead of a generator error in ours.
+    expect(() => rewriteDependencies({ "@qcms/unpublished": "workspace:*" }, {}, false)).toThrow(
+      /@qcms\/unpublished/,
+    );
+    // A published one still resolves, so the guard is about the unknown case only.
+    expect(
+      rewriteDependencies({ hono: "^4.0.0" }, { "@qcms/core": "^1.0.0" }, false),
+    ).toStrictEqual({ hono: "^4.0.0" });
   });
 });
