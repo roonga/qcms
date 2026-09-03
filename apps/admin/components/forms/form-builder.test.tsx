@@ -56,9 +56,7 @@ const CHROME = {
 
 function builderActions() {
   return {
-    saveDraft: vi
-      .fn()
-      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] }),
+    saveDraft: vi.fn().mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] }),
     validateDraft: vi
       .fn()
       .mockResolvedValue({ status: "ok" as const, valid: true, issues: [], warnings: [] }),

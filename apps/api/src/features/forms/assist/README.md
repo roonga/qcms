@@ -12,8 +12,8 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 ## Routes
 
-| Method & path | Scope (SEC-5) | Notes |
-|---|---|---|
+| Method & path                        | Scope (SEC-5) | Notes                                                                               |
+| ------------------------------------ | ------------- | ----------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/draft/assist` | `forms:write` | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`. |
 
 **The flag gates the mount, not a handler branch.** With
@@ -26,14 +26,14 @@ flag-gated, and streams rather than returning a modelled JSON body.
 
 ## Files
 
-| File | What it is |
-|---|---|
-| `types.ts` | The `DraftAssistant` port, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is `AssistContext`'s shape. |
-| `tools.ts` | The four-verb allowlist, the single dispatch door, and the provider tool set built from the same registry. |
-| `system-prompt.ts` | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code. |
-| `assistant.ts` | The `streamText` tool loop, the stop-reason mapping, and the provider selector. |
-| `fake-model.ts` | The deterministic scripted model CI drives, including the hostile scripts. |
-| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay, the request schema. |
+| File                                    | What it is                                                                                                                |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`                              | The `DraftAssistant` port, `AssistContext`, `AssistEvent`, `AssistProposal`. The PII boundary is `AssistContext`'s shape. |
+| `tools.ts`                              | The four-verb allowlist, the single dispatch door, and the provider tool set built from the same registry.                |
+| `system-prompt.ts`                      | The versioned system prompt, assembled from the kernel's own contracts. Reviewed like code.                               |
+| `assistant.ts`                          | The `streamText` tool loop, the stop-reason mapping, and the provider selector.                                           |
+| `fake-model.ts`                         | The deterministic scripted model CI drives, including the hostile scripts.                                                |
+| `route.ts` / `handler.ts` / `schema.ts` | The flag-gated registrar, the SSE relay, the request schema.                                                              |
 
 ## The tool allowlist is a security control
 
@@ -57,7 +57,7 @@ Two properties hold structurally, and both are tested:
 `assist.integration.test.ts` proves the second one against a real database: a
 submitted answer with a sentinel value sits in the tables while a turn runs, the
 exact bytes handed to the provider are captured, and the sentinel is asserted
-present in the database *before* it is asserted absent from the payload.
+present in the database _before_ it is asserted absent from the payload.
 
 ## The advisory validation is the server's
 

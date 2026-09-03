@@ -722,7 +722,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "none",
     description:
-      "Whether the agent-authoring chat panel renders in the form builder (ADR-25, task 041). The admin reads only the *effect* of this flag, never its value in the browser, and holds no provider key: the key lives on the `api` service. Keep it in step with the API's value, or the panel appears against a surface that is not mounted.",
+      "Whether the agent-authoring chat panel renders in the form builder (ADR-25, task 041). The admin reads only the _effect_ of this flag, never its value in the browser, and holds no provider key: the key lives on the `api` service. Keep it in step with the API's value, or the panel appears against a surface that is not mounted.",
   },
   {
     name: "QCMS_API_BASE_URL",

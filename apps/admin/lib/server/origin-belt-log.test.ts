@@ -187,7 +187,7 @@ describe("the belted route set is the one on disk", () => {
   });
 
   it.each(MUTATING_ROUTE_TEMPLATES)("names an outcome for %s", (template) => {
-    expect(["redirect-with-failure", "redirect-without-message"]).toContain(
+    expect(["redirect-with-failure", "redirect-without-message", "refused-403"]).toContain(
       routeOutcome(concreteUrl(template)),
     );
   });

@@ -18,14 +18,14 @@ Nothing is required for a default deployment. `QCMS_FLAG_AGENT_AUTHORING` defaul
 
 To enable it, set three environment variables on the **API** process, and the flag on the **admin** process:
 
-| Variable | Where | Required | Meaning |
-|---|---|---|---|
-| `QCMS_FLAG_AGENT_AUTHORING` | API **and** admin | yes | Provider id. `none` (default), `anthropic`, `openai`, `google`, `openai-compatible`, or `fake`. |
-| `QCMS_AGENT_MODEL` | API | yes when enabled | The provider's own model id. QCMS never interprets it. |
-| `QCMS_AGENT_API_KEY` | API | yes when enabled, unless the base URL is local | Your provider key. Bring your own; QCMS ships none and proxies nothing. |
-| `QCMS_AGENT_BASE_URL` | API | required for `openai-compatible`, optional otherwise | Endpoint override: a gateway, a proxy, or a local model runtime. |
-| `QCMS_AGENT_MAX_STEPS` | API | no (default 8) | Hard ceiling on tool-loop steps per turn. |
-| `QCMS_RL_AGENT_ASSIST_WINDOW_MS` / `_MAX` | API | no (default 10 per minute) | Rate limit per admin principal on the assist endpoint. |
+| Variable                                  | Where             | Required                                             | Meaning                                                                                         |
+| ----------------------------------------- | ----------------- | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `QCMS_FLAG_AGENT_AUTHORING`               | API **and** admin | yes                                                  | Provider id. `none` (default), `anthropic`, `openai`, `google`, `openai-compatible`, or `fake`. |
+| `QCMS_AGENT_MODEL`                        | API               | yes when enabled                                     | The provider's own model id. QCMS never interprets it.                                          |
+| `QCMS_AGENT_API_KEY`                      | API               | yes when enabled, unless the base URL is local       | Your provider key. Bring your own; QCMS ships none and proxies nothing.                         |
+| `QCMS_AGENT_BASE_URL`                     | API               | required for `openai-compatible`, optional otherwise | Endpoint override: a gateway, a proxy, or a local model runtime.                                |
+| `QCMS_AGENT_MAX_STEPS`                    | API               | no (default 8)                                       | Hard ceiling on tool-loop steps per turn.                                                       |
+| `QCMS_RL_AGENT_ASSIST_WINDOW_MS` / `_MAX` | API               | no (default 10 per minute)                           | Rate limit per admin principal on the assist endpoint.                                          |
 
 The admin app only needs the flag, and only to decide whether to render the panel. The **key never goes near the browser**: it lives in the API process's configuration, and the browser talks to the admin's own BFF route, which talks to the API, which talks to the provider.
 
@@ -41,14 +41,14 @@ Set `QCMS_FLAG_AGENT_AUTHORING=none` and restart. The routes disappear, the pane
 
 Switching provider or model is an environment change plus a restart. There is no code change, no rebuild, and no image to redeploy (ADR-24 semantics).
 
-| `QCMS_FLAG_AGENT_AUTHORING` | Package used | `QCMS_AGENT_MODEL` example | `QCMS_AGENT_BASE_URL` | Key |
-|---|---|---|---|---|
-| `none` *(default)* | none | n/a | n/a | none needed |
-| `anthropic` *(reference)* | `@ai-sdk/anthropic` | a Claude model id | optional (gateway/proxy) | required |
-| `openai` | `@ai-sdk/openai` | an OpenAI model id | optional | required |
-| `google` | `@ai-sdk/google` | a Gemini model id | optional | required |
-| `openai-compatible` | `@ai-sdk/openai-compatible` | whatever the endpoint calls the model | **required** | required unless local |
-| `fake` | none (scripted) | ignored | n/a | none needed |
+| `QCMS_FLAG_AGENT_AUTHORING` | Package used                | `QCMS_AGENT_MODEL` example            | `QCMS_AGENT_BASE_URL`    | Key                   |
+| --------------------------- | --------------------------- | ------------------------------------- | ------------------------ | --------------------- |
+| `none` _(default)_          | none                        | n/a                                   | n/a                      | none needed           |
+| `anthropic` _(reference)_   | `@ai-sdk/anthropic`         | a Claude model id                     | optional (gateway/proxy) | required              |
+| `openai`                    | `@ai-sdk/openai`            | an OpenAI model id                    | optional                 | required              |
+| `google`                    | `@ai-sdk/google`            | a Gemini model id                     | optional                 | required              |
+| `openai-compatible`         | `@ai-sdk/openai-compatible` | whatever the endpoint calls the model | **required**             | required unless local |
+| `fake`                      | none (scripted)             | ignored                               | n/a                      | none needed           |
 
 Model ids are deliberately **not** listed here. Provider catalogues change faster than this document can, and a stale default baked into the code would be worse than a variable you have to set. Take the id from your provider's current model list.
 
@@ -98,7 +98,7 @@ Expect a local model to be slower and less reliable at producing a valid `FormDe
 
 ### Can
 
-- **Search the published question library.** It sees question *definitions* and reuses existing questions rather than inventing near-duplicates.
+- **Search the published question library.** It sees question _definitions_ and reuses existing questions rather than inventing near-duplicates.
 - **Propose new question definitions.** They come back to you for review. Nothing is created or published by the agent.
 - **Propose a draft `FormDefinition`** for the form you have open: steps, question pins, and visibility rules.
 - **Run the same publish validation** the builder runs, and iterate on what it reports.

@@ -493,7 +493,7 @@ export function FormBuilder({
         }
       >
         <div className={assist === undefined ? "contents" : "flex flex-col gap-6"}>
-        {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
+          {/* THREE SCREENS BEHIND ONE ROUTE, and the rail is the switch (Code Owner, 2026-08-26).
             It was two: `plan/admin-shell-poc/admin-shell-poc.html` says so in its own card
             subtitle - "left rail navigating a form screen and a step screen" - and draws them,
             a Form screen of Form title, Form settings, Rules, Rule test bench and Validation,
@@ -522,9 +522,9 @@ export function FormBuilder({
             panel, and the settings no longer sit beside the rule bench. The step list is not
             one of them either - it left this column for the rail on 2026-08-25, and
             `components/forms/rail-steps.tsx` is where it went. */}
-        {selection.kind === "form" && (
-          <>
-            {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
+          {selection.kind === "form" && (
+            <>
+              {/* WRAPPED, and the wrapper is load-bearing rather than layout. `formActions` is
                 rendered by the SERVER and handed across the client boundary, which strips the
                 marking React uses to tell a statically-written child from a dynamic one. As a
                 bare member of this fragment's children array it therefore reads as a keyless
@@ -532,7 +532,7 @@ export function FormBuilder({
                 every visit to the builder - which `e2e/support/gates.ts` fails the test for,
                 correctly: a console error on a screen is a defect whether or not anything
                 looks wrong. Being an only child, it is not in a list at all. */}
-            {/* The heading, the two things you can do to the form, how it last saved, and
+              {/* The heading, the two things you can do to the form, how it last saved, and
                 what it is - in two rows, where it was five.
 
                 `display: contents` on the heading's wrapper is load-bearing. The wrapper
@@ -546,69 +546,69 @@ export function FormBuilder({
                 `items-start` rather than baseline: the right column is two stacked lines
                 now, and aligning its first baseline to a button's would hang it below the
                 row it belongs to. */}
-            <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-              {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
+              <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+                {/* THE SCREEN'S NAME, and the same string the breadcrumb's last crumb uses -
                   one lookup, so a screen cannot answer to two names. Visually hidden because
                   the crumb directly above already says it; kept in the tree because a page
                   without a level-one heading is one a screen reader cannot navigate by.
                   `display: contents` on the wrapper: the heading is out of flow, and a
                   wrapper that generated a box would be an empty flex item indenting the
                   buttons past the breadcrumb. */}
-              <div className="contents">
-                <h1 className="qcms-visually-hidden">{screenName}</h1>
-              </div>
-              <div>{formActions}</div>
-              {/* What the form IS, above how it last saved: both are facts about the form
+                <div className="contents">
+                  <h1 className="qcms-visually-hidden">{screenName}</h1>
+                </div>
+                <div>{formActions}</div>
+                {/* What the form IS, above how it last saved: both are facts about the form
                   rather than actions on it, so they share the row's trailing edge and read
                   as one block rather than as chrome scattered across the header. */}
-              <div className="flex flex-col items-end gap-1">
-                <div>{formMeta}</div>
-                {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
+                <div className="flex flex-col items-end gap-1">
+                  <div>{formMeta}</div>
+                  {/* ONE STRIP FOR BOTH SAVES (Code Owner, 2026-08-29). The settings stopped
                     having a save model of their own, so they stopped having a save statement
                     of their own: a settings save is in flight here, and a settings save that
                     failed is a failed save here. §6's "exactly one save statement per screen"
                     is kept by the strip covering everything the screen stores, not by the
                     strip covering only some of it and a second sentence covering the rest. */}
-                <AmbientSaveStatus
-                  isSaving={status === "saving" || settingsSaving}
-                  hasFailed={saveError !== undefined || settingsError !== undefined}
-                  savedAt={lastSavedAt}
-                />
+                  <AmbientSaveStatus
+                    isSaving={status === "saving" || settingsSaving}
+                    hasFailed={saveError !== undefined || settingsError !== undefined}
+                    savedAt={lastSavedAt}
+                  />
+                </div>
               </div>
-            </div>
-            <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
-            <TextField
-              label={t("forms.builder.formTitle")}
-              description={t("forms.builder.formTitleHint")}
-              value={textOf(draft.title, draft.defaultLocale)}
-              onChange={(next) => {
-                mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
-              }}
-            />
+              <FormNotices detail={detail} concurrentRead={concurrentNoticeRead} />
+              <TextField
+                label={t("forms.builder.formTitle")}
+                description={t("forms.builder.formTitleHint")}
+                value={textOf(draft.title, draft.defaultLocale)}
+                onChange={(next) => {
+                  mutate({ ...draft, title: { ...draft.title, [draft.defaultLocale]: next } });
+                }}
+              />
 
-            {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
+              {/* VALIDATION STAYS HERE while the rules move to a screen of their own (Code
                 Owner, 2026-08-26). `plan/admin-ux-audit.md` §5.5 is emphatic that it should:
                 "Validation is not a destination. It is a companion to editing and it has to be
                 on the page whose controls it points at." Its entries are links that move focus
                 to the offending rule, step or pin, and those now live on three different
                 screens - so what makes them work is `IssueEntry` switching screens before it
                 focuses, not the panel sitting beside any one of them. */}
-            <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
+              <ValidationPanel draft={draft} issues={issues} warnings={warnings} status={status} />
 
-            {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
+              {/* ONE COLUMN (Code Owner, 2026-08-26). The settings shared a two-track grid with
                 the rule test bench, and the bench has gone to the rules it tests, so there is
                 nothing to sit beside. A lone panel in a two-column grid is a column of
                 whitespace. */}
-            <FormSettingsPanel
-              settings={settings}
-              challengeEnforceable={detail.challengeEnforceable}
-              saveError={settingsError}
-              onChange={setSettings}
-            />
-          </>
-        )}
-        {selection.kind === "rules" && (
-          /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
+              <FormSettingsPanel
+                settings={settings}
+                challengeEnforceable={detail.challengeEnforceable}
+                saveError={settingsError}
+                onChange={setSettings}
+              />
+            </>
+          )}
+          {selection.kind === "rules" && (
+            /* THE RULES, ON A SCREEN OF THEIR OWN (Code Owner, 2026-08-26), which
              `plan/admin-shell-poc/rules-screen-poc.html` draws as a full-width editor and
              heads "Rules". Full width here too: it shared the row with the validation panel
              only because both were crowded onto one screen, and a rule's condition editor is
@@ -623,27 +623,27 @@ export function FormBuilder({
              saved yet. One tests the form; the other tests the change.
 
              The settings stay on the form's screen. */
-          <RulesSection
-            draft={draft}
-            library={library}
-            issues={issues ?? []}
-            previewCondition={previewCondition}
-            onChange={mutate}
-          />
-        )}
-        {selection.kind === "step" && (
-          <div>
-            {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
+            <RulesSection
+              draft={draft}
+              library={library}
+              issues={issues ?? []}
+              previewCondition={previewCondition}
+              onChange={mutate}
+            />
+          )}
+          {selection.kind === "step" && (
+            <div>
+              {/* Nothing rather than a second copy of the rail's own empty-state sentence: a
                 step editor with no step is exactly the state the rail is already explaining,
                 and saying it twice reads as two different facts. */}
-            {selectedStep === undefined ? null : (
-              <StepEditor
-                draft={draft}
-                step={selectedStep}
-                saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
-                library={library}
-                issues={issues}
-                /* One `mutate` for the whole batch, folded left over the pins.
+              {selectedStep === undefined ? null : (
+                <StepEditor
+                  draft={draft}
+                  step={selectedStep}
+                  saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+                  library={library}
+                  issues={issues}
+                  /* One `mutate` for the whole batch, folded left over the pins.
                  `addPinAt` is pure and returns the next draft, so the fold is what makes a
                  multi-pin add correct: calling this handler once per pin would hand
                  `addPinAt` the SAME closed-over `draft` every time and keep only the last
@@ -651,34 +651,34 @@ export function FormBuilder({
                  is what it is to the author: one press of one button.
                  The boundary advances with each pin so the batch lands in the order it was
                  chosen, rather than every pin insetting at `index` and arriving reversed. */
-                onAddPins={(pins, index) => {
-                  mutate(
-                    pins.reduce(
-                      (next, pin, offset) =>
-                        addPinAt(
-                          next,
-                          selectedStep.stepId,
-                          pin.questionId,
-                          pin.version,
-                          index + offset,
-                        ),
-                      draft,
-                    ),
-                  );
-                }}
-                onMovePin={(questionId, version) => {
-                  mutate(movePin(draft, questionId, version));
-                }}
-                onRemovePin={(questionId) => {
-                  mutate(removePin(draft, questionId));
-                }}
-                onReorderPin={(questionId, delta) => {
-                  mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
-                }}
-              />
-            )}
-          </div>
-        )}
+                  onAddPins={(pins, index) => {
+                    mutate(
+                      pins.reduce(
+                        (next, pin, offset) =>
+                          addPinAt(
+                            next,
+                            selectedStep.stepId,
+                            pin.questionId,
+                            pin.version,
+                            index + offset,
+                          ),
+                        draft,
+                      ),
+                    );
+                  }}
+                  onMovePin={(questionId, version) => {
+                    mutate(movePin(draft, questionId, version));
+                  }}
+                  onRemovePin={(questionId) => {
+                    mutate(removePin(draft, questionId));
+                  }}
+                  onReorderPin={(questionId, delta) => {
+                    mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+                  }}
+                />
+              )}
+            </div>
+          )}
         </div>
 
         {assist !== undefined && (
