@@ -264,6 +264,18 @@ export const CONTENTION_SIGNATURES: readonly {
     why: "the shared Docker daemon did not deliver a container in time",
   },
   {
+    // Added from a live incident rather than from imagination. A forced turbo run in the
+    // same tree deletes and rewrites every package's `dist/` (`scripts/clean-dist.mjs`
+    // then `tsc`), and a `next dev` server serving that tree resolves imports at request
+    // time, so for the seconds the directory is missing the dev server answers
+    // `Module not found: Can't resolve '@qcms/ui/fonts'` and the server-log gate reds a
+    // spec that touched nothing. It is a build racing a running server, not a defect, and
+    // it is invisible to every network-shaped signature above.
+    name: "workspace rebuild",
+    pattern: /Module not found: Can't resolve '@qcms\//i,
+    why: "a concurrent build replaced a workspace package under a running dev server",
+  },
+  {
     name: "navigation timeout",
     pattern: /page\.goto|waiting for navigation|net::ERR_(?:CONNECTION|EMPTY_RESPONSE|TIMED_OUT)/i,
     why: "a page never arrived from a server that should have served it",

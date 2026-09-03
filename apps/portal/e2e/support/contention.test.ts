@@ -145,6 +145,18 @@ describe("classifyFailure", () => {
     expect(classifyFailure("page.goto: net::ERR_CONNECTION_REFUSED")).toBe("connection refused");
   });
 
+  it("recognises a concurrent build pulled out from under a running dev server", () => {
+    // Taken verbatim from a real red: a forced turbo run in the same tree rewrote every
+    // package's `dist/`, and the portal dev server answered this for the seconds the
+    // directory was missing. The server-log gate then failed a spec that touched nothing.
+    expect(
+      classifyFailure(
+        "[portal] Error: Module not found: Can't resolve '@qcms/ui/fonts'\n" +
+          "at ./apps/portal/lib/server/theme.ts:33:1",
+      ),
+    ).toBe("workspace rebuild");
+  });
+
   it("leaves an ordinary assertion failure unlabelled", () => {
     // The annotation's whole value is that it is selective. A classifier that matched a
     // plain expectation failure would put a contention note under every red run, and a
