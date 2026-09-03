@@ -255,6 +255,18 @@ const APP_EXCLUDED_PATHS = new Set([
 const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 
 /**
+ * A test runner's configuration or setup file, at any depth in an app.
+ *
+ * Matched by shape rather than listed, because the list would only ever be as complete
+ * as the last person to read it: `apps/admin/vitest.config.ts` arrived after this
+ * generator shipped and was stamped into every scaffolded project, where `tsc` then
+ * failed on `Cannot find module 'vitest/config'` because the scaffold ships neither
+ * runner. The rule holds for the same reason the strip rules exist at all (ADR-23 fixes
+ * the two runners as THIS repository's, and none of it is in an adopter's tree).
+ */
+const TEST_RUNNER_CONFIG = /(^|\/)(vitest|playwright)\.[\w.-]*\.[cm]?[jt]s$/;
+
+/**
  * True when an app-relative path is this repository's tooling rather than shell source.
  *
  * Every rule here is about a file that IS part of the repository and still must not be
@@ -264,6 +276,7 @@ const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 export function isExcludedAppPath(path) {
   if (APP_EXCLUDED_PATHS.has(path)) return true;
   if (/\.test\.[cm]?[jt]sx?$/.test(path)) return true;
+  if (TEST_RUNNER_CONFIG.test(path)) return true;
   if (path.split("/").some((segment) => EXCLUDED_APP_DIRECTORIES.has(segment))) return true;
   return path.endsWith("/README.md");
 }

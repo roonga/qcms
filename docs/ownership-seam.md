@@ -86,13 +86,13 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (335 files common to both shapes)
+### Scaffolded paths (334 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 324   |
-| `apps/admin/`                                                        | 195   |
+| `apps/`                                                              | 323   |
+| `apps/admin/`                                                        | 194   |
 | `apps/admin/app/`                                                    | 63    |
 | `apps/admin/app/(shell)/`                                            | 47    |
 | `apps/admin/app/(shell)/@rail/`                                      | 20    |
@@ -215,7 +215,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1511` lines across `282` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1510` lines across `281` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -230,7 +230,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (335)</summary>
+<summary>Every scaffolded file (334)</summary>
 
 ```
 .dockerignore
@@ -431,7 +431,6 @@ apps/admin/package.json
 apps/admin/postcss.config.mjs
 apps/admin/proxy.ts
 apps/admin/tsconfig.json
-apps/admin/vitest.config.ts
 apps/api/package.json
 apps/api/src/app.ts
 apps/api/src/client-address.ts

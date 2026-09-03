@@ -296,7 +296,14 @@ function buildScaffold(workspace) {
 
   // `pnpm pack` packs whatever is in `dist` right now. Building first is what stops
   // this harness from certifying a tarball nobody built.
-  pnpm(["-r", "build"], REPOSITORY_ROOT);
+  //
+  // Through turbo (`pnpm build`) rather than `pnpm -r build`, which is what this used
+  // to be. Every package build now begins `node ../../scripts/clean-dist.mjs`, and
+  // pnpm's recursive order only sequences DECLARED dependencies: `apps/portal` does not
+  // declare `@qcms/db`, yet its `next build` type-checks API sources that import it, so
+  // the two ran in parallel and portal failed against a `dist/` that db was part-way
+  // through deleting. Turbo runs the task graph the rest of the repository builds with.
+  pnpm(["build"], REPOSITORY_ROOT);
 
   assertPacksEveryStampedPackage();
 
