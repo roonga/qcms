@@ -5,6 +5,9 @@
   "description": "Scaffold a QCMS deployment: the owned application shell plus the versioned @qcms/* packages (ADR-05).",
   "license": "MIT",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "bin": {
     "create-qcms-app": "./dist/cli.js"
   },
