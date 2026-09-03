@@ -12,8 +12,10 @@
  * exposes the list (question types, semantics version) rather than retyped, so
  * the prompt cannot silently drift from the schema it describes. The operator
  * table is written out because the DSL is a Zod discriminated union with no
- * exported name list; `system-prompt.test.ts` proves every operator named here
- * parses and that no operator the kernel accepts is missing.
+ * exported name list. `system-prompt.test.ts` closes both directions: it parses
+ * every operator named here, and its sample table is typed
+ * `Record<Condition["op"], unknown>`, so an operator the kernel GAINS fails the
+ * typecheck rather than leaving this list quietly behind.
  */
 
 import { QUESTION_TYPES, SEMANTICS_VERSION } from "@qcms/core";
@@ -23,8 +25,9 @@ export const SYSTEM_PROMPT_VERSION = 1;
 
 /**
  * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
- * `@qcms/core`'s `Condition` union by `system-prompt.test.ts`, which parses one
- * sample of each and fails if the kernel gains or loses a verb.
+ * `@qcms/core`'s `Condition` union by `system-prompt.test.ts`: a removed verb
+ * fails at runtime when its sample no longer parses, and an added one fails at
+ * typecheck when the sample table is missing its key.
  */
 export const CONDITION_OPERATORS = [
   "equals",

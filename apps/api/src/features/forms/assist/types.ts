@@ -74,6 +74,17 @@ export type ValidateDraftPort = (definition: FormDefinition) => Promise<DraftVer
  * webhook config: an implementation cannot reach respondent data because it is
  * handed nothing that could. That is what "the tool surface makes this
  * structural" means in 041 - it is not a prompt instruction the model may ignore.
+ *
+ * Stated precisely, because the loose version overclaims (PO review, 2026-08-13).
+ * `validate` and `questionLibrary.search` are closures the handler builds over
+ * `Deps`, and `Deps` does hold a database handle, so "this object carries no
+ * `Executor`" is a fact about its SHAPE and not about transitive reachability.
+ * The accurate statement of the control is that **these two ports are the entire
+ * window, and both are definition-only**: one compiles a candidate draft, the
+ * other searches published question definitions, and neither takes a
+ * caller-controlled table, query or session id. `tools.test.ts` pins it from the
+ * other side with a key-set assertion over this object, so a third port cannot
+ * appear without that test being edited on purpose.
  */
 export interface AssistContext {
   /** The form's current working draft (022) - the thing a proposal is a diff against. */

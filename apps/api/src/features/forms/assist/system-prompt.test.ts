@@ -8,12 +8,24 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseCondition, QUESTION_TYPES } from "@qcms/core";
+import { type Condition, parseCondition, QUESTION_TYPES } from "@qcms/core";
 
 import { buildSystemPrompt, CONDITION_OPERATORS, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 
-/** One minimal, valid sample per documented operator. */
-const OPERATOR_SAMPLES: Readonly<Record<string, unknown>> = {
+/**
+ * One minimal, valid sample per documented operator.
+ *
+ * Typed as `Record<Condition["op"], unknown>` rather than `Record<string, unknown>`,
+ * which is what makes the staleness claim below true in both directions (PO review,
+ * 2026-08-13). Parsing one sample each catches an operator the kernel REMOVED; it
+ * cannot catch one the kernel GAINED, because nothing here enumerates the kernel's
+ * own set - `Condition` is a `z.lazy` discriminated union with no runtime name list.
+ * The type annotation enumerates it at compile time instead: adding a verb to
+ * `packages/core/src/visibility-rule.ts` makes this object fail `tsc` for the missing
+ * key, before any test runs. Verified red rather than assumed: deleting the
+ * `containsAny` sample fails the API typecheck naming that exact property.
+ */
+const OPERATOR_SAMPLES: Readonly<Record<Condition["op"], unknown>> = {
   equals: { op: "equals", questionId: "q_a", value: "yes" },
   notEquals: { op: "notEquals", questionId: "q_a", value: "yes" },
   in: { op: "in", questionId: "q_a", values: ["yes"] },

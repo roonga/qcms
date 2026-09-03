@@ -506,7 +506,6 @@ describe.each(ROUTES)("$path", (route) => {
     seams.requireAdminSessionForRequest.mockResolvedValue(SESSION);
   });
 
-
   it.each(ORIGIN_CASES.filter((probe) => probe.allowed))(
     "proceeds past the belt with $name",
     async ({ headers }) => {
