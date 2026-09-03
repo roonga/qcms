@@ -354,6 +354,12 @@ importers:
         specifier: ^4.9.0
         version: 4.9.0
 
+  packages/create-qcms-app:
+    devDependencies:
+      '@types/node':
+        specifier: ^24.13.3
+        version: 24.13.3
+
   packages/csv:
     devDependencies:
       '@types/node':
