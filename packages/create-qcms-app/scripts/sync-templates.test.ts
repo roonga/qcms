@@ -1,7 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   appManifest,
+  assertComposeForwardsTwoFactor,
   assertImports,
   buildTemplates,
   diffTrees,
@@ -10,9 +15,10 @@ import {
   publishedVersions,
   renderEnvExample,
   templateName,
-  transformCompose,
   transformDockerfile,
+  walk,
 } from "./sync-templates.mjs";
+import { templateFiles } from "../src/templates.js";
 
 describe("the strip rules", () => {
   it.each([
@@ -40,7 +46,7 @@ describe("the dot-file convention", () => {
   it.each([
     [".gitignore", "_gitignore"],
     ["apps/portal/.gitignore", "apps/portal/_gitignore"],
-    ["docker/api.Dockerfile", "docker/api.Dockerfile"],
+    ["docker/api.Dockerfile.tmpl", "docker/api.Dockerfile.tmpl"],
   ])("maps %j to %j and back", (output, template) => {
     expect(templateName(output)).toBe(template);
     expect(outputName(template)).toBe(output);
@@ -52,45 +58,115 @@ describe("transformDockerfile", () => {
     "COPY package.json ./",
     "COPY apps ./apps",
     "COPY packages ./packages",
+    "# Why tooling has to be here, in prose that explains the line below.",
     "COPY scripts ./scripts",
+    "COPY tooling ./tooling",
     "RUN pnpm --filter qcms-api... build",
+    'LABEL org.opencontainers.image.title="qcms-api" \\',
+    '      org.opencontainers.image.version="${VERSION}" \\',
+    '      org.opencontainers.image.source="https://github.com/roonga/qcms"',
   ].join("\n");
 
-  it("drops the two COPY lines that name directories the scaffold has not got", () => {
-    expect(SOURCE).toContain("COPY packages ./packages");
-    const result = transformDockerfile(SOURCE, "qcms-api");
+  it("drops every COPY line naming a directory the scaffold has not got", () => {
+    const result = transformDockerfile(SOURCE, "qcms-api", "api");
     expect(result).not.toContain("COPY packages ./packages");
     expect(result).not.toContain("COPY scripts ./scripts");
+    expect(result).not.toContain("COPY tooling ./tooling");
     expect(result).toContain("COPY apps ./apps");
   });
 
-  it("rewrites the workspace-dependency build into a plain one", () => {
-    expect(transformDockerfile(SOURCE, "qcms-api")).toContain("RUN pnpm --filter qcms-api build");
+  it("takes the comment block that explains a dropped line with it", () => {
+    // Otherwise the adopter reads a paragraph about a line that is not there.
+    expect(transformDockerfile(SOURCE, "qcms-api", "api")).not.toContain("in prose that explains");
   });
 
-  it("throws rather than silently doing nothing when the anchor is gone", () => {
-    expect(() => transformDockerfile("FROM node:24", "qcms-api")).toThrow(/no longer contains/);
+  it("throws when a declared monorepo-only COPY is no longer present", () => {
+    // The defect this replaces was a filter on two exact string literals: a renamed or
+    // rewhitespaced line made it a silent no-op, and the adopter's image then failed on
+    // a COPY of a directory the scaffold has not got (issue #456, blind spot C).
+    const withoutTooling = SOURCE.split("\n")
+      .filter((line) => line !== "COPY tooling ./tooling")
+      .join("\n");
+    expect(() => transformDockerfile(withoutTooling, "qcms-api", "api")).toThrow(
+      /no longer copies/,
+    );
+  });
+
+  it("throws when a COPY names a root directory nobody has classified", () => {
+    const withNewDirectory = SOURCE.replace(
+      "COPY apps ./apps",
+      "COPY apps ./apps\nCOPY fixtures ./fixtures",
+    );
+    expect(() => transformDockerfile(withNewDirectory, "qcms-api", "api")).toThrow(
+      /copies "fixtures"/,
+    );
+  });
+
+  it("rewrites the workspace-dependency build into a plain one", () => {
+    expect(transformDockerfile(SOURCE, "qcms-api", "api")).toContain(
+      "RUN pnpm --filter qcms-api build",
+    );
+  });
+
+  it("stamps the adopter's image title and drops the source label", () => {
+    // A scaffolded image must not claim to come from this repository: the code inside
+    // it is the adopter's (issue #457, tier 1).
+    const result = transformDockerfile(SOURCE, "qcms-api", "api");
+    expect(result).toContain('org.opencontainers.image.title="{{projectName}}-api"');
+    expect(result).not.toContain("github.com/roonga/qcms");
+    expect(result).toContain('org.opencontainers.image.version="${VERSION}"');
+  });
+
+  it("throws rather than silently doing nothing when the build anchor is gone", () => {
+    expect(() => transformDockerfile("FROM node:24", "qcms-api", "api")).toThrow(
+      /no longer contains/,
+    );
+  });
+
+  it("throws rather than silently leaving QCMS's identity when the labels move", () => {
+    const withoutLabels = SOURCE.split("\n")
+      .filter((line) => !line.includes("org.opencontainers"))
+      .join("\n");
+    expect(() => transformDockerfile(withoutLabels, "qcms-api", "api")).toThrow(/OCI title/);
   });
 });
 
-describe("transformCompose", () => {
-  it("adds the 2FA passthrough to both services that read it", () => {
-    const source = [
-      "  api:",
-      "    environment:",
-      "      QCMS_MOUNT: all",
-      "  admin:",
-      "    environment:",
-      "      QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-1}",
-    ].join("\n");
-    expect(source).not.toContain("QCMS_ADMIN_2FA");
-    const result = transformCompose(source);
-    expect(result.match(/QCMS_ADMIN_2FA: \$\{QCMS_ADMIN_2FA:-required\}/g)).toHaveLength(2);
-    expect(result).toContain("      QCMS_ADMIN_2FA:");
+describe("assertComposeForwardsTwoFactor", () => {
+  const PASSTHROUGH = "QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}";
+  const SOURCE = [
+    "services:",
+    "  api:",
+    "    environment:",
+    `      ${PASSTHROUGH}`,
+    "  admin:",
+    "    environment:",
+    `      ${PASSTHROUGH}`,
+    "volumes:",
+    "  data:",
+  ].join("\n");
+
+  it("passes the canonical shape through unchanged", () => {
+    expect(assertComposeForwardsTwoFactor(SOURCE)).toBe(SOURCE);
   });
 
-  it("throws rather than guessing when an anchor is gone", () => {
-    expect(() => transformCompose("services: {}")).toThrow(/anchor/);
+  it("throws when a service that reads the policy stops being given it", () => {
+    // The CLI prompts for the policy and writes it to .env. Without the passthrough the
+    // adopter's answer reaches nothing, silently.
+    const withoutAdmin = SOURCE.replace(
+      `  admin:\n    environment:\n      ${PASSTHROUGH}`,
+      "  admin:",
+    );
+    expect(() => assertComposeForwardsTwoFactor(withoutAdmin)).toThrow(/no longer forwards/);
+  });
+
+  it("throws on a duplicate, which a YAML reader resolves silently", () => {
+    // This is the state the generator itself produced once `main` added the
+    // passthrough that the old transform 5 was inserting.
+    const duplicated = SOURCE.replace(
+      `  api:\n    environment:\n      ${PASSTHROUGH}`,
+      `  api:\n    environment:\n      ${PASSTHROUGH}\n      ${PASSTHROUGH}`,
+    );
+    expect(() => assertComposeForwardsTwoFactor(duplicated)).toThrow(/copies of/);
   });
 });
 
@@ -207,5 +283,69 @@ describe("the drift gate", () => {
     expect(diffTrees(generated, committed)).toStrictEqual([
       "stale:    packages/create-qcms-app/templates/common/apps/api/src/removed.ts",
     ]);
+  });
+});
+
+describe("reading a generated tree (issue #450)", () => {
+  // The gate compares the COMMITTED template tree against a regenerated one, and it
+  // used to read the committed side through a walk that skipped `dist`, `e2e`,
+  // `coverage`, `.next` and six other directory names. That list is right for reading
+  // `apps/`, which is what it was written for, and wrong for reading a tree that is
+  // supposed to be compared exhaustively: the CLI's own stamping walk skips nothing, so
+  // a file committed at `templates/common/apps/api/dist/leak.js` was stamped into every
+  // scaffolded project while being invisible to `pnpm check:templates`.
+  //
+  // The fixture is a temporary tree rather than a committed file, because committing
+  // one is the thing the gate exists to catch.
+  let root = "";
+
+  beforeAll(() => {
+    root = mkdtempSync(join(tmpdir(), "qcms-walk-"));
+    for (const relative of [
+      "common/apps/api/src/app.ts",
+      "common/apps/api/dist/leak.js",
+      "common/apps/api/e2e/harness.ts",
+      "common/apps/api/coverage/index.html",
+      "common/apps/portal/.next/build-manifest.json",
+      "common/apps/portal/__snapshots__/x.snap",
+      "solo/docker-compose.proxy.yml",
+    ]) {
+      const absolute = join(root, ...relative.split("/"));
+      mkdirSync(join(absolute, ".."), { recursive: true });
+      writeFileSync(absolute, "// fixture");
+    }
+  });
+
+  afterAll(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  it("sees a file under every directory name the old skip list hid", () => {
+    expect(walk("common", root)).toStrictEqual([
+      "common/apps/api/coverage/index.html",
+      "common/apps/api/dist/leak.js",
+      "common/apps/api/e2e/harness.ts",
+      "common/apps/api/src/app.ts",
+      "common/apps/portal/.next/build-manifest.json",
+      "common/apps/portal/__snapshots__/x.snap",
+    ]);
+  });
+
+  it("reports such a file as stale rather than staying green", () => {
+    // The whole point: the generator would never produce `dist/leak.js`, so once the
+    // walk can see it the diff has to call it out.
+    const committed = new Map(walk("common", root).map((path) => [path, "// fixture"]));
+    const generated = new Map([["common/apps/api/src/app.ts", "// fixture"]]);
+    expect(diffTrees(generated, committed)).toContain(
+      "stale:    packages/create-qcms-app/templates/common/apps/api/dist/leak.js",
+    );
+  });
+
+  it("agrees with the walk the CLI stamps through, which is the asymmetry that was the bug", () => {
+    const stamped = [...templateFiles("solo", root).keys()].sort();
+    const scanned = [...walk("common", root), ...walk("solo", root)]
+      .map((path) => path.slice(path.indexOf("/") + 1))
+      .sort();
+    expect(stamped).toStrictEqual(scanned);
   });
 });

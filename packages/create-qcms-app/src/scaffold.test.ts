@@ -125,10 +125,42 @@ describe("scaffold", () => {
     }
   });
 
-  it("forwards the admin 2FA policy to the two services that read it", () => {
+  it("forwards the admin 2FA policy to the two services that read it, exactly once each", () => {
+    // The generator used to INSERT this; the canonical compose file now carries it, so
+    // the generator asserts instead. Two, never four: a duplicate YAML key inside one
+    // service block is resolved silently rather than reported.
     const { read } = stamp();
     const compose = read("docker-compose.yml");
     expect(compose.match(/QCMS_ADMIN_2FA: \$\{QCMS_ADMIN_2FA:-required\}/g)).toHaveLength(2);
+  });
+
+  it("stamps the adopter's project name into every image title, and QCMS's into none", () => {
+    // Issue #457, tier 1. An image labelled as sourced from this repository points
+    // anyone reading OCI labels at a repository that does not hold the code inside it.
+    const { read } = stamp({ projectName: "insurance-forms" });
+    for (const app of ["api", "portal", "admin"]) {
+      const dockerfile = read(`docker/${app}.Dockerfile`);
+      expect(dockerfile).toContain(`org.opencontainers.image.title="insurance-forms-${app}"`);
+      expect(dockerfile).not.toContain("qcms/qcms");
+      expect(dockerfile).not.toContain('org.opencontainers.image.source="https://github.com');
+    }
+  });
+
+  it("names no QCMS repository script in anything the scaffolded apps print", () => {
+    // Issue #457, tier 2: an admin screen told the operator to run `pnpm dev:seed` and
+    // the bootstrap tool's own usage named `pnpm qcms:create-admin`, neither of which a
+    // scaffolded project defines.
+    // The message VALUES, not the comments: the comments around them are tier 3, and
+    // `docs/ownership-seam.md` records the decision to leave those alone.
+    const { read } = stamp();
+    const catalog = read("apps/admin/lib/i18n/en.ts");
+    const values = catalog.match(/^ {2}"[\w.]+":[\s\S]*?",$/gm) ?? [];
+    expect(values.length).toBeGreaterThan(20);
+    expect(values.join("\n")).not.toContain("pnpm ");
+    const createAdmin = read("apps/api/src/create-admin.ts");
+    const usage = createAdmin.slice(createAdmin.indexOf("async function main"));
+    expect(usage).not.toContain("pnpm qcms:create-admin");
+    expect(usage).toContain("node dist/create-admin.js");
   });
 
   it("refuses a directory that already holds files", () => {

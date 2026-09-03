@@ -2,10 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   BIN_OVERRIDE_ENV_VAR,
+  InvalidBinOverride,
   ProgramNotFound,
+  overrideProgram,
   resolveGit,
   resolvePackageManager,
 } from "./exec.js";
+
+/**
+ * An absolute path to a real executable, on any machine that can run this test.
+ *
+ * The overrides are checked now (issue #458), so a made-up path is no longer a usable
+ * fixture: it is one of the two things the check exists to refuse.
+ */
+const REAL_BINARY = process.execPath;
 
 /** Every `QCMS_*` variable an error message tells the operator to set. */
 function variablesNamedIn(message: string): string[] {
@@ -43,8 +53,8 @@ describe("the override variable a ProgramNotFound advertises", () => {
     expect(advertised).toHaveLength(1);
 
     const named = advertised[0] ?? "";
-    expect(resolve({ [named]: "/opt/probe/binary" })).toStrictEqual({
-      command: "/opt/probe/binary",
+    expect(resolve({ [named]: REAL_BINARY })).toStrictEqual({
+      command: REAL_BINARY,
       leadingArguments: [],
     });
   });
@@ -69,10 +79,10 @@ describe("the override variable a ProgramNotFound advertises", () => {
 describe("resolvePackageManager", () => {
   it("prefers the override over the interpreter that launched it", () => {
     const resolved = resolvePackageManager("pnpm", {
-      [BIN_OVERRIDE_ENV_VAR.packageManager]: "/opt/probe/pnpm",
+      [BIN_OVERRIDE_ENV_VAR.packageManager]: REAL_BINARY,
       npm_execpath: "/somewhere/pnpm.cjs",
     });
-    expect(resolved.command).toBe("/opt/probe/pnpm");
+    expect(resolved.command).toBe(REAL_BINARY);
   });
 
   it("ignores an empty override rather than spawning the empty string", () => {
@@ -108,5 +118,48 @@ describe("resolvePackageManager", () => {
       expect(error).toBeInstanceOf(ProgramNotFound);
       if (error instanceof ProgramNotFound) expect(error.message).not.toContain("npm-cli.js");
     }
+  });
+});
+
+describe("a checked binary-path override (issue #458)", () => {
+  // The module header claims that no subprocess here is ever resolved through PATH.
+  // Returning the override unchecked broke that claim in the one place lint cannot
+  // see, because the value is a variable rather than a literal and
+  // `sonarjs/no-os-command-from-path` only reads literals.
+  it.each(PROGRAMS)(
+    "refuses a bare name for $label, which PATH would resolve",
+    ({ variable, resolve }) => {
+      expect(() => resolve({ [variable]: "pnpm" })).toThrow(InvalidBinOverride);
+      expect(() => resolve({ [variable]: "git" })).toThrow(/absolute path/);
+    },
+  );
+
+  it.each(PROGRAMS)("refuses a relative path for $label", ({ variable, resolve }) => {
+    expect(() => resolve({ [variable]: "./bin/pnpm" })).toThrow(/absolute path/);
+    expect(() => resolve({ [variable]: "../bin/pnpm" })).toThrow(/absolute path/);
+  });
+
+  it.each(PROGRAMS)(
+    "refuses an absolute path that is not there, naming both, for $label",
+    ({ variable, resolve }) => {
+      // The commoner mistake by far, and it used to surface as a bare ENOENT from
+      // spawnSync naming neither the variable nor the value.
+      let thrown: unknown;
+      try {
+        resolve({ [variable]: "/opt/probe/definitely-not-here" });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(InvalidBinOverride);
+      expect((thrown as Error).message).toContain(variable);
+      expect((thrown as Error).message).toContain("/opt/probe/definitely-not-here");
+    },
+  );
+
+  it("accepts an absolute path to something that exists, and passes it through whole", () => {
+    expect(overrideProgram("QCMS_X_BIN", REAL_BINARY)).toStrictEqual({
+      command: REAL_BINARY,
+      leadingArguments: [],
+    });
   });
 });

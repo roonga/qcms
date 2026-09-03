@@ -50,15 +50,38 @@
  *   4. **The Dockerfiles lose their monorepo assumptions.** No `packages/`, no
  *      `scripts/`, and `--filter <app>...` (build the workspace dependencies too)
  *      becomes `--filter <app>`, because there are none to build.
- *   5. **Compose forwards `QCMS_ADMIN_2FA`.** The CLI prompts for the admin 2FA
- *      policy and the value has to reach the two services that read it. The
- *      canonical file is deliberately untouched: adding the passthrough there would
- *      move the variable into `scripts/env-reference.mjs`'s compose group, which is
- *      an operator-reference change this task has no business making.
+ *   5. *(retired)* Compose used to have the `QCMS_ADMIN_2FA` passthrough INSERTED
+ *      here, because the canonical file lacked it. `main` has since added it to both
+ *      services, which turned the transform into a duplicator, so it is now
+ *      {@link assertComposeForwardsTwoFactor}: an assertion that the property still
+ *      holds rather than an edit that makes it hold twice.
  *   6. **`.env.example` is generated from the config schema**, by scanning the
  *      generated Compose files for interpolations and looking each name up in
  *      `ENV_REFERENCE` (itself asserted against `apps/api/src/config.ts`). A name
  *      Compose reads that the schema does not document fails the generator.
+ *   7. **Every scaffolded app declares the compiler it runs.** See
+ *      {@link ROOT_PROVIDED_DEV_DEPENDENCIES}: the workspace root provides it here and
+ *      an adopter has no workspace root.
+ *   8. **Output that names a QCMS repository script is rewritten** for the tree an
+ *      adopter receives ({@link ADOPTER_TEXT_REPLACEMENTS}, issue #457). Two strings,
+ *      both user-facing, both telling an operator to run a command their project does
+ *      not define.
+ *   9. **The images carry the ADOPTER's identity, not this repository's** (issue #457).
+ *      `org.opencontainers.image.title` is stamped from the project name, which is why
+ *      the Dockerfiles are `.tmpl`, and `org.opencontainers.image.source` is removed:
+ *      it is a claim about where the code in the image lives, and the code in an
+ *      adopter's image is theirs.
+ *
+ * ## What the guards are allowed to claim
+ *
+ * Every assertion below runs over the FINISHED tree and is derived rather than listed,
+ * because the version of this file that listed things (issue #456) had guards narrower
+ * than their own docstrings: {@link assertNoEscapingPaths} counts `../` against a
+ * file's own depth instead of matching one known reach; {@link assertComposeReferences}
+ * reads what the Compose files point at instead of trusting the copy list;
+ * {@link assertReadmeClaims} compares the hand-written READMEs to the tree they
+ * describe; {@link readSource} refuses a file this generator cannot carry faithfully
+ * rather than corrupting it.
  *
  * Usage:
  *   node packages/create-qcms-app/scripts/sync-templates.mjs --write
@@ -68,6 +91,7 @@
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
+  lstatSync,
   mkdirSync,
   readFileSync,
   readdirSync,
@@ -75,7 +99,7 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, posix } from "node:path";
+import { dirname, isAbsolute, join, posix } from "node:path";
 import { argv } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -87,8 +111,30 @@ export const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.ur
 /** Where the generated tree lives, repo-relative. */
 export const TEMPLATE_DIR = "packages/create-qcms-app/templates";
 
-/** The four packages an adopter consumes from the registry. */
-const PUBLISHED_PACKAGES = ["@qcms/core", "@qcms/a2ui-compiler", "@qcms/db", "@qcms/ui"];
+/**
+ * The packages an adopter consumes from the registry rather than owning.
+ *
+ * ADR-05's four, plus the two shared helpers `main` added after this generator was
+ * written (`@qcms/observability` in #446, `@qcms/csv` in #470). All three scaffolded
+ * apps depend on those two AT RUNTIME, so a scaffold that does not resolve them is a
+ * scaffold that does not install: the previous silent `workspace:*` fallback stamped
+ * an unsatisfiable range into the adopter's manifest and nothing here could see it
+ * (issue #456, blind spot F, which is what caught this).
+ *
+ * **This list is the published surface, so adding to it is a Code Owner call.** The
+ * alternative shape, stamping those two as owned source under `packages/` in the
+ * adopter's tree, was rejected for the CSV helper's sake: it carries the SEC-13
+ * formula-injection guard, and a control that ships as versioned code is one an
+ * upgrade can fix everywhere at once.
+ */
+const PUBLISHED_PACKAGES = [
+  "@qcms/core",
+  "@qcms/a2ui-compiler",
+  "@qcms/db",
+  "@qcms/ui",
+  "@qcms/observability",
+  "@qcms/csv",
+];
 
 /**
  * Every `@qcms/*` package each scaffolded app must declare.
@@ -100,9 +146,16 @@ const PUBLISHED_PACKAGES = ["@qcms/core", "@qcms/a2ui-compiler", "@qcms/db", "@q
  * `package.json` files.
  */
 const APP_QCMS_DEPENDENCIES = {
-  api: ["@qcms/a2ui-compiler", "@qcms/core", "@qcms/db"],
-  portal: ["@qcms/core", "@qcms/ui"],
-  admin: ["@qcms/a2ui-compiler", "@qcms/core", "@qcms/db", "@qcms/ui"],
+  api: ["@qcms/a2ui-compiler", "@qcms/core", "@qcms/csv", "@qcms/db", "@qcms/observability"],
+  portal: ["@qcms/core", "@qcms/observability", "@qcms/ui"],
+  admin: [
+    "@qcms/a2ui-compiler",
+    "@qcms/core",
+    "@qcms/csv",
+    "@qcms/db",
+    "@qcms/observability",
+    "@qcms/ui",
+  ],
 };
 
 /** Scripts an app keeps in the scaffold; everything else is this repository's. */
@@ -111,6 +164,56 @@ const APP_SCRIPTS = {
   portal: ["dev", "build", "start", "typecheck"],
   admin: ["dev", "build", "start", "typecheck"],
 };
+
+/**
+ * Fragments of a kept script that reach outside the app, removed (transform 10).
+ *
+ * A kept script is copied verbatim, which is right until one of them starts invoking
+ * repository tooling. `apps/api`'s `build` gained a `node ../../scripts/clean-dist.mjs`
+ * prefix after this generator shipped, and the scaffold has no `scripts/` directory:
+ * the Dockerfiles deliberately do not copy one (transform 4), so `pnpm -r build` and
+ * every `docker compose up --build` in an adopter's project failed on a missing file.
+ * {@link assertNoEscapingPaths} is what found it, over the generated manifest.
+ *
+ * Each entry must fire, exactly as {@link ADOPTER_TEXT_REPLACEMENTS} must.
+ */
+const APP_SCRIPT_FRAGMENTS = [
+  {
+    find: "node ../../scripts/clean-dist.mjs && ",
+    why: "removes a stale `dist/` before `tsc`, which is repository hygiene for a tree that gets rebuilt across branches. An adopter's first build has no stale output, and the script it calls is not stamped.",
+  },
+];
+
+/** Which script fragments actually fired, so a dead entry can be reported. */
+const appliedScriptFragments = new Set();
+
+/**
+ * One kept script, with any repository-only fragment removed.
+ *
+ * @param {string} script
+ * @returns {string}
+ */
+function rewriteAppScript(script) {
+  let out = script;
+  for (const [index, fragment] of APP_SCRIPT_FRAGMENTS.entries()) {
+    if (!out.includes(fragment.find)) continue;
+    out = out.replaceAll(fragment.find, "");
+    appliedScriptFragments.add(index);
+  }
+  return out;
+}
+
+/** Fail on a fragment that matched nothing, which reads as coverage it does not have. */
+function assertAppScriptFragmentsApplied() {
+  const dead = APP_SCRIPT_FRAGMENTS.filter((_, index) => !appliedScriptFragments.has(index));
+  if (dead.length > 0) {
+    throw new Error(
+      `sync-templates: these APP_SCRIPT_FRAGMENTS entries matched no scaffolded script, so they ` +
+        `describe a transform that does not happen:\n  ${dead.map((entry) => entry.find).join("\n  ")}\n` +
+        `Remove them from ${GENERATOR_PATH}, or fix the fragment.`,
+    );
+  }
+}
 
 /**
  * devDependencies every scaffolded app needs that no app in THIS repository declares,
@@ -131,6 +234,11 @@ const HARNESS_DEV_DEPENDENCIES = new Set([
   "@testcontainers/postgresql",
   "@seriousme/openapi-schema-validator",
   "otplib",
+  // `tooling/e2e-support`, a private workspace package holding this repository's
+  // Playwright and scenario helpers. The tests that import it are dropped by the strip
+  // rules, so keeping the declaration would stamp an unresolvable `workspace:*` into
+  // the adopter's manifest for code the scaffold does not contain.
+  "@qcms/e2e-support",
 ]);
 
 /** App-relative paths dropped wholesale: repository tooling, not shell source. */
@@ -172,14 +280,51 @@ export function isExcludedAppPath(path) {
  */
 const GIT_CANDIDATES = ["/usr/bin/git", "/bin/git", "/usr/local/bin/git", "/opt/homebrew/bin/git"];
 
+/**
+ * The override variable's name, so the check below and the message agree.
+ *
+ * Deliberately duplicated from `src/exec.ts`'s `BIN_OVERRIDE_ENV_VAR.git` rather than
+ * imported: `check:templates` has to run under plain `node` in a tree that was never
+ * installed or built (the property the PO review of #451 proved), so this file may not
+ * import TypeScript. `sync-templates.test.ts` pins the two spellings and the two rules
+ * against each other instead.
+ */
+export const GIT_BIN_OVERRIDE_ENV_VAR = "QCMS_GIT_BIN";
+
+/**
+ * Refuse an override that is not an absolute path to something that exists (#458).
+ *
+ * Same rule, same reason, as `overrideProgram` in `src/exec.ts`: a bare name is a
+ * `PATH` lookup, which is exactly what probing absolute candidates exists to avoid,
+ * and lint cannot see it because the value is a variable rather than a literal.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+export function checkedGitOverride(value) {
+  if (!isAbsolute(value)) {
+    throw new Error(
+      `sync-templates: ${GIT_BIN_OVERRIDE_ENV_VAR}=${value} is not an absolute path, so it would ` +
+        `be resolved through PATH. Set it to the absolute path of the executable, or unset it.`,
+    );
+  }
+  if (!existsSync(value)) {
+    throw new Error(
+      `sync-templates: ${GIT_BIN_OVERRIDE_ENV_VAR}=${value} does not exist. Set it to the ` +
+        `absolute path of the executable, or unset it.`,
+    );
+  }
+  return value;
+}
+
 function gitBinary() {
-  const override = process.env["QCMS_GIT_BIN"];
-  if (override !== undefined && override !== "") return override;
+  const override = process.env[GIT_BIN_OVERRIDE_ENV_VAR];
+  if (override !== undefined && override !== "") return checkedGitOverride(override);
   const found = GIT_CANDIDATES.find((candidate) => existsSync(candidate));
   if (found === undefined) {
     throw new Error(
       `sync-templates: could not find git. Looked at: ${GIT_CANDIDATES.join(", ")}. ` +
-        `Set QCMS_GIT_BIN to its absolute path.`,
+        `Set ${GIT_BIN_OVERRIDE_ENV_VAR} to its absolute path.`,
     );
   }
   return found;
@@ -235,15 +380,19 @@ export function repositoryFiles(prefix) {
  * gate (issue #450). Reading everything makes the gate's view and the CLI's view the
  * same view.
  *
- * @param {string} root repo-relative directory
- * @returns {string[]} repo-relative POSIX paths
+ * @param {string} root directory relative to `base`
+ * @param {string} base absolute root the paths are relative to. Defaults to the
+ *   repository; a test passes a temporary directory, which is the only way to prove
+ *   the walk sees a file under a directory name the old skip list hid (issue #450)
+ *   without committing such a file.
+ * @returns {string[]} POSIX paths relative to `base`
  */
-export function walk(root) {
-  const absolute = join(REPOSITORY_ROOT, root);
+export function walk(root, base = REPOSITORY_ROOT) {
+  const absolute = join(base, root);
   /** @type {string[]} */
   const found = [];
   for (const entry of readdirSync(absolute, { withFileTypes: true })) {
-    if (entry.isDirectory()) found.push(...walk(posix.join(root, entry.name)));
+    if (entry.isDirectory()) found.push(...walk(posix.join(root, entry.name), base));
     else if (entry.isFile()) found.push(posix.join(root, entry.name));
   }
   return found.sort();
@@ -252,6 +401,116 @@ export function walk(root) {
 /** Read a repo-relative file as UTF-8. */
 function read(path) {
   return readFileSync(join(REPOSITORY_ROOT, path), "utf8");
+}
+
+/**
+ * Read a canonical source file, refusing anything this generator cannot carry
+ * faithfully (issue #456, blind spot H).
+ *
+ * The whole tree is round-tripped as UTF-8 text, `walk()` and `git ls-files` both hand
+ * back plain files, and nothing preserves a mode bit. All three are true of every
+ * tracked file today, and each one fails silently on the day it stops being true: a
+ * font under `apps/*` would be corrupted rather than copied, a symlink dropped without
+ * comment, an executable shell script stamped unexecutable. A generator that cannot
+ * copy a file must say so, not produce a broken one.
+ *
+ * The check is the copy: if the bytes do not survive the round trip, the text form is
+ * not the file.
+ */
+function readSource(path) {
+  const absolute = join(REPOSITORY_ROOT, path);
+  const stats = lstatSync(absolute);
+  if (stats.isSymbolicLink()) {
+    throw new Error(
+      `sync-templates: ${path} is a symbolic link, and this generator writes plain files. ` +
+        `Teach writeTemplates to reproduce links before adding one under a scaffolded path.`,
+    );
+  }
+  // An octal permission test is what mode bits are for.
+  if ((stats.mode & 0o111) !== 0) {
+    throw new Error(
+      `sync-templates: ${path} is executable, and this generator writes mode 0644. An adopter ` +
+        `would receive a script they cannot run. Teach writeTemplates to preserve the mode first.`,
+    );
+  }
+  const bytes = readFileSync(absolute);
+  const text = bytes.toString("utf8");
+  if (!Buffer.from(text, "utf8").equals(bytes)) {
+    throw new Error(
+      `sync-templates: ${path} is not UTF-8 text, and this generator round-trips every file ` +
+        `through a string, which would corrupt it. Teach buildTemplates to carry bytes first.`,
+    );
+  }
+  return text;
+}
+
+/**
+ * Text in a canonical app that names something only THIS repository has (transform 8).
+ *
+ * A scaffolded project inherits QCMS's identity along with its shell (issue #457), and
+ * the two entries below are the tier that is a defect rather than a curiosity: both are
+ * user-facing output telling an operator to run a command their project does not
+ * define. The comments around them are left alone, deliberately, and
+ * `docs/ownership-seam.md` explains what they are.
+ *
+ * `find` must appear EXACTLY ONCE in its file. A reworded original fails the generator
+ * rather than silently no-opping, which is the same discipline
+ * {@link transformDockerfile} applies to the lines it removes.
+ */
+const ADOPTER_TEXT_REPLACEMENTS = [
+  {
+    path: "apps/admin/lib/i18n/en.ts",
+    find: "Create the first question. To explore with the sample insurance library instead, run pnpm dev:seed against a local development stack.",
+    replace: "Create the first question to start building the library.",
+    why: "`pnpm dev:seed` is a script in the QCMS repository. A scaffolded project has no such script, so the empty-library screen would tell an operator to run something that does not exist.",
+  },
+  {
+    path: "apps/api/src/create-admin.ts",
+    find: '"  pnpm qcms:create-admin\\n" +',
+    replace:
+      '"  docker compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js\\n" +',
+    why: "the usage this command prints when it is run without credentials. In a scaffolded project it runs inside the api container, and the scaffolded README says so; the tool and its own documentation disagreed in the adopter's tree.",
+  },
+];
+
+/** Which replacements actually fired, so a dead entry can be reported. */
+const appliedReplacements = new Set();
+
+/**
+ * Apply the adopter-text replacements for one source file.
+ *
+ * @param {string} path repo-relative source path
+ * @param {string} text
+ * @returns {string}
+ */
+function rewriteAdopterText(path, text) {
+  let out = text;
+  for (const [index, entry] of ADOPTER_TEXT_REPLACEMENTS.entries()) {
+    if (entry.path !== path) continue;
+    const occurrences = out.split(entry.find).length - 1;
+    if (occurrences !== 1) {
+      throw new Error(
+        `sync-templates: ${path} contains ${String(occurrences)} occurrences of the text ` +
+          `ADOPTER_TEXT_REPLACEMENTS expects exactly one of:\n  ${entry.find}\n` +
+          `Reason the entry exists: ${entry.why}\nFix the entry in ${GENERATOR_PATH}.`,
+      );
+    }
+    out = out.replace(entry.find, entry.replace);
+    appliedReplacements.add(index);
+  }
+  return out;
+}
+
+/** Fail on an entry that matched nothing, which reads as coverage it does not have. */
+function assertAdopterTextApplied() {
+  const dead = ADOPTER_TEXT_REPLACEMENTS.filter((_, index) => !appliedReplacements.has(index));
+  if (dead.length > 0) {
+    throw new Error(
+      `sync-templates: these ADOPTER_TEXT_REPLACEMENTS entries matched no scaffolded file, so ` +
+        `they are describing a transform that does not happen:\n  ${dead.map((entry) => entry.path).join("\n  ")}\n` +
+        `Remove them from ${GENERATOR_PATH}, or fix the path.`,
+    );
+  }
 }
 
 /** Read and parse a repo-relative JSON file. */
@@ -286,7 +545,25 @@ function rewriteDependencies(block, versions, dropHarness) {
   for (const [name, range] of Object.entries(block ?? {})) {
     if (dropHarness && HARNESS_DEV_DEPENDENCIES.has(name)) continue;
     if (PUBLISHED_PACKAGES.includes(name)) continue;
-    rewritten[name] = range === "workspace:*" ? (versions[name] ?? range) : range;
+    if (range === "workspace:*") {
+      // Loud rather than quiet (issue #456, blind spot F). A `??` fallback here
+      // stamped an unknown workspace dependency verbatim into the adopter's manifest,
+      // where `workspace:*` is not a range any registry install can satisfy: the
+      // failure surfaced as an install error in someone else's project rather than as
+      // a generator error in ours.
+      const resolved = versions[name];
+      if (resolved === undefined) {
+        throw new Error(
+          `sync-templates: a scaffolded manifest depends on ${name} at "workspace:*", and ${name} ` +
+            `is not one of the published packages (${PUBLISHED_PACKAGES.join(", ")}). ` +
+            `An adopter cannot install it. Publish it and add it to PUBLISHED_PACKAGES in ` +
+            `${GENERATOR_PATH}, or drop the dependency.`,
+        );
+      }
+      rewritten[name] = resolved;
+      continue;
+    }
+    rewritten[name] = range;
   }
   return rewritten;
 }
@@ -311,7 +588,7 @@ export function appManifest(app, versions) {
     if (script === undefined) {
       throw new Error(`apps/${app}/package.json no longer defines the "${name}" script.`);
     }
-    scripts[name] = script;
+    scripts[name] = rewriteAppScript(script);
   }
   const dependencies = rewriteDependencies(source.dependencies, versions, false);
   for (const name of APP_QCMS_DEPENDENCIES[app]) dependencies[name] = versions[name];
@@ -372,37 +649,99 @@ export function rewriteUiAssetPaths(text, appRelative) {
 }
 
 /**
- * Fail if any generated file still reaches for a directory the scaffold has not got.
+ * A relative reference that climbs out of its own directory, and what follows it.
  *
- * The counterpart to {@link assertImports} for everything that is not a JavaScript
- * import. Comments are exempt: several files legitimately explain where a generated
- * sheet came from, and rewriting prose would be editorial rather than mechanical.
+ * The trailing character class stops at anything that ends a path in the shapes this
+ * tree actually contains: quotes, whitespace, a closing bracket or paren, a comma or
+ * a semicolon.
+ */
+const CLIMBING_REFERENCE = /(?:\.\.\/)+[^\s"'`)\],;:]*/g;
+
+/**
+ * Fail if any generated file reaches somewhere the scaffold has not got (#456 D, E).
+ *
+ * The predecessor of this function shared one regex with the transform it guarded
+ * (`UI_SOURCE_REFERENCE`), which made it structurally incapable of catching a new
+ * KIND of reach: only a new instance of the one already handled. It also scanned
+ * `common/apps/` alone, exempting `tsconfig.base.json`, `_npmrc`, the compose files
+ * and the whole `solo/` overlay, so a `paths` block pointing at `../../packages/*`
+ * would have shipped through. Its docstring meanwhile claimed to be the general
+ * counterpart to {@link assertImports}, which overstated it.
+ *
+ * This is that general counterpart, and it does not know what `packages/` is. It
+ * counts `../` against the file's own depth from the scaffold root, so:
+ *
+ *   - more `../` than depth means the reference leaves the project entirely, which is
+ *     never right whatever it names;
+ *   - exactly `depth` means it lands ON the project root, so the first segment after
+ *     it must be something the scaffold actually stamps there.
+ *
+ * That subsumes the old rule (`../../../packages/ui/src` from `apps/portal/app` lands
+ * at the root and names `packages`, which the scaffold has not got) without naming it.
+ *
+ * Comments are exempt: several files legitimately explain where a generated sheet came
+ * from, and rewriting prose would be editorial rather than mechanical.
  *
  * @param {Map<string, string>} tree
  */
-export function assertNoMonorepoPaths(tree) {
+export function assertNoEscapingPaths(tree) {
+  const roots = scaffoldRootEntries(tree);
   /** @type {string[]} */
   const problems = [];
   for (const [path, contents] of tree) {
-    if (!path.startsWith("common/apps/")) continue;
+    const scaffoldRelative = outputName(path.slice(path.indexOf("/") + 1)).replace(/\.tmpl$/, "");
+    const depth = scaffoldRelative.split("/").length - 1;
     for (const line of contents.split("\n")) {
       const code = line.replace(/^\s*(\*|\/\/|#).*$/, "");
-      if (UI_SOURCE_REFERENCE.test(code)) problems.push(`${path}: ${line.trim()}`);
-      UI_SOURCE_REFERENCE.lastIndex = 0;
+      for (const [reference] of code.matchAll(CLIMBING_REFERENCE)) {
+        const climbs = (reference.match(/\.\.\//g) ?? []).length;
+        const remainder = reference.slice(climbs * 3);
+        if (climbs > depth) {
+          problems.push(`${path}: ${reference} climbs past the project root.`);
+        } else if (climbs === depth && remainder === "") {
+          // The project root itself, which a scaffold has exactly as this repository
+          // does: `apps/<app>/next.config.ts` reaching `../../` is the workspace root
+          // in both trees.
+          continue;
+        } else if (climbs === depth && !roots.has(remainder.split("/")[0] ?? "")) {
+          problems.push(
+            `${path}: ${reference} resolves to "${remainder}", which the scaffold does not stamp.`,
+          );
+        }
+      }
     }
   }
   if (problems.length > 0) {
     throw new Error(
-      `sync-templates: these generated files still reach into packages/, which a scaffold has not got.\n  ${problems.join("\n  ")}\n` +
-        `Extend rewriteUiAssetPaths in ${GENERATOR_PATH}.`,
+      `sync-templates: these generated files reach outside the scaffolded project.\n  ${problems.join("\n  ")}\n` +
+        `Rewrite the reference in a transform in ${GENERATOR_PATH}, the way rewriteUiAssetPaths does.`,
     );
   }
+}
+
+/**
+ * Every first path segment the scaffold writes at its own root, across every layer.
+ *
+ * Read from the tree rather than listed, so it cannot describe a root the generator
+ * stopped producing.
+ *
+ * @param {Map<string, string>} tree
+ * @returns {Set<string>}
+ */
+function scaffoldRootEntries(tree) {
+  /** @type {Set<string>} */
+  const roots = new Set();
+  for (const path of tree.keys()) {
+    const scaffoldRelative = outputName(path.slice(path.indexOf("/") + 1)).replace(/\.tmpl$/, "");
+    roots.add(scaffoldRelative.split("/")[0] ?? "");
+  }
+  return roots;
 }
 
 // --- import surface ---------------------------------------------------------
 
 /** `@qcms/<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
-const QCMS_SPECIFIER = /@qcms\/(core|a2ui-compiler|db|ui)\b/g;
+const QCMS_SPECIFIER = /@qcms\/(core|a2ui-compiler|csv|db|observability|ui)\b/g;
 
 /**
  * Fail unless every `@qcms/*` package the generated app sources reach is declared.
@@ -478,12 +817,43 @@ function compareImports(app, declared, used) {
 // --- docker -----------------------------------------------------------------
 
 /**
- * A Dockerfile without its monorepo assumptions (transform 4).
+ * Root directories the monorepo Dockerfiles copy that a scaffolded project has not got.
+ *
+ * Declared, and every one of them MUST be present in every Dockerfile: the previous
+ * version filtered two exact string literals, so a whitespace change or a third
+ * monorepo-only `COPY` silently no-opped and the adopter's image failed on a `COPY` of
+ * a directory that is not there (issue #456, blind spot C). That is not hypothetical:
+ * `COPY tooling ./tooling` was added to all three files after this generator shipped,
+ * and the filter did not see it.
+ */
+const MONOREPO_ONLY_COPY_DIRECTORIES = ["packages", "scripts", "tooling"];
+
+/** Root directories a scaffolded project HAS, so a `COPY` of one is legitimate. */
+const SCAFFOLD_COPY_DIRECTORIES = new Set(["apps"]);
+
+/** `COPY <dir> ./<dir>` and nothing else: the whole-directory form. */
+const DIRECTORY_COPY = /^COPY (\S+) \.\/(\S+)$/;
+
+/**
+ * The provenance label a scaffolded image must not inherit (issue #457, tier 1).
+ *
+ * `org.opencontainers.image.source` says where the code in the image lives. In an
+ * adopter's image that code is theirs: the ownership seam exists precisely so they
+ * edit it. Pointing the label at this repository sends anyone who reads OCI labels to
+ * find a running container's source to a repository that does not contain it, which is
+ * the specific way a provenance claim is wrong. `title` is inherited identity too, and
+ * is stamped from the project name instead.
+ */
+const SOURCE_LABEL_LINE = '      org.opencontainers.image.source="https://github.com/roonga/qcms"';
+
+/**
+ * A Dockerfile without its monorepo assumptions or QCMS's identity (transforms 4, 9).
  *
  * @param {string} text
- * @param {string} app
+ * @param {string} app the workspace filter name, e.g. `qcms-api`
+ * @param {string} role `api`, `portal` or `admin`, for the stamped image title
  */
-export function transformDockerfile(text, app) {
+export function transformDockerfile(text, app, role) {
   const workspaceBuild = `--filter ${app}... build`;
   if (!text.includes(workspaceBuild)) {
     throw new Error(
@@ -491,39 +861,153 @@ export function transformDockerfile(text, app) {
         `packages/ to build, so that line is what the transform exists to rewrite.`,
     );
   }
+
+  /** @type {string[]} */
+  const kept = [];
+  /** @type {Set<string>} */
+  const dropped = new Set();
+  for (const line of text.split("\n")) {
+    const copy = DIRECTORY_COPY.exec(line);
+    if (copy !== null && copy[1] === copy[2] && MONOREPO_ONLY_COPY_DIRECTORIES.includes(copy[1])) {
+      dropped.add(copy[1]);
+      // The comment block immediately above a dropped COPY exists to explain that
+      // line. Leaving it would leave prose explaining a line the adopter cannot see.
+      while (kept.length > 0 && /^\s*#/.test(kept.at(-1) ?? "")) kept.pop();
+      continue;
+    }
+    kept.push(line);
+  }
+
+  const missing = MONOREPO_ONLY_COPY_DIRECTORIES.filter((directory) => !dropped.has(directory));
+  if (missing.length > 0) {
+    throw new Error(
+      `sync-templates: docker/${role}.Dockerfile no longer copies ${missing.join(", ")}, which ` +
+        `MONOREPO_ONLY_COPY_DIRECTORIES in ${GENERATOR_PATH} says it does. Either the line moved ` +
+        `and this transform is now a no-op that ships a broken image, or the directory is gone ` +
+        `and the entry should be too.`,
+    );
+  }
+
+  for (const line of kept) {
+    const copy = DIRECTORY_COPY.exec(line);
+    if (copy?.[1] !== undefined && !SCAFFOLD_COPY_DIRECTORIES.has(copy[1])) {
+      throw new Error(
+        `sync-templates: docker/${role}.Dockerfile copies "${copy[1]}", which a scaffolded ` +
+          `project has not got at its root. Add it to MONOREPO_ONLY_COPY_DIRECTORIES (to drop it) ` +
+          `or to SCAFFOLD_COPY_DIRECTORIES (if the scaffold now stamps it) in ${GENERATOR_PATH}.`,
+      );
+    }
+  }
+
+  return stampImageIdentity(kept.join("\n"), role).replace(workspaceBuild, `--filter ${app} build`);
+}
+
+/**
+ * The adopter's image identity in place of this repository's (issue #457, tier 1).
+ *
+ * The title becomes `{{projectName}}-<role>`, rendered by the CLI from what the
+ * operator typed, which is why the Dockerfiles are stamped as `.tmpl`. The source
+ * label is removed rather than blanked: an empty OCI label is still a label, and a
+ * scaffolder cannot know the adopter's repository URL. A comment says how to add it.
+ *
+ * @param {string} text
+ * @param {string} role
+ */
+function stampImageIdentity(text, role) {
+  const title = `LABEL org.opencontainers.image.title="qcms-${role}" \\`;
+  if (!text.includes(title) || !text.includes(SOURCE_LABEL_LINE)) {
+    throw new Error(
+      `sync-templates: docker/${role}.Dockerfile no longer carries the OCI title and source ` +
+        `labels this transform rewrites. A scaffolded image must not claim to come from this ` +
+        `repository (issue #457); update stampImageIdentity in ${GENERATOR_PATH}.`,
+    );
+  }
   return text
-    .split("\n")
-    .filter((line) => line !== "COPY packages ./packages" && line !== "COPY scripts ./scripts")
-    .join("\n")
-    .replace(workspaceBuild, `--filter ${app} build`);
+    .replace(title, `LABEL org.opencontainers.image.title="{{projectName}}-${role}" \\`)
+    .replace(
+      ` \\\n${SOURCE_LABEL_LINE}`,
+      "\n# No org.opencontainers.image.source: this image is built from YOUR tree, which\n" +
+        "# you have owned since create-qcms-app stamped it, so no scaffolder can know where\n" +
+        "# it lives. Add the label yourself once it has a home:\n" +
+        '#   org.opencontainers.image.source="https://example.com/your/repository"',
+    );
 }
 
 /** The two services that read the admin 2FA policy (SEC-1, ADR-24's flag registry). */
-const TWO_FACTOR_SERVICES = ["QCMS_MOUNT: all", "QCMS_ADMIN_TRUSTED_PROXY_HOPS:"];
+const TWO_FACTOR_SERVICES = ["api", "admin"];
+
+/** The passthrough line those two services must carry. */
+const TWO_FACTOR_PASSTHROUGH = "QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}";
 
 /**
- * Compose with the `QCMS_ADMIN_2FA` passthrough the CLI's prompt needs (transform 5).
+ * Fail unless the canonical Compose file already forwards `QCMS_ADMIN_2FA` (was 5).
  *
- * Inserted beside two anchors that already exist in the file rather than appended to
- * a service block by line number, so a reordered file fails loudly instead of
- * silently putting the variable on the wrong service.
+ * This used to be a transform: the generator INSERTED the passthrough, because the
+ * canonical file did not have it and adding it there would have moved the variable
+ * into `scripts/env-reference.mjs`'s compose group. `main` has since added it on both
+ * services for its own reasons, which turned the transform into a duplicator: the
+ * generated file carried the key twice per service, and a duplicate YAML key is
+ * resolved by whichever copy wins rather than reported.
+ *
+ * So the transform is gone and the property it guaranteed is asserted instead. The CLI
+ * still prompts for the policy and still writes it into `.env`, and if the canonical
+ * file ever stops forwarding it, an adopter's answer would reach neither service
+ * silently. That is the failure this catches.
  *
  * @param {string} text
  */
-export function transformCompose(text) {
-  let out = text;
-  for (const anchor of TWO_FACTOR_SERVICES) {
-    const index = out.indexOf(anchor);
-    if (index === -1) {
-      throw new Error(`docker-compose.yml no longer contains the anchor "${anchor}".`);
-    }
-    const indent = " ".repeat(out.slice(0, index).length - out.lastIndexOf("\n", index) - 1);
-    out =
-      out.slice(0, index) +
-      `QCMS_ADMIN_2FA: \${QCMS_ADMIN_2FA:-required}\n${indent}` +
-      out.slice(index);
+export function assertComposeForwardsTwoFactor(text) {
+  const blocks = serviceBlocks(text);
+  const missing = TWO_FACTOR_SERVICES.filter(
+    (service) => !(blocks.get(service) ?? "").includes(TWO_FACTOR_PASSTHROUGH),
+  );
+  if (missing.length > 0) {
+    throw new Error(
+      `sync-templates: docker-compose.yml no longer forwards ${TWO_FACTOR_PASSTHROUGH} to ` +
+        `${missing.join(" and ")}. The CLI prompts for the admin 2FA policy and writes it to ` +
+        `.env, so without the passthrough the adopter's answer reaches nothing.`,
+    );
   }
-  return out;
+  const occurrences = text.split(TWO_FACTOR_PASSTHROUGH).length - 1;
+  if (occurrences !== TWO_FACTOR_SERVICES.length) {
+    throw new Error(
+      `sync-templates: docker-compose.yml carries ${String(occurrences)} copies of ` +
+        `${TWO_FACTOR_PASSTHROUGH} and exactly ${String(TWO_FACTOR_SERVICES.length)} services read ` +
+        `it. A duplicate key in one service block is resolved silently rather than reported.`,
+    );
+  }
+  return text;
+}
+
+/**
+ * A Compose file's service blocks, keyed by name.
+ *
+ * @param {string} text
+ * @returns {Map<string, string>}
+ */
+export function serviceBlocks(text) {
+  /** @type {Map<string, string>} */
+  const blocks = new Map();
+  const lines = text.split("\n");
+  const start = lines.indexOf("services:");
+  if (start === -1) return blocks;
+  /** @type {string | undefined} */
+  let current;
+  /** @type {string[]} */
+  let body = [];
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line) && line.trim() !== "") break;
+    const key = /^ {2}([a-z][a-z0-9-]*):\s*$/.exec(line);
+    if (key?.[1] !== undefined) {
+      if (current !== undefined) blocks.set(current, body.join("\n"));
+      current = key[1];
+      body = [];
+      continue;
+    }
+    body.push(line);
+  }
+  if (current !== undefined) blocks.set(current, body.join("\n"));
+  return blocks;
 }
 
 // --- .env.example -----------------------------------------------------------
@@ -711,7 +1195,7 @@ export function buildTemplates() {
       if (appRelative === "package.json") continue;
       tree.set(
         templateName(`common/apps/${app}/${appRelative}`),
-        rewriteUiAssetPaths(read(path), appRelative),
+        rewriteAdopterText(path, rewriteUiAssetPaths(readSource(path), appRelative)),
       );
     }
     tree.set(
@@ -721,23 +1205,24 @@ export function buildTemplates() {
   }
 
   assertImports(tree);
-  assertNoMonorepoPaths(tree);
+  assertAdopterTextApplied();
+  assertAppScriptFragmentsApplied();
 
   for (const app of /** @type {const} */ (["api", "portal", "admin"])) {
     tree.set(
-      `common/docker/${app}.Dockerfile`,
-      transformDockerfile(read(`docker/${app}.Dockerfile`), `qcms-${app}`),
+      `common/docker/${app}.Dockerfile.tmpl`,
+      transformDockerfile(readSource(`docker/${app}.Dockerfile`), `qcms-${app}`, app),
     );
   }
 
-  const compose = transformCompose(read("docker-compose.yml"));
+  const compose = assertComposeForwardsTwoFactor(readSource("docker-compose.yml"));
   tree.set("common/docker-compose.yml", compose);
-  tree.set("common/tsconfig.base.json", read("tsconfig.base.json"));
-  tree.set("common/_npmrc", read(".npmrc"));
+  tree.set("common/tsconfig.base.json", readSource("tsconfig.base.json"));
+  tree.set("common/_npmrc", readSource(".npmrc"));
 
-  const proxy = read("docker-compose.proxy.yml");
+  const proxy = readSource("docker-compose.proxy.yml");
   tree.set("solo/docker-compose.proxy.yml", proxy);
-  tree.set("solo/docker/Caddyfile", read("docker/Caddyfile"));
+  tree.set("solo/docker/Caddyfile", readSource("docker/Caddyfile"));
 
   tree.set(
     "common/_env.example",
@@ -748,7 +1233,305 @@ export function buildTemplates() {
   );
 
   for (const [path, contents] of Object.entries(staticTemplates())) tree.set(path, contents);
-  return new Map([...tree].sort(([a], [b]) => (a < b ? -1 : 1)));
+  const sorted = new Map([...tree].sort(([a], [b]) => (a < b ? -1 : 1)));
+
+  // Every guard runs over the FINISHED tree, so none of them can be true of an
+  // intermediate state the adopter never receives.
+  assertNoEscapingPaths(sorted);
+  assertComposeReferences(sorted);
+  assertReadmeClaims(sorted);
+  return sorted;
+}
+
+// --- what the compose files point at ----------------------------------------
+
+/**
+ * `dockerfile: <path>` in a Compose build block.
+ *
+ * `[ \t]` rather than `\s` throughout, for the reason {@link COMMENT_LINE} records:
+ * `\s` matches a newline, which makes an anchored multiline pattern backtrack
+ * super-linearly over a long file.
+ */
+const COMPOSE_DOCKERFILE = /^[ \t]*dockerfile:[ \t]*(\S+)[ \t]*$/gm;
+
+/** A host path bind-mounted into a container: `- ./x/y:/somewhere`. */
+const COMPOSE_BIND_MOUNT = /^[ \t]*-[ \t]+\.\/([^\s:]+):\S/gm;
+
+/**
+ * Which layers a shape stamps: `common` always, plus its own overlay.
+ *
+ * @param {string} shape
+ * @returns {string[]}
+ */
+function layersFor(shape) {
+  return ["common", shape];
+}
+
+/**
+ * Fail if a generated Compose file points at a file the scaffold does not stamp
+ * (issue #456, blind spot B).
+ *
+ * The generator enumerates the docker assets it copies by name, and a list is exactly
+ * as complete as the last person to read it. This checks the other end instead: every
+ * path a shipped Compose file references has to exist in the tree that ships it. Add a
+ * file to `docker/` and reference it from a Compose file without teaching the
+ * generator about it, and the adopter's `docker compose up` fails on a missing path
+ * while `check:templates` stays green, because the generated tree never had it either.
+ *
+ * @param {Map<string, string>} tree
+ */
+export function assertComposeReferences(tree) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const [path, contents] of tree) {
+    if (!/(^|\/)docker-compose[.\w-]*\.yml$/.test(path)) continue;
+    const layer = path.slice(0, path.indexOf("/"));
+    const shapes = layer === "common" ? [...DEPLOYMENT_SHAPES] : [layer];
+    const referenced = [
+      ...[...contents.matchAll(COMPOSE_DOCKERFILE)].map((match) => match[1] ?? ""),
+      ...[...contents.matchAll(COMPOSE_BIND_MOUNT)].map((match) => match[1] ?? ""),
+    ];
+    for (const reference of new Set(referenced)) {
+      for (const shape of shapes) {
+        if (!stamps(tree, shape, reference)) {
+          problems.push(
+            `${path} references ./${reference}, which the ${shape} shape does not stamp.`,
+          );
+        }
+      }
+    }
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `sync-templates: a scaffolded Compose file points at something the scaffold has not got.\n  ${problems.join("\n  ")}\n` +
+        `Add it to buildTemplates in ${GENERATOR_PATH}.`,
+    );
+  }
+}
+
+/** The deployment shapes the CLI knows, mirrored from `src/options.ts`. */
+const DEPLOYMENT_SHAPES = ["solo", "enterprise"];
+
+/**
+ * True when `shape` stamps `scaffoldRelative` (a file, or a directory holding one).
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} shape
+ * @param {string} scaffoldRelative
+ */
+function stamps(tree, shape, scaffoldRelative) {
+  const wanted = layersFor(shape);
+  for (const path of tree.keys()) {
+    const layer = path.slice(0, path.indexOf("/"));
+    if (!wanted.includes(layer)) continue;
+    const output = outputName(path.slice(layer.length + 1)).replace(/\.tmpl$/, "");
+    if (output === scaffoldRelative || output.startsWith(`${scaffoldRelative}/`)) return true;
+  }
+  return false;
+}
+
+// --- what the hand-written READMEs claim ------------------------------------
+
+/** Compose CLI flags that eat the word after them; anything else stands alone. */
+const COMPOSE_VALUE_FLAGS = new Set([
+  "-f",
+  "--file",
+  "-e",
+  "--env",
+  "-w",
+  "--workdir",
+  "-u",
+  "--user",
+  "-p",
+  "--project-name",
+]);
+
+/**
+ * Every `docker compose` invocation in a document, as its argument words.
+ *
+ * Line continuations are joined and quoted values collapsed to one word first, so the
+ * README's multi-line `docker compose exec -e QCMS_ADMIN_PASSWORD='a long passphrase'`
+ * reads as one command rather than as several, and `long` is never mistaken for a
+ * service name.
+ *
+ * @param {string} text
+ * @returns {string[][]}
+ */
+export function composeInvocations(text) {
+  const joined = text
+    .replaceAll(/\\\n\s*/g, " ")
+    .replaceAll(/'[^']*'/g, "'quoted'")
+    .replaceAll(/"[^"]*"/g, '"quoted"');
+  return [...joined.matchAll(/docker compose[ \t]+([^\n`]*)/g)].map((match) =>
+    (match[1] ?? "").trim().split(/\s+/).filter(Boolean),
+  );
+}
+
+/**
+ * The service name a `docker compose exec|run` invocation acts on, and the files it
+ * passes to `-f`.
+ *
+ * @param {string[]} words
+ * @returns {{ service: string | undefined; files: string[] }}
+ */
+export function composeTarget(words) {
+  /** @type {string[]} */
+  const files = [];
+  /** @type {string[]} */
+  const operands = [];
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index] ?? "";
+    if (!word.startsWith("-")) {
+      operands.push(word);
+      continue;
+    }
+    const consumed = readComposeFlag(word, words[index + 1] ?? "", files);
+    index += consumed;
+  }
+  const [subcommand, first] = operands;
+  const service = subcommand === "exec" || subcommand === "run" ? first : undefined;
+  return { service, files };
+}
+
+/**
+ * Read one flag, recording a `-f` value, and say how many extra words it ate.
+ *
+ * @param {string} word
+ * @param {string} next
+ * @param {string[]} files collects every `-f` value
+ * @returns {number}
+ */
+function readComposeFlag(word, next, files) {
+  const equals = word.indexOf("=");
+  const flag = equals === -1 ? word : word.slice(0, equals);
+  if (!COMPOSE_VALUE_FLAGS.has(flag)) return 0;
+  const inline = equals === -1 ? undefined : word.slice(equals + 1);
+  const value = inline ?? next;
+  if (flag === "-f" || flag === "--file") files.push(value);
+  return inline === undefined ? 1 : 0;
+}
+
+/** Every `QCMS_*` name a document mentions. */
+const QCMS_ENV_NAME = /\bQCMS_[A-Z0-9_]+\b/g;
+
+/**
+ * Fail if a hand-written README claims something the generated tree does not support
+ * (issue #456, blind spot G).
+ *
+ * `templates-static/` is the one part of the scaffold with no canonical counterpart, so
+ * until this ran nothing compared it to anything: the service names, the `-f` overlay
+ * shape and the `QCMS_*` variables were unchecked prose next to a Compose file that
+ * moves. Only the four `nextCommands` lines were pinned, by `scaffold.test.ts`.
+ *
+ * Three claims are checkable and all three are checked: a service the README tells the
+ * operator to `exec` or `run` has to be a service; a file it passes to `-f` has to be
+ * stamped; a `QCMS_*` variable it names has to be one the stack actually reads, meaning
+ * the generated Compose files, the generated `.env.example`, or the configuration
+ * schema's own reference (which covers the two credentials that only ever arrive
+ * through `docker compose exec -e`). What is left unchecked is genuinely prose.
+ *
+ * @param {Map<string, string>} tree
+ */
+export function assertReadmeClaims(tree) {
+  /** @type {string[]} */
+  const problems = [];
+  for (const [path, contents] of tree) {
+    if (!path.endsWith("README.md.tmpl")) continue;
+    const layer = path.slice(0, path.indexOf("/"));
+    const shape = layer === "common" ? DEPLOYMENT_SHAPES[0] : layer;
+    if (shape === undefined) continue;
+    problems.push(...readmeProblems(tree, shape, path, contents));
+  }
+  if (problems.length > 0) {
+    throw new Error(
+      `sync-templates: a hand-written README in templates-static/ claims something the generated ` +
+        `tree does not support.\n  ${problems.join("\n  ")}\n` +
+        `Fix the README, or the generator that produces what it describes.`,
+    );
+  }
+}
+
+/**
+ * Everything one README claims that its shape's generated tree does not support.
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} shape
+ * @param {string} path the README's template path, for the message
+ * @param {string} contents
+ * @returns {string[]}
+ */
+function readmeProblems(tree, shape, path, contents) {
+  const services = composeServices(tree, shape);
+  const known = environmentNames(tree, shape);
+  /** @type {string[]} */
+  const problems = [];
+
+  for (const words of composeInvocations(contents)) {
+    const { service, files } = composeTarget(words);
+    if (service !== undefined && !services.has(service)) {
+      problems.push(
+        `${path} tells the operator to use the "${service}" service, and the ${shape} ` +
+          `Compose file defines ${[...services].join(", ")}.`,
+      );
+    }
+    for (const file of files.filter((candidate) => !stamps(tree, shape, candidate))) {
+      problems.push(`${path} passes -f ${file}, which the ${shape} shape does not stamp.`);
+    }
+  }
+  for (const [name] of contents.matchAll(QCMS_ENV_NAME)) {
+    if (!known.has(name)) {
+      problems.push(
+        `${path} names ${name}, which neither the generated .env.example documents nor the ` +
+          `${shape} Compose file sets.`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The service names the Compose files a shape stamps define.
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} shape
+ * @returns {Set<string>}
+ */
+function composeServices(tree, shape) {
+  /** @type {Set<string>} */
+  const services = new Set();
+  for (const [path, contents] of tree) {
+    const layer = path.slice(0, path.indexOf("/"));
+    if (!layersFor(shape).includes(layer)) continue;
+    if (!/(^|\/)docker-compose[.\w-]*\.yml$/.test(path)) continue;
+    for (const name of serviceBlocks(contents).keys()) services.add(name);
+  }
+  return services;
+}
+
+/**
+ * Every `QCMS_*` name the stamped stack actually reads, from the two generated files
+ * that decide it rather than from a list.
+ *
+ * @param {Map<string, string>} tree
+ * @param {string} shape
+ * @returns {Set<string>}
+ */
+function environmentNames(tree, shape) {
+  /** @type {Set<string>} */
+  const names = new Set();
+  // The configuration schema's reference, which documents every variable any QCMS
+  // process parses. It is wider than the Compose files on purpose: `QCMS_ADMIN_EMAIL`
+  // and `QCMS_ADMIN_PASSWORD` reach the container through `docker compose exec -e` at
+  // bootstrap time and are deliberately in no file at all (SEC-8, issue #440).
+  for (const entry of ENV_REFERENCE) names.add(entry.name);
+  for (const [path, contents] of tree) {
+    const layer = path.slice(0, path.indexOf("/"));
+    if (!layersFor(shape).includes(layer)) continue;
+    const isCompose = /(^|\/)docker-compose[.\w-]*\.yml$/.test(path);
+    if (!isCompose && !path.endsWith("_env.example")) continue;
+    for (const [name] of contents.matchAll(QCMS_ENV_NAME)) names.add(name);
+  }
+  return names;
 }
 
 /**
@@ -762,7 +1545,7 @@ function staticTemplates() {
   /** @type {Record<string, string>} */
   const files = {};
   for (const path of walk("packages/create-qcms-app/templates-static")) {
-    files[path.slice("packages/create-qcms-app/templates-static/".length)] = read(path);
+    files[path.slice("packages/create-qcms-app/templates-static/".length)] = readSource(path);
   }
   return files;
 }
@@ -792,6 +1575,14 @@ const PACKAGE_STORY = {
   "@qcms/ui": [
     "The A2UI renderer, the vendored input controls, and the token contract the theming rests on.",
     "Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.",
+  ],
+  "@qcms/observability": [
+    "The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box.",
+    "Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13).",
+  ],
+  "@qcms/csv": [
+    "One helper: RFC 4180 quoting plus the spreadsheet formula-injection guard every exported cell passes through.",
+    "Upgrade freely, and prefer to, for the same reason as `@qcms/observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree.",
   ],
 };
 
@@ -860,12 +1651,59 @@ export function renderSeamBlock(tree = buildTemplates()) {
   }
   lines.push("");
 
+  lines.push("### QCMS-internal references in the scaffolded source", "");
+  const references = countInternalReferences(tree);
+  lines.push(
+    `\`${String(references.lines)}\` lines across \`${String(references.files)}\` scaffolded files ` +
+      "cite a QCMS issue, ADR, SEC control, plan task or repository path.",
+    "",
+    "These are comments, and they stay (issue #457, tier 3). They are the engineering",
+    "rationale for code you now own, which is worth more to you than a tidy file, and",
+    "stripping them mechanically would delete the reasoning along with the citation.",
+    "What they are NOT is a tracker you can open: they resolve against the upstream",
+    "QCMS repository, not against yours. Read `ADR-nn` as a design decision recorded at",
+    "`docs/adr/` upstream, `SEC-n` as a security control in `docs/SECURITY_DESIGN.md`,",
+    "and a bare `#nnn` as an upstream issue number.",
+    "",
+    "The two places QCMS's identity would have been more than a citation are fixed",
+    "rather than documented: the images no longer claim to be built from this",
+    "repository, and no scaffolded message names a script your project does not define.",
+    "",
+  );
+
   lines.push("<details>", `<summary>Every scaffolded file (${common.length})</summary>`, "");
   lines.push("```");
   for (const path of common) lines.push(path);
   lines.push("```", "", "</details>", "");
   lines.push(SEAM_END);
   return lines.join("\n");
+}
+
+/**
+ * References to this repository's own tracker, decisions and layout (issue #457).
+ *
+ * Counted rather than removed, so the seam document states the size of the thing
+ * instead of an adopter discovering it. Deliberately narrow: `ADR-nn`, `SEC-n`,
+ * `issue #nnn`, `task nnn` and a path under one of this repository's top-level
+ * directories that a scaffold has not got.
+ *
+ * @param {Map<string, string>} tree
+ * @returns {{ files: number; lines: number }}
+ */
+export function countInternalReferences(tree) {
+  const pattern =
+    /\bADR-\d+|\bSEC-\d+|\bissues? #\d+|\btask \d{3}\b|\b(?:packages|plan|scripts|tooling|docs)\/[a-z]/i;
+  let files = 0;
+  let lines = 0;
+  for (const [path, contents] of tree) {
+    if (!path.startsWith("common/apps/")) continue;
+    const hits = contents.split("\n").filter((line) => pattern.test(line)).length;
+    if (hits > 0) {
+      files += 1;
+      lines += hits;
+    }
+  }
+  return { files, lines };
 }
 
 /** Replace the generated block, throwing when the markers are missing. */

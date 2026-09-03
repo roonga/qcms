@@ -10,7 +10,8 @@ export { fillEnv, generateSecret, type FilledEnv } from "./env-file.js";
 export {
   DEFAULTS,
   DEPLOYMENT_SHAPES,
-  PACKAGE_MANAGERS,
+  PACKAGE_MANAGER,
+  PACKAGE_MANAGER_RATIONALE,
   TWO_FACTOR_POLICIES,
   helpText,
   normalizeBaseUrl,
@@ -20,7 +21,6 @@ export {
   validateProjectName,
   withDefaults,
   type DeploymentShape,
-  type PackageManager,
   type ParseResult,
   type PartialOptions,
   type ScaffoldOptions,

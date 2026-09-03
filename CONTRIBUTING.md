@@ -214,7 +214,7 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 | `api-e2e` job (`--project qcms-api-e2e`)                               | `pnpm test` (apps/api's `test` script runs that project)                                             |
 | `portal-e2e` job (`playwright test`)                                   | **`pnpm verify:browser`** - deliberately not in `verify`                                             |
 | `full-stack-e2e` job in `e2e.yml` (`pnpm docker:up` + `pnpm test:e2e`) | **`QCMS_PORT_SEAT=<0-9> pnpm up:e2e`** - deliberately not in `verify` or `verify:browser`, see below |
-| `create-app-e2e` job in `create-app-e2e.yml`                           | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below           |
+| `create-app-e2e` job in `create-app-e2e.yml`                           | **`QCMS_PORT_SEAT=<0-9> pnpm qcms:scaffold-e2e`** - deliberately not in `verify`, see below          |
 | `codeql.yml`, `mirror-test-images.yml`                                 | Not local gates (GitHub-hosted analysis / image mirroring)                                           |
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.

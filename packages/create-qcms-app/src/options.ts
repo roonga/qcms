@@ -14,24 +14,25 @@ export const DEPLOYMENT_SHAPES = ["solo", "enterprise"] as const;
 export type DeploymentShape = (typeof DEPLOYMENT_SHAPES)[number];
 
 /**
- * Package managers the scaffold can install with.
+ * The one package manager the scaffold installs with.
  *
- * **pnpm only, decided by the Code Owner on the task 037 review (issue #449).** The
- * three shipped Dockerfiles prune their runtime tree with `pnpm deploy --legacy
- * --prod`, which has no npm or yarn equivalent, and they install from a
- * `pnpm-lock.yaml` that an npm or yarn scaffold never produces. Offering the other
- * two produced a project whose `docker compose up --build` failed at a `COPY` with
- * an error that named a missing lockfile rather than the choice that caused it.
+ * **There is no choice, decided by the Code Owner (task 037 review, issue #449, and
+ * again on 2026-09-03).** The three shipped Dockerfiles prune their runtime tree with
+ * `pnpm deploy --legacy --prod`, which has no npm or yarn equivalent, and they install
+ * from a `pnpm-lock.yaml` that an npm or yarn scaffold never produces. Offering the
+ * other two produced a project whose `docker compose up --build` failed at a `COPY`
+ * with an error that named a missing lockfile rather than the choice that caused it.
  *
- * A prompt that offers three answers where two build nothing is a promise the tool
- * does not keep. It is cheap to remove now and expensive once the package publishes.
- * #449 stays open as the follow-up that restores the choice properly.
+ * An answer that builds nothing is a promise the tool does not keep, so the prompt,
+ * the flag's alternatives and the per-manager rendering are gone rather than narrowed:
+ * there is no shape left for a broken path to hide in. #449 stays open as the
+ * follow-up that restores the choice once the images can build without a
+ * `pnpm-lock.yaml`.
  */
-export const PACKAGE_MANAGERS = ["pnpm"] as const;
-export type PackageManager = (typeof PACKAGE_MANAGERS)[number];
+export const PACKAGE_MANAGER = "pnpm";
 
 /**
- * Why the choice is not offered, in one sentence, wherever an adopter meets it.
+ * Why there is no choice, in one sentence, wherever an adopter meets it.
  *
  * Held here so the CLI's output and the scaffolded READMEs cannot say different
  * things; `render.test.ts` asserts the READMEs carry it.
@@ -46,7 +47,6 @@ export type TwoFactorPolicy = (typeof TWO_FACTOR_POLICIES)[number];
 /** Defaults the `--yes` path uses, and the values the prompts offer. */
 export const DEFAULTS = {
   projectName: "my-forms",
-  packageManager: "pnpm",
   shape: "solo",
   adminTwoFactor: "required",
   // Seat 0's portal and admin ports from the QCMS allocation (R8, docs/PORTS.md),
@@ -60,7 +60,6 @@ export interface ScaffoldOptions {
   readonly projectName: string;
   /** Absolute path of the directory to create. */
   readonly targetDirectory: string;
-  readonly packageManager: PackageManager;
   readonly shape: DeploymentShape;
   readonly adminTwoFactor: TwoFactorPolicy;
   readonly portalBaseUrl: string;
@@ -126,14 +125,15 @@ function isMember<T extends string>(values: readonly T[], candidate: string): ca
 /** One `--flag value` pair, validated into the options it sets. */
 function applyFlag(flag: string, value: string, into: Record<string, unknown>): string | undefined {
   switch (flag) {
+    // The flag survives the dropping of the choice (issue #449) for one reason: an
+    // adopter who types `--package-manager npm` meets the constraint and the reason
+    // for it, rather than "Unknown option". `pnpm` is accepted as a no-op, so an
+    // invocation written before the choice was dropped still runs; it sets nothing,
+    // because there is nothing left for it to set.
     case "--package-manager":
-      if (!isMember(PACKAGE_MANAGERS, value)) {
-        // The rationale rides on the refusal because this is where an adopter who
-        // types `--package-manager npm` actually meets the constraint. "must be one
-        // of pnpm" on its own reads as an oversight rather than a decision.
-        return `--package-manager must be one of ${PACKAGE_MANAGERS.join(", ")}. ${PACKAGE_MANAGER_RATIONALE}`;
+      if (value !== PACKAGE_MANAGER) {
+        return `--package-manager only accepts ${PACKAGE_MANAGER}. ${PACKAGE_MANAGER_RATIONALE}`;
       }
-      into["packageManager"] = value;
       return undefined;
     case "--shape":
       if (!isMember(DEPLOYMENT_SHAPES, value)) {
@@ -266,7 +266,6 @@ export function withDefaults(partial: PartialOptions, cwd: string): ScaffoldOpti
   return {
     projectName,
     targetDirectory: partial.targetDirectory ?? resolveTarget(projectName, cwd),
-    packageManager: partial.packageManager ?? DEFAULTS.packageManager,
     shape: partial.shape ?? DEFAULTS.shape,
     adminTwoFactor: partial.adminTwoFactor ?? DEFAULTS.adminTwoFactor,
     portalBaseUrl: partial.portalBaseUrl ?? DEFAULTS.portalBaseUrl,
@@ -284,10 +283,12 @@ export function helpText(): string {
 Scaffold a QCMS deployment: the application shell you own, over the versioned
 @qcms/* packages you upgrade.
 
+${PACKAGE_MANAGER_RATIONALE}
+
 Options:
   -y, --yes                  Take every default; ask nothing. The CI path.
-      --package-manager <m>  ${PACKAGE_MANAGERS.join(" | ")} (default ${DEFAULTS.packageManager})
-                             ${PACKAGE_MANAGER_RATIONALE}
+      --package-manager      ${PACKAGE_MANAGER}, the only value. There is no choice and
+                             no prompt; see the sentence above.
       --shape <s>            ${DEPLOYMENT_SHAPES.join(" | ")} (default ${DEFAULTS.shape})
       --admin-2fa <p>        ${TWO_FACTOR_POLICIES.join(" | ")} (default ${DEFAULTS.adminTwoFactor})
       --portal-base-url <u>  Public origin of the respondent portal

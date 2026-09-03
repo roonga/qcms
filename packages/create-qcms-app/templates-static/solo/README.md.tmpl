@@ -14,11 +14,11 @@ The three applications under `apps/` are **your source**. Edit them: routes, pag
 theming, adapters, the message catalog. They will never be overwritten, because
 nothing overwrites them: there is no upgrade command that touches this tree.
 
-The four `@qcms/*` packages they depend on are **versioned dependencies**. They carry
-the domain model, rule evaluation, the publish compiler, the migration history and the
-renderer, and they are upgraded through your package manager like any other
-dependency. `docs/ownership-seam.md` in the QCMS repository lists the seam file by
-file, and the upgrade story for each package.
+The `@qcms/*` packages they depend on are **versioned dependencies**. They carry the
+domain model, rule evaluation, the publish compiler, the migration history, the
+renderer, the redacting logger and the CSV export guard, and they are upgraded with
+pnpm like any other dependency. `docs/ownership-seam.md` in the QCMS repository lists
+the seam file by file, and the upgrade story for each package.
 
 ## First run
 
@@ -56,8 +56,10 @@ that anyone else can reach should be `required`.
 
 ## Day-to-day commands
 
-{{packageManagerRationale}} Adopting a
-different package manager means changing `docker/*.Dockerfile` too; the QCMS issue
+**This project is a pnpm workspace, and the scaffolder offered no alternative.**
+{{packageManagerRationale}} Adopting npm or yarn means rewriting `docker/*.Dockerfile`
+yourself: the images copy a `pnpm-lock.yaml` your install would never write, and prune
+their runtime tree with a command those two have no equivalent for. The QCMS issue
 tracker carries #449 for restoring the choice properly.
 
 ```sh

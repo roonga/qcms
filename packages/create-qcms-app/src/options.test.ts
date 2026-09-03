@@ -85,7 +85,8 @@ describe("argument parsing", () => {
 
   it.each([
     [["--shape", "kubernetes"], "shape"],
-    [["--package-manager", "bun"], "package-manager"],
+    [["--package-manager", "bun"], "only accepts pnpm"],
+    [["--package-manager", "npm"], "pnpm deploy"],
     [["--admin-2fa", "off"], "admin-2fa"],
     [["--portal-base-url", "not a url"], "portal-base-url"],
     [["--shape"], "needs a value"],
@@ -110,7 +111,6 @@ describe("defaults", () => {
     const filled = withDefaults({}, CWD);
     expect(filled).toMatchObject({
       projectName: DEFAULTS.projectName,
-      packageManager: DEFAULTS.packageManager,
       shape: DEFAULTS.shape,
       adminTwoFactor: DEFAULTS.adminTwoFactor,
       portalBaseUrl: DEFAULTS.portalBaseUrl,

@@ -107,6 +107,10 @@ const GLOBS = [
   // exempted. Both spellings, so a bare `Dockerfile` added later is covered too.
   "*.Dockerfile",
   "Dockerfile",
+  // A Dockerfile the scaffolding generator stamps a project name into (task 037) is
+  // still a Dockerfile: it reaches an adopter as one. Without this glob the three
+  // generated copies leave the gate's view entirely the moment they gain a placeholder.
+  "*.Dockerfile.tmpl",
   ".devcontainer/devcontainer.json",
   "*.env.example",
   ".env.example",
@@ -268,17 +272,17 @@ export const ALLOWED = [
     why: "the generated copy of apps/portal/instrumentation.ts: same OTLP default, in the portal's composition root.",
   },
   {
-    file: "packages/create-qcms-app/templates/common/docker/api.Dockerfile",
+    file: "packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl",
     value: 3000,
     why: "the generated copy of docker/api.Dockerfile: the container's OWN listening port, dialled by its HEALTHCHECK from inside the container.",
   },
   {
-    file: "packages/create-qcms-app/templates/common/docker/admin.Dockerfile",
+    file: "packages/create-qcms-app/templates/common/docker/admin.Dockerfile.tmpl",
     value: 3000,
     why: "the generated copy of docker/admin.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
   },
   {
-    file: "packages/create-qcms-app/templates/common/docker/portal.Dockerfile",
+    file: "packages/create-qcms-app/templates/common/docker/portal.Dockerfile.tmpl",
     value: 3000,
     why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
   },

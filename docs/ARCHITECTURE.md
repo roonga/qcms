@@ -309,10 +309,13 @@ qcms/
 │   │   └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
 │   │             @a2ra/cli, a2ra.json committed) · conformance/          (028)
 │   │
-│   └── observability/            # @qcms/observability - shared server logging (private)
-│       └── src/  logger.ts       # redacting JSON logger + trace correlation (062)
-│                 otlp-log-allowlist.ts  # SEC-13 allowlist for exported logs (062)
-│                 next-span-redaction.ts # SEC-13 span redaction for both Next apps (062)
+│   ├── observability/            # @qcms/observability - shared server logging (published)
+│   │   └── src/  logger.ts       # redacting JSON logger + trace correlation (062)
+│   │             otlp-log-allowlist.ts  # SEC-13 allowlist for exported logs (062)
+│   │             next-span-redaction.ts # SEC-13 span redaction for both Next apps (062)
+│   │
+│   └── csv/                      # @qcms/csv - RFC 4180 quoting + the formula-injection
+│       └── src/  index.ts        # guard every exported cell passes through (#470)
 │
 ├── apps/
 │   ├── api/                      # Hono · vertical slices · fetch-pure (R4)

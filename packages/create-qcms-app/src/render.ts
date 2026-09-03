@@ -1,5 +1,5 @@
 /**
- * Placeholder rendering, and the package-manager-shaped values that feed it (037).
+ * Placeholder rendering, and the values that feed it (037).
  *
  * The template language is deliberately one construct, `{{name}}`, with no
  * conditionals and no loops. A scaffolder that grows a template language grows a
@@ -11,7 +11,7 @@
  * and it looks exactly like success.
  */
 
-import { PACKAGE_MANAGER_RATIONALE, type PackageManager, type ScaffoldOptions } from "./options.js";
+import { PACKAGE_MANAGER_RATIONALE, type ScaffoldOptions } from "./options.js";
 
 /**
  * The pnpm release the scaffolded project pins.
@@ -23,52 +23,40 @@ import { PACKAGE_MANAGER_RATIONALE, type PackageManager, type ScaffoldOptions } 
  */
 export const PNPM_SPEC = "pnpm@11.18.0";
 
-/** How each package manager spells the commands the README prints. */
-interface PackageManagerCommands {
-  readonly installCommand: string;
-  readonly runPrefix: string;
-  readonly recursiveBuild: string;
-  readonly recursiveTypecheck: string;
-  /** The `"packageManager"` manifest line, including its trailing comma and newline. */
-  readonly packageManagerField: string;
-  /** The `"workspaces"` manifest line, for the two managers that need one. */
-  readonly workspacesField: string;
-}
-
 /**
- * One entry, and the shape is kept rather than inlined because #449 will restore the
- * others once the images can build without a `pnpm-lock.yaml`.
+ * How the scaffolded project spells the commands its README prints.
  *
- * `packageManagerField` is never empty here, and that is load-bearing rather than
+ * Flat constants rather than a record keyed by package manager. The record existed to
+ * hold three entries, two of which produced a project whose images could not build,
+ * and the Code Owner dropped them (issue #449). Keeping the shape "in case #449 comes
+ * back" would keep a branch nothing takes and a `workspacesField` nothing sets, which
+ * is how a dead path survives a review: restoring the choice means restoring the
+ * Dockerfile work first, and the shape is the smallest part of that.
+ *
+ * `packageManagerField` is never empty, and that is load-bearing rather than
  * incidental: the Dockerfiles run `corepack enable` and then `pnpm install`, so
  * without a pinned `packageManager` corepack has nothing to resolve and an arbitrary
  * pnpm major runs against a `pnpm-workspace.yaml` that uses pnpm-11-only `allowBuilds`
- * syntax. That was the third npm/yarn breakage, and it is why an empty field must not
- * come back with the other two managers.
+ * syntax.
  */
-const COMMANDS: Readonly<Record<PackageManager, PackageManagerCommands>> = {
-  pnpm: {
-    installCommand: "pnpm install",
-    runPrefix: "pnpm",
-    recursiveBuild: "pnpm -r build",
-    recursiveTypecheck: "pnpm -r typecheck",
-    packageManagerField: `  "packageManager": "${PNPM_SPEC}",\n`,
-    workspacesField: "",
-  },
-};
+const COMMANDS = {
+  installCommand: "pnpm install",
+  runPrefix: "pnpm",
+  recursiveBuild: "pnpm -r build",
+  recursiveTypecheck: "pnpm -r typecheck",
+  packageManagerField: `  "packageManager": "${PNPM_SPEC}",\n`,
+} as const;
 
 /** Every value a `.tmpl` file may reference. */
 export function templateValues(options: ScaffoldOptions): Readonly<Record<string, string>> {
-  const commands = COMMANDS[options.packageManager];
   return {
     projectName: options.projectName,
-    packageManager: options.packageManager,
     shape: options.shape,
     adminTwoFactor: options.adminTwoFactor,
     portalBaseUrl: options.portalBaseUrl,
     adminBaseUrl: options.adminBaseUrl,
     packageManagerRationale: PACKAGE_MANAGER_RATIONALE,
-    ...commands,
+    ...COMMANDS,
   };
 }
 

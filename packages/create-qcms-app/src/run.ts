@@ -12,8 +12,15 @@
 
 import { readFileSync } from "node:fs";
 
-import { ProgramNotFound, resolveGit, resolvePackageManager, run } from "./exec.js";
 import {
+  InvalidBinOverride,
+  ProgramNotFound,
+  resolveGit,
+  resolvePackageManager,
+  run,
+} from "./exec.js";
+import {
+  PACKAGE_MANAGER,
   helpText,
   parseArguments,
   withDefaults,
@@ -37,11 +44,11 @@ function version(): string {
 
 /** Install workspace dependencies, reporting rather than throwing on failure. */
 function install(options: ScaffoldOptions): string | undefined {
-  const program = resolvePackageManager(options.packageManager);
-  process.stdout.write(`\nInstalling dependencies with ${options.packageManager}...\n`);
+  const program = resolvePackageManager();
+  process.stdout.write(`\nInstalling dependencies with ${PACKAGE_MANAGER}...\n`);
   const result = run(program, ["install"], options.targetDirectory);
   if (result.ok) return undefined;
-  return `${options.packageManager} install exited ${String(result.status)}. Run it yourself once the problem is fixed.`;
+  return `${PACKAGE_MANAGER} install exited ${String(result.status)}. Run it yourself once the problem is fixed.`;
 }
 
 /**
@@ -87,7 +94,10 @@ function finishSetUp(options: ScaffoldOptions): readonly string[] {
       if (problem !== undefined) warnings.push(problem);
     }
   } catch (error) {
-    if (!(error instanceof ProgramNotFound)) throw error;
+    // A program we could not find, and a refused override (issue #458), are the same
+    // kind of event to the operator: the tree is written and correct, and one of the
+    // two side effects did not run. Reported, never fatal.
+    if (!(error instanceof ProgramNotFound) && !(error instanceof InvalidBinOverride)) throw error;
     warnings.push(error.message);
   }
   return warnings;

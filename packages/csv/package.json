@@ -1,7 +1,16 @@
 {
   "name": "@qcms/csv",
   "version": "0.0.0",
-  "private": true,
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.*",
+    "!src/**/__snapshots__/**"
+  ],
   "description": "Shared CSV field serialization for QCMS exports: RFC 4180 quoting and the spreadsheet formula-injection guard",
   "license": "MIT",
   "type": "module",

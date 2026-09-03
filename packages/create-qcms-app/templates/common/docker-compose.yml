@@ -279,7 +279,6 @@ services:
       # `api-env` anchor so the api service and any `docker compose exec api` running
       # the bootstrap CLI read the same value.
       QCMS_ADMIN_PASSWORD_BREACH_CHECK: ${QCMS_ADMIN_PASSWORD_BREACH_CHECK:-}
-      QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
       QCMS_MOUNT: all
     # `db-roles` rather than `postgres`: the migration connects as qcms_migrate, so
     # the role has to exist and own the schema before this container starts. That
@@ -348,7 +347,6 @@ services:
       # would declare a proxy this stack does not ship and silence the warning on
       # exactly the shape it exists to report. Empty means "nothing declared", which on
       # the proxy-less default is the truth.
-      QCMS_ADMIN_2FA: ${QCMS_ADMIN_2FA:-required}
       QCMS_ADMIN_TRUSTED_PROXY_HOPS: ${QCMS_ADMIN_TRUSTED_PROXY_HOPS:-}
     depends_on:
       migrate:

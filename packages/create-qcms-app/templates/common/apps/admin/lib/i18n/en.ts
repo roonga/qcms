@@ -194,8 +194,7 @@ export const messages = {
   // documented in `docs/DEVELOPER_GUIDE.md`), so the remedy and the screen are on one
   // database. It is still qualified as a development command, because this screen
   // cannot know which database backs it and a deployed instance has no dev stack.
-  "questions.empty.body":
-    "Create the first question. To explore with the sample insurance library instead, run pnpm dev:seed against a local development stack.",
+  "questions.empty.body": "Create the first question to start building the library.",
   "questions.empty.filtered": "No question matches this search.",
 
   "questions.status.draft": "Draft",

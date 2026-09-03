@@ -1,7 +1,16 @@
 {
   "name": "@qcms/observability",
   "version": "0.0.0",
-  "private": true,
+  "private": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "src",
+    "!src/**/*.test.*",
+    "!src/**/__snapshots__/**"
+  ],
   "description": "Shared server logging and safe OTLP log export for QCMS apps",
   "license": "MIT",
   "type": "module",

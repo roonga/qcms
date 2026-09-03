@@ -77,7 +77,7 @@ async function main(): Promise<number> {
         "Prompt for the passphrase rather than typing it inline, so it reaches neither ps nor your shell history:\n" +
         "  read -rs -p 'passphrase: ' QCMS_ADMIN_PASSWORD; echo\n" +
         "  export QCMS_ADMIN_EMAIL=you@example.test QCMS_ADMIN_PASSWORD\n" +
-        "  pnpm qcms:create-admin\n" +
+        "  docker compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js\n" +
         "  unset QCMS_ADMIN_PASSWORD\n",
     );
     return EXIT_MISCONFIGURED;

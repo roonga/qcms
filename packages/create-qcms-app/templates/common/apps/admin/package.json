@@ -24,9 +24,9 @@
     "@opentelemetry/sdk-trace-base": "^2.10.0",
     "@qcms/a2ui-compiler": "^0.2.0",
     "@qcms/core": "^0.0.0",
-    "@qcms/csv": "workspace:*",
+    "@qcms/csv": "^0.0.0",
     "@qcms/db": "^0.0.0",
-    "@qcms/observability": "workspace:*",
+    "@qcms/observability": "^0.0.0",
     "@qcms/ui": "^0.0.0",
     "@vercel/otel": "^2.1.3",
     "next": "^16.3.3",
@@ -35,7 +35,6 @@
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@qcms/e2e-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^24.13.3",
     "@types/qrcode": "^1.5.5",

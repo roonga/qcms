@@ -17,7 +17,6 @@ import { createInterface, type Interface } from "node:readline/promises";
 import {
   DEFAULTS,
   DEPLOYMENT_SHAPES,
-  PACKAGE_MANAGERS,
   TWO_FACTOR_POLICIES,
   normalizeBaseUrl,
   validateBaseUrl,
@@ -97,14 +96,10 @@ export async function promptMissing(
     filled["projectName"] = projectName;
     filled["targetDirectory"] = resolveTarget(projectName, cwd);
   }
-  if (given.packageManager === undefined) {
-    filled["packageManager"] = await askChoice(
-      asker,
-      "Package manager",
-      PACKAGE_MANAGERS,
-      DEFAULTS.packageManager,
-    );
-  }
+  // There is no package-manager question. It was a choice with one answer once the
+  // Code Owner dropped npm and yarn (issue #449), and a prompt whose only effect is to
+  // make the operator press Enter is worse than no prompt: it implies a decision they
+  // do not have. The reason lives in `--help` and in both scaffolded READMEs instead.
   if (given.shape === undefined) {
     filled["shape"] = await askChoice(asker, "Deployment shape", DEPLOYMENT_SHAPES, DEFAULTS.shape);
   }

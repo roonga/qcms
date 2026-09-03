@@ -21,8 +21,24 @@ export declare function appManifest(
   versions: Record<string, string>,
 ): Record<string, unknown>;
 export declare function assertImports(tree: Map<string, string>): void;
-export declare function transformDockerfile(text: string, app: string): string;
-export declare function transformCompose(text: string): string;
+export declare function transformDockerfile(text: string, app: string, role: string): string;
+export declare function assertComposeForwardsTwoFactor(text: string): string;
+export declare function serviceBlocks(text: string): Map<string, string>;
+export declare function assertNoEscapingPaths(tree: Map<string, string>): void;
+export declare function assertComposeReferences(tree: Map<string, string>): void;
+export declare function assertReadmeClaims(tree: Map<string, string>): void;
+export declare function composeInvocations(text: string): string[][];
+export declare function composeTarget(words: string[]): {
+  service: string | undefined;
+  files: string[];
+};
+export declare function countInternalReferences(tree: Map<string, string>): {
+  files: number;
+  lines: number;
+};
+export declare const GIT_BIN_OVERRIDE_ENV_VAR: string;
+export declare function checkedGitOverride(value: string): string;
+export declare function walk(root: string, base?: string): string[];
 export declare function renderEnvExample(
   composeFiles: { text: string; alwaysRuns: boolean }[],
 ): string;
