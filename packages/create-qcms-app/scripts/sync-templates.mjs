@@ -429,6 +429,15 @@ function read(path) {
  *
  * The check is the copy: if the bytes do not survive the round trip, the text form is
  * not the file.
+ *
+ * CodeQL reads the `lstatSync` then `readFileSync` pair as a file-system race
+ * (`js/file-system-race`, alert 20) and it is right about the shape. It is not a trust
+ * boundary here: this is build-time tooling reading this repository's own tracked
+ * files, in one process, as the one actor who also regenerates them, and the stat is a
+ * fidelity assertion rather than an authorization decision. Nothing is granted on the
+ * strength of it; the worst a swap between the two calls could buy is a generator that
+ * writes a file it should have refused, which `check:templates` then reports. Same
+ * reasoning as alert 21 on `agent-loop.log`.
  */
 function readSource(path) {
   const absolute = join(REPOSITORY_ROOT, path);

@@ -28,7 +28,7 @@ Use each task's `Depends on` header and the active queue below. Two additional c
 | 041 | Agent-assisted form building             | 8a    | todo; does not gate launch                                        |
 | 049 | Named custom-theme editor                | 9     | Phase 4; does not gate launch                                     |
 | 063 | Public and secure link version targeting | 9     | Phase 4; does not gate launch                                     |
-| 037 | `create-qcms-app` CLI                    | 8b    | todo; optional for launch                                         |
+| 037 | `create-qcms-app` CLI                    | 8b    | done (PR #451); Code Owner hands-on validation remains            |
 | 040 | Security review and hardening            | 8b    | in review; provenance verification and Code Owner sign-off remain |
 | 038 | External launch validation               | 8b    | todo; blocked by 030 and 040                                      |
 | 061 | Forced password change after bootstrap   | 8b    | todo; does not gate launch                                        |
