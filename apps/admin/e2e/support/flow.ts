@@ -2,25 +2,36 @@ import { expect, type Locator, type Page } from "@playwright/test";
 import { generate } from "otplib";
 
 import { TEST_PASSWORD } from "./admin-account.js";
+import { waitForHydration } from "./hydration.js";
 
 /**
  * Fill a field and prove the value stuck.
  *
- * Under `next dev` the document these screens are typed into can be replaced *after*
- * Playwright has resolved the field and filled it - the route is compiled on demand,
- * and the reload that follows leaves a freshly rendered, empty input in place of the
- * one that was just filled. The click that follows then submits an empty required
- * field, so the browser's own constraint validation blocks the submit: no navigation,
- * no server round trip, and no error message to read. It surfaces much later as a
- * `waitForURL`/`toHaveURL` timeout parked on the screen the test thought it had left,
- * with the field mysteriously empty (issue #210).
+ * ## The wait, which is the part that fixes the defect (issue #210)
  *
- * `toPass` re-runs fill-then-check, so a document swapped underneath us costs one
- * retry instead of the whole test. Nothing here papers over a product failure: a
- * rejected code still redirects and still renders its message, and the assertions
- * about that are untouched.
+ * These screens are served as complete, interactive HTML and React attaches to them
+ * afterwards, 76-404ms later on an idle machine and longer under load. react-aria's
+ * `TextField` renders a CONTROLLED input seeded empty, so the commit that attaches React
+ * writes that empty value over anything typed in the meantime. Where the field is
+ * `required` - the sign-in password, the six-digit code - the submit that follows is then
+ * stopped by the browser's own constraint validation: no submit event, no request, no
+ * error message, and a spec left parked on the screen it believed it had left, with the
+ * field mysteriously empty. Waiting for the page's own hydration marker removes that
+ * window rather than retrying through it, and it is the reason the marker exists.
+ *
+ * ## The retry, which is a backstop for something else
+ *
+ * `toPass` re-runs fill-then-check, and it stays. It answers a different failure: under
+ * `next dev` a route is compiled on demand and the reload that follows can replace the
+ * document *after* Playwright resolved the field and filled it. That one genuinely cannot
+ * be waited for, so one retry is the right price. It is not what makes the hydration case
+ * safe, and it never was - the value it re-checks is wiped after the check, not before it.
+ *
+ * Nothing here papers over a product failure: a rejected code still redirects and still
+ * renders its message, and the assertions about that are untouched.
  */
 export async function fillStable(field: Locator, value: string): Promise<void> {
+  await waitForHydration(field.page());
   await expect(async () => {
     await field.fill(value);
     await expect(field).toHaveValue(value, { timeout: 1000 });

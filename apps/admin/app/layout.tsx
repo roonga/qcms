@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 
+import { HydrationMarker } from "@/components/hydration-marker";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
 
@@ -70,6 +71,14 @@ export default async function AdminRootLayout({ children }: { readonly children:
         </noscript>
       </head>
       <body>
+        {/* Renders nothing. It stamps `data-qcms-hydrated` on `<html>` from a mount
+            effect, which is the only truthful moment for the browser suite to wait
+            for before it types into a server-rendered form (issue #210): react-aria's
+            controlled inputs discard anything typed before React attaches, silently.
+            Mounted here rather than per screen because this is the one root every
+            admin page shares and nothing under `app/` declares a Suspense boundary,
+            so this effect runs after the whole page has committed. */}
+        <HydrationMarker />
         <a href="#main-content" className="skip-link">
           {t("action.skipToContent")}
         </a>

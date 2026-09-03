@@ -35,6 +35,7 @@ import {
   waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
+import { waitForHydration } from "./support/hydration.js";
 import { openDeliverer, submitResponse, TestConsumer } from "./support/ops.js";
 import {
   addOption,
@@ -1190,15 +1191,21 @@ test("the 2FA challenge and its recovery variant have zero violations", async ({
 test("the whole auth loop is reachable by keyboard alone", async ({ page }) => {
   // Not an axe check: axe cannot tell whether a control is *reachable*, which is the defect
   // class issue #144 shipped (a control rendered, labelled, and unfocusable).
-  // Each half re-runs from its own `goto` if the document is replaced mid-typing. Under
-  // `next dev` a route compiled on demand can reload the page after Playwright has typed
-  // into it, leaving empty required fields; Enter then hits the browser's own constraint
-  // validation and nothing navigates, which surfaced as this test parking on the screen it
-  // had just filled in (issue #210). Retrying the block is the only robustness added -
-  // every focus assertion, the typing, and Enter are exactly as they were, because
-  // keyboard-only operation is the property under test and `fill()` would not prove it.
+  //
+  // Each half waits for the page's hydration marker before it types (issue #210). These
+  // screens are served as complete, interactive HTML and React attaches afterwards;
+  // react-aria's `TextField` is a CONTROLLED input seeded empty, so the attaching commit
+  // wipes anything typed before it. Enter then submits an empty `required` field, the
+  // browser's own constraint validation blocks it, and NOTHING happens: no submit event,
+  // no request, no error alert - which is exactly how this test used to park on the screen
+  // it had just filled in. The `toPass` around each half stays as a backstop for the other
+  // way the document can vanish (a `next dev` route compiled on demand, which no marker can
+  // predict). Every focus assertion, the typing, and Enter are exactly as they were,
+  // because keyboard-only operation is the property under test and `fill()` would not
+  // prove it.
   await expect(async () => {
     await page.goto("/sign-in");
+    await waitForHydration(page);
     await page.keyboard.press("Tab"); // skip link
     await page.keyboard.press("Tab"); // email
     await expect(page.getByLabel("Email")).toBeFocused();
@@ -1217,6 +1224,7 @@ test("the whole auth loop is reachable by keyboard alone", async ({ page }) => {
   await expect(async () => {
     const code = await generate({ secret: totpSecret });
     await page.goto("/two-factor/challenge");
+    await waitForHydration(page);
     await page.keyboard.press("Tab"); // skip link
     await page.keyboard.press("Tab"); // code field
     await expect(page.getByLabel(/Six-digit code/)).toBeFocused();
