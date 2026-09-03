@@ -246,6 +246,12 @@
               "multiChoice",
               null
             ]
+          },
+          "versions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/QuestionVersionView"
+            }
           }
         },
         "required": [
@@ -1843,7 +1849,7 @@
         }
       },
       "get": {
-        "summary": "List questions with a latest-version summary; filter by status and type, search slug/label (admin)",
+        "summary": "List questions with a latest-version summary, or every version with `?versions=all`; filter by status and type, search slug/label (admin)",
         "tags": [
           "questions"
         ],
@@ -1894,6 +1900,18 @@
             },
             "required": false,
             "name": "search",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "all"
+              ],
+              "example": "all"
+            },
+            "required": false,
+            "name": "versions",
             "in": "query"
           }
         ],
