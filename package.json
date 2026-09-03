@@ -33,6 +33,8 @@
     "qcms:seed-fixtures": "pnpm --filter qcms-api seed-fixtures",
     "devcontainer": "bash scripts/devcontainer.sh",
     "claude": "bash scripts/claude-session.sh",
+    "agent-loop:status": "node scripts/agent-loop-status.mjs",
+    "worktrees:prune": "node scripts/prune-worktrees.mjs",
     "test": "turbo run test && pnpm test:tooling",
     "test:tooling": "vitest run --project tooling",
     "env-arrival": "node scripts/print-passthrough-env.mjs",

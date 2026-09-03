@@ -5,7 +5,7 @@ description: Select the next executable numbered QCMS task and run the task skil
 
 Select numbered work from `docs/features/README.md` and run the `task` skill.
 
-1. Stop if the shared checkout is dirty. Prune stale worktree registrations, but never delete a registered worktree or a directory that may contain uncommitted work.
+1. Stop if the shared checkout is dirty. Run `node scripts/prune-worktrees.mjs` to see the worktree drift, and `--apply` to clear it: it removes unregistered directories only, keeping anything registered, anything without a `.git` file, anything with uncommitted work, and anything touched in the last day (issue #735).
 2. Inspect live `feat/*` branches before fresh selection:
    - Resume an interrupted claim before starting new work.
    - For an open PR, read all comments and the latest `AGENT-REVIEW` verdict. Current-head changes requested are the work order. Current-head approval proceeds to the task skill's final merge checks. A stale verdict triggers a fresh review.

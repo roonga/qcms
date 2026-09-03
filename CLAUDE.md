@@ -40,6 +40,8 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 - Run `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` for Docker, boot-environment, or cross-service changes. Do not run it concurrently with `verify:browser` on the same seat.
 - Force Docker-backed tests with `pnpm exec turbo run test --force` and confirm they executed rather than using cached output.
 - Use `pnpm exec turbo run typecheck --filter=<pkg>` for a package-scoped typecheck.
+- Write gate logs under this lane's own directory, `node scripts/agent-scratch.mjs <name>`, never the shared scratchpad root, and never read a gate result back from a path you did not create in the same command that wrote it. The scratchpad is shared across sessions whatever the harness says (issues #396, #602).
+- `pnpm agent-loop:status` says whether the loop supervisor is running and current; `pnpm worktrees:prune` reports orphan worktree directories and `--apply` removes them.
 
 ## Change flow
 

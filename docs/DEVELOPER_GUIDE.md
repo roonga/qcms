@@ -338,16 +338,32 @@ This is the only supervisor. It launches `/next-work` in a fresh headless root s
 
 Each iteration owns a process group. When the root session exits or the supervisor is interrupted, every process that session spawned is terminated before another iteration starts: SIGTERM first, then SIGKILL for anything still there after a five-second grace. **A second Ctrl+C during that grace escalates** - it skips the rest of the wait, SIGKILLs the group immediately, and logs that it did (issue #258). That is what an insistent interrupt means to an operator, and before it existed a descendant that ignores SIGTERM outlived the supervisor while the log said everything had been stopped.
 
+### Is the supervisor actually running?
+
+```sh
+pnpm agent-loop:status          # RUNNING, STALLED, STOPPED or UNKNOWN
+pnpm agent-loop:status --json
+```
+
+Ask before you rely on it, because the answer was "no" for a month and nobody noticed (issue #597). The supervisor stopped on 2026-08-01 on a limit-reset sleep that never woke; `agent-loop.log` ends mid-run on that line. Everything since has run in an interactive session instead, while this guide and `CLAUDE.md` both went on presenting the supervisor as the way the loop runs. The first run of this check, on 2026-09-03, reported `STOPPED` with the log 797 hours old - 33 days, and still counting when #597 was closed. Nothing anywhere answered the question, so nobody asked it.
+
+The check reads two facts and reports them together, because either alone misleads. **Liveness** comes from the process table: a supervisor process, its pid and the checkout it is running in. **Currency** comes from `agent-loop.log`, which gains a line at every iteration boundary. A live process whose log has not moved for six hours is `STALLED`, not healthy - six hours because that is the supervisor's own cap on a limit-reset sleep, so a longer silence is not a usage limit. No process at all is `STOPPED`, and the report says whether the log ends on a clean `supervisor exit` or mid-iteration, which is the difference between a deliberate stop and the #597 failure. Where the process table cannot be read the verdict is `UNKNOWN` rather than `STOPPED`: a confident wrong all-clear is the thing being fixed, and it is no better pointing the other way.
+
+The last log line is printed whatever the verdict. In the #597 case it was the line that named the failure, sitting unread beside an mtime that contradicted it.
+
+This is visibility, not supervision. It tells a session what is true; it does not restart anything, and the structural deadlock #597 describes (a stopped loop reads no mail, and mail is the only thing that could tell it to restart) is untouched by it.
+
 ## Editing skills/agents while a loop is running
 
 After changing `.claude/skills/` or `.claude/agents/`, restart running sessions. `scripts/agent-loop.sh` starts a fresh root session for each iteration and picks up the current files automatically.
 
 ## Monitoring and control
 
-- **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors.
+- **State:** `docs/features/README.md` (the ledger) is always current; `git log --oneline` shows what landed; `git worktree list` shows live executors; `pnpm agent-loop:status` says whether the supervisor is running and current.
 - **Interrupt safely:** Esc stops the current session; in-flight executor branches survive, and because the pushed branch is the claim, the claim survives with them. A stopped task ends as a live `origin/feat/NNN-*` branch (ideally with a committed `HANDOFF.md`) or as a `blocked (issue #)` ledger row - `/next-task` prefers resuming a handoff over starting fresh.
 - **What is waiting on you:** `git ls-remote --heads origin 'feat/*'` lists live claims; for each, the branch tip's `HANDOFF.md` first line says which kind of park it is. `HANDOFF: AWAITING-HUMAN <what>` is one the loop deliberately stepped over and will not resume until you act - those are your queue, and the loop will keep working around them (up to three) rather than stopping. `INTERRUPTED` and `BLOCKED` are ones it will pick back up itself.
 - **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or, if there is nothing worth keeping, **delete the remote branch** - that releases the claim, with no ledger edit needed (and none possible: `main` cannot be pushed directly). Then `git worktree remove` any leftover under `.claude/worktrees/`.
+- **Orphan worktree directories:** `pnpm worktrees:prune` reports every directory under `.claude/worktrees/` that `git worktree list` does not know about, and `pnpm worktrees:prune --apply` removes them. They accumulate silently - 51 orphans among 56 directories, 75 GB, when issue #735 was closed - because a lane whose registration is gone leaves a full checkout behind that no git command reports. The sweep keeps anything registered, anything carrying no `.git` file, anything with uncommitted work, and anything touched in the last 24 hours (`--min-age-hours` moves that window; `--size` adds per-directory sizes).
 
 ## Permissions tuning
 
