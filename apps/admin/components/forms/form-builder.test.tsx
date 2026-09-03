@@ -2,7 +2,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { FormDetail } from "@/lib/forms/types";
+import type { FormDetail, PinnableQuestion } from "@/lib/forms/types";
+import type { ReadState } from "@/lib/read-state";
 import { t } from "@/lib/i18n/en";
 
 import { FormBuilder } from "./form-builder";
@@ -40,15 +41,27 @@ const DETAIL: FormDetail = {
   draftSource: "open",
   versions: [],
   settings: { challengeRequired: false, minSubmitMs: null },
-  challengeProvider: "none",
+  challengeEnforceable: false,
   draftAgentAssisted: false,
   draftUpdatedAt: null,
 };
 
+/** The builder's non-assist props, none of which this file is about. */
+const CHROME = {
+  library: { ok: true, data: [] } as ReadState<readonly PinnableQuestion[]>,
+  formActions: null,
+  formMeta: null,
+  concurrentNoticeRead: true,
+};
+
 function builderActions() {
   return {
-    saveDraft: vi.fn().mockResolvedValue({ status: "saved" as const, issues: [] }),
-    validateDraft: vi.fn().mockResolvedValue({ status: "ok" as const, valid: true, issues: [] }),
+    saveDraft: vi
+      .fn()
+      .mockResolvedValue({ status: "saved" as const, issues: [], warnings: [] }),
+    validateDraft: vi
+      .fn()
+      .mockResolvedValue({ status: "ok" as const, valid: true, issues: [], warnings: [] }),
     updateSettings: vi.fn(),
     previewCondition: vi.fn(),
   };
@@ -74,7 +87,7 @@ afterEach(() => {
 
 describe("FormBuilder and the assist panel (task 041)", () => {
   it("renders no assist panel, and no assist affordance, when the assist prop is absent", () => {
-    render(<FormBuilder detail={DETAIL} library={[]} {...builderActions()} />);
+    render(<FormBuilder detail={DETAIL} {...CHROME} {...builderActions()} />);
     expect(screen.queryByTestId("qcms-assist-panel")).toBeNull();
     expect(screen.queryByText(t("forms.assist.title"))).toBeNull();
     expect(screen.queryByLabelText(t("forms.assist.inputLabel"))).toBeNull();
@@ -84,7 +97,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
     render(
       <FormBuilder
         detail={DETAIL}
-        library={[]}
+        {...CHROME}
         {...builderActions()}
         assist={{ endpoint: "/forms/frm_quote/assist" }}
       />,
@@ -127,7 +140,7 @@ describe("FormBuilder and the assist panel (task 041)", () => {
     render(
       <FormBuilder
         detail={DETAIL}
-        library={[]}
+        {...CHROME}
         {...actions}
         assist={{ endpoint: "/forms/frm_quote/assist" }}
       />,
