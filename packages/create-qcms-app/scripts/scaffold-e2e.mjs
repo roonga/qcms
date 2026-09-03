@@ -8,8 +8,8 @@
  *
  * Every other gate in this repository runs inside the workspace, where pnpm hoists
  * `@qcms/*` from `packages/` and every import resolves whether or not it was
- * declared. An adopter has none of that. This harness removes it: the four packages
- * are packed with `pnpm pack` and installed as tarballs, the CLI itself is run from
+ * declared. An adopter has none of that. This harness removes it: every published
+ * package is packed with `pnpm pack` and installed as a tarball, the CLI is run from
  * ITS tarball (so a template file missing from `files` fails here rather than in
  * someone's first five minutes), and the images are built from the scaffolded tree
  * with the scaffolded Dockerfiles.
@@ -68,8 +68,15 @@ import { assertPortSeatChosen, composeProjectName, harnessPort } from "../../../
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
-/** The four packages an adopter installs, plus the CLI that stamps their consumers. */
-const PACKED = ["core", "a2ui-compiler", "db", "ui"];
+/**
+ * The packages an adopter installs, plus the CLI that stamps their consumers.
+ *
+ * Mirrors `PUBLISHED_PACKAGES` in `sync-templates.mjs`, and `packsEveryPublishedPackage`
+ * below fails if the two drift: a package the generator stamps into the adopter's
+ * manifest and this harness does not pack is a package this run would install from a
+ * registry that has never seen it.
+ */
+const PACKED = ["core", "a2ui-compiler", "db", "ui", "observability", "csv"];
 
 /** Where the harness puts the tarballs inside the scaffold, relative to its root. */
 const VENDOR_DIRECTORY = "apps/.qcms-tarballs";
@@ -172,7 +179,7 @@ const PINNED_DEPENDENCIES = {
   "@hono/zod-openapi": "1.5.1",
 };
 
-/** The `overrides:` block that redirects the four packages at the vendored tarballs. */
+/** The `overrides:` block that redirects the packed packages at the vendored tarballs. */
 function overridesBlock(tarballNames) {
   const lines = [
     "",
@@ -241,6 +248,47 @@ function composeArgs(scaffold, project) {
   ];
 }
 
+/**
+ * Fail unless every `@qcms/*` the generator stamps into an app manifest is packed here.
+ *
+ * Two hand-maintained lists of the same set, in two files, and the direction that goes
+ * wrong quietly is this one: a package the generator stamps and this harness does not
+ * pack is installed from a registry that has never heard of it, so the run dies inside
+ * `pnpm install` with a resolution error rather than saying which list is short. Read
+ * out of the generated templates rather than out of the generator's own constant, so
+ * it checks what an adopter receives.
+ */
+function assertPacksEveryStampedPackage() {
+  /** @type {Set<string>} */
+  const stamped = new Set();
+  for (const app of ["api", "portal", "admin"]) {
+    const manifest = JSON.parse(
+      readFileSync(
+        join(
+          REPOSITORY_ROOT,
+          "packages/create-qcms-app/templates/common/apps",
+          app,
+          "package.json",
+        ),
+        "utf8",
+      ),
+    );
+    for (const block of [manifest.dependencies, manifest.devDependencies]) {
+      for (const name of Object.keys(block ?? {})) {
+        if (name.startsWith("@qcms/")) stamped.add(name.slice("@qcms/".length));
+      }
+    }
+  }
+  const missing = [...stamped].filter((name) => !PACKED.includes(name)).sort();
+  if (missing.length > 0) {
+    throw new Error(
+      `scaffold-e2e: the scaffolded manifests depend on @qcms/${missing.join(", @qcms/")}, which ` +
+        `PACKED in this file does not pack. This run would install them from a registry that has ` +
+        `never published them.`,
+    );
+  }
+}
+
 /** Stamp the scaffold from the CLI's own tarball, and install it from the others. */
 function buildScaffold(workspace) {
   const tarballs = join(workspace, "tarballs");
@@ -249,6 +297,8 @@ function buildScaffold(workspace) {
   // `pnpm pack` packs whatever is in `dist` right now. Building first is what stops
   // this harness from certifying a tarball nobody built.
   pnpm(["-r", "build"], REPOSITORY_ROOT);
+
+  assertPacksEveryStampedPackage();
 
   /** @type {Record<string, string>} */
   const names = {};
