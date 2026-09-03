@@ -14,6 +14,8 @@ import {
   rateClassSuffixes,
   renderEnvReference,
   scanEnvNames,
+  scanSourceText,
+  stripComments,
 } from "./env-reference.mjs";
 
 /**
@@ -166,5 +168,93 @@ describe("the generated block in the operations guide", () => {
     expect(doc.split(BEGIN_MARKER)).toHaveLength(2);
     expect(doc.split(END_MARKER)).toHaveLength(2);
     expect(doc.indexOf(BEGIN_MARKER)).toBeLessThan(doc.indexOf(END_MARKER));
+  });
+});
+
+describe("the comment stripper reads its own input correctly (issue #773)", () => {
+  /**
+   * The exact shape from PR #772, reduced. A URL glob inside an ordinary line
+   * comment, then a JSDoc block, then the reads.
+   *
+   * The two-pass stripper removed block comments FIRST, so the `/*` inside the line
+   * comment opened one, the JSDoc's terminator closed it, and every read in between
+   * was gone from the scanned set with nothing reported. Four `parseBool` reads
+   * disappeared that way and the gate went red naming variables whose reads were
+   * still on disk.
+   */
+  const URL_GLOB_IN_LINE_COMMENT = [
+    "// The BFF forwards /api/auth/* to the API, so these four are read here.",
+    'const a = parseBool(env, "QCMS_GLOB_ONE", false);',
+    'const b = parseBool(env, "QCMS_GLOB_TWO", false);',
+    'const c = parseBool(env, "QCMS_GLOB_THREE", false);',
+    'const d = parseBool(env, "QCMS_GLOB_FOUR", false);',
+    "/** The next thing that happens to be documented. */",
+    'const e = parseBool(env, "QCMS_AFTER_THE_JSDOC", false);',
+  ].join("\n");
+
+  it("keeps the reads that follow a URL glob written in a line comment", () => {
+    // The distance between the glob and the JSDoc terminator is the whole defect:
+    // the reads inside it are what vanished. A fixture whose comment is immediately
+    // followed by the JSDoc passes under the old stripper too and proves nothing.
+    expect([...scanSourceText(URL_GLOB_IN_LINE_COMMENT).names].sort()).toEqual([
+      "QCMS_AFTER_THE_JSDOC",
+      "QCMS_GLOB_FOUR",
+      "QCMS_GLOB_ONE",
+      "QCMS_GLOB_THREE",
+      "QCMS_GLOB_TWO",
+    ]);
+  });
+
+  it("keeps the reads that follow a URL glob written in a string literal", () => {
+    // The mirror of the case above, and the one that survives simply reordering the
+    // two passes: a glob in a string opens a block comment for either ordering.
+    const source = [
+      'const forwarded = "/api/auth/*";',
+      'const f = parseBool(env, "QCMS_STRING_GLOB", false);',
+      "/** Whatever is documented next closes the comment that was never opened. */",
+      'const g = parseBool(env, "QCMS_STRING_GLOB_TWO", false);',
+    ].join("\n");
+    expect([...scanSourceText(source).names].sort()).toEqual([
+      "QCMS_STRING_GLOB",
+      "QCMS_STRING_GLOB_TWO",
+    ]);
+  });
+
+  it("still ignores a variable that is only NAMED in prose", () => {
+    // The property the stripper exists for, kept: a name written in either kind of
+    // comment is documentation, not a read, and counting it would put a row in the
+    // operator's table for a knob nothing consults.
+    const source = [
+      '// Superseded by QCMS_KEPT: "QCMS_NAMED_IN_LINE_COMMENT" is no longer read.',
+      '/* Nor is "QCMS_NAMED_IN_BLOCK_COMMENT". */',
+      'const kept = parseBool(env, "QCMS_KEPT", false);',
+    ].join("\n");
+    expect([...scanSourceText(source).names].sort()).toEqual(["QCMS_KEPT"]);
+  });
+
+  it("treats an apostrophe in JSX text as a character, not as a runaway string", () => {
+    // The reason an unterminated quote is not an error: `.tsx` under apps/portal and
+    // apps/admin is in scope, and prose in an element is where a lone apostrophe
+    // lives. Consuming the rest of the file from it would be the same silent shrink
+    // this whole scanner is being fixed for.
+    const source = [
+      "const view = <p>The session doesn't exist.</p>;",
+      'const f = parseBool(env, "QCMS_AFTER_APOSTROPHE", false);',
+    ].join("\n");
+    expect([...scanSourceText(source).names].sort()).toEqual(["QCMS_AFTER_APOSTROPHE"]);
+  });
+
+  it("preserves line numbers so a position in the result points into the original", () => {
+    const source = ["const before = 1;", "/* two", "   lines */", "const after = 2;"].join("\n");
+    expect(stripComments(source).split("\n")).toHaveLength(4);
+  });
+
+  it("refuses an unterminated block comment rather than swallowing the rest", () => {
+    // Fail closed. The whole cost of #773 was that the failure was invisible: the
+    // corpus shrank, nothing was reported, and the red surfaced hundreds of lines
+    // from the cause.
+    expect(() => stripComments("/* opened and never closed\nconst g = 1;")).toThrow(
+      /unterminated block comment/,
+    );
   });
 });

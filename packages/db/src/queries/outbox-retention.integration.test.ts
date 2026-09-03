@@ -18,6 +18,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { FormId } from "@qcms/core";
 
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+// Deep import on purpose: the budget is deliberately not on the package's public
+// surface, and deriving the boundary from the constant is what keeps this test on the
+// right side of it when the number moves.
+import { ANTI_JOIN_CANDIDATE_BUDGET } from "./outbox.js";
 import {
   claimDue,
   claimDueDeliveries,
@@ -327,6 +331,82 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
     await redactAgedOutboxPayloads(testDb.db, HORIZON);
 
     expect((await outboxRow(seeded.outboxId)).payloadRedactedAt).toEqual(first);
+  });
+});
+
+/**
+ * The sweep redacts the same rows above its candidate budget as below it (issue #781).
+ *
+ * The sweep has two strategies. Below the budget it names its candidates, which is
+ * what makes the planner probe `webhook_deliveries` per row instead of reading it
+ * whole; above it, it issues the single statement it always did, because past that
+ * size one read of the deliveries table beats one probe per candidate. Both are meant
+ * to select exactly the same rows, and every other test in this file sits far below
+ * the budget, so the fallback was reached by nothing.
+ *
+ * That is the branch worth pinning rather than the fast one: it is the branch a
+ * production database meets exactly once, on the first pass after an upgrade, over the
+ * entire back catalogue, and it is the branch whose failure mode is silent - a sweep
+ * that redacted the probed subset instead of the backlog would report a plausible
+ * count and leave answers behind.
+ */
+describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () => {
+  /**
+   * Two more than the budget, not one, and the difference is the whole test.
+   *
+   * The probe reads `budget + 1` rows, so at exactly `budget + 1` eligible rows the
+   * two strategies are indistinguishable: the fallback would redact all of them and so
+   * would the fast path, because the probe happens to have fetched every one. At
+   * `budget + 2` the probe can only ever name `budget + 1` of them, so a run that took
+   * the fast path leaves one row behind and this fails.
+   */
+  const SEEDED_ROWS = ANTI_JOIN_CANDIDATE_BUDGET + 2;
+
+  /**
+   * One statement, no per-row round trips: this is 10,002 rows and the point of the
+   * test is the branch, not the insert. No form, webhook or delivery is needed -
+   * `outbox` carries no foreign key, and a row with no delivery at all is the simplest
+   * thing the anti-join passes.
+   */
+  async function seedBacklog(): Promise<string[]> {
+    const res = await testDb.client.query<{ id: string }>(
+      `insert into outbox (event_type, payload, created_at, delivered_at)
+       select 'response.submitted',
+              jsonb_build_object(
+                'sessionId', 'ses_budget_' || g,
+                'formId', 'frm_budget',
+                'formVersion', 1,
+                'submittedAt', $2::text,
+                'contentHash', repeat('0', 64),
+                'answers', jsonb_build_object('q_name', 'Ada Lovelace', 'q_age', 36)),
+              $2::timestamptz,
+              $2::timestamptz
+       from generate_series(1, $1::int) g
+       returning id`,
+      [SEEDED_ROWS, LONG_AGO.toISOString()],
+    );
+    return res.rows.map((row) => row.id);
+  }
+
+  it("redacts the whole backlog, not the subset the probe could name", async () => {
+    const ids = await seedBacklog();
+    expect(ids).toHaveLength(SEEDED_ROWS);
+
+    const result = await redactAgedOutboxPayloads(testDb.db, HORIZON);
+
+    // Every seeded row, not a count: a count can be right while the wrong rows moved,
+    // and `redactedCount` alone would also absorb anything an earlier suite left
+    // eligible. Asked of the database rather than of the helper, and in the form the
+    // `outbox_redacted_payload_has_no_answers` CHECK stands for - the marker is set
+    // AND the answers are gone, which is the pair a half-applied redaction breaks.
+    const leftBehind = await testDb.client.query<{ id: string }>(
+      `select id from outbox
+       where id = any($1::uuid[])
+         and (payload_redacted_at is null or jsonb_exists(payload, 'answers'))`,
+      [ids],
+    );
+    expect(leftBehind.rows.map((row) => row.id)).toEqual([]);
+    expect(result.redactedCount).toBeGreaterThanOrEqual(SEEDED_ROWS);
   });
 });
 

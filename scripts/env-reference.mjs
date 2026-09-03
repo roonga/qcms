@@ -901,9 +901,167 @@ const GROUPS = [
 
 // --- source scanning --------------------------------------------------------
 
-/** Strip block and line comments, so a variable NAMED in prose is not counted as read. */
-function stripComments(source) {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/^[ \t]*\/\/.*$/gm, "");
+/**
+ * Replace every comment with equivalent blank space, so a variable NAMED in prose is
+ * not counted as a read.
+ *
+ * ## Why this is a scan and not two `replaceAll` calls (issue #773)
+ *
+ * It used to be `source.replaceAll(/\/\*[\s\S]*?\*\//g, "")` followed by a pass over
+ * whole-line `//` comments, and the ordering was the bug. A regex cannot tell a
+ * comment opener from the same two characters written inside something else, so a
+ * URL glob in an ordinary line comment - `// matches /api/auth/*` - was read as the
+ * START of a block comment, which the first pass then closed at the next block
+ * terminator it found, usually the end of the following JSDoc. Everything between
+ * disappeared. In the observed case four real `parseBool` reads vanished from the
+ * scanned set and the drift gate went red pointing at variables whose reads were
+ * still there, several hundred lines from the comment that ate them.
+ *
+ * Reordering the two passes only moves the hole: a line comment inside a block
+ * comment that carries the block terminator would then take that terminator away and
+ * swallow forward instead. The same two characters in a string literal (`const path =
+ * "/api/auth/*"`) defeat both orderings. So this walks the source once and decides
+ * what each `/` is from the state it is in, which is the only thing that answers all
+ * three.
+ *
+ * **The failure mode this class shares is that it fails OPEN**, silently shrinking the
+ * corpus the gate reasons about rather than reporting anything (the same shape as
+ * #663 and #690). Two things guard against a repeat. An unterminated block comment is
+ * an error rather than a silent swallow to end of file. And a `'` or `"` with no
+ * partner before the end of its line is treated as an ordinary character rather than
+ * as a string that runs away: single- and double-quoted strings cannot contain a raw
+ * newline in JavaScript, so a lone quote is an apostrophe in JSX text, and consuming
+ * the rest of the file from it would be exactly the silent shrink being fixed.
+ *
+ * Newlines inside a removed comment are kept, so line numbers survive the strip and a
+ * position reported against the result still points into the original file.
+ *
+ * Regular-expression literals are deliberately not tracked. Doing that needs the
+ * preceding token to tell `/` as division from `/` as a delimiter, which is more
+ * parser than this gate should carry; the residue is a regex literal that contains a
+ * literal `/*` or `//` sequence, which would open a comment here. That case is loud
+ * rather than silent: it either terminates and strips a small stretch that the name
+ * assertions then report, or it does not terminate and throws above.
+ *
+ * @param {string} source
+ * @returns {string} `source` with comment bodies replaced by their newlines.
+ */
+export function stripComments(source) {
+  /** Collected output, joined once at the end. */
+  const out = [];
+  /**
+   * One entry per template literal currently open. The value is the brace depth its
+   * innermost `${` expression opened at, or `null` while the scan is in the
+   * template's TEXT rather than inside an expression.
+   *
+   * @type {(number | null)[]}
+   */
+  const templates = [];
+  let braceDepth = 0;
+  let index = 0;
+
+  /** True while the scan is in a template literal's text rather than in code. */
+  const inTemplateText = () => templates.length > 0 && templates.at(-1) === null;
+
+  while (index < source.length) {
+    const character = source[index];
+
+    if (inTemplateText()) {
+      if (character === "\\") {
+        out.push(source.slice(index, index + 2));
+        index += 2;
+        continue;
+      }
+      if (character === "`") {
+        templates.pop();
+        out.push(character);
+        index += 1;
+        continue;
+      }
+      if (character === "$" && source[index + 1] === "{") {
+        braceDepth += 1;
+        templates[templates.length - 1] = braceDepth;
+        out.push("${");
+        index += 2;
+        continue;
+      }
+      out.push(character);
+      index += 1;
+      continue;
+    }
+
+    // Code: comments, strings and template openers are all decided here.
+    if (character === "/" && source[index + 1] === "/") {
+      let end = index + 2;
+      while (end < source.length && source[end] !== "\n") end += 1;
+      index = end;
+      continue;
+    }
+    if (character === "/" && source[index + 1] === "*") {
+      const end = source.indexOf("*/", index + 2);
+      if (end === -1) {
+        throw new Error(
+          "env-reference: unterminated block comment. The scanner refuses to swallow the rest of the file, which is how issue #773 lost four reads silently.",
+        );
+      }
+      const removed = source.slice(index, end + 2);
+      out.push("\n".repeat(removed.split("\n").length - 1));
+      index = end + 2;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      const closed = endOfQuotedString(source, index, character);
+      if (closed === undefined) {
+        // An apostrophe in JSX text, not a string. Ordinary character.
+        out.push(character);
+        index += 1;
+        continue;
+      }
+      out.push(source.slice(index, closed + 1));
+      index = closed + 1;
+      continue;
+    }
+    if (character === "`") {
+      templates.push(null);
+      out.push(character);
+      index += 1;
+      continue;
+    }
+    if (character === "{") {
+      braceDepth += 1;
+    } else if (character === "}") {
+      if (templates.length > 0 && templates.at(-1) === braceDepth) {
+        templates[templates.length - 1] = null;
+      }
+      braceDepth -= 1;
+    }
+    out.push(character);
+    index += 1;
+  }
+
+  return out.join("");
+}
+
+/**
+ * The index of the quote that closes the string opened at `start`, or `undefined` when
+ * the line ends first (so the opener was not a string opener at all).
+ *
+ * @param {string} source
+ * @param {number} start index of the opening quote.
+ * @param {string} quote the opening quote character.
+ * @returns {number | undefined}
+ */
+function endOfQuotedString(source, start, quote) {
+  for (let index = start + 1; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === "\\") {
+      index += 1;
+      continue;
+    }
+    if (character === "\n") return undefined;
+    if (character === quote) return index;
+  }
+  return undefined;
 }
 
 /** `env.NAME` / `process.env.NAME` / `env["NAME"]` - a genuine read. */
@@ -955,6 +1113,28 @@ export function rateClassSuffixes() {
 }
 
 /**
+ * What one source TEXT contributes to the scan: the variable names it reads, and the
+ * rate-class prefixes it names.
+ *
+ * Split out of {@link scanEnvNames} so the scanner can be exercised on a planted
+ * source rather than only on the tree (issue #773). `sourceFiles` lists TRACKED files,
+ * so a fixture written to a temporary directory is never scanned, and a regression
+ * test for a comment shape that eats reads had no way in.
+ *
+ * @param {string} text one file's contents, comments and all.
+ * @returns {{ names: Set<string>; rateClassPrefixes: Set<string> }}
+ */
+export function scanSourceText(text) {
+  const stripped = stripComments(text);
+  const names = new Set();
+  const rateClassPrefixes = new Set();
+  for (const match of stripped.matchAll(DIRECT_READ)) names.add(match[1] ?? match[2]);
+  for (const match of stripped.matchAll(NAME_LITERAL)) names.add(match[1]);
+  for (const match of stripped.matchAll(RATE_CLASS_CALL)) rateClassPrefixes.add(match[1]);
+  return { names, rateClassPrefixes };
+}
+
+/**
  * Every environment variable `processName` actually reads, from its source.
  *
  * @param {"api" | "portal" | "admin" | "compose"} processName
@@ -973,10 +1153,9 @@ export function scanEnvNames(processName) {
   const suffixes = processName === "api" ? rateClassSuffixes() : [];
   const rateClassPrefixes = new Set();
   for (const file of sourceFiles(SOURCE_ROOTS[processName])) {
-    const text = stripComments(readFileSync(join(REPOSITORY_ROOT, file), "utf8"));
-    for (const match of text.matchAll(DIRECT_READ)) found.add(match[1] ?? match[2]);
-    for (const match of text.matchAll(NAME_LITERAL)) found.add(match[1]);
-    for (const match of text.matchAll(RATE_CLASS_CALL)) rateClassPrefixes.add(match[1]);
+    const scanned = scanSourceText(readFileSync(join(REPOSITORY_ROOT, file), "utf8"));
+    for (const name of scanned.names) found.add(name);
+    for (const prefix of scanned.rateClassPrefixes) rateClassPrefixes.add(prefix);
   }
   // A rate-class prefix is not itself a variable: it names a pair.
   for (const prefix of rateClassPrefixes) {

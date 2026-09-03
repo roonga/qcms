@@ -210,6 +210,73 @@ function settledAt(...columns: PgColumn[]) {
   return sql`greatest(${sql.join(columns, COMMA)})`;
 }
 
+/**
+ * How many candidate rows the sweep will name explicitly before it stops trying
+ * (issue #781).
+ *
+ * ## The problem
+ *
+ * #434 gave the sweep a partial index, which removed its own table scan and left one
+ * behind: the correlated `NOT EXISTS` was still costed as though it had to consider
+ * every outbox row, so Postgres hash-anti-joined the WHOLE `webhook_deliveries` table
+ * on every hourly pass. Measured on `postgres:16-alpine` at 1M outbox rows and 1M
+ * deliveries, with a horizon selecting 598 eligible rows: the index scan that finds
+ * those 598 takes **0.4 ms**, and the pass takes **77.6 ms**, of which ~69 ms per
+ * worker is a parallel sequential scan of all 1M deliveries that yields nothing.
+ *
+ * The cause is a row-estimate failure, not a missing index. Postgres does not apply
+ * the partial expression index's statistics to `greatest(delivered_at,
+ * dead_lettered_at) < $1`, so it falls back to a default selectivity and estimates
+ * ~111k candidates where there are 598. At that estimate the hash plan is the cheaper
+ * one, and it is chosen correctly from a premise that is 200x wrong. No index fixes
+ * an estimate, which is why #434 could not close this and why it needed a query.
+ *
+ * ## Why an explicit id list, and why a budget
+ *
+ * Naming the candidates gives the planner a cardinality it cannot get wrong, so it
+ * picks the nested loop over `webhook_deliveries_event_webhook_uq` - the index that
+ * table already had - and probes it once per candidate instead of reading it whole.
+ *
+ * That is only the better plan while the candidate set is small, and the crossover was
+ * measured rather than guessed. Selecting the candidates only, so the write cost the
+ * two share does not bury the difference (median of 7 runs, round trip):
+ *
+ * | eligible rows | one statement | probe then update |
+ * | ------------- | ------------- | ----------------- |
+ * | 598           | 77.6 ms       | **5.0 ms**        |
+ * | 11,246        | 105.6 ms      | **44.4 ms**       |
+ * | 33,469        | 130.4 ms      | 132.6 ms          |
+ * | 100,136       | 280.5 ms      | 467.6 ms          |
+ * | 300,137       | 355.4 ms      | 1,446.4 ms        |
+ *
+ * And the whole sweep end to end, old shape against new, alternating in rolled-back
+ * transactions so page dirtying hits both equally, with both redacting an identical
+ * row set every time:
+ *
+ * | eligible rows | before     | after       |
+ * | ------------- | ---------- | ----------- |
+ * | 702           | 278.8 ms   | **33.6 ms** |
+ * | 1,258         | 330.7 ms   | **82.3 ms** |
+ * | 5,186         | 532.6 ms   | **273.0 ms** |
+ * | 15,704        | 1,766.7 ms | 1,786.9 ms  |
+ *
+ * The last row is above the budget, so it is the old plan plus the bounded probe: 20
+ * ms, or 1.1%, for the certainty of not paying the other column's price. Past roughly
+ * 33k candidates the sequential scan amortises and the single statement wins outright,
+ * which is the right plan for a backlog - the first pass after an upgrade covers the
+ * entire back catalogue, and reading the deliveries table once beats probing it a
+ * million times.
+ *
+ * The budget also bounds what the probe can pull into memory, which an unbounded
+ * candidate list would not.
+ *
+ * Exported for the test that pins the fallback branch, and for that only: it is not
+ * re-exported from `queries/index.ts`, so it stays off the package's public surface. A
+ * test that hard-coded the number would go on passing while sitting on the wrong side
+ * of the boundary, over the wrong branch, the moment the budget moved.
+ */
+export const ANTI_JOIN_CANDIDATE_BUDGET = 10_000;
+
 /** Outcome of {@link redactAgedOutboxPayloads}. */
 export interface OutboxPayloadRedactionResult {
   /** How many outbox rows had their answers removed this run. */
@@ -270,39 +337,76 @@ export async function redactAgedOutboxPayloads(
   exec: Executor,
   olderThan: Date,
 ): Promise<OutboxPayloadRedactionResult> {
+  // Bounded by one more than the budget, so "at the budget" and "past it" are
+  // distinguishable without counting the whole backlog.
+  const candidates = await exec
+    .select({ id: outbox.id })
+    .from(outbox)
+    .where(eligibleForPayloadRedaction(olderThan))
+    .limit(ANTI_JOIN_CANDIDATE_BUDGET + 1);
+
+  if (candidates.length === 0) return { redactedCount: 0 };
+
+  const withinBudget = candidates.length <= ANTI_JOIN_CANDIDATE_BUDGET;
+  const rows = await exec
+    .update(outbox)
+    .set(outboxPayloadRedactionColumns())
+    .where(
+      and(
+        // Present only on the fast path. Every other conjunct is repeated from the
+        // probe rather than trusted, so the two paths select exactly the same rows
+        // and a row that changed between the two statements is re-decided here.
+        // `sql.param` binds the whole list as ONE array parameter. Interpolating the
+        // array directly makes Drizzle expand it into one placeholder per element,
+        // which is a 10,000-parameter statement and hundreds of kilobytes of SQL for
+        // the planner to parse - the opposite of the point.
+        withinBudget
+          ? sql`${outbox.id} = any(${sql.param(candidates.map((row) => row.id))}::uuid[])`
+          : undefined,
+        eligibleForPayloadRedaction(olderThan),
+        noDeliveryStillMoving(exec, olderThan),
+      ),
+    )
+    .returning({ id: outbox.id });
+  return { redactedCount: rows.length };
+}
+
+/**
+ * The outbox-side half of the sweep: rows that still hold answers and whose own event
+ * settled before the horizon. Shared by the probe and the update so the two cannot
+ * drift into selecting different rows.
+ */
+function eligibleForPayloadRedaction(olderThan: Date) {
+  return and(
+    isNull(outbox.payloadRedactedAt),
+    sql`jsonb_exists(${outbox.payload}, 'answers')`,
+    sql`${settledAt(outbox.deliveredAt, outbox.deadLetteredAt)} < ${olderThan}`,
+  );
+}
+
+/** The delivery-side half: no delivery of this event is unsettled or freshly settled. */
+function noDeliveryStillMoving(exec: Executor, olderThan: Date) {
   const deliveries = alias(webhookDeliveries, "d");
   const deliverySettled = settledAt(
     deliveries.deliveredAt,
     deliveries.deadLetteredAt,
     deliveries.cancelledAt,
   );
-  const rows = await exec
-    .update(outbox)
-    .set(outboxPayloadRedactionColumns())
-    .where(
-      and(
-        isNull(outbox.payloadRedactedAt),
-        sql`jsonb_exists(${outbox.payload}, 'answers')`,
-        sql`${settledAt(outbox.deliveredAt, outbox.deadLetteredAt)} < ${olderThan}`,
-        notExists(
-          exec
-            .select({ one: sql`1` })
-            .from(deliveries)
-            .where(
-              and(
-                eq(deliveries.outboxId, outbox.id),
-                // Parenthesised by `or()`. Spelling this as one raw `sql` fragment
-                // silently binds as `(outbox_id = id and settled is null) or settled
-                // >= horizon`, which drops the correlation: any recently-settled
-                // delivery anywhere in the table then blocks every row in the sweep.
-                or(sql`${deliverySettled} is null`, sql`${deliverySettled} >= ${olderThan}`),
-              ),
-            ),
+  return notExists(
+    exec
+      .select({ one: sql`1` })
+      .from(deliveries)
+      .where(
+        and(
+          eq(deliveries.outboxId, outbox.id),
+          // Parenthesised by `or()`. Spelling this as one raw `sql` fragment
+          // silently binds as `(outbox_id = id and settled is null) or settled
+          // >= horizon`, which drops the correlation: any recently-settled
+          // delivery anywhere in the table then blocks every row in the sweep.
+          or(sql`${deliverySettled} is null`, sql`${deliverySettled} >= ${olderThan}`),
         ),
       ),
-    )
-    .returning({ id: outbox.id });
-  return { redactedCount: rows.length };
+  );
 }
 
 /** List dead-lettered rows (delivery exhausted) for the admin redelivery view, newest first. */
