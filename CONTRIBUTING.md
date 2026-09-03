@@ -378,13 +378,13 @@ pnpm --filter @roonga/qcms-a2ui-compiler pack --pack-destination "$out"
 pnpm --filter @roonga/qcms-db pack --pack-destination "$out"
 
 mkdir -p /tmp/qcms-consumer && cd /tmp/qcms-consumer
-printf 'packages: []\noverrides:\n  "@roonga/qcms-core": "file:%s/qcms-core-0.0.0.tgz"\n  "@roonga/qcms-a2ui-compiler": "file:%s/qcms-a2ui-compiler-0.1.0.tgz"\n' "$out" "$out" > pnpm-workspace.yaml
+printf 'packages: []\noverrides:\n  "@roonga/qcms-core": "file:%s/roonga-qcms-core-0.0.0.tgz"\n  "@roonga/qcms-a2ui-compiler": "file:%s/roonga-qcms-a2ui-compiler-0.2.0.tgz"\n' "$out" "$out" > pnpm-workspace.yaml
 printf '{ "name": "qcms-tarball-check", "private": true, "type": "module" }\n' > package.json
-pnpm add "file:$out/qcms-db-0.0.0.tgz"
+pnpm add "file:$out/roonga-qcms-db-0.0.0.tgz"
 node -e "import('@roonga/qcms-db').then((m) => console.log('exports:', Object.keys(m).length))"
 ```
 
-`packages: []` is what makes the root standalone; the `overrides` are what keep the unpublished siblings off the registry. Run it for the package under test, with the tarball versions the `pack` output names. **What it does not cover:** nothing in this repository is published, so this proves the packed tarballs and their dependency declarations, never the publish itself. Whether npm accepts a public scoped publish is only observable at the rehearsal publish (issue #360), and no local gate can stand in for it.
+`packages: []` is what makes the root standalone; the `overrides` are what keep the unpublished siblings off the registry. Run it for the package under test, with the tarball names the `pack` output reports: `pack` flattens the scope, so `@roonga/qcms-core` writes `roonga-qcms-core-<version>.tgz`, and the versions move independently of each other. **What it does not cover:** nothing in this repository is published, so this proves the packed tarballs and their dependency declarations, never the publish itself. Whether npm accepts a public scoped publish is only observable at the rehearsal publish (issue #360), and no local gate can stand in for it.
 
 ## Git and PR rules
 

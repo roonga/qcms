@@ -97,7 +97,7 @@ describe("scaffold", () => {
     expect(scaffold(options).unresolvedEnv).toStrictEqual([]);
   });
 
-  it("gives every scaffolded app a real version range for every @qcms package", () => {
+  it("gives every scaffolded app a real version range for every @roonga/qcms-* package", () => {
     const { read } = stamp();
     for (const app of ["api", "portal", "admin"]) {
       const manifest = JSON.parse(read(`apps/${app}/package.json`)) as {

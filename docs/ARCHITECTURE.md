@@ -24,9 +24,9 @@ The second principle is the **ownership seam**: code a customizer would reasonab
 Three schemas, a single direction of derivation. No layer reaches upward.
 
 ```
-FormDefinition ──compile──▶ A2UI documents ──persist──▶ Postgres
-   (meaning)                   (views)                  (storage)
-  @roonga/qcms-core              @roonga/qcms-a2ui-compiler           @roonga/qcms-db
+FormDefinition ──────compile──────▶ A2UI documents ──────persist──────▶ Postgres
+   (meaning)                            (views)                        (storage)
+@roonga/qcms-core            @roonga/qcms-a2ui-compiler            @roonga/qcms-db
 ```
 
 **FormDefinition** (domain) governs meaning: stable `questionId`s, semantic types, constraints, locale-mapped text, pinned question versions, the branching rules DSL. Rule evaluation, answer validation, publish invariants, and reporting operate exclusively on this model.
