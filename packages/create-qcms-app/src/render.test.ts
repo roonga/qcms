@@ -81,7 +81,11 @@ describe("templateValues", () => {
   });
 
   it("states the reason in --help, where an adopter meets it first", () => {
-    expect(helpText()).toContain(PACKAGE_MANAGER_RATIONALE);
+    // Wrapped for a terminal, so compare the words rather than the line breaks: the
+    // constant is one string shared with two Markdown READMEs, which reflow it.
+    expect(helpText().replace(/\s+/g, " ")).toContain(
+      PACKAGE_MANAGER_RATIONALE.replace(/\s+/g, " "),
+    );
   });
 });
 

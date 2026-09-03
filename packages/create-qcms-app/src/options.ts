@@ -276,6 +276,29 @@ export function withDefaults(partial: PartialOptions, cwd: string): ScaffoldOpti
   };
 }
 
+/**
+ * Greedy wrap at 76 columns, so the one shared sentence reads in a terminal.
+ *
+ * `PACKAGE_MANAGER_RATIONALE` is one string used in three places: this text, the
+ * `--package-manager` refusal, and both scaffolded READMEs. Markdown reflows it and a
+ * terminal does not, so the wrapping belongs here rather than in the constant, which
+ * would put hard line breaks into the READMEs.
+ */
+function wrap(text: string, width = 76): string {
+  const lines: string[] = [];
+  let current = "";
+  for (const word of text.split(" ")) {
+    if (current === "") current = word;
+    else if (`${current} ${word}`.length <= width) current = `${current} ${word}`;
+    else {
+      lines.push(current);
+      current = word;
+    }
+  }
+  if (current !== "") lines.push(current);
+  return lines.join("\n");
+}
+
 /** The `--help` text. */
 export function helpText(): string {
   return `Usage: create-qcms-app [directory] [options]
@@ -283,7 +306,7 @@ export function helpText(): string {
 Scaffold a QCMS deployment: the application shell you own, over the versioned
 @qcms/* packages you upgrade.
 
-${PACKAGE_MANAGER_RATIONALE}
+${wrap(PACKAGE_MANAGER_RATIONALE)}
 
 Options:
   -y, --yes                  Take every default; ask nothing. The CI path.
