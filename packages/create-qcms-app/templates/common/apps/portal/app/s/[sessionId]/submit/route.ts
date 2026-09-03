@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { submitSession } from "@/lib/server/api";
-import { apiErrorResponse, writeReceiptCookie } from "@/lib/server/route-helpers";
+import { apiErrorResponse, isSameOriginPost, writeReceiptCookie } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 
 /**
@@ -14,6 +14,12 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
+  // SEC-9's CSRF belt (issue #487), above the credential read. Submit is the one
+  // irreversible step in the respondent flow, so a cross-site caller must not reach
+  // even the cookie.
+  if (!isSameOriginPost(request)) {
+    return NextResponse.json({ error: { code: "forbidden" } }, { status: 403 });
+  }
   const token = await readSessionToken();
   if (token === undefined) {
     return NextResponse.json({ error: { code: "unauthorized" } }, { status: 401 });

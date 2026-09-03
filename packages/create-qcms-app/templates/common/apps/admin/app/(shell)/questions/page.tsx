@@ -1,21 +1,18 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
-import { Alert, Button, Card, Select, TextField, type TableRow } from "@/components/kit";
+import { EmptyState } from "@/components/empty-state";
+import { Alert, Button, Card, Select, TextField } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
-import { textOf } from "@/lib/questions/definition";
+import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
-import {
-  QUESTION_TYPES,
-  type QuestionListItem,
-  type QuestionStatus,
-  type QuestionType,
-} from "@/lib/questions/types";
+import { QUESTION_TYPES, type QuestionStatus, type QuestionType } from "@/lib/questions/types";
 import { listQuestions } from "@/lib/server/questions";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
- * The question library list (task 032; wireframe "list toolbar" + "list `table`").
+ * The question library list (task 032; screen contract "list toolbar" + "list `table`").
  *
  * A server component that proxies one call and renders the answer. Every filter is the
  * API's own (`status`, `type`, and `search` which matches the slug or any locale of the
@@ -23,9 +20,9 @@ import { requireAdminSession } from "@/lib/server/session";
  * library is a place an author can link to and come back to, and the filtering stays
  * where the data is instead of being re-implemented over a page of rows.
  *
- * ## The one column the wireframe asks for that is not here
+ * ## The one column the screen contract asks for that is not here
  *
- * **Updated** is drawn in the wireframe and there is nothing to draw it from: nothing in
+ * **Updated** is drawn in the screen contract and there is nothing to draw it from: nothing in
  * the schema records when a version was last edited. `question_versions` carries
  * `published_at` and nothing else, and `questions.created_at` is the identity's birthday
  * rather than the latest version's. So the honest options are a `question_versions`
@@ -35,7 +32,7 @@ import { requireAdminSession } from "@/lib/server/session";
  * Neither is this screen's call to make, so the created date is what is shown, under its
  * own name, and the choice is recorded on issue #218 for the Code Owner.
  *
- * Pagination is absent by the wireframe's own note (`[upstream gap]`): the list route
+ * Pagination is absent by the screen contract's own note (`[upstream gap]`): the list route
  * takes no page or cursor parameter, and client-side paging over a full result set would
  * be a worse answer than none at launch scale.
  */
@@ -60,28 +57,9 @@ function firstValue(raw: SearchParam): string {
   return value ?? "";
 }
 
-/** ISO day. Formatted on the server so the client renders the identical string. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-function toRow(question: QuestionListItem): TableRow {
-  return {
-    id: question.questionId,
-    data: {
-      questionId: question.questionId,
-      label: textOf(question.label ?? undefined),
-      // A row whose latest version has gone missing has no type to name; an em dash is
-      // not available and a blank cell reads as "none", so say it in words.
-      type:
-        question.type === null
-          ? t("questions.column.typeUnknown")
-          : t(`questions.type.${question.type}`),
-      version: `v${String(question.latestVersion)}`,
-      status: t(`questions.status.${question.latestStatus}`),
-      created: isoDay(question.createdAt),
-    },
-  };
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("questions.title"));
 }
 
 export default async function QuestionsPage({
@@ -109,9 +87,18 @@ export default async function QuestionsPage({
           <h1 className="text-xl font-semibold text-(--color-text)">{t("questions.title")}</h1>
           <p className="text-sm text-(--color-text-muted)">{t("questions.intro")}</p>
         </div>
-        <Link href="/questions/new" className="qcms-button-link">
-          {t("questions.new")}
-        </Link>
+        {/* The header's creating action, rendered except in the one state where the
+            empty panel below carries it instead: an unfiltered library with nothing in
+            it. Two controls with the same accessible name on one screen are ambiguous to
+            anyone navigating by name, and `plan/admin-design-contracts.md` §3 asks the
+            empty state to OFFER the creating action rather than to sit beside a copy of
+            it. A filtered-empty library is not that state: the library is not empty, the
+            panel's CTA is "Clear filters", and this link stays. */}
+        {!(result.ok && result.data.length === 0 && !isFiltered) && (
+          <Link href="/questions/new" className="qcms-button-link">
+            {t("questions.new")}
+          </Link>
+        )}
       </div>
 
       <div className="qcms-card">
@@ -157,7 +144,16 @@ export default async function QuestionsPage({
                   <Button type="submit" variant="secondary" size="md">
                     {t("questions.filter.apply")}
                   </Button>
-                  {isFiltered && (
+                  {/* The filter's own reset, rendered except when the filtered-empty
+                      panel below is carrying it as its CTA
+                      (`plan/admin-design-contracts.md` §3). Same rule as the header's
+                      creating action above and the webhook screen's Add button: the
+                      empty panel OFFERS the way out rather than sitting beside a second
+                      control with the same accessible name. Two "Clear filters" links on
+                      one screen are ambiguous to anyone navigating by name, and the
+                      browser suite said so - `questions-lifecycle.pw.ts` resolved the
+                      name to two elements. */}
+                  {isFiltered && !(result.ok && result.data.length === 0) && (
                     <Link href="/questions" className="qcms-text-link">
                       {t("questions.filter.clear")}
                     </Link>
@@ -175,34 +171,41 @@ export default async function QuestionsPage({
         </Alert>
       )}
 
-      {result.ok && result.data.length === 0 && (
-        <div className="qcms-card">
-          <Card padding="md" radius="md" border>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-base font-semibold text-(--color-text)">
-                {isFiltered ? t("questions.empty.filtered") : t("questions.empty.title")}
-              </h2>
-              {!isFiltered && (
-                <p className="text-sm text-(--color-text-muted)">{t("questions.empty.body")}</p>
-              )}
-            </div>
-          </Card>
-        </div>
-      )}
+      {/* `plan/admin-design-contracts.md` §3's panel, in both of its variants. The
+          filtered one keeps the panel and the clear-filters action, swaps the heading
+          to the screen's own "no matches" line, and drops the explanatory sentence:
+          an operator who has just typed a filter is not asking what the library is
+          for. The unfiltered one keeps the sentence and offers the creating action,
+          which is the same destination as the header link - an empty screen is where
+          a first-time operator looks, not the corner of the header. */}
+      {result.ok &&
+        result.data.length === 0 &&
+        (isFiltered ? (
+          <EmptyState
+            heading={t("questions.empty.filtered")}
+            testId="qcms-questions-empty"
+            action={
+              <Link href="/questions" className="qcms-button-link">
+                {t("questions.filter.clear")}
+              </Link>
+            }
+          />
+        ) : (
+          <EmptyState
+            heading={t("questions.empty.title")}
+            body={t("questions.empty.body")}
+            testId="qcms-questions-empty"
+            action={
+              <Link href="/questions/new" className="qcms-button-link">
+                {t("questions.new")}
+              </Link>
+            }
+          />
+        ))}
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          <QuestionsTable
-            rows={result.data.map(toRow)}
-            columns={[
-              { id: "questionId", label: t("questions.column.id"), isRowHeader: true },
-              { id: "label", label: t("questions.column.label") },
-              { id: "type", label: t("questions.column.type") },
-              { id: "version", label: t("questions.column.version") },
-              { id: "status", label: t("questions.column.status") },
-              { id: "created", label: t("questions.column.created") },
-            ]}
-          />
+          <QuestionsTable rows={result.data} />
           <p className="text-sm text-(--color-text-muted)">{t("questions.table.hint")}</p>
         </div>
       )}

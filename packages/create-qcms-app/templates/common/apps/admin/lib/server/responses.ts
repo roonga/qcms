@@ -142,7 +142,8 @@ export function exportResponses(
 }
 
 /**
- * `POST /admin/sessions/{sessionId}/erase` - ADR-17, and it does not come back.
+ * `POST /admin/forms/{formId}/responses/{sessionId}/erase` - ADR-17, and it does not
+ * come back.
  *
  * The API deletes the answers and the submission and writes a tombstone in one
  * transaction. There is no undo anywhere in the system: no soft-delete column, no
@@ -152,14 +153,16 @@ export function exportResponses(
  */
 export async function eraseSession(
   session: AdminSession,
+  formId: string,
   sessionId: string,
   reason: string,
 ): Promise<ApiResult<EraseOutcome>> {
   const result = await readResult<Record<string, unknown>>(
-    await adminApiFetch(session, `/sessions/${encodeURIComponent(sessionId)}/erase`, {
-      method: "POST",
-      body: { reason },
-    }),
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(sessionId)}/erase`,
+      { method: "POST", body: { reason } },
+    ),
   );
   if (!result.ok) return result;
   const raw = result.data;
@@ -186,7 +189,8 @@ export async function listErasures(
 }
 
 /**
- * `POST /admin/responses/{sessionId}/unflag` - release a withheld webhook event.
+ * `POST /admin/forms/{formId}/responses/{sessionId}/unflag` - release a withheld
+ * webhook event.
  *
  * A flagged submission (020/026 honeypot or minimum-time) is stored but its
  * `response.submitted` event is held back, so consumers never saw it. Unflagging
@@ -196,12 +200,15 @@ export async function listErasures(
  */
 export async function unflagResponse(
   session: AdminSession,
+  formId: string,
   sessionId: string,
 ): Promise<ApiResult<{ readonly sessionId: string; readonly released: boolean }>> {
   const result = await readResult<Record<string, unknown>>(
-    await adminApiFetch(session, `/responses/${encodeURIComponent(sessionId)}/unflag`, {
-      method: "POST",
-    }),
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/responses/${encodeURIComponent(sessionId)}/unflag`,
+      { method: "POST" },
+    ),
   );
   if (!result.ok) return result;
   return {

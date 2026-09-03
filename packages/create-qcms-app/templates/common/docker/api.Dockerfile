@@ -1,17 +1,29 @@
 # syntax=docker/dockerfile:1
-FROM node:24-bookworm-slim AS build
+# Base image pinned by digest as well as tag (issue #372): the tag is what a human
+# reads, the digest is what is actually pulled, so a rebuild months from now produces
+# the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
+# ecosystem in `.github/dependabot.yml` moves the tag and the digest together, and
+# records why pinning and that coverage had to land in one change.
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS build
 
 WORKDIR /workspace
 RUN corepack enable
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json ./
 COPY apps ./apps
+# `tooling/*` is a workspace glob too, so every manifest under it has to be here or
+# `pnpm install --frozen-lockfile` refuses the workspace outright: a package that
+# declares a `workspace:*` dependency on something the image never copied is not a
+# missing file, it is an unresolvable graph. Nothing from here reaches the runtime
+# stage - `pnpm deploy --prod` prunes it - so this is the build stage paying for a
+# complete workspace, exactly as `scripts` above does.
+COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter qcms-api build
 RUN pnpm --filter qcms-api deploy --legacy --prod /opt/qcms
 
-FROM node:24-bookworm-slim AS runtime
+FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="qcms-api" \
@@ -20,6 +32,12 @@ LABEL org.opencontainers.image.title="qcms-api" \
 
 WORKDIR /app
 ENV NODE_ENV=production
+# So this image's dependency bins are runnable by name, which is what lets the
+# `migrate` service call `qcms-db-migrate` instead of reaching into
+# `node_modules/@qcms/db/dist/` past that package's `exports` map (issue #294).
+# Appended rather than prepended: a dependency bin must never shadow a system
+# binary this image or a healthcheck relies on.
+ENV PATH="${PATH}:/app/node_modules/.bin"
 COPY --from=build --chown=node:node /opt/qcms ./
 USER node
 EXPOSE 3000

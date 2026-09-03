@@ -10,7 +10,7 @@ export interface StepProgress {
 }
 
 /**
- * The respondent page chrome (wireframe `page` region): the config-driven brand
+ * The respondent page chrome (screen contract `page` region): the config-driven brand
  * mark, the progress text and the appearance disclosure, then the main content
  * column. Minimal by design - respondents never navigate freely, so there is no
  * nav. Mobile-first: a single centered column that stays comfortable on a phone

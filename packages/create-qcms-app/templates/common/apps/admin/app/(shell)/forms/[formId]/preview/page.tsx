@@ -1,16 +1,29 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { DraftPreview } from "@/components/forms/draft-preview";
 import { FormPageHeader } from "@/components/forms/form-page-header";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
+import { previewPortalTheme } from "@/lib/server/config";
 import { getForm } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { previewDraftAction } from "../../actions";
 
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("preview", formId));
+}
+
 /**
- * The live preview of a form's draft (task 034; wireframe "preview").
+ * The live preview of a form's draft (task 034; screen contract "preview").
  *
  * A server component that loads the form and hands the draft to the pane. The action is
  * bound to **this route's** form id, exactly as the builder binds its four: the id comes
@@ -47,7 +60,11 @@ export default async function FormPreviewPage({
       {form.draft === null ? (
         <p className="text-sm text-(--color-text-muted)">{t("forms.preview.noSteps")}</p>
       ) : (
-        <DraftPreview draft={form.draft} preview={previewDraftAction.bind(null, form.formId)} />
+        <DraftPreview
+          draft={form.draft}
+          preview={previewDraftAction.bind(null, form.formId)}
+          defaultTheme={previewPortalTheme()}
+        />
       )}
     </div>
   );

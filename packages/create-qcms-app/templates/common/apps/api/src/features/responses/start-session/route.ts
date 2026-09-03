@@ -61,7 +61,8 @@ export const getSessionRoute = createRoute({
       description: "The session's current status view",
       content: { "application/json": { schema: SessionStatusResponse } },
     },
-    ...errorResponses(401, 404),
+    // 400: a session id that is not well-formed is refused by the route schema.
+    ...errorResponses(400, 401, 404),
   },
   ...withScopes("responses:read"),
 });

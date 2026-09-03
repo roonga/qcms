@@ -19,10 +19,14 @@
  *   cannot be broken later by a route that does.
  * - **`exception.message` and `exception.stacktrace` go**, so `exception.type`
  *   survives on its own. A validation error message is the one place an answer
- *   value can plausibly end up inside an error string, and a span is exported
- *   while a log line is not: the API's own structured log keeps the message and
- *   the stack next to the same `requestId`/`trace_id`, which is where a developer
- *   should read them.
+ *   value can plausibly end up inside an error string. Task 062 added OTLP log
+ *   export, so "exported" now covers log records as well, and the same rule holds
+ *   there by a different mechanism: an `Error` field redacts to an object, only
+ *   scalar fields become OTLP attributes, and the log allowlist in
+ *   `@qcms/observability/logs` drops every key outside a small operational set.
+ *   What still carries the message and the stack is the **stdout** structured log,
+ *   next to the same `requestId`/`trace_id`, which is where a developer should
+ *   read them.
  *
  * The seam is a `SpanProcessor` placed FIRST in the SDK's processor list, so it
  * runs before the exporting processor queues the span (`MultiSpanProcessor`

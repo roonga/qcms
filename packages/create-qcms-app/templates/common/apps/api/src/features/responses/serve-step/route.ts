@@ -33,7 +33,8 @@ export const getStepRoute = createRoute({
       description: "The current step document and client-safe flow projection",
       content: { "application/json": { schema: StepResponse } },
     },
-    ...errorResponses(401, 404, 409),
+    // 400: a malformed session id or step query is refused by the route schema.
+    ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("responses:read"),
 });
@@ -57,7 +58,9 @@ export const submitAnswerRoute = createRoute({
       description: "The answer was recorded; the updated flow projection follows",
       content: { "application/json": { schema: StepResponse } },
     },
-    ...errorResponses(401, 404, 409, 422),
+    // 400: the route schema refuses a malformed id, query or body shape before the
+    // handler runs; 422 is the domain refusal of a well-formed answer.
+    ...errorResponses(400, 401, 404, 409, 422),
   },
   // A respondent *write* endpoint (appends an answer): SEC-5 `responses:write`,
   // not the `responses:read` it borrowed before the scope existed (issue #7).

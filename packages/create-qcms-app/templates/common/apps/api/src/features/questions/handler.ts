@@ -33,13 +33,14 @@ import {
   type TextResolver,
 } from "@qcms/a2ui-compiler";
 import {
+  compilesUnderV,
   LocaleCode,
   parseLocaleCode,
   parseQuestionDefinition,
   parseQuestionId,
+  toVSafePattern,
   type LocalizedText,
   type QuestionDefinition,
-  type QuestionDefinitionError,
   type QuestionId,
 } from "@qcms/core";
 import {
@@ -73,9 +74,21 @@ import type { QuestionListItem, QuestionVersionView } from "./schema.js";
 
 // --- typed failures (envelope codes the admin app keys off, 032) -------------
 
+/**
+ * What a definition refusal carries: the kernel's own `QuestionDefinitionError`
+ * or an {@link AuthoringIssue} this boundary raises. Structural rather than a
+ * union of the two, because the editor reads these by shape - a `code`, a
+ * sentence, and the domain `path` that decides which field it lands on.
+ */
+interface DefinitionRefusal {
+  readonly code: string;
+  readonly message: string;
+  readonly path?: readonly (string | number)[] | undefined;
+}
+
 const fail = {
   invalidId: (): ApiError => new ApiError("INVALID_QUESTION_ID", 400, "Malformed question id"),
-  invalidDefinition: (issues: readonly QuestionDefinitionError[]): ApiError =>
+  invalidDefinition: (issues: readonly DefinitionRefusal[]): ApiError =>
     new ApiError("INVALID_QUESTION_DEFINITION", 422, "The question definition is invalid", {
       issues,
     }),
@@ -114,17 +127,94 @@ function requireQuestionId(id: string): QuestionId {
   return parsed.value;
 }
 
-/** Parse a `:v` path param to a positive integer, or 404 (no such version). */
+/**
+ * The largest value a version number can take: `question_versions.version` is
+ * an `int4` column, so nothing above this can name a stored row (issue #645).
+ * Without the bound the guard passed the segment straight to Postgres, which
+ * refused the parameter with "value out of range for type integer" - an
+ * unexpected throw, so a caller who typed too many digits got a 500 instead of
+ * the 404 the same URL earns one digit shorter.
+ */
+const MAX_VERSION = 2_147_483_647;
+
+/** Parse a `:v` path param to an in-range positive integer, or 404 (no such version). */
 function requireVersion(v: string): number {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw fail.versionNotFound();
+  if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) throw fail.versionNotFound();
   return n;
 }
 
-/** Validate an opaque definition body through the kernel (422 on failure). */
+/**
+ * One boundary refusal, shaped like a kernel definition issue.
+ *
+ * The shape is the contract rather than the union: the editor lands an issue on
+ * the field its `path` names, so a refusal raised here reaches the author on the
+ * pattern control exactly as a kernel refinement does. It is deliberately not a
+ * `QuestionDefinitionError`, because that enum means "codes the schema's
+ * refinements raise" and this rule is not one of them.
+ */
+interface AuthoringIssue {
+  readonly code: string;
+  readonly message: string;
+  readonly path: readonly (string | number)[];
+}
+
+/** The code a v-invalid authored pattern is refused with (issue #53). */
+const PATTERN_NOT_BROWSER_SAFE = "PATTERN_NOT_BROWSER_SAFE";
+
+/**
+ * The `v`-flag gate on newly authored patterns (issue #53, Code Owner
+ * 2026-09-02).
+ *
+ * Browsers compile the HTML `pattern` attribute with the `v` flag, whose
+ * character-class grammar is narrower than the `u` semantics `checkSafePattern`
+ * validates against, so a pattern such as `^[A-Za-z][A-Za-z .,'-]{0,99}$` is
+ * dropped by the browser with a console error and the field loses its native
+ * hint. This refuses such a pattern **at the authoring boundary** rather than in
+ * the schema, and that placement is what makes the stance reject-new-only:
+ *
+ * - a **new or edited** definition arriving through this API is refused here;
+ * - **stored** definitions never come back through this path, so already
+ *   published content keeps reading and serving unchanged (R1), repaired at
+ *   render time by the normalize-or-omit path PR #52 added;
+ * - the golden corpus and the seed fixtures parse through
+ *   `parseQuestionDefinition` directly, so they are untouched (ADR-18).
+ *
+ * The message offers the normalized spelling whenever one is provably
+ * meaning-preserving. That quotes a rewrite of the caller's own pattern back to
+ * the authenticated author who just submitted it, which is why it is built here
+ * and not in the kernel: `checkSafePattern` keeps its rule of never echoing a
+ * pattern into a parse message.
+ */
+function browserSafePatternIssues(definition: QuestionDefinition): AuthoringIssue[] {
+  if (definition.type !== "shortText") return [];
+  const { pattern } = definition.constraints;
+  if (pattern === undefined || compilesUnderV(pattern)) return [];
+
+  const suggestion = toVSafePattern(pattern);
+  const why =
+    "A browser compiles the pattern attribute with the 'v' flag, which rejects this expression, so the field would lose its in-page validation hint";
+  return [
+    {
+      code: PATTERN_NOT_BROWSER_SAFE,
+      message:
+        suggestion === undefined
+          ? `${why}. No equivalent spelling could be derived automatically: rewrite the character class so it compiles under 'v'.`
+          : `${why}. Use "${suggestion}" instead - it matches exactly the same answers.`,
+      path: ["constraints", "pattern"],
+    },
+  ];
+}
+
+/**
+ * Validate an opaque definition body through the kernel (422 on failure), then
+ * apply the authoring-boundary rules the kernel deliberately does not carry.
+ */
 function requireDefinition(value: unknown): QuestionDefinition {
   const parsed = parseQuestionDefinition(value);
   if (!parsed.ok) throw fail.invalidDefinition(parsed.error);
+  const boundary = browserSafePatternIssues(parsed.value);
+  if (boundary.length > 0) throw fail.invalidDefinition(boundary);
   return parsed.value;
 }
 

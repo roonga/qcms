@@ -53,16 +53,34 @@ export const TOMBSTONE_HEADING_ID = "qcms-tombstone-heading";
  *
  * A bound rather than an unbounded flag: the request is normally taken within a frame
  * or two, and the only way one survives is an operator who navigates away between
- * erasing a response and the route re-rendering it. Without the bound, that stray
- * request would be taken by the next tombstone to mount anywhere in the session, which
- * would be a focus steal on arrival rather than an answer to an action.
+ * erasing a response and the route re-rendering it.
+ *
+ * The bound is no longer the only thing standing between a stray request and a focus
+ * steal, and that is the point of `subject` below (issue #357). It used to be: the
+ * request named an element id, every tombstone in the app renders the same id, and
+ * `ResponseDetail`'s cleanup re-arms on ANY unmount - so navigating away and opening a
+ * DIFFERENT already-erased response inside the window handed that card the request.
+ * With the subject matched, the widest remaining case is re-opening the SAME response
+ * whose erasure armed it, whose heading is where the erasure already put focus.
  */
 const REQUEST_TTL_MS = 5_000;
 
-let pending: { readonly elementId: string; readonly at: number } | null = null;
+/**
+ * The live request, if any.
+ *
+ * `subject` is the successor condition: the id of the thing the action was performed
+ * ON, carried alongside the element to focus. A request is only claimable by the
+ * post-action state OF THAT SUBJECT, so an unconditional re-arm on unmount can no
+ * longer be collected by an unrelated screen that happens to render the same element
+ * id (issue #357). Conditioning the re-arm on the successor mounting is not available
+ * to the caller directly - a cleanup runs before its successor exists - so the
+ * condition is carried in the request and checked at the claim instead.
+ */
+let pending: { readonly elementId: string; readonly subject: string; readonly at: number } | null =
+  null;
 
 /**
- * Ask the next render of `elementId` to take focus.
+ * Ask the next render of `elementId` FOR `subject` to take focus.
  *
  * This exists because of one specific hand-off, and only that one. Erasing revalidates
  * the response's own route, so a moment after the client component swaps in the
@@ -71,20 +89,22 @@ let pending: { readonly elementId: string; readonly at: number } | null = null;
  * the fix had already worked. The request survives that swap where a ref cannot,
  * because it lives in the module rather than in the tree.
  */
-export function requestPostActionFocus(elementId: string): void {
-  pending = { elementId, at: Date.now() };
+export function requestPostActionFocus(elementId: string, subject: string): void {
+  pending = { elementId, subject, at: Date.now() };
 }
 
 /**
- * Take a focus request addressed to `elementId`, if there is a live one.
+ * Take a focus request addressed to `elementId` for `subject`, if there is a live one.
  *
  * Called by the component that IS the post-action state, on mount. With no request
  * pending it does nothing, which is what makes an ordinary visit to an erased
- * response's URL an ordinary visit.
+ * response's URL an ordinary visit. With a request pending for a DIFFERENT subject it
+ * also does nothing, and leaves that request alone: it is not addressed here, and
+ * consuming it would drop the focus move its own successor is still owed.
  */
-export function claimPostActionFocus(elementId: string): (() => void) | undefined {
+export function claimPostActionFocus(elementId: string, subject: string): (() => void) | undefined {
   if (pending === null) return undefined;
-  if (pending.elementId !== elementId) return undefined;
+  if (pending.elementId !== elementId || pending.subject !== subject) return undefined;
   if (Date.now() - pending.at > REQUEST_TTL_MS) {
     pending = null;
     return undefined;

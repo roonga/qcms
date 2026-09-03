@@ -1,11 +1,16 @@
+import { cookies } from "next/headers";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { Alert, Breadcrumb, type BreadcrumbItem } from "@/components/kit";
+import { Alert } from "@/components/kit";
+import { BuilderBreadcrumb } from "@/components/forms/builder-breadcrumb";
 import { FormActions } from "@/components/forms/form-actions";
+import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
 import { FormBuilder } from "@/components/forms/form-builder";
-import { FormTabs } from "@/components/forms/form-tabs";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { formSectionName, pageMetadata } from "@/lib/page-title";
+import { readState } from "@/lib/read-state";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -19,7 +24,7 @@ import {
 } from "../actions";
 
 /**
- * One form's builder (task 033; wireframe `admin-form-builder.md`).
+ * One form's builder (task 033; screen contract `admin-form-builder.md`).
  *
  * A server component that does three things and hands over: load the form, load the
  * library it can pin from, and bind the four mutations to this route's form id. Everything
@@ -40,8 +45,16 @@ import {
  * is the expensive one (a list read plus a detail read per question, `lib/server/forms.ts`
  * explains why the list alone is not enough), and a builder that will not open because the
  * *question* library is unavailable would be the wrong failure: the form's own steps and
- * rules are all still editable. So a library failure renders as a notice above a builder
- * with an empty picker, while a failure to load the form itself is a 404 or an error.
+ * rules are all still editable. So a library failure renders as a notice above a working
+ * builder, while a failure to load the form itself is a 404 or an error.
+ *
+ * The library reaches the builder as a `ReadState` (`lib/read-state.ts`, issue 543) rather
+ * than as `ok ? data : []` (issues 572, 544). An empty library is not a neutral stand-in
+ * on this screen: every pin lookup misses against one, so the collapsed form used to tag
+ * every question in the form "Version not found" and offer a picker saying no published
+ * version matched a search the author had not typed. Both are claims about the library,
+ * and the read that would have supported them is the one that failed. The builder keeps
+ * everything that edits the DRAFT, which was read successfully.
  */
 
 /**
@@ -68,6 +81,16 @@ function firstValue(raw: string | string[] | undefined): string {
   return value ?? "";
 }
 
+/** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ formId: string }>;
+}): Promise<Metadata> {
+  const { formId } = await params;
+  return pageMetadata(formSectionName("builder", formId));
+}
+
 export default async function FormBuilderPage({
   params,
   searchParams,
@@ -90,42 +113,17 @@ export default async function FormBuilderPage({
   }
 
   const form = seedTitle(detail.data, firstValue(query["title"]).trim());
-  const crumbs: BreadcrumbItem[] = [
-    { id: "forms", label: t("forms.builder.crumbs"), href: "/forms" },
-    { id: form.formId, label: form.slug, href: `/forms/${encodeURIComponent(form.formId)}` },
-    { id: "builder", label: t("forms.builder.crumbBuilder") },
-  ];
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Breadcrumb items={crumbs} ariaLabel={t("forms.builder.crumbLabel")} />
-        <h1 className="text-xl font-semibold text-(--color-text)">
-          {t("forms.builder.heading", { slug: form.slug })}
-        </h1>
-        <p className="text-sm text-(--color-text-muted)">
-          {t("forms.builder.formId")}: {form.formId} · {t("forms.builder.locale")}:{" "}
-          {form.defaultLocale} · {t("forms.builder.status")}: {t(`forms.status.${form.status}`)}
-        </p>
-        <p className="text-sm text-(--color-text-muted)">
-          {t(`forms.builder.draftSource.${form.draftSource}`)}
-        </p>
-        <FormTabs formId={form.formId} />
-      </div>
-
-      {/* Publish and close/reopen sit above the builder rather than on a screen of their
-          own, because a refused publish renders an anchored work list whose links move
-          focus into the rules and steps below it. The builder has to be on the page for
-          that to mean anything. */}
-      <FormActions
-        formId={form.formId}
-        slug={form.slug}
-        status={form.status}
-        draft={form.draft}
-        latestVersion={form.versions[0]?.version}
-        publish={publishFormAction.bind(null, form.formId)}
-        setStatus={setFormStatusAction.bind(null, form.formId)}
-      />
+      {/* The breadcrumb stays on both of the builder's screens, because it is about the
+          ROUTE and the route does not change when the rail switches what the column is
+          showing. What follows it - the form's name, its identity line and where its draft
+          came from - is about the form, so it is handed to the builder and rendered on the
+          form's own screen (Code Owner, 2026-08-26). It used to stand above both, so a
+          reader working on a step read four lines of form metadata above that step's
+          questions every time. */}
+      <BuilderBreadcrumb formId={form.formId} slug={form.slug} />
 
       {!library.ok && (
         <Alert variant="warning">
@@ -133,9 +131,50 @@ export default async function FormBuilderPage({
         </Alert>
       )}
 
+      {/* PUBLISH AND CLOSE/REOPEN RIDE INSIDE THE BUILDER NOW (Code Owner, 2026-08-26),
+          on the screen that carries the form's own details, because that is what they act
+          on: they publish the FORM and they close the FORM, and standing them above a
+          column that is usually showing one step said they were about the step.
+
+          Passed as a node rather than imported by the builder, which keeps `FormActions`
+          a server component holding its own bound actions - a client component cannot
+          bind a server action, and making the builder import it would drag the whole
+          publish surface into the client bundle for no reason.
+
+          The reason they used to sit above the builder still holds and is now handled
+          where it belongs: a refused publish renders an anchored work list whose links
+          move focus to the rule, step or pin at fault. A pin lives on a step screen this
+          one is not showing, so `IssueEntry` selects the owning step first and then
+          focuses - see `components/forms/validation-panel.tsx`. */}
       <FormBuilder
         detail={form}
-        library={library.ok ? library.data : []}
+        library={readState(library)}
+        // Read on the request rather than after mount, so a screen that will not show the
+        // notice never renders it and then takes it away.
+        concurrentNoticeRead={isConcurrentNoticeDismissed(
+          (await cookies()).get(CONCURRENT_NOTICE_COOKIE)?.value,
+        )}
+        formMeta={
+          // One muted line of bare values. They were three labelled lines - "Form ID:",
+          // "Default locale:", "Status:" and then the draft's origin on its own - which is
+          // a lot of chrome for facts an author reads once and then never looks at again.
+          // The values say what they are: an id looks like an id, and a status is a word.
+          <p className="text-sm text-(--color-text-muted)">
+            {form.formId} · {form.defaultLocale} · {t(`forms.status.${form.status}`)} ·{" "}
+            {t(`forms.builder.draftSource.${form.draftSource}`)}
+          </p>
+        }
+        formActions={
+          <FormActions
+            formId={form.formId}
+            slug={form.slug}
+            status={form.status}
+            draft={form.draft}
+            latestVersion={form.versions[0]?.version}
+            publish={publishFormAction.bind(null, form.formId)}
+            setStatus={setFormStatusAction.bind(null, form.formId)}
+          />
+        }
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}

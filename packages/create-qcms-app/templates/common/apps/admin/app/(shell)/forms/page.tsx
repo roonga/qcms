@@ -1,21 +1,38 @@
-import { Alert, Card, type TableRow } from "@/components/kit";
-import type { FormListItem } from "@/lib/forms/types";
+import Link from "next/link";
+import type { Metadata } from "next";
+
+import { EmptyState } from "@/components/empty-state";
+import { Alert } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { listForms } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
-import { createFormAction } from "./actions";
-import { CreateForm } from "./create-form";
 import { FormsTable } from "./forms-table";
 
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("forms.title"));
+}
+
 /**
- * The form library (task 033; wireframe `admin-form-builder.md`, the screen its breadcrumb
+ * The form library (task 033; screen contract `admin-form-builder.md`, the screen its breadcrumb
  * roots at).
  *
  * A server component that proxies one call and renders the answer, exactly as 032's
  * question library does. Nothing is filtered or sorted here: `GET /admin/forms` returns
  * the whole set and the API owns its order, so a second ordering in this app would be a
  * decision the BFF has no authority to make (R2).
+ *
+ * ## Creating is not on this screen (issue 685)
+ *
+ * It was, as a card between the heading and the table, and
+ * `plan/admin-shell-poc/library-lists-poc.html` names that card as the thing to change:
+ * it picks a separate creation route for BOTH library screens, on the grounds that
+ * minting an id is a one-way door (R6) that deserves a screen rather than a slot beside a
+ * table of everything already made, and that a card an author pays for on every visit
+ * pushes the list they came to read below the fold. So this screen links to `/forms/new`
+ * and lists, which is now the same shape `/questions` has.
  *
  * ## What each row says, and why the two state columns are separate
  *
@@ -29,78 +46,58 @@ import { FormsTable } from "./forms-table";
  * (open/closed), which 034's publish flow and the link screens act on.
  */
 
-/** ISO day. Formatted on the server so the client renders the identical string. */
-function isoDay(timestamp: string): string {
-  return timestamp.slice(0, 10);
-}
-
-function publishedCell(form: FormListItem): string {
-  if (form.latestVersion === null) return t("forms.version.none");
-  return form.publishedAt === null
-    ? t("forms.version.value", { version: form.latestVersion })
-    : t("forms.version.valueAt", {
-        version: form.latestVersion,
-        date: isoDay(form.publishedAt),
-      });
-}
-
-function toRow(form: FormListItem): TableRow {
-  return {
-    id: form.formId,
-    data: {
-      slug: form.slug,
-      formId: form.formId,
-      locale: form.defaultLocale,
-      status: t(`forms.status.${form.status}`),
-      draft: form.hasDraft ? t("forms.draft.present") : t("forms.draft.none"),
-      published: publishedCell(form),
-    },
-  };
-}
-
 export default async function FormsPage() {
   const session = await requireAdminSession();
   const result = await listForms(session);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.title")}</h1>
-        <p className="text-sm text-(--color-text-muted)">{t("forms.intro")}</p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-xl font-semibold text-(--color-text)">{t("forms.title")}</h1>
+          <p className="text-sm text-(--color-text-muted)">{t("forms.intro")}</p>
+        </div>
+        {/* The header's creating action, rendered except in the one state where the
+            empty panel below carries it instead. Same rule and same reason as
+            `/questions`, whose header this is copied from rather than re-derived: two
+            controls with the same accessible name on one screen are ambiguous to anyone
+            navigating by name, and `plan/admin-design-contracts.md` §3 asks the empty
+            state to OFFER the creating action rather than to sit beside a copy of it.
+            This list takes no filters, so "empty" has only the one meaning here. */}
+        {!(result.ok && result.data.length === 0) && (
+          <Link href="/forms/new" className="qcms-button-link">
+            {t("forms.new")}
+          </Link>
+        )}
       </div>
-
-      <CreateForm action={createFormAction} />
 
       {!result.ok && (
         <Alert variant="error">{t("forms.error.listFailed", { message: result.message })}</Alert>
       )}
 
+      {/* `plan/admin-design-contracts.md` §3's panel, now with the primary CTA the base
+          clause asks for. The 2026-08-20 amendment exempted this one screen because its
+          creating action was a fieldset on the screen itself and there was no
+          `/forms/new` route for a CTA to point at. Issue 685 removed both halves of that
+          premise: the POC picks a separate route for both library screens, so the panel
+          points at it exactly as the question library's does. An empty screen is where a
+          first-time operator looks, not the corner of the header. */}
       {result.ok && result.data.length === 0 && (
-        <div className="qcms-card">
-          <Card padding="md" radius="md" border>
-            <div className="flex flex-col gap-2">
-              <h2 className="text-base font-semibold text-(--color-text)">
-                {t("forms.empty.title")}
-              </h2>
-              <p className="text-sm text-(--color-text-muted)">{t("forms.empty.body")}</p>
-            </div>
-          </Card>
-        </div>
+        <EmptyState
+          heading={t("forms.empty.title")}
+          body={t("forms.empty.body")}
+          testId="qcms-forms-empty"
+          action={
+            <Link href="/forms/new" className="qcms-button-link">
+              {t("forms.new")}
+            </Link>
+          }
+        />
       )}
 
       {result.ok && result.data.length > 0 && (
         <div className="flex flex-col gap-2">
-          <FormsTable
-            rows={result.data.map(toRow)}
-            columns={[
-              { id: "slug", label: t("forms.column.slug"), isRowHeader: true },
-              { id: "formId", label: t("forms.column.formId") },
-              { id: "locale", label: t("forms.column.locale") },
-              { id: "status", label: t("forms.column.status") },
-              { id: "draft", label: t("forms.column.draft") },
-              { id: "published", label: t("forms.column.version") },
-            ]}
-          />
+          <FormsTable rows={result.data} />
           <p className="text-sm text-(--color-text-muted)">{t("forms.table.hint")}</p>
         </div>
       )}

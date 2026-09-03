@@ -15,7 +15,7 @@ import type { DraftForm, FormIssue, IssuePath } from "./types.ts";
  * 2. **An anchor per issue.** Every issue carries a *structured domain path* rather than a
  *    positional index, which is the whole reason the panel can be a list of links: the
  *    path names a rule, a step or a pinned question, and the builder gives each of those a
- *    stable DOM id. The wireframe's a11y note asks for exactly this ("activating one moves
+ *    stable DOM id. The screen contract's a11y note asks for exactly this ("activating one moves
  *    focus to the target control").
  *
  * An anchor is only produced when the thing it names is **actually in the draft**. A
@@ -53,6 +53,12 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   DUPLICATE_QUESTION_IN_FORM: "forms.issue.duplicateQuestion",
   DUPLICATE_STEP_ID: "forms.issue.duplicateStep",
   DEPRECATED_PIN: "forms.issue.deprecatedPin",
+  BLANK_LOCALIZED_TEXT: "forms.issue.blankText",
+  // Warnings (issue #123) share this table because they share the wire shape and the
+  // renderer: one entry has one sentence, whether it refuses a publish or advises about
+  // one. What separates them is where the panel puts them, not how they are read.
+  MULTICHOICE_SAME_STEP_TARGET: "forms.warning.multiChoiceSameStep",
+  PATTERN_CLASS_SET_AMBIGUOUS: "forms.warning.patternClassSet",
 };
 
 /** The sentence explaining one issue's code. */
@@ -110,6 +116,47 @@ export function anchorFor(issue: FormIssue, draft: DraftForm): string | undefine
     return stepAnchorId(path.step);
   }
   return undefined;
+}
+
+/**
+ * The step whose screen renders the element {@link anchorFor} names, or `undefined` when
+ * the anchor is not on a step screen at all.
+ *
+ * The builder is THREE screens behind one route since 2026-08-26, so an anchored issue link
+ * can name an element that is real but not currently rendered: a pin lives inside one
+ * step's editor, and the reader may be looking at the form, at the rules, or at another
+ * step. This is what lets the link switch screens first rather than resolving to nothing.
+ *
+ * A rule anchor and a step anchor both return `undefined`, and for opposite reasons: a rule
+ * is on the rules screen, which {@link anchorIsOnRulesScreen} answers for separately, and a
+ * step's own anchor is in the RAIL, which every screen of this route shows. Neither needs a
+ * step to be selected.
+ */
+export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | undefined {
+  const path = issue.path;
+  if (path === undefined) return undefined;
+  if (ruleOf(path) !== undefined) return undefined;
+  const question = path.question;
+  if (question === undefined) return undefined;
+  return draft.steps.find((step) => step.items.some((item) => item.questionId === question))
+    ?.stepId;
+}
+
+/**
+ * Whether the element {@link anchorFor} names is rendered by the RULES screen.
+ *
+ * The companion to {@link stepOwningAnchor}, and the reason the rules could move at all.
+ * `plan/admin-ux-audit.md` §5.5 refused the POC's rules screen because it was drawn as a
+ * ROUTE: "move Validation to its own route and every one of those anchors resolves to
+ * nothing", and the same list is reused verbatim for a refused publish. Rules is a
+ * selection instead, so the link switches to it and then focuses - the audit's "two-hop
+ * path... a real degradation" was the cost of a route split, and there is no route split.
+ */
+export function anchorIsOnRulesScreen(issue: FormIssue, draft: DraftForm): boolean {
+  const path = issue.path;
+  if (path === undefined) return false;
+  const rule = ruleOf(path);
+  return rule !== undefined && draft.rules.some((candidate) => candidate.ruleId === rule);
 }
 
 function isPinnedAnywhere(draft: DraftForm, questionId: string): boolean {

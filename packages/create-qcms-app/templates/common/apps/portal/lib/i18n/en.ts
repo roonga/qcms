@@ -101,6 +101,22 @@ export const messages = {
   "formUnavailable.body":
     "We could not open the questionnaire. Please try again later or contact the sender.",
 
+  // The ADR-16 semantics refusal (issue #743, from the typed 409 the serve and
+  // answer routes return): this build cannot evaluate the version the session is
+  // pinned to, so the questionnaire has to be republished before anyone can
+  // continue. Unreachable while SEMANTICS_VERSION is 1 - written ahead of the
+  // bump, which is the day nobody wants to be writing respondent copy in a hurry.
+  //
+  // It says "try again" nowhere on purpose. The refusal is a 409: a retry against
+  // the same deployment gets the same answer, so inviting one would send a
+  // respondent round a loop that cannot end. It names no version, no stamp and no
+  // internal vocabulary either - "semantics version" is a fact about our
+  // evaluator, not information a respondent can act on. What they CAN act on is
+  // the one line that follows: tell whoever sent it.
+  "formSuperseded.title": "This form needs to be republished",
+  "formSuperseded.body":
+    "This questionnaire was published by an earlier version of the service and can no longer be filled in. Your answers so far are safe. Please contact whoever sent you this form.",
+
   "recovery.title": "We could not resume your session",
   "recovery.body": "Your session may have ended. You can start again from the form link.",
   "recovery.action": "Start again",

@@ -16,10 +16,12 @@ import {
 } from "@/lib/a11y";
 import {
   answerKey,
+  commitsOnFocusExit,
   holdsAnswer,
   isRecorded,
   recordedAnswers,
   visibleErrors,
+  withConfirmed,
   withIssued,
   withRejection,
   withRollback,
@@ -31,7 +33,13 @@ import {
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
-import { authorMessageFor, errorDetailsOf, firstAnswerRejection } from "@/lib/validation-message";
+import {
+  authorMessageFor,
+  defaultAnswerMessage,
+  errorCodeOf,
+  errorDetailsOf,
+  firstAnswerRejection,
+} from "@/lib/validation-message";
 import {
   commitMoments,
   documentForVisible,
@@ -48,6 +56,27 @@ async function readJsonSafely(res: Response): Promise<unknown> {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Whether a failed response is ADR-16's semantics refusal (issue #743): the
+ * pinned snapshot records evaluation semantics this release does not implement.
+ *
+ * Worth telling apart from every other failure because it is not transient. The
+ * inline failure notice says "we could not reach the server, please try again",
+ * and a 409 means a retry against this deployment gets the same answer, so that
+ * sentence would send the respondent round a loop with no exit.
+ *
+ * Handled by reloading the flow page rather than by rendering a second copy of the
+ * screen here. The page's SSR read meets the same refusal and already owns the
+ * copy (`formSuperseded.*`), so the reload puts the respondent in front of a
+ * terminal screen that is true, and the wording stays in one place instead of
+ * drifting between the hydrated and no-JS paths. Reading the code, not the status
+ * alone: 409 is also how a stale post of a just-hidden question is refused.
+ */
+async function isSupersededSemantics(res: Response): Promise<boolean> {
+  if (res.status !== 409) return false;
+  return errorCodeOf(await readJsonSafely(res)) === "UNSUPPORTED_SEMANTICS_VERSION";
 }
 
 /** The localized branch-change announcement for an inserted/removed count. */
@@ -203,6 +232,14 @@ export function StepFlow({
   // holds the record because a commit moment must see the write the commit moment
   // before it made, which is a gesture away, not a render away.
   const lastPostedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
+  // The same record narrowed to what the SERVER has actually confirmed: the answers
+  // it served this step with, plus every post it has since accepted. Never an
+  // optimistic entry. It exists only to answer "what was true before this post" for
+  // a rollback, and it has to be a second record rather than a reading of the first,
+  // because the first deliberately holds in-flight values (issue #169: with two
+  // overlapping refusals of one question, the second post's predecessor in the
+  // optimistic record is the first post's refused value).
+  const confirmedRef = useRef<PostedRecord>(recordedAnswers(initial.values));
   // Each question's ADR-31 commit moment, read out of the compiled step document
   // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
   // so a question the projection is about to reveal is already classified.
@@ -273,18 +310,24 @@ export function StepFlow({
           // The API named which constraint failed; the author may have supplied
           // their own wording for exactly that constraint (task 048, ADR-32).
           // Anything else - no message for this constraint, an unauthorable one
-          // like `encoding`, an unreadable body - keeps the default catalog
-          // wording, so the fallback is per constraint and never a blank slot.
+          // like `encoding`, an unreadable body - falls through to the default,
+          // so the fallback is per constraint and never a blank slot.
+          //
+          // That default is `defaultAnswerMessage`, the SAME resolution the no-JS
+          // route uses (issue #322): the kernel's own wording for the constraint
+          // that failed, and only then the generic catalog entry. Reaching for
+          // `t("answer.invalid")` here directly is what made a hydrated
+          // respondent's message strictly vaguer than a JavaScript-disabled one.
           const rejection = firstAnswerRejection(errorDetailsOf(await readJsonSafely(res)));
           const authored = authorMessageFor(
             messagesOf(snapshotRef.current.step as unknown as A2UIStepDocument | null).get(name),
             rejection?.constraint,
           );
-          const message = authored ?? t("answer.invalid");
+          const message = authored ?? defaultAnswerMessage(rejection, t("answer.invalid"));
           setRejected((prev) => withRejection(prev, name, value, message));
           return false;
         }
-        if (res.status === 401) {
+        if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
           return false;
         }
@@ -317,13 +360,24 @@ export function StepFlow({
       // carrying it is in flight. Re-posting is a redundant append that also flips
       // `busy` at the wrong moment and races the advance guard.
       if (isRecorded(lastPostedRef.current, name, value)) return;
-      const previous = lastPostedRef.current[name];
       const key = answerKey(value);
       lastPostedRef.current = withIssued(lastPostedRef.current, name, value);
       queueRef.current = queueRef.current.then(async () => {
         const accepted = await sendAnswer(name, value);
-        if (accepted) return;
-        lastPostedRef.current = withRollback(lastPostedRef.current, name, key, previous);
+        if (accepted) {
+          confirmedRef.current = withConfirmed(confirmedRef.current, name, value);
+          return;
+        }
+        // The predecessor is read HERE rather than at issue time, and out of the
+        // confirmed record rather than the optimistic one. The queue is serial, so
+        // by now every earlier post for this question has resolved and the confirmed
+        // record is current (issue #169).
+        lastPostedRef.current = withRollback(
+          lastPostedRef.current,
+          confirmedRef.current,
+          name,
+          key,
+        );
       });
     },
     [sendAnswer],
@@ -378,19 +432,25 @@ export function StepFlow({
    * not a commit, leaving the group is. It is also the `blur` commit for number,
    * longText and shortText, and where a `completion` control commits.
    *
-   * A `completion` control (the date) commits ONLY a complete value here: an
-   * unfinished never-answered date is not an answer. The one `null` it can post
-   * is the ADR-33 retraction of a previously-answered value, which travels via
-   * handleChange (the adapter surfaces a clear only after editing ends). See
-   * `visible.ts` for why the DatePicker's own "value is non-empty" signal cannot
-   * be the trigger.
+   * Whether an EMPTY control commits anything here is `commitsOnFocusExit`, which
+   * carries the two rules and the reasoning. In short: a `completion` control (the
+   * date) commits only a complete value, because its one `null` is the ADR-33
+   * retraction and that travels via handleChange once editing ends; and since issue
+   * #168 every moment applies the `holdsAnswer` guard the `completion` moment
+   * already applied, so focus entering and leaving a never-answered control posts
+   * nothing at all. See `visible.ts` for why the DatePicker's own "value is
+   * non-empty" signal cannot be the trigger.
+   *
+   * That guard is one rule extended, not a fourth rule added: the four ADR-31
+   * moments now agree about what a `null` post means, which they did not before.
+   * ADR-31 is unchanged - it describes WHEN a control commits, and "clearing a
+   * previously answered control" already presupposes a prior answer.
    */
   const handleBlur = useCallback(
     (name: string): void => {
       const value = valuesRef.current[name];
-      if ((moments.get(name) ?? DEFAULT_COMMIT_MOMENT) === "completion" && value === undefined) {
-        return;
-      }
+      const moment = moments.get(name) ?? DEFAULT_COMMIT_MOMENT;
+      if (!commitsOnFocusExit(lastPostedRef.current, name, value, moment)) return;
       // A control that already committed this value (on change, or on an earlier
       // blur, or before the page was reloaded) posts nothing here: postAnswer owns
       // that dedupe, and since issue #122 it recognises a post still in flight too.
@@ -414,7 +474,7 @@ export function StepFlow({
       }
       if (res.status === 422) {
         setShowMissing(true);
-      } else if (res.status === 401) {
+      } else if (res.status === 401 || (await isSupersededSemantics(res))) {
         window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
         return;
       } else {
@@ -460,8 +520,9 @@ export function StepFlow({
           snapshotRef.current = next;
           setValues((prev) => ({ ...prev, ...next.values }));
           lastPostedRef.current = withServerHeld(lastPostedRef.current, next.values);
+          confirmedRef.current = withServerHeld(confirmedRef.current, next.values);
           setSnapshot(next);
-        } else if (res.status === 401) {
+        } else if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
         } else {
           setFailed(true);
@@ -683,7 +744,7 @@ export function StepFlow({
 
         <div className="flex items-center justify-between gap-3 pt-2">
           {isFirstStep ? (
-            // Back is hidden on the first visible step (042 wireframe); keep the
+            // Back is hidden on the first visible step (042 screen contract); keep the
             // primary action right-aligned with a spacer.
             <span aria-hidden="true" />
           ) : (

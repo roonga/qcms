@@ -23,8 +23,8 @@ import type {
  * The ids are plain strings for the second half of the same reason: a half-built draft
  * holds ids the kernel has not blessed yet, and branding them here would put a second
  * validator in the BFF (R2). The kernel is still the only thing that decides whether a
- * draft is legal, and it decides it in the API: the import-surface test bans `@qcms/core`
- * in this app outright, so nothing here crosses back. The fuzz test in `condition.test.ts`
+ * draft is legal, and it decides it in the API: the import-surface test refuses every
+ * `@qcms/core` VALUE import in this app, so nothing here crosses back. The fuzz test in `condition.test.ts`
  * is what proves the editor only ever emits shapes the kernel accepts, and it can import
  * the kernel because a `.test.ts` is outside that scan.
  */
@@ -154,11 +154,13 @@ export interface FormDetail {
   readonly versions: readonly FormVersionSummary[];
   readonly settings: FormSettings;
   /**
-   * The deployment's configured challenge provider (ADR-24). `"none"` is the default and
-   * makes `challengeRequired` unenforceable, which the settings panel says out loud
-   * rather than letting an author believe a switch is protecting them.
+   * Whether a challenge this deployment can actually verify stands behind a form's
+   * `challengeRequired` (ADR-24). The API sends this derived boolean and never the
+   * provider name: clients receive behavior, not flag values. `false` is the default
+   * and the state the settings panel warns about out loud, rather than letting an
+   * author believe a switch is protecting them.
    */
-  readonly challengeProvider: string;
+  readonly challengeEnforceable: boolean;
 }
 
 /**

@@ -34,12 +34,15 @@ import {
   evaluateRules,
   type FlowState,
   type FormDefinition,
+  type FrozenSnapshot,
   parseQuestionId,
   parseSessionId,
   type QuestionDefinition,
   type QuestionId,
+  type QuestionVersionRecord,
   type ResolveQuestion,
   type SessionId,
+  SNAPSHOT_SCHEMA_VERSION,
   type StepId,
   validateAnswer,
 } from "@qcms/core";
@@ -59,6 +62,7 @@ import type { Context } from "hono";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
+import { parseSemanticsVersion, unsupportedSemanticsVersion } from "../semantics-version.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
 import type { getStepRoute, submitAnswerRoute } from "./route.js";
@@ -96,9 +100,18 @@ interface CompiledFormView {
 }
 
 /**
- * The pinned snapshot for a session: the frozen domain definition, the stored
- * compiled A2UI, the served spec version, and a pure `resolveQuestion` lookup
- * over the pinned question versions (the `required` flags the kernel needs).
+ * The pinned snapshot for a session: the kernel's `FrozenSnapshot` (definition,
+ * pinned question versions, and the semantics stamp the row records), the
+ * stored compiled A2UI, the served spec version, and a pure `resolveQuestion`
+ * lookup over the pinned question versions (the `required` flags the kernel
+ * needs).
+ *
+ * `frozen` carries the stamp on purpose (ADR-16, issue #723): handing
+ * `evaluateRules` the whole snapshot rather than a bare `FormDefinition` is what
+ * puts the serving loop behind the same `UNSUPPORTED_SEMANTICS_VERSION` gate the
+ * submit path has, so a snapshot recorded under superseded semantics is refused
+ * at the first read instead of being branched by the current evaluator and
+ * failing only at submit.
  *
  * Loaded once per request from the `form_versions` row the session is pinned to
  * (I4) plus each pinned `question_versions` row. A missing row here is an
@@ -106,7 +119,7 @@ interface CompiledFormView {
  * it throws (opaque 500) rather than returning a typed envelope.
  */
 interface LoadedSnapshot {
-  readonly definition: FormDefinition;
+  readonly frozen: FrozenSnapshot;
   readonly compiled: CompiledFormView;
   readonly a2uiSpecVersion: string;
   readonly resolveQuestion: ResolveQuestion;
@@ -126,6 +139,7 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
   const compiled = version.compiled as unknown as CompiledFormView;
 
   const questionById = new Map<QuestionId, QuestionDefinition>();
+  const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
     for (const ref of step.items) {
       const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
@@ -135,11 +149,24 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
         );
       }
       questionById.set(ref.questionId, record.definition);
+      questions.push({
+        questionId: ref.questionId,
+        version: ref.version,
+        definition: record.definition,
+      });
     }
   }
 
   return {
-    definition,
+    frozen: {
+      definition,
+      questions,
+      // The stored stamp is text; a stamp that is not a decimal integer is
+      // refused here rather than reaching the evaluator as `NaN` (issue #723).
+      semanticsVersion: parseSemanticsVersion(version.semanticsVersion),
+      // Unused by the flow evaluation; stamped for shape completeness.
+      schemaVersion: SNAPSHOT_SCHEMA_VERSION,
+    },
     compiled,
     a2uiSpecVersion: version.a2uiSpecVersion,
     resolveQuestion: (questionId) => questionById.get(questionId),
@@ -151,10 +178,17 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
  * Evaluate the flow for the given answers, throwing on the totality-error
  * codes: a *published* snapshot with resolved question versions never errs
  * (I2/I7), so an error here is an internal inconsistency, not client input.
+ *
+ * `UNSUPPORTED_SEMANTICS_VERSION` is the one exception, and it is a *reachable*
+ * state rather than a bug (ADR-16): a snapshot published under semantics this
+ * build no longer implements is exactly what the stamp exists to catch. It gets
+ * the typed envelope so the refusal names its cause, while every other code
+ * stays an opaque 500.
  */
 function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowState {
-  const result = evaluateRules(snapshot.definition, answers, snapshot.resolveQuestion);
+  const result = evaluateRules(snapshot.frozen, answers, snapshot.resolveQuestion);
   if (!result.ok) {
+    if (result.error.code === "UNSUPPORTED_SEMANTICS_VERSION") throw unsupportedSemanticsVersion();
     throw new Error(
       `serve-step: evaluateRules failed on a published snapshot (${result.error.code})`,
     );
@@ -162,10 +196,16 @@ function evaluateOrThrow(snapshot: LoadedSnapshot, answers: AnswerMap): FlowStat
   return result.value;
 }
 
-/** One rendered step's client-safe contents: which questions, and what is held. */
+/**
+ * One rendered step's client-safe contents: which questions, and what is held.
+ *
+ * `values` borrows `StepResponse`'s own type rather than restating it, so the
+ * canonical-`AnswerValue` contract the schema publishes (issue #153) is the type
+ * the compiler holds this builder to.
+ */
 interface RenderedQuestions {
   readonly visibleQuestions: string[];
-  readonly values: Record<string, unknown>;
+  readonly values: StepResponse["values"];
 }
 
 /**
@@ -185,7 +225,7 @@ function renderedQuestions(
   renderStep: StepId,
 ): RenderedQuestions {
   const visibleQuestions: string[] = [];
-  const values: Record<string, unknown> = {};
+  const values: Record<string, AnswerValue> = {};
   for (const entry of flow.visible) {
     if (entry.stepId !== renderStep) continue;
     visibleQuestions.push(entry.questionId);
@@ -332,6 +372,14 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
  * an answer and the question resolves to unanswered. It is a separate branch
  * taken before validation, never a validation outcome, so no real answer can
  * reach the ledger through it.
+ *
+ * `null` is the only clear. An **empty** value (`""` or `[]`) is not a second
+ * spelling of it: the kernel refuses it (`EMPTY_ANSWER_NOT_ALLOWED`) and this
+ * handler returns the same 422 it returns for any other invalid value, before
+ * the append - so an empty post stores nothing and is never silently converted
+ * into a tombstone (ADR-33 closed in issue #128's batch). A whitespace-only text
+ * value is a legal answer and IS appended; it just confers no presence, so the
+ * re-evaluated projection still reports the question in `missingRequired`.
  *
  * The visibility check, append, mark, and re-evaluation run inside one
  * transaction holding a per-session advisory lock, so concurrent submits are

@@ -11,13 +11,14 @@ import {
 } from "@/lib/server/api";
 import {
   apiErrorResponse,
+  isSameOriginPost,
   writeReceiptCookie,
   writeStepContext,
   type StepContext,
 } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
-import { firstAnswerRejection } from "@/lib/validation-message";
+import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-message";
 
 /**
  * BFF proxy: the no-JS whole-step form POST (task 044). A JavaScript-disabled
@@ -88,7 +89,7 @@ export async function GET(
  * (`native-step`), which is where the compiled document is in hand (task 048).
  */
 function answerErrorMessage(error: ApiError): string {
-  return firstAnswerRejection(error.details)?.message ?? t("answer.invalid");
+  return defaultAnswerMessage(firstAnswerRejection(error.details), t("answer.invalid"));
 }
 
 /** The outcome of forwarding a step's decoded answers to the API. */
@@ -141,8 +142,13 @@ export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
 ): Promise<NextResponse> {
-  const token = await readSessionToken();
   const { sessionId } = await ctx.params;
+  // SEC-9's CSRF belt (issue #487). This is the no-JS whole-step POST, so the
+  // refusal is the same 303 back to the flow page every other unusable request on
+  // this route gets: the respondent sees their step, not an error code.
+  if (!isSameOriginPost(request)) return backToStep(request, sessionId);
+
+  const token = await readSessionToken();
   if (token === undefined) {
     // No session credential: let the flow page render its recovery state.
     return backToStep(request, sessionId);

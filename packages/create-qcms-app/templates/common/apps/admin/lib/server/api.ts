@@ -7,6 +7,8 @@ import {
   internalToken,
 } from "./config.ts";
 import type { AdminSession } from "./session.ts";
+import { serverLogger } from "./logger.ts";
+import { REQUEST_ID_HEADER, currentRequestId } from "./request-id.ts";
 
 /**
  * The strict BFF's one door to the API (task 031, R2; widened to auth traffic by
@@ -62,25 +64,33 @@ export interface AdminApiOptions {
  * bytes through unchanged. Nothing is thrown for a non-2xx - status handling is the
  * caller's, because "404 means this form is gone" is a screen concern.
  */
-export function adminApiFetch(
+export async function adminApiFetch(
   session: AdminSession,
   path: AdminApiPath,
   options: AdminApiOptions = {},
 ): Promise<Response> {
-  const headers: Record<string, string> = {
+  const requestId = await currentRequestId();
+  const requestHeaders: Record<string, string> = {
     ...options.headers,
     [INTERNAL_TOKEN_HEADER]: internalToken(),
     [ADMIN_SESSION_HEADER]: session.token,
   };
-  if (options.body !== undefined) headers["content-type"] = "application/json";
-  return fetch(`${apiBaseUrl()}/admin${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-    // Admin data is never cached by default: an author who just published expects
-    // to see it. A caller that wants otherwise says so.
-    cache: options.cache ?? "no-store",
-  });
+  if (requestId !== undefined) requestHeaders[REQUEST_ID_HEADER] = requestId;
+  if (options.body !== undefined) requestHeaders["content-type"] = "application/json";
+  return loggedFetch(
+    "api.call",
+    `/admin${path.split("?")[0] ?? ""}`,
+    `${apiBaseUrl()}/admin${path}`,
+    {
+      method: options.method ?? "GET",
+      headers: requestHeaders,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      // Admin data is never cached by default: an author who just published expects
+      // to see it. A caller that wants otherwise says so.
+      cache: options.cache ?? "no-store",
+    },
+    requestId,
+  );
 }
 
 /** A path under the API's `/api/auth` group, always leading-slashed. */
@@ -124,6 +134,7 @@ const FORWARDED_AUTH_HEADERS = [
   "user-agent",
   "accept-language",
   "x-forwarded-proto",
+  REQUEST_ID_HEADER,
 ] as const;
 
 /**
@@ -205,12 +216,37 @@ export interface AuthApiOptions {
 export function authApiFetch(path: AuthApiPath, options: AuthApiOptions = {}): Promise<Response> {
   const headers = authRequestHeaders(options.from);
   if (options.body !== undefined) headers.set("content-type", "application/json");
-  return fetch(`${apiBaseUrl()}/api/auth${path}`, {
-    method: options.method ?? "GET",
-    headers,
-    ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-    // A session read must never be served from a cache: it is the freshest fact in
-    // the request.
-    cache: "no-store",
+  return loggedFetch(
+    "auth.api.call",
+    `/api/auth${path}`,
+    `${apiBaseUrl()}/api/auth${path}`,
+    {
+      method: options.method ?? "GET",
+      headers,
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
+      // A session read must never be served from a cache: it is the freshest fact in
+      // the request.
+      cache: "no-store",
+    },
+    headers.get(REQUEST_ID_HEADER) ?? undefined,
+  );
+}
+
+async function loggedFetch(
+  event: "api.call" | "auth.api.call",
+  path: string,
+  url: string,
+  init: RequestInit,
+  requestId: string | undefined,
+): Promise<Response> {
+  const started = Date.now();
+  const response = await fetch(url, init);
+  serverLogger.info(event, {
+    ...(requestId === undefined ? {} : { requestId }),
+    method: init.method ?? "GET",
+    path,
+    status: response.status,
+    durationMs: Date.now() - started,
   });
+  return response;
 }

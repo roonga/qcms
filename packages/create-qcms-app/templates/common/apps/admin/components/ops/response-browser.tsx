@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
+import { answerPreviewText } from "@/lib/ops/answers";
 import type { AppliedFilters } from "@/lib/ops/browse";
 import { responsePageLink } from "@/lib/ops/browse";
 import type { ExportChoice, ExportFormat } from "@/lib/ops/export";
@@ -13,9 +15,10 @@ import { exportQuery, isExportable, versionRequired } from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
+import type { ReadState } from "@/lib/read-state";
 
 /**
- * The response browser: filter, page, open, export (task 035; wireframe "browser
+ * The response browser: filter, page, open, export (task 035; screen contract "browser
  * toolbar", "browser `table`").
  *
  * ## Filtering is a navigation, not client state
@@ -34,6 +37,24 @@ import { t, tPlural } from "@/lib/i18n/en";
  * disk instead of being buffered into this tab's memory as a blob first. It also
  * works with scripting disabled, and it keeps answer values out of the client bundle's
  * hands entirely: nothing in this component ever holds the exported bytes.
+ *
+ * ## A failed read is not an empty page
+ *
+ * `page` is a `ReadState` rather than a `ResponsePage` (issues 543 and 572), so this
+ * component can tell "the list did not load" from "the list is empty". It used to be
+ * handed `ok ? data : { responses: [], total: 0, ... }`, which meant a failed read
+ * printed the §3 empty panel and "0 responses" underneath the page's own alert saying
+ * the responses could not be loaded: an all-clear about data that never arrived, which
+ * is the same untruth issue 521 fixed one derivation over.
+ *
+ * What survives a failure is the split `plan/admin-design-contracts.md` §3 asks for, and
+ * `lib/read-state.ts` leaves to each component. Suppressed: the count, the table, the
+ * empty panel and the pager, because every one of them is a claim about rows that were
+ * not read, and the pager's own page count is computed from a total nobody supplied.
+ * Kept: the heading (the alert above needs a subject, and a heading claims nothing) and
+ * the whole toolbar, because filtering is a navigation that triggers a FRESH read - it
+ * is the retry an operator reaches for - and Export is a separate request that can
+ * succeed while the list read did not.
  */
 export function ResponseBrowser({
   formId,
@@ -43,7 +64,7 @@ export function ResponseBrowser({
   hasFilters,
 }: {
   readonly formId: string;
-  readonly page: ResponsePage;
+  readonly page: ReadState<ResponsePage>;
   /** The form's published versions, newest first, for the two version controls. */
   readonly versions: readonly number[];
   /** What the server actually applied, which is also what a page link carries. */
@@ -109,7 +130,12 @@ export function ResponseBrowser({
     go({});
   }, [go]);
 
-  const pages = Math.max(1, Math.ceil(page.total / Math.max(1, page.pageSize)));
+  // The rows, or nothing at all if the read failed. Every use below is guarded on it,
+  // which is the point of the union: there is no empty page to mistake for an answer.
+  const data = page.ok ? page.data : undefined;
+
+  const pages =
+    data === undefined ? 1 : Math.max(1, Math.ceil(data.total / Math.max(1, data.pageSize)));
 
   /**
    * A link to another page of the CURRENT result set.
@@ -134,9 +160,11 @@ export function ResponseBrowser({
         <h2 id="qcms-responses-heading" className="text-lg font-semibold text-(--color-text)">
           {t("ops.responses.heading")}
         </h2>
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-total">
-          {tPlural("ops.responses.total.one", "ops.responses.total.other", page.total)}
-        </p>
+        {data !== undefined && (
+          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-total">
+            {tPlural("ops.responses.total.one", "ops.responses.total.other", data.total)}
+          </p>
+        )}
       </div>
 
       <div
@@ -195,62 +223,112 @@ export function ResponseBrowser({
         </Button>
       </div>
 
-      {page.responses.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-responses-empty">
-          {hasFilters ? t("ops.responses.filteredEmpty") : t("ops.responses.empty")}
-        </p>
-      ) : (
-        <table className="qcms-ops-table" data-testid="qcms-responses-table">
-          <caption className="qcms-visually-hidden">{t("ops.responses.table")}</caption>
-          <thead>
-            <tr>
-              <th scope="col">{t("ops.responses.column.sessionId")}</th>
-              <th scope="col">{t("ops.responses.column.version")}</th>
-              <th scope="col">{t("ops.responses.column.submittedAt")}</th>
-              <th scope="col">{t("ops.responses.column.access")}</th>
-              <th scope="col">{t("ops.responses.column.flag")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {page.responses.map((row) => (
-              <tr key={row.sessionId} data-session-id={row.sessionId}>
-                <th scope="row">
-                  <Link
-                    className="qcms-text-link"
-                    href={`${base}/${encodeURIComponent(row.sessionId)}`}
-                    aria-label={t("ops.responses.open", { sessionId: row.sessionId })}
-                  >
-                    <code className="qcms-link-id">{row.sessionId}</code>
-                  </Link>
-                </th>
-                <td>v{row.formVersion}</td>
-                <td>{formatDateTime(row.submittedAt, t("ops.common.none"))}</td>
-                <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
-                <td>
-                  <FlagTag flagged={row.flaggedReason !== null} />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {/* `plan/admin-design-contracts.md` §3's panel, both variants. Filtered keeps
+          the panel and swaps the heading to this screen's own "no matches" line with
+          no sentence under it; unfiltered keeps the sentence. Neither carries a CTA:
+          responses are created by respondents, so there is no creating action on this
+          screen for §3's CTA clause to offer, and the filters are the form directly
+          above with its own reset control. */}
+      {data !== undefined &&
+        (data.responses.length === 0 ? (
+          <EmptyState
+            heading={hasFilters ? t("ops.responses.filteredEmpty") : t("ops.responses.emptyTitle")}
+            body={hasFilters ? undefined : t("ops.responses.empty")}
+            testId="qcms-responses-empty"
+          />
+        ) : (
+          /* One table family (`plan/admin-design-contracts.md` §2). The wrapper is the
+           scroll box, the positioning region for the row chrome, and the styling hook;
+           the `<table>` is a plain table again.
 
-      {pages > 1 && (
+           WHICH COLUMN DROPS AT COMPACT WIDTH (§2): the answer preview, and only it.
+           Session, Version, Submitted, Access and Flag are how an operator FINDS a
+           response; the preview only helps them recognise it once found, and it is the
+           widest column by a distance. Version never drops anywhere
+           (`plan/admin-mobile-stance.md`, item 5). Below the boundary this is exactly
+           the five-column table that shipped before issue 515, so the sixth column
+           costs no sideways scrolling at a phone width at all. */
+          <div className="qcms-table">
+            <table data-testid="qcms-responses-table">
+              <caption className="qcms-visually-hidden">{t("ops.responses.table")}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t("ops.responses.column.sessionId")}</th>
+                  <th scope="col" className="qcms-cell--num">
+                    {t("ops.responses.column.version")}
+                  </th>
+                  <th scope="col" className="qcms-cell--num">
+                    {t("ops.responses.column.submittedAt")}
+                  </th>
+                  <th scope="col">{t("ops.responses.column.access")}</th>
+                  <th scope="col">{t("ops.responses.column.flag")}</th>
+                  <th scope="col" className="qcms-cell--drop">
+                    {t("ops.responses.column.preview")}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.responses.map((row) => (
+                  <tr key={row.sessionId} data-session-id={row.sessionId}>
+                    <th scope="row">
+                      <Link
+                        className="qcms-text-link"
+                        href={`${base}/${encodeURIComponent(row.sessionId)}`}
+                        aria-label={t("ops.responses.open", { sessionId: row.sessionId })}
+                      >
+                        <code className="qcms-link-id">{row.sessionId}</code>
+                      </Link>
+                    </th>
+                    <td className="qcms-cell--num">v{row.formVersion}</td>
+                    <td className="qcms-cell--num">
+                      {formatDateTime(row.submittedAt, t("ops.common.none"))}
+                    </td>
+                    <td>{t(`ops.responses.access.${row.accessMode}`)}</td>
+                    <td>
+                      <FlagTag flagged={row.flaggedReason !== null} />
+                    </td>
+                    {/*
+                    The answer preview (issue 515; the screen contract's sixth column). Real
+                    respondent data by definition, so the cell shows exactly what
+                    `answerPreviewText` allows and nothing more: two answered questions,
+                    each value clipped to a character budget before it becomes text.
+
+                    There is deliberately NO `title` tooltip carrying the full answer.
+                    That would put the untruncated value straight back into the markup
+                    and make the budget decorative, and reading a response in full is the
+                    detail screen's job - reached through this row's own identifying
+                    cell, which is the authorised, audited act. Nothing on this path logs
+                    an answer value either (SEC-13): the only place one goes is the text
+                    node below.
+                  */}
+                    <td className="qcms-cell--drop">
+                      <span className="qcms-answer-preview" data-testid="qcms-answer-preview">
+                        {answerPreviewText(row.answers)}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+
+      {data !== undefined && pages > 1 && (
         <nav
           aria-label={t("ops.responses.heading")}
           className="flex flex-wrap items-center gap-3"
           data-testid="qcms-responses-paging"
         >
-          {page.page > 1 && (
-            <Link className="qcms-text-link" href={pageQuery(page.page - 1)}>
+          {data.page > 1 && (
+            <Link className="qcms-text-link" href={pageQuery(data.page - 1)}>
               {t("ops.responses.previous")}
             </Link>
           )}
           <span className="text-sm text-(--color-text-muted)">
-            {t("ops.responses.pageOf", { page: page.page, pages })}
+            {t("ops.responses.pageOf", { page: data.page, pages })}
           </span>
-          {page.page < pages && (
-            <Link className="qcms-text-link" href={pageQuery(page.page + 1)}>
+          {data.page < pages && (
+            <Link className="qcms-text-link" href={pageQuery(data.page + 1)}>
               {t("ops.responses.next")}
             </Link>
           )}
@@ -274,7 +352,7 @@ export function ResponseBrowser({
 }
 
 /**
- * The export dialog (wireframe "export UI").
+ * The export dialog (screen contract "export UI").
  *
  * The version control is **disabled with a hint** for JSON rather than hidden, so the
  * two formats' controls stay in the same place and the reason the control is inert is

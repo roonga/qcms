@@ -35,6 +35,18 @@ export const IDLE_CREATE_FORM: CreateFormState = { status: "idle" };
 export interface SaveDraftState {
   readonly status: "saved" | "error";
   readonly issues: readonly FormIssue[];
+  /**
+   * Non-blocking publish advisories (issue #123).
+   *
+   * Empty whenever the **kernel** reports errors, because `compileDraft` advises
+   * only on a draft it could compile. That is narrower than "empty whenever
+   * `issues` is not": `issues` also carries the API's `DEPRECATED_PIN` findings,
+   * so a deprecated pin and a warning about the same draft arrive together.
+   *
+   * What holds either way is the part the panel depends on: a warning is never
+   * part of the reason the count beside it is what it is.
+   */
+  readonly warnings: readonly FormIssue[];
   readonly code?: string;
   readonly message?: string;
 }
@@ -42,8 +54,10 @@ export interface SaveDraftState {
 /** The result of one debounced dry-run validation. */
 export interface ValidateDraftState {
   readonly status: "ok" | "error";
+  /** Errors only: a warning describes a draft that would publish (issue #123). */
   readonly valid: boolean;
   readonly issues: readonly FormIssue[];
+  readonly warnings: readonly FormIssue[];
   readonly message?: string;
 }
 
@@ -51,12 +65,10 @@ export interface ValidateDraftState {
 export interface SettingsState {
   readonly status: "idle" | "saved" | "error";
   readonly settings?: FormSettings;
-  /** The deployment's challenge provider as the API reports it after the write. */
-  readonly challengeProvider?: string;
+  /** Whether a challenge is enforceable here, as the API reports it after the write. */
+  readonly challengeEnforceable?: boolean;
   readonly message?: string;
 }
-
-export const IDLE_SETTINGS: SettingsState = { status: "idle" };
 
 /**
  * The rule test bench's verdict.

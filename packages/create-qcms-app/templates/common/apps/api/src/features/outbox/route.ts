@@ -26,7 +26,7 @@ import {
   DeadLettersResponse,
   DeliveriesQuery,
   DeliveriesResponse,
-  DeliveryIdParam,
+  FormDeliveryParams,
   FormIdParam,
   RedeliverResponse,
 } from "./schema.js";
@@ -67,18 +67,20 @@ export const deadLettersRoute = createRoute({
 
 export const redeliverRoute = createRoute({
   method: "post",
-  path: "/outbox/{id}/redeliver",
+  path: "/forms/{id}/deliveries/{deliveryId}/redeliver",
   summary: "Reset a dead-lettered delivery for immediate redelivery (admin)",
   tags,
-  request: { params: DeliveryIdParam },
+  request: { params: FormDeliveryParams },
   responses: {
     200: {
       description: "The delivery, reset to due-now; the next pass re-attempts it",
       content: { "application/json": { schema: RedeliverResponse } },
     },
-    // 404: no such delivery. 409: the session it carries has been erased (ADR-17),
-    // so its queued payload must not be re-sent.
-    ...errorResponses(401, 404, 409),
+    // 400: a path parameter that is not a well-formed id is refused by the route
+    // schema. 404: no such delivery **in this form**; a delivery of another form
+    // takes the same 404 (#305). 409: the response it carries is no longer held
+    // (ADR-17), so its queued payload must not be re-sent.
+    ...errorResponses(400, 401, 404, 409),
   },
   ...withScopes("webhooks:manage"),
 });

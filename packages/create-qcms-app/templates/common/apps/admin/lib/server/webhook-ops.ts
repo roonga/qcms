@@ -29,7 +29,8 @@ import type { AdminSession } from "./session.ts";
  *
  * ## Redelivery is per-item, including the bulk button
  *
- * The API's unit is one delivery (`POST /outbox/{deliveryId}/redeliver`); there is
+ * The API's unit is one delivery (`POST /forms/{formId}/deliveries/{deliveryId}/redeliver`);
+ * there is
  * no bulk endpoint and this file does not invent one. The bulk action loops here,
  * over ids the operator can see, and reports each outcome separately - so a queue
  * where three of ten targets are still broken tells the operator that, instead of
@@ -171,7 +172,13 @@ export async function listDeliveries(
   };
 }
 
-/** `GET /admin/outbox/dead-letters` - the queue, across every form. */
+/**
+ * `GET /admin/outbox/dead-letters` - the queue, across every form.
+ *
+ * Deliberately not form-scoped: "what is stuck anywhere" is the question this
+ * worklist answers. Each row names its own form so the form-scoped redeliver call
+ * can be built from the list (#305).
+ */
 export async function listDeadLetters(
   session: AdminSession,
 ): Promise<ApiResult<readonly DeadLetterItem[]>> {
@@ -188,6 +195,8 @@ export async function listDeadLetters(
         eventId: text(entry["eventId"], ""),
         eventType: text(entry["eventType"], ""),
         webhookId: text(entry["webhookId"], ""),
+        // The form the row belongs to, needed to build its redeliver call (#305).
+        formId: text(entry["formId"], ""),
         url: text(entry["url"], ""),
         attempts: count(entry["attempts"], 0),
         lastError: nullableText(entry["lastError"]),
@@ -197,15 +206,26 @@ export async function listDeadLetters(
   };
 }
 
-/** `POST /admin/outbox/{deliveryId}/redeliver` - reset one delivery to due-now. */
+/**
+ * `POST /admin/forms/{formId}/deliveries/{deliveryId}/redeliver` - reset one
+ * delivery to due-now.
+ *
+ * The form is required (issue #305): redelivery is form-scoped server-side, and a
+ * delivery id alone never said which form the caller was acting within. Dead-letter
+ * rows carry their own `formId` for exactly this call, since that worklist is
+ * cross-form.
+ */
 export async function redeliver(
   session: AdminSession,
+  formId: string,
   deliveryId: string,
 ): Promise<ApiResult<{ readonly deliveryId: string; readonly nextAttemptAt: string }>> {
   const result = await readResult<Record<string, unknown>>(
-    await adminApiFetch(session, `/outbox/${encodeURIComponent(deliveryId)}/redeliver`, {
-      method: "POST",
-    }),
+    await adminApiFetch(
+      session,
+      `/forms/${encodeURIComponent(formId)}/deliveries/${encodeURIComponent(deliveryId)}/redeliver`,
+      { method: "POST" },
+    ),
   );
   if (!result.ok) return result;
   return {

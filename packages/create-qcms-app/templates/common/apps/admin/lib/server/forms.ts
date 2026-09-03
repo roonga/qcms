@@ -25,8 +25,8 @@ import type { AdminSession } from "./session.ts";
  * The same proxy this app's questions client is: build a path, hand it to the one
  * credentialed client (`api.ts`), read the answer. Nothing here decides whether a draft is
  * legal, whether a target is reachable, or whether a pin may point where it points. Those
- * are the kernel's answers and they arrive as `issues`; the admin has no `@qcms/core`
- * import at all and `r2-import-surface.test.ts` is what keeps that true.
+ * are the kernel's answers and they arrive as `issues`; the admin takes no `@qcms/core`
+ * value import at all and `r2-import-surface.test.ts` is what keeps that true.
  *
  * Two normalisations happen here, and both are presentation rather than authority:
  *
@@ -63,10 +63,10 @@ export async function createForm(
 // --- the working draft ------------------------------------------------------
 
 /**
- * `GET /admin/forms/{id}` - identity, draft, versions, settings, challenge provider.
+ * `GET /admin/forms/{id}` - identity, draft, versions, settings, challenge enforceability.
  *
- * `challengeProvider` is defaulted to `"none"` when the payload does not carry it, and the
- * direction of that default is deliberate: `"none"` is the state in which the settings
+ * `challengeEnforceable` is defaulted to `false` when the payload does not carry it, and
+ * the direction of that default is deliberate: `false` is the state in which the settings
  * panel *warns* that `challengeRequired` is unenforceable, so a build talking to an API
  * that has not started sending the field errs towards telling the author more rather than
  * towards a switch that silently promises protection it may not have (ADR-24).
@@ -92,7 +92,7 @@ export async function getForm(
       draftSource: parseDraftSource(raw["draftSource"]),
       versions: parseVersions(raw["versions"]),
       settings: parseSettings(raw["settings"]),
-      challengeProvider: asString(raw["challengeProvider"], "none"),
+      challengeEnforceable: raw["challengeEnforceable"] === true,
     },
   };
 }
@@ -102,14 +102,24 @@ export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-): Promise<ApiResult<{ readonly issues: readonly FormIssue[] }>> {
-  const result = await read<{ issues?: unknown }>(
+): Promise<
+  ApiResult<{ readonly issues: readonly FormIssue[]; readonly warnings: readonly FormIssue[] }>
+> {
+  const result = await read<{ issues?: unknown; warnings?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
       method: "PUT",
       body: { definition },
     }),
   );
-  return result.ok ? { ok: true, data: { issues: parseIssues(result.data.issues) } } : result;
+  return result.ok
+    ? {
+        ok: true,
+        data: {
+          issues: parseIssues(result.data.issues),
+          warnings: parseIssues(result.data.warnings),
+        },
+      }
+    : result;
 }
 
 /** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */
@@ -117,8 +127,14 @@ export async function validateDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
-): Promise<ApiResult<{ readonly valid: boolean; readonly issues: readonly FormIssue[] }>> {
-  const result = await read<{ valid?: unknown; issues?: unknown }>(
+): Promise<
+  ApiResult<{
+    readonly valid: boolean;
+    readonly issues: readonly FormIssue[];
+    readonly warnings: readonly FormIssue[];
+  }>
+> {
+  const result = await read<{ valid?: unknown; issues?: unknown; warnings?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/validate`, {
       method: "POST",
       body: { definition },
@@ -127,7 +143,13 @@ export async function validateDraft(
   if (!result.ok) return result;
   return {
     ok: true,
-    data: { valid: result.data.valid === true, issues: parseIssues(result.data.issues) },
+    data: {
+      valid: result.data.valid === true,
+      issues: parseIssues(result.data.issues),
+      // Same wire shape as an issue (code, message, structured path), so the same
+      // reader parses it and the panel renders it through the same entry (#123).
+      warnings: parseIssues(result.data.warnings),
+    },
   };
 }
 
@@ -144,7 +166,7 @@ export async function updateSettings(
   session: AdminSession,
   formId: string,
   patch: { readonly challengeRequired?: boolean; readonly minSubmitMs?: number | null },
-): Promise<ApiResult<{ readonly settings: FormSettings; readonly challengeProvider: string }>> {
+): Promise<ApiResult<{ readonly settings: FormSettings; readonly challengeEnforceable: boolean }>> {
   const result = await read<Record<string, unknown>>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/settings`, {
       method: "PATCH",
@@ -156,7 +178,7 @@ export async function updateSettings(
     ok: true,
     data: {
       settings: parseSettings(result.data["settings"]),
-      challengeProvider: asString(result.data["challengeProvider"], "none"),
+      challengeEnforceable: result.data["challengeEnforceable"] === true,
     },
   };
 }

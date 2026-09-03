@@ -1,14 +1,21 @@
 import { redirect } from "next/navigation";
 import QRCode from "qrcode";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { pendingEnrollment } from "@/lib/server/enrollment";
 import { requireEnrollingSession, SIGN_IN_PATH } from "@/lib/server/session";
 
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("enroll.title"));
+}
+
 /**
- * 2FA enrollment (task 031; wireframe state `2FA-enroll`).
+ * 2FA enrollment (task 031; screen contract state `2FA-enroll`).
  *
  * The QR code is rendered **server-side, inline, as SVG**. That is three decisions
  * at once, each worth stating:
@@ -20,7 +27,7 @@ import { requireEnrollingSession, SIGN_IN_PATH } from "@/lib/server/session";
  * - *SVG*, so it stays crisp at any zoom (WCAG 1.4.4) and needs no `sharp`/canvas
  *   dependency in a Next build that deliberately has none.
  *
- * The manual setup key beside it is not a convenience: the wireframe's a11y notes
+ * The manual setup key beside it is not a convenience: the screen contract's a11y notes
  * make it the accessible alternative to the QR image, so it is a labelled, readable,
  * selectable field rather than decoration. The QR image itself is marked
  * `aria-hidden` with the field carrying the accessible content, because a screen

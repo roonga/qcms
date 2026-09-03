@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 
+import { RowMenu } from "@/components/row-menu";
 import { announce } from "@/lib/announce";
 import { t } from "@/lib/i18n/en";
 import { relabelOption, removeOption } from "@/lib/questions/definition";
@@ -11,9 +12,11 @@ import {
   gridRows,
   moveOptionTo,
   openPendingRow,
+  optionRowMenuItems,
   setPendingLabel,
   type GridRow,
   type OptionGridState,
+  type OptionRowAction,
   type PendingRow,
 } from "@/lib/questions/option-grid";
 import type { ChoiceOptionView, DefinitionIssue } from "@/lib/questions/types";
@@ -51,29 +54,30 @@ import type { ChoiceOptionView, DefinitionIssue } from "@/lib/questions/types";
  * own labelled, bordered field, and reaching that appearance would mean overriding its
  * chrome away - a second design language expressed as negations, which is worse than the
  * native element the card actually draws. So the cell is a `<textarea>` with a
- * visually-hidden `<label>`, which is what the card's own markup is. The row menu below
- * stays deliberate about ADR-22 too, and says why it is hand-rolled.
+ * visually-hidden `<label>`, which is what the card's own markup is. The row menu stays
+ * deliberate about ADR-22 too, and `components/row-menu.tsx` says why it is hand-rolled.
  *
  * It grows with its content through the CSS "replicated content" trick rather than a resize
  * effect (`globals.css`, `.qcms-opt-label`): the wrapper repeats the value in an invisible
  * `::after` and both share a grid cell, so the row is the right height on the server's very
  * first paint instead of one frame later.
  *
- * ## The grip is three controls in one, which is why its menu is hand-rolled
+ * ## The grip is three controls in one
  *
  * The card makes the grip the row's only control: pointer-drag to reorder, Arrow Up/Down to
- * reorder by keyboard, Enter or Space to open a menu carrying insert-above, insert-below
- * and remove. That absorbs a separate trailing remove button rather than adding a second
- * row-end target.
+ * reorder by keyboard, Enter or Space to open a menu carrying insert-above, insert-below,
+ * move-up, move-down and remove. That absorbs a separate trailing remove button rather than
+ * adding a second row-end target.
  *
- * react-aria's `MenuTrigger` cannot be that control. `useMenuTrigger` opens on press
- * **start**, which is the APG menu-button pattern and is correct for a menu button - but it
- * means the menu would spring open the instant a pointer grabbed the handle to drag it.
- * There is no prop that defers it, so the menu here is written against the APG menu pattern
- * directly (roving focus, Escape closes and returns focus to the grip, an outside press
- * closes, Tab closes). That is app code inside one bespoke widget, not a second component
- * library, so ADR-22's single-stack rule is intact: no other control in this file is
- * hand-made, and anything reusable belongs upstream in a2-react-aria rather than here.
+ * The menu's two move items are the row's only reorder path for an operator on a pointer
+ * that cannot drag (issue 680, WCAG 2.2 SC 2.5.7 Dragging Movements). `optionRowMenuItems`
+ * in `lib/questions/option-grid.ts` builds and defends the list; the argument for why the
+ * grip's arrow keys are not that path lives there.
+ *
+ * The popup itself is `components/row-menu.tsx`, which is where the ADR-22 argument for
+ * hand-rolling it lives now. It moved there in issue 517, when the step editor's pin list
+ * became the pattern's second caller: this file kept the drag session, the reorder keys and
+ * the trigger, and handed over only the menu.
  *
  * ## Stale closures (issue #224)
  *
@@ -211,11 +215,12 @@ export function OptionGridEditor({
     setFocusWant({ kind: "pending" });
   }
 
-  function moveBy(row: GridRow, delta: -1 | 1): void {
+  /** Move a row one place and answer where it landed, or nothing if it could not move. */
+  function moveBy(row: GridRow, delta: -1 | 1): number | undefined {
     const settled = settle();
     const from = settled.at(row.index);
     const to = from + delta;
-    if (to < 0 || to >= settled.options.length) return;
+    if (to < 0 || to >= settled.options.length) return undefined;
     // No focus request: the row is keyed by its optionId, so React relocates the existing
     // DOM node rather than rebuilding it, and the grip the operator is holding travels
     // with it already focused. That is also what makes repeated presses move one option
@@ -228,6 +233,34 @@ export function OptionGridEditor({
         total: settled.options.length,
       }),
     );
+    return to;
+  }
+
+  /**
+   * Run one row-menu item.
+   *
+   * Move up and Move down are the reason this exists: they are the single-pointer,
+   * non-dragging reorder path (SC 2.5.7), and unlike the grip's arrow keys they run with a
+   * menu open over the row. So the menu closes and focus is placed deliberately, on the
+   * moved row's grip at its NEW index - the operator's next press should be on the row they
+   * just moved, wherever it went, rather than on whatever slid into the old slot.
+   */
+  function runAction(row: GridRow, action: OptionRowAction): void {
+    if (action === "insertAbove") {
+      openAt(row.index);
+      return;
+    }
+    if (action === "insertBelow") {
+      openAt(row.index + 1);
+      return;
+    }
+    if (action === "remove") {
+      removeAt(row);
+      return;
+    }
+    const landed = moveBy(row, action === "moveUp" ? -1 : 1);
+    setMenuAt(undefined);
+    setFocusWant({ kind: "grip", index: landed ?? row.index });
   }
 
   function removeAt(row: GridRow): void {
@@ -278,8 +311,10 @@ export function OptionGridEditor({
     setDrop(undefined);
     if (!session.moved) {
       // A press that never travelled is a click, and a click on the row's one control
-      // opens its menu. The pointer path has to reach insert and remove somehow, and the
-      // card gives the row no second control to reach them by.
+      // opens its menu. The pointer path has to reach insert, move and remove somehow, and
+      // the card gives the row no second control to reach them by. That press is also the
+      // whole of SC 2.5.7 here: a tap opens the menu, and a tap on Move up or Move down
+      // reorders, with nothing dragged anywhere.
       setMenuAt((open) => (open === row.index ? undefined : row.index));
       return;
     }
@@ -454,7 +489,7 @@ export function OptionGridEditor({
                     <button
                       type="button"
                       data-option-grip=""
-                      className="qcms-opt-grip"
+                      className="qcms-rowgrip"
                       aria-haspopup="menu"
                       aria-expanded={menuAt === row.index}
                       aria-label={t("questions.options.reorder", { row: rowName })}
@@ -481,17 +516,20 @@ export function OptionGridEditor({
                   )}
                   {menuAt === row.index && (
                     <RowMenu
-                      rowName={rowName}
-                      canRemove={options.length > 1}
-                      onInsertAbove={() => {
-                        openAt(row.index);
-                      }}
-                      onInsertBelow={() => {
-                        openAt(row.index + 1);
-                      }}
-                      onRemove={() => {
-                        removeAt(row);
-                      }}
+                      menuLabel={t("questions.options.rowActions", { row: rowName })}
+                      items={optionRowMenuItems({
+                        name: rowName,
+                        index: row.index,
+                        total: options.length,
+                      }).map((item) => ({
+                        key: item.action,
+                        label: item.label,
+                        isDisabled: item.isDisabled,
+                        isDanger: item.isDanger,
+                        onSelect: () => {
+                          runAction(row, item.action);
+                        },
+                      }))}
                       onClose={() => {
                         setMenuAt(undefined);
                         setFocusWant({ kind: "grip", index: row.index });
@@ -546,8 +584,7 @@ export function OptionGridEditor({
                   // mock showed (`opt_8f2ka91m`); the Code Owner's minting ruling keeps ids
                   // LABEL-DERIVED, so a real one (`opt_roadside_assistance`) overflows that
                   // width. An author writing a rule reads option ids raw, so this at least
-                  // makes the whole one recoverable. Flagged for the screenshot gate: the
-                  // column width is the card's call to revisit, not this task's to change.
+                  // makes the whole value recoverable without widening the column.
                   title={
                     row.optionId ??
                     `${t("questions.options.idPending")}: ${t("questions.options.idPendingTitle")}`
@@ -604,76 +641,5 @@ export function OptionGridEditor({
         </p>
       ))}
     </fieldset>
-  );
-}
-
-/**
- * The row menu: Insert above, Insert below, Remove option.
- *
- * The APG menu pattern by hand, for the reason the file header gives. Focus moves into it
- * on open and the arrow keys rove; Escape and Tab close it and hand focus back to the grip,
- * so a keyboard operator is never left inside a closed popup. Every item names its row, so
- * two rows' menus stay distinguishable from each other rather than being three identical
- * "Insert above"s.
- */
-function RowMenu({
-  rowName,
-  canRemove,
-  onInsertAbove,
-  onInsertBelow,
-  onRemove,
-  onClose,
-}: {
-  readonly rowName: string;
-  readonly canRemove: boolean;
-  readonly onInsertAbove: () => void;
-  readonly onInsertBelow: () => void;
-  readonly onRemove: () => void;
-  readonly onClose: () => void;
-}) {
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    menuRef.current?.querySelector<HTMLElement>("[role='menuitem']:not([disabled])")?.focus();
-  }, []);
-
-  function onKeyDown(event: KeyboardEvent<HTMLDivElement>): void {
-    if (event.key === "Escape" || event.key === "Tab") {
-      event.preventDefault();
-      onClose();
-      return;
-    }
-    if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    event.preventDefault();
-    const items = [...(menuRef.current?.querySelectorAll<HTMLElement>("[role='menuitem']") ?? [])];
-    const here = items.indexOf(document.activeElement as HTMLElement);
-    const step = event.key === "ArrowDown" ? 1 : -1;
-    items[(here + step + items.length) % items.length]?.focus();
-  }
-
-  return (
-    <div
-      ref={menuRef}
-      role="menu"
-      aria-label={t("questions.options.rowActions", { row: rowName })}
-      className="qcms-opt-menu"
-      onKeyDown={onKeyDown}
-    >
-      <button type="button" role="menuitem" className="qcms-opt-menu__item" onClick={onInsertAbove}>
-        {t("questions.options.insertAbove", { row: rowName })}
-      </button>
-      <button type="button" role="menuitem" className="qcms-opt-menu__item" onClick={onInsertBelow}>
-        {t("questions.options.insertBelow", { row: rowName })}
-      </button>
-      <button
-        type="button"
-        role="menuitem"
-        className="qcms-opt-menu__item qcms-opt-menu__item--danger"
-        disabled={!canRemove}
-        onClick={onRemove}
-      >
-        {t("questions.options.remove", { row: rowName })}
-      </button>
-    </div>
   );
 }

@@ -8,7 +8,7 @@ import type { DraftForm, DraftPin, DraftRule, DraftStep, PinnableQuestion } from
  * Every function here takes a draft and returns a new one. Nothing validates: whether a
  * draft is legal is the kernel's answer, and the kernel runs in the API. The admin reaches
  * it through `POST .../draft/validate`, never by importing it (the import-surface test
- * bans `@qcms/core` in this app outright). What this module owns is the *shape* of an
+ * refuses every `@qcms/core` value import in this app). What this module owns is the *shape* of an
  * edit, and two shapes in particular are load-bearing.
  *
  * **A pin is manual, always (R7).** `movePin` is the only function that changes a
@@ -148,21 +148,46 @@ export function isPinned(draft: DraftForm, questionId: string): boolean {
   return pinnedQuestionIds(draft).includes(questionId);
 }
 
-/** Pin a question into a step at a chosen version. A duplicate is refused here too. */
+/**
+ * Pin a question into a step at a chosen version and at a chosen position.
+ *
+ * `index` is a boundary, counted the way an insert point is: 0 puts the pin before the
+ * first item, `items.length` appends. It exists because the pin list's row grip menu
+ * offers insert-above and insert-below (issue 517), and those two are what let a
+ * row-boundary insert affordance meet WCAG 2.2 SC 2.5.8 at all - so "add" has to be
+ * able to land somewhere other than the end. Out-of-range values clamp rather than
+ * throw: the caller is a menu whose row may have moved under it.
+ *
+ * A duplicate is refused here as the kernel refuses it (`DUPLICATE_QUESTION_IN_FORM`).
+ */
+export function addPinAt(
+  draft: DraftForm,
+  stepId: string,
+  questionId: string,
+  version: number,
+  index: number,
+): DraftForm {
+  if (isPinned(draft, questionId)) return draft;
+  const pin: DraftPin = { questionId, version };
+  return {
+    ...draft,
+    steps: draft.steps.map((step) => {
+      if (step.stepId !== stepId) return step;
+      const at = Math.min(Math.max(index, 0), step.items.length);
+      return { ...step, items: [...step.items.slice(0, at), pin, ...step.items.slice(at)] };
+    }),
+  };
+}
+
+/** Pin a question at the end of a step, which is what the library picker's own button does. */
 export function addPin(
   draft: DraftForm,
   stepId: string,
   questionId: string,
   version: number,
 ): DraftForm {
-  if (isPinned(draft, questionId)) return draft;
-  const pin: DraftPin = { questionId, version };
-  return {
-    ...draft,
-    steps: draft.steps.map((step) =>
-      step.stepId === stepId ? { ...step, items: [...step.items, pin] } : step,
-    ),
-  };
+  const step = draft.steps.find((entry) => entry.stepId === stepId);
+  return addPinAt(draft, stepId, questionId, version, step?.items.length ?? 0);
 }
 
 /**
@@ -222,16 +247,54 @@ export function movePinWithinStep(
 
 // --- rules ------------------------------------------------------------------
 
-/** Append a rule. A new rule starts as `answered`, the one op that needs no operand. */
-export function addRule(draft: DraftForm, questionId: string): DraftForm {
+/**
+ * A rule this draft does not have yet, with an id minted against the ones it does.
+ *
+ * MINTED WITHOUT BEING ADDED, and that separation is what the rule editor's Cancel is
+ * built on. `plan/admin-design-contracts.md` §6 (amendment of 2026-08-30) gives that
+ * dialog an explicit Save, which means the rule an author is building must be able to
+ * exist without being in the draft: it is held by the dialog, and {@link upsertRule} puts
+ * it in when Save is pressed. A rule that reached the draft on "Add rule" would leave a
+ * targetless rule behind on Cancel - and `unsaveableReason` treats that as an unsaveable
+ * draft, so the pressed Cancel would pause the whole screen's autosave instead of
+ * discarding anything.
+ *
+ * An id minted here and then discarded is simply never taken, so the next add mints the
+ * same one. That is different from a STEP id, which stays reserved once a rule names it
+ * (see {@link reservedStepIds}), because nothing can be left pointing at a rule that was
+ * never added.
+ *
+ * A new rule starts as `answered`, the one op that needs no operand.
+ */
+export function newRule(draft: DraftForm, questionId: string): DraftRule {
   const ruleId = mintId(
     "rul_",
     questionId.replace(/^q_/, ""),
     draft.rules.map((rule) => rule.ruleId),
     "rule",
   );
-  const rule: DraftRule = { ruleId, when: { op: "answered", questionId }, show: [] };
-  return { ...draft, rules: [...draft.rules, rule] };
+  return { ruleId, when: { op: "answered", questionId }, show: [] };
+}
+
+/**
+ * Put a rule into the draft: replacing the one with its id, or appending it if there is
+ * none. The one commit the rule editor makes, whether the author was adding or editing.
+ *
+ * One function rather than two call sites choosing between {@link updateRule} and an
+ * append, because the dialog genuinely does not care which it is doing - it holds a rule
+ * and is asked to store it - and a caller that had to know would be a caller that could
+ * get it wrong.
+ */
+export function upsertRule(draft: DraftForm, rule: DraftRule): DraftForm {
+  const exists = draft.rules.some((candidate) => candidate.ruleId === rule.ruleId);
+  return exists
+    ? updateRule(draft, rule.ruleId, rule)
+    : { ...draft, rules: [...draft.rules, rule] };
+}
+
+/** Mint a rule and append it in one gesture, which is what the draft's own tests build with. */
+export function addRule(draft: DraftForm, questionId: string): DraftForm {
+  return upsertRule(draft, newRule(draft, questionId));
 }
 
 /** Replace one rule wholesale, which is how every condition and target edit lands. */
@@ -359,9 +422,4 @@ export function pinnedVersionStatus(
   version: number,
 ): string | undefined {
   return question?.versions.find((v) => v.version === version)?.status;
-}
-
-/** `questionId@version`, the monospace identity every pin row shows (R7: manual pins). */
-export function pinLabel(pin: DraftPin): string {
-  return `${pin.questionId}@${String(pin.version)}`;
 }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ApiError, startSession } from "@/lib/server/api";
 import { portalBaseUrl } from "@/lib/server/config";
+import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { writeSessionToken } from "@/lib/server/session-cookie";
 
 /**
@@ -21,6 +22,13 @@ export async function POST(
   ctx: { params: Promise<{ formSlug: string }> },
 ): Promise<NextResponse> {
   const { formSlug } = await ctx.params;
+  // SEC-9's CSRF belt (issue #487), before anything is created. A refusal lands on
+  // the entry page's ordinary error state rather than a bare 403: the only person
+  // who can ever see it is a respondent whose browser sent us here from somewhere
+  // else, and a page they can read beats a blank one.
+  if (!isSameOriginPost(request)) {
+    return NextResponse.redirect(new URL(`/f/${formSlug}?state=error`, portalBaseUrl()), 303);
+  }
   let challengeToken: string | undefined;
   try {
     const form = await request.formData();

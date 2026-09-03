@@ -43,6 +43,7 @@ import {
   parseLocaleCode,
   parseQuestionId,
   type PublishError,
+  type PublishWarning,
   type QuestionId,
   type QuestionRef,
   type QuestionVersionRecord,
@@ -71,6 +72,7 @@ import {
   upsertDraft,
 } from "@qcms/db";
 
+import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
@@ -158,10 +160,20 @@ function requireFormId(id: string): FormId {
   return parsed.value;
 }
 
-/** Parse a `:v` path param to a positive integer, or 404 (no such version). */
+/**
+ * The largest value a version number can take: `form_versions.version` is an
+ * `int4` column, so nothing above this can name a stored row (issue #645).
+ * Without the bound the guard passed the segment straight to Postgres, which
+ * refused the parameter with "value out of range for type integer" - an
+ * unexpected throw, so a caller who typed too many digits got a 500 instead of
+ * the 404 the same URL earns one digit shorter.
+ */
+const MAX_VERSION = 2_147_483_647;
+
+/** Parse a `:v` path param to an in-range positive integer, or 404 (no such version). */
 function requireVersion(v: string): number {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw fail.versionNotFound();
+  if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) throw fail.versionNotFound();
   return n;
 }
 
@@ -279,14 +291,34 @@ function deprecatedPinGate(
 
 /**
  * Run the full publish validation in dry-run: the deprecated-pin gate plus
- * `compileDraft` (008). Returns every issue (all errors, never first-only) and,
- * when the draft is clean, the frozen snapshot ready to compile and persist.
- * Shared by the advisory paths (PUT draft, validate) and publish itself.
+ * `compileDraft` (008). Returns every issue (all errors, never first-only),
+ * every non-blocking warning, and - when the draft is clean - the frozen
+ * snapshot ready to compile and persist. Shared by the advisory paths (PUT
+ * draft, validate) and publish itself.
+ *
+ * `warnings` is empty whenever the **kernel** reports errors, and that is the
+ * real invariant: `compileDraft` advises only on a draft it could compile, so a
+ * kernel error suppresses every warning (issue #123).
+ *
+ * It is **not** true that a warning cannot appear beside an issue. `issues` also
+ * carries this layer's `DEPRECATED_PIN` findings, so a draft that moves a pin
+ * onto a deprecated version *and* reveals a same-step question from a
+ * multiChoice answer has both facts and reports both. That coexistence is
+ * deliberate rather than tolerated: suppressing the advisory because an
+ * unrelated deprecation is open would drop information the author needs, and
+ * would make the warning list depend on which *other* problems happen to exist.
+ *
+ * A warning never contributes to the refusal decision either way, which is why
+ * every caller below tests `issues` rather than a combined count.
  */
 async function validateDraft(
   deps: Deps,
   definition: FormDefinition,
-): Promise<{ issues: PublishIssue[]; snapshot?: FrozenSnapshot }> {
+): Promise<{
+  issues: PublishIssue[];
+  warnings: readonly PublishWarning[];
+  snapshot?: FrozenSnapshot;
+}> {
   const { resolveQuestion, publishedQuestionVersions, statusByPin } = await loadQuestionLookups(
     deps,
     definition,
@@ -304,7 +336,11 @@ async function validateDraft(
   const draft: DraftInput = { definition, resolveQuestion, publishedQuestionVersions };
   const result = compileDraft(draft);
   const issues: PublishIssue[] = [...deprecatedIssues, ...(result.ok ? [] : result.error)];
-  return { issues, ...(result.ok ? { snapshot: result.value } : {}) };
+  return {
+    issues,
+    warnings: result.ok ? result.value.warnings : [],
+    ...(result.ok ? { snapshot: result.value.snapshot } : {}),
+  };
 }
 
 /** True for a Postgres unique-violation (SQLSTATE 23505) on the id/cause. */
@@ -436,10 +472,11 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
           challengeRequired: form.challengeRequired,
           minSubmitMs: form.minSubmitMs,
         },
-        // The deployment-level provider rides along so the panel can warn on load
-        // that `challengeRequired` is unenforceable while the provider is "none"
+        // A derived boolean, never the provider name: ADR-24 says clients
+        // receive behavior, not flag values. It rides along on the read so the
+        // panel can warn on load that `challengeRequired` is unenforceable
         // (033), rather than only discovering it after a write.
-        challengeProvider: deps.config.flags.challengeProvider,
+        challengeEnforceable: challengeEnforceable(deps.config.flags),
       },
       200,
     );
@@ -461,9 +498,9 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // Save first (drafts may be temporarily inconsistent), then advise. Advisory
     // issues do not block the save; they block publish.
     await upsertDraft(deps.db, { formId, definition });
-    const { issues } = await validateDraft(deps, definition);
+    const { issues, warnings } = await validateDraft(deps, definition);
 
-    return c.json({ draft: definition, issues }, 200);
+    return c.json({ draft: definition, issues, warnings: [...warnings] }, 200);
   };
 }
 
@@ -480,8 +517,10 @@ export function makeValidateDraftHandler(
     const form = await getForm(deps.db, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const { issues } = await validateDraft(deps, definition);
-    return c.json({ valid: issues.length === 0, issues }, 200);
+    // `valid` keys off errors alone: a warning describes a draft that would
+    // publish, so counting it here would refuse on advice (issue #123).
+    const { issues, warnings } = await validateDraft(deps, definition);
+    return c.json({ valid: issues.length === 0, issues, warnings: [...warnings] }, 200);
   };
 }
 
@@ -616,8 +655,8 @@ function collectBenchAnswers(
  * The bench needs `@qcms/core`'s evaluator, and the admin app is a strict BFF
  * that imports no kernel value at all (R2, enforced by the admin's
  * `r2-import-surface.test.ts`). So the evaluator runs where it already lives.
- * The task file's original "client-side evaluation" wording is amended
- * accordingly (2026-08-01, PO seat).
+ * The task file's original "client-side evaluation" wording is superseded by
+ * the enforced server-side boundary.
  *
  * ## Why a synthetic two-step form, and not the draft itself
  *
@@ -785,10 +824,10 @@ function collectPreviewAnswers(
  *
  * ## Why the visible set comes back with it
  *
- * The task file and the wireframe both describe the author walking branches with
+ * The task file and the screen contract both describe the author walking branches with
  * "the core evaluator client-side". That is not implementable and has already
- * been ruled on once: rule evaluation lives in the API (033's amendment,
- * 2026-08-01, PO seat), and the portal does no rule evaluation either - it
+ * been ruled on once: rule evaluation lives in the API, and the portal does no
+ * rule evaluation either - it
  * receives an authoritative `visibleQuestions` list and projects the full
  * compiled document onto it (`documentForVisible`, R2). So this route returns the
  * *same pair* the portal's serve-step returns, and the admin projects and renders
@@ -892,9 +931,10 @@ export function makePreviewDraftHandler(
  * `undefined` can only mean the form does not exist. That is the same single-read
  * 404 shape `closeForm`/`reopenForm` use, and it keeps the sentinel unambiguous.
  *
- * The response carries the deployment's `challengeProvider` alongside the saved
- * settings so the panel can re-render its "unenforceable while the provider is
- * none" warning from the write's own answer, with no follow-up read.
+ * The response carries the derived `challengeEnforceable` alongside the saved
+ * settings so the panel can re-render its "unenforceable" warning from the
+ * write's own answer, with no follow-up read. It is a behavior statement and not
+ * the provider flag's value (ADR-24).
  */
 export function makeUpdateFormSettingsHandler(
   deps: Deps,
@@ -918,7 +958,7 @@ export function makeUpdateFormSettingsHandler(
           challengeRequired: updated.challengeRequired,
           minSubmitMs: updated.minSubmitMs,
         },
-        challengeProvider: deps.config.flags.challengeProvider,
+        challengeEnforceable: challengeEnforceable(deps.config.flags),
       },
       200,
     );

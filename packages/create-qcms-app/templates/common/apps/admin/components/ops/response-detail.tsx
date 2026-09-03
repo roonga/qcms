@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useState, useTransition } from "react";
 
 import { Alert, Button, Dialog, Select, TextField } from "@/components/kit";
 import { flagReasonText } from "@/components/ops/ops-tags";
@@ -18,6 +18,7 @@ import {
   TOMBSTONE_HEADING_ID,
 } from "@/lib/ops/post-action-focus";
 import { unexpected } from "@/lib/ops/unexpected";
+import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import type {
   EraseOutcome,
   ResponseDetail as ResponseDetailData,
@@ -28,7 +29,7 @@ import { t } from "@/lib/i18n/en";
 
 /**
  * One response, with its audit ledger, its flag disposition and its erasure door
- * (task 035; wireframe "detail", "erasure").
+ * (task 035; screen contract "detail", "erasure").
  *
  * ## Two states, and the second one is the point
  *
@@ -41,7 +42,7 @@ import { t } from "@/lib/i18n/en";
  * ## The ledger is a list, and it says what each entry did
  *
  * Chronology is carried in the text of each entry, not in the layout, so it survives
- * a screen reader linearising the page (the wireframe's a11y note). A retraction is
+ * a screen reader linearising the page (the screen contract's a11y note). A retraction is
  * announced as "cleared" rather than rendered as an answer with no value: ADR-33
  * makes clearing an appended fact of its own, and flattening it would turn "the
  * respondent removed their answer" into "the respondent answered with nothing".
@@ -82,7 +83,6 @@ export function ResponseDetail({
   const [dialog, setDialog] = useState<"erase" | "unflag" | null>(null);
   const [released, setReleased] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const heading = useRef<HTMLHeadingElement>(null);
 
   // Showing an outcome and announcing it are one event, never two, so neither path can
   // acquire a message the other does not have. The announcement goes to the shell's
@@ -108,26 +108,36 @@ export function ResponseDetail({
   // should be standing; its id is looked up rather than held in a ref because the card
   // is also rendered by the route on a later visit, and threading a ref through for one
   // of its two callers would put this screen's concern inside it. After a release
-  // nothing replaces the panel, so the successor is the screen's own heading, with the
+  // nothing replaces the panel, so the successor is the page's own heading, with the
   // outcome alert directly beneath it (the announcement of that outcome is made from
-  // the shell's live region, not from here - issue #355).
+  // the shell's live region, not from here - issue #355). That heading now belongs to
+  // the route's chrome rather than to this component (issue #510), so it is looked up
+  // by id for the same reason the tombstone's is: a ref cannot reach out of the tree.
   useEffect(() => {
     if (tombstone === null) return undefined;
-    requestPostActionFocus(TOMBSTONE_HEADING_ID);
-    const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID);
+    const { sessionId } = tombstone;
+    requestPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
+    const settled = claimPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     return () => {
       settled?.();
       // Erasing revalidates this response's own route, and the route then renders the
       // SAME url as its own tombstone - which unmounts this subtree a few hundred
       // milliseconds after the focus above landed, dropping focus back to the body. So
       // re-arm on the way out: the card that replaces this one takes the request.
-      requestPostActionFocus(TOMBSTONE_HEADING_ID);
+      //
+      // The re-arm is still unconditional, because a cleanup runs before its successor
+      // exists and so cannot observe one. What makes that safe is the SUBJECT carried
+      // with the request (issue #357): it names this response, so only this response's
+      // tombstone can claim it. An operator who navigates away inside the TTL and opens
+      // a different erased response no longer has focus taken on arrival, which is the
+      // steal the TTL alone was left to prevent and did not.
+      requestPostActionFocus(TOMBSTONE_HEADING_ID, sessionId);
     };
   }, [tombstone]);
 
   useEffect(() => {
     if (!released) return undefined;
-    return focusPostAction(heading.current);
+    return focusPostAction(document.getElementById(RESPONSE_HEADING_ID));
   }, [released]);
 
   const runUnflag = useCallback(() => {
@@ -187,20 +197,15 @@ export function ResponseDetail({
   );
 
   return (
+    // Labelled by the route's own <h1>, which names this response (issue #510). The
+    // heading is not repeated here: it was an <h2> saying exactly what the page heading
+    // now says, and a page that states its subject twice at two levels is noise to
+    // anyone reading the outline rather than the pixels.
     <section
-      aria-labelledby="qcms-response-heading"
+      aria-labelledby={RESPONSE_HEADING_ID}
       className="flex flex-col gap-6"
       data-testid="qcms-response-detail"
     >
-      <h2
-        id="qcms-response-heading"
-        ref={heading}
-        tabIndex={-1}
-        className="qcms-ops-title text-lg font-semibold text-(--color-text)"
-      >
-        {t("ops.detail.heading", { sessionId: detail.sessionId })}
-      </h2>
-
       {/* Deliberately NOT a live region (issue #355). It was one until an erasure was
           watched to the end: the action revalidates this route, the route re-renders the
           same url as its own tombstone, and this whole subtree unmounts a few hundred
@@ -355,9 +360,12 @@ function Answers({
   const keys = orderedAnswerKeys(detail.answers, pins);
   return (
     <section aria-labelledby="qcms-answers-heading" className="flex flex-col gap-2">
-      <h3 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
+      {/* h2, not h3: the response's own heading is the page's <h1> now (issue #510), so
+          this section sits directly under it. Size is unchanged - the level is an outline
+          fact, not a type scale. */}
+      <h2 id="qcms-answers-heading" className="text-base font-semibold text-(--color-text)">
         {t("ops.detail.answers")}
-      </h3>
+      </h2>
       <p className="text-sm text-(--color-text-muted)">{t("ops.detail.answersIntro")}</p>
       {keys.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-answers-empty">
@@ -431,9 +439,9 @@ function LedgerTimeline({
 }) {
   return (
     <section aria-labelledby="qcms-ledger-heading" className="flex flex-col gap-2">
-      <h3 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
+      <h2 id="qcms-ledger-heading" className="text-base font-semibold text-(--color-text)">
         {t("ops.detail.ledger")}
-      </h3>
+      </h2>
       <p className="text-sm text-(--color-text-muted)">{t("ops.detail.ledgerIntro")}</p>
       {detail.ledger.length === 0 ? (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-ledger-empty">

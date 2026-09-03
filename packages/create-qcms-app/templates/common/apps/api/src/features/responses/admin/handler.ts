@@ -38,7 +38,7 @@ import {
   fetchResponsePage,
   getFormVersion,
   getResponse,
-  getSession,
+  getSessionInForm,
   getSubmission,
   listResponses,
   listTombstones,
@@ -97,10 +97,22 @@ function requireSessionId(id: string): SessionId {
   return parsed.value;
 }
 
-/** Parse a `version` query value to a positive integer, or 400. */
+/**
+ * The largest value a version filter can take: `form_versions.version` is an
+ * `int4` column, so nothing above this can name a stored row (issue #645, the
+ * query-filter sibling of the path-segment guards in the forms and questions
+ * slices). Without the bound the value went to Postgres, which refused the
+ * parameter with "value out of range for type integer" - an unexpected throw,
+ * so the request 500ed where every other unusable `version` value 400s.
+ */
+const MAX_VERSION = 2_147_483_647;
+
+/** Parse a `version` query value to an in-range positive integer, or 400. */
 function parseVersion(v: string): number {
   const n = Number(v);
-  if (!Number.isInteger(n) || n < 1) throw fail.invalidQuery("version must be a positive integer");
+  if (!Number.isInteger(n) || n < 1 || n > MAX_VERSION) {
+    throw fail.invalidQuery("version must be a positive integer");
+  }
   return n;
 }
 
@@ -388,17 +400,24 @@ function jsonRow(row: ReportingResponseRow): Record<string, unknown> {
   };
 }
 
-// --- POST /admin/sessions/:sessionId/erase ----------------------------------
+// --- POST /admin/forms/:id/responses/:sessionId/erase -----------------------
 
 export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, ApiEnv> {
   return async (c) => {
-    const sessionId = requireSessionId(c.req.valid("param").sessionId);
+    const { id, sessionId: rawSession } = c.req.valid("param");
+    const formId = requireFormId(id);
+    const sessionId = requireSessionId(rawSession);
     const { reason } = c.req.valid("json");
 
     try {
       // eraseSession is idempotent (returns the existing tombstone with
       // alreadyErased:true) and owns its own transaction (016).
-      const outcome = await eraseSession(deps.db, sessionId, reason);
+      //
+      // Form-scoped (#305): the form is passed *into* the erasure, where it filters
+      // both the tombstone lookup and the session lookup, rather than being compared
+      // against the outcome here. That ordering is the point - a comparison after
+      // the fact would run once the deletes had already happened.
+      const outcome = await eraseSession(deps.db, formId, sessionId, reason);
       return c.json(
         {
           sessionId: outcome.sessionId,
@@ -448,19 +467,28 @@ export function makeListErasuresHandler(
   };
 }
 
-// --- POST /admin/responses/:sessionId/unflag --------------------------------
+// --- POST /admin/forms/:id/responses/:sessionId/unflag ----------------------
 
 export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, ApiEnv> {
   return async (c) => {
-    const sessionId = requireSessionId(c.req.valid("param").sessionId);
+    const { id, sessionId: rawSession } = c.req.valid("param");
+    const formId = requireFormId(id);
+    const sessionId = requireSessionId(rawSession);
+
+    // Form scope first, and by query rather than by comparison (#305): a session of
+    // another form is not returned at all, so it takes the same 404 as an id that
+    // does not exist. This read also supplies the formId/formVersion the released
+    // event carries, so scoping costs no extra round trip - the handler already
+    // needed the session row.
+    const session = await getSessionInForm(deps.db, formId, sessionId);
+    if (session === undefined) throw fail.sessionNotFound();
 
     // The submission carries the audit payload (contentHash, locked answers) the
     // withheld event needs; a session without one has nothing to release → 404.
+    // Safe unscoped: the session it belongs to is proven in-form immediately above,
+    // and a submission is keyed by that session.
     const submission = await getSubmission(deps.db, sessionId);
     if (submission === undefined) throw fail.submissionNotFound();
-
-    const session = await getSession(deps.db, sessionId);
-    if (session === undefined) throw fail.sessionNotFound();
 
     // One transaction: the conditional flag-clear and the released event commit
     // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe -

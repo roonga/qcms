@@ -13,7 +13,8 @@
 #   conditional  required once the feature that reads it is switched on
 #   optional     safe to leave unset; the documented default applies
 
-# OTLP collector endpoint (ADR-34). Unset means no SDK and no spans.
+# OTLP collector endpoint (ADR-34). Unset means no SDK; set exports traces and
+# SEC-13-allowlisted logs.
 # (optional)
 # OTEL_EXPORTER_OTLP_ENDPOINT=
 
@@ -102,9 +103,15 @@ QCMS_ADMIN_BASE_URL=
 # (optional, default 1)
 # QCMS_ADMIN_TRUSTED_PROXY_HOPS=
 
-# AES-256-GCM key (at least 32 characters) encrypting secrets at rest: webhook
-# signing secrets and stored TOTP material (SEC-6). Changing it makes every
-# existing at-rest secret undecryptable.
+# AES-256-GCM key (at least 32 characters) encrypting secrets at rest (SEC-6).
+# It covers exactly one column, the per-webhook HMAC signing secret; stored
+# two-factor material belongs to QCMS_ADMIN_AUTH_SECRET, not to this key
+# (issue #319). Set it once: there is no in-place rotation, so changing it
+# makes every stored webhook secret undecryptable at once and those deliveries
+# dead-letter. That is recoverable without the old key by re-issuing each
+# webhook's secret from the admin, which costs re-coordination with every
+# consumer rather than data. See the app-encryption-key runbook below (issue
+# #323).
 # (required, secret)
 QCMS_APP_KEY=
 
@@ -118,15 +125,30 @@ QCMS_APP_KEY=
 # (optional, default caddy:2-alpine)
 # QCMS_CADDY_IMAGE=
 
+# Password for qcms_app, the role the API runs as: DML on the operational
+# tables, no DDL, not the schema owner. See [Least-privilege database
+# roles](#least-privilege-database-roles).
+# (required, secret)
+QCMS_DB_APP_PASSWORD=
+
+# Password for qcms_migrate, the role that owns the schema and runs the
+# one-shot migration. Held by the migrate service and by nothing else. See
+# [Least-privilege database roles](#least-privilege-database-roles).
+# (required, secret)
+QCMS_DB_MIGRATE_PASSWORD=
+
 # Database name created on first boot of the Postgres volume.
 # (optional, default qcms)
 # QCMS_DB_NAME=
 
-# Postgres superuser password. Compose refuses to start without it.
+# Postgres bootstrap superuser password. Compose refuses to start without it.
+# The db-roles one-shot uses it to create the two least-privilege roles below,
+# and nothing that serves traffic holds it (SEC-10).
 # (required, secret)
 QCMS_DB_PASSWORD=
 
-# Database role created on first boot of the Postgres volume.
+# Bootstrap superuser created on first boot of the Postgres volume. It creates
+# the split roles and is used for nothing else (SEC-10).
 # (optional, default qcms)
 # QCMS_DB_USER=
 
@@ -152,15 +174,52 @@ QCMS_LINK_KEYS=
 # (required)
 QCMS_PORTAL_BASE_URL=
 
+# URL of the brand logo shown in the portal header.
+# (optional)
+# QCMS_PORTAL_BRAND_LOGO=
+
+# Brand name shown in the portal header. Empty renders no brand.
+# (optional)
+# QCMS_PORTAL_BRAND_NAME=
+
+# Corner-radius token group.
+# (optional, default subtle)
+# QCMS_PORTAL_CORNERS=
+
+# Spacing token group.
+# (optional, default the @qcms/ui default density)
+# QCMS_PORTAL_DENSITY=
+
 # Public hostname Caddy serves the portal on. Required by the proxy overlay;
 # unused without it.
 # (conditional)
 # QCMS_PORTAL_DOMAIN=
 
+# Single font family override.
+# (optional, default the system font stack)
+# QCMS_PORTAL_FONT=
+
+# Font stack selection from the allowlist in apps/portal/lib/server/theme.ts.
+# (optional)
+# QCMS_PORTAL_FONTS=
+
+# Default light/dark mode: light, dark or auto.
+# (optional, default auto)
+# QCMS_PORTAL_MODE=
+
 # Host port the portal is published on. Comes from the stable block in
 # docs/PORTS.md (R8); move it to run beside a dev server on the same seat.
 # (optional, default 7000)
 # QCMS_PORTAL_PORT=
+
+# The portal's variable, read here too (task 058): it is the theme the preview
+# island opens in, so an author sees a question in the appearance this
+# deployment serves respondents rather than in this app's own Cobalt. Set the
+# same value in both services. It changes nothing about this app's own chrome,
+# which is never adopter-themeable (ADR-26), and an unrecognised value falls
+# back silently exactly as it does on the portal.
+# (optional, default slate)
+# QCMS_PORTAL_THEME=
 
 # How many proxies you run between the internet and this app. The client
 # address the API's rate limiters key on is the entry that many places from
@@ -183,7 +242,11 @@ QCMS_PORTAL_BASE_URL=
 # Whether respondent session cookies carry Secure. Setting it false is a
 # downgrade, supported only when QCMS_PORTAL_BASE_URL is a loopback origin
 # such as http://localhost:7000: at any other origin the portal refuses to
-# start, naming this variable (issue #292). Leave it unset behind TLS.
+# start, naming this variable (issue #292). Leave it unset behind TLS. Accepts
+# true/1/yes/on and false/0/no/off, case-insensitive and trimmed, the same
+# spellings QCMS_ADMIN_SECURE_COOKIES accepts; anything else refuses to boot
+# rather than being silently ignored (issue #401). Unset or blank still
+# defaults from NODE_ENV.
 # (optional, default true when NODE_ENV=production)
 # QCMS_SECURE_COOKIES=
 

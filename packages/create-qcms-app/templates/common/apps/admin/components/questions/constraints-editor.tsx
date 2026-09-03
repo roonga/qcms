@@ -1,5 +1,6 @@
 "use client";
 
+import { compilesUnderV, toVSafePattern } from "@qcms/ui";
 import { useState } from "react";
 
 import { Checkbox, DatePicker, NumberField, TextField } from "@/components/kit";
@@ -9,7 +10,7 @@ import { fieldErrorProps, optionalProp } from "@/lib/questions/errors";
 import type { ConstraintsView, DefinitionIssue, QuestionType } from "@/lib/questions/types";
 
 /**
- * The per-type constraint panel (task 032; wireframe "constraints panel, per type").
+ * The per-type constraint panel (task 032; screen contract "constraints panel, per type").
  *
  * One component per type rather than one component with seven branches, and 032 kept it
  * that way for task 048 ("leave the constraint editor composable for that"): ADR-32's
@@ -83,6 +84,37 @@ function ConstraintNumber({
 }
 
 /**
+ * The note to show beneath the pattern field, or the **empty string** when
+ * there is nothing to say (issue #53).
+ *
+ * A string rather than `undefined` because every branch that has something to
+ * say returns localized copy, so "nothing to say" is the absence of copy rather
+ * than the absence of a value; the caller renders the paragraph only when the
+ * result is non-empty.
+ *
+ * A browser compiles the HTML `pattern` attribute under the `v` flag, whose
+ * character-class grammar is narrower than the one this expression is authored
+ * and validated against, so a pattern like `[A-Za-z .,'-]` is dropped by the
+ * browser with a console error. `toVSafePattern` (issue #52) already repairs
+ * that at render time, on every render, forever. Offering its output here lets
+ * the author store the repaired spelling instead, which is the same rule
+ * written so that nothing downstream has to rewrite it.
+ *
+ * Three outcomes, and the middle one is the reason this is message-level rather
+ * than a widget: nothing to say, a suggestion to make, or a warning with no
+ * suggestion behind it (the normalization declines patterns whose rewrite would
+ * not be provably meaning-preserving, and omission is then correct - the API is
+ * the validation authority, R2).
+ */
+function vSafeNote(pattern: string): string {
+  if (pattern === "" || compilesUnderV(pattern)) return "";
+  const suggestion = toVSafePattern(pattern);
+  return suggestion === undefined
+    ? t("questions.constraint.patternVUnsafe")
+    : t("questions.constraint.patternVSuggestion", { suggestion });
+}
+
+/**
  * The pattern field, with a live "try a sample" helper.
  *
  * The helper compiles the expression **in the browser, with JavaScript's own engine**,
@@ -111,6 +143,8 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
     }
   }
 
+  const vNote = isFrozen ? "" : vSafeNote(pattern);
+
   return (
     <div className="flex flex-col gap-2">
       <TextField
@@ -124,6 +158,17 @@ function PatternField({ constraints, onChange, issues, isFrozen }: PanelProps) {
           onChange({ ...constraints, pattern: next === "" ? undefined : next });
         }}
       />
+      {vNote !== "" && (
+        // Polite for the same reason the sample verdict is: it recomputes on every
+        // keystroke, and an assertive region would interrupt the author mid-word.
+        <p
+          aria-live="polite"
+          className="text-sm text-(--color-text-muted)"
+          data-testid="qcms-pattern-v-note"
+        >
+          {vNote}
+        </p>
+      )}
       {!isFrozen && (
         <>
           <TextField
@@ -219,13 +264,22 @@ function NumberPanel(props: PanelProps) {
 function DatePanel({ constraints, onChange, issues, isFrozen }: PanelProps) {
   return (
     <div className="qcms-constraints">
+      {/*
+       * `null`, never an omitted prop, for a bound the author has not set. These two
+       * used to spread `optionalProp("value", ...)`, because the vendored DatePicker
+       * narrowed `value` to `string` and collapsed every empty spelling to
+       * `undefined` internally, so "controlled with no value" was unsayable and an
+       * omitted prop was the closest thing to it. The consequence was a real
+       * uncontrolled-to-controlled flip the first time an author picked a date, which
+       * React reports on the console and which the portal's gate had to allowlist.
+       * Issues #148 and #549 fixed that upstream, so `null` is now both sayable and
+       * the react-aria spelling of "no selection": the control is controlled from
+       * first render and the allowlist entry is deleted.
+       */}
       <DatePicker
         label={t("questions.constraint.earliest")}
         isDisabled={isFrozen}
-        {...optionalProp(
-          "value",
-          typeof constraints.min === "string" ? constraints.min : undefined,
-        )}
+        value={typeof constraints.min === "string" ? constraints.min : null}
         {...fieldErrorProps(issues, "constraints.min")}
         onChange={(next) => {
           onChange({ ...constraints, min: next === "" ? undefined : next });
@@ -234,10 +288,7 @@ function DatePanel({ constraints, onChange, issues, isFrozen }: PanelProps) {
       <DatePicker
         label={t("questions.constraint.latest")}
         isDisabled={isFrozen}
-        {...optionalProp(
-          "value",
-          typeof constraints.max === "string" ? constraints.max : undefined,
-        )}
+        value={typeof constraints.max === "string" ? constraints.max : null}
         {...fieldErrorProps(issues, "constraints.max")}
         onChange={(next) => {
           onChange({ ...constraints, max: next === "" ? undefined : next });

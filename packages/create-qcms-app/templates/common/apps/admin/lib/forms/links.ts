@@ -1,3 +1,5 @@
+import { csvFieldAlwaysQuoted } from "@qcms/csv";
+
 import type { MessageKey } from "../i18n/en.ts";
 
 import type { LinkState, MintedLink } from "./types.ts";
@@ -28,20 +30,6 @@ export function isRevocable(state: LinkState): boolean {
   return state === "active";
 }
 
-/**
- * Quote one CSV field per RFC 4180.
- *
- * A link URL contains no comma, quote or newline today, and this quotes anyway: the export
- * is a file an operator opens in a spreadsheet, and a field that grows a separator later
- * would silently shift every column rather than fail. The leading-character guard is the
- * formula-injection one - a field starting `=`, `+`, `-` or `@` is executed by several
- * spreadsheet programs on open, so it is prefixed with a single quote.
- */
-function csvField(value: string): string {
-  const guarded = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
-  return `"${guarded.replaceAll('"', '""')}"`;
-}
-
 /** The CSV export's column order, which is also its header row. */
 const CSV_COLUMNS = ["linkId", "url", "expiresAt"] as const;
 
@@ -55,10 +43,18 @@ const CSV_COLUMNS = ["linkId", "url", "expiresAt"] as const;
  *
  * CRLF line endings, because RFC 4180 says so and because it is the ending every
  * spreadsheet program on every platform reads without a prompt.
+ *
+ * Fields come from `@qcms/csv`, shared with the API's response export (issue #470). The
+ * always-quoted policy is this export's own: a link URL contains no comma, quote or
+ * newline today, and quoting anyway means a field that grows a separator later cannot
+ * silently shift every column. The formula-injection guard the helper also applies is the
+ * one this file used to own alone.
  */
 export function mintedLinksCsv(links: readonly MintedLink[]): string {
-  const header = CSV_COLUMNS.map(csvField).join(",");
-  const rows = links.map((link) => [link.linkId, link.url, link.expiresAt].map(csvField).join(","));
+  const header = CSV_COLUMNS.map(csvFieldAlwaysQuoted).join(",");
+  const rows = links.map((link) =>
+    [link.linkId, link.url, link.expiresAt].map(csvFieldAlwaysQuoted).join(","),
+  );
   return [header, ...rows].join("\r\n");
 }
 

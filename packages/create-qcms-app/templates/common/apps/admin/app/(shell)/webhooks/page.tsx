@@ -1,17 +1,25 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { Alert } from "@/components/kit";
 import { DeadLetters } from "@/components/ops/dead-letters";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
+import { readState } from "@/lib/read-state";
 import { listForms } from "@/lib/server/forms";
 import { listDeadLetters } from "@/lib/server/webhook-ops";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { redeliverAction, redeliverAllAction } from "./actions";
 
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("ops.area.webhooks.title"));
+}
+
 /**
  * Webhook operations: the dead-letter queue, and a way into each form's endpoints
- * (task 035; wireframe "dead-letter list").
+ * (task 035; screen contract "dead-letter list").
  *
  * The queue is **not** form-scoped, and that is the API's shape rather than a
  * simplification: `GET /admin/outbox/dead-letters` is global, because a stuck
@@ -37,8 +45,14 @@ export default async function WebhooksPage() {
           {t("ops.deadLetters.loadFailed", { message: deadLetters.message })}
         </Alert>
       )}
+      {/*
+       * `readState`, not `ok ? data : []` (issue 543). The collapsed form told the queue
+       * nothing about the failure, so a read that failed rendered the empty state and the
+       * screen answered "nothing is stuck" underneath the alert saying it could not tell.
+       * The queue decides what a failure looks like; the page only stops lying to it.
+       */}
       <DeadLetters
-        deadLetters={deadLetters.ok ? deadLetters.data : []}
+        deadLetters={readState(deadLetters)}
         redeliver={redeliverAction}
         redeliverAll={redeliverAllAction}
       />
@@ -52,22 +66,29 @@ export default async function WebhooksPage() {
             {t("ops.area.responses.formsFailed", { message: forms.message })}
           </Alert>
         )}
-        {forms.ok && forms.data.length === 0 ? (
-          <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>
-        ) : (
-          <ul className="flex flex-col gap-1">
-            {(forms.ok ? forms.data : []).map((form) => (
-              <li key={form.formId}>
-                <Link
-                  className="qcms-text-link"
-                  href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
-                >
-                  {t("ops.area.webhooks.pickForm", { title: form.slug })}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        )}
+        {/*
+         * Three states, not two (issue #513), exactly as on `/responses`: a failed read
+         * renders nothing here, because the alert directly above already carries the
+         * message and the "no forms exist yet" sentence would claim knowledge the failed
+         * read does not have. The list appears only when there is a list.
+         */}
+        {forms.ok &&
+          (forms.data.length === 0 ? (
+            <p className="text-sm text-(--color-text-muted)">{t("ops.area.webhooks.noForms")}</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {forms.data.map((form) => (
+                <li key={form.formId}>
+                  <Link
+                    className="qcms-text-link"
+                    href={`/forms/${encodeURIComponent(form.formId)}/webhooks`}
+                  >
+                    {t("ops.area.webhooks.pickForm", { slug: form.slug })}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ))}
       </section>
     </div>
   );

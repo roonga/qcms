@@ -1,13 +1,16 @@
 "use client";
 
-import { useCallback, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 
+import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Checkbox, DatePicker, Dialog, NumberField } from "@/components/kit";
 import { LinkStateTag } from "@/components/forms/link-state-tag";
 import type { MintLinksState, RevokeLinkState } from "@/lib/forms/builder-state";
 import { IDLE_MINT, IDLE_REVOKE } from "@/lib/forms/builder-state";
 import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/links";
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
+import type { ReadState } from "@/lib/read-state";
+import { focusPostAction } from "@/lib/ops/post-action-focus";
 import { formatDateTime } from "@/lib/i18n/format";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -23,7 +26,7 @@ import { unexpected } from "@/lib/ops/unexpected";
 const REVOKE_DELAY_MS = 60_000;
 
 /**
- * The secure-link screen: mint, list, copy, export, revoke (task 034; wireframe "secure
+ * The secure-link screen: mint, list, copy, export, revoke (task 034; screen contract "secure
  * links").
  *
  * ## Why the minted URLs are their own state and not a table column
@@ -56,10 +59,51 @@ const REVOKE_DELAY_MS = 60_000;
  * returning to the Mint button: the operator would hear that links exist and lose where
  * they are standing. Polite queues behind that and is spoken immediately after it.
  *
- * The wireframe names a `switch` for the one-time control. The vendored a2ra set has no
+ * ## Why the minted panel takes focus, and what happens when it is dismissed (issue 379)
+ *
+ * The announcement above tells a screen-reader operator that links exist. It does not put
+ * them anywhere near the copy button, and the panel's token is shown exactly once - so an
+ * operator who tabs past the panel, or presses Done to get back to where they were, has
+ * lost the links for good. Of the three shapes issue 379 put up, this implements the first
+ * one in its automatic form: **focus moves to the panel on a successful mint.** A skip-link
+ * affordance was the alternative, and it was not taken because it is one more thing to
+ * find at the exact moment the operator has something unrecoverable on screen; the panel is
+ * this screen's whole answer to what they just pressed, so landing on it is the honest
+ * destination rather than an interruption.
+ *
+ * **To the panel's own heading**, which is #308's precedent rather than a fresh call: a
+ * heading carries a role and a name, so it announces where focus went without an
+ * `aria-label` on a generic wrapper, and reading on from it reaches the "cannot be shown
+ * again" sentence, then each URL and its copy button. Not the live region, which would say
+ * the same sentence twice, and not the first copy button, which would announce a control
+ * without the sentence that explains why pressing it matters.
+ *
+ * **Dismiss puts focus back on Mint links.** Moving focus in without moving it out trades
+ * one lost place for another: Done unmounts the element holding focus, so the browser's
+ * default is `<body>` at the top of the document. Mint links is where the operator was
+ * standing when this began and is the control that would start the next batch.
+ *
+ * The screen contract names a `switch` for the one-time control. The vendored a2ra set has no
  * Switch, and hand-writing one is exactly what ADR-22 forbids, so this uses the vendored
  * `Checkbox` - the same substitution `form-settings-panel.tsx` makes for its booleans. A
  * real Switch would be a COMPONENT_GUIDELINES vendoring in its own right.
+ *
+ * ## A failed list read is not a form with no links (issues 572, 544)
+ *
+ * `links` is a `ReadState` (`lib/read-state.ts`), not an array. It used to be handed
+ * `ok ? data : []`, so a list that could not be read printed §3's "No links yet" panel
+ * with "No links have been minted for this form." underneath the page's own warning that
+ * the link list could not be loaded. An author reading that would conclude a link they
+ * minted an hour ago had vanished, and the natural response to that conclusion is to mint
+ * another one.
+ *
+ * The claim-versus-capability split §3 asks for lands here as: drop the lifecycle table
+ * and its empty panel, because both are statements about links that were never read; keep
+ * everything else. The heading and intro stay because the alert above needs a subject.
+ * **Minting stays**, because it does not depend on the list that failed - whether this
+ * form can mint at all is decided by its published versions, which came from the form
+ * read, and minting is the thing an author most often came here to do. So does the mint
+ * result panel: those URLs are this session's own answer and not part of the read.
  */
 export function SecureLinks({
   formId,
@@ -70,7 +114,7 @@ export function SecureLinks({
   revoke,
 }: {
   readonly formId: string;
-  readonly links: readonly SecureLink[];
+  readonly links: ReadState<readonly SecureLink[]>;
   /** Links open the newest published version, so a never-published form cannot mint. */
   readonly canMint: boolean;
   readonly maxBatch: number;
@@ -91,6 +135,13 @@ export function SecureLinks({
   const [expiresAt, setExpiresAt] = useState<string>("");
   const [oneTime, setOneTime] = useState(false);
   const [count, setCount] = useState(1);
+
+  // WHERE FOCUS GOES WHEN THE MINTED PANEL IS DISMISSED (issue 379). A ref on the wrapper
+  // and not on the control, because the vendored `Button` takes no `ref` and ADR-22 forbids
+  // giving it one; `library-picker.tsx` reaches its search field the same way. The div is
+  // rendered whenever minting is possible at all, which is the only state that can produce
+  // a panel to dismiss.
+  const mintTrigger = useRef<HTMLDivElement>(null);
 
   const runMint = useCallback(() => {
     startTransition(() => {
@@ -131,8 +182,13 @@ export function SecureLinks({
   );
 
   const copy = useCallback((url: string) => {
-    void navigator.clipboard
-      .writeText(url)
+    // The same shape and the same reason as `public-form-link.tsx`, which writes it out:
+    // `navigator.clipboard` is absent in an insecure context, so calling `.writeText` off it
+    // throws synchronously and a bare `.catch` never sees it. Inside a `.then`, that throw
+    // becomes a rejection and lands with every other failure. Found by review on the new
+    // control and fixed here too rather than left as the same defect one file away.
+    void Promise.resolve()
+      .then(() => navigator.clipboard.writeText(url))
       .then(() => {
         setCopyNote(t("forms.links.copied"));
       })
@@ -155,7 +211,7 @@ export function SecureLinks({
       </div>
 
       {canMint ? (
-        <div>
+        <div ref={mintTrigger}>
           <Button
             variant="primary"
             size="md"
@@ -216,6 +272,10 @@ export function SecureLinks({
           onCopy={copy}
           onDismiss={() => {
             setMinted(IDLE_MINT);
+            // Before the browser can fall back to `<body>`: Done unmounts the element that
+            // holds focus, so leaving this to the default strands a keyboard operator at
+            // the top of the document (issue 379, the same failure #308 documents).
+            focusPostAction(mintTrigger.current?.querySelector("button") ?? null);
           }}
         />
       )}
@@ -352,6 +412,15 @@ function MintedPanel({
   readonly onCopy: (url: string) => void;
   readonly onDismiss: () => void;
 }) {
+  const heading = useRef<HTMLHeadingElement>(null);
+
+  // ON MOUNT, which is exactly once per mint: `SecureLinks` clears the result before it
+  // opens the dialog, so this component is unmounted between batches and a second mint
+  // remounts it. `focusPostAction` focuses now and again on the next frame, which is what
+  // makes it the last word rather than a race with React Aria returning focus to Mint links
+  // as the dialog closes in the same commit.
+  useEffect(() => focusPostAction(heading.current), []);
+
   const download = useCallback(() => {
     // A blob URL rather than a server round trip: the URLs are already here and sending
     // them back up so the server can send them down again would put bearer credentials
@@ -381,7 +450,15 @@ function MintedPanel({
       data-testid="qcms-minted-links"
       className="flex flex-col gap-3 rounded-md border border-(--color-border-strong) bg-(--color-background-muted) p-4"
     >
-      <h3 id="qcms-minted-heading" className="text-base font-semibold text-(--color-text)">
+      {/* Focusable so a successful mint can land the operator on the thing they just made
+          (issue 379). `-1` keeps it out of the tab order: it is a destination, not a stop -
+          the same shape `ops/tombstone-card.tsx` uses for the same reason. */}
+      <h3
+        id="qcms-minted-heading"
+        ref={heading}
+        tabIndex={-1}
+        className="text-base font-semibold text-(--color-text)"
+      >
         {tPlural("forms.links.mintedTitle.one", "forms.links.mintedTitle.other", links.length)}
       </h3>
       <p className="text-sm text-(--color-text-muted)">{t("forms.links.mintedOnce")}</p>
@@ -419,64 +496,100 @@ function LinksTable({
   onRevoke,
   isPending,
 }: {
-  readonly links: readonly SecureLink[];
+  readonly links: ReadState<readonly SecureLink[]>;
   readonly onRevoke: (linkId: string) => void;
   readonly isPending: boolean;
 }) {
-  if (links.length === 0) {
+  // Three states, not two (issue 572). A read that failed has neither a table nor an
+  // empty state to draw: both would describe links nobody managed to list. The page's
+  // alert above says what happened, and §3 asks for nothing else.
+  if (!links.ok) return null;
+  const rows = links.data;
+
+  if (rows.length === 0) {
+    // §3's panel. No CTA: this screen's creating action is the mint fieldset rendered
+    // directly above, which takes a count and an expiry rather than being a button that
+    // goes somewhere, so there is nothing for a CTA to point at.
     return (
-      <p className="text-sm text-(--color-text-muted)" data-testid="qcms-links-empty">
-        {t("forms.links.empty")}
-      </p>
+      <EmptyState
+        heading={t("forms.links.emptyTitle")}
+        body={t("forms.links.empty")}
+        testId="qcms-links-empty"
+      />
     );
   }
 
+  // One table family (§2). WHICH COLUMN DROPS AT COMPACT WIDTH: Minted. Expiry and Used
+  // are the live lifecycle facts an operator revokes on; the minting stamp is provenance
+  // and describes rather than identifies. Nothing else drops, the revoke control least of
+  // all.
+  //
+  // NOTE ON THE ONE-TIME REVEAL, which the issue flagged as the likeliest place the
+  // card's shape would not fit: it is not in this table and never was. A minted link's
+  // URL is shown exactly once, in `MintedPanel` above, which is a list and not a table
+  // and is neither an empty state nor collapsible (§3). This table holds link IDS and
+  // lifecycle stamps - it never rendered a token - so the family applies to it with no
+  // tension at all.
   return (
-    <table className="qcms-links-table" data-testid="qcms-links-table">
-      <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
-      <thead>
-        <tr>
-          <th scope="col">{t("forms.links.column.linkId")}</th>
-          <th scope="col">{t("forms.links.column.state")}</th>
-          <th scope="col">{t("forms.links.column.oneTime")}</th>
-          <th scope="col">{t("forms.links.column.expiresAt")}</th>
-          <th scope="col">{t("forms.links.column.usedAt")}</th>
-          <th scope="col">{t("forms.links.column.createdAt")}</th>
-          <th scope="col">
-            <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
-          </th>
-        </tr>
-      </thead>
-      <tbody>
-        {links.map((link) => (
-          <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
-            <th scope="row">
-              <code className="qcms-link-id">{link.linkId}</code>
+    <div className="qcms-table">
+      <table data-testid="qcms-links-table">
+        <caption className="qcms-visually-hidden">{t("forms.links.table")}</caption>
+        <thead>
+          <tr>
+            <th scope="col">{t("forms.links.column.linkId")}</th>
+            <th scope="col">{t("forms.links.column.state")}</th>
+            <th scope="col">{t("forms.links.column.oneTime")}</th>
+            <th scope="col" className="qcms-cell--num">
+              {t("forms.links.column.expiresAt")}
             </th>
-            <td>
-              <LinkStateTag state={link.state} />
-            </td>
-            <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
-            <td>{formatDateTime(link.expiresAt, t("forms.links.none"))}</td>
-            <td>{formatDateTime(link.consumedAt, t("forms.links.none"))}</td>
-            <td>{formatDateTime(link.createdAt, t("forms.links.none"))}</td>
-            <td>
-              {isRevocable(link.state) && (
-                <Button
-                  variant="danger"
-                  size="sm"
-                  isDisabled={isPending}
-                  onPress={() => {
-                    onRevoke(link.linkId);
-                  }}
-                >
-                  {t("forms.links.revoke")}
-                </Button>
-              )}
-            </td>
+            <th scope="col" className="qcms-cell--num">
+              {t("forms.links.column.usedAt")}
+            </th>
+            <th scope="col" className="qcms-cell--num qcms-cell--drop">
+              {t("forms.links.column.createdAt")}
+            </th>
+            <th scope="col">
+              <span className="qcms-visually-hidden">{t("forms.links.revoke")}</span>
+            </th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {rows.map((link) => (
+            <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
+              <th scope="row">
+                <code className="qcms-link-id">{link.linkId}</code>
+              </th>
+              <td>
+                <LinkStateTag state={link.state} />
+              </td>
+              <td>{link.oneTime ? t("forms.links.yes") : t("forms.links.no")}</td>
+              <td className="qcms-cell--num">
+                {formatDateTime(link.expiresAt, t("forms.links.none"))}
+              </td>
+              <td className="qcms-cell--num">
+                {formatDateTime(link.consumedAt, t("forms.links.none"))}
+              </td>
+              <td className="qcms-cell--num qcms-cell--drop">
+                {formatDateTime(link.createdAt, t("forms.links.none"))}
+              </td>
+              <td>
+                {isRevocable(link.state) && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    isDisabled={isPending}
+                    onPress={() => {
+                      onRevoke(link.linkId);
+                    }}
+                  >
+                    {t("forms.links.revoke")}
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert } from "@/components/kit";
@@ -6,8 +7,10 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { ResponseDetail } from "@/components/ops/response-detail";
 import { TombstoneCard } from "@/components/ops/tombstone-card";
 import { labelsForPins, pinsOf, type QuestionPin } from "@/lib/ops/labels";
+import { pageMetadata } from "@/lib/page-title";
 import type { QuestionDetail } from "@/lib/questions/types";
 import { t } from "@/lib/i18n/en";
+import { RESPONSE_HEADING_ID } from "@/lib/page-headings";
 import { getForm, getFormVersion } from "@/lib/server/forms";
 import { getQuestion } from "@/lib/server/questions";
 import { getResponse, listErasures } from "@/lib/server/responses";
@@ -16,7 +19,23 @@ import { requireAdminSession } from "@/lib/server/session";
 import { eraseSessionAction, unflagResponseAction } from "../../../../responses/actions";
 
 /**
- * One response, with the audit ledger and the erasure door (task 035; wireframe
+ * The browser-tab title for this route (issue #536).
+ *
+ * The session id alone, which is the same string this route's `<h1>` carries. It needs no
+ * form: a session id identifies one response across the whole deployment, and two tabs
+ * open on two responses of one form was the literal complaint issue #510 was filed for.
+ */
+export async function generateMetadata({
+  params,
+}: {
+  readonly params: Promise<{ sessionId: string }>;
+}): Promise<Metadata> {
+  const { sessionId } = await params;
+  return pageMetadata(t("ops.detail.heading", { sessionId }));
+}
+
+/**
+ * One response, with the audit ledger and the erasure door (task 035; screen contract
  * "detail", "erasure").
  *
  * ## Captions come from the version the response was submitted on
@@ -67,6 +86,7 @@ export default async function ResponseDetailPage({
           slug={form.data.slug}
           section="responses"
           status={form.data.status}
+          heading={responseHeading(sessionId)}
         />
         <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
           {t("ops.detail.back")}
@@ -89,6 +109,7 @@ export default async function ResponseDetailPage({
         slug={form.data.slug}
         section="responses"
         status={form.data.status}
+        heading={responseHeading(sessionId)}
       />
       <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/responses`}>
         {t("ops.detail.back")}
@@ -104,6 +125,17 @@ export default async function ResponseDetailPage({
       />
     </div>
   );
+}
+
+/**
+ * The page's own `<h1>`: this response, not the form it belongs to (issue #510).
+ *
+ * Both branches take it. An erased session is still the session the URL in an operator's
+ * ticket names, and heading its tombstone with the form's slug would answer a question
+ * nobody asked.
+ */
+function responseHeading(sessionId: string): { readonly id: string; readonly text: string } {
+  return { id: RESPONSE_HEADING_ID, text: t("ops.detail.heading", { sessionId }) };
 }
 
 /**

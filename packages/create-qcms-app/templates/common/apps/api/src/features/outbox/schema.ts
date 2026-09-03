@@ -64,9 +64,10 @@ export function isDeliveryId(value: string): boolean {
  * the shape at all and a non-uuid reached Postgres, which raised `22P02 invalid
  * input syntax for type uuid` and surfaced as a 500.
  */
-export const DeliveryIdParam = z.object({
-  id: z.string().openapi({
-    param: { name: "id", in: "path" },
+export const FormDeliveryParams = z.object({
+  id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_intake" }),
+  deliveryId: z.string().openapi({
+    param: { name: "deliveryId", in: "path" },
     example: "d290f1ee-6c54-4b01-90e6-d701748f0851",
   }),
 });
@@ -79,6 +80,12 @@ export const DeadLetterItem = z
     eventId: z.string().openapi({ example: "a1b2c3d4-0000-0000-0000-000000000000" }),
     eventType: z.string().openapi({ example: "response.submitted" }),
     webhookId: z.string().openapi({ example: "whk_ab12cd34" }),
+    /**
+     * The form this delivery belongs to (issue #305). The worklist is cross-form by
+     * design, and redelivery is form-scoped, so a row has to name its own form for
+     * the client to be able to build a redeliver call for it.
+     */
+    formId: z.string().openapi({ example: "frm_intake" }),
     url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
     attempts: z.number().int().openapi({ example: 10 }),
     /** The last failure reason (value-free code/status; never a secret or answer). */
@@ -166,7 +173,7 @@ export const DeliveriesResponse = z
   .object({ deliveries: z.array(DeliveryItem) })
   .openapi("DeliveriesResponse");
 
-/** `POST /admin/outbox/:id/redeliver` response - the reset delivery, now due. */
+/** `POST /admin/forms/:id/deliveries/:deliveryId/redeliver` response - the reset delivery, now due. */
 export const RedeliverResponse = z
   .object({
     deliveryId: z.string().openapi({ example: "d290f1ee-6c54-4b01-90e6-d701748f0851" }),

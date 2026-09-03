@@ -16,6 +16,12 @@
  * - **RFC 4180 quoting** (§2.5–2.7): a field is wrapped in double quotes when it
  *   contains a comma, a double quote, CR, or LF; embedded double quotes are
  *   doubled. Other fields are emitted bare.
+ * - **Formula-injection guard** (issue #470): a cell starting `=`, `+`, `-`, `@`,
+ *   tab or CR is prefixed with an apostrophe, because several spreadsheet
+ *   programs evaluate such a cell on open and every answer cell here is written
+ *   by an anonymous respondent through a public portal. Both this and the quoting
+ *   above come from `@qcms/csv`, shared with the admin's link export so the two
+ *   cannot drift apart again.
  * - **multiChoice** is serialized as its option ids joined by `;` (e.g.
  *   `opt_a;opt_b;opt_c`) - a single CSV field, documented, so the `,` delimiter
  *   is never ambiguous with a selection separator.
@@ -25,6 +31,14 @@
  */
 
 import type { FormDefinition } from "@qcms/core";
+import { csvField } from "@qcms/csv";
+
+/**
+ * Re-exported so this module stays the one place the export's field encoding is
+ * read from: the quoting policy and the guard are a property of the export, and
+ * a reader of this file should not have to know which package implements them.
+ */
+export { csvField };
 
 /** UTF-8 byte-order mark - see the module note on Excel interop. */
 export const UTF8_BOM = "﻿";
@@ -46,14 +60,6 @@ export function questionIdsInDocumentOrder(definition: FormDefinition): string[]
     for (const item of step.items) ids.push(item.questionId);
   }
   return ids;
-}
-
-/** Quote a single CSV field per RFC 4180, only when it must be quoted. */
-export function csvField(value: string): string {
-  if (/[",\r\n]/.test(value)) {
-    return `"${value.replace(/"/g, '""')}"`;
-  }
-  return value;
 }
 
 /**

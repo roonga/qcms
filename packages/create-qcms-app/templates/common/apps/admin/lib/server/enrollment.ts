@@ -7,7 +7,7 @@ import { secureCookies } from "./config.ts";
  *
  * ## Why the TOTP URI travels in a cookie
  *
- * The signed wireframe puts the QR code and the manual setup key on the enrollment
+ * The signed screen contract puts the QR code and the manual setup key on the enrollment
  * screen, with no password field: the admin has just signed in, so asking again
  * would be a screen the design does not have. But better-auth's `getTOTPURI`
  * requires the password (correctly - re-authentication before revealing a factor),
@@ -29,7 +29,7 @@ import { secureCookies } from "./config.ts";
  *
  * ## Why the recovery codes travel the same way (issue #319)
  *
- * The recovery codes are shown exactly once (the wireframe: "codes never shown
+ * The recovery codes are shown exactly once (the screen contract: "codes never shown
  * again"), and until #319 that display was fed by a QCMS route that read them back out
  * of the database on demand. Reading them back is the thing that made "shown once"
  * untrue, so the route is gone and there is no path anywhere that returns the codes on

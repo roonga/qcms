@@ -1,13 +1,21 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button } from "@/components/kit";
+import { RecoveryCodes } from "@/components/recovery-codes";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { owedRecoveryCodes } from "@/lib/server/enrollment";
 import { currentAdminSession, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
 
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("recovery.title"));
+}
+
 /**
- * The one-time recovery-code display (task 031; wireframe state
+ * The one-time recovery-code display (task 031; screen contract state
  * `recovery-codes-display`).
  *
  * "One-time" is enforced by the {@link owedRecoveryCodes} cookie, not by hoping nobody
@@ -21,17 +29,17 @@ import { currentAdminSession, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server
  * a set that was handed over moments ago and can never be recovered afterwards, which
  * is the property the screen has always claimed to have.
  *
- * The a11y notes make the codes **a list**, so a screen reader announces "list, ten
- * items" and can walk them one by one - a `<pre>` block would read as one
- * undifferentiated run of characters. They are rendered in a monospace, tabular
- * figure style because a recovery code is transcribed by hand and `1`/`l` and `0`/`O`
- * have to be distinguishable.
+ * The list, the copy control and its status line are `components/recovery-codes.tsx`, a
+ * client island: a clipboard write needs client JavaScript, which `docs/admin-constraints.md`
+ * makes available. The **flow** stays where that document constrains it to be - the confirm
+ * below is a plain form post to a named route handler, so no auth endpoint moves into the
+ * client (ADR-35 / SEC-1).
  *
- * There is no "copy all" button, and that is the one wireframe affordance this task
- * does not ship. A clipboard write needs client JavaScript and a status region to
- * confirm it, which is a client interaction pattern the admin has no other use for
- * yet; selecting the visible list works today with keyboard and mouse. Recorded as a
- * discovery rather than improvised.
+ * An earlier version of this comment recorded that the screen deliberately shipped without a
+ * copy-all, because a clipboard write needed client JavaScript and a status region the admin
+ * had no other use for. Both halves of that have since changed underneath it, which is issue
+ * 683: JavaScript is available, and the two POCs that draw the button are the approved design
+ * rather than a proposal.
  */
 export default async function RecoveryCodesPage() {
   const session = await currentAdminSession();
@@ -44,14 +52,7 @@ export default async function RecoveryCodesPage() {
 
   return (
     <AuthScreen title={t("recovery.title")} intro={t("recovery.intro")}>
-      <ul
-        aria-label={t("recovery.listLabel")}
-        className="grid grid-cols-2 gap-2 rounded border border-(--color-border) bg-(--color-background-muted) p-3 font-mono text-sm tabular-nums text-(--color-text)"
-      >
-        {codes.map((code) => (
-          <li key={code}>{code}</li>
-        ))}
-      </ul>
+      <RecoveryCodes codes={codes} />
       <form method="post" action="/two-factor/recovery-codes/confirm">
         <Button type="submit" variant="primary" size="md">
           {t("recovery.confirm")}

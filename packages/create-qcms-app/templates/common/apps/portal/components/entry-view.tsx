@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
 
 /**
- * Anonymous / secure-link entry (wireframe `/f/:formSlug`): a neutral invitation,
+ * Anonymous / secure-link entry (screen contract `/f/:formSlug`): a neutral invitation,
  * the optional pre-session challenge slot, and a Start button. The Start control
  * is a real form POST to the BFF start-session route, so it works with or without
  * JS. Nothing here evaluates or fetches the API directly (R2).

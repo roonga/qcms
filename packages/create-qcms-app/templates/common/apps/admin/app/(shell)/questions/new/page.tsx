@@ -1,15 +1,22 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 
 import { Card } from "@/components/kit";
 import { QuestionEditor } from "@/components/questions/question-editor";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { blankDefinition } from "@/lib/questions/definition";
 import { requireAdminSession } from "@/lib/server/session";
 
 import { createQuestionAction } from "../actions";
 
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("questions.create.title"));
+}
+
 /**
- * Creating a question (task 032; wireframe "editor new" state).
+ * Creating a question (task 032; screen contract "editor new" state).
  *
  * The only screen where `slug` and `type` can be chosen, and it says so in the two notes
  * beside them. That is not decoration: an id is permanent and never reused for a

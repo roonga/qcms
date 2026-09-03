@@ -8,7 +8,9 @@ import {
 } from "@qcms/ui";
 import { useCallback, useState } from "react";
 
+import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import { t } from "@/lib/i18n/en";
+import type { PreviewTheme } from "@/lib/preview-theme";
 import type { PreviewDocument } from "@/lib/questions/types";
 
 /**
@@ -63,12 +65,31 @@ import type { PreviewDocument } from "@/lib/questions/types";
  * in what is absent: there is no `postAnswer`, no fetch, no ADR-31 commit moment and no
  * persistence of any kind. The state lives in this component and dies with it - on
  * unmount, and on a version switch, which `resetKey` below makes explicit.
+ *
+ * ## The styling seam, and the theme island on it
+ *
+ * Task 034 gave the two form-level previews a single `qcms-preview-surface` container
+ * that owns the preview's styling boundary; this screen had only the plain
+ * `.qcms-preview` box. Task 058 moved the seam's markup into `PreviewThemeIsland`, so
+ * all three surfaces mount one container, and this screen joins them by rendering
+ * through it rather than by growing a container of its own. What the author gets is the
+ * respondent token set inside the box and the authoring app's Cobalt outside it, with a
+ * theme and mode switcher above.
  */
 export function QuestionPreview({
   preview,
   resetKey,
+  defaultTheme,
 }: {
   readonly preview: PreviewDocument;
+  /**
+   * The deployment's configured portal theme, read on the server by the page.
+   *
+   * A prop rather than a read here, because this is a client component and
+   * `lib/server/` is unreachable from one (R2), and because the island has to be
+   * portal-themed in its first paint rather than after a round trip.
+   */
+  readonly defaultTheme: PreviewTheme;
   /**
    * Discards the typed answers when it changes. The selected version, in practice.
    *
@@ -115,14 +136,14 @@ export function QuestionPreview({
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-(--color-text-muted)">{t("questions.preview.note")}</p>
-      <div className="qcms-preview">
+      <PreviewThemeIsland defaultTheme={defaultTheme}>
         <A2UIStepRenderer
           document={document}
           specVersion={preview.a2uiSpecVersion}
           values={answers.values}
           onChange={handleChange}
         />
-      </div>
+      </PreviewThemeIsland>
     </div>
   );
 }

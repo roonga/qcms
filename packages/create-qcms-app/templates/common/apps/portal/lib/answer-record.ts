@@ -1,5 +1,7 @@
 import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@qcms/ui";
 
+import type { CommitMoment } from "./visible";
+
 /**
  * The flow's record of what the server has said about each answer: the value it
  * holds, and the value it refused (issue #122).
@@ -44,9 +46,48 @@ export type RejectedAnswers = Readonly<Record<string, RejectedAnswer | undefined
  * to compare element-wise. Absence encodes as `null` - the same body the
  * retraction posts - and no real `A2UIAnswerValue` can collide with it, because
  * every string is quoted: the shortText answer `"null"` encodes as `"\"null\""`.
+ *
+ * **Arrays are sorted into a copy before encoding (issue #167).** A multiChoice
+ * value is a SET to the kernel (ADR-21: `valuesEqual` compares option ids
+ * order-insensitively), so a key that read `["a","b"]` and `["b","a"]` as
+ * different answers gave the client and the server different notions of "the same
+ * answer". Nothing writes a different order today - every writer traces back to
+ * the checkbox adapter, which emits in document order - so the only consequence
+ * was one redundant append to the append-only ledger, never a wrong or a lost
+ * answer. Canonicalizing here is what stops the next writer having to rediscover
+ * that the two notions differed.
+ *
+ * The copy is deliberate: the argument is the value on screen, and sorting it in
+ * place would reorder the respondent's selection in the rendered control.
+ *
+ * The sort is the ONLY canonicalization. Object key order, string normalization
+ * and number formatting stay untouched on purpose: this key exists to agree with
+ * what the server stores, and a client that folded together values the server
+ * keeps apart would suppress a post the ledger wants. So the key is now CLOSER to
+ * `valuesEqual` rather than equal to it, and the residue is worth naming rather
+ * than leaving as "nearly equal": `valuesEqual` compares strings after NFC
+ * normalization, and it treats a duplicated option id as the same set (the
+ * canonical `MultiChoiceAnswerValue` is duplicate-free). Neither is reachable
+ * from this client - the renderer emits NFC text and the checkbox adapter cannot
+ * emit a duplicate - and folding either one here would mean this key deciding
+ * something the server's canonical form decides, which is exactly the coupling
+ * the single-seam design avoids.
  */
 export function answerKey(value: A2UIAnswerValue | undefined): string {
+  // Sorted into a COPY: `value` is the value currently rendered in the control.
+  if (isSelection(value)) return JSON.stringify([...value].sort());
   return JSON.stringify(value ?? null);
+}
+
+/**
+ * A typed `Array.isArray`: the only array shape an `A2UIAnswerValue` has is a
+ * multiChoice selection. Written as a predicate because bare `Array.isArray`
+ * narrows a `readonly string[]` member to `any[]`, and spreading that is an
+ * unchecked `any` the lint rules refuse (the same reason `@qcms/ui`'s registry
+ * carries `isStringArray`).
+ */
+function isSelection(value: A2UIAnswerValue | undefined): value is readonly string[] {
+  return Array.isArray(value);
 }
 
 /**
@@ -103,6 +144,48 @@ export function holdsAnswer(record: PostedRecord, name: string): boolean {
 }
 
 /**
+ * Whether focus leaving a control is a commit worth posting (issue #168).
+ *
+ * The renderer reports focus leaving the WHOLE control, which is ADR-31's `blur`
+ * moment for number, longText and shortText and its `groupExit` for a multiChoice.
+ * Two rules decide, and both are about the same thing - a post must assert
+ * something:
+ *
+ * - An **empty `completion` control** (the date) commits nothing here. A partial or
+ *   never-finished date is not an answer, and the one `null` such a control can
+ *   post is the ADR-33 retraction, which arrives through the change event once
+ *   editing ends.
+ * - An **empty control that holds no answer** commits nothing either, whatever its
+ *   moment. A retraction needs something to retract: asserting "this question is
+ *   now unanswered" about a question that was never answered says nothing the
+ *   server does not already know, and the server treats it as a no-op anyway. What
+ *   it cost was a round trip per control a respondent tabs through, plus a 422 and
+ *   its `console.error` whenever the question was required.
+ *
+ * Extracted as a pure function rather than left inline in `step-flow.tsx`, because
+ * this is the rule that decides whether a network call happens and it is wrong in
+ * ways nothing on screen shows. The record it reads is the optimistic one, seeded
+ * from the answers the server served the step with (issue #146) and re-merged on
+ * every navigation, so the answer is correct on a RESUMED mount and not only on a
+ * fresh one. An in-flight post counts as held (`withIssued` records at issue time)
+ * and a refused one does not (`withRollback`, issue #169), so a real retraction is
+ * never suppressed.
+ *
+ * A non-empty value always commits: `isRecorded` in the caller is what suppresses a
+ * redundant repeat of it, and that is a different question from this one.
+ */
+export function commitsOnFocusExit(
+  record: PostedRecord,
+  name: string,
+  value: A2UIAnswerValue | undefined,
+  moment: CommitMoment,
+): boolean {
+  if (value !== undefined) return true;
+  if (moment === "completion") return false;
+  return holdsAnswer(record, name);
+}
+
+/**
  * The record with this question's value marked as posted, called when the post is
  * ISSUED (issue #122).
  *
@@ -122,27 +205,56 @@ export function withIssued(
 }
 
 /**
+ * The record with this question's value marked as HELD BY THE SERVER, called when
+ * a post is accepted (issue #169).
+ *
+ * Identical arithmetic to `withIssued`, deliberately kept as its own name because
+ * the two write different records: `withIssued` writes the optimistic one that
+ * dedupes posts, this one writes the confirmed one that `withRollback` restores
+ * from. Conflating them is the defect #169 records.
+ */
+export function withConfirmed(
+  confirmed: PostedRecord,
+  name: string,
+  value: A2UIAnswerValue | undefined,
+): PostedRecord {
+  return { ...confirmed, [name]: answerKey(value) };
+}
+
+/**
  * The record with an issued post's optimistic entry undone, called when that post
  * was NOT accepted.
  *
  * Without this, recording on issue would be worse than recording on resolution: a
  * refused value would be remembered as held, and the respondent could never retry
  * it (the retry would be deduped into silence, which matters the moment the same
- * body could succeed later - a transient failure, a changed constraint). Restoring
- * `previous` also has to restore ABSENCE when there was none, because "no entry"
+ * body could succeed later - a transient failure, a changed constraint). The
+ * restore has to restore ABSENCE when the server holds nothing, because "no entry"
  * is what tells a `completion` clear that the question was never answered.
  *
  * The rollback is conditional (compare and swap): if the record no longer holds
  * `key`, a newer post for this question has been issued since and its entry is the
  * current truth, so this stale rollback must not clobber it.
+ *
+ * **What it restores comes from `confirmed`, never from `record` (issue #169).**
+ * The rollback's contract is "restore what was true before this post", and the only
+ * keys that were ever true are the ones the server seeded or accepted. Reading the
+ * value the optimistic record happened to hold when this post was issued breaks
+ * that on two overlapping refusals of the same question: post A records X, post B
+ * is issued before A resolves and captures X as its predecessor, both are refused,
+ * and B's rollback reinstates X - a value the server refused. The record then
+ * claims the client holds X, so re-entering X is deduped into silence until a
+ * navigation's `withServerHeld` merge heals it. Taking the predecessor from the
+ * confirmed record makes that unrepresentable rather than merely unlikely.
  */
 export function withRollback(
   record: PostedRecord,
+  confirmed: PostedRecord,
   name: string,
   key: string,
-  previous: string | undefined,
 ): PostedRecord {
   if (record[name] !== key) return record;
+  const previous = confirmed[name];
   const next = { ...record };
   if (previous === undefined) delete next[name];
   else next[name] = previous;

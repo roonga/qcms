@@ -10,6 +10,7 @@ import { CONDITION_OPS, type DraftCondition, type DraftForm } from "@/lib/forms/
 import type { PinnableQuestion } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
+import type { ReadState } from "@/lib/read-state";
 
 /**
  * The schema-aware JSON view of one rule's condition (task 033, ADR-19, ADR-22 exception).
@@ -36,7 +37,7 @@ import { textOf } from "@/lib/questions/definition";
  * two reasons and both are worth keeping: the whole CodeMirror bundle then loads only when
  * an author actually opens a rule, and it never runs during server rendering, where there
  * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
- * plain text, so the condition is readable before hydration and in the screenshot gate.
+ * plain text, so the condition is readable before hydration.
  *
  * ## Accessibility, which is load-bearing for the axe gate
  *
@@ -50,10 +51,18 @@ import { textOf } from "@/lib/questions/definition";
  *
  * `op`, `questionId` and `optionId`, exactly as the task names them, and all three come
  * from the draft rather than from a JSON Schema: there is no schema to load here, because
- * `@qcms/core` is not importable from this app at all. `questionId` offers the questions
+ * a schema is a runtime value and this app takes no `@qcms/core` value import (the
+ * type-only import `lib/forms/condition.ts` uses is erased and carries no schema with
+ * it). `questionId` offers the questions
  * this form **pins**, and `optionId` offers the options of the **pinned version** of the
  * question the surrounding node reads - which is precisely the pair a moved pin can
  * invalidate, so offering anything wider would be teaching the wrong thing.
+ *
+ * The library arrives as a `ReadState` (`lib/read-state.ts`, issues 572 and 544) and a
+ * failed read simply offers fewer completions: labels and option ids are things the
+ * library knows, and a library nobody read knows nothing. The pane still edits, which is
+ * the point - completion is a convenience, and taking the editor away because a different
+ * read failed would remove work an author can still do.
  */
 export function ConditionJsonPane({
   condition,
@@ -64,7 +73,7 @@ export function ConditionJsonPane({
 }: {
   readonly condition: DraftCondition;
   readonly draft: DraftForm;
-  readonly library: readonly PinnableQuestion[];
+  readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly onChange: (next: DraftCondition) => void;
   readonly label: string;
 }) {
@@ -157,7 +166,10 @@ export function ConditionJsonPane({
       <p className="text-sm text-(--color-text-muted)">{t("forms.json.note")}</p>
       <div ref={host} data-testid="qcms-condition-json" />
       {!isReady && (
-        <pre className="qcms-tabular overflow-x-auto rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">
+        // `qcms-scroll-x` replaces a bare `overflow-x-auto`: the pane scrolled, but it
+        // still handed its longest JSON line (277px, measured) to every ancestor, and
+        // that reached the page as horizontal scroll at narrow widths (issue 616).
+        <pre className="qcms-tabular qcms-scroll-x rounded-md border border-(--color-border) bg-(--color-background) p-2 text-sm text-(--color-text)">
           {text}
         </pre>
       )}
@@ -249,7 +261,7 @@ function sameJson(left: string, right: string): boolean {
 interface PaneContext {
   readonly current: {
     readonly draft: DraftForm;
-    readonly library: readonly PinnableQuestion[];
+    readonly library: ReadState<readonly PinnableQuestion[]>;
   };
 }
 
@@ -305,7 +317,9 @@ function nearestKey(before: string): CompletableKey | undefined {
 function pinnedQuestionCompletions(pane: PaneContext): Completion[] {
   const { draft, library } = pane.current;
   return draftDocumentOrder(draft).map((entry) => {
-    const question = library.find((candidate) => candidate.questionId === entry.questionId);
+    const question = library.ok
+      ? library.data.find((candidate) => candidate.questionId === entry.questionId)
+      : undefined;
     const detail = textOf(question?.label ?? undefined);
     return detail === ""
       ? { label: entry.questionId, type: "variable" }
@@ -327,7 +341,9 @@ function optionCompletions(before: string, pane: PaneContext): Completion[] {
   const { draft, library } = pane.current;
   const pin = draftDocumentOrder(draft).find((entry) => entry.questionId === questionId);
   if (pin === undefined) return [];
-  const question = library.find((candidate) => candidate.questionId === questionId);
+  const question = library.ok
+    ? library.data.find((candidate) => candidate.questionId === questionId)
+    : undefined;
   const type = typeOfPinnedVersion(question, pin.version);
   if (type !== "singleChoice" && type !== "multiChoice") return [];
   return optionIdsOfVersion(question, pin.version).map((optionId) => ({

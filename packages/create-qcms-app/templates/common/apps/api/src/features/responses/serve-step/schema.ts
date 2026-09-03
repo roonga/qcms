@@ -17,6 +17,7 @@
  */
 
 import { z } from "@hono/zod-openapi";
+import { AnswerValue } from "@qcms/core";
 
 /** Path params for the session-scoped serving routes. */
 export const SessionParams = z.object({
@@ -118,10 +119,36 @@ export const StepProgress = z
  * question exists from the values map either. The values are the respondent's own
  * answers over their own session-authed request, and they are never logged
  * (SEC-8).
+ *
+ * **The value type is the kernel's own `AnswerValue` union, not `z.unknown()`
+ * (issue #153).** The invariant above used to live only in this comment and in
+ * the generated document's prose, which left the published contract saying "any
+ * value, nullable" while the code guaranteed something far narrower. Reusing
+ * `@qcms/core`'s schema rather than spelling a parallel one here is the point: one
+ * definition of what an answer may be, the same one `validateAnswer` enforces
+ * before a row reaches the ledger, so the document cannot drift from the storage.
+ * `null` is outside the union deliberately - a retraction is an ABSENT key
+ * (ADR-33), so a null value here would be a bug, and the schema refuses it now
+ * instead of publishing it as legal.
+ *
+ * The union stays untagged, as the kernel leaves it: a date and a singleChoice
+ * option are both strings, and pairing a value with its question type is
+ * `validateAnswer`'s job, so the document says "one of the canonical encodings"
+ * and no more.
+ *
+ * It is left INLINE rather than registered as a named `AnswerValue` component,
+ * and that is a constraint rather than a preference. `zod-to-openapi` installs
+ * `.openapi()` by extending zod's prototypes, and zod 4 copies those methods onto
+ * each schema AT CONSTRUCTION, so a schema built before `@hono/zod-openapi` is
+ * evaluated never gains the method. `@qcms/core`'s schemas are built whenever the
+ * kernel module happens to load first, which under Vitest depends on the importing
+ * test's import order - so `AnswerValue.openapi(...)` here is green in one entry
+ * graph and a `TypeError` in another. Nothing about the emitted document depends
+ * on it: the generator reads the schema structurally.
  */
-export const HeldValues = z.record(z.string(), z.unknown()).openapi({
+export const HeldValues = z.record(z.string(), AnswerValue).openapi({
   description:
-    "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding. Absent keys are unanswered (including retracted answers). Display data only; the flow projection stays the sole authority on visibility and readiness.",
+    "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding (an NFC string for shortText, longText, date and singleChoice; a finite number; a boolean; a duplicate-free array of optionIds for multiChoice). Absent keys are unanswered (including retracted answers), and a value is never null. Display data only; the flow projection stays the sole authority on visibility and readiness.",
   example: { q_at_fault_accident: true, q_accident_count: 2 },
 });
 
@@ -157,13 +184,20 @@ export type StepResponse = z.infer<typeof StepResponse>;
  * is why it can be spelled on this route without ambiguity - `null` is not a
  * legal `AnswerValue` for any question type, so it can never collide with real
  * content. The handler routes it to a tombstone append instead of validation.
+ *
+ * It is also the *only* spelling of a clear. `""` and `[]` are refused by the
+ * kernel (`EMPTY_ANSWER_NOT_ALLOWED`, 422) rather than stored as answers or
+ * quietly reinterpreted as retractions: nothing is appended, and the error names
+ * `null` as what to send instead. Whitespace-only text is a different case - it
+ * is a legal value, stored as typed, that simply confers no presence, so it
+ * cannot satisfy a required question (issue #128).
  */
 export const SubmitAnswerBody = z
   .object({
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
     value: z.unknown().openapi({
       description:
-        "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction).",
+        'The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value ("" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer.',
     }),
   })
   .openapi("SubmitAnswerBody");

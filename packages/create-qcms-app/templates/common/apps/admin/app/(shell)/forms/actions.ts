@@ -179,6 +179,7 @@ export async function saveDraftAction(formId: string, draft: DraftForm): Promise
     return {
       status: "error",
       issues: [],
+      warnings: [],
       code: MALFORMED_CODE,
       message: messageForFormCode(MALFORMED_CODE),
     };
@@ -186,11 +187,17 @@ export async function saveDraftAction(formId: string, draft: DraftForm): Promise
 
   const result = await saveDraft(session, formId, draft);
   if (!result.ok) {
-    return { status: "error", issues: result.issues, code: result.code, message: result.message };
+    return {
+      status: "error",
+      issues: result.issues,
+      warnings: [],
+      code: result.code,
+      message: result.message,
+    };
   }
   revalidatePath("/forms");
   revalidatePath(`/forms/${formId}`);
-  return { status: "saved", issues: result.data.issues };
+  return { status: "saved", issues: result.data.issues, warnings: result.data.warnings };
 }
 
 /**
@@ -200,7 +207,7 @@ export async function saveDraftAction(formId: string, draft: DraftForm): Promise
  * `analyzeRuleGraph` runs inside the same compile the publish path uses, so
  * `RULE_BACKWARD_TARGET` and `RULE_CYCLE` arrive here with no extra endpoint and no
  * second implementation of the analysis in this app (there could not be one - the admin
- * has no `@qcms/core` import at all).
+ * takes no `@qcms/core` value import at all).
  */
 export async function validateDraftAction(
   formId: string,
@@ -212,15 +219,27 @@ export async function validateDraftAction(
       status: "error",
       valid: false,
       issues: [],
+      warnings: [],
       message: messageForFormCode(MALFORMED_CODE),
     };
   }
 
   const result = await validateDraft(session, formId, draft);
   if (!result.ok) {
-    return { status: "error", valid: false, issues: result.issues, message: result.message };
+    return {
+      status: "error",
+      valid: false,
+      issues: result.issues,
+      warnings: [],
+      message: result.message,
+    };
   }
-  return { status: "ok", valid: result.data.valid, issues: result.data.issues };
+  return {
+    status: "ok",
+    valid: result.data.valid,
+    issues: result.data.issues,
+    warnings: result.data.warnings,
+  };
 }
 
 /** The keys the settings patch may carry (ADR-24 tier 2, task 026). */
@@ -259,7 +278,7 @@ export async function updateSettingsAction(
   return {
     status: "saved",
     settings: result.data.settings,
-    challengeProvider: result.data.challengeProvider,
+    challengeEnforceable: result.data.challengeEnforceable,
   };
 }
 
@@ -453,7 +472,7 @@ function endOfDay(value: string): string {
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
 export async function revokeLinkAction(formId: string, linkId: string): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
-  const result = await revokeLink(session, linkId);
+  const result = await revokeLink(session, formId, linkId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);
   return { status: "revoked", linkId: result.data.linkId };

@@ -60,6 +60,7 @@ import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { FlagReason } from "../flag-reasons.js";
+import { parseSemanticsVersion } from "../semantics-version.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
 import type { submitRoute } from "./route.js";
@@ -122,8 +123,13 @@ async function loadFrozenSnapshot(deps: Deps, session: SessionRow): Promise<Froz
     definition,
     questions,
     // The evaluator gates on `semanticsVersion` (I7); the stored stamp is text.
-    // A published version always stamps the semantics it was validated under.
-    semanticsVersion: Number(version.semanticsVersion),
+    // A published version always stamps the semantics it was validated under,
+    // so a stamp that is not a decimal integer is a corrupt row, not an old
+    // snapshot: it is refused here instead of reaching the gate as `NaN` and
+    // being reported as a failed submission sweep (issue #723). A stamp that
+    // reads as a number this build does not implement is unchanged - the kernel
+    // gate still reports it through `prepareSubmission`.
+    semanticsVersion: parseSemanticsVersion(version.semanticsVersion),
     // Unused by the submission sweep; stamped for shape completeness.
     schemaVersion: SNAPSHOT_SCHEMA_VERSION,
   };

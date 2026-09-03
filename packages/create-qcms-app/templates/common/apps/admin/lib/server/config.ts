@@ -16,6 +16,8 @@
  * for the CSRF origin check below; the API reads it too, for better-auth's `baseURL`.
  */
 
+import { DEFAULT_PREVIEW_THEME, parsePreviewTheme, type PreviewTheme } from "../preview-theme.ts";
+
 /** The SEC-4 internal-token header the API requires on every call. */
 export const INTERNAL_TOKEN_HEADER = "x-qcms-internal-token";
 
@@ -89,6 +91,116 @@ export function apiBaseUrl(): string {
 /** The SEC-4 internal service token presented to the API (server-only). */
 export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
+}
+
+/**
+ * Value prefixes that mark a secret as one of the shipped examples rather than real
+ * material (SEC-8: "a deployment with placeholder secrets must refuse to boot").
+ *
+ * **A deliberate copy of `PLACEHOLDER_PREFIXES` in `apps/api/src/config.ts`**, which is
+ * where this control was built by task 040 and which remains the definition of record.
+ * There is no shared package for a Next BFF's server code, the same call `isLoopbackHost`
+ * below and `MIN_PASSWORD_LENGTH` above make, so the vocabulary is duplicated - and
+ * duplicated vocabularies drift, which is the whole of issues #401 and #402. It is
+ * therefore not left to a comment: `scripts/check-bff-config-guards.test.ts` runs the
+ * API's list, this one and the portal's against one corpus from the repo root and fails
+ * on any disagreement, so a spelling added on one side and not the others is a red rather
+ * than a silence.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused exactly as
+ * `replace-with-...` is; matching on the prefix rather than on the exact shipped strings
+ * keeps the guard working when the example wording changes.
+ */
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  "replace-",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/** True when `raw` is one of the shipped placeholders rather than real material. */
+export function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * The variables this app holds that are secret material. One, today: task 056 took
+ * `DATABASE_URL` and `QCMS_ADMIN_AUTH_SECRET` away from this app, and its base URLs are
+ * settings rather than secrets (a placeholder there is caught by the cookie guard below,
+ * or by a visibly failing origin check, not by this).
+ */
+const SECRET_VARS: readonly string[] = ["QCMS_INTERNAL_TOKEN"];
+
+/**
+ * Refuse to boot when a secret still holds an example-file placeholder (issue #491).
+ *
+ * ## Why this app needs its own copy of a guard the API already has
+ *
+ * Task 040 closed a HIGH finding by making the API refuse to boot on a placeholder: every
+ * shipped example file fills its secrets with `replace-with-a-random-32-character-...`,
+ * which is longer than the 32-character floor that was the only validation running, so a
+ * half-configured deployment booted on key material published in a public repository. That
+ * guard went into `apps/api/src/config.ts` only, deliberately, to keep the change out of
+ * the browser-gated app trees.
+ *
+ * With the API refusing, a **composed** deployment does not come up at all, so this is not
+ * a hole in the shipped stack - it is protected by the strictest reader. The reason to
+ * close it anyway is the one this file keeps supplying: "the other guy validates it" is
+ * exactly the reasoning that produced #401 and #402, and a BFF started on its own, or
+ * against an API someone relaxed, would present a published token and discover it as an
+ * authentication failure at the first request rather than as a refusal at boot. A boot
+ * refusal names the variable; a 401 does not.
+ *
+ * ## What it reports
+ *
+ * The variable name and nothing else. SEC-8 forbids echoing the value even when the value
+ * is known to be worthless, because the same code path would handle a real one.
+ *
+ * The value is split on commas and whitespace before matching, because the API accepts
+ * `QCMS_INTERNAL_TOKEN` as a rotation list (first signs, all verify). A placeholder hiding
+ * among real entries is refused the same as a lone one.
+ *
+ * ## Where it runs
+ *
+ * `instrumentation.ts`, beside {@link assertSecureCookiesConfigured}, for the same reason:
+ * Next calls `register()` once per server process before anything serves, so the failure is
+ * a boot failure rather than a 500 on the first request.
+ *
+ * An **unset** or empty value is passed rather than refused. That is a different defect,
+ * `internalToken()` already fails loudly on it, and `register()` also runs in build-time
+ * server workers where the variable is legitimately absent - the same reason the cookie
+ * guard tolerates a missing base URL.
+ *
+ * ## Twin
+ *
+ * `apps/portal/lib/server/config.ts` carries this guard over the same variable. **Change
+ * one, change the other** - and unlike the cookie guard's twin note, that reminder is
+ * backed by a check: `scripts/check-bff-config-guards.test.ts` asserts both apps carry the
+ * guard, that both call it at boot, and that all three placeholder vocabularies agree.
+ */
+export function assertNoPlaceholderSecrets(): void {
+  const offenders = SECRET_VARS.filter((name) => {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === "") return false;
+    return raw
+      .split(/[\s,]+/)
+      .filter((entry) => entry !== "")
+      .some((entry) => looksLikePlaceholder(entry));
+  });
+  if (offenders.length === 0) return;
+
+  throw new Error(
+    [
+      "Refusing to start: a required secret still holds a placeholder value from an example file.",
+      `  observed: ${offenders.join(", ")} matches one of the shipped placeholder shapes (the value is not printed, SEC-8).`,
+      "  effect: this deployment would authenticate its calls to the API with a value published in a public repository, so anyone could open the SEC-4 internal channel that carries the authoring surface.",
+      "  remedy: generate real secrets (`openssl rand -base64 32`) and set the same value here and on the api service. See docs/operations.md.",
+    ].join("\n"),
+  );
 }
 
 /**
@@ -209,10 +321,35 @@ export function isLoopbackHost(host: string): boolean {
  * {@link secureCookies} above), but the *rule* must not drift - the two apps disagreeing
  * about exactly this is what issue #292 was filed about. There is no shared package for a
  * Next BFF's server code, the same call `MIN_PASSWORD_LENGTH` above makes, so it is a
- * copy, and the test matrices in
- * `config.test.ts` on both sides assert the same cases so a change made to one and not
- * the other shows up as a red test. **Change one, change the other.**
+ * copy. **Change one, change the other** - as a reminder, not as a guarantee.
+ *
+ * This used to claim that the `config.test.ts` matrices on both sides assert the same
+ * cases, so a one-sided change goes red. Nothing computes that (issue #412), and the two
+ * had already drifted when it was checked: this side's matrix carried the raw `0`/`no`/
+ * `off` spellings and the portal's did not, which is the gap behind issue #409. An
+ * unenforced guarantee in a comment is worse than no comment, because it stops the next
+ * reader checking. Making it real means a case table both suites import, which needs a
+ * home for cross-app test fixtures that this repository does not have yet; #412 holds
+ * that decision.
  */
+/**
+ * The respondent portal's public origin (`QCMS_PORTAL_BASE_URL`), or `undefined`.
+ *
+ * Read here so the builder can show a published form's own address
+ * (`lib/forms/public-link.ts`). The API already requires this variable - it mints secure
+ * links with it - and the portal requires it for its start redirect; this app is the third
+ * reader and the only one for which it is optional, because a deployment that has not set
+ * it loses one block on one screen rather than a working request.
+ *
+ * NOT the same read as {@link adminBaseUrl}: that is this app's own origin, used for the
+ * SEC-9 origin check, and the two are different hosts in every deployment that separates
+ * the authoring surface from the respondent surface.
+ */
+export function portalBaseUrl(): string | undefined {
+  const raw = process.env.QCMS_PORTAL_BASE_URL?.trim();
+  return raw === undefined || raw === "" ? undefined : raw;
+}
+
 export function assertSecureCookiesConfigured(): void {
   if (secureCookies()) return;
 
@@ -255,6 +392,45 @@ export function adminBaseUrl(): string {
   let base = required("QCMS_ADMIN_BASE_URL");
   while (base.endsWith("/")) base = base.slice(0, -1);
   return base;
+}
+
+/**
+ * The respondent theme the preview island starts in (task 058).
+ *
+ * **The same variable the portal reads**, spelled identically, because it names the same
+ * deployment fact: which of the four predefined themes this deployment serves
+ * respondents (`apps/portal/lib/server/theme.ts`). Set it in both services and an author
+ * previewing a question sees the appearance that deployment actually ships rather than
+ * the authoring app's own Cobalt; the shared spelling is what stops the two sides being
+ * configured into disagreeing by a rename.
+ *
+ * **Composition forwards it to both services, as of issue #499.** `docker-compose.yml`
+ * names it on `portal` and on `admin` with the `${VAR:-}` default shape, so one value in
+ * `.env` reaches both images and an author's preview cannot disagree with what the
+ * deployment serves. Before that it was named on neither, and setting it reached nothing
+ * silently. It is documented as an operator-set variable in `apps/admin/.env.example`,
+ * `apps/portal/.env.example` and the `docs/operations.md` table.
+ *
+ * This app takes the theme and nothing else from the portal's appearance group. Issue
+ * #752 forwarded the other six knobs (corners, mode, density, font, the curated font
+ * list, the brand mark) to the `portal` service only, because the authoring app's own
+ * chrome is never adopter-themeable (ADR-26) and reads none of them.
+ *
+ * Read here rather than in the island itself because the island is a client component
+ * and `lib/server/` is unreachable from one by construction (the R2 import-surface
+ * test). The three preview pages are server components; each passes the answer down as
+ * a prop, which is also what makes the island's FIRST paint correct - a value fetched
+ * after hydration would repaint the preview in front of the author.
+ *
+ * An unrecognized value falls back to the base theme rather than throwing, matching the
+ * portal's own tolerance for a typo in presentation config: a misspelt theme name must
+ * degrade a preview, never take an authoring session down.
+ *
+ * Nothing here is a secret. It is in `lib/server/` because reading the environment is
+ * server work in a strict BFF (R2), not because the value needs protecting.
+ */
+export function previewPortalTheme(): PreviewTheme {
+  return parsePreviewTheme(process.env.QCMS_PORTAL_THEME) ?? DEFAULT_PREVIEW_THEME;
 }
 
 /**

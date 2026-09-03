@@ -86,16 +86,34 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (266 files common to both shapes)
+### Scaffolded paths (335 files common to both shapes)
 
 | Path | Files |
 | --- | --- |
 | `(project root)` | 8 |
-| `apps/` | 255 |
-| `apps/admin/` | 131 |
-| `apps/admin/app/` | 42 |
-| `apps/admin/app/(shell)/` | 26 |
-| `apps/admin/app/(shell)/forms/` | 13 |
+| `apps/` | 324 |
+| `apps/admin/` | 195 |
+| `apps/admin/app/` | 63 |
+| `apps/admin/app/(shell)/` | 47 |
+| `apps/admin/app/(shell)/@rail/` | 20 |
+| `apps/admin/app/(shell)/@rail/forms/` | 11 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/` | 9 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/links/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/preview/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/` | 2 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/` | 2 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/` | 1 |
+| `apps/admin/app/(shell)/@rail/forms/new/` | 1 |
+| `apps/admin/app/(shell)/@rail/questions/` | 3 |
+| `apps/admin/app/(shell)/@rail/questions/[questionId]/` | 1 |
+| `apps/admin/app/(shell)/@rail/questions/new/` | 1 |
+| `apps/admin/app/(shell)/@rail/responses/` | 2 |
+| `apps/admin/app/(shell)/@rail/responses/erasures/` | 1 |
+| `apps/admin/app/(shell)/@rail/settings/` | 1 |
+| `apps/admin/app/(shell)/@rail/webhooks/` | 1 |
+| `apps/admin/app/(shell)/forms/` | 14 |
 | `apps/admin/app/(shell)/forms/[formId]/` | 9 |
 | `apps/admin/app/(shell)/forms/[formId]/export/` | 1 |
 | `apps/admin/app/(shell)/forms/[formId]/links/` | 1 |
@@ -105,6 +123,7 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/(shell)/forms/[formId]/versions/` | 2 |
 | `apps/admin/app/(shell)/forms/[formId]/versions/[version]/` | 1 |
 | `apps/admin/app/(shell)/forms/[formId]/webhooks/` | 1 |
+| `apps/admin/app/(shell)/forms/new/` | 2 |
 | `apps/admin/app/(shell)/questions/` | 4 |
 | `apps/admin/app/(shell)/questions/[questionId]/` | 1 |
 | `apps/admin/app/(shell)/questions/new/` | 1 |
@@ -127,34 +146,35 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/two-factor/recovery-codes/` | 2 |
 | `apps/admin/app/two-factor/recovery-codes/confirm/` | 1 |
 | `apps/admin/app/two-factor/recovery/verify/` | 1 |
-| `apps/admin/components/` | 41 |
-| `apps/admin/components/forms/` | 18 |
+| `apps/admin/components/` | 58 |
+| `apps/admin/components/forms/` | 23 |
 | `apps/admin/components/ops/` | 7 |
-| `apps/admin/components/questions/` | 8 |
-| `apps/admin/lib/` | 41 |
-| `apps/admin/lib/forms/` | 9 |
+| `apps/admin/components/questions/` | 9 |
+| `apps/admin/components/test-support/` | 1 |
+| `apps/admin/lib/` | 66 |
+| `apps/admin/lib/forms/` | 17 |
 | `apps/admin/lib/i18n/` | 2 |
-| `apps/admin/lib/ops/` | 8 |
-| `apps/admin/lib/questions/` | 5 |
-| `apps/admin/lib/server/` | 14 |
-| `apps/api/` | 67 |
-| `apps/api/src/` | 64 |
-| `apps/api/src/features/` | 38 |
+| `apps/admin/lib/ops/` | 9 |
+| `apps/admin/lib/questions/` | 6 |
+| `apps/admin/lib/server/` | 20 |
+| `apps/api/` | 70 |
+| `apps/api/src/` | 67 |
+| `apps/api/src/features/` | 39 |
 | `apps/api/src/features/auth/` | 3 |
 | `apps/api/src/features/forms/` | 3 |
 | `apps/api/src/features/links/` | 3 |
 | `apps/api/src/features/outbox/` | 3 |
 | `apps/api/src/features/questions/` | 3 |
-| `apps/api/src/features/responses/` | 17 |
+| `apps/api/src/features/responses/` | 18 |
 | `apps/api/src/features/responses/admin/` | 4 |
 | `apps/api/src/features/responses/serve-step/` | 3 |
 | `apps/api/src/features/responses/start-session/` | 3 |
 | `apps/api/src/features/responses/submit/` | 3 |
 | `apps/api/src/features/webhooks/` | 6 |
-| `apps/api/src/middleware/` | 4 |
+| `apps/api/src/middleware/` | 6 |
 | `apps/api/src/routes/` | 1 |
 | `apps/api/src/schedulers/` | 4 |
-| `apps/portal/` | 57 |
+| `apps/portal/` | 59 |
 | `apps/portal/app/` | 15 |
 | `apps/portal/app/done/` | 1 |
 | `apps/portal/app/expired/` | 1 |
@@ -170,9 +190,9 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/portal/app/s/[sessionId]/step/` | 1 |
 | `apps/portal/app/s/[sessionId]/submit/` | 1 |
 | `apps/portal/components/` | 12 |
-| `apps/portal/lib/` | 23 |
+| `apps/portal/lib/` | 25 |
 | `apps/portal/lib/i18n/` | 1 |
-| `apps/portal/lib/server/` | 13 |
+| `apps/portal/lib/server/` | 15 |
 | `docker/` | 3 |
 
 ### What each deployment shape adds
@@ -187,12 +207,12 @@ path", so the completeness claim is checkable rather than asserted.
 | Package | Range | What it carries | Upgrade story |
 | --- | --- | --- | --- |
 | `@qcms/core` | `^0.0.0` | Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens. | Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note. |
-| `@qcms/a2ui-compiler` | `^0.1.0` | Compiles a published form into the stored A2UI document the portal serves. | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted. |
+| `@qcms/a2ui-compiler` | `^0.2.0` | Compiles a published form into the stored A2UI document the portal serves. | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted. |
 | `@qcms/db` | `^0.0.0` | The schema, the migration history, the query helpers and the reporting view. | Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them. |
 | `@qcms/ui` | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on. | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite. |
 
 <details>
-<summary>Every scaffolded file (266)</summary>
+<summary>Every scaffolded file (335)</summary>
 
 ```
 .dockerignore
@@ -200,6 +220,26 @@ path", so the completeness claim is checkable rather than asserted.
 .gitignore
 .npmrc
 apps/admin/.gitignore
+apps/admin/app/(shell)/@rail/default.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/links/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/responses/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/versions/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/page.tsx
+apps/admin/app/(shell)/@rail/forms/new/page.tsx
+apps/admin/app/(shell)/@rail/forms/page.tsx
+apps/admin/app/(shell)/@rail/no-section.ts
+apps/admin/app/(shell)/@rail/questions/[questionId]/page.tsx
+apps/admin/app/(shell)/@rail/questions/new/page.tsx
+apps/admin/app/(shell)/@rail/questions/page.tsx
+apps/admin/app/(shell)/@rail/responses/erasures/page.tsx
+apps/admin/app/(shell)/@rail/responses/page.tsx
+apps/admin/app/(shell)/@rail/settings/page.tsx
+apps/admin/app/(shell)/@rail/webhooks/page.tsx
 apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
@@ -210,8 +250,9 @@ apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/[formId]/webhooks/page.tsx
 apps/admin/app/(shell)/forms/actions.ts
-apps/admin/app/(shell)/forms/create-form.tsx
 apps/admin/app/(shell)/forms/forms-table.tsx
+apps/admin/app/(shell)/forms/new/create-form.tsx
+apps/admin/app/(shell)/forms/new/page.tsx
 apps/admin/app/(shell)/forms/page.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
@@ -246,8 +287,9 @@ apps/admin/components/account-menu.tsx
 apps/admin/components/admin-nav.tsx
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-menu.tsx
-apps/admin/components/area-placeholder.tsx
 apps/admin/components/auth-screen.tsx
+apps/admin/components/empty-state.tsx
+apps/admin/components/forms/builder-breadcrumb.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
 apps/admin/components/forms/draft-preview.tsx
@@ -255,18 +297,23 @@ apps/admin/components/forms/form-actions.tsx
 apps/admin/components/forms/form-builder.tsx
 apps/admin/components/forms/form-page-header.tsx
 apps/admin/components/forms/form-settings-panel.tsx
-apps/admin/components/forms/form-tabs.tsx
+apps/admin/components/forms/form-subtree-rail.tsx
 apps/admin/components/forms/library-picker.tsx
 apps/admin/components/forms/link-state-tag.tsx
 apps/admin/components/forms/operand-control.tsx
+apps/admin/components/forms/public-form-link.tsx
+apps/admin/components/forms/rail-steps.tsx
+apps/admin/components/forms/rule-targets.tsx
 apps/admin/components/forms/rule-test-bench.tsx
+apps/admin/components/forms/rule-wizard.tsx
+apps/admin/components/forms/rules-table.tsx
 apps/admin/components/forms/secure-links.tsx
 apps/admin/components/forms/step-editor.tsx
-apps/admin/components/forms/steps-rail.tsx
 apps/admin/components/forms/validation-panel.tsx
 apps/admin/components/forms/version-history.tsx
 apps/admin/components/forms/version-view.tsx
 apps/admin/components/kit.tsx
+apps/admin/components/measured-main.tsx
 apps/admin/components/mode-glyph.tsx
 apps/admin/components/ops/dead-letters.tsx
 apps/admin/components/ops/delivery-dashboard.tsx
@@ -275,42 +322,70 @@ apps/admin/components/ops/response-browser.tsx
 apps/admin/components/ops/response-detail.tsx
 apps/admin/components/ops/tombstone-card.tsx
 apps/admin/components/ops/webhook-config.tsx
+apps/admin/components/preview-theme-island.tsx
 apps/admin/components/questions/constraints-editor.tsx
 apps/admin/components/questions/lifecycle-actions.tsx
 apps/admin/components/questions/messages-editor.tsx
 apps/admin/components/questions/option-grid-editor.tsx
 apps/admin/components/questions/question-editor.tsx
 apps/admin/components/questions/question-preview.tsx
+apps/admin/components/questions/question-versions-rail.tsx
 apps/admin/components/questions/questions-table.tsx
 apps/admin/components/questions/status-tag.tsx
+apps/admin/components/rail-disclosure.tsx
+apps/admin/components/rail-frame.tsx
+apps/admin/components/recovery-codes.tsx
+apps/admin/components/row-menu.tsx
+apps/admin/components/save-model.tsx
+apps/admin/components/searchable-select.tsx
+apps/admin/components/settings-panels.tsx
+apps/admin/components/settings-section-rail.tsx
+apps/admin/components/test-support/markup.ts
 apps/admin/instrumentation.ts
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
+apps/admin/lib/builder-notice.ts
+apps/admin/lib/forms/builder-bridge.ts
 apps/admin/lib/forms/builder-state.ts
 apps/admin/lib/forms/condition.ts
 apps/admin/lib/forms/draft.ts
 apps/admin/lib/forms/errors.ts
 apps/admin/lib/forms/issues.ts
 apps/admin/lib/forms/links.ts
+apps/admin/lib/forms/picker-selection.ts
+apps/admin/lib/forms/pin-grid.ts
+apps/admin/lib/forms/public-link.ts
 apps/admin/lib/forms/publish.ts
+apps/admin/lib/forms/rule-sentence.ts
+apps/admin/lib/forms/rule-targets.ts
+apps/admin/lib/forms/settings.ts
+apps/admin/lib/forms/subtree-rail.ts
 apps/admin/lib/forms/types.ts
 apps/admin/lib/forms/version-diff.ts
 apps/admin/lib/i18n/en.ts
 apps/admin/lib/i18n/format.ts
 apps/admin/lib/initials.ts
+apps/admin/lib/measure.ts
 apps/admin/lib/ops/answers.ts
 apps/admin/lib/ops/browse.ts
 apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/labels.ts
 apps/admin/lib/ops/post-action-focus.ts
+apps/admin/lib/ops/response-filters.ts
 apps/admin/lib/ops/types.ts
 apps/admin/lib/ops/unexpected.ts
+apps/admin/lib/page-headings.ts
+apps/admin/lib/page-title.ts
+apps/admin/lib/preview-theme.ts
 apps/admin/lib/questions/definition.ts
 apps/admin/lib/questions/editor-state.ts
 apps/admin/lib/questions/errors.ts
 apps/admin/lib/questions/option-grid.ts
 apps/admin/lib/questions/types.ts
+apps/admin/lib/questions/version-rail.ts
+apps/admin/lib/read-state.ts
+apps/admin/lib/recovery-copy.ts
 apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
 apps/admin/lib/server/auth-api.ts
@@ -318,18 +393,27 @@ apps/admin/lib/server/client-address.ts
 apps/admin/lib/server/config.ts
 apps/admin/lib/server/csp.ts
 apps/admin/lib/server/enrollment.ts
+apps/admin/lib/server/form-rail.ts
 apps/admin/lib/server/forms.ts
 apps/admin/lib/server/links.ts
+apps/admin/lib/server/logger.ts
+apps/admin/lib/server/origin-belt-log.ts
+apps/admin/lib/server/question-rail.ts
 apps/admin/lib/server/questions.ts
+apps/admin/lib/server/request-id.ts
 apps/admin/lib/server/responses.ts
 apps/admin/lib/server/route-helpers.ts
 apps/admin/lib/server/session.ts
+apps/admin/lib/server/telemetry-redaction.ts
 apps/admin/lib/server/webhook-ops.ts
+apps/admin/lib/settings-panel.ts
+apps/admin/lib/settings-sections.ts
 apps/admin/next.config.ts
 apps/admin/package.json
 apps/admin/postcss.config.mjs
 apps/admin/proxy.ts
 apps/admin/tsconfig.json
+apps/admin/vitest.config.ts
 apps/api/package.json
 apps/api/src/app.ts
 apps/api/src/client-address.ts
@@ -360,6 +444,7 @@ apps/api/src/features/responses/admin/schema.ts
 apps/api/src/features/responses/challenge.ts
 apps/api/src/features/responses/flag-reasons.ts
 apps/api/src/features/responses/rate-limits.ts
+apps/api/src/features/responses/semantics-version.ts
 apps/api/src/features/responses/serve-step/handler.ts
 apps/api/src/features/responses/serve-step/route.ts
 apps/api/src/features/responses/serve-step/schema.ts
@@ -383,6 +468,8 @@ apps/api/src/middleware/admin-auth.ts
 apps/api/src/middleware/error-envelope.ts
 apps/api/src/middleware/internal-token.ts
 apps/api/src/middleware/request-logger.ts
+apps/api/src/middleware/security-headers.ts
+apps/api/src/middleware/validation-hook.ts
 apps/api/src/openapi-document.ts
 apps/api/src/openapi.ts
 apps/api/src/rate-limit.ts
@@ -437,7 +524,9 @@ apps/portal/lib/server/client-address.ts
 apps/portal/lib/server/config.ts
 apps/portal/lib/server/cookie-options.ts
 apps/portal/lib/server/csp.ts
+apps/portal/lib/server/logger.ts
 apps/portal/lib/server/mode-bootstrap.ts
+apps/portal/lib/server/origin-belt-log.ts
 apps/portal/lib/server/request-id.ts
 apps/portal/lib/server/route-helpers.ts
 apps/portal/lib/server/session-cookie.ts

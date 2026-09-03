@@ -28,10 +28,101 @@ import {
 } from "@qcms/db";
 import { z } from "zod";
 
-/** Minimum bytes for signing/secret material (SEC-4/SEC-7: >= 32 random bytes). */
+/**
+ * Minimum **characters** of signing/secret material (SEC-4/SEC-7 ask for >= 32
+ * random bytes). The unit matters and used to be recorded wrongly here: the
+ * check below compares `raw.length`, which counts UTF-16 code units, not bytes.
+ * For the generated ASCII values the recipes produce the two coincide; a
+ * non-ASCII secret of 32 characters exceeds 32 bytes, which errs safe. Stated in
+ * the unit the code enforces so a reader is not misled (task 040).
+ */
 export const MIN_SECRET_LENGTH = 32;
-/** AES-256-GCM key length for `QCMS_APP_KEY` (SEC-6/SEC-8); 32 bytes = 256 bits. */
+/**
+ * AES-256-GCM key material for `QCMS_APP_KEY` (SEC-6/SEC-8): 32 **characters**,
+ * for the same reason and with the same caveat as `MIN_SECRET_LENGTH`.
+ */
 export const APP_KEY_MIN_LENGTH = 32;
+
+/**
+ * Placeholder prefixes that must never reach a running deployment (SEC-8: "a
+ * deployment with placeholder secrets must refuse to boot").
+ *
+ * This existed only as a sentence until task 040. Every shipped example file
+ * (`.env.compose.example`, `apps/portal/.env.example`, `apps/admin/.env.example`)
+ * fills its secrets with `replace-with-a-random-32-character-...`, and those
+ * strings are longer than 32 characters, so the only validation that ran, a
+ * length floor, accepted them. An operator who copied the example, set the
+ * database password and the base URLs, and missed the key lines would boot a
+ * deployment whose session-signing, link-signing, internal-channel and at-rest
+ * encryption keys are all published in a public repository. Matching on the
+ * prefix rather than on the exact strings keeps the guard working when the
+ * example wording changes.
+ */
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  // `replace-` rather than the three `replace-with` / `replace-me` /
+  // `replace-this` spellings it replaced. The narrow list left a real gap: the
+  // committed-secret gate accepts `/^replace[-_]/i` as a valid placeholder, so
+  // `replace-before-you-deploy-a-real-key` in an example file passed the
+  // repository scan **and** booted. Exported so
+  // `config-placeholders.test.ts` can assert the safety property across both
+  // lists rather than across hand-picked strings.
+  "replace-",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/**
+ * True when `raw` is one of the shipped placeholders rather than real material.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused
+ * exactly as `replace-with-...` is. That is not cosmetic: the committed-secret
+ * half of this control lives in `scripts/check-security-hygiene.mjs`, and until
+ * task 040's review the two lists disagreed on underscores. A hyphen-only guard
+ * here plus an underscore-tolerant gate there meant an example file spelled
+ * `replace_with_a_real_key` would pass the repository scan **and** boot, which
+ * is precisely the finding this guard exists to close. The agreement is pinned
+ * from both sides by `config-placeholders.test.ts`.
+ */
+function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * What kind of knob a value is, which decides only the *remedy* sentence.
+ *
+ * The refusal itself applies to both: a placeholder `DATABASE_URL` should stop a
+ * boot exactly as a placeholder signing key should. What differs is the advice,
+ * and telling an operator to "generate real secrets" because their connection
+ * string still says `replace-with-...` sends them to the wrong runbook.
+ */
+type ConfigValueKind = "secret" | "setting";
+
+/**
+ * Record a boot refusal for any placeholder among `values`. Reports the count
+ * and the variable name only: SEC-8 forbids echoing the value even when the
+ * value is known to be worthless, because the same code path handles real ones.
+ */
+function rejectPlaceholders(
+  name: string,
+  values: readonly string[],
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): void {
+  const placeholders = values.filter((value) => looksLikePlaceholder(value)).length;
+  if (placeholders === 0) return;
+  const remedy =
+    kind === "secret"
+      ? "generate real secrets (see docs/operations.md) before booting"
+      : "set the value for this deployment before booting";
+  issues.push(
+    `${name} still holds ${placeholders} placeholder value(s) from an example file; ${remedy}`,
+  );
+}
 
 /** One rate-limit class: at most `max` requests per fixed `windowMs` per key. */
 export interface RateLimitClass {
@@ -178,9 +269,9 @@ export interface Config {
     /**
      * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
      *
-     * Passed to better-auth as `secret`, which in the pinned 1.6.26 means **the legacy
-     * fallback**: the key used to read ciphertext written before the versioned
-     * envelope existed. It is also the value {@link secrets} defaults to, so a
+     * Passed to better-auth as `secret`, which in the pinned better-auth 1.7.2 means
+     * **the legacy fallback**: the key used to read ciphertext written before the
+     * versioned envelope existed. It is also the value {@link secrets} defaults to, so a
      * deployment that never rotates sees exactly the behaviour it always had.
      */
     readonly secret: string;
@@ -233,6 +324,32 @@ export interface Config {
      * runtime bypass an attacker can reach.
      */
     readonly breachedPasswordCheck: boolean;
+    /**
+     * Whether the admin sign-in surface is brute-force throttled
+     * (`QCMS_ADMIN_SIGNIN_THROTTLE`, default **true**, SEC-1, issue #390).
+     *
+     * The limiter is better-auth's, and until this knob existed nothing here stated
+     * whether it ran: better-auth 1.7.2 resolves `enabled` as
+     * `options.rateLimit?.enabled ?? isProduction`
+     * (`dist/context/create-context.mjs:171`) over an `isProduction` captured once at
+     * module load from `NODE_ENV` (`@better-auth/core/dist/env/env-impl.mjs:30-32`).
+     * So a general-purpose variable, set for a dozen unrelated reasons and easy to
+     * leave unset outside the shipped images, decided a security control. This field
+     * is what removes that: `createAdminAuth` passes it through, and `NODE_ENV` no
+     * longer participates in either direction.
+     *
+     * **Default true, in every environment including development**, so an operator
+     * who configures nothing gets the control. Setting it false is the development
+     * escape hatch and the only way to turn the throttle off: it exists so a local
+     * loop that signs in repeatedly costs nothing, because a control people route
+     * around is worse than one that is off, since it looks present. A deployment that
+     * sets it false serves an unlimited admin sign-in, change-password and two-factor
+     * surface, and `logSignInThrottleState` says so in a warn line at every boot.
+     *
+     * Beside `breachedPasswordCheck` for the same reason it is: a deployment-posture
+     * knob rather than an ADR-24 feature flag.
+     */
+    readonly signInThrottle: boolean;
   };
   readonly readiness: {
     /** `/ready` DB-probe timeout in ms (`QCMS_READY_DB_TIMEOUT_MS`). */
@@ -305,7 +422,7 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
     schema: z.enum(["none", "turnstile"]),
     fallback: "none",
     description:
-      "Abuse-control challenge provider (026). `turnstile` requires TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY.",
+      "Abuse-control challenge provider (026). `turnstile` requires QCMS_TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY.",
   },
   {
     key: "adminTwoFactor",
@@ -316,6 +433,21 @@ export const FLAG_REGISTRY: readonly FlagDef[] = [
       "Admin TOTP 2FA policy (SEC-1). `optional` is the documented development escape hatch only.",
   },
 ] as const;
+
+/**
+ * Whether a challenge a form asks for can actually be verified (ADR-24).
+ *
+ * This is the derived **behavior** an admin surface is allowed to see; the
+ * provider name is a flag value and never leaves the process. `none` ships the
+ * null verifier, which passes every solution including a missing one, so a
+ * form's `challengeRequired` protects nothing while it is selected - which is
+ * the single fact the settings panel needs in order to warn. Deriving it here,
+ * beside the flag, means adding or renaming a provider changes one line rather
+ * than every comparison against a provider string on the far side of the wire.
+ */
+export function challengeEnforceable(flags: Flags): boolean {
+  return flags.challengeProvider !== "none";
+}
 
 const FLAG_PREFIX = "QCMS_FLAG_";
 
@@ -339,6 +471,7 @@ function parseKeyList(env: Env, name: string, minLength: number, issues: string[
   if (tooShort > 0) {
     issues.push(`${name} has ${tooShort} key(s) shorter than the ${minLength}-character minimum`);
   }
+  rejectPlaceholders(name, keys, issues);
   return keys;
 }
 
@@ -412,6 +545,11 @@ function parseSecretVersions(
     return [{ version: 1, value: current }];
   }
   pushOrderIssues(name, parsed, issues);
+  rejectPlaceholders(
+    name,
+    parsed.map((entry) => entry.value),
+    issues,
+  );
   return parsed;
 }
 
@@ -440,7 +578,13 @@ function pushOrderIssues(
   }
 }
 
-function parseRequiredString(env: Env, name: string, minLength: number, issues: string[]): string {
+function parseRequiredString(
+  env: Env,
+  name: string,
+  minLength: number,
+  issues: string[],
+  kind: ConfigValueKind = "secret",
+): string {
   const raw = env[name];
   if (raw === undefined || raw.trim() === "") {
     issues.push(`${name} is required`);
@@ -449,6 +593,7 @@ function parseRequiredString(env: Env, name: string, minLength: number, issues: 
   if (raw.length < minLength) {
     issues.push(`${name} must be at least ${minLength} characters`);
   }
+  rejectPlaceholders(name, [raw], issues, kind);
   return raw;
 }
 
@@ -585,12 +730,82 @@ function parseFlags(env: Env, issues: string[]): Flags {
   return result as unknown as Flags;
 }
 
+/** The canonical Turnstile site-key variable, and the spelling the portal has always read. */
+export const TURNSTILE_SITE_KEY_VAR = "QCMS_TURNSTILE_SITE_KEY";
+
+/** The pre-#331 spelling this process still accepts, with a boot warning. */
+export const DEPRECATED_TURNSTILE_SITE_KEY_VAR = "TURNSTILE_SITE_KEY";
+
+/**
+ * The one-line boot warning for a deployment still on the deprecated site-key spelling,
+ * or `undefined` when there is nothing to say.
+ *
+ * ## Why the prefixed spelling won (issue #331)
+ *
+ * The same key was read under two names: the portal's `QCMS_TURNSTILE_SITE_KEY`
+ * (`apps/portal/lib/server/challenge.ts`) and this process's bare `TURNSTILE_SITE_KEY`.
+ * An operator had to set both, nothing in the repository said so, and setting only one
+ * produced a deployment that boots, looks configured, and silently runs with the
+ * challenge half-disabled - the half that is set works and the other behaves as if the
+ * feature were off.
+ *
+ * `QCMS_TURNSTILE_SITE_KEY` is the canonical name because the house convention prefixes
+ * operator-facing variables with `QCMS_`, and because it is the spelling the browser-facing
+ * app already used, so the name that survives is the one an operator has most likely met.
+ *
+ * ## Why a fallback rather than a cutover
+ *
+ * A working deployment today has BOTH set (it had to), so accepting the old name costs
+ * nothing and a hard cutover would silently disable the challenge on any deployment that
+ * had only the old one. The warning is the migration prompt: it names the variable, the
+ * replacement, and the fact that the old name is going away.
+ *
+ * Returned rather than logged, for the same reason the rest of this module collects issues
+ * rather than printing them: `loadConfig` is pure and testable, and `main.ts` owns the
+ * logger. Same shape as `warnIfBreachCheckDisabled`.
+ */
+export function turnstileSiteKeyDeprecationWarning(env: Env): string | undefined {
+  const canonical = env[TURNSTILE_SITE_KEY_VAR]?.trim();
+  const deprecated = env[DEPRECATED_TURNSTILE_SITE_KEY_VAR]?.trim();
+  if (deprecated === undefined || deprecated === "") return undefined;
+
+  // Three cases, and the operator needs to be told which one they are in, because the
+  // remedy differs: with only the old name set their configuration still works and they
+  // should rename it, while with both set the new one is already in force and the old
+  // line is dead - silently so, and misleadingly if the two values disagree.
+  const tail = describeTurnstileOverlap(canonical, deprecated);
+  return `${DEPRECATED_TURNSTILE_SITE_KEY_VAR} is deprecated (issue #331): ${tail}`;
+}
+
+/** The half of the warning that says which value is in force. Never echoes a value. */
+function describeTurnstileOverlap(canonical: string | undefined, deprecated: string): string {
+  if (canonical === undefined || canonical === "") {
+    return `its value is being used; set ${TURNSTILE_SITE_KEY_VAR} instead and remove it.`;
+  }
+  if (canonical === deprecated) {
+    return `${TURNSTILE_SITE_KEY_VAR} is set to the same value and wins; remove the deprecated one.`;
+  }
+  return `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
+}
+
 function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["challenge"] {
   if (flags.challengeProvider === "turnstile") {
-    const siteKey = env.TURNSTILE_SITE_KEY;
+    // Canonical first, deprecated second. Both are read rather than one, so an existing
+    // deployment that set only the old name keeps working; see
+    // `turnstileSiteKeyDeprecationWarning` for why this name won and why the old one is
+    // accepted at all.
+    const canonicalSiteKey = env[TURNSTILE_SITE_KEY_VAR];
+    const siteKey =
+      canonicalSiteKey !== undefined && canonicalSiteKey.trim() !== ""
+        ? canonicalSiteKey
+        : env[DEPRECATED_TURNSTILE_SITE_KEY_VAR];
     const secretKey = env.TURNSTILE_SECRET_KEY;
     if (!siteKey || siteKey.trim() === "") {
-      issues.push(`TURNSTILE_SITE_KEY is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`);
+      // Names the canonical variable only. A message that offered both spellings would
+      // re-teach the ambiguity this issue removed.
+      issues.push(
+        `${TURNSTILE_SITE_KEY_VAR} is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`,
+      );
     }
     if (!secretKey || secretKey.trim() === "") {
       issues.push(`TURNSTILE_SECRET_KEY is required when QCMS_FLAG_CHALLENGE_PROVIDER=turnstile`);
@@ -667,6 +882,41 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
       1_000,
       issues,
     ),
+    // **This is the third reader of a two-app rule, and the exemption is deliberate
+    // (issue #402).** The invariant "cookie security may not be downgraded at a
+    // non-loopback origin" is enforced as a boot refusal in
+    // `apps/portal/lib/server/config.ts` and `apps/admin/lib/server/config.ts`
+    // (`assertSecureCookiesConfigured`, issue #292). It is NOT enforced here, and this
+    // process starts on a downgraded off-loopback value that either BFF would refuse.
+    //
+    // Why that is safe today, stated as a dependency rather than left as a silence: a
+    // browser reaches better-auth only through the admin BFF (R2, ADR-09, ADR-20 - the
+    // API container publishes no host port, the `/api/auth` group is mounted only where
+    // `QCMS_MOUNT` includes `admin`, and every endpoint on it is behind the SEC-4
+    // internal token a browser cannot hold). In the configuration this read would
+    // matter for, that BFF refuses to start, so these cookies are never issued to a
+    // browser: the door in front of this one is shut.
+    //
+    // **What would have to change for the reliance to become unsafe**, which is the
+    // part a future reader needs:
+    //
+    //   1. A route into the `/api/auth` group that does not pass through the admin
+    //      BFF - the API container gaining a published port, an ingress upstream
+    //      pointing at it, or a second consumer of better-auth.
+    //   2. An admin app that keeps the cookies but drops the boot refusal, or a
+    //      deployment running the API's admin mount with some other authoring front end.
+    //   3. Anything that makes this value decide a cookie a browser can see directly.
+    //
+    // Any of those means extending `assertSecureCookiesConfigured`'s rule into this
+    // parser (the option not taken here, because the effective-value check reddens every
+    // fixture in `test-support.ts` and that fixture surface is its own change).
+    //
+    // Pinned rather than only written down: `features/auth/auth-mount.test.ts` asserts
+    // the API-side legs - no auth endpoint is reachable without the channel token, and
+    // no auth group exists without the admin mount - and
+    // `scripts/check-bff-config-guards.test.ts` asserts the two legs that live outside
+    // this app, that the admin still carries the boot refusal and that Compose still
+    // publishes no port for the API. If the topology changes, those go red.
     secureCookies: parseBool(
       env,
       "QCMS_ADMIN_SECURE_COOKIES",
@@ -676,6 +926,10 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
     // Defaults to true in every environment, including development: a control the
     // standards write as SHALL is not something a developer opts into.
     breachedPasswordCheck: parseBool(env, "QCMS_ADMIN_PASSWORD_BREACH_CHECK", true, issues),
+    // Defaults to true in every environment, including development, and deliberately
+    // does NOT read `NODE_ENV`: that variable deciding a security control is the whole
+    // of issue #390. An operator who configures nothing is throttled (SEC-1).
+    signInThrottle: parseBool(env, "QCMS_ADMIN_SIGNIN_THROTTLE", true, issues),
   };
 }
 
@@ -688,7 +942,7 @@ export function loadAdminAuthConfig(env: Env): {
   readonly adminAuth: Config["adminAuth"];
 } {
   const issues: string[] = [];
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const adminAuth = parseAdminAuth(env, issues);
   if (issues.length > 0) throw new ConfigError(issues);
   return { databaseUrl, adminAuth };
@@ -706,8 +960,10 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
   idleMs: 0,
   secureCookies: false,
   // True rather than false even though nothing reads it: an inert record that says
-  // "breach checking off" is the wrong thing to find in a debug dump.
+  // "breach checking off" is the wrong thing to find in a debug dump. Same for the
+  // sign-in throttle below.
   breachedPasswordCheck: true,
+  signInThrottle: true,
 };
 
 /**
@@ -718,7 +974,7 @@ const UNMOUNTED_ADMIN_AUTH: Config["adminAuth"] = {
 export function loadConfig(env: Env): Config {
   const issues: string[] = [];
 
-  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues);
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const mount = parseMount(env, issues);
   const link = parseKeyList(env, "QCMS_LINK_KEYS", MIN_SECRET_LENGTH, issues);
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);

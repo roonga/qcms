@@ -31,6 +31,16 @@
 
 @source "../app";
 @source "../components";
+/* `lib/measure.ts` holds the route-to-cap table (issue 558) and is therefore the
+   one module outside `app` and `components` that names a utility class. Without
+   it on the scan list Tailwind never emits `max-w-measure-wide` and the cap
+   silently falls back to the element's fluid width.
+
+   THAT OMISSION IS SILENT, which is why it is now a gate rather than a habit
+   (issue 591): `scripts/check-tailwind-sources.mjs` fails when any bundled source
+   file of either app sits outside every `@source` root here, so the next new
+   directory is a red rather than an element that renders unstyled. */
+@source "../lib";
 @source "../node_modules/@qcms/ui/src";
 
 /*
@@ -50,8 +60,15 @@
  * `text-xs` from 12px to 14px - 139 call sites, a visible change to chrome that task
  * 055 signed off at the current scale, and not something task 060 ships. The block
  * below re-pins the two steps to Tailwind's defaults, so this app's type scale is
- * exactly what it was. It is a restatement of the status quo, not a new choice; the
- * preview's own type scale is task 058's question to answer, in context.
+ * exactly what it was; the preview's own type scale is task 058's question to
+ * answer, in context.
+ *
+ * That the admin runs Tailwind's default type scale rather than the portal's
+ * `--type-*` floors is a DECISION, and it is recorded in the ADR-26 Note in
+ * `docs/adr/core.md` and in `docs/admin-constraints.md` (issue #442, Code Owner
+ * decision 2026-09-02) - not here. This comment explains the block; those two say
+ * why the condition is permitted and why the block must not be deleted as
+ * redundant. Read them before touching it.
  */
 @theme {
   --text-sm: 0.875rem;
@@ -59,6 +76,161 @@
   --text-xs: 0.75rem;
   --text-xs--line-height: calc(1 / 0.75);
   --text-base--line-height: calc(1.5 / 1);
+}
+
+/*
+ * THE TWO BREAKPOINTS - `plan/admin-design-contracts.md` §1 (CONFIRMED
+ * 2026-08-20), issue 557. The app has exactly two, and no others:
+ *
+ *   --bp-compact  40rem / 640px. Below it, tables drop their droppable columns
+ *                 (the Version column never drops, `plan/admin-mobile-stance.md`
+ *                 item 5), side-by-side panes stack rather than shrink, and
+ *                 dense chrome tightens.
+ *   --bp-sidebar  64rem / 1024px. At and above it the navigation rail is a 240px
+ *                 grid column; below it the rail collapses to a disclosure. The
+ *                 form builder's steps rail keys to it (§7 defines the rail as
+ *                 carrying the form's steps), which is the app's only reader of it
+ *                 today; issue 559 builds the full rail component.
+ *
+ * THE CONVENTION, and why it is shaped like this. A media query cannot read a
+ * custom property: `@media (min-width: var(--bp-compact))` is invalid and the
+ * browser drops the whole block. So a boundary written as a literal inside each
+ * query is a number that has to be retyped, and a retyped number drifts the first
+ * time someone writes 39rem. The answer is to make it unwritable anywhere but
+ * here:
+ *
+ *   - The two `@theme` entries below are the only DEFINITIONS of the numbers. No
+ *     rule, utility or component anywhere in `apps/admin` states `40rem` or
+ *     `64rem` again. The literals do appear in two other places, and neither is a
+ *     second source: this comment, which explains them, and
+ *     `e2e/breakpoints.pw.ts`, which asserts them (see below).
+ *   - CSS in this sheet reaches a boundary with `@variant compact { ... }` or
+ *     `@variant sidebar { ... }`. Tailwind replaces that at-rule in place with
+ *     the media query built from the constant, so the rules stay exactly where
+ *     they are written, stay unlayered, and no literal is retyped.
+ *   - Markup reaches a boundary with the `compact:` / `sidebar:` variant prefixes
+ *     on utilities, built from the same two constants.
+ *
+ * `--breakpoint-*: initial` clears Tailwind's own five-step scale
+ * (sm/md/lg/xl/2xl) so `md:` and its siblings no longer compile at all. That is
+ * what makes "two, and no others" enforced rather than merely intended: a third
+ * boundary cannot be smuggled in as a utility prefix, it has to be argued for
+ * here. It is the same move the `--radius-*` block below makes for corners.
+ *
+ * `--bp-compact` / `--bp-sidebar` are the contract's own names for the two
+ * values, aliased onto the constants so the boundary is legible at runtime via
+ * `getComputedStyle(document.documentElement)`. They are aliases; they are never a
+ * second definition.
+ *
+ * That runtime legibility is what lets `e2e/breakpoints.pw.ts` audit the BUILT
+ * sheet: it reads both tokens from the root element and then requires every width
+ * media query the browser parsed to be one of them, which is how a boundary nobody
+ * wrote (a surviving `md:`, a stray `39rem`) gets caught. The test does also state
+ * 640 and 1024, once each, in two named constants at its top. That is deliberate
+ * and it is not the drift this block is guarding against: a test that took its
+ * expected values only from the sheet it audits would pass on any pair of numbers.
+ * The `@theme` entries are the definition the app compiles from; those two
+ * constants are an independent restatement of the contract that the definition is
+ * checked against.
+ *
+ * Both values are `rem` rather than `px`, which is what the queries here have
+ * always been (`40rem` predates the token): the boundaries then move with a
+ * reader's browser font size instead of stranding a zoomed-in operator in a
+ * layout built for a width their text no longer fits.
+ */
+@theme static {
+  --breakpoint-*: initial;
+  --breakpoint-compact: 40rem;
+  --breakpoint-sidebar: 64rem;
+}
+:root {
+  --bp-compact: var(--breakpoint-compact);
+  --bp-sidebar: var(--breakpoint-sidebar);
+  /* The top bar's height, DERIVED rather than measured and written down. The bar is
+     a row of controls with `p-2` around them, so it is one control tall plus that
+     padding plus its own bottom border - written that way it moves with
+     `--admin-control-h` instead of going stale the next time the density changes.
+     The pinned rail's offset and its height are both this, so a drift between the
+     two would show as the rail sliding under the bar; `e2e/rail.pw.ts` measures the
+     bar against this value so the drift fails a test instead. */
+  --admin-topbar-h: calc(var(--admin-control-h) + 1rem + 1px);
+}
+
+/*
+ * THE MEASURE - the caps a screen's content column can take. Issues 558, 655, 657.
+ *
+ * EVERY NUMBER BELOW IS READ OFF A POC. That is the change issue 657 made and it is
+ * the whole of the change: issue 558 built this mechanism and sourced its values from
+ * `plan/admin-ux-audit.md` §6, which was the authority at the time. Since 2026-08-22
+ * the drawing for a screen is that screen's POC in `plan/admin-shell-poc/`, so each
+ * value here is the cap the POC puts on the content of the screen it draws, and
+ * `lib/measure.ts` names the POC beside every route it assigns.
+ *
+ * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS APP HAS ONE. A POC caps an outer
+ * `.main` and then, on some screens, caps the content inside it again: the question
+ * editor's `.editor-column` is 720px inside a 1600px `.main`, the preview and version
+ * screens put a 640px `.respondent-frame` inside the same 1600px `.main`, and the
+ * deployment-ops file gives `.main` no cap at all and caps each of its three screens
+ * separately. What a reader of the running app sees is the INNER number wherever there
+ * is one, so that is the number a route takes here. Reproducing the outer layer alone
+ * would spread a 720px editor across 1600px, which no POC draws.
+ *
+ *   prose   40rem / 640px. `settings-newquestion-poc.html`'s `.page-main`, and it is
+ *           that value on BOTH of that file's screens: Account and New question have a
+ *           `<main class="page-main">` each, so 40rem is stated twice, per screen.
+ *   narrow  45rem / 720px. Two screens' drawn inner cap, and neither lands on 45rem
+ *           exactly, which is the point of writing this down. `question-editor-poc.html`
+ *           draws a 720px `.editor-column`; `preview-versions-poc.html` draws a 640px
+ *           `.respondent-frame` on the preview and the stored version. Both sit INSIDE
+ *           their POC's `.main` padding, while this app's cap sits on a `<main>` that
+ *           carries `p-6`, so the token that renders a drawn number is that number plus
+ *           3rem. 45rem delivers a 42rem column: 48px under the drawn editor and 32px
+ *           over the drawn frame, and the closest available token to both. It is also
+ *           unchanged from issue 558, which derived the same 45rem from the portal's own
+ *           measure - `apps/portal/components/portal-shell.tsx`'s `max-w-2xl` plus the
+ *           same 3rem. A derivation and two drawings arriving together is why it stays.
+ *   ops     56.25rem / 900px. `deployment-ops-poc.html`'s `.ops-inner--responses`.
+ *           Its comment: the site-wide responses screen "gets neither a rail nor
+ *           extra width".
+ *   list    67.5rem / 1080px. `library-lists-poc.html`'s `.main`, which is that
+ *           file's Questions screen and its Forms screen.
+ *   log     73.75rem / 1180px. `deployment-ops-poc.html`'s `.ops-inner--erasures`:
+ *           "the erasure log gets a modest increase".
+ *   wide    100rem / 1600px. The `.main` cap of every POC that caps `.main` and puts
+ *           nothing narrower inside it (`admin-shell-poc.html`,
+ *           `links-webhooks-poc.html`, `responses-poc.html`, and the version-history
+ *           screen of `preview-versions-poc.html`).
+ *
+ * ONE DRAWN NUMBER HAS NO TOKEN AND IS LEFT OPEN. `deployment-ops-poc.html`'s
+ * `.ops-inner--webhooks` is 1820px, wider than `wide`. `/webhooks` therefore stays on
+ * `wide` and is the one route in the table not matching its drawing. Raising the ceiling
+ * is a change to the vocabulary rather than an assignment inside it, so issue 657 left it
+ * rather than inventing an eighth value; see that issue and this PR's body.
+ *
+ * `default` (64rem, Tailwind's own `max-w-5xl`) is not in this block because it is not
+ * a token and, since issue 657, not an assignment either: no route takes it. It
+ * survives in `lib/measure.ts` as the fallback for a pathname no route claims.
+ *
+ * NO BREAKPOINT IS INVOLVED, and that is the point. A `max-inline-size` is already
+ * a responsive condition: below the cap the column is fluid and every one of these
+ * values renders identically, so "wider at 1280 and above" and "unchanged at 390"
+ * both fall out of the cap alone. Writing them as `sidebar:` variants would have made
+ * the cap a per-route use of a boundary, which `plan/admin-design-contracts.md` §1
+ * does not have and issue 557 exists to prevent.
+ *
+ * NONE OF THEM CENTRE. Every column these cap is left-anchored (issue 648): all eleven
+ * POCs were read for a centring rule on a main column and there is not one, and
+ * `settings-newquestion-poc.html` writes `margin: 0` where `margin: 0 auto` would go.
+ * The alignment is not spelled here because it is not a length; `lib/measure.ts`
+ * composes the whole class attribute and simply never emits `mx-auto`.
+ */
+@theme static {
+  --container-measure-prose: 40rem;
+  --container-measure-narrow: 45rem;
+  --container-measure-ops: 56.25rem;
+  --container-measure-list: 67.5rem;
+  --container-measure-log: 73.75rem;
+  --container-measure-wide: 100rem;
 }
 
 /*
@@ -113,6 +285,35 @@
  */
 html {
   color-scheme: light dark;
+  /* THE STICKY BAR IS NOT ALLOWED TO SWALLOW WHAT YOU JUST MOVED TO. `.qcms-topbar` is
+     `position: sticky` and one control tall, so anything the browser scrolls INTO view -
+     a fragment target, a control reached by Tab, a field an error jumped to - lands at
+     the viewport's top edge and therefore underneath it. WCAG 2.2 SC 2.4.11 Focus Not
+     Obscured is exactly that, and it is invisible to an axe sweep, which measures a
+     rendered page rather than what scrolling does to it.
+
+     `--admin-topbar-h` is the same derived token the rail's own sticky offset uses
+     (`calc(var(--admin-control-h) + 1rem + 1px)`), so this moves with the density rather
+     than going stale beside it. Found while diagnosing a `target-size` violation that
+     turned out to be the publish controls sitting under this bar at a scroll offset. */
+  scroll-padding-block-start: var(--admin-topbar-h);
+  /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
+     own screen scrolls and its Preview does not, so moving between them makes the page
+     scrollbar appear and vanish and every column jumps sideways by its width - a real
+     complaint, and this is the standard fix for it.
+
+     It is refused because of what it costs: reserving the gutter takes the width out of
+     the LAYOUT viewport, so every breakpoint fires that much later than the window
+     suggests. `plan/admin-design-contracts.md` §1 fixes its two boundaries in rem against
+     the viewport, and `e2e/rail.pw.ts` measures them to the pixel - at a 1024px window it
+     wants 1023 one pixel below the boundary and got 1008, and `measure.pw.ts` wanted a
+     1040px column and got 1025. Moving every boundary by a scrollbar to stop a jump
+     between two screens is the larger change of the two, made silently.
+
+     What remains is the browser's own behaviour on a platform with classic scrollbars,
+     and it is invisible where they are overlays. If it is worth removing later, the way to
+     do it is to make the boundaries account for the gutter deliberately, not to reserve it
+     and let them drift. */
 }
 :root.dark {
   color-scheme: dark;
@@ -156,12 +357,52 @@ button {
   font-weight: 600;
 }
 
-/* Numeric cells line up. Tables arrive with the question library (032); the rule
-   ships with the theme so the first table is already right. */
-td,
-th,
+/* Figure-width digits, for the places that want a column of numbers to line up.
+   This shipped with the theme (032) as `td, th, .qcms-tabular`, which put tabular
+   figures on EVERY cell of every table in the app. `plan/admin-design-contracts.md`
+   §2 scopes them to numeric and stamp columns instead, so the blanket selector
+   retires here (issue 514) and the opt-in moves to `.qcms-cell--num`, applied per
+   column by the table family below. Issue 515 had opted its answer-preview column
+   out locally because narrowing a rule all nine tables leaned on was not a single
+   column's call; that opt-out is gone with the rule it was working around.
+
+   What is left is the utility for non-table figure runs, which is what the name
+   always described. */
 .qcms-tabular {
   font-variant-numeric: tabular-nums;
+}
+
+/* ===========================================================================
+   WIDE CONTENT SCROLLS INSIDE ITS OWN CONTAINER (issue 616).
+
+   `plan/admin-mobile-stance.md` states the rule this class implements: "Wide
+   content scrolls inside its own container. The page body never scrolls
+   horizontally at any width." WCAG 2.2 AA SC 1.4.10 Reflow says the same thing
+   from the other side, and names 320px as the width at which it has to hold.
+
+   WHY `inline-size: 0` WITH `min-inline-size: 100%` RATHER THAN `inline-size: 100%`.
+   This is the part that is not guessable and was measured rather than reasoned.
+   `overflow-x: auto` on its own does NOT stop a box from handing its widest
+   unbreakable line to its ancestors: the condition JSON pane carried
+   `overflow-x-auto` throughout and still contributed its longest line, 277px, to
+   the builder's minimum width. Nor does adding `inline-size: 100%` - a percentage
+   is treated as indefinite while an intrinsic size is being resolved, so the box
+   falls back to its content and nothing changes (measured: the builder still
+   reported 369px in a 320px viewport). A ZERO inline size is definite, so the box
+   contributes nothing, and `min-inline-size: 100%` then grows it back to fill its
+   container at layout time. With that pair the builder measures exactly its
+   viewport at 320.
+
+   WHAT IT COSTS. `overflow-x: auto` on one axis makes the other compute to `auto`
+   as well, so an element carrying this must not be the containing block of a popup
+   that needs to escape it (the trap `.qcms-table--pins` documents further down).
+   The two elements wearing it here hold react-aria menus and selects, which portal
+   their popovers to the body and so leave the box regardless.
+   =========================================================================== */
+.qcms-scroll-x {
+  overflow-x: auto;
+  inline-size: 0;
+  min-inline-size: 100%;
 }
 
 /* Visible-on-focus skip link, matching the portal's structure (task 030). */
@@ -551,6 +792,13 @@ th,
   font-weight: 600;
   letter-spacing: -0.01em;
   color: var(--color-text);
+  /* A branded id (R6) is one token with no space in it, so a narrow column has no
+     legal place to break it and the whole id runs off the edge instead. `anywhere`
+     rather than `break-word` because only `anywhere` also lowers the element's
+     min-content width, which is what stops the id reaching the page as horizontal
+     scroll (issue 616). It breaks a word only when that word cannot fit on a line of
+     its own, so nothing changes at any width where the id already fits. */
+  overflow-wrap: anywhere;
 }
 
 /* A plain inline text link (back links, "Clear filters"). The focus ring
@@ -586,27 +834,179 @@ th,
   background-color: var(--color-primary-active);
 }
 
-/* Wraps the vendored Table so a wide question grid scrolls inside its own
-   box rather than the page body scrolling sideways. React-aria rows here are
-   interactive (they navigate to the question), so give [role="row"] a hover
-   background and pointer cursor - scoped to this wrapper only, never the
-   portal's own tables. */
+/* ===========================================================================
+   THE TABLE FAMILY - one treatment for every table in the app.
+
+   `plan/admin-design-contracts.md` §2, reconciled with the frozen card
+   `plan/admin-theme/ds-table.html`. This replaces the three treatments that
+   shipped (`plan/admin-ux-audit.md` §4.1): this wrapper around the vendored kit
+   `Table`, the hand-authored `qcms-ops-table`, and the hand-authored
+   `qcms-links-table`. The last two were already selector-listed together with a
+   comment saying they were the same thing; they are now the same thing.
+
+   THE FAMILY IS A WRAPPER, NOT A CLASS ON `<table>`. One element does all three
+   jobs §2 names, and it is the same element for hand-authored and kit markup:
+
+   1. The scroll box, so a wide table scrolls inside itself and the page body
+      never scrolls sideways (WCAG 2.2 AA SC 1.4.10 Reflow).
+   2. The positioning region for row-level chrome. The action columns' headers
+      are visually-hidden spans, and `.qcms-visually-hidden` is
+      `position: absolute`: without a containing block here they resolve against
+      the page, escape the scroll clip and stretch the DOCUMENT to the table's
+      full width (863px at a 390px viewport - Reflow again, and caught by the
+      capture guard rather than by axe).
+   3. The styling hook. A descendant selector from this class (0,1,1) outranks
+      the Tailwind utilities the vendored `Table` renders on its own cells
+      (0,1,0), so the kit tables join the family without anyone touching
+      vendored source (ADR-22).
+
+   WHY THE SCROLL BOX MOVED OFF THE `<table>`. The hand-authored pair carried
+   `display: block` on the table element itself to get `overflow-x`. A
+   `display: block` table performs no column sizing at all, which is why every
+   one of their cells also needed `white-space: nowrap` to stay legible. With
+   the scroll box on the wrapper the table is a `display: table` again and
+   negotiates its own column widths.
+
+   NO ZEBRA (§2). The 44px row and the hairline divider carry the rhythm; the
+   family defines no `nth-child` background and nothing else may add one.
+   =========================================================================== */
 .qcms-table {
+  position: relative;
   overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-card);
+  inline-size: 100%;
 }
-.qcms-table [role="row"]:hover {
-  background-color: var(--color-surface-hover);
-  cursor: pointer;
+.qcms-table table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
 }
 
-/* A `qcms-table` whose rows are NOT interactive (the version history: viewing a
-   version is a link beside the table, not a row action). Same scroll box, no
-   hover affordance promising a click that does nothing. */
-.qcms-table--static [role="row"]:hover {
-  background-color: transparent;
-  cursor: default;
+/* 44px rows and 0.4rem/0.6rem cell padding (§2). The height goes on the cells:
+   a `<tr>` ignores `block-size`, while a cell's acts as the row's minimum. */
+.qcms-table th,
+.qcms-table td {
+  block-size: var(--admin-table-row-h);
+  padding: 0.4rem 0.6rem;
+  text-align: start;
+  vertical-align: middle;
+  border-block-end: 1px solid var(--color-border);
+}
+
+/* Header: 0.72rem over a strong-border underline (§2). `block-size: auto`
+   because the 44px minimum is the DATA row's rhythm, not the header's. */
+.qcms-table thead th {
+  block-size: auto;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  border-block-end: 2px solid var(--color-border-strong);
+}
+
+/* A row header identifies its row; it is not a heading, so it does not shout. */
+.qcms-table tbody th {
+  font-weight: 400;
+}
+
+/* NO ROW IS THE CONTROL ANY MORE (§2, issue 570). A `--rowaction` modifier used
+   to give a hover affordance to the four tables whose whole row navigated or
+   chose through the vendored kit's `onRowAction`. §2 settled that the other way:
+   the row's identifying cell carries a real anchor, so open-in-new-tab and no-JS
+   work, and the picker (which has no address to link to) carries a named button
+   per row instead. All four are hand-authored now, the handler is gone from the
+   app, and the modifier goes with it. Nothing here may reintroduce a whole-row
+   hover: promising a click that does nothing is worse than promising none, and
+   the control in the row says where it goes.
+
+   The positional `nth-child` rules that gave those four tables their
+   `tabular-nums` are gone for the same reason, replaced by the `.qcms-cell--num`
+   below. They were the compromise this sheet described while the markup came
+   from the kit, and issue 514 recorded why it accepted them for figures and
+   refused them for compact-width drops: a wrong index for `tabular-nums` only
+   un-tabularises a column and the frame shows it, while a wrong index for a drop
+   HIDES a data column, silently. One of the seven had in fact drifted -
+   `.qcms-table--forms td:nth-child(5)` was commented "Draft version" and
+   selected a cell reading "Unpublished draft" - which is the asymmetry's benign
+   half arriving exactly on schedule. */
+
+/* Figure-width digits on numeric and stamp columns ONLY (§2). Applied per cell,
+   header included, so a column opts in as a column. */
+.qcms-table .qcms-cell--num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* COMPACT WIDTH (§2: every table states which columns drop at `--bp-compact`).
+
+   `@variant compact` is the sheet's only way to write this boundary: it expands
+   in place to the media query built from `--breakpoint-compact` in the header
+   block, so the 40rem is stated once for the whole app rather than retyped here.
+   Issue 514 shipped this rule with the literal because the token did not exist
+   yet; issue 557 created it and this is the migrated query.
+
+   The test each table applies, which issue 515 established for the
+   answer-preview column: a column that IDENTIFIES a row stays, a column that
+   merely DESCRIBES one drops. The Version column never drops anywhere
+   (`plan/admin-mobile-stance.md`, item 5). Which columns each table drops is
+   recorded in that table's own markup, on the cells carrying this class.
+
+   No table in the app declares a `min-inline-size`, so there is none to reset
+   here: with the dropped columns gone the remainder fits, and the scroll
+   container stays the fallback rather than the default experience.
+
+   Issue 570 closed the last gap in "every table". The four kit tables owed a
+   drop statement and could not make one, because a kit cell takes no className
+   and the only mechanism left was the `nth-child` the paragraph above refuses.
+   Giving them hand-authored markup for their anchors gave them this class as
+   well, so all ten tables now state their drops in their own markup. */
+.qcms-cell--drop {
+  display: none;
+}
+@variant compact {
+  .qcms-cell--drop {
+    display: table-cell;
+  }
+}
+
+/* ===========================================================================
+   THE EMPTY STATE - one shape for every "nothing here yet" in the app.
+
+   `plan/admin-design-contracts.md` §3, and the frozen card's shape: a centred
+   panel with a dashed strong border on the surface colour, a heading, one
+   sentence, and a primary action where the screen has a creating one. This
+   replaces the two treatments that shipped (`plan/admin-ux-audit.md` §4.2) -
+   a bordered `Card` with prose on two screens, and a bare muted paragraph on
+   seven others. The bare paragraph retires.
+
+   AN EMPTY STATE IS NOT AN ERROR STATE. A failed read renders its alert and
+   nothing else: no empty list, no "there are none" claim about data the app
+   never managed to read (§3, issue #513's rule).
+
+   0.95rem/700 is §8's h2 step, written as a literal until the `--admin-type-*`
+   scale that section calls for exists. =================================== */
+.qcms-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--admin-stack);
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background-color: var(--color-surface);
+  border: 1.5px dashed var(--color-border-strong);
+  border-radius: var(--radius-card);
+}
+.qcms-empty__heading {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+.qcms-empty__body {
+  margin: 0;
+  max-inline-size: 46ch;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+.qcms-empty__action {
+  margin-block-start: 0.5rem;
 }
 
 /* The GET filter form. The outer element stacks its row(s) with the app's
@@ -837,10 +1237,22 @@ th,
   background-color: var(--color-danger-subtle);
 }
 
-/* The grip is the row's one control: drag by pointer, Arrow Up/Down while
-   focused reorders, Enter or Space opens the row menu. Revealed by hover AND by
-   focus, never hover-only, so nothing here depends on a pointer. */
-.qcms-opt-grip {
+/* The grip is the row's one control: Arrow Up/Down while focused reorders, Enter or
+   Space opens the row menu, and on the option grid a pointer can also drag it.
+   Shared with the pin list since issue 517, so the appearance lives on the pattern's
+   own class and the two callers differ only where they must.
+
+   VISIBLE AT REST HERE, hidden at rest on the option grid (the scoped rules below).
+   The option grid's card reveals it on hover or focus, which works there because
+   every row of that grid also carries a visible text input to lead the eye to. A pin
+   row carries no such thing: the grip is the only route to remove, insert and move,
+   and a touch screen has no hover at all, so at 390 an invisible grip would mean a
+   row whose only control cannot be found. `plan/admin-mobile-stance.md` puts
+   "reorder questions within a step" and "remove a question from a step" on the
+   supported-at-390 path, so that is a defect rather than a preference. Contract §2
+   is content with this: since issue 570 no row in the app is itself a control, and
+   §2 says nothing that requires a row's own control to hide. */
+.qcms-rowgrip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -850,8 +1262,7 @@ th,
   border-radius: var(--radius-sm);
   background: transparent;
   color: var(--color-text-muted);
-  cursor: grab;
-  opacity: 0;
+  cursor: pointer;
   /* Opt out of the 40px control floor the bare `button` rule sets: a
      `min-block-size` beats a `block-size`, so without this the grip renders 28
      wide by 40 tall. That is not only a squashed square - a 40px-tall grip and a
@@ -863,19 +1274,23 @@ th,
     opacity 0.12s ease,
     background-color 0.12s ease;
 }
-.qcms-opt-row:hover .qcms-opt-grip,
-.qcms-opt-row:focus-within .qcms-opt-grip,
-.qcms-opt-row.is-dragging .qcms-opt-grip {
+/* The option grid's own reveal, unchanged from task 057: hidden at rest, revealed by
+   hover AND by focus, never hover-only, and draggable, so its cursor says so. */
+.qcms-opt-row .qcms-rowgrip {
+  cursor: grab;
+  opacity: 0;
+}
+.qcms-opt-row:hover .qcms-rowgrip,
+.qcms-opt-row:focus-within .qcms-rowgrip,
+.qcms-opt-row.is-dragging .qcms-rowgrip,
+.qcms-opt-row .qcms-rowgrip:focus-visible {
   opacity: 1;
 }
-.qcms-opt-grip:hover {
+.qcms-rowgrip:hover {
   background-color: var(--color-ghost-hover);
   color: var(--color-text);
 }
-.qcms-opt-grip:focus-visible {
-  opacity: 1;
-}
-.qcms-opt-grip svg circle {
+.qcms-rowgrip svg circle {
   fill: currentColor;
 }
 
@@ -1015,13 +1430,24 @@ th,
   flex-shrink: 0;
 }
 
-/* The row menu, in the dropdown language of ds-overlays.html at a compact width. */
-.qcms-opt-menu {
+/* The row menu (design-language element 5), in the dropdown language of
+   ds-overlays.html at a compact width. Named for the pattern rather than for the
+   option grid since issue 517: `components/row-menu.tsx` is one implementation and
+   the pin list is its second caller, so a class called `qcms-opt-menu` would have
+   been a name that lied about where it renders. */
+.qcms-rowmenu {
   position: absolute;
   inset-block-start: 40px;
   inset-inline-start: 0;
   z-index: 3;
   min-inline-size: 190px;
+  /* And a cap, because an item names its row and a row's name can be long. Without
+     one, "Insert a question above q_cover_level_ab12c" sizes the popup to the whole
+     phrase on one line: at a 390px viewport the open menu took the DOCUMENT to 432px,
+     which is WCAG 2.2 AA SC 1.4.10 Reflow and is not something axe tests. Caught by
+     the capture guard rather than by a person, which is what that guard is for. The
+     item wraps below instead. */
+  max-inline-size: 260px;
   padding: 6px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
@@ -1030,9 +1456,20 @@ th,
     0 2px 4px hsl(var(--shadow-color) / 0.1),
     0 30px 70px -30px hsl(var(--shadow-color) / 0.4);
 }
-.qcms-opt-menu__item {
+.qcms-rowmenu__item {
   display: block;
   inline-size: 100%;
+  /* The popup renders inside its trigger's cell, and a table cell may well be
+     `white-space: nowrap` to keep its own control on one line - the pin list's grip
+     cell is. Inherited into here that makes every item one unbreakable line whose TEXT
+     runs past the menu box: the box measured 260px and sat well inside a 390px
+     viewport while the document went to 411px, which is why an element-rectangle sweep
+     found nothing and the capture guard still refused the frame (SC 1.4.10 Reflow).
+     Stated here rather than fixed at each call site, because a popup that wraps its own
+     text is the popup's business. */
+  white-space: normal;
+  /* And a `q_` id is one unbreakable token, so ordinary word wrapping is not enough. */
+  overflow-wrap: anywhere;
   padding: 8px 10px;
   border: none;
   border-radius: var(--radius-sm);
@@ -1043,15 +1480,479 @@ th,
   text-align: start;
   cursor: pointer;
 }
-.qcms-opt-menu__item:hover:not(:disabled) {
+.qcms-rowmenu__item:hover:not(:disabled) {
   background-color: var(--color-surface-hover);
 }
-.qcms-opt-menu__item--danger {
+.qcms-rowmenu__item--danger {
   color: var(--color-danger-fg);
 }
-.qcms-opt-menu__item:disabled {
+.qcms-rowmenu__item:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ===========================================================================
+   THE PIN LIST - the ownership grid (design-language element 4) over the table
+   family, with the row grip menu (element 5) as its row control. Issue 517.
+
+   `plan/admin-ux-audit.md` §8 item 5 calls this the highest-value design change
+   it found, and the reason is that this is the app's one genuinely MIXED-OWNERSHIP
+   table. `position` and the pinned `version` belong to the form and are editable
+   here; `questionId`, `type` and `label` belong to the question library and are
+   read-only here. The old rendering was a flex row of five buttons, which said
+   none of that.
+
+   HOW OWNERSHIP IS DRAWN. Form-owned cells carry a control with a visible edge -
+   the grip and the version trigger. Library-owned cells carry plain text on the
+   page background with no border, no hover and no cursor change, so they read as
+   what the table is REPORTING rather than what it is offering. Every cell also
+   states its owner in the markup (`data-owner`), which is what
+   `components/forms/pin-grid-ownership.test.tsx` pins so the contrast cannot be
+   quietly undone by a later edit.
+
+   COMPACT WIDTH (§2 requires every table to state its drops): Type and Issues
+   drop, Question and Version stay. `plan/admin-mobile-stance.md` item 5 puts
+   changing a version pin on the supported-at-390 path, so Version never drops;
+   Type and Issues describe a row rather than identify it, which is §2's own test,
+   and the validation panel carries the issue text at every width.
+
+   WHY THIS ONE TABLE TURNS THE SCROLL BOX OFF. The family's wrapper is
+   `overflow-x: auto`, and a box that is not `visible` on one axis computes to
+   `auto` on the other, so it clips vertically too. The row menu is
+   `position: absolute` and is the only route to remove, insert and move - exactly
+   the shape that made the option grid's menu unreachable on a two-row list until
+   task 057 removed its `overflow: hidden`. This table does not need the scroll
+   box: it drops its two describing columns at compact width and every remaining
+   cell wraps, so it fits. The Reflow guarantee it gives up is carried by the drops
+   and by the wrapping instead.
+
+   "EVERY REMAINING CELL WRAPS" IS A REQUIREMENT, not an observation, and issue 616
+   is what happens when one of them quietly stops: the version cell carried a
+   `white-space: nowrap`, its column's minimum became 209px, and with no scroll box
+   to absorb it the whole document went one pixel past a 390px viewport and 71 past
+   a 320px one. `reflow.pw.ts` sweeps every route against the seeded fixture at 390
+   and 320, including version state tags.
+   =========================================================================== */
+.qcms-table--pins {
+  overflow: visible;
+}
+
+/* ===========================================================================
+   THE RULES TABLE - the read view of a form's rules (Code Owner, 2026-08-26).
+
+   Deliberately the pin grid's shape: two lists of a form's parts, on two screens of
+   one builder, should not be two different kinds of object. What differs is what a
+   row IS - a pin is a thing with columns of facts, a rule is a sentence - so the
+   sentence takes the width and everything else is as narrow as it can be.
+   =========================================================================== */
+.qcms-rule-sentence {
+  margin: 0;
+  /* Prose, not a cell's worth of text: a rule wraps to two or three lines on a narrow
+     table and needs the leading to stay readable when it does. */
+  line-height: 1.5;
+  padding-block: 0.15rem;
+  /* Wraps, and every cell in this table must: `reflow.pw.ts` sweeps every route at
+     390 and at 320, and a rule's sentence is the longest string this app renders
+     outside a question's own label. */
+  overflow-wrap: anywhere;
+}
+
+/* THE THREE KINDS OF NAME IN A SENTENCE, styled apart (Code Owner, 2026-08-29). A rule is
+   scanned for two things - which question it reads, and what it compares against - and one
+   weight for both made the reader parse the prose to tell them apart.
+
+   A question and a step are what the form HAS: weight, which survives high contrast and
+   tells them from the connectives around them. A value is what the answer is compared
+   TO: a quiet boxed literal, because it is a datum rather than a part of the form, and
+   because a box says "this exact text" in a way another weight cannot.
+
+   500 RATHER THAN 600 (Code Owner, 2026-08-30): "too bold". A list is read down its rows
+   before any single row is read across, and at 600 the names carried more emphasis than
+   the table's own headings - a page of rules read as a page of headlines. 500 is still a
+   step off the connectives around it, which is the whole job.
+
+   Never colour alone on any of them - the shape or the weight carries it, so the reading
+   holds for a reader who cannot separate two hues. */
+.qcms-rule-sentence__question,
+.qcms-rule-sentence__step {
+  font-weight: 500;
+  color: var(--color-text);
+}
+.qcms-rule-sentence__value {
+  padding-inline: 0.3em;
+  padding-block: 0.05em;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-background-muted);
+  color: var(--color-text);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 0.9em;
+}
+
+/* A row's own control: the row's scale rather than the app's control height, which is
+   sized for a control a screen is about and reads as a slab at the end of every line of a
+   list. 28px keeps it past the 24px `target-size` floor with room to spare, and the gap
+   below keeps neighbours from failing the same rule on spacing. */
+.qcms-rule-action {
+  min-block-size: 28px;
+  padding-inline: 0.5rem;
+  padding-block: 0.15rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.qcms-rule-action:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* The cell that does NOT take width. `1%` is the pin grid's own trick and it is not a
+   fudge: a table distributes surplus across columns in proportion to their declared
+   widths, so a tiny declared width means "give this one only what its content needs" and
+   the sentence column absorbs the rest. Without it the columns split the table evenly and
+   a one-line rule sat in a fraction of the row.
+
+   `--actions` is kept as a selector with no column of its own since 2026-08-30: the
+   controls moved under the sentence, so there is no third column to hold off. */
+.qcms-rulecell--issues {
+  inline-size: 1%;
+  white-space: nowrap;
+}
+
+/* A RULE'S ROW BREATHES (Code Owner, 2026-08-30). The shared table padding is written for
+   a row that is one line of one value; a rule's row is a sentence that wraps plus the two
+   controls under it, so at 0.4rem the controls of one rule sat as close to the next rule's
+   sentence as to their own. `vertical-align: top` for the same reason - a two-line rule
+   beside a one-line rule should start level with it, not float in the middle of it. */
+.qcms-table--rules td {
+  padding-block: 0.9rem;
+  vertical-align: top;
+}
+
+/* The row's controls, under the sentence they act on and aligned to its start (Code Owner,
+   2026-08-30). They were `flex-end` in a trailing column, which put them a variable
+   distance from the rule depending on how long it was. */
+.qcms-rule-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.5rem;
+}
+
+/* ===========================================================================
+   THE RULE WIZARD: a three-phase editor in a WIDE dialog (Code Owner, 2026-08-30).
+   =========================================================================== */
+
+/* THE WIDTH, AND WHY IT IS SET FROM HERE.
+
+   The vendored `Dialog` has no width prop. `packages/ui/src/components/a2ui/dialog/
+   dialog.styles.ts` writes `w-full max-w-md` onto its `Modal`, ADR-22 forbids editing a
+   vendored file to reach past that, and the kit exports the component rather than a
+   wrapper on purpose ("a QCMS-flavoured wrapper layer would be a second design language
+   by accretion"). So the caller cannot pass a width and must not grow one upstream for a
+   single screen. What is left is the route `.qcms-picker__body` already took for the same
+   dialog's height: the host app states the shape it needs, in its own sheet, against a
+   marker the caller renders inside the dialog.
+
+   THE SELECTOR. `div:has(> [role="dialog"] ...)` matches exactly one element in that tree.
+   The overlay's direct child is the `Modal` div, which carries no role; the Modal's direct
+   child is the dialog. So the `>` combinator picks the Modal and nothing else, and the
+   descendant half requires the marker our own component renders. No other dialog in the
+   app is touched.
+
+   THE NUMBER IS THE SCREEN'S OWN. `--container-measure-wide` is 100rem, the cap
+   `lib/measure.ts` assigns `/forms/[formId]` from `admin-shell-poc.html`. A dialog that
+   replaces the content of a screen has no business being wider than that screen's column,
+   and taking the same token means the two move together if the drawing ever changes.
+   `100vw - 2rem` is the floor beneath it, so on a narrow viewport the dialog is the
+   viewport less a margin rather than 1600px of horizontal scroll.
+
+   The unlayered win is the same one this sheet's header describes: Tailwind's `max-w-md`
+   is inside `@layer utilities`, and unlayered CSS beats layered CSS regardless of
+   specificity. */
+div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
+  max-inline-size: min(var(--container-measure-wide), calc(100vw - 2rem));
+}
+
+/* THE PHASE CONTROL AND THE FOOTER HOLD STILL; ONLY THE PANEL SCROLLS.
+
+   Same shape and the same reason as `.qcms-picker__body`, which is written out at length
+   beside it: the vendored `Dialog` is one scrolling column, so without a height budget a
+   target list of two hundred questions pushes Save and Cancel below the dialog's own fold.
+   The control whose whole job is to commit the work must not be reachable only by
+   scrolling past the work.
+
+   `min-block-size: 0` on the panel is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the panel would
+   still push the footer down and `overflow` would never engage. The budget is a proportion
+   so it holds at any viewport. */
+/* A FIXED HEIGHT, NOT A CAP (Code Owner, 2026-08-30).
+
+   As `max-block-size` the column shrank to whatever phase was selected, and the dialog is
+   centred in the viewport: switching tabs took it from 560px to 750px to 440px and moved
+   its top edge by up to 95px, so the tab an author had just pressed slid out from under
+   the pointer and the Save button moved with it.
+
+   Every phase gets the same box now and the panel below the tabs scrolls, which is what
+   the `min-block-size: 0` / `overflow-y` pair beneath was already for. The tabs, the rule's
+   issues and the footer keep their places whatever is selected. */
+.qcms-rule-wizard {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  block-size: 68vh;
+}
+.qcms-rule-wizard__tabs {
+  display: flex;
+  min-block-size: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.qcms-rule-wizard__panel {
+  min-block-size: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  /* The focus ring of a panel react-aria has made focusable (it does that only when the
+     panel holds nothing focusable) would otherwise be clipped by the scroll container. */
+  outline-offset: -2px;
+}
+.qcms-rule-wizard__footer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: 0.75rem;
+}
+
+/* The three phase tabs. A row of underlined labels rather than pills: the panel below is
+   the subject and the tabs are its index, so the selected one is marked by the edge it
+   shares with its panel. `--admin-control-h` keeps them on the app's control height, which
+   is what puts them past the 24px `target-size` floor the axe sweep enforces. */
+.qcms-phasetabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  border-block-end: 1px solid var(--color-border);
+}
+.qcms-phasetab {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  padding-inline: 0.75rem;
+  border: 0;
+  border-block-end: 2px solid transparent;
+  margin-block-end: -1px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.qcms-phasetab:hover {
+  color: var(--color-text);
+  background-color: var(--color-ghost-hover);
+}
+/* Selected is said twice, as the help dot's open state is: `aria-selected` for a screen
+   reader, and a painted edge for everyone else. Colour is never the only carrier - the
+   underline is a shape. */
+.qcms-phasetab[aria-selected="true"] {
+  color: var(--color-text);
+  border-block-end-color: var(--color-primary);
+}
+.qcms-phasetab[data-focus-visible] {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+
+/* One step's targets. A bordered group rather than a bare label, because at ten steps the
+   reader needs to see where one step's questions stop and the next step's start without
+   counting indentation. */
+.qcms-targets__step {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+.qcms-targets__step-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+/* The step's id beside its title, in the identity treatment the pin grid gives an id:
+   the title is what a person calls the step and the id is what a rule stores. */
+.qcms-targets__step-id {
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+/* The filter and its count on one row where there is room, so the count reads as a
+   property of the field rather than as a sentence about the page. */
+.qcms-targets__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+}
+
+/* The grip cell: the containing block the row menu positions against, and narrow,
+   because a 28px control does not need a 44px column. */
+.qcms-pincell--grip {
+  position: relative;
+  inline-size: 1%;
+  padding-inline: 0.35rem 0.15rem;
+  white-space: nowrap;
+}
+
+/* Library-owned identity. Two lines, deliberately: the label is what a human
+   recognises the row by and the id is what a rule refers to, and an author writing
+   a rule needs the second one raw. */
+.qcms-pincell--question {
+  font-weight: 400;
+}
+.qcms-pinrow__label {
+  display: block;
+  color: var(--color-text);
+}
+.qcms-pinrow__label:empty::before {
+  content: attr(data-fallback);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+.qcms-pinrow__id {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-block-start: 1px;
+}
+.qcms-pinrow__idvalue {
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+
+/* The copy control §2 requires of an identifying column. A bare ghost glyph, sized
+   to the 24px SC 2.5.8 floor rather than to the app's 40px control height: it must
+   not read as an edit affordance in a cell whose whole point is that nothing in it
+   is editable here. */
+.qcms-copyid {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  inline-size: 24px;
+  block-size: 24px;
+  min-block-size: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+/* The moment after a successful copy. Colour is the ECHO here, not the message: the
+   icon itself has already changed from two rectangles to a tick, which survives high
+   contrast and colour blindness on its own. */
+.qcms-copyid[data-copied] {
+  color: var(--color-success-fg);
+}
+.qcms-copyid:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+.qcms-copyid svg {
+  inline-size: 13px;
+  block-size: 13px;
+}
+
+/* Form-owned: the one version change the builder has (R7). It reads as a control
+   at rest - a real edge, a disclosure caret - because that is the contrast element
+   4 is made of, and it is the control `plan/admin-mobile-stance.md` item 5 keeps
+   operable at 390.
+
+   THIS CELL WRAPS, and issue 616 is why the `white-space: nowrap` it used to carry
+   is gone. The cell holds two things, the version control and the state tag beside
+   it, and the tag's text is a PHRASE: "Unpublished version", "Deprecated version",
+   "Version not found". `nowrap` inherits, so it made the phrase unbreakable as well
+   as keeping the pair on one line, and the column's min-content width became the
+   whole of both at 209px. This table has no scroll box (see `.qcms-table--pins`), so
+   that number became the table's minimum, then the pane's, then the document's: the
+   builder measured 391px wide in a 390px viewport AND in a 320px one, because the
+   minimum was a fixed number rather than a proportion of anything.
+
+   Wrapping is the fix rather than a scroll box because the pair reads perfectly well
+   stacked: at a width where they do not fit side by side, the tag sits under the
+   control it describes. Nothing changes at a desk width, where they never wrapped.
+   `.qcms-pinversion` below is an `inline-flex` holding one word and a caret, so the
+   control itself still cannot be split. */
+.qcms-pincell--version {
+  white-space: normal;
+}
+.qcms-pinversion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-block-size: 32px;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.qcms-pinversion:hover {
+  background-color: var(--color-surface-hover);
+}
+.qcms-pinversion__caret {
+  inline-size: 8px;
+  block-size: 5px;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+}
+.qcms-pincell--version .qcms-tag {
+  margin-inline-start: 6px;
+}
+
+/* Library-owned again: what the engine says about this pin, as text. */
+.qcms-pinissues {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-danger-fg);
+  font-size: 0.8rem;
+}
+.qcms-pinissues__none {
+  color: var(--color-text-muted);
+}
+
+/* The row's error state, which survives compact width even though the Issues cell
+   does not: at 390 the issue text lives in the validation panel, and this is what
+   still says WHICH row the panel is talking about. */
+.qcms-pinrow.is-error .qcms-pincell--question {
+  box-shadow: inset 3px 0 0 0 var(--color-danger);
+}
+
+/* High contrast: the version control's edge thickens with every other strong
+   border, and the row flag is widened so it survives a forced-colours palette. */
+:root.hc .qcms-pinversion {
+  border-width: 2px;
+}
+:root.hc .qcms-pinrow.is-error .qcms-pincell--question {
+  box-shadow: inset 4px 0 0 0 var(--color-danger);
 }
 
 /* Narrow editor: the ID column folds into a second line inside the label cell.
@@ -1093,7 +1994,7 @@ th,
 /* High contrast drops hover-only affordances: the grip and every insert point
    are always visible rather than opacity 0 at rest, and the grid's own edges
    thicken. */
-:root.hc .qcms-opt-grip,
+:root.hc .qcms-opt-row .qcms-rowgrip,
 :root.hc .qcms-opt-insert {
   opacity: 1;
 }
@@ -1123,44 +2024,11 @@ th,
   overflow-wrap: anywhere;
 }
 
-/* One row of the version timeline. A full-width link at the dense row
-   height, with the currently selected version marked by more than colour
-   alone (WCAG 1.4.1): heavier weight, a left accent bar and a muted
-   background, driven off aria-current rather than a class so the state
-   can never drift from the accessible name. */
-.qcms-version-row {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: var(--admin-stack);
-  min-block-size: var(--admin-table-row-h);
-  padding-inline: var(--admin-control-pad-x);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  text-decoration: none;
-}
-.qcms-version-row:hover {
-  background-color: var(--color-ghost-hover);
-}
-.qcms-version-row[aria-current="true"] {
-  background-color: var(--color-background-muted);
-}
-.qcms-version-row[aria-current="true"]::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  inset-inline-start: 0;
-  inline-size: 3px;
-  background-color: var(--color-primary);
-  border-radius: var(--radius-sm);
-}
-.qcms-version-row__name {
-  flex-shrink: 0;
-  font-weight: 400;
-}
-.qcms-version-row[aria-current="true"] .qcms-version-row__name {
-  font-weight: 600;
-}
+/* The version timeline's row rules used to live here. The timeline moved into
+   the rail in issue 650, where the screen's POC draws it, so its geometry is
+   the question rail's block near the end of this sheet and the classes it used
+   here are gone rather than left behind for a future reader to wire something
+   new onto. */
 
 /* The window onto the shared A2UI renderer: it draws a respondent-facing
    control, which is deliberately not this screen's own surface, so the
@@ -1174,27 +2042,12 @@ th,
 
 /* --- publish, preview, version history, secure links (task 034) ---------- */
 
-/* The four section links under a form's heading. Ordinary links, so the current
-   one is marked by aria-current and the underline is only the visual echo of
-   that (never the sole signal). The 2px inline-size keeps the row from shifting
-   when the marker moves. */
-.qcms-form-tab {
-  display: inline-block;
-  padding-inline: 0.75rem;
-  padding-block: 0.5rem;
-  border-block-end: 2px solid transparent;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-.qcms-form-tab:hover {
-  color: var(--color-text);
-}
-.qcms-form-tab[aria-current="page"] {
-  color: var(--color-text);
-  border-block-end-color: var(--color-primary);
-}
+/* The section-link strip under a form's heading retired with `form-tabs.tsx`
+   (issue 561): all eight form-scoped screens carry the §7 rail, which holds the
+   same six routes, and one screen does not offer them twice. Its current-row
+   treatment survives in `.qcms-rail__link[aria-current="page"]`, which is where
+   this block's reasoning went: the marker is aria-current and the paint is only
+   its visual echo, never the sole signal. */
 
 /* "Preview - not published". Deliberately loud: an author looking at a working
    preview must never mistake it for the published form. It is prose rather than
@@ -1259,49 +2112,43 @@ th,
   min-inline-size: 0;
 }
 
-/* The secure-link lifecycle table. A hand-authored table rather than the kit's,
-   because its cells hold a badge and a revoke button and a kit table cell is
-   text (ADR-22 forbids wrapping the vendored component to change that). It
-   scrolls inside its own box so a wide table never scrolls the page. */
-/* `qcms-ops-table` is 035's operations tables (responses, erasures, webhook
-   endpoints, deliveries, dead letters). Same rule as the links table below and
-   deliberately the same selector list rather than a copy: every one of them holds
-   badges and buttons in its cells, and every one of them has to scroll inside its
-   own box for the same Reflow reason. */
-.qcms-links-table,
-.qcms-ops-table {
-  display: block;
-  /* A containing block for its own absolutely-positioned descendants. The revoke
-     column's header is a visually-hidden span, and `.qcms-visually-hidden` is
-     `position: absolute`: without this it resolves against the page instead of
-     this box, escapes the scroll clip, and stretches the DOCUMENT to the table's
-     full width - 863px at a 390px viewport, which is WCAG 2.2 AA SC 1.4.10
-     Reflow and was caught by the capture guard rather than by axe. */
-  position: relative;
-  overflow-x: auto;
-  inline-size: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-.qcms-links-table th,
-.qcms-links-table td,
-.qcms-ops-table th,
-.qcms-ops-table td {
-  padding-inline: 0.5rem;
-  padding-block: 0.5rem;
-  text-align: start;
-  vertical-align: middle;
-  border-block-end: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-.qcms-links-table thead th,
-.qcms-ops-table thead th {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-.qcms-links-table tbody th,
-.qcms-ops-table tbody th {
-  font-weight: 400;
+/* The two hand-authored table families that shipped here (`qcms-links-table` for
+   the secure-link lifecycle table, `qcms-ops-table` for 035's five operations
+   tables) are gone. Both were already the same rule under two names; issue 514
+   made them one family with the kit tables as well, and it lives with the rest
+   of the table treatment further up this sheet under `.qcms-table`.
+
+   The answer-preview column's own compact-width rule went the same way: the
+   column still drops at `--bp-compact` and it now says so with the family's
+   `.qcms-cell--drop`, which every table's droppable columns share. Its local
+   `font-variant-numeric: normal` opt-out is gone too, because the app-wide
+   `td, th` rule it was working around is gone. */
+
+/* Layout truncation, on top of the privacy truncation `lib/ops/answers.ts` already
+   applied to the string. The two are separate on purpose: the character budget there
+   decides how much respondent data may exist in the markup, and this decides how much
+   of what is left fits the column. The ellipsis needs a block-ish box with a cap to
+   resolve against, which is what the inline-block span is for; it kept the preview on
+   one line back when the cell family forced `white-space: nowrap`, and it keeps doing
+   so now that issue 514 has dropped that.
+
+   11rem is the room the five identifying columns leave at 1280px. It is a measurement,
+   not a taste: a 36-character
+   `ses_…` id, a full timestamp, an access word and a flag tag come to about 790px of
+   the 976px content column, and a preview allowed to grow past the remainder does not
+   wrap or ellipsis - the table is `overflow-x: auto`, so it gets CHOPPED at the
+   container edge mid-word with no indication that anything was cut. The first capture
+   of this column shipped exactly that. Cutting at the cap instead means the ellipsis
+   is the thing that says "there is more", which is what the ellipsis is for, and it
+   keeps the scroll container a fallback rather than the default experience
+   (`plan/admin-design-contracts.md` §2). Widening it means narrowing one of the other
+   five first, which is the table-harmonisation change's call and not this column's. */
+.qcms-answer-preview {
+  display: inline-block;
+  max-inline-size: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
 }
 
 /* The operations badges (task 035), same family as the link and question tags: the
@@ -1339,10 +2186,14 @@ th,
   border-color: var(--color-warning-subtle);
 }
 
-/* A heading that carries a machine identifier (a session id in the response detail).
-   `ses_…` has no break opportunity, so at 390px it pushed the DOCUMENT to 393px -
-   WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture guard and not by axe. Headings
-   are the one place a long token is easy to miss, because the id reads as prose. */
+/* A heading that carries a machine identifier: a session id on the response detail
+   route, a slug on the form sections that render `FormPageHeader` (the builder route
+   at `/forms/[formId]` hand-rolls its own `<h1>` and is not covered by this rule).
+   `ses_…` has no break opportunity, so at 390px it
+   pushed the DOCUMENT to 393px - WCAG 2.2 AA SC 1.4.10 Reflow, caught by the capture
+   guard and not by axe. Headings are the one place a long token is easy to miss,
+   because the id reads as prose. It rides on the shared form page heading now that the
+   session id is the page's own `<h1>` (issue #510), not a heading inside it. */
 .qcms-ops-title {
   overflow-wrap: anywhere;
 }
@@ -1350,7 +2201,12 @@ th,
 /* A label/value grid for the response summary, the tombstone and the delivery's
    request headers. Two columns on a wide screen, stacked on a phone: the values
    here include content hashes and URLs, which have no break opportunities of their
-   own, so a fixed two-column grid at 390px is a Reflow failure waiting to happen. */
+   own, so a fixed two-column grid at 390px is a Reflow failure waiting to happen.
+
+   "Panes stack rather than shrink" is `--bp-compact` (§1), and `@variant compact`
+   below is how this sheet writes that boundary. This query predates the token and
+   used a bare `40rem` for the same boundary; issue 557 moved it onto the constant
+   without changing the width it fires at. */
 .qcms-ops-summary {
   display: grid;
   grid-template-columns: 1fr;
@@ -1367,14 +2223,14 @@ th,
   overflow-wrap: anywhere;
   min-inline-size: 0;
 }
-@media (min-width: 40rem) {
+@variant compact {
   .qcms-ops-summary {
     grid-template-columns: minmax(8rem, 14rem) minmax(0, 1fr);
   }
 }
 
 /* The answer ledger: an ordered list whose chronology is in the text of each item,
-   never in the layout (the wireframe's a11y note). The marker is suppressed because
+   never in the layout (the screen contract's a11y note). The marker is suppressed because
    each item already carries its own timestamp; a number beside a time reads as a
    second, contradictory ordering. */
 .qcms-ledger {
@@ -1485,6 +2341,1049 @@ th,
   container-type: inline-size;
 }
 
+/* ==========================================================================
+   THE PREVIEW THEME ISLAND (task 058, ADR-38).
+
+   The switcher above, and the carrier below it. The carrier is the seam above
+   wearing `data-qcms-theme-scope`, which is what makes every block in
+   `@qcms/ui`'s theme.css - anchored `:is(:root, [data-qcms-theme-scope])` since
+   task 060 - re-declare the whole portal token set ON this element, geometry
+   included, over the Cobalt values it would otherwise inherit from `:root`. The
+   theme is a `data-theme` attribute and the mode a class on the same element,
+   exactly as the portal stamps them on `<html>`.
+
+   Nothing in this section writes a colour, a family or a size down: every
+   declaration reads a token, and which values those tokens hold is entirely
+   decided by the attribute and class the island puts on the element.
+   ========================================================================== */
+
+.qcms-preview-island {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-stack);
+}
+
+/* The two controls, in the app's own filter-row language: they are AUTHORING
+   chrome sitting above the preview, not part of what a respondent sees, so they
+   wear this app's theme and its density like every other control here. They also
+   sit outside the carrier, which is why their own popovers - portalled to the
+   body by react-aria - are correctly in Cobalt rather than in the previewed
+   theme. */
+.qcms-preview-switcher {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--admin-stack);
+}
+.qcms-preview-switcher > * {
+  min-inline-size: 9rem;
+}
+
+/*
+ * THE CARRIER, and the half of the token contract that variables alone do not carry.
+ *
+ * `--type-*` has no consumer inside an island by itself. What applies the WCAG 1.4.12
+ * text-spacing floors in the respondent app is `apps/portal/app/globals.css`'s `body`
+ * rule - the portal APP's stylesheet, which this app does not import and never will
+ * (it also sets the portal's page background and its own shell chrome). So a carrier
+ * that only re-declared the variables would render the respondent's markup at the
+ * authoring app's spacing while every token assertion still passed, which is the
+ * failure mode this block exists to prevent: the five floors are restated here, read
+ * from the same tokens the portal reads them from, so the island is spaced like the
+ * portal and not like the page around it.
+ *
+ * `--font-portal` is the sixth: the portal's default is the brand-neutral system
+ * stack, this app's face is Lexend, and text inherits, so without this the preview
+ * would be the right size in the wrong typeface. The fallback matches the portal's own
+ * `body` rule byte for byte, and it is load-bearing here rather than defensive - this
+ * app deliberately does not import `fonts.css`, so `--font-portal` comes only from the
+ * token sheet's anchor block.
+ *
+ * The specificity is (0,2,0) against `.qcms-preview`'s (0,1,0), which is what lets the
+ * background and colour below win over the dashed-box rule that both classes share.
+ */
+.qcms-preview-surface[data-qcms-theme-scope] {
+  /* See the `color-scheme` note below the paragraph rule. */
+  color-scheme: light;
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--type-body);
+  line-height: var(--type-line-height);
+  letter-spacing: var(--type-letter-spacing);
+  word-spacing: var(--type-word-spacing);
+}
+
+/* The paragraph-spacing floor (1.4.12's fifth). The portal applies it inside its
+   content column; the carrier IS the content column here. */
+.qcms-preview-surface[data-qcms-theme-scope] p {
+  margin-block: 0 var(--type-paragraph-spacing);
+}
+.qcms-preview-surface[data-qcms-theme-scope] p:last-child {
+  margin-block-end: 0;
+}
+
+/*
+ * `color-scheme` on the island, not on the root - and this is the one property that
+ * makes the island's isolation two-way for the parts of a control the token contract
+ * cannot reach. UA-drawn internals (a date segment's spinner affordances, a scrollbar
+ * inside a long control, the caret) follow this keyword, so a preview in Dark sitting
+ * on a Light authoring page would otherwise draw light UA chrome over dark surfaces.
+ * `color-scheme` is inherited and applies per element, so naming it here scopes it to
+ * the subtree exactly as the tokens are scoped.
+ *
+ * High-contrast keeps the `light` set above, matching what `theme-components.css` does
+ * on the portal root: HC is a distinct choice rather than a shade of Dark.
+ */
+.qcms-preview-surface[data-qcms-theme-scope].dark {
+  color-scheme: dark;
+}
+
+/* ===========================================================================
+   THE RAIL - `plan/admin-design-contracts.md` §7, issue 559.
+
+   WHAT IS SHARED AND WHAT IS NOT. §7a keeps a second rail on Settings and is
+   explicit that it is a DIFFERENT component which merely "share[s] the grid
+   column, the 240px width, the `--bp-sidebar` collapse behaviour and the
+   anchors-not-buttons rule - and nothing else". That sentence is the reason the
+   geometry lives here as `qcms-rail*` classes while the CONTENT lives in two
+   separate components: `components/forms/form-subtree-rail.tsx` for §7 and,
+   when it is built, a distinctly named Settings component for §7a. Sharing a
+   stylesheet block is not sharing a contract, and nothing in this block knows
+   or cares what the rail carries.
+
+   THE COLUMN IS CONDITIONAL, and `:has()` is why there is no empty track on the
+   screens that have no rail. (A count stood here and went stale twice as rails
+   were added, so it is a description now.) The shell body is a flex column by
+   default, which is what `<main class="flex-1">` grew inside before this block
+   existed; it becomes a two-track grid only when a rail is actually a child of
+   it. Written the other way round - an always-grid whose first track collapses -
+   every railless screen would carry a 0-width track and a gap nobody asked for,
+   and a slot that rendered nothing would silently push `<main>` into track one.
+
+   `15rem` rather than `240px`, for §1's own reason for writing the two
+   breakpoints in `rem`: it is 240px at the default root size and it grows with
+   an operator's browser font size, so a zoomed reader gets a rail their text
+   still fits in rather than a fixed track their text overflows.
+
+   VIEWPORT FILL (N2, `plan/admin-redesign-implementation-plan.md` §1). `flex: 1
+   1 auto` on the shell body is what makes a short screen's rail reach the bottom
+   of the shell rather than stopping at its own content height: the grid's own
+   `align-items: stretch` already matches the rail to the row, and the row was
+   the thing that was too short. `min-height: 0` overrides flexbox's `auto`
+   minimum, which would otherwise refuse the shrink half of that and defeat the
+   grow on some browsers. ==================================================== */
+/* THE RAIL AND THE COLUMN SCROLL INDEPENDENTLY (Code Owner, 2026-08-24).
+
+   Above `--bp-sidebar` the rail is pinned: it takes the viewport's height below
+   the bar, scrolls its own rows when it has more than fit, and stays where it is
+   while the screen beside it is read to the bottom. The content column keeps
+   scrolling with the PAGE.
+
+   WHY THE COLUMN IS NOT ITS OWN SCROLLPORT, which was tried first and reverted.
+   `overflow` on `<main>` makes it a clipping box, and the row menu's popover is a
+   DOM descendant of it rather than a portal at the body - so "Remove option" was
+   clipped by the column exactly as it was once clipped by the grid, and a press at
+   its centre landed on nothing. `apps/admin/e2e/questions-lifecycle.pw.ts` exists
+   because of that earlier defect and caught this one. Escaping it would mean
+   changing where a shared overlay primitive renders, which is a larger change than
+   the scrolling it would be in service of, so the column stays in the page's scroll
+   and only the rail gets a scrollport of its own.
+
+   `overflow-y: auto` rather than `scroll`: a bar appears on the rail only when its
+   rows do not fit, and the page's own bar only when a screen is long.
+
+   Below the boundary none of this applies. The rail is a band stacked ABOVE the
+   content rather than beside it, so the two are one column in one scroll, which is
+   what a phone wants. ================================================== */
+.qcms-shell-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+@variant sidebar {
+  .qcms-shell-body:has(> .qcms-rail) {
+    display: grid;
+    grid-template-columns: 15rem 1fr;
+  }
+}
+
+/* The rail's own surface. `min-width: 0` is load-bearing rather than tidy: a
+   grid item's default `min-width: auto` lets its content push it wider than its
+   track, and this track is full of author-supplied step titles. */
+.qcms-rail {
+  min-width: 0;
+  background-color: var(--color-surface);
+  border-block-end: 1px solid var(--color-border);
+}
+@variant sidebar {
+  .qcms-rail {
+    /* `align-self: start` takes the rail off the grid row's stretch, which is what
+       gives `position: sticky` something to do: an item stretched to its row is
+       already as tall as its container and can never move within it. The explicit
+       height is then the viewport minus the bar, so the rail ends on the screen's
+       bottom edge on a short screen and a long one alike. */
+    position: sticky;
+    inset-block-start: var(--admin-topbar-h);
+    align-self: start;
+    block-size: calc(100dvh - var(--admin-topbar-h));
+    overflow-y: auto;
+    border-block-end: none;
+    border-inline-end: 1px solid var(--color-border);
+  }
+}
+:root.hc .qcms-rail {
+  border-color: var(--color-border-strong);
+}
+
+/* A native `<details>`, open by default, at every width. It is the only way to
+   get a disclosure that works with no JavaScript, announces its own state and
+   needs no override to look like a plain sidebar above the boundary - which is
+   also what the POCs draw. Above `--bp-sidebar` the chevron goes and the summary
+   stops advertising itself as a control; it remains one, so an operator who
+   wants the width back can still take it. */
+.qcms-rail__summary {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline: 1rem;
+  padding-block: 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--color-text);
+  cursor: pointer;
+  list-style: none;
+}
+.qcms-rail__summary::-webkit-details-marker {
+  display: none;
+}
+/* The one line the contract says truncates with an ellipsis. It is the flexible
+   member and everything beside it is `flex-shrink: 0`, so at 390px a long step
+   title gives way and the issue count it is paired with never does: a count that
+   truncated to "2 iss" would be worse than no count at all. */
+.qcms-rail__summary-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qcms-rail__summary .qcms-tag,
+.qcms-rail__chevron {
+  flex-shrink: 0;
+}
+.qcms-rail__chevron {
+  display: inline-block;
+  color: var(--color-text-muted);
+}
+.qcms-rail__disclosure[open] > .qcms-rail__summary .qcms-rail__chevron {
+  transform: rotate(90deg);
+}
+@variant sidebar {
+  .qcms-rail__summary {
+    cursor: default;
+  }
+  .qcms-rail__chevron {
+    display: none;
+  }
+  /* THE FORM RAIL SAYS THE FORM'S NAME ONCE (Code Owner, 2026-08-26). Its first row is
+     the form's own screen and carries the form's name, so the summary line above it was
+     the same word twice with nothing to tell them apart. Hidden only where the rail is a
+     permanent sidebar: below this boundary the rail collapses to that one line and it is
+     the whole of the rail, which is what issue 693 put the form's name there for. The
+     element stays in the DOM so widening and narrowing the window needs no re-render.
+
+     The other two rails keep theirs at every width - neither has a row repeating its
+     scope, so for them the summary is the only place it is written. */
+  .qcms-rail--form > .qcms-rail__disclosure > .qcms-rail__summary {
+    display: none;
+  }
+  /* ...and the body takes over the space it left. Without this the form's own row began
+     flush against the top bar, with none of the breathing room the summary used to
+     provide above it. Only in this rail and only at this width, because it is the only
+     one whose summary is hidden. */
+  .qcms-rail--form .qcms-rail__body {
+    padding-block-start: 0.75rem;
+  }
+}
+
+.qcms-rail__body {
+  padding-inline: 0.5rem;
+  padding-block-end: 1rem;
+}
+
+/* THE FIRST FRAME ON A NARROW VIEWPORT, and the only reason this rule exists.
+   The rail is shut below `--bp-sidebar` and open above it (Code Owner decision,
+   2026-08-23), and `open` is an attribute no media query can set, so the browser
+   decides it in `components/rail-disclosure.tsx`. The server cannot know the
+   viewport, so the first HTML is `open` - the safe answer, and the one a reader
+   with no JavaScript keeps - which on a phone would paint an expanded rail for
+   the frame before hydration. This hides the body for exactly that frame: the
+   disclosure publishes `data-ready` once it has read the media query, and from
+   then on the element's own state is what shows or hides the rows.
+
+   Scoped below the boundary, so a wide viewport paints the sidebar open with no
+   dependence on script at all. */
+@media (width < 64rem) {
+  .qcms-rail__disclosure:not([data-ready]) .qcms-rail__body {
+    display: none;
+  }
+}
+/* The rail's one row rhythm, written once and used by every group in the column. */
+:root {
+  --admin-rail-row-gap: 0.125rem;
+}
+.qcms-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-rail-row-gap);
+}
+
+/* THE BUILDER'S STEP ROWS, which are the one place in a rail where a row both
+   goes somewhere and can be acted on (Code Owner, 2026-08-25; §7's clause against
+   actions in a rail was retired the same day). A row is two controls side by side:
+   the step itself, which fills the width, and a menu trigger that does not shrink.
+
+   The trigger is revealed on hover and on FOCUS, and the focus half is the half a
+   pointer-only implementation forgets: `:focus-within` on the row is what keeps the
+   menu reachable by keyboard, and `opacity` rather than `display` is what keeps it
+   in the tab order to be reached. It is always visible on the current step, because
+   that is the row an author is working on. */
+.qcms-rail-steps__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.125rem;
+}
+.qcms-rail-steps__select {
+  flex: 1 1 auto;
+  min-width: 0;
+  /* A button wearing the shared row geometry, so the control chrome an anchor never
+     had comes off: the user-agent border on three sides (the inline-start edge is
+     kept, because that is what the active mark paints), the button background, the
+     centred text and the button font. */
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+/* ABSOLUTE, OVER THE GUTTER THE ROW ALREADY RESERVES (Code Owner, 2026-08-30).
+
+   As a flex ITEM it took 30px out of the row, so the button beside it was 193px wide
+   where the same row on the other seven screens is 223px. The text lined up - that is
+   what the `padding-inline-end` below is for - but the row's BOX did not, so the tint on
+   a selected or hovered row stopped 30px short here and ran the full width there, and
+   walking between the builder and Preview moved that edge on every row that has a
+   trigger. Reserving the space in padding and painting the trigger on top of it gives
+   both branches one 223px box with its text in one place.
+
+   The trigger is still in the tab order and still `opacity`-toggled: it is taken out of
+   the FLOW, not out of the row. */
+.qcms-rail-steps__menu {
+  position: absolute;
+  inset-inline-end: 0.125rem;
+  inset-block-start: 50%;
+  translate: 0 -50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 1.75rem;
+  min-block-size: 1.75rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+}
+.qcms-rail-steps__row:hover .qcms-rail-steps__menu,
+.qcms-rail-steps__row:focus-within .qcms-rail-steps__menu,
+.qcms-rail-steps__row:has([aria-current="page"]) .qcms-rail-steps__menu {
+  opacity: 1;
+}
+.qcms-rail-steps__menu:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+/* A pointer-less reader never hovers, so the trigger has to be visible to be found
+   at all: `any-hover: none` is the query for that device rather than a width guess. */
+@media (any-hover: none) {
+  .qcms-rail-steps__menu {
+    opacity: 1;
+  }
+}
+
+/* The autosave flash: a word, in the muted voice, beside the step it saved. Small and
+   quiet on purpose - it is a confirmation rather than chrome, and the persistent
+   statement of HOW this screen saves is the strip on the form's own screen. */
+.qcms-autosave-flash {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+/* A "?" that opens an explanation. Round, muted and the size of the copy control beside
+   it, so the two read as one row of small affordances rather than as a control and a
+   decoration. The border is what makes it look pressable at this size: a bare glyph in
+   running text is punctuation. */
+.qcms-help-dot {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  inline-size: 20px;
+  block-size: 20px;
+  min-block-size: 20px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.qcms-help-dot:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+/* Pressed-open is a state, and it is said twice: `aria-expanded` for a screen reader,
+   and a filled dot for everyone else. */
+.qcms-help-dot[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-text);
+}
+
+/* The public form link's address: an anchor that looks like the literal it is. The
+   `<code>` inside carries the monospace treatment `.qcms-link-url` already defines for
+   a secure link's URL; this wrapper only adds what makes it a link. Underlined on hover
+   rather than always, so a row of one address does not read as a paragraph of link. */
+.qcms-public-link__url {
+  min-inline-size: 0;
+  color: inherit;
+  text-decoration: none;
+}
+.qcms-public-link__url:hover code {
+  text-decoration: underline;
+}
+
+/* The add control, under the list where the drawing puts it. One button since the
+   naming moved into a dialog, so there is no longer a field and a label to stack.
+
+   IT SPANS THE ROWS ABOVE IT (Code Owner, 2026-08-26). No inline padding, because the
+   group above has none either: a rail row is a full-width box that insets its own text
+   by `0.5rem` plus its 3px marker border, so a container that repeated that inset made
+   this button narrower than every row it sits under. The kit's `Button` takes no
+   `className` - a closed API on purpose - so the stretch is set here, on the one child
+   this container has. It centres its own label already. */
+/* NO PADDING OF ITS OWN. It used to carry `0.5rem 0.25rem`, which made the add control a
+   52px box among 40px rows and put an 8px space above it and 4px below - a third spacing
+   in a column that has one. The cluster's gap places it now, like every other row. */
+.qcms-rail-steps__add {
+  display: flex;
+  padding-block: 0;
+}
+.qcms-rail-steps__add > button {
+  flex: 1 1 auto;
+}
+/* The same control on the seven screens with no builder, where it is an anchor because
+   it navigates rather than acts. The kit's `Button` renders a `<button>` and takes no
+   `className`, so its `ghost` treatment is restated here in tokens rather than reached
+   for: a transparent fill, the shared border, ordinary text. A reader moving between
+   form screens should not see the rail's last control change shape. */
+.qcms-rail-steps__add-link {
+  flex: 1 1 auto;
+  /* The button it stands in for is a `button`, so the reset gives that one the control
+     height and this one has to ask for it, exactly as the rows above do. Without it the
+     control was 31px here and 40px on the builder. */
+  min-block-size: var(--admin-control-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 0.75rem;
+  padding-block: 0.25rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.qcms-rail-steps__add-link:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* The builder's own screens, as a block: everything the Form row contains is one thing,
+   and the six sibling ROUTES below it are another. Without this the tree was one flat run
+   of rows at 2px each, with nothing to say which of them stay on this page. */
+/* THE STEP CLUSTER, on all eight screens (Code Owner, 2026-08-30).
+
+   ONE RHYTHM. `--admin-rail-row-gap` is the 2px every rail group already puts between its
+   rows, and this cluster now uses the same value between the form's row, the steps, the
+   add control and Rules - so a rail row sits the same distance from its neighbour wherever
+   it is. Before this the cluster had no gap of its own and the spacing came from whatever
+   padding each part happened to carry: 0px under the form row, 2px between steps, 0px
+   before the add control, which read as three different rhythms in one column.
+
+   NO MARGIN ON THE WRAPPER. It carried `margin-block-end: 0.5rem`, which is a GROUP
+   separation and belongs to the row it separates - written here it applied only where this
+   wrapper existed, which until 2026-08-30 was the builder's two screens alone. */
+.qcms-rail-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--admin-rail-row-gap);
+}
+
+/* A NESTED GROUP, which is what the form's steps are inside the Form row (Code
+   Owner, 2026-08-25). The indent is on the group rather than on its rows, so the
+   active mark's 3px edge still lands on the row's own box and a marked step lines
+   up with a marked section rather than sitting 3px inside it.
+
+   NO RULE AND NO INDENT (Code Owner, 2026-08-26). There was a line down the left
+   and a step was inset from it, on the reasoning that a tree needs to show what
+   belongs to what. Both are gone: the ordinal does that job - "1.", "2.", "3."
+   is not something a section row has, and it is at the start of every step row
+   where an indent would have been. Two more devices saying the same thing cost a
+   column 240px wide the width of a step's title, twice over.
+
+   Nesting is still carried where it counts, structurally: the steps are an `<ol>`
+   inside the row's own `<li>`, so a screen reader announces the level whatever the
+   paint does. This block stays rather than being deleted so that the decision has
+   somewhere to live, and so the next person to indent a nested group reads why it
+   is not indented now. */
+.qcms-rail__group .qcms-rail__group {
+  margin-inline-start: 0;
+  padding-inline-start: 0;
+}
+/* The one divider §7 asks for, between the two groups. */
+.qcms-rail__divider {
+  margin-block: 0.5rem;
+  margin-inline: 0.5rem;
+  border: 0;
+  border-block-start: 1px solid var(--color-border);
+}
+:root.hc .qcms-rail__divider {
+  border-block-start-color: var(--color-border-strong);
+}
+
+/* A rail item is an anchor (§7), so everything here styles a link and nothing
+   here styles a button. The 3px inline-start edge is present and transparent on
+   every row, so marking the current one moves no text.
+
+   A LONG TITLE WRAPS HERE RATHER THAN TRUNCATING, which is the opposite of what
+   the collapsed summary does and is deliberate (issues 582, 595, 596). The
+   summary is one line by construction and the contract says it truncates. This
+   column is a list whose whole job is telling two author-named steps apart, and
+   there is no tooltip carrying the full text, so hiding the end of a title would
+   hide the only thing that distinguishes them. `overflow-wrap: anywhere` is the
+   half that matters for the pathological case: an id or a URL pasted in as a
+   title has no space to break at and would otherwise overflow the track. */
+/* EVERY RAIL ROW IS THE SAME HEIGHT WHETHER IT IS A LINK OR A BUTTON (Code Owner,
+   2026-08-26). The reset above gives every `button` the control height; an anchor only
+   gets it by asking, which `.qcms-nav__link` already does for the top nav's links. The
+   rail did not, so its rows were 40px on the builder - where they are buttons - and 34px
+   on the other seven form screens, where they are anchors. Clicking Preview therefore
+   moved every row of the rail, which is the shift this closes rather than a taste.
+
+   It is also the rule on its own terms: a rail row is a target you press, so it gets the
+   same minimum as every other control in the app. */
+.qcms-rail__link {
+  display: flex;
+  /* CENTRED, because the row is taller than its text. `baseline` was right when a row was
+     only as tall as its content; since these rows took the control height (40px) it left
+     the label sitting high in its own tinted box, which is visible the moment a row is
+     the current one and gets a background to be off-centre inside. */
+  align-items: center;
+  min-block-size: var(--admin-control-h);
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.4rem;
+  border-inline-start: 3px solid transparent;
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.qcms-rail__link:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+/* Never colour alone: the accent edge and the heavier weight carry the same
+   statement `aria-current` makes to a screen reader, which is what keeps this
+   readable in high contrast where the tint collapses into the surface. */
+.qcms-rail__link[aria-current="page"] {
+  border-inline-start-color: var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  font-weight: 700;
+}
+/* THE FORM RAIL'S CURRENT ROW CARRIES NO ACCENT EDGE (Code Owner, 2026-08-26). The
+   rule above paints one on the inline-start border of any current rail row, and in
+   this tree it stacked up: the row for the screen, the row for what that screen is
+   showing, and a step's own ordinal all marking the same place at once.
+
+   Colour is still not carrying the state alone, which is what the rule above is
+   careful about. `aria-current="page"` is what a screen reader is told either way,
+   and `font-weight: 700` is a non-colour signal that survives high contrast. The
+   settings and question rails keep their edge: they are flat lists of one kind of
+   row, where nothing else is competing to mark the same thing.
+
+   Scoped by `[data-rail-group]`, which only the form-subtree rail emits, so it holds
+   for every row of that tree - including ones added later - and reaches neither of the
+   other two rails. */
+[data-rail-group] .qcms-rail__link[aria-current="page"],
+.qcms-rail-steps .qcms-rail__link[aria-current="page"] {
+  border-inline-start-color: transparent;
+}
+
+/* The rules row, which stands alone rather than beside a menu trigger. `__form` cannot
+   be reused for it: that one is a flex ITEM sized by the row it shares, so on its own it
+   shrank to the width of its text and took its tint with it - 57px of highlight on a
+   223px row. This one owns the full width instead. */
+/* WHERE THE GROUPING IS, now that the indent and the tree line have gone. The rail's rows
+   sit 2px apart, so with the Rules row butted against the Add step button above it and the
+   Preview row below it, it read as part of the step controls rather than as another screen.
+
+   The two margins say what the tree means: the steps and their add control are one cluster,
+   Rules is a screen beside them, and the six routes underneath are a different kind of
+   thing altogether. Space rather than a rule or an indent, because both of those were tried
+   and removed for saying it twice. */
+.qcms-rail-steps__rules {
+  /* 8px of GROUP separation above and below, stated as the part the row itself owes on top
+     of the 2px its container already puts between rows. Written as `0.5rem` flat, the two
+     sides came out 8px and 10px, because above this row the gap comes from the cluster and
+     below it from the outer group - and the eye reads that 2px difference as the rail
+     being crooked rather than as two containers meeting. */
+  margin-block-start: calc(0.5rem - var(--admin-rail-row-gap));
+  margin-block-end: calc(0.5rem - var(--admin-rail-row-gap));
+  display: flex;
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
+/* The form's own row, which is the tree's first row and the parent of the steps. A
+   button wearing the shared row geometry, the same way a step row does, so the tree
+   reads as one list of rows rather than as a control sitting on top of one. */
+.qcms-rail-steps__form {
+  display: flex;
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
+/* THE FORM'S OWN ROW TRUNCATES; ITS STEPS DO NOT. A form's title is prose an author
+   chose and can be any length, and this row is the tree's root: wrapped to four lines it
+   would push every step out of sight before the reader had seen one. A step row wraps
+   instead, deliberately, and `e2e/rail.pw.ts` pins that - "559 wraps a long step title
+   inside the column rather than hiding its end" - because a step's title is what the
+   reader is choosing between, where the form's is what they already know they are in.
+
+   The full name is never lost: the element's text is complete, so it is what a screen
+   reader announces and what the accessible name of the row is. Only the paint is cut. */
+[data-rail-item="section:builder"] > span,
+.qcms-rail-steps__form > span {
+  /* On the SPAN, not the row. `text-overflow` acts on a block container's inline content,
+     and these rows are flex containers - their children are flex items, so the property
+     would do nothing there. `min-inline-size: 0` is the other half: a flex item refuses to
+     shrink below its content's width by default, so without it the row grows instead of
+     the text clipping. */
+  min-inline-size: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* THE SAME TEXT WIDTH ON ALL EIGHT SCREENS. On the builder a step row is two controls -
+   the row itself and a menu trigger that does not shrink - so the row's text gets 30px
+   less than the row. On the other seven there is no menu, so the text had the full width
+   and a title wrapped at a different point on each side of a navigation, moving every row
+   below it. The seven reserve the same 30px rather than the builder giving its trigger up:
+   the trigger appears on hover, and a control that reflowed the list when it appeared
+   would be worse than one that always has its place.
+
+   `1.75rem` is the trigger's own `inline-size` and `0.125rem` the row's gap, both written
+   just above, so this moves with them. */
+.qcms-rail-steps [data-rail-item^="step:"],
+[data-rail-item="section:builder"],
+.qcms-rail-steps__form,
+.qcms-rail-steps__select {
+  padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
+}
+
+/* The step's ordinal. Muted and unshrinkable, so the title beside it is what
+   takes the width. */
+.qcms-rail__position {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+/* The per-step issue count, pushed to the trailing edge and never shrunk. */
+.qcms-rail__link .qcms-tag {
+  flex-shrink: 0;
+  margin-inline-start: auto;
+}
+
+/* ===========================================================================
+   THE SETTINGS RAIL AND ITS PANELS - issue 655, built to
+   `plan/admin-shell-poc/settings-newquestion-poc.html`.
+
+   A SECOND, NARROWER RAIL, NOT THE ONE ABOVE. The rail above navigates between
+   ROUTES. Settings is one route, so its rail switches which PANEL of that route
+   is on screen. The two share the grid column, the 240px width and the
+   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
+   know nothing about what a rail carries. Everything below is this screen's own.
+
+   THE POC SWITCHES PANELS WITH A SCRIPT AND SO DOES THIS SCREEN. The rows are
+   buttons, the active row is marked with `aria-current="page"` set by React, and
+   the two panels that are not showing carry `hidden`. Nothing here is conditional
+   on a stylesheet knowing which section is current, which is what the `:target`
+   machinery this replaces existed to arrange. `docs/admin-constraints.md` says
+   what binds this app: the POCs are the design, and JavaScript is available.
+
+   WHY THE CURRENT-ROW DECLARATIONS ARE RESTATED RATHER THAN LEANT ON. The shared
+   block above already has a `[aria-current="page"]` rule, and taking it would
+   make one rule the place where both rails' active marks are decided, so the next
+   change to either would have to be argued as a change to both. Four duplicated
+   declarations is the cheaper side of that trade, and it is the same trade the
+   two components make. ==================================================== */
+
+/* A row here is a BUTTON wearing the shared row geometry, so the control chrome
+   the anchor never had is taken off: the user-agent border on three sides (the
+   inline-start edge is kept, because that is what the active mark paints), the
+   button background, the centred text and the button font. */
+.qcms-settings-rail__link {
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
+}
+
+/* Never colour alone: the accent edge and the heavier weight carry the same
+   statement `aria-current` makes to a screen reader, which is what keeps this
+   readable in high contrast where the tint collapses into the surface. */
+.qcms-settings-rail__link[aria-current="page"] {
+  border-inline-start-color: var(--color-primary);
+  background-color: var(--color-info-subtle);
+  color: var(--color-info-fg);
+  font-weight: 700;
+}
+
+/* The two panels that are not showing, and this rule is load-bearing rather than
+   a restatement of the browser default. The `[hidden]` rule the framework's reset
+   ships is written with `:where()`, which gives it zero specificity, so a single
+   utility class on the same element would out-specify it and leave a "hidden"
+   panel on screen. An id-free class plus the attribute settles it in one place
+   rather than by keeping utilities off these three elements forever. */
+.qcms-settings-panel[hidden] {
+  display: none;
+}
+
+/* ===========================================================================
+   THE QUESTION DETAIL RAIL - issue 650, built to
+   `plan/admin-shell-poc/question-editor-poc.html`.
+
+   A THIRD RAIL, AND THE THIRD ANSWER TO "WHAT DOES A RAIL CARRY". The first
+   navigates between the routes of one form's subtree; the second switches which
+   panel of the single Settings route is showing; this one lists one question's
+   versions, each of which is a `?v=` on the route the reader is already standing
+   on. What all three share is the grid column, the 240px width and the
+   `--bp-sidebar` collapse behaviour, which are the `qcms-rail*` rules above and
+   know nothing about what a rail carries. Everything below is this screen's own.
+
+   WHY A ROW IS TWO LINES HERE AND ONE LINE THERE. A form's rail row is a step
+   title and a badge. A version row carries three facts an operator reads
+   together - which version, what its status is, and when it was published - and
+   at 240px those do not fit on one line without the date being the thing that
+   truncates. The POC stacks them, so the row is a column and the status tag sits
+   beside the version number rather than after the date.
+
+   THE LIFECYCLE BLOCK IS PINNED ABOVE THE LIST, not below it, and the POC states
+   the reason: the version list is the one thing on this screen that grows without
+   bound, so an action anchored under it would drift further down the rail with
+   every version the question accumulates. The dashed rule belongs to that block
+   and moves with it, marking the end of the fixed area rather than the start of
+   one. ======================================================================= */
+
+/* The question id, in the mono face it is written in everywhere else, because it
+   is a machine identifier an author pastes into a ticket. Truncation comes from
+   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse. */
+.qcms-question-rail__summary-id {
+  font-family: var(--font-mono);
+}
+
+/* The collapsed-only "which version" indicator. Hidden by default and hidden
+   again above `--bp-sidebar`, where the rail is a permanent sidebar and the
+   marked row is on screen anyway; visible only below the boundary while the
+   disclosure is shut, when this line is the whole rail. The two `display: none`
+   rules are written at the same specificity as the rule between them so source
+   order settles it, which is why the second one restates the whole selector. */
+.qcms-question-rail__summary-version {
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+}
+.qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
+  display: inline-flex;
+}
+@variant sidebar {
+  .qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
+    display: none;
+  }
+}
+.qcms-question-rail__summary-sep {
+  font-weight: 400;
+}
+
+/* "Versions" and its digest, as a labelled row rather than a heading. The rail
+   renders before `<main>`, so a heading here would sit above the screen's `<h1>`
+   and be a `heading-order` violation on this screen in all three modes. */
+.qcms-question-rail__label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.375rem 0.25rem;
+}
+.qcms-question-rail__title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+}
+.qcms-question-rail__digest {
+  font-size: 0.75rem;
+  text-align: end;
+  color: var(--color-text-muted);
+}
+
+/* The pinned lifecycle block. The buttons fill the track from here rather than
+   from a prop, because the vendored `Button` takes a variant and a size and no
+   class name, and a wrapper added to give it one would be the first component of
+   a second design language outside `packages/ui` (ADR-22). */
+.qcms-question-rail__lifecycle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding-inline: 0.5rem;
+  padding-block-end: 0.5rem;
+  margin-block-end: 0.5rem;
+  border-block-end: 1px dashed var(--color-border);
+}
+.qcms-question-rail__lifecycle > button {
+  inline-size: 100%;
+  justify-content: center;
+}
+:root.hc .qcms-question-rail__lifecycle {
+  border-block-end-color: var(--color-border-strong);
+}
+
+/* One version row: the shared rail link, stacked. `align-items` is overridden
+   from the shared rule's `baseline`, which aligns two things on a line and is the
+   wrong instruction for a column. */
+.qcms-question-rail__version {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.125rem;
+}
+.qcms-question-rail__version-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* The status tag keeps its own size here and is not pushed to the trailing edge:
+   the shared rule does that to an issue badge, which is a count at the end of a
+   title, and this one is part of the phrase "Version 3, published". */
+.qcms-question-rail__version .qcms-tag {
+  margin-inline-start: 0;
+}
+.qcms-question-rail__version-date {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+/* The current row's date stays muted rather than taking the active colour with
+   the rest of the row: it is the one part of the row that is not a statement
+   about which version is selected. */
+.qcms-question-rail__version[aria-current="page"] .qcms-question-rail__version-date {
+  color: var(--color-text-muted);
+}
+
+/* THE ADD-QUESTION PICKER'S MULTI-SELECT (issue 660).
+   `plan/admin-shell-poc/add-question-poc.html` holds two dialogs behind a variant
+   toggle and this is its multi-select one: a checkbox leading each choosable row,
+   and a pane listing what has been chosen so far. */
+
+/* The leading selection column. Sized to its control and nothing else, so the
+   identifying column keeps the width it had. `text-align: start` overrides the
+   table family's centred numeric headers, which this one is not. */
+.qcms-picker__choose {
+  inline-size: 1px;
+  text-align: start;
+  white-space: nowrap;
+}
+
+/* The row control. `accent-color` is the POC's own rule and is what keeps a native
+   checkbox inside the theme without a wrapper element to paint.
+
+   SIZE AND SC 2.5.8. The POC draws 16px, which is under the 24px target floor the
+   admin's control height clears elsewhere, and the base rule for `input` in this
+   sheet deliberately excludes `[type="checkbox"]` from that floor. This takes the
+   drawing's size and meets 2.5.8 through its SPACING exception instead: the cell's
+   padding comes from the table family, so no other target comes within a 24px
+   circle centred on this one. `docs/admin-constraints.md` asks for the trade to be
+   stated rather than left silent, and that is the trade. */
+.qcms-picker__checkbox {
+  inline-size: 16px;
+  block-size: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+/* THE TABLE ABSORBS THE SLACK, WHICH IS WHAT KEEPS THE COUNTED PRIMARY IN VIEW.
+
+   This dialog is one scrolling column, so before this rule a library of any size
+   pushed "Add 3 questions to step" below the dialog's own fold: the control whose
+   whole job is to say what the commit will do was reachable only by scrolling past
+   the thing it was describing. Both gate frames at 003d45f show it clipped, and a
+   fixed cap on the table alone (c1553c3) moved the fold rather than removing it,
+   because the header, the search field, the chosen pane and the pin note still sum
+   to more than what is left.
+
+   So the body takes a height budget and the TABLE is the only part allowed to
+   flex inside it. Everything else keeps its natural height, which means the footer
+   is placed by the budget rather than by however many rows the library happens to
+   have. `min-block-size: 0` is the part that is not optional: a flex item's default
+   `min-height: auto` refuses to shrink below its content, so without it the table
+   would still push the footer down and `overflow` would never engage.
+
+   The budget is a proportion rather than a pixel count so it holds at any viewport,
+   and it is set here rather than by restructuring the dialog because the
+   sticky-footer shape belongs to the vendored `Dialog`, not to one of its callers.
+   The POC keeps its footer outside its scrolling body for exactly this reason.
+   Nothing is hidden either way: the table scrolls, and Tab reaches its checkboxes,
+   which scrolls them into view. */
+.qcms-picker__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-block-size: 58vh;
+}
+.qcms-table--picker {
+  flex: 1 1 auto;
+  /* The floor, so a tall selection cannot squeeze the library out of existence. */
+  min-block-size: 6rem;
+  overflow: auto;
+}
+
+/* The chosen pane. A bordered block rather than a second column: this dialog is one
+   column at every width the admin supports, where the POC's is a two-pane
+   master-detail built around a paginated server-side list this picker does not have. */
+.qcms-picker__chosen {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.qcms-picker__chosen-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  /* Capped for the same reason the table above flexes: a long selection must not be
+     what pushes the button that commits it off the screen. Fixed rather than flexing,
+     because between the two lists it is the library that should give up room first -
+     the chosen list is the shorter one and the one being read at the moment of
+     commit. */
+  max-block-size: 16vh;
+  overflow-y: auto;
+}
+.qcms-picker__chosen-list li {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background-muted);
+}
+
+/* The pin and its label stack, so a long label wraps under the id it belongs to
+   rather than pushing the remove control off a 390px row. */
+.qcms-picker__chosen-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+/* 28px square, which clears the 24px target floor without taking the 40px the
+   sheet's base `button` rule gives a control that carries words. */
+.qcms-picker__unchoose {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  inline-size: 28px;
+  block-size: 28px;
+  min-block-size: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-picker__unchoose:hover {
+  background-color: var(--color-ghost-hover);
+  color: var(--color-danger-fg);
+}
+.qcms-picker__unchoose svg {
+  inline-size: 14px;
+  block-size: 14px;
+}
+
+/* Cancel to the start, the counted primary to the end, which is the POC's footer. */
+.qcms-picker__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  justify-content: space-between;
+}
+
 /* Standard clip-rect visually hidden utility: present for assistive tech,
    removed from the visual layout without display:none, which would also
    remove it from the accessibility tree. */
@@ -1509,4 +3408,149 @@ th,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* The rule wizard's footer row: the rule's own actions at the start, phase navigation at
+   the end (Code Owner, 2026-08-30). Two groups rather than one flow, because they are two
+   kinds of control - one commits the rule, the other moves around inside the dialog - and
+   §5's button order applies to the first group alone.
+
+   `space-between` only once both groups fit: below that they stack, and the actions stay
+   first because that is the order they are written in. */
+.qcms-rule-wizard__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+/* ===========================================================================
+   THE SEARCHABLE PICKER (Code Owner, 2026-08-30). `components/searchable-select.tsx`
+   composes react-aria-components' ComboBox; the kit exports it unstyled, exactly as it
+   exports the menu and tab primitives, so the treatment lives here with the app that uses
+   it. Written to match the vendored Select it replaces: the same control height, the same
+   border and the same popover, so a condition row does not read as two kinds of field.
+   =========================================================================== */
+.qcms-combobox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  /* Capped, because the dialog is 100rem wide and a field that fills it is a 1400px input
+     holding a five-word phrase. The vendored `Select` beside it is sized by its own
+     content; this is the same intent stated as a maximum. */
+  max-inline-size: 24rem;
+}
+.qcms-combobox__label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+/* The input and its toggle share one box, so the pair reads as the single control it is
+   rather than as a field with a button next to it. The focus ring is on the box for the
+   same reason: focus is inside the input, and a ring drawn around the input alone would
+   leave the toggle looking detached from the thing that has focus. */
+.qcms-combobox__control {
+  display: flex;
+  align-items: center;
+  min-inline-size: 10rem;
+  min-block-size: var(--admin-control-h);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+}
+.qcms-combobox__control:has(.qcms-combobox__input:focus-visible) {
+  outline: 2px solid var(--color-focus, var(--color-primary));
+  outline-offset: 1px;
+}
+.qcms-combobox__control:hover {
+  border-color: var(--color-primary);
+}
+.qcms-combobox__input {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  padding-inline: 0.75rem;
+  padding-block: 0.5rem;
+  border: 0;
+  background-color: transparent;
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: 0.875rem;
+}
+/* The ring is on the wrapper above, so the input drops its own rather than drawing two. */
+.qcms-combobox__input:focus-visible {
+  outline: none;
+}
+.qcms-combobox__toggle {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Past the 24px `target-size` floor the axe sweep enforces, and inside the field's own
+     height so the control does not grow to hold it. */
+  inline-size: 1.75rem;
+  min-block-size: 1.75rem;
+  margin-inline-end: 0.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+.qcms-combobox__toggle:hover {
+  background-color: var(--color-surface-hover);
+  color: var(--color-text);
+}
+.qcms-combobox__popover {
+  z-index: 50;
+  min-inline-size: var(--trigger-width);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-background);
+  /* The card's own elevation, from `--shadow-color`, so the popover sits at the same
+     height as every other floating surface in the app and follows the theme. */
+  box-shadow:
+    0 1px 2px hsl(var(--shadow-color) / 0.06),
+    0 12px 40px -12px hsl(var(--shadow-color) / 0.18);
+  padding: 0.25rem;
+}
+:root.hc .qcms-combobox__popover {
+  box-shadow: none;
+}
+.qcms-combobox__listbox {
+  max-block-size: 16rem;
+  overflow: auto;
+  outline: none;
+}
+.qcms-combobox__option {
+  display: flex;
+  align-items: center;
+  padding-inline: 0.75rem;
+  padding-block: 0.375rem;
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+  font-size: 0.875rem;
+  cursor: pointer;
+  outline: none;
+}
+.qcms-combobox__option[data-focused] {
+  background-color: var(--color-background-muted);
+}
+.qcms-combobox__option[data-selected] {
+  font-weight: 500;
+  color: var(--color-primary);
+}
+/* Unavailable, not absent: the operator list keeps the operators this question's type
+   does not accept so an author can see that they exist. */
+.qcms-combobox__option[data-disabled] {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.qcms-combobox__empty {
+  margin: 0;
+  padding-inline: 0.75rem;
+  padding-block: 0.5rem;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
 }

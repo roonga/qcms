@@ -9,12 +9,15 @@ import {
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/kit";
+import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { FormVersionSnapshot } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { VERSION_HEADING_ID } from "@/lib/page-headings";
+import type { PreviewTheme } from "@/lib/preview-theme";
 
 /**
  * One published version, rendered from its **stored** compiled documents (task 034;
- * wireframe "version history", ADR-18).
+ * screen contract "version history", ADR-18).
  *
  * ## Why this is not a preview
  *
@@ -47,10 +50,18 @@ import { t } from "@/lib/i18n/en";
  * boundary and assumes nothing about the admin's theme context (Code Owner ruling,
  * 2026-08-02). A published version is the strongest case for that boundary being real: what
  * it shows is what a respondent saw, so the admin's own chrome has no business leaking into
- * it. Task 058 mounts its theme island on this container; this task builds only the
- * boundary, with no theme selection, no mode switching and no portal-theme defaulting.
+ * it. Task 058 mounted the theme island on that container and moved the container's markup
+ * into `PreviewThemeIsland`, which all three preview surfaces now render through, so what
+ * this screen shows is a respondent's appearance under a theme the author can change.
  */
-export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapshot }) {
+export function VersionView({
+  snapshot,
+  defaultTheme,
+}: {
+  readonly snapshot: FormVersionSnapshot;
+  /** The deployment's configured portal theme, read on the server by the page. */
+  readonly defaultTheme: PreviewTheme;
+}) {
   const [answers, setAnswers] = useState<{ key: number; values: A2UIValues }>({
     key: snapshot.version,
     values: {},
@@ -85,15 +96,16 @@ export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapsh
   const step = steps[index];
 
   return (
+    // Labelled by the route's own <h1>, which names this version (issue #510). This
+    // component used to head itself "Viewing v{n}" under a page heading that named the
+    // form; the version is the page's subject, so it is the page's heading, and saying it
+    // again one level down would only pad the outline.
     <section
-      aria-labelledby="qcms-version-view-heading"
+      aria-labelledby={VERSION_HEADING_ID}
       className="flex flex-col gap-4"
       data-testid="qcms-version-view"
     >
       <div className="flex flex-col gap-1">
-        <h2 id="qcms-version-view-heading" className="text-lg font-semibold text-(--color-text)">
-          {t("forms.history.viewing", { version: snapshot.version })}
-        </h2>
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-version-stored">
           {t("forms.history.stored", { version: snapshot.version })}
         </p>
@@ -118,14 +130,22 @@ export function VersionView({ snapshot }: { readonly snapshot: FormVersionSnapsh
             })}
           </p>
 
-          <div className="qcms-preview qcms-preview-surface" data-testid="qcms-preview-surface">
+          <PreviewThemeIsland defaultTheme={defaultTheme}>
             <A2UIStepRenderer
               document={{ stepId: step.stepId, root: step.root as A2UIStepDocument["root"] }}
               values={answers.values}
               onChange={handleChange}
               specVersion={snapshot.a2uiSpecVersion}
+              // The document is embedded in a page that already has an `h1` (the route's,
+              // naming the version), and it carries the outline it would have as a whole
+              // page on the portal: a form-title `h1` on the first step. Rendered
+              // untouched, this route had two `<h1>`s - a document-outline defect, and an
+              // ambiguous heading-by-level query for every test that touches it (issue
+              // #537). Only the levels move; the compiled typography is left alone, so
+              // this still shows what a respondent saw.
+              headingLevelOffset={1}
             />
-          </div>
+          </PreviewThemeIsland>
 
           <div className="flex flex-wrap items-center gap-2">
             <Button

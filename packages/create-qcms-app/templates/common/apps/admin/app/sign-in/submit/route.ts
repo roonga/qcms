@@ -38,7 +38,7 @@ import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session
  *
  * Every failure - unknown email, wrong password, rate limit - redirects back with an
  * opaque marker. The one distinction drawn is `429`, because "try again later" is
- * actionable and reveals nothing about the account (the wireframe's throttled
+ * actionable and reveals nothing about the account (the screen contract's throttled
  * state). Nothing from the library's message reaches the response, and nothing is
  * logged here: a value-free redirect is the whole error surface (SEC-1, SEC-8).
  *

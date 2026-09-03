@@ -141,17 +141,25 @@ export function makeListLinksHandler(deps: Deps): RouteHandler<typeof listLinksR
   };
 }
 
-// --- POST /admin/links/:linkId/revoke ---------------------------------------
+// --- POST /admin/forms/:id/links/:linkId/revoke ------------------------------
 
 export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLinkRoute, ApiEnv> {
   return async (c) => {
-    const linkId = LinkId.safeParse(c.req.valid("param").linkId);
+    const params = c.req.valid("param");
+    // Form scope (#478, the idiom #305 established). The form segment is threaded
+    // into the revoke query, so a link belonging to another form matches no row
+    // and comes back 404 - indistinguishable from an id that was never issued.
+    // Deliberately no `getForm` existence check: an unknown form makes the scoped
+    // update match nothing, which is already the right 404, and asking separately
+    // would add a second error path that has to agree with this one.
+    const formId = requireFormId(params.id);
+    const linkId = LinkId.safeParse(params.linkId);
     if (!linkId.success) throw fail.invalidLinkId();
 
     const now = deps.clock.now();
-    const row = await revokeSecureLink(deps.db, linkId.data, now);
-    // Idempotency choice: a link that does not exist *or* is already revoked
-    // returns 404 - the caller learns the link is not in a revocable state.
+    const row = await revokeSecureLink(deps.db, linkId.data, formId, now);
+    // Idempotency choice: a link that does not exist in this form *or* is already
+    // revoked returns 404 - the caller learns the link is not in a revocable state.
     if (row === undefined) throw fail.linkNotFound();
 
     return c.json(

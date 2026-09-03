@@ -186,29 +186,24 @@ export type CommitMoment = "change" | "completion" | "blur" | "groupExit";
  * | multiChoice | `CheckboxGroup` | groupExit |
  * | shortText | `TextField` | blur |
  *
- * `shortText` is the one row ADR-31's table does not list. It is read here as
- * UNCHANGED (blur), which is both its behavior today and the only reading
- * consistent with the other free-entry rows: a `TextField` emits a change per
- * keystroke, so any earlier moment would be a request per character. Flagged for
- * the Code Owner to confirm or amend the ADR rather than assumed silently.
+ * Both rows that were once open questions here are settled by ADR-31 as amended
+ * (Code Owner, 2026-08-31, issue #725), and the record now states each of them.
  *
- * OPEN, AWAITING THE CODE OWNER (`date`): ADR-31 says "on completion (all
- * segments filled)". The vendored react-aria DatePicker's ONLY completeness
- * signal is a non-empty value, and it raises that on every digit typed into the
- * year, because a year segment holding "1" is a filled segment: typing 1990
- * emits the complete dates 0001-05-17, 0019-05-17, 0199-05-17 and then
- * 1990-05-17. Posting each is four appends, three API 422s and three visible
- * "invalid value" flashes, and a same-step branch gated on the date would flicker
- * through four projections - precisely the mid-interaction churn ADR-31 exists to
- * prevent. There is no control-level signal that separates "the year is filled"
- * from "the respondent has finished typing the year" (a digit count or a debounce
- * would be an approximation, not a signal). So `completion` is implemented here
- * as ALL SEGMENTS FILLED AS A PRECONDITION, committed when editing ends: a
- * partial date never posts (which today's code does, as `null`), and the complete
- * date posts once. That is strictly better than the behavior it replaces but it
- * is NOT the ADR's literal trigger, and it collapses a distinction from `number`
- * / `longText` that the Code Owner drew deliberately. Confirm or amend ADR-31
- * before treating the date row as settled.
+ * `shortText` commits on **blur**, with the other free-entry rows. A `TextField`
+ * emits a change per keystroke, so any earlier moment would be a request per
+ * character.
+ *
+ * `date` commits **when editing ends and the date is complete**. All segments
+ * filled is the precondition, not the trigger, and that distinction is the
+ * decision: the vendored react-aria DatePicker's only completeness signal is a
+ * non-empty value, which it raises on every digit typed into the year, because a
+ * year segment holding "1" is a filled segment. Typing 1990 raises the complete
+ * dates 0001-05-17, 0019-05-17, 0199-05-17 and then 1990-05-17, so triggering on
+ * that signal would mean four appends, three API 422s, three visible "invalid
+ * value" flashes, and a same-step branch gated on the date flickering through
+ * four projections - precisely the mid-interaction churn ADR-31 exists to
+ * prevent. Waiting for the end of editing gives the rule the control can
+ * actually keep: a partial date never posts, and a complete date posts once.
  */
 const COMMIT_MOMENT_BY_CONTROL: ReadonlyMap<string, CommitMoment> = new Map<string, CommitMoment>([
   ["RadioGroup", "change"],

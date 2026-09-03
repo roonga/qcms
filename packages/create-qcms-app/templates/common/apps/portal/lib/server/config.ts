@@ -20,6 +20,33 @@ function required(name: string): string {
   return value;
 }
 
+/**
+ * A boolean env knob, accepting the **same spellings** as the API's `parseBool`
+ * (`apps/api/src/config.ts`) and the admin's `boolEnv`
+ * (`apps/admin/lib/server/config.ts`): `true/1/yes/on` and `false/0/no/off`,
+ * case-insensitive and trimmed, with anything else refused by name.
+ *
+ * That symmetry is the point rather than a nicety (issue #401). The portal used to
+ * recognise only the literal `"true"` and `"false"` and silently fall back to
+ * `NODE_ENV` for everything else, so an operator who wrote `QCMS_SECURE_COOKIES=off`
+ * got a configuration that looked set and was not - the same failure shape issue #292
+ * exists to eliminate, one layer down, and one that also slipped past the off-loopback
+ * refusal because the refusal fires on the effective value.
+ *
+ * The thrown refusal is deliberate and is a boot-behaviour change: a deployment
+ * currently passing a malformed value boots today, ignoring it, and refuses to boot
+ * after. For a security flag a loud boot refusal is the correct fail-closed posture,
+ * and such a deployment is already not getting the setting it asked for.
+ */
+function boolEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const normalized = raw.trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  throw new Error(`${name} must be a boolean (true/false)`);
+}
+
 /** The internal API base URL (server-only). No trailing slash. */
 export function apiBaseUrl(): string {
   let base = required("QCMS_API_BASE_URL");
@@ -30,6 +57,116 @@ export function apiBaseUrl(): string {
 /** The SEC-4 internal service token presented to the API (server-only). */
 export function internalToken(): string {
   return required("QCMS_INTERNAL_TOKEN");
+}
+
+/**
+ * Value prefixes that mark a secret as one of the shipped examples rather than real
+ * material (SEC-8: "a deployment with placeholder secrets must refuse to boot").
+ *
+ * **A deliberate copy of `PLACEHOLDER_PREFIXES` in `apps/api/src/config.ts`**, which is
+ * where this control was built by task 040 and which remains the definition of record.
+ * There is no shared package for a Next BFF's server code, the same call
+ * `isLoopbackHost` below and the admin's `MIN_PASSWORD_LENGTH` make, so the vocabulary
+ * is duplicated - and duplicated vocabularies drift, which is the whole of issues #401
+ * and #402. It is therefore not left to a comment: `scripts/check-bff-config-guards.test.ts`
+ * runs the API's list, this one and the admin's against one corpus from the repo root
+ * and fails on any disagreement, so a spelling added on one side and not the others is
+ * a red rather than a silence.
+ *
+ * Separators are normalised before matching, so `replace_with_...` is refused exactly as
+ * `replace-with-...` is; matching on the prefix rather than on the exact shipped strings
+ * keeps the guard working when the example wording changes.
+ */
+export const PLACEHOLDER_PREFIXES: readonly string[] = [
+  "replace-",
+  "change-me",
+  "changeme",
+  "your-",
+  "example-",
+  "placeholder",
+  "<",
+];
+
+/** True when `raw` is one of the shipped placeholders rather than real material. */
+export function looksLikePlaceholder(raw: string): boolean {
+  const value = raw.trim().toLowerCase().replaceAll("_", "-");
+  return PLACEHOLDER_PREFIXES.some((prefix) => value.startsWith(prefix));
+}
+
+/**
+ * The variables this app holds that are secret material. One, today: the portal reads no
+ * signing key and no database credential, and its base URLs are settings rather than
+ * secrets (a placeholder there is caught by the cookie guard below or by a visibly broken
+ * redirect, not by this).
+ */
+const SECRET_VARS: readonly string[] = ["QCMS_INTERNAL_TOKEN"];
+
+/**
+ * Refuse to boot when a secret still holds an example-file placeholder (issue #491).
+ *
+ * ## Why this app needs its own copy of a guard the API already has
+ *
+ * Task 040 closed a HIGH finding by making the API refuse to boot on a placeholder:
+ * every shipped example file fills its secrets with `replace-with-a-random-32-character-...`,
+ * which is longer than the 32-character floor that was the only validation running, so a
+ * half-configured deployment booted on key material published in a public repository.
+ * That guard went into `apps/api/src/config.ts` only, deliberately, to keep the change out
+ * of the browser-gated app trees.
+ *
+ * With the API refusing, a **composed** deployment does not come up at all, so this is not
+ * a hole in the shipped stack - it is protected by the strictest reader. The reason to
+ * close it anyway is the one the two apps' config modules keep supplying: "the other guy
+ * validates it" is exactly the reasoning that produced #401 and #402, and a BFF started on
+ * its own, or against an API someone relaxed, would present a published token and discover
+ * it as an authentication failure at the first request rather than as a refusal at boot.
+ * A boot refusal names the variable; a 401 does not.
+ *
+ * ## What it reports
+ *
+ * The variable name and nothing else. SEC-8 forbids echoing the value even when the value
+ * is known to be worthless, because the same code path would handle a real one.
+ *
+ * The value is split on commas and whitespace before matching, because the API accepts
+ * `QCMS_INTERNAL_TOKEN` as a rotation list (first signs, all verify). A placeholder hiding
+ * among real entries is refused the same as a lone one.
+ *
+ * ## Where it runs
+ *
+ * `instrumentation.ts`, beside {@link assertSecureCookiesConfigured}, for the same reason:
+ * Next calls `register()` once per server process before anything serves, so the failure is
+ * a boot failure rather than a 500 on the first request.
+ *
+ * An **unset** or empty value is passed rather than refused. That is a different defect,
+ * `internalToken()` already fails loudly on it, and `register()` also runs in build-time
+ * server workers where the variable is legitimately absent - the same reason the cookie
+ * guard tolerates a missing base URL.
+ *
+ * ## Twin
+ *
+ * `apps/admin/lib/server/config.ts` carries this guard over the same variable. **Change
+ * one, change the other** - and unlike the cookie guard's twin note, that reminder is
+ * backed by a check: `scripts/check-bff-config-guards.test.ts` asserts both apps carry the
+ * guard, that both call it at boot, and that all three placeholder vocabularies agree.
+ */
+export function assertNoPlaceholderSecrets(): void {
+  const offenders = SECRET_VARS.filter((name) => {
+    const raw = process.env[name];
+    if (raw === undefined || raw.trim() === "") return false;
+    return raw
+      .split(/[\s,]+/)
+      .filter((entry) => entry !== "")
+      .some((entry) => looksLikePlaceholder(entry));
+  });
+  if (offenders.length === 0) return;
+
+  throw new Error(
+    [
+      "Refusing to start: a required secret still holds a placeholder value from an example file.",
+      `  observed: ${offenders.join(", ")} matches one of the shipped placeholder shapes (the value is not printed, SEC-8).`,
+      "  effect: this deployment would authenticate its calls to the API with a value published in a public repository, so anyone could open the SEC-4 internal channel.",
+      "  remedy: generate real secrets (`openssl rand -base64 32`) and set the same value here and on the api service. See docs/operations.md.",
+    ].join("\n"),
+  );
 }
 
 /** Public portal origin used for redirects produced inside the container. */
@@ -55,12 +192,14 @@ export function portalBaseUrl(): string {
  * 056. The downgrade this returns is guarded by
  * {@link assertSecureCookiesConfigured}, which refuses to boot when it is asked
  * for at an origin a browser will not protect.
+ *
+ * Parsing is {@link boolEnv}, the strict shared contract the admin and the API
+ * already use (issue #401). An unset or blank variable still defaults from
+ * `NODE_ENV`; anything set but unparseable now throws by name rather than being
+ * silently discarded.
  */
 export function secureCookies(): boolean {
-  const configured = process.env.QCMS_SECURE_COOKIES;
-  if (configured === "true") return true;
-  if (configured === "false") return false;
-  return process.env.NODE_ENV === "production";
+  return boolEnv("QCMS_SECURE_COOKIES", process.env.NODE_ENV === "production");
 }
 
 /**
@@ -135,9 +274,18 @@ export function isLoopbackHost(host: string): boolean {
  * agree with each other and with better-auth in the API, which is a different
  * question from the respondent portal's), but the *rule* must not drift - the two
  * apps disagreeing about exactly this is what issue #292 was filed about. There is
- * no shared package for a Next BFF's server code, so it is a copy, and the test
- * matrices in `config.test.ts` on both sides assert the same cases so a change made
- * to one and not the other shows up as a red test. **Change one, change the other.**
+ * no shared package for a Next BFF's server code, so it is a copy. **Change one,
+ * change the other** - and read that as the reminder it is, not as a guarantee.
+ *
+ * This used to claim that the `config.test.ts` matrices on both sides assert the same
+ * cases, so a one-sided change goes red. Nothing computes that (issue #412), and the
+ * two had already drifted when it was checked: the admin's matrix carried the raw
+ * `0`/`no`/`off` spellings and the portal's did not, which is exactly the gap that let
+ * the portal report `QCMS_SECURE_COOKIES is unset` for a variable that was set (issue
+ * #409). An unenforced guarantee in a comment is worse than no comment, because it
+ * stops the next reader checking. Making it real means a case table both suites
+ * import, which needs a home for cross-app test fixtures that this repository does not
+ * have yet; #412 holds that decision.
  */
 export function assertSecureCookiesConfigured(): void {
   if (secureCookies()) return;
@@ -157,14 +305,14 @@ export function assertSecureCookiesConfigured(): void {
   // spelling it recognises as false (issue #409). Branching on `raw === "false"`
   // alone told an operator who had written `QCMS_SECURE_COOKIES=off` that the
   // variable was "unset" - while they were looking at the line that sets it - and the
-  // whole job of this line is to say which variable to check. Quoted verbatim and
-  // untrimmed on purpose: this reader compares the raw value, so `" true"` with a
-  // stray space is exactly the case where seeing what was read is the answer.
+  // whole job of this line is to say which variable to check.
   //
-  // This changes only what the message says, never what the reader accepts. Whether
-  // the portal should recognise `off`/`0`/`no` the way the admin's `boolEnv` does is
-  // issue #401, and that is not decided here.
-  const raw = process.env.QCMS_SECURE_COOKIES;
+  // Trimmed, because {@link boolEnv} trims: since issue #401 this reader accepts the
+  // shared vocabulary and refuses anything else at the reader, so an unparseable value
+  // throws before it can reach this line and the only cases left here are a genuine
+  // false spelling or a genuinely unset variable. The message quotes what was compared,
+  // which is now the trimmed value. Identical to the admin twin, deliberately.
+  const raw = process.env.QCMS_SECURE_COOKIES?.trim();
   const observed =
     raw === undefined || raw === ""
       ? 'QCMS_SECURE_COOKIES is unset and NODE_ENV is not "production"'

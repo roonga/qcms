@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation";
+import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { pageMetadata } from "@/lib/page-title";
 import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
 
 /**
- * Sign-in (task 031; wireframe `docs/wireframes/admin-shell.md`, the signed-out and
- * sign-in-error states).
+ * Sign-in (task 031, including signed-out and sign-in-error states).
  *
  * There is **no registration link, hint, or "create an account" affordance anywhere
  * on this page**, and there is no route that would serve one: SEC-1 requires that
@@ -22,7 +23,7 @@ import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
 
 /**
  * The one message this screen may show, chosen from the opaque markers a failed POST
- * redirects with. Three distinguishable markers, one for each state the wireframe names
+ * redirects with. Three distinguishable markers, one for each state the screen contract names
  * (generic failure, throttled, session expired) - and nothing more granular than that,
  * because a fourth marker is how enumeration gets reintroduced (SEC-1).
  */
@@ -33,6 +34,11 @@ function signInMessage(
   if (params.expired !== undefined) return t("signIn.expired");
   if (params.error !== undefined) return t("signIn.error");
   return undefined;
+}
+
+/** The browser-tab title for this route (issue #536). */
+export function generateMetadata(): Metadata {
+  return pageMetadata(t("action.signIn"));
 }
 
 export default async function SignInPage({
