@@ -161,13 +161,24 @@ describe("finding uncovered files", () => {
   });
 });
 
-describe("recognizing the vendored source boundary", () => {
+describe("recognizing the copied source boundary", () => {
   it("recognizes only files within the upstream component copy", () => {
     expect(isVendoredSource("packages/ui/src/components/a2ui/button/Button.tsx")).toBe(true);
     expect(isVendoredSource("packages/ui/src/components/action-context/index.ts")).toBe(false);
     expect(isVendoredSource("packages/ui/src/components.tsx")).toBe(false);
     expect(isVendoredSource("packages/ui/src/components-local/button.tsx")).toBe(false);
     expect(isVendoredSource("apps/admin/components/button.tsx")).toBe(false);
+  });
+
+  it("recognizes only files within the generated scaffolding template tree", () => {
+    expect(isVendoredSource("packages/create-qcms-app/templates/common/apps/api/src/app.ts")).toBe(
+      true,
+    );
+    // The generator, its tests and the hand-written static templates are ordinary
+    // source: only the derived `templates/` tree is a copy of something else.
+    expect(isVendoredSource("packages/create-qcms-app/src/scaffold.ts")).toBe(false);
+    expect(isVendoredSource("packages/create-qcms-app/scripts/sync-templates.mjs")).toBe(false);
+    expect(isVendoredSource("packages/create-qcms-app/templates-static/common/x.ts")).toBe(false);
   });
 });
 

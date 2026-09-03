@@ -240,7 +240,7 @@ export const ALLOWED = [
     value: 8443,
     why: "an arbitrary destination in an SSRF fixture URL: the point is that it is somewhere else, and nothing binds it.",
   },
-  // The four below are the generated scaffolding templates (task 037), each a copy of
+  // The seven below are the generated scaffolding templates (task 037), each a copy of
   // an app file whose original is already exempted above for a stated reason. They are
   // listed one by one rather than exempting the template directory wholesale, so that
   // a port introduced by a template TRANSFORM (rather than inherited from a file the
@@ -266,6 +266,21 @@ export const ALLOWED = [
     file: "packages/create-qcms-app/templates/common/apps/portal/instrumentation.ts",
     value: 4318,
     why: "the generated copy of apps/portal/instrumentation.ts: same OTLP default, in the portal's composition root.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/api.Dockerfile",
+    value: 3000,
+    why: "the generated copy of docker/api.Dockerfile: the container's OWN listening port, dialled by its HEALTHCHECK from inside the container.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/admin.Dockerfile",
+    value: 3000,
+    why: "the generated copy of docker/admin.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/portal.Dockerfile",
+    value: 3000,
+    why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
   },
   {
     file: ".github/actions/assert-no-docker-hub-pulls/action.yml",

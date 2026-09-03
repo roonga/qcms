@@ -2,8 +2,9 @@
 // @ts-check
 /**
  * Proves that every tracked project JavaScript or TypeScript file is reached by
- * ESLint and every tracked Markdown file is reached by Prettier. The byte-for-byte
- * upstream component copy is the only source exclusion.
+ * ESLint and every tracked Markdown file is reached by Prettier. Two byte-for-byte
+ * copy trees are the only source exclusions, and both are named below with the reason
+ * and with what covers them instead.
  *
  * Usage: node scripts/check-lint-coverage.mjs
  */
@@ -77,6 +78,38 @@ export function trackedMarkdownFiles() {
  * `scripts/vendored-source.mjs` and every gate reads the same one.
  */
 export { isVendoredSource };
+
+/**
+ * The generated scaffolding template tree (task 037), which this gate alone may skip.
+ *
+ * Deliberately NOT added to `scripts/vendored-source.mjs`. That module is the one
+ * definition of "vendored" and it is read by five gates; widening it would tell four
+ * other gates to stop scanning 335 files, which is the exact defect issue #775 closed
+ * one directory over. This exemption is about ESLint and nothing else.
+ *
+ * The templates are derived from `apps/` by `pnpm qcms:sync-templates`, so every file
+ * here is byte-identical to a file ESLint already opened at the source. They sit
+ * outside every tsconfig, so `projectService` resolves nothing and one template file
+ * reports 18 `no-unsafe-*` errors about types that resolve perfectly at the source:
+ * the only way to make them pass would be a WEAKER ruleset than the original's, which
+ * is a green worth less than the green it duplicates. What covers them instead is
+ * stronger than lint: `pnpm check:templates` regenerates the tree and byte-compares,
+ * so drift is a red rather than a silence.
+ *
+ * It is not a `KNOWN_UNLINTED` entry either. That inventory records a real gap, and a
+ * provable duplicate is not one.
+ */
+const GENERATED_COPY_PREFIX = "packages/create-qcms-app/templates/";
+
+/**
+ * True for a file inside the generated template tree.
+ *
+ * @param {string} file repo-relative path.
+ * @returns {boolean}
+ */
+export function isGeneratedCopy(file) {
+  return file.startsWith(GENERATED_COPY_PREFIX);
+}
 
 /** @returns {string[]} every tracked package.json, repo-relative. */
 export function trackedManifests() {
@@ -219,10 +252,9 @@ export async function main() {
       ignored: await eslint.isPathIgnored(path.join(repoRoot, file)),
     })),
   );
-  const vendored = ignoredChecks.filter(({ file, ignored }) => ignored && isVendoredSource(file));
-  const ignoredViolations = ignoredChecks.filter(
-    ({ file, ignored }) => ignored && !isVendoredSource(file),
-  );
+  const excluded = ({ file }) => isVendoredSource(file) || isGeneratedCopy(file);
+  const vendored = ignoredChecks.filter((entry) => entry.ignored && excluded(entry));
+  const ignoredViolations = ignoredChecks.filter((entry) => entry.ignored && !excluded(entry));
   const lintableSource = ignoredChecks.filter(({ ignored }) => !ignored).map(({ file }) => file);
   const violations = uncovered(lintableSource, scope);
   const markdownViolations = await uncoveredMarkdown(markdown, repoRoot);
@@ -235,7 +267,7 @@ export async function main() {
   ) {
     console.log(
       `check-lint-coverage: OK - ${String(lintableSource.length)} source files reached by ESLint; ` +
-        `${String(vendored.length)} vendored source files explicitly excluded; ` +
+        `${String(vendored.length)} copied source files explicitly excluded; ` +
         `${String(markdown.length)} Markdown files reached by Prettier; ` +
         "0 unexplained exemptions.",
     );
