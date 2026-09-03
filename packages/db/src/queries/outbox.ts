@@ -269,8 +269,13 @@ function settledAt(...columns: PgColumn[]) {
  *
  * The budget also bounds what the probe can pull into memory, which an unbounded
  * candidate list would not.
+ *
+ * Exported for the test that pins the fallback branch, and for that only: it is not
+ * re-exported from `queries/index.ts`, so it stays off the package's public surface. A
+ * test that hard-coded the number would go on passing while sitting on the wrong side
+ * of the boundary, over the wrong branch, the moment the budget moved.
  */
-const ANTI_JOIN_CANDIDATE_BUDGET = 10_000;
+export const ANTI_JOIN_CANDIDATE_BUDGET = 10_000;
 
 /** Outcome of {@link redactAgedOutboxPayloads}. */
 export interface OutboxPayloadRedactionResult {

@@ -61,9 +61,24 @@ const PROGRAM_SHAPED_TASKS = ["typecheck", "lint"] as const;
 const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;
 
 /**
- * `from "x"`, `import "x"`, `import("x")`. Deliberately not a parser: what it feeds is
- * a set membership question, and every candidate is filtered by
- * {@link PLAUSIBLE_SPECIFIER} and then by whether it resolves to a file on disk.
+ * `from "x"`, `import "x"`, `import("x")`. Deliberately not a parser, and the two kinds
+ * of candidate it yields are filtered differently, which is worth being exact about
+ * because only one of them ever touches the disk.
+ *
+ * A **relative** specifier is filtered by {@link PLAUSIBLE_SPECIFIER} and then by
+ * whether it resolves to a file, so a match inside a string or a comment that names no
+ * real file is dropped and the walk does not follow it. A **bare `@qcms/*`** specifier
+ * is filtered by {@link PLAUSIBLE_SPECIFIER} alone and then recorded: there is nothing
+ * on disk to check it against, since the whole question is whether that package's
+ * `dist` has been built yet.
+ *
+ * So the reached set is an over-approximation: a package name written in a comment or
+ * a string, in a file the walk reaches, counts as a read. That direction is deliberate.
+ * The claim is "every dist this program reads is built before it reads it", and an
+ * over-approximation can only DEMAND a build edge that turns out to be unnecessary -
+ * which fails loudly, naming the surplus edge, for a human to judge. The
+ * under-approximation is the dangerous one: it lets a genuine missing edge through in
+ * silence, which is the defect this file exists for.
  */
 const SPECIFIER =
   /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["']([^"'\n]+)["']|\brequire\(\s*["']([^"'\n]+)["']\s*\)/g;
