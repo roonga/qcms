@@ -105,17 +105,20 @@ The split that matters at this size:
 ## Day-to-day commands
 
 **This project is a pnpm workspace, and the scaffolder offered no alternative.**
-{{packageManagerRationale}} Adopting npm or yarn means rewriting `docker/*.Dockerfile`
-yourself: the images copy a `pnpm-lock.yaml` your install would never write, and prune
-their runtime tree with a command those two have no equivalent for. The QCMS issue
-tracker carries #449 for restoring the choice properly.
+
+> {{packageManagerRationale}}
+
+Adopting npm or yarn means rewriting `docker/*.Dockerfile` yourself: the images copy a
+`pnpm-lock.yaml` your install would never write, and prune their runtime tree with a
+command those two have no equivalent for. The QCMS issue tracker carries #449 for
+restoring the choice properly.
 
 ```sh
-{{installCommand}}                    # install workspace dependencies
-{{runPrefix}} up                       # docker compose up -d --build
-{{runPrefix}} down                     # docker compose down
-{{runPrefix}} logs                     # follow every container's logs
-{{runPrefix}} migrate                  # run pending migrations
+pnpm install    # install workspace dependencies
+pnpm up         # docker compose up -d --build
+pnpm down       # docker compose down
+pnpm logs       # follow every container's logs
+pnpm migrate    # run pending migrations
 ```
 
 ## Upgrading

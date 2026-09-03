@@ -33,6 +33,11 @@ export const PNPM_SPEC = "pnpm@11.18.0";
  * is how a dead path survives a review: restoring the choice means restoring the
  * Dockerfile work first, and the shape is the smallest part of that.
  *
+ * `installCommand` and `runPrefix` went the same way. With one manager they rendered
+ * the literal word `pnpm`, and interpolating a constant into a README only cost that
+ * README its column alignment. What survives is what actually varies with the manager:
+ * the two recursive scripts and the `packageManager` pin.
+ *
  * `packageManagerField` is never empty, and that is load-bearing rather than
  * incidental: the Dockerfiles run `corepack enable` and then `pnpm install`, so
  * without a pinned `packageManager` corepack has nothing to resolve and an arbitrary
@@ -40,8 +45,6 @@ export const PNPM_SPEC = "pnpm@11.18.0";
  * syntax.
  */
 const COMMANDS = {
-  installCommand: "pnpm install",
-  runPrefix: "pnpm",
   recursiveBuild: "pnpm -r build",
   recursiveTypecheck: "pnpm -r typecheck",
   packageManagerField: `  "packageManager": "${PNPM_SPEC}",\n`,

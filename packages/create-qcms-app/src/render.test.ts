@@ -36,8 +36,6 @@ describe("templateValues", () => {
       "adminTwoFactor",
       "portalBaseUrl",
       "adminBaseUrl",
-      "installCommand",
-      "runPrefix",
       "recursiveBuild",
       "recursiveTypecheck",
       "packageManagerField",
@@ -56,6 +54,8 @@ describe("templateValues", () => {
     const values = templateValues(withDefaults({}, "/tmp"));
     expect(values).not.toHaveProperty("workspacesField");
     expect(values).not.toHaveProperty("packageManager");
+    expect(values).not.toHaveProperty("installCommand");
+    expect(values).not.toHaveProperty("runPrefix");
   });
 
   it("always pins a packageManager, which corepack needs to resolve pnpm in the image", () => {
@@ -74,7 +74,7 @@ describe("templateValues", () => {
     // ever comes back, the Dockerfiles have to come with it, because they COPY
     // pnpm-lock.yaml and prune with `pnpm deploy --legacy --prod`.
     const values = templateValues(withDefaults({}, "/tmp"));
-    for (const key of ["installCommand", "runPrefix", "recursiveBuild", "recursiveTypecheck"]) {
+    for (const key of ["recursiveBuild", "recursiveTypecheck"]) {
       expect(values[key]).toContain(PACKAGE_MANAGER);
     }
     expect(PACKAGE_MANAGER_RATIONALE).toContain("pnpm deploy");
