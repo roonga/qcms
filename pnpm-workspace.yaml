@@ -6,6 +6,17 @@ packages:
 ignoredOptionalDependencies:
   - sharp
 
+# Supply-chain release-age hold (SEC-11, issue #455). A version published in the
+# last 24 hours is not installed at all, and a resolution that needs one now
+# fails instead of silently writing itself a minimumReleaseAgeExclude entry.
+# Both keys are set on purpose: minimumReleaseAgeStrict defaults to true only
+# when minimumReleaseAge is itself explicitly configured, so setting strict
+# beside an inherited default would be a policy nothing enforces. 1440 is
+# pnpm 11's own default, restated here to make the pair real.
+# CONTRIBUTING.md, "The release-age hold", says what to do when it refuses.
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+
 overrides:
   postcss: ^8.5.23
   minimatch@5: ^10.2.5

@@ -105,27 +105,44 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 | `drizzle-orm`                      | Young, VC-funded                                             | No magic used - migrations are plain SQL files, helpers are thin; exit to Kysely/raw SQL is bounded                     |
 | `ai` (Vercel AI SDK) + `@ai-sdk/*` | Vercel-owned - same steering/churn profile as Next/Turborepo | Vendor-agnostic LLM layer for 041 only; confined behind the `DraftAssistant` seam, so a swap touches one adapter file   |
 
-### The release-age hold (`minimumReleaseAge`), and what an exclusion means
+### The release-age hold (`minimumReleaseAge`), and what a refusal means
 
-**pnpm 11 holds newly published versions back by default, and this repository has not changed that** (issue #455).
-`minimumReleaseAge` defaults to `1440` (minutes, so twenty-four hours) as of pnpm 11; before 11 it was `0`.
+**pnpm 11 holds newly published versions back, and this repository now sets that hold explicitly and strictly** (issue #455; Code Owner ruling of 2026-09-04).
+`minimumReleaseAge` is `1440` (minutes, so twenty-four hours), which is also pnpm 11's own default; before 11 it was `0`.
 It applies to every dependency, transitive ones included, so a version published in the last day is not installed at all.
 It is a supply-chain control in SEC-11 territory: the window is there so a compromised publish is usually found and yanked before it can reach a lockfile.
-The setting lives in `pnpm-workspace.yaml`, not `.npmrc`.
+The settings live in `pnpm-workspace.yaml`, not `.npmrc`, and read:
 
-**What the `pnpm add` output means.** When resolution needs a version younger than the hold, `minimumReleaseAgeStrict` decides what happens.
-It defaults to `true` only when `minimumReleaseAge` is explicitly configured; this repository leaves both unset, so it is **`false`** here and pnpm falls back to the too-new version rather than failing, recording the exception as an entry in a `minimumReleaseAgeExclude` list it writes into `pnpm-workspace.yaml`.
-That is the line reading `Added N entries to minimumReleaseAgeExclude`.
-It is silent in the sense that matters: nothing asks, and the entry is a committed change to a security control that arrives inside an ordinary dependency diff.
+```yaml
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true
+```
 
-**So treat an exclusion as a deliberate act.**
+**Both keys are set on purpose, and the pair is the point.**
+`minimumReleaseAgeStrict` decides what happens when resolution needs a version younger than the hold, and it defaults to `true` **only when `minimumReleaseAge` is itself explicitly configured**.
+This repository used to configure neither, so strict was `false` here and the hold was advisory: pnpm fell back to the too-new version rather than failing, and recorded the exception as an entry in a `minimumReleaseAgeExclude` list it wrote into `pnpm-workspace.yaml` itself.
+That was the line reading `Added N entries to minimumReleaseAgeExclude`, and it was silent in the sense that matters: nothing asked, and the entry was a committed change to a security control arriving inside an ordinary dependency diff.
+Setting strict beside an inherited default would have been a policy nothing enforced, which is why `1440` is restated rather than left implicit.
+
+**What a refusal looks like.** Resolution fails outright, naming the version and the cutoff:
+
+```
+[ERR_PNPM_NO_MATURE_MATCHING_VERSION] 1 version does not meet the minimumReleaseAge constraint:
+  <package>@<version> was published at <timestamp>, within the minimumReleaseAge cutoff (<cutoff>)
+```
+
+**An agent that meets this has two answers, and the first is almost always right.**
+_Wait._ The hold lapses on its own, so re-running `pnpm add` the next day resolves the same version with nothing recorded and nothing to review. A day is the entire cost.
+_Exempt it deliberately._ Write the entry into `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` **by hand**, with a comment naming the change that introduced it, and say in the PR body why waiting was not an option. Under strict there is no other way for one to appear, which is the property being bought: an exclusion is a hole somebody opened on the record, never a side effect of an install.
+
 Three things to check before committing one.
-Whether you needed the new version at all, because the cheapest correct answer is usually to wait for the hold to lapse and re-run `pnpm add` the next day.
+Whether you needed the new version at all, because the cheapest correct answer is usually to wait.
 Whether the entry is version-pinned: the exclusion matches by **package name across every version** unless you write a version disjunction (`webpack@4.47.0 || 5.102.1`), and a bare name is a standing exemption that silently covers future releases of that package too.
 And whether it is still needed later, because nothing removes it for you: pruning entries the lockfile no longer resolves needs `minimumReleaseAgeExcludePrune`, which arrived in pnpm 11.22.0 and so is unavailable at the version this repository pins in `package.json`'s `packageManager`.
-An exclusion also carries a comment saying which change introduced it, for the same reason every row in the overrides table below does: an exception with no recorded reason becomes permanent by accident.
+An exclusion carries its comment for the same reason every row in the overrides table below does: an exception with no recorded reason becomes permanent by accident.
 
-**There is no `minimumReleaseAgeExclude` block in `pnpm-workspace.yaml` today**, so there is nothing to annotate inline; this section is what a reader meets instead. Whether to set `minimumReleaseAgeStrict: true`, so that a hold refuses instead of writing an exemption, is a Code Owner call and is not made here.
+**There is no `minimumReleaseAgeExclude` block in `pnpm-workspace.yaml` today**, so there is nothing to annotate inline; this section is what a reader meets instead.
+**`pnpm install --frozen-lockfile` is unaffected**, in CI or anywhere else: the hold applies at resolution and a frozen install resolves nothing, so what this gates is `pnpm add` and `pnpm update`, which is exactly where a new version enters.
 
 ### Security overrides (`overrides` in `pnpm-workspace.yaml`)
 
