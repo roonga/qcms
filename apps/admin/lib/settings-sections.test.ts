@@ -90,9 +90,7 @@ describe("the Settings section list", () => {
     const rendered = [...PAGE.matchAll(/params\.(\w+) !== undefined/gu)].map(
       (match) => match[1] ?? "",
     );
-    expect(new Set(rendered)).toEqual(
-      new Set(["changed", "error", "compromised", "codesError"]),
-    );
+    expect(new Set(rendered)).toEqual(new Set(["changed", "error", "compromised", "codesError"]));
   });
 
   it("names every section, and says so rather than guessing when one is missing", () => {

@@ -90,11 +90,8 @@ export async function createForm(
  * changed: a server action runs before the re-render it triggers, and no action reads a
  * form. Across requests this memo does not exist.
  */
-export const getForm: (
-  session: AdminSession,
-  formId: string,
-) => Promise<ApiResult<FormDetail>> = cache(
-  async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
+export const getForm: (session: AdminSession, formId: string) => Promise<ApiResult<FormDetail>> =
+  cache(async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
     const result = await read<Record<string, unknown>>(
       await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
     );
@@ -115,8 +112,7 @@ export const getForm: (
         challengeEnforceable: raw["challengeEnforceable"] === true,
       },
     };
-  },
-);
+  });
 
 /** `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores. */
 export async function saveDraft(

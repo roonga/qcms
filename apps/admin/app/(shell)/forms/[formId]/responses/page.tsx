@@ -97,7 +97,9 @@ export default async function FormResponsesPage({
     ? clampedPage(page, firstRead.data.total, firstRead.data.pageSize)
     : undefined;
   const responses =
-    clamp === undefined ? firstRead : await listResponses(session, formId, { ...request, page: clamp });
+    clamp === undefined
+      ? firstRead
+      : await listResponses(session, formId, { ...request, page: clamp });
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();

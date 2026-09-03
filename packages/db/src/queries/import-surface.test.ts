@@ -26,6 +26,7 @@ describe("query helper import surface", () => {
     "getQuestionVersion",
     "getQuestion",
     "listQuestionVersions",
+    "listVersionsForQuestions",
     "updateDraftDefinition",
     "listQuestions",
     "isQuestionIdTaken",

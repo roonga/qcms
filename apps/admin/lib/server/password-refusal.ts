@@ -56,6 +56,7 @@
  * both sides. It is the plugin's `$ERROR_CODES` entry - a code, not the vendor's prose,
  * which the vendor may reword.
  */
+// eslint-disable-next-line sonarjs/no-hardcoded-passwords -- an error code on the wire, not a credential
 export const PASSWORD_COMPROMISED_CODE = "PASSWORD_COMPROMISED";
 
 /** Which message the change-password surface renders for a refusal. */

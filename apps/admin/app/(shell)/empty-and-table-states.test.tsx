@@ -82,8 +82,7 @@ const listedPages: number[] = [];
  */
 function pagedResponses(page: number): unknown {
   const result = responsesResult as
-    | { ok?: unknown; data?: { responses: unknown[]; pageSize: number; total: number } }
-    | undefined;
+    { ok?: unknown; data?: { responses: unknown[]; pageSize: number; total: number } } | undefined;
   if (result?.ok !== true || result.data === undefined) return responsesResult;
   const { responses, pageSize, total } = result.data;
   const pages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
