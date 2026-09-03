@@ -49,9 +49,7 @@ describe("a rejected redelivery", () => {
     await user.click(redeliver);
 
     expect(
-      await screen.findByText(
-        t("ops.deadLetters.redeliverFailed", { message: unexpected() }),
-      ),
+      await screen.findByText(t("ops.deadLetters.redeliverFailed", { message: unexpected() })),
     ).toBeTruthy();
     expect(redeliver.hasAttribute("disabled")).toBe(false);
   });

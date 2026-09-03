@@ -11,9 +11,13 @@ import type { DraftForm, DraftPin, PinnableQuestion } from "./types.ts";
  *
  * `components/forms/library-picker.tsx` is a react-aria `Dialog`, and a Dialog renders
  * through a portal that server rendering has nowhere to put, so `renderToStaticMarkup`
- * hands back the empty string for the whole subtree (issue 628). The admin's unit layer is
- * that static render and nothing else: there is no jsdom and no testing-library in this
- * app, so a `useState` transition is not observable below the browser at all.
+ * hands back the empty string for the whole subtree (issue 628). When this was written
+ * that static render was the admin's whole unit layer, so a `useState` transition was not
+ * observable below the browser at all. There is a jsdom layer now
+ * (`vitest.dom.config.ts`, issue #352), and this module still belongs here: a rule
+ * expressed as a function over its inputs is one a test can state in the rule's own words,
+ * where a render test can only assert what it looks like from outside
+ * (`docs/COMPONENT_GUIDELINES.md`, issue #697).
  *
  * Multi-select's actual rules - which row keeps a checkbox once a sibling version is
  * chosen, what the chosen pane shows when a search hides a chosen row, what order the

@@ -55,7 +55,9 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
     "publish (forms/form-actions-rejects.test.tsx)",
     "close/reopen (forms/form-actions-rejects.test.tsx)",
   ],
-  "forms/public-form-link.tsx": ["copy the public address (forms/public-form-link-rejects.test.tsx)"],
+  "forms/public-form-link.tsx": [
+    "copy the public address (forms/public-form-link-rejects.test.tsx)",
+  ],
   "forms/secure-links.tsx": [
     "mint (forms/secure-links-rejects.test.tsx)",
     "revoke (forms/secure-links-rejects.test.tsx)",

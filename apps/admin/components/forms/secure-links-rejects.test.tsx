@@ -89,9 +89,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
 
     await user.click(screen.getByRole("button", { name: t("forms.links.revoke") }));
     const dialog = await screen.findByRole("alertdialog");
-    await user.click(
-      within(dialog).getByRole("button", { name: t("forms.links.confirmRevoke") }),
-    );
+    await user.click(within(dialog).getByRole("button", { name: t("forms.links.confirmRevoke") }));
 
     expect(
       await within(dialog).findByText(t("forms.links.revokeFailed", { message: unexpected() })),

@@ -30,7 +30,12 @@ const DETAIL: ResponseDetailData = {
   contentHash: "sha256:0000",
   answers: { q_name: "Sam" },
   ledger: [
-    { questionId: "q_name", value: "Sam", retracted: false, answeredAt: "2026-01-01T00:00:00.000Z" },
+    {
+      questionId: "q_name",
+      value: "Sam",
+      retracted: false,
+      answeredAt: "2026-01-01T00:00:00.000Z",
+    },
   ],
 };
 
@@ -64,9 +69,7 @@ describe("a rejected response action", { timeout: 30_000 }, () => {
     renderDetail({ unflag: transportFailure });
 
     await user.click(screen.getByRole("button", { name: t("ops.detail.unflag") }));
-    await user.click(
-      await screen.findByRole("button", { name: t("ops.detail.confirmUnflag") }),
-    );
+    await user.click(await screen.findByRole("button", { name: t("ops.detail.confirmUnflag") }));
 
     expect(
       await screen.findByText(t("ops.detail.unflagFailed", { message: unexpected() })),
@@ -88,9 +91,7 @@ describe("a rejected response action", { timeout: 30_000 }, () => {
     );
     await user.click(within(dialog).getByRole("button", { name: t("ops.erase.confirm") }));
 
-    expect(
-      await screen.findByText(t("ops.erase.failed", { message: unexpected() })),
-    ).toBeTruthy();
+    expect(await screen.findByText(t("ops.erase.failed", { message: unexpected() }))).toBeTruthy();
     // The second half, and the one that matters most here: a tombstone is drawn from the
     // outcome the action returns, so its absence is the screen stating that the
     // irreversible half did not happen.

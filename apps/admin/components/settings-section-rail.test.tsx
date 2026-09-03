@@ -120,9 +120,9 @@ describe("the Settings rail's markup", () => {
     // `join(dirname(...))` and NOT `new URL("./settings-section-rail.tsx", import.meta.url)`,
     // which is what this was. `new URL(<string literal>, import.meta.url)` is Vite's asset
     // syntax and is rewritten at transform time, so the resolved base becomes the page
-    // location rather than this file: under the jsdom project added by issue #352 it
-    // produced `http://localhost:3000/components/settings-section-rail.tsx` and
-    // `fileURLToPath` refused it. The rewrite only fires on a literal, which is why the
+    // location rather than this file: under the jsdom project added by issue #352 it came
+    // back as an `http:` URL under jsdom's own document origin, and `fileURLToPath` refused
+    // it for not being a file URL. The rewrite only fires on a literal, which is why the
     // same call written through a variable elsewhere never showed it. This is the shape
     // `app/(shell)/table-anchors.test.tsx` already uses, and it reads the same under both
     // environments.
