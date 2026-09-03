@@ -199,6 +199,26 @@ QCMS_PORT_SEAT=0 pnpm verify:browser   # the Playwright suite (portal e2e + a11y
 
 `check:changeset` is new with this gate: it enforces the "Changeset for any change to a publishable package" merge requirement (issue #55, folded into #19), locally and in CI.
 
+**Where a gate's log goes, and why it is not wherever you like** (issues #396, #602). The agent harness advertises its scratchpad directory as session-specific. It is not: one directory per checkout is reused by every session and every subagent that opens it, and the filenames a gate naturally produces are the ones every lane picks independently - `verify.log`, `forced.log`, `browser.log`, `pr-body.md`. So "pick a descriptive name" is not a mitigation, because the descriptive name is exactly what two lanes choose. Two failures follow, and they are not equally bad. The first is interleaving: two concurrent browser suites wrote one `browser.log` whose tail showed one lane's seat refusal inside the other lane's evidence, which cost a diagnosis a full extra cycle (#396 records four occurrences). The second is a stale read: a lane found `verify.log` and `forced.log` already sitting there from an earlier run and briefly took a result from a previous day as its own, catching it only by listing mtimes (#602). That second one is the dangerous shape, because the corrupted artifact is the evidence a merge verdict rests on and a stale green is indistinguishable from a real one.
+
+So: **one lane, one directory, and no log is evidence unless the command that wrote it is the command you just ran.**
+
+```sh
+dir=$(node scripts/agent-scratch.mjs)              # this lane's directory, created
+log=$(node scripts/agent-scratch.mjs verify.log)   # a path in it, leftovers removed
+pnpm verify > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+```
+
+The lane is keyed on the branch, because the branch **is** the claim (see "Git and PR rules" below), so exactly one executor owns it. A second agent working the same branch - a reviewer running the gates independently while its executor still runs them - takes its own lane rather than sharing the directory and reproducing the same collision inside one branch:
+
+```sh
+log=$(node scripts/agent-scratch.mjs --lane fix-396-scratchpad-review verify.log)
+```
+
+**Pass the lane as an argument, not as an environment prefix.** The obvious one-liner - `QCMS_AGENT_LANE=<branch>-review log=...` with the helper in a command substitution - does not work, in bash or in zsh: a simple command that is only assignments sets its variables in the current shell **without exporting them**, so the substitution runs without the variable and falls back to the branch, which is the executor's lane. The failure is silent and it is worse than plain sharing, because asking for a named file removes what is already there: the reviewer would delete the executor's in-progress `verify.log`. `QCMS_AGENT_LANE` is still honoured when it is genuinely exported (`export QCMS_AGENT_LANE=...`, or a prefix on a command that runs the script directly); `--lane` is the spelling that cannot be got wrong, and `scripts/agent-scratch.test.ts` pins both halves. Asking for a named file also removes anything already at that path, so a log read back after the command that should have written it either holds this run's output or does not exist. Not existing is a clear failure; a previous run's contents is not.
+
+**Worktree hygiene** (issue #735). Every lane works in a `git worktree` under `.claude/worktrees/`, and until this landed nothing ever swept the leftovers: on 2026-09-03 that root held 56 directories of which 51 were orphans, 75 GB that no git command could see. `node scripts/prune-worktrees.mjs` reports the drift and `--apply` clears it; the first run took the root to 8.5 GB. `git worktree list` is the registry, and what the sweep refuses to touch is the point of it: a registered worktree, a directory carrying no `.git` file (somebody's data living under that path rather than a stale checkout), a worktree with uncommitted work, and anything modified in the last day. The bulk of the accumulation is worktrees whose git directory is gone, which git cannot answer for at all - the branch pointer, index and reflog that made them worktrees no longer exist, so nothing in them can be committed, pushed or listed - and for those the age guard is the safety net rather than a git answer.
+
 ### The `plan/**` fast lane (`check:plan`)
 
 A pull request whose every changed path is under `plan/` skips application builds and tests because the plan tree is not imported by the workspace. `pnpm check:plan` still validates every lintable plan file:

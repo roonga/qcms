@@ -11,6 +11,7 @@ Complete the bounded assignment from the conductor.
 - Stay inside the assignment. Report decisions or unrelated discoveries instead of silently expanding scope.
 - Use pnpm only and follow `CONTRIBUTING.md`.
 - Run checks proportional to the change, up to `pnpm verify`, the browser suite for UI surfaces, and forced Docker-backed tests when applicable.
+- Write logs and scratch files under this lane's own directory, never the shared scratchpad root (issues #396, #602): `dir=$(node scripts/agent-scratch.mjs)`, or `log=$(node scripts/agent-scratch.mjs verify.log)` for one file. The scratchpad is shared across sessions despite what the harness says, so never read a gate result back from a path you did not create in the same command that wrote it: it can be another lane's run, or another day's.
 - Use a branch or PR for anything intended to land. The conductor owns review and merge.
 - Follow repository writing rules: no em dash, personal names, machine-specific paths, secrets, or AI attribution trailers in committed content.
 
