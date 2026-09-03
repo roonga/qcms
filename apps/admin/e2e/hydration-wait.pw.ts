@@ -24,8 +24,16 @@
  *    anyway. Remove the waits and it reds every run. CPU throttling, which is how the
  *    portal reproduces its version of this race, does NOT work here and was measured not
  *    to: it slows Playwright's keystrokes into the same renderer, so the gap never opens
- *    (four unwaited runs at rate 6 all passed). `delayScripts` moves only the half that
+ *    (four unwaited runs at rate 6 all passed). `holdScripts` moves only the half that
  *    has to move.
+ *
+ * 4. **It must not fire where React is never coming.** The auth loop is a native form and
+ *    works with scripts off entirely, which three specs prove in
+ *    `test.use({ javaScriptEnabled: false })` blocks. The marker cannot appear there, so a
+ *    wait for it is minutes of timeout on a page that was never at risk. The last test pins
+ *    that the wait returns immediately instead. This is not hypothetical: the first version
+ *    of this change reddened all three of those blocks, and only the full browser suite
+ *    caught it.
  *
  * The mechanism, for whoever debugs this next, because nothing about the failure names it:
  * react-aria's `TextField` receives neither `value` nor `defaultValue`, so it renders a
@@ -74,6 +82,13 @@ const RESOLUTION_BUDGET_MS = 15_000;
  * and this test is about whether the value survives, never about how fast it does not.
  */
 const HYDRATION_BUDGET_MS = 30_000;
+
+/**
+ * The ceiling the scripting-off wait must come in under. Small on purpose: it is the whole
+ * assertion, and anything generous would be satisfied by the very timeout being guarded
+ * against.
+ */
+const NO_SCRIPT_BUDGET_MS = 2_000;
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -188,4 +203,30 @@ test("hydration discards what was typed first, which is what the wait exists to 
   await expect(page.getByRole("button", { name: "Verify" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/questions$/);
+});
+
+test.describe("without JavaScript", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("the wait returns at once on a page whose scripts will never run", async ({ page }) => {
+    // React is never coming, so there is nothing to wait for AND nothing at risk: no commit
+    // will overwrite what was typed. A wait that blocked here would turn every no-JS spec
+    // into a timeout, which is exactly what it did before this was pinned.
+    //
+    // The budget is the assertion. Passing no timeout would let this "pass" after the suite
+    // default, which is the failure being guarded against; a budget far below any plausible
+    // wait means only an immediate return satisfies it.
+    await page.goto("/sign-in");
+    const started = Date.now();
+    await waitForHydration(page, { timeout: NO_SCRIPT_BUDGET_MS });
+    expect(
+      Date.now() - started,
+      "with scripting off the wait must return immediately, not time out",
+    ).toBeLessThan(NO_SCRIPT_BUDGET_MS);
+
+    // And the page really is the no-JS one: the server-rendered form is here and usable,
+    // which is what makes skipping the wait correct rather than merely convenient.
+    await expect(page.getByLabel("Email")).toBeAttached();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeAttached();
+  });
 });

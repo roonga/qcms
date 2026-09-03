@@ -46,16 +46,56 @@ export interface HydrationWaitOptions {
 }
 
 /**
+ * Whether the document was parsed with scripting DISABLED, read from the DOM.
+ *
+ * The HTML parser treats `<noscript>` differently depending on the document's scripting
+ * flag: with scripting on its content is left as raw text, and with scripting off it is
+ * parsed as real elements. So a `<noscript>` with element children means "this page will
+ * never run its own scripts", which is a browser fact rather than a framework detail, and
+ * `app/layout.tsx` already ships one for product reasons (the appearance and account
+ * triggers are hidden when they cannot open). Measured in both modes: scripting on reports
+ * `childElementCount` 0, scripting off reports 1 with a `<style>` child.
+ *
+ * Playwright's own `page.evaluate` is NOT a discriminator here and was tried first: it runs
+ * in an isolated world that stays available with `javaScriptEnabled: false`, so it returns
+ * happily on a page whose own scripts never ran.
+ *
+ * A page with no `<noscript>` at all reads as "scripting on", which is the safe direction:
+ * the caller then waits and fails loudly on a timeout, rather than skipping the wait and
+ * silently reopening the race the wait exists to close.
+ */
+async function scriptingDisabled(page: Page): Promise<boolean> {
+  return page.evaluate(() =>
+    [...document.querySelectorAll("noscript")].some((tag) => tag.childElementCount > 0),
+  );
+}
+
+/**
  * Wait until React has attached to the current admin page, and prove it observed that.
  *
  * The value the page reported is read back and asserted rather than assumed: a wait that
  * can resolve without observing anything is worth nothing, and `waitForFunction` resolving
  * on a truthy value is the only thing that separates the two.
+ *
+ * ## The no-JavaScript case, which this has to get right
+ *
+ * The admin's auth loop is a real `<form method="post">` and works with scripts off
+ * entirely; `auth-2fa.pw.ts`, `rail.pw.ts` and `table-anchors.pw.ts` each have a
+ * `test.use({ javaScriptEnabled: false })` block that proves it. React never attaches
+ * there, so the marker never appears, and a wait for it is not merely useless but wrong:
+ * it turns those specs into minutes of timeout. It is also unnecessary, because the defect
+ * the wait exists for cannot happen without React - nothing is ever going to overwrite what
+ * was typed.
+ *
+ * So the wait asks the document first and returns immediately when scripting is off. That
+ * is a real hazard this shipped with before the full browser suite caught it: three no-JS
+ * blocks went red on nothing but this.
  */
 export async function waitForHydration(
   page: Page,
   options: HydrationWaitOptions = {},
 ): Promise<void> {
+  if (await scriptingDisabled(page)) return;
   const marker = await page.waitForFunction(
     (attribute: string) => (document.documentElement.hasAttribute(attribute) ? attribute : null),
     HYDRATED_ATTRIBUTE,
