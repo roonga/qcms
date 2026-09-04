@@ -140,7 +140,15 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   // Booting Testcontainers Postgres in globalSetup takes ~30-60s on a cold pull.
   timeout: 60_000,
-  reporter: [["list"]],
+  // `list` prints the tests. The second reporter prints the MACHINE, and only when the
+  // run has failures (issue #395): which other seats' harness ports were live, what the
+  // host load and the shared Docker daemon were carrying, and which failures carry a
+  // resource-contention shape. A red `verify:browser` is a merge gate, and under
+  // parallelism it can be caused entirely by a neighbouring lane while presenting as this
+  // branch's own regression - that cost a bisect once and was only caught because the red
+  // happened to be implausible. It annotates and never suppresses: it implements no
+  // verdict-bearing hook, so the exit code and the failure list are exactly what they were.
+  reporter: [["list"], ["./apps/portal/e2e/support/contention-reporter.ts"]],
   use: {
     baseURL: `http://localhost:${PORT}`,
     // Failure forensics (issue #102), CI-ONLY by design: in CI, a screenshot on
