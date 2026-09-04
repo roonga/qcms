@@ -11,6 +11,7 @@ import {
   assertImports,
   assertNoEscapingPaths,
   assertReadmeClaims,
+  assertReleaseAgeHoldIsStamped,
   rewriteDependencies,
   buildTemplates,
   diffTrees,
@@ -457,5 +458,30 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
     expect(
       rewriteDependencies({ hono: "^4.0.0" }, { "@qcms/core": "^1.0.0" }, false),
     ).toStrictEqual({ hono: "^4.0.0" });
+  });
+});
+
+describe("the release-age hold the scaffold inherits (SEC-11)", () => {
+  const tree = buildTemplates();
+
+  it("is stamped into the scaffolded workspace, with both keys", () => {
+    // One key without the other is a policy nothing enforces: pnpm only defaults the
+    // strict flag on when the age is explicitly configured. Asserted on the generated
+    // file rather than on the static one, because the generated file is what ships.
+    const stamped = tree.get("common/pnpm-workspace.yaml") ?? "";
+    expect(stamped).toMatch(/^minimumReleaseAge: \d+$/m);
+    expect(stamped).toMatch(/^minimumReleaseAgeStrict: true$/m);
+    expect(() => assertReleaseAgeHoldIsStamped(tree)).not.toThrow();
+  });
+
+  it("catches a scaffold that quietly loses the hold", () => {
+    // The drift this exists for: two hand-maintained files holding one security
+    // posture, and someone edits the repository's own without the scaffold's.
+    const without = new Map(tree);
+    without.set(
+      "common/pnpm-workspace.yaml",
+      (tree.get("common/pnpm-workspace.yaml") ?? "").replace(/^minimumReleaseAgeStrict:.*$/m, ""),
+    );
+    expect(() => assertReleaseAgeHoldIsStamped(without)).toThrow(/minimumReleaseAgeStrict/);
   });
 });

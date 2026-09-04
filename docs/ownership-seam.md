@@ -576,6 +576,19 @@ tsconfig.base.json
 
 <!-- END GENERATED: ownership-seam -->
 
+## What the scaffold deliberately passes on
+
+- **The supply-chain release-age hold** (SEC-11, issue #455). The stamped
+  `pnpm-workspace.yaml` carries `minimumReleaseAge: 1440` and
+  `minimumReleaseAgeStrict: true`, so a version published in the last 24 hours is not
+  installed and an install that needs one fails rather than exempting itself. This is
+  inherited on purpose: an adopter resolves a dependency tree the same size as this
+  repository's, from the same registry, with the same exposure, and a control worth
+  having here is worth having there. It is your file and you may lower or remove it;
+  if you keep it, keep both keys, because pnpm only defaults the strict flag on when
+  the age is explicitly configured. `pnpm check:templates` fails if this repository
+  holds new releases and the scaffold stops doing so.
+
 ## What the scaffold deliberately leaves out
 
 - **This repository's test harness.** Testcontainers, Playwright, the seat-aware port

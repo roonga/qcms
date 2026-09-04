@@ -1266,6 +1266,7 @@ export function buildTemplates() {
   assertNoEscapingPaths(sorted);
   assertComposeReferences(sorted);
   assertReadmeClaims(sorted);
+  assertReleaseAgeHoldIsStamped(sorted);
   return sorted;
 }
 
@@ -1360,6 +1361,58 @@ function stamps(tree, shape, scaffoldRelative) {
     if (output === scaffoldRelative || output.startsWith(`${scaffoldRelative}/`)) return true;
   }
   return false;
+}
+
+// --- the release-age hold ---------------------------------------------------
+
+/**
+ * The supply-chain settings a scaffolded workspace inherits (SEC-11, issue #455).
+ *
+ * Both keys, never one. pnpm turns `minimumReleaseAgeStrict` on by default only when
+ * `minimumReleaseAge` is itself explicitly configured, so a file carrying `strict`
+ * beside an inherited default states a policy nothing enforces. `pnpm-workspace.yaml`
+ * at the repository root says the same thing about itself.
+ */
+const RELEASE_AGE_KEYS = ["minimumReleaseAge", "minimumReleaseAgeStrict"];
+
+/**
+ * Fail if this repository holds new releases and the scaffold it stamps does not.
+ *
+ * `templates-static/common/pnpm-workspace.yaml` is hand-written, which is blind spot G
+ * all over again: nothing compared it to anything, and a security posture that lives
+ * in two hand-maintained files drifts the moment one of them is edited. An adopter
+ * installs a dependency tree the same size as this one from the same registry, so a
+ * control that is worth having here is worth stamping there.
+ *
+ * It checks presence, not equality. The stamped file is the adopter's to tune (ADR-05)
+ * and its comment says so; what must not happen silently is the scaffold losing the
+ * hold because someone edited one file and not the other.
+ *
+ * @param {Map<string, string>} tree
+ */
+export function assertReleaseAgeHoldIsStamped(tree) {
+  const repository = readSource("pnpm-workspace.yaml");
+  const held = RELEASE_AGE_KEYS.filter((key) => new RegExp(`^${key}:`, "m").test(repository));
+  if (held.length === 0) return;
+  if (held.length !== RELEASE_AGE_KEYS.length) {
+    throw new Error(
+      `sync-templates: pnpm-workspace.yaml sets ${held.join(" and ")} but not ` +
+        `${RELEASE_AGE_KEYS.filter((key) => !held.includes(key)).join(" and ")}. pnpm only ` +
+        `defaults the strict flag on when the age is explicitly configured, so one without the ` +
+        `other is a policy nothing enforces. Fix the repository's own file first.`,
+    );
+  }
+  const stamped = tree.get("common/pnpm-workspace.yaml") ?? "";
+  const missing = RELEASE_AGE_KEYS.filter((key) => !new RegExp(`^${key}:`, "m").test(stamped));
+  if (missing.length > 0) {
+    throw new Error(
+      `sync-templates: this repository holds new releases (${RELEASE_AGE_KEYS.join(", ")}) and ` +
+        `the scaffolded pnpm-workspace.yaml does not set ${missing.join(", ")}. An adopter ` +
+        `installs the same registry tree with the same exposure. Add it to ` +
+        `packages/create-qcms-app/templates-static/common/pnpm-workspace.yaml, or, if the hold ` +
+        `is deliberately not inherited, delete this guard and say why.`,
+    );
+  }
 }
 
 // --- what the hand-written READMEs claim ------------------------------------

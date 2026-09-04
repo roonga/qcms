@@ -32,6 +32,7 @@ export declare function serviceBlocks(text: string): Map<string, string>;
 export declare function assertNoEscapingPaths(tree: Map<string, string>): void;
 export declare function assertComposeReferences(tree: Map<string, string>): void;
 export declare function assertReadmeClaims(tree: Map<string, string>): void;
+export declare function assertReleaseAgeHoldIsStamped(tree: Map<string, string>): void;
 export declare function composeInvocations(text: string): string[][];
 export declare function composeTarget(words: string[]): {
   service: string | undefined;
