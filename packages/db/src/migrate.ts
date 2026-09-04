@@ -11,8 +11,8 @@
  *
  * - the `qcms-db-migrate` bin, which is what `docker-compose.yml` runs and what an
  *   adopter gets on their `node_modules/.bin` PATH;
- * - the `@qcms/db/migrate` export, for a composition that would rather preload it
- *   (`node --import @qcms/db/migrate --eval ""`).
+ * - the `@roonga/qcms-db/migrate` export, for a composition that would rather preload it
+ *   (`node --import @roonga/qcms-db/migrate --eval ""`).
  *
  * A deep path into `dist/` is neither. It worked only because a filesystem path
  * bypasses the `exports` map, so the layout this package is free to change was

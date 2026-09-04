@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Add the declarative, entirely self-hosted font registry that populates the
@@ -16,7 +16,7 @@ The `woff2` binaries are **committed** under `src/fonts/` (710,984 bytes, 24 fil
 Latin subsets) rather than fetched at build time, so a deployment and its CI never
 depend on a third-party font host and a portal makes zero external requests for a
 typeface. `src/fonts.css` and `src/fonts/NOTICE.md` are generated from the manifest
-by `pnpm --filter @qcms/ui fonts:generate` and a drift test fails if either has
+by `pnpm --filter @roonga/qcms-ui fonts:generate` and a drift test fails if either has
 gone stale. The OFL-1.1 and Apache-2.0 texts ship beside the binaries.
 
 New exports: the `./fonts.css` stylesheet subpath, and a `./fonts` module

@@ -1,7 +1,7 @@
 import {
   compilesUnderV as kernelCompilesUnderV,
   toVSafePattern as kernelToVSafePattern,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { render } from "@testing-library/react";
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -260,16 +260,16 @@ describe("rendered pattern attribute (issue #29)", () => {
 /**
  * The two copies of the rule agree (issue #53).
  *
- * `@qcms/core` owns the authoring-time normalization, because the API's
+ * `@roonga/qcms-core` owns the authoring-time normalization, because the API's
  * question boundary refuses a v-invalid pattern and offers the rewrite in the
  * refusal. This module restates it rather than importing it, for the reason
- * `author-messages.ts` records for `ValidationMessageKey`: `@qcms/ui` is a
+ * `author-messages.ts` records for `ValidationMessageKey`: `@roonga/qcms-ui` is a
  * browser package that must not pull the kernel into the client bundle. A
  * restatement is only safe while something proves the two still say the same
  * thing, and this is that something - the same stance the round-trip suite
  * takes for the answer encodings.
  *
- * A `.test.tsx` may import `@qcms/core` (`import-surface.test.ts` says so);
+ * A `.test.tsx` may import `@roonga/qcms-core` (`import-surface.test.ts` says so);
  * the shipped module may not.
  */
 describe("the kernel and the renderer normalize identically", () => {

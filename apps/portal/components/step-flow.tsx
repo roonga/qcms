@@ -1,7 +1,7 @@
 "use client";
 
-import { A2UIStepRenderer } from "@qcms/ui";
-import type { A2UIAnswerValue, A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
+import { A2UIStepRenderer } from "@roonga/qcms-ui";
+import type { A2UIAnswerValue, A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 

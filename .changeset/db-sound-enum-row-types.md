@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Export sound, hand-authored row interfaces for the tables whose Drizzle

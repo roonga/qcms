@@ -1,5 +1,5 @@
-import { A2UIStepRenderer } from "@qcms/ui";
-import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@qcms/ui";
+import { A2UIStepRenderer } from "@roonga/qcms-ui";
+import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 
 import { PortalShell } from "@/components/portal-shell";
 import { errorSummaryEntries } from "@/lib/error-summary";
@@ -14,7 +14,7 @@ import type { StepResponse } from "@/lib/server/api";
 /**
  * The no-JS step view (task 044): the progressive-enhancement fallback the SSR
  * paints when JavaScript is unavailable. It renders the current step inside the
- * @qcms/ui renderer's opt-in native-submit mode - a real
+ * @roonga/qcms-ui renderer's opt-in native-submit mode - a real
  * `<form method="post" action="/s/:id/step">` with natively-serializing controls
  * and a real submit control - so a respondent with JS disabled can complete and
  * submit the form, one page reload per POST.

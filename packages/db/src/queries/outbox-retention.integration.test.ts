@@ -15,7 +15,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId } from "@qcms/core";
+import { FormId } from "@roonga/qcms-core";
 
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 // Deep import on purpose: the budget is deliberately not on the package's public

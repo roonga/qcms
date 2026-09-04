@@ -15,7 +15,7 @@ const DEVELOPMENT_DIST_DIR = ".next-dev";
 
 /**
  * Portal Next.js config (task 029). The portal is SSR-first and fetch-only
- * (ADR-26); no client data library. `@qcms/ui` is a workspace package consumed
+ * (ADR-26); no client data library. `@roonga/qcms-ui` is a workspace package consumed
  * from its build output, so no `transpilePackages` entry is needed - its dist is
  * plain ESM. The strict BFF keeps the internal API server-only; the base URL is
  * read from server-only config in route handlers (added in the wiring phase).

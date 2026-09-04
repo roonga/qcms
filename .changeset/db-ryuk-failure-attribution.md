@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 The `./testing` harness now brings Testcontainers' Ryuk reaper up as its own step,

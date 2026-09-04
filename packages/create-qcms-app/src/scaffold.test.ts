@@ -104,7 +104,7 @@ describe("scaffold", () => {
         dependencies: Record<string, string>;
       };
       const qcms = Object.entries(manifest.dependencies).filter(([name]) =>
-        name.startsWith("@qcms/"),
+        name.startsWith("@roonga/qcms-"),
       );
       expect(qcms.length).toBeGreaterThan(0);
       for (const [, range] of qcms) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);

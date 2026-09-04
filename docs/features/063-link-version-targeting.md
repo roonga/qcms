@@ -1,6 +1,6 @@
 # 063 - Public and secure link version targeting
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/api`, `apps/admin`, `apps/portal`, `@qcms/db` · **Depends on:** 038 (launch validation), 024 (secure links), 029 (portal), 034 (publish and version history)
+**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/api`, `apps/admin`, `apps/portal`, `@roonga/qcms-db` · **Depends on:** 038 (launch validation), 024 (secure links), 029 (portal), 034 (publish and version history)
 **References:** ADR-39 · ADR-07 · ADR-16 · SEC-2 · R1
 
 ## Context

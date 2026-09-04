@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { generate } from "otplib";
-import { settleTransitions } from "@qcms/e2e-support/animations";
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 

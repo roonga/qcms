@@ -1,4 +1,4 @@
-import type { Condition } from "@qcms/core";
+import type { Condition } from "@roonga/qcms-core";
 
 import type { QuestionType } from "../questions/types.ts";
 
@@ -41,14 +41,14 @@ import type {
 
 /**
  * The kernel's `CONDITION_MAX_DEPTH` (`visibility-rule.ts`), restated rather than
- * imported: it is a **value**, and this app takes no value from `@qcms/core` (R2).
+ * imported: it is a **value**, and this app takes no value from `@roonga/qcms-core` (R2).
  * `condition.test.ts` pins the two together, and it may import the kernel outright
  * because a `.test.ts` is outside the import-surface scan.
  */
 export const MAX_CONDITION_DEPTH = 8;
 
 /**
- * **The ADR-03 gate: a new operator in `@qcms/core` cannot land unnoticed here.**
+ * **The ADR-03 gate: a new operator in `@roonga/qcms-core` cannot land unnoticed here.**
  *
  * ADR-03 makes the rules DSL a closed, typed set whose operators are versioned core
  * changes. The ADR's own note flagged what was missing: a new operator lands in two
@@ -64,7 +64,7 @@ export const MAX_CONDITION_DEPTH = 8;
  * separate edits are needed to move any of it, and none of them is silent.
  *
  * The import is `import type`, which is the whole reason this is allowed to exist:
- * TypeScript erases it, so no kernel code reaches the bundle, `@qcms/core` stays a
+ * TypeScript erases it, so no kernel code reaches the bundle, `@roonga/qcms-core` stays a
  * devDependency, and the shipped image still cannot resolve the package. R2 is about the
  * admin having no authority to evaluate rules, and a type evaluates nothing.
  * `lib/server/r2-import-surface.test.ts` states the value/type distinction and asserts

@@ -304,7 +304,7 @@ export function helpText(): string {
   return `Usage: create-qcms-app [directory] [options]
 
 Scaffold a QCMS deployment: the application shell you own, over the versioned
-@qcms/* packages you upgrade.
+@roonga/qcms-* packages you upgrade.
 
 ${wrap(PACKAGE_MANAGER_RATIONALE)}
 

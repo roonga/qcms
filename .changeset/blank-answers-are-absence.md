@@ -1,6 +1,6 @@
 ---
-"@qcms/core": minor
-"@qcms/ui": patch
+"@roonga/qcms-core": minor
+"@roonga/qcms-ui": patch
 ---
 
 Blank text is absence, and an empty value is not an answer.

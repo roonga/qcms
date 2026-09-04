@@ -7,7 +7,7 @@
  * ## What this proves that nothing else can
  *
  * Every other gate in this repository runs inside the workspace, where pnpm hoists
- * `@qcms/*` from `packages/` and every import resolves whether or not it was
+ * `@roonga/qcms-*` from `packages/` and every import resolves whether or not it was
  * declared. An adopter has none of that. This harness removes it: every published
  * package is packed with `pnpm pack` and installed as a tarball, the CLI is run from
  * ITS tarball (so a template file missing from `files` fails here rather than in
@@ -24,7 +24,7 @@
  *
  * Each is a property of this repository's pre-publish state, not of the scaffold:
  *
- *   1. **`@qcms/*` resolve from tarballs**, because they are not published yet. The
+ *   1. **`@roonga/qcms-*` resolve from tarballs**, because they are not published yet. The
  *      tarballs are copied to `apps/.qcms-tarballs/` inside the scaffold and the
  *      overrides are RELATIVE, so the same specifiers resolve identically on the host
  *      and inside the image (`docker/*.Dockerfile` copies `apps/`). Nothing in the
@@ -183,7 +183,7 @@ const PINNED_DEPENDENCIES = {
 function overridesBlock(tarballNames) {
   const lines = [
     "",
-    "# Added by scaffold-e2e.mjs, never by create-qcms-app. The @qcms/* packages are",
+    "# Added by scaffold-e2e.mjs, never by create-qcms-app. The @roonga/qcms-* packages are",
     "# not published yet, so this run resolves them from tarballs `pnpm pack` produced.",
     "# The paths are relative so they mean the same thing on the host and inside the",
     "# image, where the build context has copied apps/ (and this directory with it).",
@@ -249,7 +249,7 @@ function composeArgs(scaffold, project) {
 }
 
 /**
- * Fail unless every `@qcms/*` the generator stamps into an app manifest is packed here.
+ * Fail unless every `@roonga/qcms-*` the generator stamps into an app manifest is packed here.
  *
  * Two hand-maintained lists of the same set, in two files, and the direction that goes
  * wrong quietly is this one: a package the generator stamps and this harness does not
@@ -275,14 +275,14 @@ function assertPacksEveryStampedPackage() {
     );
     for (const block of [manifest.dependencies, manifest.devDependencies]) {
       for (const name of Object.keys(block ?? {})) {
-        if (name.startsWith("@qcms/")) stamped.add(name.slice("@qcms/".length));
+        if (name.startsWith("@roonga/qcms-")) stamped.add(name.slice("@roonga/qcms-".length));
       }
     }
   }
   const missing = [...stamped].filter((name) => !PACKED.includes(name)).sort();
   if (missing.length > 0) {
     throw new Error(
-      `scaffold-e2e: the scaffolded manifests depend on @qcms/${missing.join(", @qcms/")}, which ` +
+      `scaffold-e2e: the scaffolded manifests depend on @roonga/qcms-${missing.join(", @roonga/qcms-")}, which ` +
         `PACKED in this file does not pack. This run would install them from a registry that has ` +
         `never published them.`,
     );
@@ -300,7 +300,7 @@ function buildScaffold(workspace) {
   // Through turbo (`pnpm build`) rather than `pnpm -r build`, which is what this used
   // to be. Every package build now begins `node ../../scripts/clean-dist.mjs`, and
   // pnpm's recursive order only sequences DECLARED dependencies: `apps/portal` does not
-  // declare `@qcms/db`, yet its `next build` type-checks API sources that import it, so
+  // declare `@roonga/qcms-db`, yet its `next build` type-checks API sources that import it, so
   // the two ran in parallel and portal failed against a `dist/` that db was part-way
   // through deleting. Turbo runs the task graph the rest of the repository builds with.
   pnpm(["build"], REPOSITORY_ROOT);
@@ -310,7 +310,7 @@ function buildScaffold(workspace) {
   /** @type {Record<string, string>} */
   const names = {};
   for (const name of PACKED) {
-    names[`@qcms/${name}`] = pack(`packages/${name}`, tarballs).split("/").pop() ?? "";
+    names[`@roonga/qcms-${name}`] = pack(`packages/${name}`, tarballs).split("/").pop() ?? "";
   }
   const cliTarball = pack("packages/create-qcms-app", tarballs);
   const cli = unpack(cliTarball, join(workspace, "cli"));

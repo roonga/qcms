@@ -1,4 +1,4 @@
-import { createJsonLogger } from "@qcms/observability/logger";
+import { createJsonLogger } from "@roonga/qcms-observability/logger";
 
 export const serverLogger = createJsonLogger({
   base: { service: "qcms-admin" },

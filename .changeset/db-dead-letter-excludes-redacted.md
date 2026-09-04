@@ -1,5 +1,5 @@
 ---
-"@qcms/db": patch
+"@roonga/qcms-db": patch
 ---
 
 The dead-letter queue no longer lists deliveries whose event payload has been redacted (issue #433).

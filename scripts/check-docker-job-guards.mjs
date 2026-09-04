@@ -81,7 +81,7 @@ export const JOB_GUARDS = {
   "ci.yml#verify": {
     mirror: true,
     assert: true,
-    why: "`pnpm test` includes @qcms/db's integration suites, which boot a Testcontainers Postgres per file.",
+    why: "`pnpm test` includes @roonga/qcms-db's integration suites, which boot a Testcontainers Postgres per file.",
   },
   "ci.yml#api-e2e": {
     mirror: true,

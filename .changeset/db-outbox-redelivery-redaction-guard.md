@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Refuse to reset a redacted outbox event for redelivery, instead of stranding it

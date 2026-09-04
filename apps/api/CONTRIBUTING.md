@@ -69,7 +69,7 @@ test files. This is what lets the same handler run on Node or an edge runtime.
 ## Transaction ownership
 
 The **slice owns the transaction boundary**, never the query helpers (R3, R5).
-Query helpers from `@qcms/db` take an `Executor` (a Drizzle handle or a
+Query helpers from `@roonga/qcms-db` take an `Executor` (a Drizzle handle or a
 transaction) as their first argument. A slice that must write more than one row
 atomically - and any slice writing an outbox event alongside a domain change -
 opens one transaction and passes the `tx` to every helper:
@@ -81,7 +81,7 @@ await deps.db.transaction(async (tx) => {
 });
 ```
 
-Invariants spanning more than one field or row go through a `@qcms/core`
+Invariants spanning more than one field or row go through a `@roonga/qcms-core`
 function (load state → call kernel → persist result); a single-row write is a
 plain transaction script. No repository interfaces, no mediator (R5).
 
@@ -98,7 +98,7 @@ receivers, clocks). Two layers:
   `recordingLogger`). Synthetic secrets only - `synthSecret()` - never a real
   value.
 - **Live-DB integration** (`*.integration.test.ts`) - for anything that touches
-  storage, boot the 013 harness via `@qcms/db/testing` (`startTestDb`). Requires
+  storage, boot the 013 harness via `@roonga/qcms-db/testing` (`startTestDb`). Requires
   Docker.
 
 Every internal-surface request carries the internal service token
@@ -136,7 +136,7 @@ reads as "nothing to run" rather than "your invocation is wrong". And
 A bare substring (`rate-limit`) works too, and is the loose form: it also matches
 `src/features/responses/rate-limits.test.ts`. In a fresh worktree, run
 `pnpm build` first, or the first workspace import fails with `Failed to resolve
-entry for package "@qcms/db"`; `pnpm test` never shows this because turbo's
+entry for package "@roonga/qcms-db"`; `pnpm test` never shows this because turbo's
 `test` task builds first.
 
 ### Compiled A2UI fixtures (issue #321)
@@ -145,7 +145,7 @@ entry for package "@qcms/db"`; `pnpm test` never shows this because turbo's
 them in `form_versions` verbatim, exactly as the serve path later replays them
 (ADR-18), and several API and browser specs assert against what comes back out.
 That makes them a claim about the compiler, and the claim has to be checked:
-before issue #321 nothing recompiled them, so a `@qcms/a2ui-compiler` change
+before issue #321 nothing recompiled them, so a `@roonga/qcms-a2ui-compiler` change
 desynced them **silently** - every spec kept passing against a document the
 compiler no longer produced. The insurance read had drifted a whole corpus
 generation behind before anyone noticed.

@@ -24,7 +24,7 @@ import { createContext, useContext, type ReactNode } from "react";
 
 import type { AppearanceMode, Density } from "@/lib/appearance";
 
-/** One font the deployment offers, flattened from `@qcms/ui`'s registry entry. */
+/** One font the deployment offers, flattened from `@roonga/qcms-ui`'s registry entry. */
 export interface FontChoice {
   readonly key: string;
   readonly label: string;

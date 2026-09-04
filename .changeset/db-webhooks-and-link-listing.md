@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add the `webhooks` table (migration 0006) and its shape-preserving query helpers

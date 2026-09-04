@@ -1,4 +1,4 @@
-import { createJsonLogger } from "@qcms/observability/logger";
+import { createJsonLogger } from "@roonga/qcms-observability/logger";
 
 /** Server-only JSON logger with active-trace correlation and safe OTLP emission. */
 export const serverLogger = createJsonLogger({

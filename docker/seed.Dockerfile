@@ -22,7 +22,7 @@
 #
 # ## Why it starts from the API image
 #
-# The loader imports `@qcms/core`, `@qcms/db`, `drizzle-orm` and `pg`, and the API
+# The loader imports `@roonga/qcms-core`, `@roonga/qcms-db`, `drizzle-orm` and `pg`, and the API
 # image already has all four under `/app/node_modules` - it is the one container that
 # legitimately holds a database credential (ADR-35 as amended), so it is the one
 # whose dependency tree is already the right shape. Starting anywhere else would mean

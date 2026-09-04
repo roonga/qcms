@@ -8,7 +8,7 @@ import tseslint from "typescript-eslint";
 
 /**
  * Node built-ins, in both spellings a bundler-free TypeScript import can take. Shared
- * by the three fetch-purity fences below (`@qcms/core`, `@qcms/a2ui-compiler`, and the
+ * by the three fetch-purity fences below (`@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`, and the
  * API's shipped source) so the ban is one list rather than three that drift.
  *
  * **Derived, not written down** (issue #774). The list used to be twelve names typed by
@@ -218,7 +218,7 @@ export default tseslint.config(
     },
   },
   {
-    // @qcms/core is fetch-pure (R4) and I/O-free (R3): no Node built-ins,
+    // @roonga/qcms-core is fetch-pure (R4) and I/O-free (R3): no Node built-ins,
     // ever - WebCrypto (`crypto.subtle`) instead of `node:crypto` (task 010).
     // Tests may use Node ambient types for fixtures, but never Node imports
     // in shipped source; keep both honest.
@@ -232,7 +232,7 @@ export default tseslint.config(
             {
               group: nodeBuiltinPatterns,
               message:
-                "@qcms/core is fetch-pure (R4): use Web APIs (crypto.subtle, TextEncoder), never Node built-ins.",
+                "@roonga/qcms-core is fetch-pure (R4): use Web APIs (crypto.subtle, TextEncoder), never Node built-ins.",
             },
           ],
         },
@@ -240,7 +240,7 @@ export default tseslint.config(
     },
   },
   {
-    // @qcms/a2ui-compiler shipped source is a pure projection (task 011): its
+    // @roonga/qcms-a2ui-compiler shipped source is a pure projection (task 011): its
     // runtime stays React-free and never imports the renderer/spec package
     // (`@a2ra/*` is a *test-only* devDependency, used to validate compiled
     // output against the Zod schemas), never the db, and no Node built-ins.
@@ -256,12 +256,12 @@ export default tseslint.config(
             {
               group: nodeBuiltinPatterns,
               message:
-                "@qcms/a2ui-compiler runtime is I/O-free: no Node built-ins in shipped source.",
+                "@roonga/qcms-a2ui-compiler runtime is I/O-free: no Node built-ins in shipped source.",
             },
             {
               group: ["react", "react-*", "react/*"],
               message:
-                "@qcms/a2ui-compiler runtime is React-free (it emits plain-data A2UI nodes): no React imports in shipped source.",
+                "@roonga/qcms-a2ui-compiler runtime is React-free (it emits plain-data A2UI nodes): no React imports in shipped source.",
             },
             {
               group: ["@a2ra/*"],
@@ -269,9 +269,9 @@ export default tseslint.config(
                 "@a2ra/core is a test-only devDependency (schema validation): never import it from shipped compiler source - the runtime stays React-free (ADR-22).",
             },
             {
-              group: ["@qcms/db", "@qcms/db/*"],
+              group: ["@roonga/qcms-db", "@roonga/qcms-db/*"],
               message:
-                "The compiler depends on @qcms/core types only - never @qcms/db (ARCHITECTURE §3).",
+                "The compiler depends on @roonga/qcms-core types only - never @roonga/qcms-db (ARCHITECTURE §3).",
             },
           ],
         },
@@ -320,7 +320,7 @@ export default tseslint.config(
     },
   },
   {
-    // @qcms/ui import-surface rule (ADR-22): the renderer imports ONLY the a2ra
+    // @roonga/qcms-ui import-surface rule (ADR-22): the renderer imports ONLY the a2ra
     // stack - @a2ra/core, react-aria-components (+ its @internationalized/date
     // and zod), React, and its own vendored sources. No other component library,
     // ever. Vendored sources (ignored above) and test files are exempt; the
@@ -336,7 +336,7 @@ export default tseslint.config(
             {
               group: competingComponentLibraries,
               message:
-                "@qcms/ui builds only on the a2-react-aria stack (ADR-22): use the vendored components (src/components/a2ui) or react-aria-components - never a second component library.",
+                "@roonga/qcms-ui builds only on the a2-react-aria stack (ADR-22): use the vendored components (src/components/a2ui) or react-aria-components - never a second component library.",
             },
           ],
         },
@@ -346,9 +346,9 @@ export default tseslint.config(
   {
     // The same ADR-22 fence over both frontends (issue #728). ADR-22 binds the portal
     // and the admin, not just the renderer package, and the apps hold it today only by
-    // consuming `@qcms/ui/kit`: nothing stopped a screen adding a widget library as a
+    // consuming `@roonga/qcms-ui/kit`: nothing stopped a screen adding a widget library as a
     // direct dependency and importing it. This is the fast fence; the exhaustive
-    // allow-list assertion stays in @qcms/ui's import-surface test, which is where the
+    // allow-list assertion stays in @roonga/qcms-ui's import-surface test, which is where the
     // renderer's full permitted surface is pinned.
     //
     // Scoped to every app file rather than a `src/**` subtree because Next.js source
@@ -363,7 +363,7 @@ export default tseslint.config(
             {
               group: competingComponentLibraries,
               message:
-                "Both frontends build only on the a2-react-aria stack (ADR-22): render through @qcms/ui/kit or react-aria-components - never a second component library.",
+                "Both frontends build only on the a2-react-aria stack (ADR-22): render through @roonga/qcms-ui/kit or react-aria-components - never a second component library.",
             },
           ],
         },

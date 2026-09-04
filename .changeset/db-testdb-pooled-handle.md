@@ -1,5 +1,5 @@
 ---
-"@qcms/db": patch
+"@roonga/qcms-db": patch
 ---
 
 `startTestDb()` (the `./testing` harness) now backs its Drizzle handle with a

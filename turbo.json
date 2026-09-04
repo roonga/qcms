@@ -26,7 +26,7 @@
   //
   // Verify a new knob actually arrives with an unpullable value: if
   // `QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test
-  // --filter @qcms/db --force` PASSES, the variable is being stripped.
+  // --filter @roonga/qcms-db --force` PASSES, the variable is being stripped.
   // The `OTEL_*` knobs (task 054 / ADR-34) are deliberately NOT listed below, and
   // that is the safe direction of the strict-env trap rather than an oversight. No
   // turbo-run task needs them: the unit and integration suites never start an SDK
@@ -134,10 +134,10 @@
     // harness under `apps/admin/e2e/`. Two of those files import apps/api SOURCE by
     // relative path (`e2e/support/ops.ts` and `e2e/support/admin-account.ts` reach
     // `../../../api/e2e/support/*` and `../../../api/src/*`), so the admin's tsc
-    // program transitively contains the API's source tree, which imports `@qcms/db`
-    // and `@qcms/a2ui-compiler`. Both resolve through `apps/api/node_modules`, and
+    // program transitively contains the API's source tree, which imports `@roonga/qcms-db`
+    // and `@roonga/qcms-a2ui-compiler`. Both resolve through `apps/api/node_modules`, and
     // both publish their types from `dist`, so an unbuilt tree gives 30-odd
-    // "Cannot find module '@qcms/db'" errors and the implicit-`any` cascade behind
+    // "Cannot find module '@roonga/qcms-db'" errors and the implicit-`any` cascade behind
     // them - in a package whose own manifest names neither.
     //
     // Declared here rather than by adding the two to `apps/admin/package.json`: the
@@ -146,10 +146,10 @@
     // which a manifest dependency would quietly undo. This is a build-order fact
     // about the admin's typecheck program, and this is where build order lives.
     "qcms-admin#typecheck": {
-      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build"]
+      "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
     "qcms-admin#lint": {
-      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build"]
+      "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"]
     },
     // The portal's two program-shaped tasks have exactly the same undeclared reach as
     // the admin's, and never saying so is issue #765.
@@ -158,44 +158,54 @@
     // harness under `apps/portal/e2e/`. `e2e/support/api-server.ts` and
     // `e2e/support/api-process-entry.ts` import apps/api SOURCE by relative path, so
     // the portal's tsc program transitively contains the API's source tree, which
-    // imports `@qcms/db`, `@qcms/csv` and `@qcms/a2ui-compiler`. All three publish
+    // imports `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler`. All three publish
     // their types from `dist`, and the portal's own manifest names none of them.
     //
     // Undeclared, that is a latent build-order bug of the #560 shape. What turned it
     // into a FLAKE is that since issue #494 every emitting package's build removes its
     // own `dist` before `tsc` runs. With no edge, `qcms-portal#typecheck` starts as
-    // soon as `@qcms/ui` and `@qcms/observability` are built, while `@qcms/db#build` -
+    // soon as `@roonga/qcms-ui` and `@roonga/qcms-observability` are built, while `@roonga/qcms-db#build` -
     // pulled into the same run by some OTHER filter - is sitting between its
     // `clean-dist` and its `tsc`, so the portal's tsc reads a `dist` that is not there.
     // That is why `pnpm exec turbo run typecheck --filter=qcms-admin
     // --filter=qcms-portal --force` failed with 40-odd TS2307s while either filter
-    // ALONE was green: alone, nothing asks for `@qcms/db#build`, the previous build's
+    // ALONE was green: alone, nothing asks for `@roonga/qcms-db#build`, the previous build's
     // `dist` is never removed, and the undeclared read quietly succeeds. The clean is
     // not the defect - it is what made a missing edge observable.
     //
     // Declared here rather than by adding the three to `apps/portal/package.json`: the
     // portal holds no database credential and reaches the API over the internal
-    // network (R2, ADR-35), and a manifest dependency on `@qcms/db` would quietly undo
+    // network (R2, ADR-35), and a manifest dependency on `@roonga/qcms-db` would quietly undo
     // that. This is a build-order fact about the portal's typecheck program, and this
     // is where build order lives. `apps/e2e` takes the other route for the same
     // problem, with its reason written in `apps/e2e/tsconfig.json`.
     "qcms-portal#typecheck": {
-      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build", "@qcms/csv#build"]
+      "dependsOn": [
+        "^build",
+        "@roonga/qcms-db#build",
+        "@roonga/qcms-a2ui-compiler#build",
+        "@roonga/qcms-csv#build"
+      ]
     },
     "qcms-portal#lint": {
-      "dependsOn": ["^build", "@qcms/db#build", "@qcms/a2ui-compiler#build", "@qcms/csv#build"]
+      "dependsOn": [
+        "^build",
+        "@roonga/qcms-db#build",
+        "@roonga/qcms-a2ui-compiler#build",
+        "@roonga/qcms-csv#build"
+      ]
     },
-    // `apps/e2e` declares `@qcms/db` as a devDependency (the reason is in its
-    // tsconfig), which reaches `@qcms/core` and `@qcms/a2ui-compiler` through that
-    // package's own `^build`. It reaches neither `@qcms/csv` nor `@qcms/observability`,
+    // `apps/e2e` declares `@roonga/qcms-db` as a devDependency (the reason is in its
+    // tsconfig), which reaches `@roonga/qcms-core` and `@roonga/qcms-a2ui-compiler` through that
+    // package's own `^build`. It reaches neither `@roonga/qcms-csv` nor `@roonga/qcms-observability`,
     // and its one spec consumes both through `../admin/e2e/support/*` and the API
     // source behind it. Two missing edges of the portal's class, found by the same
     // derived check rather than by a third failing run.
     "qcms-e2e#typecheck": {
-      "dependsOn": ["^build", "@qcms/csv#build", "@qcms/observability#build"]
+      "dependsOn": ["^build", "@roonga/qcms-csv#build", "@roonga/qcms-observability#build"]
     },
     "qcms-e2e#lint": {
-      "dependsOn": ["^build", "@qcms/csv#build", "@qcms/observability#build"]
+      "dependsOn": ["^build", "@roonga/qcms-csv#build", "@roonga/qcms-observability#build"]
     }
   }
 }

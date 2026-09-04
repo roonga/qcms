@@ -31,7 +31,7 @@ export function nextSteps(options: ScaffoldOptions, unresolvedEnv: readonly stri
     "",
     `Scaffolded ${options.projectName} (${options.shape} shape).`,
     "",
-    "The three apps under apps/ are yours to edit. The four @qcms/* packages they",
+    "The three apps under apps/ are yours to edit. The four @roonga/qcms-* packages they",
     "depend on are versioned dependencies you upgrade. See README.md.",
     "",
     "Next:",

@@ -11,7 +11,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId, SessionId, type FormDefinition } from "@qcms/core";
+import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
   createForm,
   createSession,
@@ -24,8 +24,8 @@ import {
   markDelivered,
   markDeliveryDelivered,
   recordDeliveryFailure,
-} from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -50,7 +50,7 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
   const v = await insertFormVersion(testDb.db, {
     formId,
     // Empty def/compiled: the sweep only reads session status/expiry, never form
-    // content. Cast the whole input so the test needn't import @qcms/a2ui-compiler.
+    // content. Cast the whole input so the test needn't import @roonga/qcms-a2ui-compiler.
     definition: {} as unknown as FormDefinition,
     compiled: {},
     compilerVersion: "1.0.0",

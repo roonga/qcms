@@ -8,7 +8,7 @@
  * travels with every logged turn so a bad proposal can be traced to the prompt
  * that produced it.
  *
- * The contract sections are **assembled from `@qcms/core`** where the kernel
+ * The contract sections are **assembled from `@roonga/qcms-core`** where the kernel
  * exposes the list (question types, semantics version) rather than retyped, so
  * the prompt cannot silently drift from the schema it describes. The operator
  * table is written out because the DSL is a Zod discriminated union with no
@@ -18,14 +18,14 @@
  * typecheck rather than leaving this list quietly behind.
  */
 
-import { QUESTION_TYPES, SEMANTICS_VERSION } from "@qcms/core";
+import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
 
 /** Bump on every text change. Logged with each turn; never inferred. */
 export const SYSTEM_PROMPT_VERSION = 1;
 
 /**
  * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
- * `@qcms/core`'s `Condition` union by `system-prompt.test.ts`: a removed verb
+ * `@roonga/qcms-core`'s `Condition` union by `system-prompt.test.ts`: a removed verb
  * fails at runtime when its sample no longer parses, and an added one fails at
  * typecheck when the sample table is missing its key.
  */

@@ -1,5 +1,5 @@
-import { countAdminUsers } from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+import { countAdminUsers } from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { loadAdminAuthConfig } from "../../config.js";

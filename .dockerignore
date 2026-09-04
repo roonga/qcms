@@ -27,7 +27,7 @@ dist
 # Tests and browser specs, which have no business in a production image. Excluding
 # them is load-bearing rather than tidiness: Next type-checks every file its tsconfig
 # includes, and `apps/admin/e2e` reaches into `apps/api/e2e/support`, which imports
-# `@qcms/db`, `drizzle-orm` and `pg`. The admin declares none of the three on purpose
+# `@roonga/qcms-db`, `drizzle-orm` and `pg`. The admin declares none of the three on purpose
 # (task 056, ADR-35 as amended) and `apps/admin/lib/server/r2-import-surface.test.ts`
 # forbids all three, so the fix is to keep the files out of the image, never to add
 # the dependency that would satisfy their imports.

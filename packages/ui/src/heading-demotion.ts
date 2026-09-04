@@ -7,7 +7,7 @@ import type { A2Node } from "@a2ra/core";
  *
  * A compiled step document carries its own outline: the form title as an `h1` on the
  * first step, the step title as an `h2` on every step
- * (`@qcms/a2ui-compiler`'s `step-resolver.ts`). On the portal that is exactly right -
+ * (`@roonga/qcms-a2ui-compiler`'s `step-resolver.ts`). On the portal that is exactly right -
  * the document IS the page, so its `h1` is the page's `h1`.
  *
  * The admin embeds the same document inside a page that already has one. `/forms/{id}/versions/{v}`

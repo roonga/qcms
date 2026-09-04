@@ -1,6 +1,6 @@
 # A2UI golden corpus
 
-The reviewed, compiled A2UI output for the `@qcms/core` reference forms (task
+The reviewed, compiled A2UI output for the `@roonga/qcms-core` reference forms (task
 012, ADR-18). Each document is a genuine `compileForm` result - never
 hand-forged - captured once, hand-reviewed, and then frozen. The corpus is
 three contracts at once:
@@ -42,7 +42,7 @@ committing (they seed the renderer conformance suite, so a wrong golden is a
 wrong contract):
 
 ```
-UPDATE_GOLDEN=1 pnpm exec vitest run --project @qcms/a2ui-compiler golden-corpus
+UPDATE_GOLDEN=1 pnpm exec vitest run --project @roonga/qcms-a2ui-compiler golden-corpus
 ```
 
 Review the diff by eye, confirm it is what the mapping (`docs/a2ui-mapping.md`)
@@ -109,8 +109,8 @@ two joined in task 048, so they have no `v1/` document):
 | `boolean-labels.a2ui.json`     | `../fixtures/corpus/forms/boolean-labels.json`  | Boolean label overrides (ADR-36). Appended in task 048, so `v2/` onwards.                                             |
 
 **`kitchen-sink` here is the HEALTH-domain form** (`q_preexisting_conditions`,
-`q_medical_history`), and it is the one the `@qcms/core`, `@qcms/a2ui-compiler`
-and `@qcms/ui` suites load. The vehicle-domain form with the same coverage and a
+`q_medical_history`), and it is the one the `@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`
+and `@roonga/qcms-ui` suites load. The vehicle-domain form with the same coverage and a
 different question set (`q_optional_cover`, `q_extra_detail`) is
 `apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json`, which is what the
 API e2e suite, the portal Playwright suite and `pnpm dev:portal` seed. The two

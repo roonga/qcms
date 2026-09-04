@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { CompiledForm } from "@qcms/a2ui-compiler";
-import { FormId, QuestionId, SessionId } from "@qcms/core";
-import type { AnswerValue, FormDefinition, LockedSubmission } from "@qcms/core";
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
+import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
+import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 import {

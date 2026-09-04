@@ -10,13 +10,13 @@ import { describe, expect, it } from "vitest";
  * The portal's audit covers the first two rules below. The admin needs the rest because
  * it holds credentials the portal never sees:
  *
- * 1. Nothing imports `@qcms/core` as a value - rule evaluation, validation and publish
+ * 1. Nothing imports `@roonga/qcms-core` as a value - rule evaluation, validation and publish
  *    aggregation live in the API, and the admin has no authority over any of them. A
  *    type-only import is allowed and is erased at compile time; `lib/forms/condition.ts`
  *    uses one to pin the admin's parallel operator set to the kernel's (ADR-03).
  * 2. No client component pulls a server-only module in as a value, so the internal
  *    service token and the admin's session token cannot reach the browser bundle.
- * 3. **No database client exists.** The allowlist of `@qcms/db` value bindings is now
+ * 3. **No database client exists.** The allowlist of `@roonga/qcms-db` value bindings is now
  *    **empty**, and that emptiness is the regression gate ADR-35's amendment asks for:
  *    task 031 needed seven bindings for better-auth's adapter, and the whole point of
  *    056 is that it needs none. Nothing imports `pg` or `drizzle-orm` either, and no
@@ -68,7 +68,7 @@ const API_CLIENT_SUFFIX = "lib/server/api.ts";
 const ALLOWED_CLIENT_FETCH_SUFFIX = "/components/forms/assist-panel.tsx";
 
 /**
- * The complete set of value bindings the admin may take from `@qcms/db`: **none**.
+ * The complete set of value bindings the admin may take from `@roonga/qcms-db`: **none**.
  *
  * Kept as a set rather than deleted along with its last entry, because an empty
  * allowlist says something a missing test cannot: that the boundary is checked and the
@@ -79,12 +79,12 @@ const ALLOWED_DB_VALUE_IMPORTS = new Set<string>();
 /**
  * Package specifiers no admin source file may import at all, for any reason.
  *
- * `pg` and `drizzle-orm` are database clients and `@qcms/db` is the schema they would
+ * `pg` and `drizzle-orm` are database clients and `@roonga/qcms-db` is the schema they would
  * address; `better-auth` is the library that needed them. All four left this app in task
  * 056 and none of them has a reason to come back: the API is the sole database client
  * (ADR-35) and the sole better-auth host.
  */
-const FORBIDDEN_PACKAGES = ["pg", "drizzle-orm", "@qcms/db", "better-auth"];
+const FORBIDDEN_PACKAGES = ["pg", "drizzle-orm", "@roonga/qcms-db", "better-auth"];
 
 function isSource(entry: string): boolean {
   const isTs = entry.endsWith(".ts") || entry.endsWith(".tsx");
@@ -133,9 +133,9 @@ function importsOf(text: string): ParsedImport[] {
 }
 
 /**
- * The **value** bindings a module imports from `@qcms/db`, ignoring type-only ones.
+ * The **value** bindings a module imports from `@roonga/qcms-db`, ignoring type-only ones.
  *
- * Kept even though the allowlist is now empty and a blanket "no `@qcms/db` import at
+ * Kept even though the allowlist is now empty and a blanket "no `@roonga/qcms-db` import at
  * all" check sits beside it, because the two fail differently: this one names the
  * *binding* a regression reached for, which is the sentence a reviewer needs ("someone
  * imported `forms`"), while the blanket check only names the module.
@@ -152,12 +152,12 @@ function dbValueBindings(text: string): string[] {
     .flatMap(namedBindings);
 }
 
-/** True for an `import { ... } from "@qcms/db"` line that is not type-only. */
+/** True for an `import { ... } from "@roonga/qcms-db"` line that is not type-only. */
 function isDbValueImport(line: string): boolean {
   if (!line.startsWith("import ")) return false;
-  // `import type { ... } from "@qcms/db"` is erased at compile time.
+  // `import type { ... } from "@roonga/qcms-db"` is erased at compile time.
   if (line.startsWith("import type ")) return false;
-  return line.includes('from "@qcms/db"') || line.includes("from '@qcms/db'");
+  return line.includes('from "@roonga/qcms-db"') || line.includes("from '@roonga/qcms-db'");
 }
 
 /** The imported names inside one `{ ... }` clause, with aliases and `type` resolved away. */
@@ -337,11 +337,11 @@ describe("R2 import surface (strict BFF)", () => {
   /**
    * Rule 1, stated as the module header has always stated it: **no VALUE import.**
    *
-   * The line used to refuse `@qcms/core` in any form, which was stricter than the rule it
+   * The line used to refuse `@roonga/qcms-core` in any form, which was stricter than the rule it
    * implemented and stricter than the same file's treatment of everything else: the four
    * {@link FORBIDDEN_PACKAGES} are refused as types too, and the reason is written down
    * beside them (a type from `pg` means someone is holding a pool's shape, which is the
-   * step before holding a pool). `@qcms/core` is a different case and is not in that
+   * step before holding a pool). `@roonga/qcms-core` is a different case and is not in that
    * list. It is the kernel's own vocabulary, it declares no client and opens no socket,
    * and an `import type` from it is erased by the compiler: nothing reaches the bundle,
    * the runtime dependency list is unchanged (rule 6 still holds), and the shipped image
@@ -356,14 +356,14 @@ describe("R2 import surface (strict BFF)", () => {
    * operator set, and the ADR's own note flags that nothing stopped the two from
    * drifting - precisely because the copy could not refer to its original.
    * `lib/forms/condition.ts` now pins the two together with a type-only import, so a new
-   * operator in `@qcms/core` fails the admin's typecheck instead of passing unnoticed
+   * operator in `@roonga/qcms-core` fails the admin's typecheck instead of passing unnoticed
    * (Code Owner, 2026-08-31).
    */
-  it("takes no VALUE import from @qcms/core (evaluation and validation stay in the API)", () => {
+  it("takes no VALUE import from @roonga/qcms-core (evaluation and validation stay in the API)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const { spec, isType } of importsOf(text)) {
-        if (!spec.startsWith("@qcms/core")) continue;
+        if (!spec.startsWith("@roonga/qcms-core")) continue;
         if (isType) continue;
         offenders.push(`${path} -> ${spec} - rule: the admin runs no kernel code`);
       }
@@ -381,9 +381,9 @@ describe("R2 import surface (strict BFF)", () => {
   it("tells a type-only kernel import apart from a value one", () => {
     const parsed = importsOf(
       [
-        'import type { Condition } from "@qcms/core";',
-        'import { parseVisibilityRule } from "@qcms/core";',
-        'import { type Condition } from "@qcms/core";',
+        'import type { Condition } from "@roonga/qcms-core";',
+        'import { parseVisibilityRule } from "@roonga/qcms-core";',
+        'import { type Condition } from "@roonga/qcms-core";',
       ].join("\n"),
     );
     expect(parsed.map((entry) => entry.isType)).toEqual([true, false, false]);
@@ -403,7 +403,7 @@ describe("R2 import surface (strict BFF)", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("takes NO value binding from @qcms/db: the allowlist is empty (task 056)", () => {
+  it("takes NO value binding from @roonga/qcms-db: the allowlist is empty (task 056)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       for (const binding of dbValueBindings(text)) {
@@ -547,20 +547,20 @@ describe("the query scan's discriminator", () => {
   });
 
   it("still catches a query on an imported handle, whatever the handle is called", () => {
-    expect(queryFindings('import { db } from "@qcms/db";\ndb.select().from(forms);\n')).toEqual([
-      "`db.select(` is a call on a database handle",
-    ]);
+    expect(
+      queryFindings('import { db } from "@roonga/qcms-db";\ndb.select().from(forms);\n'),
+    ).toEqual(["`db.select(` is a call on a database handle"]);
     expect(
       queryFindings(
-        'import handle from "@qcms/db";\nawait handle.transaction(async (tx) => {});\n',
+        'import handle from "@roonga/qcms-db";\nawait handle.transaction(async (tx) => {});\n',
       ),
     ).toEqual(["`handle.transaction(` is a call on a database handle"]);
     expect(
       queryFindings('import * as schema from "drizzle-orm";\nschema.delete(forms);\n'),
     ).toEqual(["`schema.delete(` is a call on a database handle"]);
-    expect(queryFindings('import { forms as f } from "@qcms/db";\nf.insert({});\n')).toEqual([
-      "`f.insert(` is a call on a database handle",
-    ]);
+    expect(queryFindings('import { forms as f } from "@roonga/qcms-db";\nf.insert({});\n')).toEqual(
+      ["`f.insert(` is a call on a database handle"],
+    );
   });
 
   it("still catches a builder chain and a constructed client with no import at all", () => {

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition, type FormDefinition } from "@qcms/core";
+import { parseFormDefinition, type FormDefinition } from "@roonga/qcms-core";
 
 import { createNullLogger } from "../../../logger.js";
 import { recordingLogger, validEnv } from "../../../test-support.js";

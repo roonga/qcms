@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add `getForm` and `listForms`, two shape-preserving read helpers over the

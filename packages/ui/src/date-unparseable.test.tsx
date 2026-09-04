@@ -18,7 +18,7 @@ import { loadGoldenForms } from "./test-support/golden.ts";
  *
  * The adapter is what makes this reachable: it passes the parent's stored answer
  * straight through as a string, so the class of bad value this covers is "whatever
- * the host has in its `values` map", which is not something `@qcms/ui` validates.
+ * the host has in its `values` map", which is not something `@roonga/qcms-ui` validates.
  *
  * jsdom is the right layer (ADR-23): a throw during render is not layout-dependent.
  */

@@ -1,6 +1,6 @@
-# Self-hosted font notices (`@qcms/ui`)
+# Self-hosted font notices (`@roonga/qcms-ui`)
 
-Generated from `src/font-registry.ts` by `pnpm --filter @qcms/ui fonts:generate`.
+Generated from `src/font-registry.ts` by `pnpm --filter @roonga/qcms-ui fonts:generate`.
 
 Every typeface QCMS ships is open-licensed and redistributable under QCMS's MIT
 terms, and every binary in this directory is committed to the repository: a portal

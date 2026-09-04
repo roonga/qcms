@@ -1,5 +1,5 @@
 ---
-"@qcms/a2ui-compiler": minor
+"@roonga/qcms-a2ui-compiler": minor
 ---
 
 Emit `size` and `weight` on every compiled heading, so a form title and a step title stop

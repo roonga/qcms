@@ -8,7 +8,7 @@ import type { DraftForm, DraftPin, DraftRule, DraftStep, PinnableQuestion } from
  * Every function here takes a draft and returns a new one. Nothing validates: whether a
  * draft is legal is the kernel's answer, and the kernel runs in the API. The admin reaches
  * it through `POST .../draft/validate`, never by importing it (the import-surface test
- * refuses every `@qcms/core` value import in this app). What this module owns is the *shape* of an
+ * refuses every `@roonga/qcms-core` value import in this app). What this module owns is the *shape* of an
  * edit, and two shapes in particular are load-bearing.
  *
  * **A pin is manual, always (R7).** `movePin` is the only function that changes a

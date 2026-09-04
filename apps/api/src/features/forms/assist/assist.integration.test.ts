@@ -16,15 +16,15 @@
  *     carries the same `PublishError[]` 022's validation produces.
  */
 
-import { parseQuestionDefinition, QuestionId } from "@qcms/core";
+import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
 import {
   createQuestion,
   createQuestionVersion,
   getDraft,
   listQuestionVersions,
   publishQuestionVersion,
-} from "@qcms/db";
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { MockLanguageModelV3 } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 

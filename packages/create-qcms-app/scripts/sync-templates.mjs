@@ -43,7 +43,7 @@
  *   2. **`workspace:*` becomes a real version range.** The adopter consumes the four
  *      packages from the registry; the range is read from each package's own
  *      `package.json` at generation time, so a version bump is drift the gate sees.
- *   3. **Undeclared `@qcms/*` imports are declared.** `apps/portal` and `apps/admin`
+ *   3. **Undeclared `@roonga/qcms-*` imports are declared.** `apps/portal` and `apps/admin`
  *      both import packages they do not list, which works here only because pnpm
  *      hoists the workspace. Outside the workspace it does not. {@link assertImports}
  *      fails the generator rather than shipping a tree that cannot install.
@@ -115,7 +115,7 @@ export const TEMPLATE_DIR = "packages/create-qcms-app/templates";
  * The packages an adopter consumes from the registry rather than owning.
  *
  * ADR-05's four, plus the two shared helpers `main` added after this generator was
- * written (`@qcms/observability` in #446, `@qcms/csv` in #470). All three scaffolded
+ * written (`@roonga/qcms-observability` in #446, `@roonga/qcms-csv` in #470). All three scaffolded
  * apps depend on those two AT RUNTIME, so a scaffold that does not resolve them is a
  * scaffold that does not install: the previous silent `workspace:*` fallback stamped
  * an unsatisfiable range into the adopter's manifest and nothing here could see it
@@ -128,16 +128,16 @@ export const TEMPLATE_DIR = "packages/create-qcms-app/templates";
  * upgrade can fix everywhere at once.
  */
 const PUBLISHED_PACKAGES = [
-  "@qcms/core",
-  "@qcms/a2ui-compiler",
-  "@qcms/db",
-  "@qcms/ui",
-  "@qcms/observability",
-  "@qcms/csv",
+  "@roonga/qcms-core",
+  "@roonga/qcms-a2ui-compiler",
+  "@roonga/qcms-db",
+  "@roonga/qcms-ui",
+  "@roonga/qcms-observability",
+  "@roonga/qcms-csv",
 ];
 
 /**
- * Every `@qcms/*` package each scaffolded app must declare.
+ * Every `@roonga/qcms-*` package each scaffolded app must declare.
  *
  * Derived by hand from what the shell imports and then ENFORCED by
  * {@link assertImports}, which re-derives it from the generated sources: the list
@@ -146,15 +146,21 @@ const PUBLISHED_PACKAGES = [
  * `package.json` files.
  */
 const APP_QCMS_DEPENDENCIES = {
-  api: ["@qcms/a2ui-compiler", "@qcms/core", "@qcms/csv", "@qcms/db", "@qcms/observability"],
-  portal: ["@qcms/core", "@qcms/observability", "@qcms/ui"],
+  api: [
+    "@roonga/qcms-a2ui-compiler",
+    "@roonga/qcms-core",
+    "@roonga/qcms-csv",
+    "@roonga/qcms-db",
+    "@roonga/qcms-observability",
+  ],
+  portal: ["@roonga/qcms-core", "@roonga/qcms-observability", "@roonga/qcms-ui"],
   admin: [
-    "@qcms/a2ui-compiler",
-    "@qcms/core",
-    "@qcms/csv",
-    "@qcms/db",
-    "@qcms/observability",
-    "@qcms/ui",
+    "@roonga/qcms-a2ui-compiler",
+    "@roonga/qcms-core",
+    "@roonga/qcms-csv",
+    "@roonga/qcms-db",
+    "@roonga/qcms-observability",
+    "@roonga/qcms-ui",
   ],
 };
 
@@ -238,7 +244,7 @@ const HARNESS_DEV_DEPENDENCIES = new Set([
   // Playwright and scenario helpers. The tests that import it are dropped by the strip
   // rules, so keeping the declaration would stamp an unresolvable `workspace:*` into
   // the adopter's manifest for code the scaffold does not contain.
-  "@qcms/e2e-support",
+  "@roonga/qcms-e2e-support",
 ]);
 
 /** App-relative paths dropped wholesale: repository tooling, not shell source. */
@@ -547,7 +553,7 @@ export function publishedVersions() {
   /** @type {Record<string, string>} */
   const versions = {};
   for (const name of PUBLISHED_PACKAGES) {
-    const directory = name.replace("@qcms/", "");
+    const directory = name.replace("@roonga/qcms-", "");
     const manifest = readJson(`packages/${directory}/package.json`);
     versions[name] = `^${manifest.version}`;
   }
@@ -659,7 +665,7 @@ const UI_SOURCE_REFERENCE = /(?:\.\.\/)+packages\/ui\/src/g;
 /**
  * The same reference, resolved through the installed package instead.
  *
- * A relative path into `node_modules` rather than the bare `@qcms/ui/theme.css`
+ * A relative path into `node_modules` rather than the bare `@roonga/qcms-ui/theme.css`
  * specifier, deliberately: only three of these files are exported subpaths, and the
  * font `url()` and the Tailwind `@source` glob are not resolved by anything that
  * reads an exports map. One rule that is correct for all three beats two rules that
@@ -671,7 +677,7 @@ const UI_SOURCE_REFERENCE = /(?:\.\.\/)+packages\/ui\/src/g;
 export function rewriteUiAssetPaths(text, appRelative) {
   const depth = appRelative.split("/").length - 1;
   const prefix = depth === 0 ? "./" : "../".repeat(depth);
-  return text.replaceAll(UI_SOURCE_REFERENCE, `${prefix}node_modules/@qcms/ui/src`);
+  return text.replaceAll(UI_SOURCE_REFERENCE, `${prefix}node_modules/@roonga/qcms-ui/src`);
 }
 
 /**
@@ -766,11 +772,11 @@ function scaffoldRootEntries(tree) {
 
 // --- import surface ---------------------------------------------------------
 
-/** `@qcms/<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
-const QCMS_SPECIFIER = /@qcms\/(core|a2ui-compiler|csv|db|observability|ui)\b/g;
+/** `@roonga/qcms-<name>` specifiers, from imports and from CSS `@source`/`url()` references. */
+const QCMS_SPECIFIER = /@roonga\/qcms-(core|a2ui-compiler|csv|db|observability|ui)\b/g;
 
 /**
- * Fail unless every `@qcms/*` package the generated app sources reach is declared.
+ * Fail unless every `@roonga/qcms-*` package the generated app sources reach is declared.
  *
  * This is transform 3's proof. It runs over the GENERATED tree, so a file dropped by
  * the strip rules cannot keep a dependency alive, and a newly added import that
@@ -784,7 +790,7 @@ export function assertImports(tree) {
   );
   if (problems.length > 0) {
     throw new Error(
-      `sync-templates: the scaffolded @qcms/* dependency set is wrong.\n  ${problems.join("\n  ")}\n` +
+      `sync-templates: the scaffolded @roonga/qcms-* dependency set is wrong.\n  ${problems.join("\n  ")}\n` +
         `Fix APP_QCMS_DEPENDENCIES in ${GENERATOR_PATH}.`,
     );
   }
@@ -794,7 +800,7 @@ export function assertImports(tree) {
 const GENERATOR_PATH = "packages/create-qcms-app/scripts/sync-templates.mjs";
 
 /**
- * Every `@qcms/*` package the files under `prefix` reach, mapped to one file that
+ * Every `@roonga/qcms-*` package the files under `prefix` reach, mapped to one file that
  * proves it, so an error can name a line an author can go and look at.
  *
  * @param {Map<string, string>} tree
@@ -1643,31 +1649,31 @@ export const SEAM_DOC = "docs/ownership-seam.md";
 export const SEAM_BEGIN = "<!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->";
 export const SEAM_END = "<!-- END GENERATED: ownership-seam -->";
 
-/** What each `@qcms/*` package is, and what upgrading it means. Prose, so it is written. */
+/** What each `@roonga/qcms-*` package is, and what upgrading it means. Prose, so it is written. */
 const PACKAGE_STORY = {
-  "@qcms/core": [
+  "@roonga/qcms-core": [
     "Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.",
     "Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note.",
   ],
-  "@qcms/a2ui-compiler": [
+  "@roonga/qcms-a2ui-compiler": [
     "Compiles a published form into the stored A2UI document the portal serves.",
     "Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.",
   ],
-  "@qcms/db": [
+  "@roonga/qcms-db": [
     "The schema, the migration history, the query helpers and the reporting view.",
     "Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them.",
   ],
-  "@qcms/ui": [
+  "@roonga/qcms-ui": [
     "The A2UI renderer, the vendored input controls, and the token contract the theming rests on.",
     "Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.",
   ],
-  "@qcms/observability": [
+  "@roonga/qcms-observability": [
     "The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box.",
     "Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13).",
   ],
-  "@qcms/csv": [
+  "@roonga/qcms-csv": [
     "One helper: RFC 4180 quoting plus the spreadsheet formula-injection guard every exported cell passes through.",
-    "Upgrade freely, and prefer to, for the same reason as `@qcms/observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree.",
+    "Upgrade freely, and prefer to, for the same reason as `@roonga/qcms-observability`. The guard is the SEC control on issue #470, and the export routes that call it are yours to edit, so the value of shipping it as a version is that a correction to the guard is an upgrade rather than a code review in every adopter's tree.",
   ],
 };
 

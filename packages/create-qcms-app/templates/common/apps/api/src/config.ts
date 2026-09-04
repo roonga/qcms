@@ -21,11 +21,11 @@
  * and testable. `serve.ts` calls `loadConfig(process.env)`.
  */
 
-import { HONEYPOT_FIELD_NAME } from "@qcms/a2ui-compiler";
+import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
 import {
   DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 import { z } from "zod";
 
 /**
@@ -411,7 +411,7 @@ export interface Config {
     readonly minSubmitMs: number;
     /**
      * Honeypot field name on the submit body - the compiler↔API contract
-     * (`HONEYPOT_FIELD_NAME`, `@qcms/a2ui-compiler`). A non-empty value flags the
+     * (`HONEYPOT_FIELD_NAME`, `@roonga/qcms-a2ui-compiler`). A non-empty value flags the
      * submission `HONEYPOT`. A legitimate client never fills it, so the check is
      * always on. Overridable only for operators who also change the compiler
      * constant; the default keeps both sides in lockstep.
@@ -1006,10 +1006,10 @@ function parseAgent(env: Env, flags: Flags, issues: string[]): Config["agent"] {
 
 /** Sensible defaults for the tunable, non-secret knobs. */
 const DEFAULTS = {
-  anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @qcms/db retention default)
-  // 7d, from @qcms/db - the one place the window's rationale is written down (#304).
+  anonymousSessionMs: 24 * 60 * 60 * 1000, // 24h (matches @roonga/qcms-db retention default)
+  // 7d, from @roonga/qcms-db - the one place the window's rationale is written down (#304).
   deliveryResponseSnippetMs: DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
-  // 30d, from @qcms/db - same split, the rationale lives with the sweep (#329).
+  // 30d, from @roonga/qcms-db - same split, the rationale lives with the sweep (#329).
   outboxPayloadMs: DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   // Per-class rate limits (task 026). Each pair is [windowMs, max].
   rlSessionCreate: { windowMs: 60 * 60 * 1000, max: 20 }, // 20 new sessions / hour / IP

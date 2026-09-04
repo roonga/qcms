@@ -217,7 +217,7 @@ export async function saveDraftAction(
  * `analyzeRuleGraph` runs inside the same compile the publish path uses, so
  * `RULE_BACKWARD_TARGET` and `RULE_CYCLE` arrive here with no extra endpoint and no
  * second implementation of the analysis in this app (there could not be one - the admin
- * takes no `@qcms/core` value import at all).
+ * takes no `@roonga/qcms-core` value import at all).
  */
 export async function validateDraftAction(
   formId: string,
@@ -374,7 +374,7 @@ interface DraftPreviewRequest {
  * rather than anything derived from the request.
  *
  * Rule evaluation happens in the API, where the kernel lives. That is not a shortcut: the
- * admin imports no `@qcms/core` value at all (R2), and the portal does not evaluate rules
+ * admin imports no `@roonga/qcms-core` value at all (R2), and the portal does not evaluate rules
  * either - it renders an authoritative visible set the API computed. Running the preview
  * the same way is what makes it a preview rather than a lookalike.
  */

@@ -1,1 +1,1 @@
-export { redactingNextSpanProcessor as redactingSpanProcessor } from "@qcms/observability/next";
+export { redactingNextSpanProcessor as redactingSpanProcessor } from "@roonga/qcms-observability/next";

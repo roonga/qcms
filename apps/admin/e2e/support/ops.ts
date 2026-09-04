@@ -241,7 +241,7 @@ export function openDeliverer(): {
    *
    * Read off the composed config rather than restated, so a spec that wants a flagged
    * submission asks the product what the field is called (`submitResponse`'s
-   * `honeypotField` option). The constant itself lives in `@qcms/a2ui-compiler`, which
+   * `honeypotField` option). The constant itself lives in `@roonga/qcms-a2ui-compiler`, which
    * the admin deliberately does not depend on since task 056.
    */
   honeypotField: string;
@@ -257,7 +257,7 @@ export function openDeliverer(): {
   const fixtures = readFixtures();
   // A handle of this spec's own, over the run's database, built by the API harness so
   // the database client resolves from `apps/api` rather than from this package. Since
-  // task 056 the admin declares no `pg`, `drizzle-orm` or `@qcms/db` dependency at all,
+  // task 056 the admin declares no `pg`, `drizzle-orm` or `@roonga/qcms-db` dependency at all,
   // which is the point of the boundary and not merely tidiness.
   const { db, query, close: closePool } = openDbHandle(fixtures.databaseUrl);
   const env = buildEnv({

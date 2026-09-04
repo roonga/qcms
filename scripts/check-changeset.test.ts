@@ -65,8 +65,8 @@ function makeRepo(options: { seedChangeset?: string } = {}): string {
   run(root, ["git", "init", "-q", "-b", "main"]);
   write(root, "pnpm-workspace.yaml", 'packages:\n  - "packages/*"\n  - "apps/*"\n');
   write(root, ".changeset/config.json", JSON.stringify({ ignore: ["qcms-api"] }));
-  write(root, "packages/core/package.json", JSON.stringify({ name: "@qcms/core" }));
-  write(root, "packages/db/package.json", JSON.stringify({ name: "@qcms/db" }));
+  write(root, "packages/core/package.json", JSON.stringify({ name: "@roonga/qcms-core" }));
+  write(root, "packages/db/package.json", JSON.stringify({ name: "@roonga/qcms-db" }));
   write(
     root,
     "packages/private-tool/package.json",
@@ -91,7 +91,7 @@ function runGate(root: string): { status: number | null; stdout: string; stderr:
   return { status: result.status, stdout: result.stdout, stderr: result.stderr };
 }
 
-const CORE_CHANGESET = '---\n"@qcms/core": patch\n---\n\nA change.\n';
+const CORE_CHANGESET = '---\n"@roonga/qcms-core": patch\n---\n\nA change.\n';
 
 describe("check-changeset gate", () => {
   it("FAILS when a publishable package changes with no changeset", () => {
@@ -102,7 +102,7 @@ describe("check-changeset gate", () => {
     const result = runGate(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("@qcms/core");
+    expect(result.stderr).toContain("@roonga/qcms-core");
     expect(result.stderr).toContain("packages/core/src/index.ts");
   });
 
@@ -115,19 +115,23 @@ describe("check-changeset gate", () => {
     const result = runGate(root);
 
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain("@qcms/core");
+    expect(result.stdout).toContain("@roonga/qcms-core");
   });
 
   it("is not satisfied by a changeset naming a different package", () => {
     const root = makeRepo();
     write(root, "packages/core/src/index.ts", "export const version = 2;\n");
-    write(root, ".changeset/wrong-package.md", '---\n"@qcms/db": patch\n---\n\nElsewhere.\n');
+    write(
+      root,
+      ".changeset/wrong-package.md",
+      '---\n"@roonga/qcms-db": patch\n---\n\nElsewhere.\n',
+    );
     commit(root, "change core, changeset for db");
 
     const result = runGate(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("@qcms/core");
+    expect(result.stderr).toContain("@roonga/qcms-core");
   });
 
   it("is not satisfied by a changeset that was already on the default branch", () => {
@@ -185,14 +189,18 @@ describe("check-changeset gate", () => {
     const result = runGate(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("@qcms/db");
+    expect(result.stderr).toContain("@roonga/qcms-db");
   });
 
   it("passes a `changeset version` release diff, which consumes changesets", () => {
     const root = makeRepo({ seedChangeset: CORE_CHANGESET });
     rmSync(join(root, ".changeset/seeded.md"));
-    write(root, "packages/core/package.json", JSON.stringify({ name: "@qcms/core", version: "2" }));
-    write(root, "packages/core/CHANGELOG.md", "# @qcms/core\n\n## 2\n");
+    write(
+      root,
+      "packages/core/package.json",
+      JSON.stringify({ name: "@roonga/qcms-core", version: "2" }),
+    );
+    write(root, "packages/core/CHANGELOG.md", "# @roonga/qcms-core\n\n## 2\n");
     commit(root, "release");
 
     const result = runGate(root);
@@ -233,22 +241,22 @@ describe("check-changeset gate", () => {
     const result = runGate(root);
 
     expect(result.status).toBe(1);
-    expect(result.stderr).toContain("@qcms/core");
+    expect(result.stderr).toContain("@roonga/qcms-core");
   });
 });
 
 describe("check-changeset helpers", () => {
   it("derives the publishable set of THIS repo from the private field", () => {
     expect(findPublishablePackages(REPO_ROOT).map((pkg) => pkg.name)).toEqual([
-      "@qcms/a2ui-compiler",
-      "@qcms/core",
-      // `@qcms/csv` and `@qcms/observability` were private helpers until task 037
+      "@roonga/qcms-a2ui-compiler",
+      "@roonga/qcms-core",
+      // `@roonga/qcms-csv` and `@roonga/qcms-observability` were private helpers until task 037
       // needed them installable: all three scaffolded apps depend on them at runtime,
       // and a scaffolded project has no workspace to resolve `workspace:*` against.
-      "@qcms/csv",
-      "@qcms/db",
-      "@qcms/observability",
-      "@qcms/ui",
+      "@roonga/qcms-csv",
+      "@roonga/qcms-db",
+      "@roonga/qcms-observability",
+      "@roonga/qcms-ui",
       // The scaffolding CLI (task 037) is unscoped, and publishable for the same
       // reason the packages are: an adopter runs `pnpm create qcms-app`, so a change
       // to it is a change a consumer can see and needs a changeset.
@@ -265,8 +273,10 @@ describe("check-changeset helpers", () => {
 
   it("reads package names out of changeset frontmatter", () => {
     expect(
-      parseChangesetPackages('---\n"@qcms/core": minor\n"@qcms/ui": patch\n---\n\nBody: patch\n'),
-    ).toEqual(["@qcms/core", "@qcms/ui"]);
+      parseChangesetPackages(
+        '---\n"@roonga/qcms-core": minor\n"@roonga/qcms-ui": patch\n---\n\nBody: patch\n',
+      ),
+    ).toEqual(["@roonga/qcms-core", "@roonga/qcms-ui"]);
     expect(parseChangesetPackages("no frontmatter here\n")).toEqual([]);
   });
 

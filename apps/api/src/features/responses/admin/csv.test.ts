@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import type { FormDefinition } from "@qcms/core";
+import type { FormDefinition } from "@roonga/qcms-core";
 
 import {
   CRLF,

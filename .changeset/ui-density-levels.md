@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Add the three density levels to the spacing group of the token contract (ADR-30,

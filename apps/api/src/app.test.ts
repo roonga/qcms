@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { schema } from "@qcms/db";
+import { schema } from "@roonga/qcms-db";
 
 import { createApp, type SliceRegistrar } from "./app.js";
 import { ApiError } from "./errors.js";

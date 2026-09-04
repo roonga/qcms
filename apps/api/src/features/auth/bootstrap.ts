@@ -1,5 +1,5 @@
-import { countAdminUsers } from "@qcms/db";
-import type { Executor } from "@qcms/db";
+import { countAdminUsers } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 
 import type { AdminAuth } from "./instance.js";
 import {

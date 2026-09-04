@@ -374,7 +374,7 @@ function respellClasses(pattern: string): string {
  * A pattern that already compiles under `v` is returned byte-identical, so this
  * never disturbs a working `&&` or `--` class-set operator.
  *
- * This is the authoring-time half of the rule. `@qcms/ui` carries its own
+ * This is the authoring-time half of the rule. `@roonga/qcms-ui` carries its own
  * render-time restatement for stored documents, which are immutable and keep
  * their original `pattern` forever (R1, ADR-18); that copy is deliberately not
  * an import, because the renderer is a browser package that must not pull the

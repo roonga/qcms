@@ -16,7 +16,7 @@
  * Requires Docker.
  */
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../app.js";

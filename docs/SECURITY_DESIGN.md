@@ -355,7 +355,7 @@ A respondent's free-text answer reaches the form author as a cell in a file the 
 Every CSV cell QCMS emits is therefore prefixed with an apostrophe when it starts with one, before RFC 4180 quoting.
 The single exemption is a **plain decimal number** (`-?\d+(\.\d+)?`, whole-string): such a value contains no operator, function name or reference after its sign, so it cannot be evaluated as an expression, and prefixing it would export a negative numeric answer as text instead of a number (issue #476).
 The exemption is deliberately narrow rather than a general "looks numeric" test, because `-1+1` also opens numeric-looking and evaluates to 0 in Excel; being too narrow costs a cosmetic apostrophe on an implausible value, being too wide ships a live formula.
-Both exports (the response export in 023 and the minted-link batch export in 034) go through the single helper in `@qcms/csv`, so the guard and its exemption are identical on both: they previously carried a copy each, and the copies had diverged so that the guard sat only on the server-generated link fields and not on the respondent-controlled answers.
+Both exports (the response export in 023 and the minted-link batch export in 034) go through the single helper in `@roonga/qcms-csv`, so the guard and its exemption are identical on both: they previously carried a copy each, and the copies had diverged so that the guard sat only on the server-generated link fields and not on the respondent-controlled answers.
 Cell contents remain export payload and are never logged (SEC-8).
 
 ## 8. Abuse resistance
@@ -423,7 +423,7 @@ Hashing ids at the exporter was considered and deferred (Phase 4) as unnecessary
 ## 9. Supply chain and release security - SEC-11
 
 Lockfile committed and frozen in CI (`--frozen-lockfile`); `pnpm audit` in CI (fail on high/critical with a documented triage path); Dependabot enabled for `github-actions` and `npm`; minimal dependency policy (the 010 decision to hand-roll tokens over a JWT lib is the pattern).
-Vendored `a2-react-aria` component sources (ADR-22) enter the repo via `@a2ra/cli add` and are reviewed in their PR like any first-party code - no postinstall scripts, no opaque bundles. npm publishing: 2FA on the npm account, provenance attestations (`npm publish --provenance`) for all `@qcms/*` packages, publish only from CI on tagged releases.
+Vendored `a2-react-aria` component sources (ADR-22) enter the repo via `@a2ra/cli add` and are reviewed in their PR like any first-party code - no postinstall scripts, no opaque bundles. npm publishing: 2FA on the npm account, provenance attestations (`npm publish --provenance`) for all `@roonga/qcms-*` packages, publish only from CI on tagged releases.
 Docker images: pinned base digests (#372), non-root, SBOM (036).
 
 **Corrected 2026-08-14 (task 040, against issue #372).**

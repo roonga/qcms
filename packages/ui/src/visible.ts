@@ -10,10 +10,10 @@ import type { A2UIStepDocument } from "./A2UIStepRenderer.tsx";
  * something, and it is presentation over an authoritative projection - never a
  * re-evaluation of rules, which neither frontend is allowed to perform (R2).
  *
- * It lives in `@qcms/ui` rather than in either app because **both** consumers
+ * It lives in `@roonga/qcms-ui` rather than in either app because **both** consumers
  * need the identical projection: the portal serving a respondent (task 029) and
  * the admin previewing a draft (task 034). Preview fidelity is the reason
- * `@qcms/ui` exists at all (ARCHITECTURE §6), and a second copy of this function
+ * `@roonga/qcms-ui` exists at all (ARCHITECTURE §6), and a second copy of this function
  * is exactly how "what the author saw" and "what the respondent got" would
  * quietly diverge - the same argument that keeps `A2UIStepRenderer` singular.
  *

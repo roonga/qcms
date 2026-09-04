@@ -1,8 +1,8 @@
-# Mirrors the container image the @qcms/db Testcontainers harness boots into this
+# Mirrors the container image the @roonga/qcms-db Testcontainers harness boots into this
 # repository owner's GitHub Container Registry namespace (issue #74).
 #
 # Why: anonymous Docker Hub pulls from shared GitHub runner IP ranges are
-# rate-limited and intermittently return HTTP 500, which failed every @qcms/db
+# rate-limited and intermittently return HTTP 500, which failed every @roonga/qcms-db
 # test file twice in one day. GHCR pulls from Actions are same-host and unmetered.
 #
 # ONE-TIME MAINTAINER ACTION after the first run: GitHub creates the package

@@ -1,8 +1,8 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
-Add a `@qcms/db/testing` subpath export exposing the Testcontainers harness
+Add a `@roonga/qcms-db/testing` subpath export exposing the Testcontainers harness
 (`startTestDb`, `withTestDb`, `applyMigrations`, `TestDb`) so consuming
 workspaces - the API app's live-DB integration tests (task 017) - can boot the
 same throwaway Postgres the package's own tests use. The main `.` runtime

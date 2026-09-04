@@ -1,4 +1,4 @@
-# The three applications are the code you own (ADR-05). The @qcms/* packages they
+# The three applications are the code you own (ADR-05). The @roonga/qcms-* packages they
 # depend on come from the registry and are upgraded, not edited: see README.md.
 #
 # This file is stamped whatever package manager you chose for local development,

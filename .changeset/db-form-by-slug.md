@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add `getFormBySlug`, a shape-preserving read helper that resolves a form

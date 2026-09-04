@@ -26,7 +26,7 @@
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { settleTransitions } from "@qcms/e2e-support/animations";
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";

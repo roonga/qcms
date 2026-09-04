@@ -55,7 +55,7 @@ primary_region = "syd"   # your region
 [deploy]
   # The one-shot migration, run before the new release is promoted. This is the
   # exact compose semantics: docker-compose.yml runs `qcms-db-migrate` (the bin
-  # @qcms/db puts on PATH) as the `migrate` one-shot and gates `api` on its success.
+  # @roonga/qcms-db puts on PATH) as the `migrate` one-shot and gates `api` on its success.
   # Use the bin, not a deep `node .../dist/migrate.js` path: that path bypasses the
   # package's exports map and breaks when the layout changes (issue #294). Fly's
   # release_command runs in a throwaway machine with this app's env and secrets, and

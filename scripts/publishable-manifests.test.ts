@@ -2,7 +2,7 @@
  * Every publishable manifest says it publishes publicly (issue #430).
  *
  * A scoped package defaults to **restricted** on npm. With no
- * `publishConfig.access`, the first `npm publish` of `@qcms/*` either fails outright
+ * `publishConfig.access`, the first `npm publish` of `@roonga/qcms-*` either fails outright
  * ("You must sign up for private packages" on a free organisation) or, on a paid
  * plan, silently publishes a private package no adopter can install. The second
  * outcome is the dangerous one, because it looks like success.
@@ -85,12 +85,12 @@ describe("publishable package manifests", () => {
     // nothing under `packages/` is private: a package flipping to `private` silently
     // fails HERE rather than quietly emptying the private-package check.
     expect(publishable.map(([, manifest]) => manifest.name).sort()).toEqual([
-      "@qcms/a2ui-compiler",
-      "@qcms/core",
-      "@qcms/csv",
-      "@qcms/db",
-      "@qcms/observability",
-      "@qcms/ui",
+      "@roonga/qcms-a2ui-compiler",
+      "@roonga/qcms-core",
+      "@roonga/qcms-csv",
+      "@roonga/qcms-db",
+      "@roonga/qcms-observability",
+      "@roonga/qcms-ui",
       "create-qcms-app",
     ]);
   });
@@ -111,7 +111,7 @@ describe("publishable package manifests", () => {
   it("leaves private packages alone", () => {
     // `publishConfig` on a package that never publishes is noise, and its presence
     // would suggest a publishing intent that the `private` flag denies. There are no
-    // private packages under `packages/` today (`@qcms/csv` and `@qcms/observability`
+    // private packages under `packages/` today (`@roonga/qcms-csv` and `@roonga/qcms-observability`
     // became installable for task 037), so this currently ranges over nothing. It is
     // kept rather than deleted because the property is about the NEXT private package,
     // and the assertion above is what stops the emptiness from being silent.

@@ -9,9 +9,9 @@
  * (proving 025 can recover it to sign deliveries). Every app key is synthetic.
  */
 
-import { FormId } from "@qcms/core";
-import { createForm, getWebhook } from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+import { FormId } from "@roonga/qcms-core";
+import { createForm, getWebhook } from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";

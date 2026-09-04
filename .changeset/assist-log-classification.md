@@ -1,5 +1,5 @@
 ---
-"@qcms/observability": minor
+"@roonga/qcms-observability": minor
 ---
 
 Classify task 041's three assist log records for the OTLP export vocabulary

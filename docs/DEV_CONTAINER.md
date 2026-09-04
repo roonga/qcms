@@ -68,7 +68,7 @@ guards, and only for callers of `scripts/devcontainer.sh`.
 The instinct - filter the socket so the container cannot stop itself - does not survive contact
 with what off-the-shelf proxies do. They filter by API **endpoint**, and Testcontainers
 legitimately needs container create, start, stop and remove; any proxy permissive enough for the
-`@qcms/db` suite to pass still permits stopping this container. Real prevention would need
+`@roonga/qcms-db` suite to pass still permits stopping this container. Real prevention would need
 filtering by container **identity or label**: bespoke work, a new standing component in the dev
 environment, and Ryuk's reaping has to keep working through it.
 

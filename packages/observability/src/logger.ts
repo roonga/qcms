@@ -115,7 +115,7 @@ export function createJsonLogger(options: JsonLoggerOptions): Logger {
   const now = options.now ?? (() => new Date());
   const base = redact(options.base ?? {}) as LogFields;
   const otelLogger = options.sendToOpenTelemetry
-    ? logs.getLogger("@qcms/observability")
+    ? logs.getLogger("@roonga/qcms-observability")
     : undefined;
   return createLogger(options.write, now, otelLogger, base);
 }

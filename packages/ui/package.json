@@ -1,5 +1,5 @@
 {
-  "name": "@qcms/ui",
+  "name": "@roonga/qcms-ui",
   "version": "0.0.0",
   "private": false,
   "description": "qcms A2UI renderer: the controlled A2UIStepRenderer over vendored a2-react-aria components (ADR-22)",
@@ -42,7 +42,7 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. --project @qcms/ui",
+    "test": "vitest run --root ../.. --project @roonga/qcms-ui",
     "fonts:generate": "node tools/generate-fonts.ts && prettier --write src/fonts.css src/fonts/NOTICE.md",
     "lint": "eslint src tools"
   },
@@ -57,7 +57,7 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@qcms/core": "workspace:*",
+    "@roonga/qcms-core": "workspace:*",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",

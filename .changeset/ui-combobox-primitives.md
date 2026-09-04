@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
-Export the react-aria `ComboBox` primitives from `@qcms/ui/kit`.
+Export the react-aria `ComboBox` primitives from `@roonga/qcms-ui/kit`.
 
 The pinned a2-react-aria registry ships a `select` and no combobox, so there is nothing to
 vendor, and ADR-22 names the alternative outright: a host uses the vendored components or

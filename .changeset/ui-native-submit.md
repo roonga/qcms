@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Add an opt-in native (no-JS) submit mode to `A2UIStepRenderer` (task 044). Passing

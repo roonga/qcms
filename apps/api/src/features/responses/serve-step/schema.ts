@@ -17,7 +17,7 @@
  */
 
 import { z } from "@hono/zod-openapi";
-import { AnswerValue } from "@qcms/core";
+import { AnswerValue } from "@roonga/qcms-core";
 
 /** Path params for the session-scoped serving routes. */
 export const SessionParams = z.object({
@@ -124,7 +124,7 @@ export const StepProgress = z
  * (issue #153).** The invariant above used to live only in this comment and in
  * the generated document's prose, which left the published contract saying "any
  * value, nullable" while the code guaranteed something far narrower. Reusing
- * `@qcms/core`'s schema rather than spelling a parallel one here is the point: one
+ * `@roonga/qcms-core`'s schema rather than spelling a parallel one here is the point: one
  * definition of what an answer may be, the same one `validateAnswer` enforces
  * before a row reaches the ledger, so the document cannot drift from the storage.
  * `null` is outside the union deliberately - a retraction is an ABSENT key
@@ -140,7 +140,7 @@ export const StepProgress = z
  * and that is a constraint rather than a preference. `zod-to-openapi` installs
  * `.openapi()` by extending zod's prototypes, and zod 4 copies those methods onto
  * each schema AT CONSTRUCTION, so a schema built before `@hono/zod-openapi` is
- * evaluated never gains the method. `@qcms/core`'s schemas are built whenever the
+ * evaluated never gains the method. `@roonga/qcms-core`'s schemas are built whenever the
  * kernel module happens to load first, which under Vitest depends on the importing
  * test's import order - so `AnswerValue.openapi(...)` here is green in one entry
  * graph and a `TypeError` in another. Nothing about the emitted document depends

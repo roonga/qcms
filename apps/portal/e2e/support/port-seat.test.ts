@@ -488,7 +488,7 @@ describe("probeServiceReady", () => {
 
   it("is false for a server answering 500, which is not serving this app", async () => {
     // Issue #381's case, one level up: any HTTP answer used to count as alive, and a
-    // portal 500ing on every request (an unbuilt `@qcms/ui`) looked exactly like a
+    // portal 500ing on every request (an unbuilt `@roonga/qcms-ui`) looked exactly like a
     // healthy one. A server in that state is not something to adopt either.
     const port = await serveInChildProcess(500);
     expect(probeServiceReady(occupant({ port }))).toBe(false);

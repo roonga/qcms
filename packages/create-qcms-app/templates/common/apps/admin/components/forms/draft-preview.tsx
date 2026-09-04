@@ -6,7 +6,7 @@ import {
   type A2UIAnswerValue,
   type A2UIStepDocument,
   type A2UIValues,
-} from "@qcms/ui";
+} from "@roonga/qcms-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Alert, Button } from "@/components/kit";
@@ -28,11 +28,11 @@ import type { PreviewTheme } from "@/lib/preview-theme";
  *
  * 1. **The compile.** The draft is compiled by `compileForm` in the API - the same call,
  *    in the same process, that publish makes. There is no admin-side compiler (there could
- *    not be one: `renderer-surface.test.ts` forbids importing `@qcms/a2ui-compiler` here).
- * 2. **The projection.** `documentForVisible` from `@qcms/ui` is the function the portal
+ *    not be one: `renderer-surface.test.ts` forbids importing `@roonga/qcms-a2ui-compiler` here).
+ * 2. **The projection.** `documentForVisible` from `@roonga/qcms-ui` is the function the portal
  *    uses to drop the questions the flow says are not visible. It moved into the shared
  *    package for this screen, precisely so there is one of it.
- * 3. **The renderer.** `A2UIStepRenderer` from `@qcms/ui` is the component the portal
+ * 3. **The renderer.** `A2UIStepRenderer` from `@roonga/qcms-ui` is the component the portal
  *    serves respondents with (ARCHITECTURE §6).
  *
  * So the preview's DOM for a step is the portal's DOM for that step, structurally, rather
@@ -41,7 +41,7 @@ import type { PreviewTheme } from "@/lib/preview-theme";
  * ## Why the branch walk is a round trip
  *
  * The screen contract describes "live rule evaluation (core evaluator client-side)". That is not
- * implementable and has already been ruled on once: the admin imports no `@qcms/core`
+ * implementable and has already been ruled on once: the admin imports no `@roonga/qcms-core`
  * value at all (R2, `r2-import-surface.test.ts`), and 033's rule bench was moved into the
  * API for exactly this reason. It is also not what the
  * portal does - the portal receives an authoritative `visibleQuestions` list and projects

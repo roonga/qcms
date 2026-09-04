@@ -4,7 +4,7 @@
  * Catalog structure per ADR-11: a flat map of dotted message keys to templates.
  * Only shell chrome lives here (buttons, progress text, error-page copy, receipt
  * labels). Question and step text is already resolved into the compiled A2UI at
- * publish time (ADR-18) and rendered by @qcms/ui, so it is never in this catalog.
+ * publish time (ADR-18) and rendered by @roonga/qcms-ui, so it is never in this catalog.
  * A second locale is a new catalog module selected by the same key set.
  */
 

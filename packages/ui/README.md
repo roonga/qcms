@@ -1,4 +1,4 @@
-# @qcms/ui
+# @roonga/qcms-ui
 
 The A2UI renderer for qcms - the **single** renderer that both the portal (serving
 respondents) and the admin (previewing forms) go through, so what an author
@@ -9,9 +9,9 @@ previews is exactly what a respondent gets (ARCHITECTURE §6, ADR-18).
 A controlled component that renders one compiled A2UI **step document**:
 
 ```tsx
-import { A2UIStepRenderer } from "@qcms/ui";
-import "@qcms/ui/theme.css"; // the token contract (see Theming below)
-import "@qcms/ui/theme-components.css"; // components consume spacing + radius
+import { A2UIStepRenderer } from "@roonga/qcms-ui";
+import "@roonga/qcms-ui/theme.css"; // the token contract (see Theming below)
+import "@roonga/qcms-ui/theme-components.css"; // components consume spacing + radius
 
 <A2UIStepRenderer
   document={step} // one entry of a compiled form's `documents` array: { stepId, root }
@@ -70,10 +70,10 @@ The a2ra components are **vendored source**, not imported from `@a2ra/core`:
 This package owns the token contract the portal rests on. Two stylesheets, and
 which one you import matters:
 
-| Import                          | Contains                                                                                                                                                                                                                                                         |
-| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@qcms/ui/theme.css`            | the token **values**: four groups (`--color-*`, `--font-portal` + `--type-*`, `--space-*`, `--radius-*`), the four predefined themes each authored Light and Dark, the shared High-contrast layer, and the four corner presets. Plain CSS, no build requirement. |
-| `@qcms/ui/theme-components.css` | the CSS that makes the **vendored controls consume** the spacing, radius and type-scale tokens, plus the High-contrast mode scaffold (heavy borders, flat surfaces, heavy focus). Needs Tailwind v4 in the build.                                                |
+| Import                                 | Contains                                                                                                                                                                                                                                                         |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@roonga/qcms-ui/theme.css`            | the token **values**: four groups (`--color-*`, `--font-portal` + `--type-*`, `--space-*`, `--radius-*`), the four predefined themes each authored Light and Dark, the shared High-contrast layer, and the four corner presets. Plain CSS, no build requirement. |
+| `@roonga/qcms-ui/theme-components.css` | the CSS that makes the **vendored controls consume** the spacing, radius and type-scale tokens, plus the High-contrast mode scaffold (heavy borders, flat surfaces, heavy focus). Needs Tailwind v4 in the build.                                                |
 
 The vendored `*.styles.ts` files resolve `var(--color-*)` themselves, but their
 spacing, radius and font sizes are literal Tailwind utilities. ADR-22 keeps those
@@ -98,5 +98,5 @@ Plus a kitchen-sink keyboard walkthrough (Tab order, radio arrow keys, checkbox
 Space) and the import-surface guard.
 
 ```sh
-pnpm --filter @qcms/ui test
+pnpm --filter @roonga/qcms-ui test
 ```

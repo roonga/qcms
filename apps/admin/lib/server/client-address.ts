@@ -53,7 +53,7 @@
  *
  * Deliberately, and it is the same call `config.ts` makes about `MIN_PASSWORD_LENGTH`
  * and `lib/i18n/en.ts` makes about shared copy: the portal and the admin are separate
- * deployables with no shared package between them, and the four `@qcms/*` packages are
+ * deployables with no shared package between them, and the four `@roonga/qcms-*` packages are
  * the questionnaire kernel, the compiler, the database layer and the component
  * library - none is a home for a Next BFF's trust model, and minting a fifth
  * publishable package to hold forty lines is an architecture decision this fix is not

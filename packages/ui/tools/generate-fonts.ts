@@ -2,7 +2,7 @@
  * Writes the two artifacts derived from the font manifest (task 052):
  * `src/fonts.css` and `src/fonts/NOTICE.md`.
  *
- *   pnpm --filter @qcms/ui fonts:generate
+ *   pnpm --filter @roonga/qcms-ui fonts:generate
  *
  * The manifest (`src/font-registry.ts`) is the single place a font is added or
  * removed. Both outputs are committed - the portal `@import`s the stylesheet with
@@ -44,9 +44,9 @@ const thousands = (n: number): string => n.toLocaleString("en-US");
 
 /** The fixed preamble: what a redistributor needs to know before the tables. */
 const PREAMBLE: readonly string[] = [
-  "# Self-hosted font notices (`@qcms/ui`)",
+  "# Self-hosted font notices (`@roonga/qcms-ui`)",
   "",
-  "Generated from `src/font-registry.ts` by `pnpm --filter @qcms/ui fonts:generate`.",
+  "Generated from `src/font-registry.ts` by `pnpm --filter @roonga/qcms-ui fonts:generate`.",
   "",
   "Every typeface QCMS ships is open-licensed and redistributable under QCMS's MIT",
   "terms, and every binary in this directory is committed to the repository: a portal",

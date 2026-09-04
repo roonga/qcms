@@ -7,7 +7,7 @@
  * or above the config minimum length.
  */
 
-import { authSession, authUser } from "@qcms/db";
+import { authSession, authUser } from "@roonga/qcms-db";
 
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
@@ -18,7 +18,7 @@ import { type ChallengeVerifier, nullChallengeVerifier } from "./features/respon
 import { createJsonLogger, createNullLogger, type Logger } from "./logger.js";
 import { InMemoryRateLimitStore, type RateLimitStore } from "./rate-limit.js";
 import type { Clock } from "./clock.js";
-import type { Executor } from "@qcms/db";
+import type { Executor } from "@roonga/qcms-db";
 
 /** Fresh synthetic secret material (32 random bytes → 43-char base64url). */
 export function synthSecret(): string {

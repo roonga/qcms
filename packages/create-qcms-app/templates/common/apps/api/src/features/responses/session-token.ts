@@ -30,7 +30,7 @@ import {
   type SessionId,
   signCompactToken,
   verifyCompactToken,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import type { Context } from "hono";
 
 import type { Config } from "../../config.js";

@@ -1,4 +1,4 @@
-# @qcms/core fixtures
+# @roonga/qcms-core fixtures
 
 The canonical fixture set for the domain kernel. **Later tasks reference these
 files - never fork them.** Additions are fine (they are how the set grows, e.g.
@@ -7,7 +7,7 @@ re-keying IDs, or changing existing semantics is a breaking change to every
 consumer listed below.
 
 Fixtures are plain JSON read by tests (and by dev seeding, task 032's
-`pnpm qcms:seed-fixtures`). Shipped `@qcms/core` code never reads them - no
+`pnpm qcms:seed-fixtures`). Shipped `@roonga/qcms-core` code never reads them - no
 I/O in the kernel (R3).
 
 ## Layout

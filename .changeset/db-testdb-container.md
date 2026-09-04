@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Expose the started Postgres container on `TestDb` (the `./testing` harness) as

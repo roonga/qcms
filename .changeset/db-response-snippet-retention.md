@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Give `webhook_deliveries.last_response_snippet` a retention story: erasure removes it,

@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
-Export the react-aria `Tabs`, `TabList`, `Tab` and `TabPanel` primitives from `@qcms/ui/kit`.
+Export the react-aria `Tabs`, `TabList`, `Tab` and `TabPanel` primitives from `@roonga/qcms-ui/kit`.
 
 The pinned a2-react-aria registry has no tabs component to vendor, and ADR-22 names the
 alternative explicitly: a host uses the vendored components or react-aria-components. These

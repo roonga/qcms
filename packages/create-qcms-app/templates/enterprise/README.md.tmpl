@@ -16,7 +16,7 @@ The three applications under `apps/` are **your source**. Edit them: routes, pag
 theming, adapters, the message catalog. They will never be overwritten, because
 nothing overwrites them: there is no upgrade command that touches this tree.
 
-The `@qcms/*` packages they depend on are **versioned dependencies**. They carry the
+The `@roonga/qcms-*` packages they depend on are **versioned dependencies**. They carry the
 domain model, rule evaluation, the publish compiler, the migration history, the
 renderer, the redacting logger and the CSV export guard, and they are upgraded with
 pnpm like any other dependency. `docs/ownership-seam.md` in the QCMS repository lists
@@ -123,7 +123,7 @@ pnpm migrate    # run pending migrations
 
 ## Upgrading
 
-Bump the `@qcms/*` versions in `apps/*/package.json`, install, rebuild the images, roll
+Bump the `@roonga/qcms-*` versions in `apps/*/package.json`, install, rebuild the images, roll
 them out, and run the migrations as their own step before the new API instances take
 traffic. Published QCMS versions are immutable and the compiled-form corpus is
 append-only, so a form published on an older version keeps rendering exactly as it did.

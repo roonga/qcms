@@ -10,4 +10,4 @@ export {
   type LogFields,
   type LogLevel,
   type Logger,
-} from "@qcms/observability/logger";
+} from "@roonga/qcms-observability/logger";

@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Give `outbox.payload` a retention story for the ordinary case, not just for erasure

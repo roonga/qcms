@@ -1,10 +1,10 @@
-import type { A2UIStepDocument, AuthorMessages } from "@qcms/ui";
-import { authorMessagesOf, documentForVisible } from "@qcms/ui";
+import type { A2UIStepDocument, AuthorMessages } from "@roonga/qcms-ui";
+import { authorMessagesOf, documentForVisible } from "@roonga/qcms-ui";
 
 /**
  * The document conventions the portal reads out of a compiled step (task 029).
  *
- * The visibility projection itself is **not** here. It moved into `@qcms/ui` with
+ * The visibility projection itself is **not** here. It moved into `@roonga/qcms-ui` with
  * task 034, because the admin's draft preview needs the identical projection and
  * a second copy is precisely how "what the author saw" and "what the respondent
  * got" would diverge (ARCHITECTURE §6). It is re-exported below so this module

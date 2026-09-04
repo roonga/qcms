@@ -1,4 +1,10 @@
-import type { FrozenSnapshot, LocaleCode, QuestionDefinition, QuestionRef, Step } from "@qcms/core";
+import type {
+  FrozenSnapshot,
+  LocaleCode,
+  QuestionDefinition,
+  QuestionRef,
+  Step,
+} from "@roonga/qcms-core";
 
 import { honeypotNode } from "./honeypot.js";
 import { questionToNode, type TextResolver } from "./mapping.js";

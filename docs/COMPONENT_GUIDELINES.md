@@ -1,6 +1,6 @@
 # Component guidelines: adding or changing an input control
 
-Use this checklist when the `@qcms/ui` registry gains a control or an existing question type changes how it renders.
+Use this checklist when the `@roonga/qcms-ui` registry gains a control or an existing question type changes how it renders.
 
 ## First: is this ADR-sized or checklist-sized?
 
@@ -30,7 +30,7 @@ Use this checklist when the `@qcms/ui` registry gains a control or an existing q
 
 ## Decide where the behaviour is testable before you write the component
 
-This is a design instruction, not a limitation to work around, and it binds every client component in the repository as well as the `@qcms/ui` adapters above.
+This is a design instruction, not a limitation to work around, and it binds every client component in the repository as well as the `@roonga/qcms-ui` adapters above.
 There are two layers below Playwright, they answer different questions, and which one a component ends up in is decided by how it is written rather than by how it is tested afterwards.
 Pick one on purpose, at design time, because by the time the component holds the logic the choice has become a refactor.
 
@@ -45,12 +45,12 @@ Four exemplars, and copying any of them gets the shape right by default:
 - `apps/admin/lib/questions/option-grid.ts` - the option editor's pending-row state machine
 
 **Render it, for behaviour that only exists rendered.**
-`apps/admin` has a jsdom project (`apps/admin/vitest.dom.config.ts`, issue #352) and so does `@qcms/ui` (`packages/ui/vitest.config.ts`): `.test.tsx` files run there with testing-library, real events and real effects.
+`apps/admin` has a jsdom project (`apps/admin/vitest.dom.config.ts`, issue #352) and so does `@roonga/qcms-ui` (`packages/ui/vitest.config.ts`): `.test.tsx` files run there with testing-library, real events and real effects.
 This is the layer for what a user sees after pressing something - a dialog that stays open and says why, a live region that fills, an error state that replaces a spinner - and it is the only layer below Playwright that can observe a rejected promise reaching a `.catch`.
 The `*-rejects.test.tsx` files under `apps/admin/components/` are the worked examples.
 
 `apps/portal` has **no** jsdom project of its own and no `.test.tsx` files today, so the render layer is not available to it.
-That is stated rather than implied: the respondent-facing rendering lives in `@qcms/ui`, which has the layer, and whether the portal's own client components need one has not been established either way.
+That is stated rather than implied: the respondent-facing rendering lives in `@roonga/qcms-ui`, which has the layer, and whether the portal's own client components need one has not been established either way.
 
 **Prefer the lift where both would work.**
 A rule expressed as a function can be read and named, and it is where the reasoning goes; a render test asserts what a rule looks like from outside.

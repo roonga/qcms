@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
 Load the new `golden/v3/` generation in the renderer's conformance input, so the suite

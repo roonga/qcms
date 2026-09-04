@@ -5,7 +5,7 @@ import * as kit from "./kit.ts";
 import { axeViolations } from "./test-support/a11y.ts";
 
 /**
- * A smoke test for the `@qcms/ui/kit` surface (task 031).
+ * A smoke test for the `@roonga/qcms-ui/kit` surface (task 031).
  *
  * Deliberately shallow, and the reason matters: these components are **vendored
  * upstream source** (ADR-22), so their behaviour and their component-level
@@ -98,7 +98,7 @@ const PRIMITIVES = [
   ["TextField", <kit.TextField label="Email" name="email" />],
 ] as const;
 
-describe("@qcms/ui/kit surface", () => {
+describe("@roonga/qcms-ui/kit surface", () => {
   it("exports exactly the admin kit primitives, all callable", () => {
     // Pinned rather than counted: a primitive silently disappearing from the barrel
     // would otherwise only show up as a build error in a later task.

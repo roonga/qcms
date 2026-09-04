@@ -119,14 +119,14 @@ Each step compiles to one A2UI document:
   one extra prop, `messages`, mapping a constraint key (`required`, `minLength`,
   `maxLength`, `pattern`, `min`, `max`, `integer`, `minSelected`, `maxSelected`) to the
   author's wording for that constraint, resolved for the active locale. Keys are emitted in
-  `@qcms/core`'s canonical `VALIDATION_MESSAGE_KEYS` order rather than the authored object's
+  `@roonga/qcms-core`'s canonical `VALIDATION_MESSAGE_KEYS` order rather than the authored object's
   own order, so the document is a function of content alone. The prop is **absent** unless
   the author wrote at least one message, which is what keeps pre-048 content byte-identical.
   It is payload the host reads when it fills the error slot above, keyed off the `constraint`
   the API's 422 names; the renderer never evaluates it, and a constraint with no entry falls
   back to the portal's default catalog wording (per constraint, not per question).
   `messages` is a **qcms-side extension** to the otherwise-`strict` vendored props: the
-  vendored schemas stay byte-identical (ADR-22), and `@qcms/ui`'s registry wraps each
+  vendored schemas stay byte-identical (ADR-22), and `@roonga/qcms-ui`'s registry wraps each
   question control's schema in `withAuthorMessages` so a node carrying the prop validates.
 
 ## Honeypot decoy (task 026, abuse controls)
@@ -163,7 +163,7 @@ live axe pass is 028/030):
 ### The field-name contract (compiler ↔ API)
 
 The decoy submits under one well-known key, `HONEYPOT_FIELD_NAME = "website"`
-(exported from `@qcms/a2ui-compiler`). The API submit handler reads the same key
+(exported from `@roonga/qcms-a2ui-compiler`). The API submit handler reads the same key
 off the request body (`config.antiAbuse.honeypotField`, defaulted from that
 constant), so compiler and API agree on exactly one string. The name is
 deliberately **not** a qcms question id (`q_…`, R6), so it can never collide with

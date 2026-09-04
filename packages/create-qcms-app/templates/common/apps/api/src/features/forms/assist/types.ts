@@ -12,7 +12,7 @@
  * itself is a change to one file rather than to the slice.
  */
 
-import type { FormDefinition, QuestionDefinition, QuestionId } from "@qcms/core";
+import type { FormDefinition, QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import type { PublishIssue, PublishWarning } from "../handler.js";
 

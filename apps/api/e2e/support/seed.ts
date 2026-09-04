@@ -2,13 +2,13 @@
  * The insurance seed toolkit (task 027) - shared with the portal e2e tests (029).
  *
  * These helpers stand up the canonical `insurance` form directly through the
- * `@qcms/db` helpers (the fast, deterministic path), so scenarios that are about
+ * `@roonga/qcms-db` helpers (the fast, deterministic path), so scenarios that are about
  * the *respondent* loop, version pinning, mount-split topology, or failure modes
  * don't re-drive the whole authoring API each time. Scenario 1 is the exception:
  * it authors the same form over HTTP to prove the admin surface end to end.
  *
- * Seeding is not a slice-internal reach: it uses only the published `@qcms/db`
- * and `@qcms/core` APIs. The compiled A2UI stored here is the committed golden
+ * Seeding is not a slice-internal reach: it uses only the published `@roonga/qcms-db`
+ * and `@roonga/qcms-core` APIs. The compiled A2UI stored here is the committed golden
  * document (ADR-18) - the serve path replays those exact bytes, never recompiles.
  *
  * **This file's reach is wider than its directory, so changes here need
@@ -28,7 +28,7 @@ import {
   QuestionId,
   importCompactTokenKey,
   mintSecureLink,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   closeForm,
   createForm,
@@ -38,8 +38,8 @@ import {
   insertSecureLink,
   publishQuestionVersion,
   upsertDraft,
-} from "@qcms/db";
-import type { TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import type { TestDb } from "@roonga/qcms-db/testing";
 
 import {
   AUTHOR_MESSAGES_DEF,
@@ -375,7 +375,7 @@ export async function seedAuthorMessagesForm(
 
 /**
  * Insert a secure_links row and mint its matching signed token. Uses only the
- * published `@qcms/core` minting API and the config's link signing key, so the
+ * published `@roonga/qcms-core` minting API and the config's link signing key, so the
  * token verifies in any composition built from the same env. Handy for the
  * failure tour's *expired* link, which the mint endpoint (future-expiry only)
  * cannot produce.

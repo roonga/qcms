@@ -20,7 +20,7 @@
  *   tab or CR is prefixed with an apostrophe, because several spreadsheet
  *   programs evaluate such a cell on open and every answer cell here is written
  *   by an anonymous respondent through a public portal. Both this and the quoting
- *   above come from `@qcms/csv`, shared with the admin's link export so the two
+ *   above come from `@roonga/qcms-csv`, shared with the admin's link export so the two
  *   cannot drift apart again.
  * - **multiChoice** is serialized as its option ids joined by `;` (e.g.
  *   `opt_a;opt_b;opt_c`) - a single CSV field, documented, so the `,` delimiter
@@ -30,8 +30,8 @@
  * Answer *values* are export payload, never logged (SEC-8).
  */
 
-import type { FormDefinition } from "@qcms/core";
-import { csvField } from "@qcms/csv";
+import type { FormDefinition } from "@roonga/qcms-core";
+import { csvField } from "@roonga/qcms-csv";
 
 /**
  * Re-exported so this module stays the one place the export's field encoding is

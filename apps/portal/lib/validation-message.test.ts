@@ -1,4 +1,4 @@
-import type { A2UIStepDocument } from "@qcms/ui";
+import type { A2UIStepDocument } from "@roonga/qcms-ui";
 import { describe, expect, it } from "vitest";
 
 import { missingRequiredEntries } from "./error-summary";

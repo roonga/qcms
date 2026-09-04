@@ -8,7 +8,7 @@
  *
  * ## What this module deliberately does NOT hold
  *
- * Token values. Not one. A theme reaches the island through `@qcms/ui`'s stylesheets
+ * Token values. Not one. A theme reaches the island through `@roonga/qcms-ui`'s stylesheets
  * and the `data-qcms-theme-scope` carrier ADR-38 defines, never through a JavaScript
  * map of colours: `scripts/check-admin-theme.mjs` fails the build on any hex, colour
  * function or Tailwind palette utility anywhere under `app/` or `components/`, so an

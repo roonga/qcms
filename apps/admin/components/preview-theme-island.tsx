@@ -25,7 +25,7 @@ import {
  * ## How the scoping works, and why nothing here writes a colour
  *
  * `data-qcms-theme-scope` is ADR-38's carrier, delivered by task 060: every block in
- * `@qcms/ui`'s `theme.css` is anchored on `:is(:root, [data-qcms-theme-scope])`, so an
+ * `@roonga/qcms-ui`'s `theme.css` is anchored on `:is(:root, [data-qcms-theme-scope])`, so an
  * element wearing the attribute re-declares the whole portal token set on itself,
  * geometry included. `theme-components.css` is a descendant of the bare attribute, so
  * the portal's control treatment - and its high-contrast scaffold - applies inside this
@@ -52,7 +52,7 @@ import {
  * the transient overlay, open only while the author is choosing, that does not.
  *
  * This is a known limitation. Fixing it requires either adding `react-aria` as a direct
- * dependency for `UNSAFE_PortalProvider`, or changing `@qcms/ui` to expose a portal
+ * dependency for `UNSAFE_PortalProvider`, or changing `@roonga/qcms-ui` to expose a portal
  * container through `PopoverContext`'s `UNSTABLE_portalContainer`.
  *
  * ## Ephemeral by design

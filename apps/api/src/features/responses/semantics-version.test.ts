@@ -3,7 +3,7 @@
  * integration suites cover what each call site does with the result.
  */
 
-import { SEMANTICS_VERSION } from "@qcms/core";
+import { SEMANTICS_VERSION } from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "../../errors.js";

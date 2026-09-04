@@ -36,7 +36,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 # So this image's dependency bins are runnable by name, which is what lets the
 # `migrate` service call `qcms-db-migrate` instead of reaching into
-# `node_modules/@qcms/db/dist/` past that package's `exports` map (issue #294).
+# `node_modules/@roonga/qcms-db/dist/` past that package's `exports` map (issue #294).
 # Appended rather than prepended: a dependency bin must never shadow a system
 # binary this image or a healthcheck relies on.
 ENV PATH="${PATH}:/app/node_modules/.bin"

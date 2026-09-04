@@ -1,5 +1,5 @@
 {
-  "name": "@qcms/db",
+  "name": "@roonga/qcms-db",
   "version": "0.0.0",
   "private": false,
   "description": "qcms Drizzle schema, migrations, and the Testcontainers test harness (task 013)",
@@ -38,14 +38,14 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. --project @qcms/db",
+    "test": "vitest run --root ../.. --project @roonga/qcms-db",
     "lint": "eslint src",
     "migrate": "node dist/migrate.js",
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
-    "@qcms/a2ui-compiler": "workspace:*",
-    "@qcms/core": "workspace:*",
+    "@roonga/qcms-a2ui-compiler": "workspace:*",
+    "@roonga/qcms-core": "workspace:*",
     "drizzle-orm": "^0.45.2",
     "pg": "^8.23.0"
   },

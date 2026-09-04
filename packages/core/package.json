@@ -1,5 +1,5 @@
 {
-  "name": "@qcms/core",
+  "name": "@roonga/qcms-core",
   "version": "0.0.0",
   "private": false,
   "description": "qcms domain kernel: schemas, rules DSL + evaluator, publish invariants (placeholder, task 001)",
@@ -26,8 +26,8 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. --project @qcms/core",
-    "coverage": "vitest run --root ../.. --project @qcms/core --coverage",
+    "test": "vitest run --root ../.. --project @roonga/qcms-core",
+    "coverage": "vitest run --root ../.. --project @roonga/qcms-core --coverage",
     "lint": "eslint src"
   },
   "dependencies": {

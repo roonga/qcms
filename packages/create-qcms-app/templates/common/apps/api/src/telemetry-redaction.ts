@@ -23,7 +23,7 @@
  *   export, so "exported" now covers log records as well, and the same rule holds
  *   there by a different mechanism: an `Error` field redacts to an object, only
  *   scalar fields become OTLP attributes, and the log allowlist in
- *   `@qcms/observability/logs` drops every key outside a small operational set.
+ *   `@roonga/qcms-observability/logs` drops every key outside a small operational set.
  *   What still carries the message and the stack is the **stdout** structured log,
  *   next to the same `requestId`/`trace_id`, which is where a developer should
  *   read them.

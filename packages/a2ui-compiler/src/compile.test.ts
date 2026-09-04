@@ -9,7 +9,7 @@ import {
   type LocaleCode,
   type QuestionId,
   type QuestionVersionRecord,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { parseNode } from "@a2ra/core";
 import { describe, expect, it } from "vitest";
 

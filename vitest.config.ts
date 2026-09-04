@@ -68,7 +68,7 @@ export default defineConfig({
           // forced turbo run with 18 uncached tasks (three files in three lanes
           // failed their hook on 2026-08-31 and each passed in seconds alone). The
           // hook budget is doubled to match `CONTAINER_BOOT_TIMEOUT_MS` in
-          // `@qcms/db/testing`, which is where the same number lives for every other
+          // `@roonga/qcms-db/testing`, which is where the same number lives for every other
           // integration file. The per-TEST budget stays where it was on purpose: a
           // scenario running against a container that is already up and taking
           // minutes is a defect, and widening this would hide it.
@@ -117,7 +117,7 @@ export default defineConfig({
     ],
     // Coverage is a root-level concern in Vitest 4 (projects cannot carry
     // their own). Scope: the kernel (task 009 exit criterion 4 - lines
-    // >= 95% across tasks 002-009, `pnpm --filter @qcms/core coverage`).
+    // >= 95% across tasks 002-009, `pnpm --filter @roonga/qcms-core coverage`).
     // Test files are excluded by Vitest's defaults.
     coverage: {
       provider: "v8",

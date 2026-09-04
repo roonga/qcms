@@ -38,7 +38,11 @@
  * arranges with its `db-roles` one-shot.
  */
 
-import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS, MIGRATIONS_DIR } from "@qcms/db/testing";
+import {
+  applyMigrations,
+  CONTAINER_BOOT_TIMEOUT_MS,
+  MIGRATIONS_DIR,
+} from "@roonga/qcms-db/testing";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";

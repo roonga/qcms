@@ -1,6 +1,6 @@
 import { desc, eq, type SQL, sql } from "drizzle-orm";
 
-import type { FormId, SessionId } from "@qcms/core";
+import type { FormId, SessionId } from "@roonga/qcms-core";
 
 import { erasureTombstones } from "../schema/index.js";
 import type { Executor } from "./executor.js";

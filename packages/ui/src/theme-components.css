@@ -4,9 +4,9 @@
  * contract, plus the High-contrast mode scaffold. Companion to `theme.css`
  * (which holds the token VALUES); import both, this one after it:
  *
- *   @import "@qcms/ui/theme.css";
- *   @import "@qcms/ui/theme-components.css";
- *   @import "@qcms/ui/fonts.css";          // the font registry (task 052)
+ *   @import "@roonga/qcms-ui/theme.css";
+ *   @import "@roonga/qcms-ui/theme-components.css";
+ *   @import "@roonga/qcms-ui/fonts.css";          // the font registry (task 052)
  *
  * WHY A SEPARATE LAYER AND NOT AN EDIT TO THE COMPONENTS
  * The `src/components/a2ui/*` sources are vendored upstream and kept

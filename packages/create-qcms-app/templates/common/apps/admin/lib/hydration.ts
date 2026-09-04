@@ -13,7 +13,7 @@
  * The same attribute name, written down twice, in `apps/portal/lib/hydration.ts` and here.
  * That is the rule this repository already applies to a contract two separate deployables
  * share (`lib/server/auth-api.ts` does it for better-auth's cookie names): the apps have no
- * shared runtime package between them, `@qcms/e2e-support` is a devDependency and cannot be
+ * shared runtime package between them, `@roonga/qcms-e2e-support` is a devDependency and cannot be
  * imported by app code, and inventing a runtime dependency to carry one string would be a
  * larger change than the string. The name is identical on purpose - an operator or a
  * reviewer reading `data-qcms-hydrated` in either app is reading the same claim.

@@ -9,7 +9,7 @@
  * rather than asserts it.
  *
  * The tree is therefore SOURCE-SHAPED DATA. It contains real `import` statements, real
- * `@qcms/*` specifiers and real JSX, and none of it is code this package runs, compiles
+ * `@roonga/qcms-*` specifiers and real JSX, and none of it is code this package runs, compiles
  * or lints: `packages/create-qcms-app/tsconfig.json` includes `src`, `scripts` and
  * `e2e` and nothing else, its `lint` script names the same three, and
  * `eslint.config.js` ignores the tree globally. A scanner that reads the tree as code

@@ -85,7 +85,7 @@ Third, this screen contains the app's **entire responsive vocabulary**: the thre
 
 ### 3.4 `/forms/[formId]/preview` and `/forms/[formId]/versions/[version]`
 
-**Element 2 is actively wrong on both.** These screens render what a respondent sees, through the shared `@qcms/ui` renderer inside a scoped preview surface (`components/forms/version-view.tsx:44-54`). A respondent sees the portal's measure. Widening the admin container around the preview does nothing useful and creates a real hazard: an author judging line length and wrapping under a 1600px admin container is judging something no respondent will ever see. If anything these two screens want a **narrower** container than the app default, not a wider one.
+**Element 2 is actively wrong on both.** These screens render what a respondent sees, through the shared `@roonga/qcms-ui` renderer inside a scoped preview surface (`components/forms/version-view.tsx:44-54`). A respondent sees the portal's measure. Widening the admin container around the preview does nothing useful and creates a real hazard: an author judging line length and wrapping under a 1600px admin container is judging something no respondent will ever see. If anything these two screens want a **narrower** container than the app default, not a wider one.
 
 The version-detail screen carries a live scope bug, covered in §7.
 

@@ -27,7 +27,7 @@
  */
 
 import { registerOTel } from "@vercel/otel";
-import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
+import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 

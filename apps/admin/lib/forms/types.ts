@@ -24,7 +24,7 @@ import type {
  * holds ids the kernel has not blessed yet, and branding them here would put a second
  * validator in the BFF (R2). The kernel is still the only thing that decides whether a
  * draft is legal, and it decides it in the API: the import-surface test refuses every
- * `@qcms/core` VALUE import in this app, so nothing here crosses back. The fuzz test in `condition.test.ts`
+ * `@roonga/qcms-core` VALUE import in this app, so nothing here crosses back. The fuzz test in `condition.test.ts`
  * is what proves the editor only ever emits shapes the kernel accepts, and it can import
  * the kernel because a `.test.ts` is outside that scan.
  */
@@ -250,7 +250,7 @@ export interface PinnableVersion {
  * `root` stays `unknown` on the way through this app on purpose: the node tree is
  * opaque to the API's schema and to this BFF alike, and the renderer's registry is the
  * only thing that knows what a node means. It is narrowed exactly once, at the renderer
- * (`@qcms/ui`'s own `A2UIStepDocument`), which is where that knowledge lives.
+ * (`@roonga/qcms-ui`'s own `A2UIStepDocument`), which is where that knowledge lives.
  */
 export interface CompiledStep {
   readonly stepId: string;

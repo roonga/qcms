@@ -11,8 +11,13 @@
 
 import type { RouteHandler } from "@hono/zod-openapi";
 
-import { getDraft, getLatestPublishedVersion, listQuestionVersions, listQuestions } from "@qcms/db";
-import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@qcms/core";
+import {
+  getDraft,
+  getLatestPublishedVersion,
+  listQuestionVersions,
+  listQuestions,
+} from "@roonga/qcms-db";
+import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";

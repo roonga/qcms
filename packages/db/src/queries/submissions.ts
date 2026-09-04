@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 
-import type { LockedSubmission, SessionId } from "@qcms/core";
+import type { LockedSubmission, SessionId } from "@roonga/qcms-core";
 
 import { submissions } from "../schema/index.js";
 import type { Executor } from "./executor.js";

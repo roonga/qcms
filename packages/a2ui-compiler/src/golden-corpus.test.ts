@@ -12,7 +12,7 @@ import {
   type QuestionDefinition,
   type QuestionId,
   type QuestionVersionRecord,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { parseNode } from "@a2ra/core";
 import { describe, expect, it } from "vitest";
 
@@ -21,7 +21,7 @@ import type { A2UINode, CompiledForm } from "./types.js";
 
 /**
  * A2UI golden corpus runner (task 012, ADR-18; generation bumped in 026 and by
- * issue #186). Each corpus form is a `@qcms/core` fixture; the runner rebuilds
+ * issue #186). Each corpus form is a `@roonga/qcms-core` fixture; the runner rebuilds
  * its published {@link FrozenSnapshot} through the real publish path
  * (`compileDraft`, task 008), compiles it with the launch compiler
  * (`compileForm`, task 011), and asserts the output equals the committed golden
@@ -257,7 +257,7 @@ describe("A2UI golden corpus (v3 - current generation)", () => {
         if (!existsSync(goldenPath)) {
           throw new Error(
             `golden ${golden} is missing - a corpus form has no committed golden. ` +
-              `Seed it once, hand-review, and commit: UPDATE_GOLDEN=1 pnpm exec vitest run --project @qcms/a2ui-compiler golden-corpus`,
+              `Seed it once, hand-review, and commit: UPDATE_GOLDEN=1 pnpm exec vitest run --project @roonga/qcms-a2ui-compiler golden-corpus`,
           );
         }
 

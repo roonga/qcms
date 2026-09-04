@@ -19,7 +19,7 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * program is not bounded by the manifest. `apps/portal/tsconfig.json` includes
  * `**\/*.ts`, which takes in the Playwright harness, and two files there import
  * apps/api source by relative path, so the portal's program transitively contains the
- * API's source tree and therefore `@qcms/db`, `@qcms/csv` and `@qcms/a2ui-compiler` -
+ * API's source tree and therefore `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler` -
  * none of which the portal's manifest names. turbo cannot see that, so `^build`
  * ordered none of it.
  *
@@ -35,7 +35,7 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * previous build succeeds; the same read against a package that is mid-build fails.
  * So `turbo run typecheck --filter=qcms-admin --filter=qcms-portal --force` failed
  * with 40-odd TS2307s while either filter alone was green, because alone nothing asks
- * for `@qcms/db#build` and nothing removes its `dist`. The removal made a latent
+ * for `@roonga/qcms-db#build` and nothing removes its `dist`. The removal made a latent
  * missing edge observable; it is not itself the bug, and adding a retry or serializing
  * turbo would have hidden the finding rather than fixed it.
  *
@@ -68,7 +68,7 @@ const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;
  *
  * A **relative** specifier is filtered by {@link PLAUSIBLE_SPECIFIER} and then by
  * whether it resolves to a file, so a match inside a string or a comment that names no
- * real file is dropped and the walk does not follow it. A **bare `@qcms/*`** specifier
+ * real file is dropped and the walk does not follow it. A **bare `@roonga/qcms-*`** specifier
  * is filtered by {@link PLAUSIBLE_SPECIFIER} alone and then recorded: there is nothing
  * on disk to check it against, since the whole question is whether that package's
  * `dist` has been built yet.
@@ -90,7 +90,7 @@ const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;
  * package opens either one.
  *
  * Each shape is refused by its own rule below, because they are false for different
- * reasons. Neither rule is "skip this package": a genuine `@qcms/*` import written in
+ * reasons. Neither rule is "skip this package": a genuine `@roonga/qcms-*` import written in
  * `packages/create-qcms-app/src/` is still counted, and a test asserts it.
  */
 const SPECIFIER =
@@ -101,7 +101,7 @@ const SPECIFIER =
  *
  * The first shape of names-as-data: a fixture that HOLDS a program, as
  * `scripts/sync-templates.test.ts` does when it hands `assertImports` the text
- * `'import { x } from "@qcms/db";'` to scan. The inner specifier is in import position
+ * `'import { x } from "@roonga/qcms-db";'` to scan. The inner specifier is in import position
  * within the quoted text and in string position within the file, so tsc never resolves
  * it and no `dist` is read.
  *
@@ -172,7 +172,7 @@ function resolveRelative(fromFile: string, specifier: string): string | undefine
 }
 
 /**
- * Every `@qcms/*` package the tsc program rooted at `directory` reaches, following
+ * Every `@roonga/qcms-*` package the tsc program rooted at `directory` reaches, following
  * relative imports across package boundaries the way tsc does.
  */
 function workspaceImportsReachedFrom(directory: string): {
@@ -192,7 +192,7 @@ function workspaceImportsReachedFrom(directory: string): {
     // The second shape of names-as-data: a whole tree that IS a program, held as
     // template content. `packages/create-qcms-app/templates/` is stamped into an
     // adopter's repository verbatim, so its files carry real `import` statements and
-    // real `@qcms/*` specifiers, and this package compiles and lints none of them: its
+    // real `@roonga/qcms-*` specifiers, and this package compiles and lints none of them: its
     // `tsconfig.json` includes `src`, `scripts` and `e2e`, its `lint` names the same
     // three, and `eslint.config.js` ignores the tree. `tsc --listFiles` over that
     // program contains zero files from it. Reading them as reads demanded six build
@@ -210,7 +210,7 @@ function workspaceImportsReachedFrom(directory: string): {
       if (specifier.startsWith(".")) {
         const target = resolveRelative(file, specifier);
         if (target !== undefined) queue.push(target);
-      } else if (specifier.startsWith("@qcms/") && !insideStringLiteral(text, match.index)) {
+      } else if (specifier.startsWith("@roonga/qcms-") && !insideStringLiteral(text, match.index)) {
         reached.add(specifier.split("/").slice(0, 2).join("/"));
       }
     }
@@ -254,18 +254,18 @@ describe("the two names-as-data rules, each proved to fire and each proved narro
   // pinned twice, once for the case it must refuse and once for the case it must not.
 
   it("reads an import at the head of its line as an import", () => {
-    const text = 'import { db } from "@qcms/db";\n';
+    const text = 'import { db } from "@roonga/qcms-db";\n';
     expect(insideStringLiteral(text, text.indexOf("from"))).toBe(false);
   });
 
   it("reads a specifier inside a quoted fixture as data", () => {
-    // The exact line in `scripts/sync-templates.test.ts` that demanded @qcms/db.
-    const text = `tree.set("common/apps/portal/lib/rogue.ts", 'import { x } from "@qcms/db";');\n`;
+    // The exact line in `scripts/sync-templates.test.ts` that demanded @roonga/qcms-db.
+    const text = `tree.set("common/apps/portal/lib/rogue.ts", 'import { x } from "@roonga/qcms-db";');\n`;
     expect(insideStringLiteral(text, text.lastIndexOf("from"))).toBe(true);
   });
 
   it("does not blind itself to an import that merely follows a balanced string", () => {
-    const text = 'const note = "see below";\nimport { db } from "@qcms/db";\n';
+    const text = 'const note = "see below";\nimport { db } from "@roonga/qcms-db";\n';
     expect(insideStringLiteral(text, text.indexOf("from", text.indexOf("import")))).toBe(false);
   });
 
@@ -298,7 +298,7 @@ describe("the two names-as-data rules, each proved to fire and each proved narro
     // assertion in the suite below would pass while checking nothing.
     const admin = workspaceImportsReachedFrom(join(REPOSITORY_ROOT, "apps/admin"));
     expect(admin.packages.size).toBeGreaterThan(2);
-    expect(admin.packages).toContain("@qcms/db");
+    expect(admin.packages).toContain("@roonga/qcms-db");
   });
 });
 
@@ -309,10 +309,10 @@ describe("turbo orders every dist a program-shaped task reads", () => {
   it("finds the packages whose build removes its own dist", () => {
     // The derivation's own floor. If this set went empty every assertion below would
     // pass while checking nothing, which is the fail-open shape the whole file is
-    // about. `@qcms/db` is named because it is the package the reported failure was
+    // about. `@roonga/qcms-db` is named because it is the package the reported failure was
     // about, so a rename that quietly drops it from the set is reported here.
     expect(cleaned.size).toBeGreaterThan(3);
-    expect([...cleaned]).toContain("@qcms/db");
+    expect([...cleaned]).toContain("@roonga/qcms-db");
   });
 
   it.each(PROGRAM_SHAPED_TASKS)("builds every dist %s reads, before it reads it", (task) => {

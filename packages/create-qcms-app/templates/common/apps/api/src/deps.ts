@@ -9,7 +9,7 @@
  * module-level singleton or a `node:*` API (R4).
  */
 
-import type { Executor } from "@qcms/db";
+import type { Executor } from "@roonga/qcms-db";
 
 import type { Clock } from "./clock.js";
 import type { Config, Flags } from "./config.js";
