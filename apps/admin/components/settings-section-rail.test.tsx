@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -116,10 +117,17 @@ describe("the Settings rail's markup", () => {
     // A `next/link` in this rail would be a route where the POC draws a panel switch, and
     // the markup cannot tell an `<a href="#x">` written by hand from one Link produced. The
     // rail is buttons now, so this is asserted at the source where it stays unambiguous.
-    const source = readFileSync(
-      fileURLToPath(new URL("./settings-section-rail.tsx", import.meta.url)),
-      "utf8",
-    );
+    // `join(dirname(...))` and NOT `new URL("./settings-section-rail.tsx", import.meta.url)`,
+    // which is what this was. `new URL(<string literal>, import.meta.url)` is Vite's asset
+    // syntax and is rewritten at transform time, so the resolved base becomes the page
+    // location rather than this file: under the jsdom project added by issue #352 it came
+    // back as an `http:` URL under jsdom's own document origin, and `fileURLToPath` refused
+    // it for not being a file URL. The rewrite only fires on a literal, which is why the
+    // same call written through a variable elsewhere never showed it. This is the shape
+    // `app/(shell)/table-anchors.test.tsx` already uses, and it reads the same under both
+    // environments.
+    const here = fileURLToPath(import.meta.url);
+    const source = readFileSync(join(dirname(here), "settings-section-rail.tsx"), "utf8");
     expect(source).not.toContain('from "next/link"');
     // And it does not reach for the shared rail chrome: the disclosure is re-typed here on
     // purpose, which is the whole reason `components/rail-frame.tsx` is untouched by this

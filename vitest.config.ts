@@ -38,6 +38,13 @@ export default defineConfig({
     projects: [
       "packages/*",
       "apps/*",
+      // The admin's second project (issue #352): `.tsx` tests under jsdom with
+      // testing-library, so a component can be rendered and driven rather than only
+      // stringified. Named explicitly because the `apps/*` glob above resolves one
+      // default-named config per directory, so a sibling config file is invisible to it.
+      // Both admin projects live in `apps/admin/` and share their `@/` alias; the split
+      // between them is by file extension and is documented in each.
+      "apps/admin/vitest.dom.config.ts",
       // The 027 consumer-level e2e suite: a dedicated project so CI can run it
       // as its own job (signal clarity) and its Docker-heavy files can be
       // parallelised independently. Scenario files are named `*.e2e.ts` so the

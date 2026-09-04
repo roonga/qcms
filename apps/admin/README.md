@@ -222,16 +222,67 @@ It is a **development** tool. It writes the database directly, which is why it l
 
 | Layer                                                                       | Where                                               |
 | --------------------------------------------------------------------------- | --------------------------------------------------- |
+| Decisions lifted out of components, as pure functions                       | `lib/**/*.test.ts` (node)                           |
 | BFF boundary, CSP, SEC-1 route tree                                         | `lib/server/*.test.ts`, `proxy.test.ts`             |
+| Rendered component behaviour, in jsdom with testing-library                 | `**/*.test.tsx` (the `qcms-admin-dom` project)      |
 | First-run bootstrap against a real Postgres                                 | `lib/server/bootstrap.integration.test.ts` (Docker) |
 | Browser: the whole 2FA loop, axe in all three modes, keyboard               | `e2e/*.pw.ts` (the root Playwright config)          |
 | Browser: mode default, persistence, no flash, Lexend                        | `e2e/appearance.pw.ts`                              |
 | Browser: the operations arc (browse, export, erase, dead-letter, redeliver) | `e2e/responses-ops.pw.ts`                           |
 | The theme gates themselves (tokens-only, drift, naming)                     | `scripts/check-admin-theme.test.ts`                 |
 
+**This app has two Vitest projects, split by file extension.** `qcms-admin`
+(`vitest.config.ts`) runs `*.test.ts` under node; `qcms-admin-dom`
+(`vitest.dom.config.ts`) runs `*.test.tsx` under jsdom with testing-library and the
+react-aria polyfills. Both share the `@/` alias, and `pnpm test` here runs both. The root
+`vitest.config.ts` names the second project explicitly, because its `apps/*` glob resolves
+one default-named config per directory.
+
 The browser suite rides on the one root Playwright config as the `admin-chromium` project
 and shares the portal harness's Postgres and composed API, so `pnpm verify:browser` runs
 it and so does CI's browser job.
+
+### Deciding where a component's behaviour gets tested
+
+Decide this **before** writing the component, not after going looking for how someone else
+tested one. `docs/COMPONENT_GUIDELINES.md` carries the full version; the short form is that
+there are two layers below Playwright and they answer different questions.
+
+**Lift the decision into a module, for anything that is a decision.** A branch table, a
+selection rule, an outcome the operator reads: write it as a function over its inputs under
+`lib/`, with the edges injected as parameters, and leave the component holding the markup
+and the `useState` call. Every branch is then a fast, nameable unit test, and the browser
+walk only has to prove the two are wired together. `lib/recovery-copy.ts` is the exemplar -
+`copyRecoveryCodes(clipboard, codes)` takes the clipboard rather than reaching for
+`navigator`, so absent, refused and synchronously-throwing are three ordinary tests.
+`lib/forms/picker-selection.ts`, `lib/forms/pin-grid.ts` and `lib/questions/option-grid.ts`
+are the same shape.
+
+**Render it, for behaviour that only exists rendered.** What the operator sees after
+pressing something: a dialog that stays open and says why, a live region that fills, an
+error state that replaces a spinner. This is also the only layer below Playwright that can
+observe a rejected promise reaching a `.catch`, which is what it was added for (issue
+#352): the rejections these components guard originate server-side inside `adminApiFetch`,
+so a browser cannot force one without making the API unreachable from the Next server
+mid-run. The worked examples are the `*-rejects.test.tsx` files beside each component under
+`components/forms/` and `components/ops/`; each fakes the action prop or the clipboard and
+nothing else, so the handler under test is the real one.
+`components/rejection-coverage.test.ts` asserts that every `.catch` site in those two trees
+is one a rendered test drives, so a new handler cannot arrive without its test.
+
+Where both would work, prefer the lift: a rule written as a function can be read and named,
+and a render test asserts what that rule looks like from outside rather than replacing it.
+
+**A `"use server"` module cannot export helpers for testing** (issue #256). Next requires
+every export of such a module to be an async server action, so a guard like `withinCap` in
+`app/(shell)/forms/actions.ts` cannot be exported and asserted on directly. That is
+structural, and the lift above is the answer rather than a workaround: put the guard in an
+ordinary module under `lib/` and let the action import it. The action file keeps the
+wiring; the decision keeps its test.
+
+**jsdom carries no layout** (ADR-23). Anything that depends on layout, visibility or
+measurement is proven in Playwright whichever of the two layers the rest of the component
+is written at.
 
 **Writing a `renderToStaticMarkup` test: stub `Dialog`, or the test reads nothing**
 (issue #628). Several files under `app/(shell)/` and `components/` render a server
@@ -244,8 +295,12 @@ the entire tree** containing one. No error, no warning, and an empty string is
 indistinguishable from a component that legitimately renders nothing. Every test at this
 layer that reaches a dialog therefore stands one in through
 `vi.mock("@/components/kit", ...)`; `app/(shell)/table-anchors.test.tsx` shows the
-spread-the-real-kit form for when only `Dialog` needs replacing. Behaviour that lives
-inside the dialog belongs in `e2e/*.pw.ts`, where a browser has somewhere to put the
-portal.
+spread-the-real-kit form for when only `Dialog` needs replacing.
+
+Behaviour that lives **inside** the dialog is no longer confined to `e2e/*.pw.ts`. jsdom
+has somewhere to put a portal, so the `qcms-admin-dom` project renders dialogs for real and
+that is where dialog behaviour now belongs (issue #352); `components/forms/*-rejects.test.tsx`
+opens one, presses its confirm and reads what the operator is told. Playwright keeps what
+needs layout, a real navigation or the composed stack.
 
 Swapping better-auth for an external IdP: `docs/auth-swap.md`.

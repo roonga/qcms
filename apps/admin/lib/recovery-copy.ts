@@ -4,14 +4,20 @@
  *
  * ## Why the decision is a module and not three lines inside the component
  *
- * The admin's unit layer is `renderToStaticMarkup` and nothing else: there is no jsdom and
- * no testing-library in this app, so a `useState` transition is not observable below the
- * browser (`lib/forms/picker-selection.ts` records the same constraint). The interesting
- * behaviour here is not the markup, it is **which of three things happened**, and all three
- * are states a static render cannot reach. Written as a function over an injected clipboard,
- * every one of them is stateable directly; what is left in the component is the markup and
- * the `useState` call, and `e2e/recovery-copy.pw.ts` is the browser walk that proves the two
- * are wired together (ADR-23: e2e at the highest layer that exists for it).
+ * The interesting behaviour here is not the markup, it is **which of three things
+ * happened**. Written as a function over an injected clipboard, every one of them is
+ * stateable directly and needs no DOM at all; what is left in the component is the markup
+ * and the `useState` call, and `e2e/recovery-copy.pw.ts` is the browser walk that proves
+ * the two are wired together (ADR-23: e2e at the highest layer that exists for it).
+ *
+ * This was originally written because the admin had no jsdom layer, so a `useState`
+ * transition was not observable below the browser at all. It has one now
+ * (`vitest.dom.config.ts`, issue #352) and the shape still stands on its own: a decision
+ * expressed as a function over its inputs can be read, named and tested in the decision's
+ * own terms, where a render test can only assert what it looks like from outside. That is
+ * why `docs/COMPONENT_GUIDELINES.md` names this file as the exemplar and asks the choice
+ * to be made at design time (issue #697). `lib/forms/picker-selection.ts` is the same
+ * shape for a different screen.
  *
  * ## The failure path is the point, and it is why this does not use the `?.` idiom
  *

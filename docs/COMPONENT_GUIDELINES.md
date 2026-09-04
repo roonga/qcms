@@ -28,6 +28,42 @@ Use this checklist when the `@qcms/ui` registry gains a control or an existing q
 
 12. **Layer discipline (ADR-23).** jsdom carries no layout: anything layout- or visibility-dependent is proven in Playwright, not unit tests; the shared jsdom setup carries the react-aria polyfills (matchMedia, ResizeObserver, CSS.escape, scrollIntoView).
 
+## Decide where the behaviour is testable before you write the component
+
+This is a design instruction, not a limitation to work around, and it binds every client component in the repository as well as the `@qcms/ui` adapters above.
+There are two layers below Playwright, they answer different questions, and which one a component ends up in is decided by how it is written rather than by how it is tested afterwards.
+Pick one on purpose, at design time, because by the time the component holds the logic the choice has become a refactor.
+
+**Lift the decision into a pure module, for anything that is a decision.**
+A branch table, a selection rule, an outcome the operator reads: write it as a function over its inputs in `lib/`, with the edges injected as parameters, and the component keeps the markup and the `useState` call.
+Every branch is then a fast unit test that states the rule in the rule's own words, and the browser walk only has to prove the two are wired together (ADR-23: e2e at the highest layer that exists for it).
+Four exemplars, and copying any of them gets the shape right by default:
+
+- `apps/admin/lib/recovery-copy.ts` - `copyRecoveryCodes(clipboard, codes)` over an **injected** clipboard, so absent, refused and synchronously-throwing are three ordinary tests
+- `apps/admin/lib/forms/picker-selection.ts` - the multi-select rules of the add-question dialog
+- `apps/admin/lib/forms/pin-grid.ts` - the pin grid's rows and row menu
+- `apps/admin/lib/questions/option-grid.ts` - the option editor's pending-row state machine
+
+**Render it, for behaviour that only exists rendered.**
+`apps/admin` has a jsdom project (`apps/admin/vitest.dom.config.ts`, issue #352) and so does `@qcms/ui` (`packages/ui/vitest.config.ts`): `.test.tsx` files run there with testing-library, real events and real effects.
+This is the layer for what a user sees after pressing something - a dialog that stays open and says why, a live region that fills, an error state that replaces a spinner - and it is the only layer below Playwright that can observe a rejected promise reaching a `.catch`.
+The `*-rejects.test.tsx` files under `apps/admin/components/` are the worked examples.
+
+`apps/portal` has **no** jsdom project of its own and no `.test.tsx` files today, so the render layer is not available to it.
+That is stated rather than implied: the respondent-facing rendering lives in `@qcms/ui`, which has the layer, and whether the portal's own client components need one has not been established either way.
+
+**Prefer the lift where both would work.**
+A rule expressed as a function can be read and named, and it is where the reasoning goes; a render test asserts what a rule looks like from outside.
+The render layer is for the wiring and the visible outcome, not a substitute for having a rule anywhere.
+
+**A `"use server"` module cannot export helpers for you to test** (issue #256).
+Next requires every export of such a module to be an async server action, so a guard like `withinCap` inside `apps/admin/app/(shell)/forms/actions.ts` cannot be exported and asserted on directly.
+That is structural and is not going to change, so it is the same instruction one step earlier: the guard belongs in an ordinary module under `lib/`, imported by the action.
+The action file keeps the wiring; the decision keeps its test.
+
+**jsdom carries no layout.**
+Anything layout-, visibility- or measurement-dependent is proven in Playwright regardless of which layer above it is written at (ADR-23, checklist item 12).
+
 ## Evidence expectations
 
 The PR body proves each step it claims: pack/diff transcripts for vendoring, exact-count post assertions for the commit moment, tree-level conformance output, and browser assertions for affected respondent-visible states and viewports. A clear-path claim also asserts the post's **body** (`null` versus `""` versus `[]`), because a count alone cannot distinguish the encodings.
