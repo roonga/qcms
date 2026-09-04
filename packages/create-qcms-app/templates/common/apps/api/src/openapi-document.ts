@@ -33,6 +33,7 @@ import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
+import { unavailableDraftAssistant } from "./features/forms/assist/assistant.js";
 import { nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
@@ -95,6 +96,10 @@ function codegenDeps(): Deps {
     logger: createNullLogger(),
     rateLimitStore: new InMemoryRateLimitStore(clock),
     challenge: nullChallengeVerifier,
+    // Codegen runs with the agent flag off, so the flag-gated assist route is
+    // absent from the published documents - which is the truth for a default
+    // deployment and keeps 027's frozen core contract unchanged.
+    draftAssistant: unavailableDraftAssistant,
     flags: config.flags,
   };
 }

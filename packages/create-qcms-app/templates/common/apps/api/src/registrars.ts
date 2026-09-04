@@ -15,6 +15,7 @@
 
 import type { RouteGroups } from "./app.js";
 import { registerAdminAuthProxy } from "./features/auth/route.js";
+import { registerFormsAssist } from "./features/forms/assist/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
@@ -47,6 +48,8 @@ export const appGroups: RouteGroups = {
     registerAdminAuth,
     registerQuestions,
     registerForms,
+    // 041: registers nothing when QCMS_FLAG_AGENT_AUTHORING=none (routes absent).
+    registerFormsAssist,
     registerAdminResponses,
     registerLinks,
     registerWebhooks,

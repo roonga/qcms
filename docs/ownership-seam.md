@@ -86,15 +86,15 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (341 files common to both shapes)
+### Scaffolded paths (355 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 330   |
-| `apps/admin/`                                                        | 199   |
-| `apps/admin/app/`                                                    | 63    |
-| `apps/admin/app/(shell)/`                                            | 47    |
+| `apps/`                                                              | 344   |
+| `apps/admin/`                                                        | 205   |
+| `apps/admin/app/`                                                    | 64    |
+| `apps/admin/app/(shell)/`                                            | 48    |
 | `apps/admin/app/(shell)/@rail/`                                      | 20    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 11    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 9     |
@@ -113,8 +113,9 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 14    |
-| `apps/admin/app/(shell)/forms/[formId]/`                             | 9     |
+| `apps/admin/app/(shell)/forms/`                                      | 15    |
+| `apps/admin/app/(shell)/forms/[formId]/`                             | 10    |
+| `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
@@ -146,22 +147,23 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 60    |
-| `apps/admin/components/forms/`                                       | 23    |
+| `apps/admin/components/`                                             | 62    |
+| `apps/admin/components/forms/`                                       | 25    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
 | `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 69    |
-| `apps/admin/lib/forms/`                                              | 17    |
+| `apps/admin/lib/`                                                    | 72    |
+| `apps/admin/lib/forms/`                                              | 19    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 6     |
-| `apps/admin/lib/server/`                                             | 21    |
-| `apps/api/`                                                          | 70    |
-| `apps/api/src/`                                                      | 67    |
-| `apps/api/src/features/`                                             | 39    |
+| `apps/admin/lib/server/`                                             | 22    |
+| `apps/api/`                                                          | 78    |
+| `apps/api/src/`                                                      | 75    |
+| `apps/api/src/features/`                                             | 47    |
 | `apps/api/src/features/auth/`                                        | 3     |
-| `apps/api/src/features/forms/`                                       | 3     |
+| `apps/api/src/features/forms/`                                       | 11    |
+| `apps/api/src/features/forms/assist/`                                | 8     |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 3     |
@@ -215,7 +217,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1584` lines across `293` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1643` lines across `305` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -230,7 +232,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (341)</summary>
+<summary>Every scaffolded file (355)</summary>
 
 ```
 .dockerignore
@@ -258,6 +260,7 @@ apps/admin/app/(shell)/@rail/responses/erasures/page.tsx
 apps/admin/app/(shell)/@rail/responses/page.tsx
 apps/admin/app/(shell)/@rail/settings/page.tsx
 apps/admin/app/(shell)/@rail/webhooks/page.tsx
+apps/admin/app/(shell)/forms/[formId]/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
@@ -307,6 +310,8 @@ apps/admin/components/announcer.tsx
 apps/admin/components/appearance-menu.tsx
 apps/admin/components/auth-screen.tsx
 apps/admin/components/empty-state.tsx
+apps/admin/components/forms/agent-provenance-tag.tsx
+apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/builder-breadcrumb.tsx
 apps/admin/components/forms/condition-editor.tsx
 apps/admin/components/forms/condition-json-pane.tsx
@@ -365,6 +370,8 @@ apps/admin/instrumentation.ts
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
 apps/admin/lib/builder-notice.ts
+apps/admin/lib/forms/assist-diff.ts
+apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/builder-bridge.ts
 apps/admin/lib/forms/builder-state.ts
 apps/admin/lib/forms/condition.ts
@@ -408,6 +415,7 @@ apps/admin/lib/questions/types.ts
 apps/admin/lib/questions/version-rail.ts
 apps/admin/lib/read-state.ts
 apps/admin/lib/recovery-copy.ts
+apps/admin/lib/server/agent.ts
 apps/admin/lib/server/api-result.ts
 apps/admin/lib/server/api.ts
 apps/admin/lib/server/auth-api.ts
@@ -447,6 +455,14 @@ apps/api/src/errors.ts
 apps/api/src/features/auth/bootstrap.ts
 apps/api/src/features/auth/instance.ts
 apps/api/src/features/auth/route.ts
+apps/api/src/features/forms/assist/assistant.ts
+apps/api/src/features/forms/assist/fake-model.ts
+apps/api/src/features/forms/assist/handler.ts
+apps/api/src/features/forms/assist/route.ts
+apps/api/src/features/forms/assist/schema.ts
+apps/api/src/features/forms/assist/system-prompt.ts
+apps/api/src/features/forms/assist/tools.ts
+apps/api/src/features/forms/assist/types.ts
 apps/api/src/features/forms/handler.ts
 apps/api/src/features/forms/route.ts
 apps/api/src/features/forms/schema.ts
