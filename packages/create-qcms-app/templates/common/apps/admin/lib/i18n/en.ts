@@ -126,6 +126,15 @@ export const messages = {
   "settings.currentPassword": "Current password",
   "settings.newPassword": "New password",
   "settings.passwordChanged": "Your password was changed and other sessions were signed out.",
+  // The one change-password failure with a sentence of its own (issue #437, Code Owner
+  // ruling 2026-09-03). It names what to do, because unlike every other refusal on this
+  // form it can: the password was found in public breach data, so the reader has to pick
+  // a different one and no amount of care with the current-password field will help. It
+  // says nothing about the account, which is what keeps SEC-1's anti-oracle property
+  // intact at the level of the copy; `lib/server/password-refusal.ts` carries the rest of
+  // the argument, including the cost the ruling accepted.
+  "settings.passwordCompromised":
+    "That new password appears in public breach data, so it was not accepted. Choose a different password.",
   "settings.twoFactorTitle": "Two-factor authentication",
   "settings.twoFactorOn": "Two-factor authentication is on for this account.",
   "settings.twoFactorOff": "Two-factor authentication is not set up for this account.",

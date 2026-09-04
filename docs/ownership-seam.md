@@ -86,13 +86,13 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (337 files common to both shapes)
+### Scaffolded paths (341 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 326   |
-| `apps/admin/`                                                        | 195   |
+| `apps/`                                                              | 330   |
+| `apps/admin/`                                                        | 199   |
 | `apps/admin/app/`                                                    | 63    |
 | `apps/admin/app/(shell)/`                                            | 47    |
 | `apps/admin/app/(shell)/@rail/`                                      | 20    |
@@ -146,17 +146,17 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 59    |
+| `apps/admin/components/`                                             | 60    |
 | `apps/admin/components/forms/`                                       | 23    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
 | `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 66    |
+| `apps/admin/lib/`                                                    | 69    |
 | `apps/admin/lib/forms/`                                              | 17    |
 | `apps/admin/lib/i18n/`                                               | 2     |
-| `apps/admin/lib/ops/`                                                | 9     |
+| `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 6     |
-| `apps/admin/lib/server/`                                             | 20    |
+| `apps/admin/lib/server/`                                             | 21    |
 | `apps/api/`                                                          | 70    |
 | `apps/api/src/`                                                      | 67    |
 | `apps/api/src/features/`                                             | 39    |
@@ -215,7 +215,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1531` lines across `287` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1584` lines across `293` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -230,7 +230,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (337)</summary>
+<summary>Every scaffolded file (341)</summary>
 
 ```
 .dockerignore
@@ -330,6 +330,7 @@ apps/admin/components/forms/step-editor.tsx
 apps/admin/components/forms/validation-panel.tsx
 apps/admin/components/forms/version-history.tsx
 apps/admin/components/forms/version-view.tsx
+apps/admin/components/hydration-marker.tsx
 apps/admin/components/kit.tsx
 apps/admin/components/measured-main.tsx
 apps/admin/components/mode-glyph.tsx
@@ -381,6 +382,7 @@ apps/admin/lib/forms/settings.ts
 apps/admin/lib/forms/subtree-rail.ts
 apps/admin/lib/forms/types.ts
 apps/admin/lib/forms/version-diff.ts
+apps/admin/lib/hydration.ts
 apps/admin/lib/i18n/en.ts
 apps/admin/lib/i18n/format.ts
 apps/admin/lib/initials.ts
@@ -390,6 +392,7 @@ apps/admin/lib/ops/browse.ts
 apps/admin/lib/ops/erasure.ts
 apps/admin/lib/ops/export.ts
 apps/admin/lib/ops/labels.ts
+apps/admin/lib/ops/paging.ts
 apps/admin/lib/ops/post-action-focus.ts
 apps/admin/lib/ops/response-filters.ts
 apps/admin/lib/ops/types.ts
@@ -417,6 +420,7 @@ apps/admin/lib/server/forms.ts
 apps/admin/lib/server/links.ts
 apps/admin/lib/server/logger.ts
 apps/admin/lib/server/origin-belt-log.ts
+apps/admin/lib/server/password-refusal.ts
 apps/admin/lib/server/question-rail.ts
 apps/admin/lib/server/questions.ts
 apps/admin/lib/server/request-id.ts

@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import type { PreviewOutcome, PreviewReason } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
 import type {
@@ -12,7 +14,7 @@ import type {
   FormVersionSummary,
   PinnableQuestion,
 } from "../forms/types.ts";
-import type { QuestionDetail, QuestionListItem } from "../questions/types.ts";
+import type { QuestionListItem } from "../questions/types.ts";
 
 import { adminApiFetch } from "./api.ts";
 import type { ApiResult } from "./api-result.ts";
@@ -70,32 +72,47 @@ export async function createForm(
  * panel *warns* that `challengeRequired` is unenforceable, so a build talking to an API
  * that has not started sending the field errs towards telling the author more rather than
  * towards a switch that silently promises protection it may not have (ADR-24).
+ *
+ * ## Once per request, not once per tree (issue #626)
+ *
+ * `cache()` for the reason `currentAdminSession` carries it: a form-scoped screen is a
+ * page and a `@rail` slot rendered from one request, neither can hand the other a
+ * value, and both need the form, so the same `GET /admin/forms/{id}` went out twice per
+ * render. `lib/server/form-rail.ts` and `lib/server/question-rail.ts` both stated that
+ * cost in prose and named this as the place to change if it ever needed a cache.
+ *
+ * **The memo key is the argument list, by identity.** `session` is an object, so the
+ * dedupe holds only because `currentAdminSession` is memoized too and every caller in
+ * a request therefore holds the *same* session object. The two changes are one change,
+ * and the test that counts a render's reads is what keeps them together.
+ *
+ * Per request and no longer, so nothing here can serve a form a mutation has already
+ * changed: a server action runs before the re-render it triggers, and no action reads a
+ * form. Across requests this memo does not exist.
  */
-export async function getForm(
-  session: AdminSession,
-  formId: string,
-): Promise<ApiResult<FormDetail>> {
-  const result = await read<Record<string, unknown>>(
-    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
-  );
-  if (!result.ok) return result;
-  const raw = result.data;
-  const defaultLocale = asString(raw["defaultLocale"], "en");
-  return {
-    ok: true,
-    data: {
-      formId: asString(raw["formId"], formId),
-      slug: asString(raw["slug"], formId),
-      defaultLocale,
-      status: raw["status"] === "closed" ? "closed" : "open",
-      draft: parseDraft(raw["draft"], formId, defaultLocale),
-      draftSource: parseDraftSource(raw["draftSource"]),
-      versions: parseVersions(raw["versions"]),
-      settings: parseSettings(raw["settings"]),
-      challengeEnforceable: raw["challengeEnforceable"] === true,
-    },
-  };
-}
+export const getForm: (session: AdminSession, formId: string) => Promise<ApiResult<FormDetail>> =
+  cache(async (session: AdminSession, formId: string): Promise<ApiResult<FormDetail>> => {
+    const result = await read<Record<string, unknown>>(
+      await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}`),
+    );
+    if (!result.ok) return result;
+    const raw = result.data;
+    const defaultLocale = asString(raw["defaultLocale"], "en");
+    return {
+      ok: true,
+      data: {
+        formId: asString(raw["formId"], formId),
+        slug: asString(raw["slug"], formId),
+        defaultLocale,
+        status: raw["status"] === "closed" ? "closed" : "open",
+        draft: parseDraft(raw["draft"], formId, defaultLocale),
+        draftSource: parseDraftSource(raw["draftSource"]),
+        versions: parseVersions(raw["versions"]),
+        settings: parseSettings(raw["settings"]),
+        challengeEnforceable: raw["challengeEnforceable"] === true,
+      },
+    };
+  });
 
 /** `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores. */
 export async function saveDraft(
@@ -352,52 +369,63 @@ export async function setFormStatus(
 // --- the pinnable library ---------------------------------------------------
 
 /**
- * Every question the builder can pin, with every version it could pin to.
+ * Every question the builder can pin, with every version it could pin to: **one read**
+ * (issue #684).
  *
- * A list read plus a detail read per question, because the list route reports only the
- * **latest** version and its status (`types.ts` explains why that is not enough): a
- * question whose latest version is a draft on top of a published v1 would otherwise look
- * unpinnable while v1 sits there, pinnable. The picker and the "move pin" menu both need
- * the full version list, so it is assembled once, here, and passed down as a prop.
+ * The list route's default summary reports only the **latest** version and its status
+ * (`types.ts` explains why that is not enough): a question whose latest version is a
+ * draft on top of a published v1 would otherwise look unpinnable while v1 sits there,
+ * pinnable. `?versions=all` is the route answering that question directly, and the whole
+ * library arrives in one round trip.
  *
- * The detail reads run together rather than in sequence: this is the builder's slowest
- * server-side step and they are independent. A question whose detail read fails is
- * dropped rather than failing the whole screen - a library the author can mostly use
- * beats a builder that will not open. Only a failure of the *list* read fails the call,
- * because that one leaves nothing to show.
+ * ## What this replaced, and why the shape was the defect rather than the code
+ *
+ * This used to be the list read plus a **detail read per question**, run together with
+ * `Promise.all` and carefully degraded. `1 + N` API calls on every builder page load,
+ * with N the size of the entire library and no filter, no limit and no pagination in
+ * sight - so a three-hundred-question library meant three hundred and one round trips
+ * before the author had opened the picker at all. The API-side fan-out was the same shape
+ * one layer down: `listVersionsForQuestions` now reads every version in one query.
+ *
+ * The reasoning for the old shape was correct and its failure handling was careful; what
+ * was missing was a route that could answer the question. `add-question-poc.html` names
+ * the same defect from the design side ("ships the whole library to the browser and
+ * filters it client-side, which does not hold up against a library of several hundred
+ * questions") and assumes a server-driven picker. This is the half of that which removes
+ * the round trips; the picker's own search is still client-side over what it is given,
+ * and that is issue #660's ground rather than this one's.
+ *
+ * ## Tolerance is kept, and it moves with the read
+ *
+ * A question the response carries **without** a version list is dropped rather than
+ * failing the whole screen, exactly as a failed detail read was: a library the author can
+ * mostly use beats a builder that will not open. Only a failure of the read itself fails
+ * the call, because that one leaves nothing to show.
  */
 export async function loadPinnableQuestions(
   session: AdminSession,
 ): Promise<ApiResult<readonly PinnableQuestion[]>> {
   const list = await read<{ questions: QuestionListItem[] }>(
-    await adminApiFetch(session, "/questions"),
+    await adminApiFetch(session, "/questions?versions=all"),
   );
   if (!list.ok) return list;
 
-  const details = await Promise.all(
-    list.data.questions.map(async (question) =>
-      read<QuestionDetail>(
-        await adminApiFetch(session, `/questions/${encodeURIComponent(question.questionId)}`),
-      ),
-    ),
-  );
-
   const pinnable: PinnableQuestion[] = [];
-  list.data.questions.forEach((question, index) => {
-    const detail = details[index];
-    if (detail === undefined || !detail.ok) return;
+  for (const question of list.data.questions) {
+    const versions = question.versions;
+    if (versions === undefined) continue;
     pinnable.push({
       questionId: question.questionId,
       slug: question.slug,
       label: question.label,
       type: question.type,
-      versions: detail.data.versions.map((version) => ({
+      versions: versions.map((version) => ({
         version: version.version,
         status: version.status,
         definition: version.definition,
       })),
     });
-  });
+  }
   return { ok: true, data: pinnable };
 }
 

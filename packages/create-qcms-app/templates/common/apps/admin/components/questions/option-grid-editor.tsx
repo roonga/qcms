@@ -579,16 +579,21 @@ export function OptionGridEditor({
                     minted-once invariant is structural rather than remembered. */}
                 <div
                   className="qcms-opt-cell qcms-opt-cell--id"
-                  // The id itself goes in the tooltip as well as the cell. The card's ID
-                  // column is 140px and ellipsizes, which was right for the opaque ids its
-                  // mock showed (`opt_8f2ka91m`); the Code Owner's minting ruling keeps ids
-                  // LABEL-DERIVED, so a real one (`opt_roadside_assistance`) overflows that
-                  // width. An author writing a rule reads option ids raw, so this at least
-                  // makes the whole value recoverable without widening the column.
-                  title={
-                    row.optionId ??
-                    `${t("questions.options.idPending")}: ${t("questions.options.idPendingTitle")}`
-                  }
+                  // NO TOOLTIP ON AN ID (issue #595). It used to carry the id, because the
+                  // column was 140px and ellipsized: the tooltip was the only way to
+                  // recover a value the cell had cut. The column is measured for a real
+                  // label-derived id now and a longer one wraps rather than truncating
+                  // (`app/globals.css`), so a `title` here would be a second copy of a
+                  // string the cell already shows whole - and a hover-only one at that.
+                  //
+                  // A PENDING row is the opposite case and keeps its tooltip: what that
+                  // cell renders is a placeholder, not a value, and the tooltip is the one
+                  // place that says why no id exists yet.
+                  {...(row.optionId === undefined
+                    ? {
+                        title: `${t("questions.options.idPending")}: ${t("questions.options.idPendingTitle")}`,
+                      }
+                    : {})}
                 >
                   {row.optionId ?? (
                     <span className="qcms-opt-id--pending">{t("questions.options.idPending")}</span>

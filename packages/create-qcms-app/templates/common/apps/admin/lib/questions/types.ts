@@ -152,6 +152,15 @@ export interface QuestionListItem {
   readonly label: LocalizedText | null;
   /** The latest version's type, or `null` when that version is missing. */
   readonly type: QuestionType | null;
+  /**
+   * Every stored version, oldest first: present only for `?versions=all` (issue #684).
+   *
+   * Optional and absent rather than empty, matching the route, so "this response does not
+   * carry versions" and "this question has none" stay two different answers. The library
+   * screen never asks for them; the form builder asks for nothing else, which is what
+   * removed its detail read per question.
+   */
+  readonly versions?: readonly QuestionVersion[];
 }
 
 /** `GET /admin/questions/{id}`, versions oldest first. */

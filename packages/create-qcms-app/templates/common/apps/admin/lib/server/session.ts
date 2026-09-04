@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -95,24 +97,54 @@ export const SHELL_HOME_PATH = "/questions";
  * accept. Applies gates 1 and 2 above (existence, idle expiry, absolute lifetime)
  * but not the 2FA gate, because the enrollment screens need a session that has not
  * passed it yet.
+ *
+ * ## Once per request, not once per caller (issue #626)
+ *
+ * `cache()` is React's per-request memo: the wrapped function runs at most once for a
+ * given argument list within one request, and every later caller gets that result
+ * back. The reason it is needed here is structural rather than a matter of taste. A
+ * Next layout, the page it wraps and a `@rail` parallel slot are three separate React
+ * trees rendered for one request, and none of them can hand a value to another, so
+ * each one asks this question for itself: rendering a single form-scoped screen made
+ * three `GET /auth/get-session` calls, all with the same answer. The duplication
+ * predates the rail - the shell layout and every page have both called
+ * `requireAdminSession()` since task 031 - and it was the rail landing on eight routes
+ * that made it worth counting.
+ *
+ * **The memo is per request, so it is not a cache in the sense that matters for
+ * security.** Nothing is retained across requests, nothing is shared between visitors,
+ * and no session outlives the render that read it: two requests carrying the same
+ * cookie still read the session row twice, so a session revoked between them is
+ * refused by the second. What is removed is only the app asking the same question
+ * three times inside one render.
+ *
+ * .NET mapping: a scoped (per-request) service resolving once per request, except
+ * that the scope is the framework's and no container is involved.
+ *
+ * The memo wraps this reader rather than {@link requireAdminSession}, because the
+ * gates above it are pure decisions over the result: memoizing the read deduplicates
+ * every caller, including {@link requireAdminSessionForRequest} and
+ * {@link requireEnrollingSession}, without any of them caching a *redirect*.
  */
-export async function currentAdminSession(): Promise<AdminSession | undefined> {
-  const requestHeaders = await headers();
-  const result = await proxiedSession(requestHeaders);
-  if (result === undefined) return undefined;
+export const currentAdminSession: () => Promise<AdminSession | undefined> = cache(
+  async (): Promise<AdminSession | undefined> => {
+    const requestHeaders = await headers();
+    const result = await proxiedSession(requestHeaders);
+    if (result === undefined) return undefined;
 
-  const issuedAt = new Date(result.session.createdAt).getTime();
-  if (Date.now() - issuedAt >= sessionMaxAgeMs()) return undefined;
+    const issuedAt = new Date(result.session.createdAt).getTime();
+    if (Date.now() - issuedAt >= sessionMaxAgeMs()) return undefined;
 
-  return {
-    userId: result.user.id,
-    email: result.user.email,
-    name: result.user.name,
-    role: result.user.role ?? "admin",
-    twoFactorEnabled: result.user.twoFactorEnabled === true,
-    token: result.session.token,
-  };
-}
+    return {
+      userId: result.user.id,
+      email: result.user.email,
+      name: result.user.name,
+      role: result.user.role ?? "admin",
+      twoFactorEnabled: result.user.twoFactorEnabled === true,
+      token: result.session.token,
+    };
+  },
+);
 
 /** Where the three gates land: a session, or the path the visitor is sent to. */
 type SessionOutcome =

@@ -19,8 +19,12 @@ import type { AdminSession } from "./session.ts";
  * of them in one answer, so unlike the form rail there is no verdict to fetch and no badge
  * to attribute. What it does cost is a second read of the same question in the same
  * request: a parallel route and the page beside it are separate React trees and neither can
- * hand the other a value. That cost is stated here rather than hidden, it is the same cost
- * the form rail already pays, and this is the one place to change if it ever needs a cache.
+ * hand the other a value. That cost is stated here rather than hidden, and it is still
+ * stated: issue #626 removed the equivalent duplicate on the FORM side by memoizing
+ * `getForm` per request at its own definition, and left this one standing because its
+ * issue covered form-scoped screens. So the answer for a question screen is `cache()` on
+ * `getQuestion`, in `questions.ts`, the way `forms.ts` now does it - a separate issue's
+ * one-line change rather than something for this loader to work around.
  */
 
 /** What the rail needs about one question, once its read has landed. */

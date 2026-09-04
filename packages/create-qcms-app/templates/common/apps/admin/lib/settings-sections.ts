@@ -141,16 +141,23 @@ export function settingsSectionFromHash(hash: string): SettingsSectionId | undef
 /**
  * The section a Settings URL's query names, which is where a POST lands its reader.
  *
- * Three of this screen's messages arrive as redirect markers rather than as renders:
- * `?changed=1` and `?error=1` from `/settings/password`, and `?codesError=1` from
- * `/settings/recovery-codes`. Each one belongs to a panel, and a panel screen that opened on
- * Account after a password change would hide the confirmation that the change happened. So
- * the marker chooses the panel, on the server, in the same render that draws the message.
+ * Four of this screen's messages arrive as redirect markers rather than as renders:
+ * `?changed=1`, `?error=1` and `?compromised=1` from `/settings/password`, and
+ * `?codesError=1` from `/settings/recovery-codes`. Each one belongs to a panel, and a panel
+ * screen that opened on Account after a password change would hide the confirmation that the
+ * change happened. So the marker chooses the panel, on the server, in the same render that
+ * draws the message. `?compromised=1` is the breached-password refusal (issue #437) and
+ * belongs to the same panel as the other two: a message an operator cannot see is the defect
+ * that issue exists to close, so it must not be one redirect away from being invisible again.
  */
 export function settingsSectionFromParams(
   params: Readonly<Record<string, string | readonly string[] | undefined>>,
 ): SettingsSectionId {
-  if (params.changed !== undefined || params.error !== undefined) {
+  if (
+    params.changed !== undefined ||
+    params.error !== undefined ||
+    params.compromised !== undefined
+  ) {
     return SETTINGS_SECTION_IDS.changePassword;
   }
   if (params.codesError !== undefined) return SETTINGS_SECTION_IDS.twoFactor;
