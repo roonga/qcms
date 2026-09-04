@@ -419,6 +419,81 @@ describe("GET /admin/questions - summary, status filter, search", () => {
     };
     expect(byLabel.questions.map((q) => q.questionId)).toContain("q_list_apple");
   });
+
+  /**
+   * `?versions=all` (issue #684): the one read that replaced a detail request per
+   * question in the form builder.
+   *
+   * The case that matters is the one the summary structurally cannot report - a draft
+   * sitting on top of a published version. `latestStatus` says `draft`, and nothing in
+   * the summary says the published v1 underneath is still there and still pinnable, which
+   * is exactly why the builder was issuing `1 + N` requests to find out.
+   */
+  describe("?versions=all", () => {
+    beforeAll(async () => {
+      await post("/questions", {
+        slug: "list-damson",
+        definition: shortText("q_list_damson", "Damson"),
+      });
+      await post("/questions/q_list_damson/versions/1/publish");
+      await post("/questions/q_list_damson/versions");
+    });
+
+    it("carries every version of every row, oldest first", async () => {
+      const body = (await (await get("/questions?versions=all")).json()) as {
+        questions: Array<{
+          questionId: string;
+          latestStatus: string;
+          versions?: Array<{ version: number; status: string; definition: unknown }>;
+        }>;
+      };
+      const damson = body.questions.find((q) => q.questionId === "q_list_damson");
+
+      // The summary alone would leave the builder thinking this question is unpinnable.
+      expect(damson?.latestStatus).toBe("draft");
+      expect(damson?.versions?.map((v) => [v.version, v.status])).toEqual([
+        [1, "published"],
+        [2, "draft"],
+      ]);
+      // The definition rides along, because the picker's rule editor reads a version's
+      // options and type off it.
+      expect(damson?.versions?.[0]?.definition).toMatchObject({ type: "shortText" });
+      // Every row carries them, not only the one this case is about.
+      expect(body.questions.every((q) => Array.isArray(q.versions))).toBe(true);
+    });
+
+    it("still reports the same summary fields it always did", async () => {
+      const body = (await (await get("/questions?versions=all")).json()) as {
+        questions: Array<{ questionId: string; latestStatus: string; label?: { en?: string } }>;
+      };
+      const apple = body.questions.find((q) => q.questionId === "q_list_apple");
+      // The latest is taken out of the version list rather than re-read, so this is the
+      // assertion that the substitution kept the label and status honest.
+      expect(apple?.latestStatus).toBe("published");
+      expect(apple?.label?.en).toBe("Apple");
+    });
+
+    it("omits the key entirely when it was not asked for", async () => {
+      const body = (await (await get("/questions")).json()) as {
+        questions: Array<Record<string, unknown>>;
+      };
+      // Absent, not empty: the library screen renders latest-version rows and has no use
+      // for a definition per version of every question in the library.
+      expect(body.questions.every((q) => !("versions" in q))).toBe(true);
+    });
+
+    it("composes with the existing filters", async () => {
+      const body = (await (await get("/questions?versions=all&search=damson")).json()) as {
+        questions: Array<{ questionId: string; versions?: unknown[] }>;
+      };
+      expect(body.questions.map((q) => q.questionId)).toEqual(["q_list_damson"]);
+      expect(body.questions[0]?.versions).toHaveLength(2);
+    });
+
+    it("refuses a value the parameter does not define", async () => {
+      expect((await get("/questions?versions=some")).status).toBe(400);
+    });
+  });
 });
 
 // --- preview: one version → a single-question A2UI document (032) -----------

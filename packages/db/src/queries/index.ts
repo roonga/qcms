@@ -25,6 +25,7 @@ export {
   getQuestionVersion,
   getQuestion,
   listQuestionVersions,
+  listVersionsForQuestions,
   updateDraftDefinition,
   listQuestions,
   isQuestionIdTaken,

@@ -74,16 +74,23 @@ describe("the Settings section list", () => {
     expect(settingsSectionFromParams({ changed: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
     expect(settingsSectionFromParams({ error: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
     expect(settingsSectionFromParams({ codesError: "1" })).toBe(SETTINGS_SECTION_IDS.twoFactor);
+    // The breached-password refusal (issue #437). A message an operator never sees is the
+    // exact defect that issue exists to close, so routing it is part of the fix rather
+    // than a detail of it.
+    expect(settingsSectionFromParams({ compromised: "1" })).toBe(
+      SETTINGS_SECTION_IDS.changePassword,
+    );
   });
 
   it("reads every marker the Settings page actually renders a message for", () => {
-    // The tripwire, because the two sides are one list written twice: a fourth marker added
+    // The tripwire, because the two sides are one list written twice: a fifth marker added
     // to the page renders a message on whatever panel happened to be open until it is routed
     // here too. Read off the page's source rather than restated, so it cannot be forgotten.
+    // It has already caught one: `compromised` arrived with issue #437 and failed here.
     const rendered = [...PAGE.matchAll(/params\.(\w+) !== undefined/gu)].map(
       (match) => match[1] ?? "",
     );
-    expect(new Set(rendered)).toEqual(new Set(["changed", "error", "codesError"]));
+    expect(new Set(rendered)).toEqual(new Set(["changed", "error", "compromised", "codesError"]));
   });
 
   it("names every section, and says so rather than guessing when one is missing", () => {

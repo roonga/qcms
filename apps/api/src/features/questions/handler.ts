@@ -52,6 +52,7 @@ import {
   isQuestionIdTaken,
   listQuestionVersions,
   listQuestions,
+  listVersionsForQuestions,
   publishQuestionVersion,
   updateDraftDefinition,
 } from "@qcms/db";
@@ -419,19 +420,42 @@ export function makeListQuestionsHandler(
   deps: Deps,
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
-    const { status, type, search } = c.req.valid("query");
+    const { status, type, search, versions } = c.req.valid("query");
     const summaries = await listQuestions(deps.db);
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
 
+    // `?versions=all` reads every version of every listed question in ONE query, and it
+    // is what stops the form builder issuing `1 + N` HTTP calls to assemble the same
+    // thing from the detail route (issue #684). It is loaded before the loop rather than
+    // inside it for the same reason: a per-row read here would have moved the fan-out
+    // from HTTP to SQL and called it a fix.
+    const versionsById =
+      versions === undefined
+        ? undefined
+        : groupByQuestion(
+            await listVersionsForQuestions(
+              deps.db,
+              byStatus.map((s) => s.questionId),
+            ),
+          );
+
     // Load each latest definition for its label and type (display + label search
     // + type filter). One read per row is fine at launch admin scale; a JOIN or a
     // denormalized label is a Phase-4 optimization, not a launch need (R7).
     // Sequential so the reads never overlap on a shared connection handle.
+    //
+    // When the versions were asked for, that read is already done: the latest is one
+    // entry of the list this row is about to carry, so the summary path costs nothing
+    // extra and the per-row read is skipped entirely.
     const items = [];
     for (const s of byStatus) {
-      const latest = await getQuestionVersion(deps.db, s.questionId, s.latestVersion);
+      const all = versionsById?.get(s.questionId);
+      const latest =
+        all === undefined
+          ? await getQuestionVersion(deps.db, s.questionId, s.latestVersion)
+          : all.find((row) => row.version === s.latestVersion);
       const label = latest === undefined ? null : labelOf(latest.definition);
       items.push({
         questionId: s.questionId,
@@ -442,6 +466,9 @@ export function makeListQuestionsHandler(
         publishedAt: s.publishedAt === null ? null : s.publishedAt.toISOString(),
         label,
         type: latest === undefined ? null : typeOf(latest.definition),
+        // Absent, not empty, when the caller did not ask: the two are different answers
+        // and the schema keeps them so.
+        ...(all === undefined ? {} : { versions: all.map(toVersionView) }),
       });
     }
 
@@ -461,6 +488,24 @@ export function makeListQuestionsHandler(
 
     return c.json({ questions }, 200);
   };
+}
+
+/**
+ * Partition one flat version read by question id, keeping the query's order within each
+ * group (issue #684).
+ *
+ * The query orders by `(questionId, version)`, so appending in arrival order leaves every
+ * group oldest first, which is the order the detail route already publishes and the order
+ * a version list is read in.
+ */
+function groupByQuestion(rows: readonly QuestionVersionRow[]): Map<string, QuestionVersionRow[]> {
+  const byQuestion = new Map<string, QuestionVersionRow[]>();
+  for (const row of rows) {
+    const group = byQuestion.get(row.questionId);
+    if (group === undefined) byQuestion.set(row.questionId, [row]);
+    else group.push(row);
+  }
+  return byQuestion;
 }
 
 /** Substring-match a needle against any locale value of a localized label. */

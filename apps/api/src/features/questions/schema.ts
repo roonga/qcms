@@ -74,6 +74,25 @@ export const ListQuestionsQuery = z.object({
     .string()
     .optional()
     .openapi({ param: { name: "search", in: "query" }, example: "colour" }),
+  /**
+   * Ask for every stored version of each listed question, not only a summary of the
+   * latest (issue #684).
+   *
+   * The form builder needs the whole version list to decide what it may pin - a question
+   * whose latest version is a draft on top of a published v1 is pinnable at v1 - and the
+   * summary cannot answer that, so it was reading the list and then the detail route once
+   * per question. Opt-in rather than always-on because the library screen needs none of
+   * it: making versions unconditional would put every definition of every version into a
+   * payload rendered as a table of latest-version rows, which is the same class of waste
+   * one route over.
+   *
+   * An enum of one value rather than a boolean, so a later caller can ask for a narrower
+   * slice (`?versions=published`) without the parameter having to change shape or meaning.
+   */
+  versions: z
+    .enum(["all"])
+    .optional()
+    .openapi({ param: { name: "versions", in: "query" }, example: "all" }),
 });
 
 // --- request bodies ---------------------------------------------------------
@@ -146,6 +165,15 @@ export const QuestionListItem = z
      * second read (issue #218).
      */
     type: QuestionTypeEnum.nullable(),
+    /**
+     * Every stored version of this question, oldest first - present only when the
+     * request asked for them with `?versions=all` (issue #684).
+     *
+     * Optional rather than nullable, and absent rather than empty, so the two states a
+     * reader has to tell apart stay distinct: "this response does not carry versions"
+     * and "this question has none". A caller that did not ask never sees the key.
+     */
+    versions: z.array(QuestionVersionView).optional(),
   })
   .openapi("QuestionListItem");
 export type QuestionListItem = z.infer<typeof QuestionListItem>;

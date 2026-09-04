@@ -67,6 +67,28 @@ let deadLettersResult: unknown = { ok: true, data: [] };
 let formDetailResult: unknown = { ok: true, data: undefined };
 let responsesResult: unknown = { ok: true, data: undefined };
 
+/** Every page number the screen asked the list route for, in order (issue #550). */
+const listedPages: number[] = [];
+
+/**
+ * `listResponses`, paging the way the API pages (issue #550).
+ *
+ * {@link responsesResult} describes the WHOLE result set - its rows, its page size and
+ * its total - and this hands back the slice the caller asked for: the rows for a page
+ * that exists, and an empty array for one past the end, which is exactly what the route
+ * answers and exactly the input the clamp exists for. Before this, the stub returned the
+ * same object for every page number, so a screen that asked for page 99 was handed page
+ * 1's rows and the defect was unreachable from this layer.
+ */
+function pagedResponses(page: number): unknown {
+  const result = responsesResult as
+    { ok?: unknown; data?: { responses: unknown[]; pageSize: number; total: number } } | undefined;
+  if (result?.ok !== true || result.data === undefined) return responsesResult;
+  const { responses, pageSize, total } = result.data;
+  const pages = Math.max(1, Math.ceil(total / Math.max(1, pageSize)));
+  return { ok: true, data: { responses: page <= pages ? responses : [], page, pageSize, total } };
+}
+
 const DEAD_LETTER = {
   deliveryId: "dlv_one",
   eventId: "evt_one",
@@ -150,7 +172,11 @@ vi.mock("@/lib/server/session", () => ({
 }));
 vi.mock("@/lib/server/responses", () => ({
   listErasures: () => Promise.resolve(erasuresResult),
-  listResponses: () => Promise.resolve(responsesResult),
+  listResponses: (_session: unknown, _formId: string, filters?: { readonly page?: number }) => {
+    const page = filters?.page ?? 1;
+    listedPages.push(page);
+    return Promise.resolve(pagedResponses(page));
+  },
 }));
 vi.mock("@/lib/server/questions", () => ({
   listQuestions: () => Promise.resolve(questionsResult),
@@ -276,6 +302,7 @@ beforeEach(() => {
   deadLettersResult = { ok: true, data: [] };
   formDetailResult = { ok: true, data: FORM_DETAIL };
   responsesResult = { ok: true, data: { responses: [], page: 1, pageSize: 50, total: 0 } };
+  listedPages.length = 0;
 });
 
 describe("the erasure log's three states (issue 514)", () => {
@@ -495,5 +522,59 @@ describe("the response browser's read states (issues 521, 572)", () => {
     // does not decide the empty state, the filters that DID parse do.
     expect(html).toContain("ops.responses.filteredEmpty");
     expect(html).toContain('data-testid="qcms-responses-ignored-filters"');
+  });
+});
+
+/**
+ * A page past the end of the result set (issue #550).
+ *
+ * The third arrival of this file's own subject: the screen making a claim about
+ * something other than what it read. `?page=99` on a form with submissions rendered the
+ * empty panel and "Nothing has been submitted to this form yet." Neither earlier fix
+ * reaches it - a page is not a filter (521) and the read did not fail (543/572) - so it
+ * needed the position itself to be corrected, which `lib/ops/paging.ts` argues for over
+ * a third empty state.
+ *
+ * Red-first against the pre-change page: the first test fails on all three of its
+ * assertions, because the screen renders the panel, `ops.responses.empty` and no table.
+ * The second and third are the controls that stop the fix from becoming "clamp always",
+ * which would re-read page 1 to rediscover an emptiness that was true the first time.
+ */
+describe("a page past the end of the responses (issue #550)", () => {
+  /** One page of results, so `?page=99` is past the end while rows plainly exist. */
+  const ONE_FULL_PAGE = {
+    ok: true,
+    data: { responses: [RESPONSE_ROW], page: 1, pageSize: 50, total: 1 },
+  };
+
+  it("shows the last page's rows rather than claiming the form is empty", async () => {
+    responsesResult = ONE_FULL_PAGE;
+
+    const html = await renderResponses({ page: "99" });
+
+    expect(html).toContain('<div class="qcms-table"><table');
+    expect(html).not.toMatch(EMPTY_PANEL);
+    expect(html).not.toContain("ops.responses.empty");
+    // The correction is a second read at the last page, and only because the first read
+    // is what reported the total that says where the end is.
+    expect(listedPages).toEqual([99, 1]);
+  });
+
+  it("reads once and keeps the empty panel when the form genuinely has nothing", async () => {
+    const html = await renderResponses({ page: "99" });
+
+    // No rows on any page, so the empty sentence is a true statement and clamping to
+    // page 1 would buy a round trip and change nothing on screen.
+    expect(html).toMatch(EMPTY_PANEL);
+    expect(html).toContain("ops.responses.emptyTitle");
+    expect(listedPages).toEqual([99]);
+  });
+
+  it("reads once for a page that is in range", async () => {
+    responsesResult = ONE_FULL_PAGE;
+
+    await renderResponses({ page: "1" });
+
+    expect(listedPages).toEqual([1]);
   });
 });

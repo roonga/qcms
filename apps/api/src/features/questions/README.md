@@ -14,7 +14,7 @@ version lifecycle is a set of single-row state checks this slice owns.
 | `PUT /admin/questions/:id/versions/:v`            | `questions:write` | Edit a **draft** version's definition. Published/deprecated → `VERSION_IMMUTABLE`.                                                                                                                                  |
 | `POST /admin/questions/:id/versions/:v/publish`   | `questions:write` | Draft → published (freezes the definition; makes it pinnable).                                                                                                                                                      |
 | `POST /admin/questions/:id/versions/:v/deprecate` | `questions:write` | Published → deprecated (blocks **new** pins only; existing pins/history untouched).                                                                                                                                 |
-| `GET /admin/questions`                            | `questions:read`  | List with latest-version summary; `?status=` filter, `?search=` over slug/label.                                                                                                                                    |
+| `GET /admin/questions`                            | `questions:read`  | List with latest-version summary; `?status=` filter, `?search=` over slug/label, `?versions=all` to carry every version of each row.                                                                                |
 | `GET /admin/questions/:id`                        | `questions:read`  | One question with every version, oldest first.                                                                                                                                                                      |
 | `GET /admin/questions/:id/versions/:v/preview`    | `questions:read`  | Compile one version to a single-question A2UI document (`{ stepId: "stp_preview", root, a2uiSpecVersion, compilerVersion }`) for the admin preview pane. `?locale=` (default `en`, unparseable falls back to `en`). |
 
@@ -85,4 +85,17 @@ these paths do not exist: a request 404s, never 403s.
 
 - `GET /admin/questions` loads each row's latest definition for its label (one
   read per row). Fine at launch admin scale; a JOIN or denormalized label column
-  is a Phase-4 optimization (R7), not a launch need.
+  is a Phase-4 optimization (R7), not a launch need. **`?versions=all` does not
+  pay that cost**: it reads every version of every listed question in one query
+  (`listVersionsForQuestions`) and takes the latest out of what it already has,
+  so the versions-bearing variant makes two queries whatever the library's size.
+  That asymmetry is deliberate rather than an oversight - issue #684 was about
+  the fan-out on the path the form builder uses, and converting the summary path
+  as well would change what the library screen loads for no defect anyone has.
+- **The versions-bearing response is unbounded**, because this route has no
+  pagination at all. It is strictly larger than the summary for the same library,
+  and its one caller (`loadPinnableQuestions`, the form builder) needs the whole
+  library by construction: the picker offers every pinnable version. Issue #684
+  names a search endpoint with counts and pagination as the larger of its two
+  options and `add-question-poc.html` assumes one; that remains unbuilt, and this
+  is the smaller half it called out as removing the worse problem.

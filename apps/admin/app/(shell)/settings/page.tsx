@@ -103,6 +103,15 @@ export default async function SettingsPage({
                 {/* The same generic sentence as every other auth failure: a wrong current
                   password must not be distinguishable from a rejected new one (SEC-1). */}
                 {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
+                {/* The one refusal that says what it is (issue #437, Code Owner ruling
+                  2026-09-03): the new password is in the public breach corpus, which is a
+                  fact about a password the reader just typed rather than about the account.
+                  Display only - `lib/server/password-refusal.ts` maps the code and records
+                  the oracle the ruling accepted, and nothing about what the API refuses,
+                  when, or in what order changed. */}
+                {params.compromised !== undefined && (
+                  <Alert variant="error">{t("settings.passwordCompromised")}</Alert>
+                )}
                 <form
                   method="post"
                   action="/settings/password"

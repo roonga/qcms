@@ -142,7 +142,7 @@ export const listQuestionsRoute = createRoute({
   method: "get",
   path: "/questions",
   summary:
-    "List questions with a latest-version summary; filter by status and type, search slug/label (admin)",
+    "List questions with a latest-version summary, or every version with `?versions=all`; filter by status and type, search slug/label (admin)",
   tags,
   request: { query: ListQuestionsQuery },
   responses: {
@@ -150,8 +150,9 @@ export const listQuestionsRoute = createRoute({
       description: "The question library",
       content: { "application/json": { schema: ListQuestionsResponse } },
     },
-    // 400: the query schema refuses a malformed filter, page or search term
-    // before the handler runs (#722, issue #725).
+    // 400: the query schema refuses a malformed filter or search term before the
+    // handler runs (#722, issue #725). There is no page parameter on this route -
+    // the word was in this comment for a long time and named nothing (issue #684).
     ...errorResponses(400, 401),
   },
   ...withScopes("questions:read"),

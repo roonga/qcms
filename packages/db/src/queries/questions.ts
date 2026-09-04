@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { QuestionDefinition, QuestionId } from "@qcms/core";
 
@@ -180,6 +180,32 @@ export async function listQuestionVersions(
     .from(questionVersions)
     .where(eq(questionVersions.questionId, questionId))
     .orderBy(questionVersions.version);
+}
+
+/**
+ * Every stored version of MANY questions in one read, ordered by question and then
+ * oldest version first (issue #684).
+ *
+ * The sibling above answers the same question for one id, and calling it in a loop is
+ * exactly what this replaces: the form builder needs every pinnable version of the whole
+ * library, so the loop's cost is one round trip per question in it, and both the HTTP
+ * layer above and this one were paying it. Grouping is left to the caller, which is why
+ * the order is `(questionId, version)` rather than the caller's own row order: a single
+ * pass over this result partitions it, and no caller has to sort.
+ *
+ * An empty id list short-circuits rather than issuing `IN ()`, which is not valid SQL in
+ * every dialect and is a query with no answer to give in any of them.
+ */
+export async function listVersionsForQuestions(
+  exec: Executor,
+  questionIds: readonly QuestionId[],
+): Promise<QuestionVersionRow[]> {
+  if (questionIds.length === 0) return [];
+  return exec
+    .select()
+    .from(questionVersions)
+    .where(inArray(questionVersions.questionId, [...questionIds]))
+    .orderBy(questionVersions.questionId, questionVersions.version);
 }
 
 /**

@@ -228,7 +228,16 @@ export function ResponseBrowser({
           no sentence under it; unfiltered keeps the sentence. Neither carries a CTA:
           responses are created by respondents, so there is no creating action on this
           screen for §3's CTA clause to offer, and the filters are the form directly
-          above with its own reset control. */}
+          above with its own reset control.
+
+          TWO VARIANTS AND NOT THREE, which is a property of the page rather than of
+          this component (issue #550). A page past the end of a non-empty result set
+          used to arrive here and render the unfiltered sentence on a form with
+          submissions; the page clamps to the last page instead, so an empty
+          `data.responses` now means the result set itself is empty and both of these
+          messages are true statements about it. A third "nothing on this page" state
+          is deliberately not introduced: issue #514 owns harmonising the two shapes
+          the app has, and a third bolted on beforehand is what it would inherit. */}
       {data !== undefined &&
         (data.responses.length === 0 ? (
           <EmptyState

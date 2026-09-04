@@ -196,11 +196,18 @@ export interface IssuePath {
 /**
  * A question the builder can pin, with every version it could pin to.
  *
- * Assembled in the BFF from `GET /admin/questions` plus a detail read per question,
- * because the list route reports only the *latest* version and its status: a question
- * whose latest version is a draft on top of a published v1 shows `latestStatus: "draft"`
- * and gives no hint that v1 exists and is pinnable. The picker and the "move pin" menu
- * both need the full version list, so it is fetched once and shared.
+ * Assembled in the BFF from one `GET /admin/questions?versions=all`. The summary that
+ * route reports by default cannot answer this: it carries only the *latest* version and
+ * its status, so a question whose latest version is a draft on top of a published v1
+ * shows `latestStatus: "draft"` and gives no hint that v1 exists and is pinnable. The
+ * picker and the "move pin" menu both need the full version list, so it is fetched once
+ * and shared.
+ *
+ * It used to be that list plus a **detail read per question**, which is `1 + N` API calls
+ * on every builder page load with N the size of the whole library (issue #684). The
+ * reasoning behind the fan-out was sound and its failure handling was careful; what was
+ * missing was a route that could answer the question in one read, and `?versions=all` is
+ * it.
  */
 export interface PinnableQuestion {
   readonly questionId: string;

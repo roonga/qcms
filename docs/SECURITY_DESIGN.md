@@ -71,6 +71,13 @@ It was run: against a real database with `api.pwnedpasswords.com` blackholed at 
 So **first-admin creation is impossible on an air-gapped deployment without the knob**, which is precisely why the knob exists.
 The CLI reports both outcomes as a named refusal with an actionable line rather than crashing (`describeRefusal`), and never echoes the password or any part of its hash.
 
+**The corpus refusal is shown specifically at the admin change-password surface, and the oracle that costs is accepted knowingly (Code Owner ruling, 2026-09-03; issue #437).**
+Every other failure on that form reports one generic sentence, because SEC-1 requires a wrong current password to be indistinguishable from a rejected new one; a corpus hit is the single exception, mapped to copy that says the password appears in public breach data and to choose another.
+The cost is that better-auth 1.7.2 hashes the new password - where the check hooks - before it verifies the current one (`dist/api/routes/update-user.mjs:174` against `:175-178`, measured on issue #437 and re-read at this version), so the specific copy is visible to any session holder whether or not they know the current password: a corpus-membership oracle for arbitrary candidates.
+It is accepted because the corpus is pwnedpasswords, a free public API anyone may query anonymously, so the oracle duplicates information already available at the source and the marginal leak is effectively nil against a real gain for a legitimate admin.
+Rejected: pre-verifying the current password first (an extra round trip or an upstream reorder, buying the closure of an oracle whose contents are public) and keeping the generic failure (the gap the issue exists for).
+The change is display only - the refusal, its status, its timing and its ordering are unchanged - and lives in `apps/admin/lib/server/password-refusal.ts`.
+
 **Operational dependency.** The package tree is unchanged, but this adds a **runtime egress dependency on `api.pwnedpasswords.com`** for the two admin password-setting paths, on a deployment that previously needed no outbound access for authentication at all. It is recorded in the operator surface (`docs/operations.md`) as well as here, because it is a new fact about the deployment even though it is not a new fact about the build.
 
 **Where the endpoints live, and how "no self-registration path" survives an HTTP mount (task 056).**

@@ -51,6 +51,7 @@ import {
   listDeadLetters,
   listFormVersions,
   listQuestions,
+  listVersionsForQuestions,
   markDelivered,
   markInProgress,
   markSubmitted,
@@ -229,6 +230,35 @@ describe("questions helpers", () => {
       latestStatus: "published",
       slug: "q-summary-slug",
     });
+  });
+
+  it("reads many questions' versions in one call, grouped and oldest first", async () => {
+    // The read that replaced a loop over `listQuestionVersions` (issue #684). Three
+    // properties, and the third is why the ordering is part of the contract rather than
+    // incidental: a caller partitions this in one pass and never sorts.
+    const first = QuestionId.parse("q_bulk_one");
+    const second = QuestionId.parse("q_bulk_two");
+    const absent = QuestionId.parse("q_bulk_missing");
+    await createQuestion(testDb.db, { questionId: first, slug: "q-bulk-one" });
+    await createQuestion(testDb.db, { questionId: second, slug: "q-bulk-two" });
+    await createQuestionVersion(testDb.db, { questionId: first, definition: emptyQuestionDef });
+    await createQuestionVersion(testDb.db, { questionId: first, definition: emptyQuestionDef });
+    await publishQuestionVersion(testDb.db, { questionId: first, version: 1 });
+    await createQuestionVersion(testDb.db, { questionId: second, definition: emptyQuestionDef });
+
+    const rows = await listVersionsForQuestions(testDb.db, [first, second, absent]);
+
+    // Only the two that exist, every version of each, and the published-under-a-draft
+    // shape the form builder exists to see: v1 published, v2 draft on top of it.
+    expect(rows.map((row) => [row.questionId, row.version, row.status])).toEqual([
+      [first, 1, "published"],
+      [first, 2, "draft"],
+      [second, 1, "draft"],
+    ]);
+  });
+
+  it("asks the database nothing when given no question ids", async () => {
+    await expect(listVersionsForQuestions(testDb.db, [])).resolves.toEqual([]);
   });
 
   it("reports questionId use, including historic answer rows (R6)", async () => {

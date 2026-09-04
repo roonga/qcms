@@ -602,6 +602,62 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
+test("a long label-derived option id renders whole at both gate widths", async ({ page }) => {
+  test.setTimeout(120_000);
+
+  // Issue #595. `plan/admin-design-contracts.md` §2's 2026-08-21 amendment splits the id
+  // rule by minting convention: an opaque id renders as prefix-plus-8 with a copy control,
+  // a DERIVED one renders whole, never truncated and never ellipsized. This column did the
+  // opposite - `text-overflow: ellipsis` in the frozen card's 140px, with the value only in
+  // a `title` tooltip - and it was the app's one id-truncating site.
+  //
+  // The acceptance asks for frames at 390px and 1280px showing a long label-derived id
+  // rendered whole. What is asserted here instead is the property a frame would be read
+  // FOR, at exactly those two widths: every character present in the cell, and the cell not
+  // clipping its own content. A measurement fails on the next regression; a picture has to
+  // be looked at.
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await createDraft(page, slugFor("longid"), "Single choice");
+
+  // `mintOptionId` slugs the author's label, so this names its own expected id. It is the
+  // contract's own example of a real derived id, and 23 characters against the column's
+  // measured 25.
+  await addOption(page, "Roadside assistance");
+  const cell = page.locator('[data-option-index="2"] .qcms-opt-cell--id');
+  await expect(cell).toHaveText("opt_roadside_assistance");
+
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    // Still every character, at this width. `toHaveText` reads the DOM, so it would pass
+    // over a clipped cell too - which is what the overflow measurement below is for.
+    await expect(cell, `the whole id at ${String(width)}px`).toHaveText("opt_roadside_assistance");
+
+    const overflow = await cell.evaluate((node) => ({
+      // Nothing cut horizontally, and nothing cut vertically either: at 1280 the id fits
+      // the column on one line, and at 390 it wraps inside the folded row rather than
+      // being clipped by a fixed height.
+      overflowX: node.scrollWidth - node.clientWidth,
+      overflowY: node.scrollHeight - node.clientHeight,
+      textOverflow: getComputedStyle(node).textOverflow,
+      whiteSpace: getComputedStyle(node).whiteSpace,
+    }));
+    expect(overflow.overflowX, `no horizontal clipping at ${String(width)}px`).toBeLessThanOrEqual(
+      1,
+    );
+    expect(overflow.overflowY, `no vertical clipping at ${String(width)}px`).toBeLessThanOrEqual(1);
+    // The two declarations that used to do the truncating. Asserted on the COMPUTED style,
+    // so a rule reintroduced anywhere in the cascade fails here rather than only in a diff.
+    expect(overflow.textOverflow, `no ellipsis at ${String(width)}px`).not.toBe("ellipsis");
+    expect(overflow.whiteSpace, `the id may wrap at ${String(width)}px`).not.toBe("nowrap");
+  }
+
+  // The tooltip is gone with the truncation it existed to work around: a `title` carrying
+  // a value the cell already shows whole is a second copy of the same string.
+  await expect(cell).not.toHaveAttribute("title", /opt_/u);
+
+  await page.setViewportSize({ width: 1280, height: 800 });
+});
+
 test("the version preview renders the real control for the type", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("preview"), "Long text");
