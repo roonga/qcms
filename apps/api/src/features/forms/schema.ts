@@ -53,7 +53,17 @@ export const CreateFormBody = z
   .openapi("CreateFormBody");
 
 /** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
-export const DraftBody = z.object({ definition: OpaqueDefinition }).openapi("DraftBody");
+export const DraftBody = z
+  .object({
+    definition: OpaqueDefinition,
+    /**
+     * Set when this save is accepting an agent-assisted proposal (041, ADR-25).
+     * Sticky on the stored draft: it marks provenance for the human who will
+     * publish, and an ordinary later save never clears it.
+     */
+    agentAssisted: z.boolean().optional(),
+  })
+  .openapi("DraftBody");
 
 /**
  * `POST /admin/forms/:id/draft/preview-condition` - the rule test bench (033).
@@ -275,6 +285,14 @@ export const FormDetailResponse = z
     draft: z.unknown(),
     /** Where `draft` came from: an open draft, a seed, or none. */
     draftSource: z.enum(["open", "seeded", "none"]).openapi({ example: "open" }),
+    /**
+     * Whether the open draft carries agent-assisted changes (041, ADR-25). The
+     * builder header and the publish confirmation show it, so the human
+     * publishing knows what they are signing. Always false for a seeded draft.
+     */
+    draftAgentAssisted: z.boolean().openapi({ example: false }),
+    /** The open draft's state token, or null; the 041 assist request echoes it. */
+    draftUpdatedAt: z.string().nullable(),
     versions: z.array(FormVersionSummary),
     /** The per-form abuse-control settings (026), which the builder panel edits (033). */
     settings: FormSettings,
@@ -300,6 +318,10 @@ export const SavedDraftResponse = z
      * warning about the same draft.
      */
     warnings: z.array(PublishWarningEntry),
+    /** Whether this draft carries agent-assisted changes (041). */
+    agentAssisted: z.boolean().openapi({ example: false }),
+    /** The draft's current state token, for the 041 assist request. */
+    updatedAt: z.string().openapi({ example: "2026-08-01T09:00:00.000Z" }),
   })
   .openapi("SavedDraftResponse");
 

@@ -51,6 +51,23 @@ const EXTRA_FILES = ["proxy.ts"];
 const API_CLIENT_SUFFIX = "lib/server/api.ts";
 
 /**
+ * The one client-side `fetch` this rule allows, and why it is not the hole rule 5
+ * exists to close.
+ *
+ * `AssistPanel` (task 041) reads a streamed SSE response as it arrives, which needs
+ * the browser's own `fetch`: there is no other way to get a `ReadableStream` body for
+ * a `POST` carrying a JSON payload (`EventSource` cannot `POST` or set a body at
+ * all). What it calls is this app's *own* same-origin route
+ * (`app/(shell)/forms/[formId]/assist/route.ts`), never the API directly - neither the
+ * admin session token nor the internal service token is anywhere in this file. The
+ * one call that does carry them still runs through `lib/server/forms.ts`'s `assist()`,
+ * built on `adminApiFetch` like every other API call this app makes, so rule 5's
+ * actual property ("the credentials are attached in one place") still holds. Widening
+ * this set to a second file is an amendment to this comment, not a silent regex edit.
+ */
+const ALLOWED_CLIENT_FETCH_SUFFIX = "/components/forms/assist-panel.tsx";
+
+/**
  * The complete set of value bindings the admin may take from `@qcms/db`: **none**.
  *
  * Kept as a set rather than deleted along with its last entry, because an empty
@@ -468,12 +485,29 @@ describe("R2 import surface (strict BFF)", () => {
     const offenders: string[] = [];
     for (const { path, text } of files) {
       if (path.endsWith(API_CLIENT_SUFFIX)) continue;
+      if (path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIX)) continue;
       const matched = /\bfetch\s*\(/.exec(withoutComments(text))?.[0];
       if (matched !== undefined) {
         offenders.push(`${path}: matched \`${matched}\` - rule: one API client, one place`);
       }
     }
     expect(offenders).toEqual([]);
+
+    // The exemption above is only sound while the exempted file carries no
+    // credential of its own. Assert that rather than trusting the comment: a
+    // session or channel token appearing there is the hole rule 5 exists to
+    // close, exemption or not.
+    const exempt = files.find((f) => f.path.endsWith(ALLOWED_CLIENT_FETCH_SUFFIX));
+    expect(exempt, "the client-fetch exemption names a file that no longer exists").toBeDefined();
+    for (const forbidden of [
+      "x-qcms-internal-token",
+      "x-qcms-admin-session",
+      "QCMS_INTERNAL_TOKEN",
+      "adminApiFetch",
+      "apiBaseUrl",
+    ]) {
+      expect(exempt?.text ?? "", forbidden).not.toContain(forbidden);
+    }
   });
 
   it("attaches BOTH credentials in the one API client (SEC-4)", () => {

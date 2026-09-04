@@ -112,6 +112,7 @@ const seams = {
   changePassword: vi.fn(),
   enableTwoFactor: vi.fn(),
   proxiedSession: vi.fn(),
+  assist: vi.fn(),
   requireAdminSessionForRequest: vi.fn(),
   pendingEnrollmentCookie: vi.fn(() => "qcms_admin.enrollment=uri; Path=/"),
   recoveryCodesCookie: vi.fn(() => "qcms_admin.recovery_codes=%5B%5D; Path=/"),
@@ -128,6 +129,14 @@ vi.mock("@/lib/server/auth-api", () => ({
   changePassword: seams.changePassword,
   enableTwoFactor: seams.enableTwoFactor,
   proxiedSession: seams.proxiedSession,
+}));
+
+// Task 041's assist proxy reaches the API through `lib/server/forms.ts`. Only `assist`
+// is replaced, and only so the "a refused request reached nothing" sweep has something
+// to watch on this route: the belt itself is the real one.
+vi.mock("@/lib/server/forms", async () => ({
+  ...(await import("./forms.ts")),
+  assist: seams.assist,
 }));
 
 vi.mock("@/lib/server/enrollment", () => ({
@@ -194,6 +203,7 @@ const recoveryRoute = await import("../../app/two-factor/recovery/verify/route.t
 const confirmRoute = await import("../../app/two-factor/recovery-codes/confirm/route.ts");
 const passwordRoute = await import("../../app/(shell)/settings/password/route.ts");
 const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
+const assistRoute = await import("../../app/(shell)/forms/[formId]/assist/route.ts");
 
 /** The refusal lines written since the last test started, parsed. */
 function refusalLines(): Record<string, unknown>[] {
@@ -207,10 +217,13 @@ function refusalLines(): Record<string, unknown>[] {
  * log line uses.
  *
  * Derived from the wire rather than from the route table, so that comparing the two says
- * something. Every admin refusal is a 303; what separates them is whether the redirect
- * carries the opaque failure marker that makes a screen render its one generic sentence.
+ * something. A navigation refusal is a 303, and what separates those two is whether the
+ * redirect carries the opaque failure marker that makes a screen render its one generic
+ * sentence. Task 041's assist turn is reached by `fetch` rather than by a form, so its
+ * refusal is a bare status with no `Location` to read at all.
  */
 function outcomeOnTheWire(response: Response): string {
+  if (response.status !== 303) return `refused-${response.status}`;
   const location = new URL(response.headers.get("location") ?? "", ADMIN_BASE);
   return location.search === "" ? "redirect-without-message" : "redirect-with-failure";
 }
@@ -286,8 +299,13 @@ interface GuardedRoute {
   readonly post: (headers: Record<string, string>) => Promise<Response> | Response;
   /** The seam this route reaches once it is past the belt. */
   readonly reached: () => (typeof seams)[keyof typeof seams];
-  /** Where a refusal lands, as an app-relative `Location`. */
-  readonly refusalLocation: string;
+  /**
+   * Where a refusal lands, as an app-relative `Location`, or `null` for a route that
+   * answers a status rather than redirecting (task 041's `fetch`-reached assist turn).
+   */
+  readonly refusalLocation: string | null;
+  /** The refusal's status. `303` for every navigation route; the assist turn answers 403. */
+  readonly refusalStatus?: number;
   /**
    * The route template the refusal line must carry, and the outcome it must name.
    *
@@ -394,6 +412,28 @@ const ROUTES: readonly GuardedRoute[] = [
     refusalLocation: "/settings?codesError=1",
     logged: { beltRoute: "/settings/recovery-codes", beltOutcome: "redirect-with-failure" },
   },
+  {
+    // Task 041. The flag is stubbed on for this route only, because with it off the
+    // handler answers 404 before the belt runs at all - which is exit criterion 1
+    // working, not a hole in this one: a route that does not exist cannot be posted to
+    // cross-origin either.
+    path: "app/(shell)/forms/[formId]/assist/route.ts",
+    post: (headers) => {
+      vi.stubEnv("QCMS_FLAG_AGENT_AUTHORING", "fake");
+      return assistRoute.POST(
+        new Request(`${ADMIN_BASE}/forms/frm_quote/assist`, {
+          method: "POST",
+          headers: { ...headers, "content-type": "application/json" },
+          body: JSON.stringify({ conversation: [] }),
+        }) as never,
+        { params: Promise.resolve({ formId: "frm_quote" }) },
+      );
+    },
+    reached: () => seams.assist,
+    refusalLocation: null,
+    refusalStatus: 403,
+    logged: { beltRoute: "/forms/{formId}/assist", beltOutcome: "refused-403" },
+  },
 ];
 
 describe("isSameOriginPost", () => {
@@ -458,6 +498,11 @@ describe.each(ROUTES)("$path", (route) => {
       authResponse({ totpURI: "otpauth://", backupCodes: [] }),
     );
     seams.proxiedSession.mockResolvedValue({ user: { twoFactorEnabled: true } });
+    // An upstream SSE turn the assist proxy relays. Empty body: this file is about the
+    // belt, and what the panel does with the stream is `assist-stream.test.ts`'s.
+    seams.assist.mockResolvedValue(
+      new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
+    );
     seams.requireAdminSessionForRequest.mockResolvedValue(SESSION);
   });
 
@@ -481,7 +526,7 @@ describe.each(ROUTES)("$path", (route) => {
       // call but made another has still let a cross-site caller act. `requireAdminSession
       // ForRequest` is in the sweep too, so a refusal must not even resolve the session.
       for (const seam of Object.values(seams)) expect(seam).not.toHaveBeenCalled();
-      expect(response.status).toBe(303);
+      expect(response.status).toBe(route.refusalStatus ?? 303);
       expect(response.headers.get("location")).toBe(route.refusalLocation);
       expect(response.headers.getSetCookie()).toEqual([]);
     },

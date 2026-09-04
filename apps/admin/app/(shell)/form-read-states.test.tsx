@@ -72,6 +72,8 @@ const FORM_DETAIL = {
   versions: [{ version: 1, status: "published", publishedAt: "2026-08-01T10:00:00.000Z" }],
   settings: { challengeRequired: false, minSubmitMs: null },
   challengeEnforceable: false,
+  draftAgentAssisted: false,
+  draftUpdatedAt: null,
   draft: {
     formId: "frm_one",
     defaultLocale: "en",

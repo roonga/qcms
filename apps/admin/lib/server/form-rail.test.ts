@@ -56,6 +56,8 @@ const DETAIL: FormDetail = {
   versions: [],
   settings: { challengeRequired: false, minSubmitMs: null },
   challengeEnforceable: false,
+  draftAgentAssisted: false,
+  draftUpdatedAt: null,
 };
 
 /** A session object the mocked client never looks at. */

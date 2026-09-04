@@ -11,6 +11,7 @@ import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
+import { agentAuthoringEnabled } from "@/lib/server/agent";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -173,12 +174,16 @@ export default async function FormBuilderPage({
             latestVersion={form.versions[0]?.version}
             publish={publishFormAction.bind(null, form.formId)}
             setStatus={setFormStatusAction.bind(null, form.formId)}
+            agentAssisted={form.draftAgentAssisted}
           />
         }
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}
         previewCondition={previewConditionAction.bind(null, form.formId)}
+        {...(agentAuthoringEnabled()
+          ? { assist: { endpoint: `/forms/${encodeURIComponent(form.formId)}/assist` } }
+          : {})}
       />
     </div>
   );

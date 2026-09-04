@@ -161,6 +161,15 @@ export interface FormDetail {
    * author believe a switch is protecting them.
    */
   readonly challengeEnforceable: boolean;
+  /**
+   * Task 041's provenance marker: whether the stored draft carries any agent-assisted
+   * change. Shown on the builder and repeated in the publish confirmation (ADR-25) so
+   * the human publishing knows what they are signing, before this visit's own edits
+   * have said anything either way.
+   */
+  readonly draftAgentAssisted: boolean;
+  /** The stored draft's `updatedAt`, task 041's `clientState` token for an assist call. */
+  readonly draftUpdatedAt: string | null;
 }
 
 /**

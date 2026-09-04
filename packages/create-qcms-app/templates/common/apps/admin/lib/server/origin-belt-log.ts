@@ -57,14 +57,15 @@ import { serverLogger } from "./logger.ts";
  * module existed; `origin-belt-log.test.ts` drives the real processor rather than
  * trusting that reading.
  *
- * ## The route is a template even though no belted admin path has a parameter
+ * ## The route is a template, and one belted admin path now has a parameter
  *
  * Stated plainly because the portal's reasoning does not transfer. Three of the four
  * belted portal routes carry a session id in the path, so reducing the URL to a
- * template is what keeps an identifier out of the line. **None of the eight belted
- * admin routes carries a dynamic segment today**, so the reduction is currently an
- * identity on the URL. It is still a reduction rather than the raw pathname, for two
- * reasons that are not hypothetical:
+ * template is what keeps an identifier out of the line. Eight of the admin's nine
+ * belted routes carry no dynamic segment, so on those the reduction is an identity on
+ * the URL. It is still a reduction rather than the raw pathname, for two reasons that
+ * are not hypothetical, and task 041's `/forms/{formId}/assist` is the second of them
+ * arriving:
  *
  *   1. The file path is not the URL path here. Two of the eight sit under a route
  *      group (`app/(shell)/settings/...`), which exists to share a layout and does not
@@ -105,6 +106,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
  * sign-out form" from "something is posting at the TOTP verifier".
  */
 export type BeltRoute =
+  | "/forms/{formId}/assist"
   | "/settings/password"
   | "/settings/recovery-codes"
   | "/sign-in/submit"
@@ -130,13 +132,20 @@ export type BeltRoute =
  *     sign-in screen (while the session is in fact still live, because the sign-out
  *     never happened) and the recovery-code confirm lands in the shell. Nobody will
  *     ever report one of these, which is exactly why it has to be logged.
+ *   - `refused-403` is the third, added by task 041's assist turn: the first belted
+ *     admin route reached by the panel's own `fetch` rather than by a
+ *     `<form method="post">`. There is no screen to redirect and no person watching a
+ *     navigation, so it answers a bare 403 and the panel renders its own error state.
+ *     Kept distinct from the two redirect shapes because the operational question the
+ *     field answers ("what did the person see?") has a different answer here: nothing,
+ *     unless a panel was open.
  *
  * Derived from the route rather than observed, because the belt runs before the
  * handler builds its response. `origin-guard.test.ts` drives each real route handler
  * with a refused request and asserts the value declared here matches the redirect that
  * actually came back, so the two cannot drift apart in silence.
  */
-export type BeltOutcome = "redirect-with-failure" | "redirect-without-message";
+export type BeltOutcome = "redirect-with-failure" | "redirect-without-message" | "refused-403";
 
 /**
  * How the request's `Sec-Fetch-Site` header reads.
@@ -194,6 +203,15 @@ interface BeltedRoute {
  * `"unrecognized"`.
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
+  {
+    // Task 041, and the first belted admin route to carry a dynamic segment - the
+    // reason the docblock above insists this field is a template rather than a
+    // pathname. One bounded segment for the form id, so `/forms/a/b/assist` is a
+    // different route and not this one.
+    route: "/forms/{formId}/assist",
+    pattern: /^\/forms\/[^/]+\/assist\/?$/,
+    outcome: "refused-403",
+  },
   {
     route: "/settings/password",
     pattern: /^\/settings\/password\/?$/,

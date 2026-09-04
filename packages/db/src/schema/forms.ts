@@ -47,6 +47,14 @@ export const formDrafts = pgTable("form_drafts", {
     .primaryKey()
     .references(() => forms.formId),
   definition: jsonb("definition").$type<FormDefinition>().notNull(),
+  /**
+   * Whether an agent-assisted proposal has been accepted into this draft (041,
+   * ADR-25). Provenance, not a permission: it is what the builder header and the
+   * publish confirmation show, so the human publishing knows what they are
+   * signing. Sticky within a draft and reset when the draft is discarded, since
+   * a fresh draft has no agent history.
+   */
+  agentAssisted: boolean("agent_assisted").notNull().default(false),
   updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
 });
 

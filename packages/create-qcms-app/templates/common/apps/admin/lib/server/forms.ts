@@ -110,33 +110,86 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
         versions: parseVersions(raw["versions"]),
         settings: parseSettings(raw["settings"]),
         challengeEnforceable: raw["challengeEnforceable"] === true,
+        // Task 041's provenance marker. Absent on a build talking to a pre-041 API,
+        // which is why both default towards "nothing to disclose" rather than towards
+        // showing a tag the API never actually promised.
+        draftAgentAssisted: raw["draftAgentAssisted"] === true,
+        draftUpdatedAt: typeof raw["draftUpdatedAt"] === "string" ? raw["draftUpdatedAt"] : null,
       },
     };
   });
 
-/** `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores. */
+/**
+ * `PUT /admin/forms/{id}/draft` - advisory save: an inconsistent draft still stores.
+ *
+ * `agentAssisted` is omitted rather than sent `false` on every ordinary keystroke
+ * autosave - task 041's marker is something the accept path asserts, not something
+ * every ordinary edit disclaims. The response's own `agentAssisted` and `updatedAt`
+ * are read back rather than assumed: whether this draft still carries the marker (and
+ * what its fresh `clientState` token is, for the next assist call) is the server's
+ * answer, not this app's guess.
+ */
 export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
+  agentAssisted?: boolean,
 ): Promise<
-  ApiResult<{ readonly issues: readonly FormIssue[]; readonly warnings: readonly FormIssue[] }>
+  ApiResult<{
+    readonly issues: readonly FormIssue[];
+    readonly warnings: readonly FormIssue[];
+    readonly agentAssisted: boolean;
+    readonly updatedAt: string;
+  }>
 > {
-  const result = await read<{ issues?: unknown; warnings?: unknown }>(
+  const result = await read<{
+    issues?: unknown;
+    warnings?: unknown;
+    agentAssisted?: unknown;
+    updatedAt?: unknown;
+  }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
       method: "PUT",
-      body: { definition },
+      body: agentAssisted === undefined ? { definition } : { definition, agentAssisted },
     }),
   );
-  return result.ok
-    ? {
-        ok: true,
-        data: {
-          issues: parseIssues(result.data.issues),
-          warnings: parseIssues(result.data.warnings),
-        },
-      }
-    : result;
+  if (!result.ok) return result;
+  return {
+    ok: true,
+    data: {
+      issues: parseIssues(result.data.issues),
+      warnings: parseIssues(result.data.warnings),
+      agentAssisted: result.data.agentAssisted === true,
+      updatedAt: asString(result.data.updatedAt, ""),
+    },
+  };
+}
+
+/**
+ * `POST /admin/forms/{id}/draft/assist` - task 041's SSE turn.
+ *
+ * Returns the raw upstream `Response`, exactly as {@link exportResponses} does in
+ * `lib/server/responses.ts`: the product of this call is an event stream for the
+ * route handler to relay unbuffered, not a value for this module to parse. Parsing an
+ * SSE body is `lib/forms/assist-stream.ts`'s job, and it runs in the browser, not
+ * here - buffering the whole turn in this process just to re-serialize it would turn
+ * a stream into a wait.
+ */
+export function assist(
+  session: AdminSession,
+  formId: string,
+  body: {
+    readonly conversation: readonly {
+      readonly role: "user" | "assistant";
+      readonly content: string;
+    }[];
+    readonly clientState?: string;
+  },
+): Promise<Response> {
+  return adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft/assist`, {
+    method: "POST",
+    body,
+  });
 }
 
 /** `POST /admin/forms/{id}/draft/validate` - dry run, no save. */

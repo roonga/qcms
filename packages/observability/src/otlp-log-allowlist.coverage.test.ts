@@ -74,6 +74,13 @@ const INTENTIONALLY_OPAQUE = new Set([
   // A per-event data-shape warning, not a pass-level metric. `outbox delivery pass`
   // carries the counts an operator watches.
   "outbox event has no resolvable formId; consuming without fan-out",
+  // Task 041. A per-request diagnostic for a turn whose stream threw, and the error is
+  // the content: the body names only that it happened, while `reason` (the error's class
+  // name) is dropped like every other unlisted attribute. Deliberately not beside the
+  // two assist records in SAFE_EVENTS, which are pass-level metrics: a turn's outcome and
+  // an allowlist refusal are things an operator counts, and a provider connection that
+  // broke mid-stream is something they read a trace for.
+  "draft assist stream failed",
 ]);
 
 /**

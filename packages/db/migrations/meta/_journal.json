@@ -134,6 +134,13 @@
       "when": 1788294847850,
       "tag": "0018_retention_sweep_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788466530661,
+      "tag": "0019_draft_agent_provenance",
+      "breakpoints": true
     }
   ]
 }

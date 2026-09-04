@@ -5,6 +5,7 @@ import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
 import {
   challengeEnforceable,
   ConfigError,
+  isLocalAgentEndpoint,
   loadConfig,
   MIN_SECRET_LENGTH,
   turnstileSiteKeyDeprecationWarning,
@@ -474,6 +475,134 @@ describe("feature-flag registry (ADR-24)", () => {
       "optional",
     );
     expect(() => loadConfig(validEnv({ QCMS_ADMIN_2FA: "sometimes" }))).toThrow(ConfigError);
+  });
+});
+
+/**
+ * Agent-assisted authoring configuration (041, ADR-25). Exit criteria 1 and 2:
+ * the default costs nothing and demands nothing, and turning it on without the
+ * key fails fast with a message that names the variable and never its value.
+ */
+describe("draft assistant configuration (041)", () => {
+  const KEY = "sk-not-a-real-provider-key-0000";
+
+  it("defaults to none and needs no provider key to boot", () => {
+    const config = loadConfig(validEnv());
+    expect(config.flags.agentAuthoring).toBe("none");
+    expect(config.agent).toEqual({ provider: "none" });
+  });
+
+  it("fails fast when a provider is named without QCMS_AGENT_API_KEY", () => {
+    let message = "";
+    try {
+      loadConfig(
+        validEnv({ QCMS_FLAG_AGENT_AUTHORING: "anthropic", QCMS_AGENT_MODEL: "some-model" }),
+      );
+    } catch (err) {
+      message = (err as ConfigError).message;
+    }
+    expect(message).toContain("QCMS_AGENT_API_KEY");
+    expect(message).toContain("anthropic");
+  });
+
+  it("fails fast when a provider is named without QCMS_AGENT_MODEL", () => {
+    let message = "";
+    try {
+      loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "anthropic", QCMS_AGENT_API_KEY: KEY }));
+    } catch (err) {
+      message = (err as ConfigError).message;
+    }
+    expect(message).toContain("QCMS_AGENT_MODEL");
+  });
+
+  it("never echoes the provider key in a boot failure (SEC-8)", () => {
+    let message = "";
+    try {
+      // A key that is present but everything else missing: the error names the
+      // vars it wants, and the secret it already has must not appear anywhere.
+      loadConfig(
+        validEnv({ QCMS_FLAG_AGENT_AUTHORING: "openai-compatible", QCMS_AGENT_API_KEY: KEY }),
+      );
+    } catch (err) {
+      message = (err as ConfigError).message;
+    }
+    expect(message).not.toBe("");
+    expect(message).not.toContain(KEY);
+    expect(message).toContain("QCMS_AGENT_BASE_URL");
+  });
+
+  it("parses a fully configured provider", () => {
+    const config = loadConfig(
+      validEnv({
+        QCMS_FLAG_AGENT_AUTHORING: "anthropic",
+        QCMS_AGENT_MODEL: "some-model",
+        QCMS_AGENT_API_KEY: KEY,
+        QCMS_AGENT_MAX_STEPS: "4",
+      }),
+    );
+    expect(config.agent).toEqual({
+      provider: "anthropic",
+      model: "some-model",
+      apiKey: KEY,
+      baseUrl: undefined,
+      maxSteps: 4,
+    });
+  });
+
+  it("relaxes the key requirement only for a local endpoint", () => {
+    const local = loadConfig(
+      validEnv({
+        QCMS_FLAG_AGENT_AUTHORING: "openai-compatible",
+        QCMS_AGENT_MODEL: "llama3.1",
+        QCMS_AGENT_BASE_URL: "http://localhost:11434/v1",
+      }),
+    );
+    expect(local.agent).toMatchObject({ provider: "openai-compatible", apiKey: "" });
+
+    // The same configuration pointed at a remote endpoint still demands a key,
+    // so the relaxation above is about where the payload goes, not about the
+    // provider id.
+    expect(() =>
+      loadConfig(
+        validEnv({
+          QCMS_FLAG_AGENT_AUTHORING: "openai-compatible",
+          QCMS_AGENT_MODEL: "llama3.1",
+          QCMS_AGENT_BASE_URL: "https://models.example.com/v1",
+        }),
+      ),
+    ).toThrow(ConfigError);
+  });
+
+  it("treats private-network and .local hosts as local", () => {
+    for (const base of [
+      "http://127.0.0.1:8000/v1",
+      "http://192.168.1.40:8000/v1",
+      "http://10.1.2.3:8000/v1",
+      "http://172.20.0.5:8000/v1",
+      "http://ollama.local:11434/v1",
+      "http://host.docker.internal:11434/v1",
+    ]) {
+      expect(isLocalAgentEndpoint(base), base).toBe(true);
+    }
+    for (const base of [
+      "https://api.example.com/v1",
+      "http://172.32.0.1/v1",
+      "http://9.9.9.9/v1",
+      "not-a-url",
+    ]) {
+      expect(isLocalAgentEndpoint(base), base).toBe(false);
+    }
+  });
+
+  it("rejects an unknown provider id", () => {
+    expect(() => loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "skynet" }))).toThrow(
+      ConfigError,
+    );
+  });
+
+  it("the fake provider needs neither key nor model", () => {
+    const config = loadConfig(validEnv({ QCMS_FLAG_AGENT_AUTHORING: "fake" }));
+    expect(config.agent).toMatchObject({ provider: "fake", apiKey: "" });
   });
 });
 
