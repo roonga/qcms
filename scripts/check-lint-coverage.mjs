@@ -2,8 +2,9 @@
 // @ts-check
 /**
  * Proves that every tracked project JavaScript or TypeScript file is reached by
- * ESLint and every tracked Markdown file is reached by Prettier. The byte-for-byte
- * upstream component copy is the only source exclusion.
+ * ESLint and every tracked Markdown file is reached by Prettier. Two byte-for-byte
+ * copy trees are the only source exclusions, and both are named below with the reason
+ * and with what covers them instead.
  *
  * Usage: node scripts/check-lint-coverage.mjs
  */
@@ -17,6 +18,7 @@ import { pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { getFileInfo } from "prettier";
 
+import { isGeneratedCopy } from "./generated-copy.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
 /** Extensions ESLint is configured to parse in this workspace. */
@@ -77,6 +79,18 @@ export function trackedMarkdownFiles() {
  * `scripts/vendored-source.mjs` and every gate reads the same one.
  */
 export { isVendoredSource };
+
+/**
+ * Re-exported, not defined here: the generated scaffolding template tree (task 037)
+ * has one spelling, in `scripts/generated-copy.mjs`, for the reason that module gives.
+ *
+ * It is deliberately a SEPARATE concept from `isVendoredSource`. The vendored a2ra
+ * components are upstream-owned but genuinely compiled; the template tree is a copy of
+ * files this repository already lints at the source, sitting outside every tsconfig and
+ * every lint scope. Folding one into the other would tell four other gates to stop
+ * scanning 337 files, which is issue #775's defect one directory over.
+ */
+export { isGeneratedCopy };
 
 /** @returns {string[]} every tracked package.json, repo-relative. */
 export function trackedManifests() {
@@ -219,10 +233,9 @@ export async function main() {
       ignored: await eslint.isPathIgnored(path.join(repoRoot, file)),
     })),
   );
-  const vendored = ignoredChecks.filter(({ file, ignored }) => ignored && isVendoredSource(file));
-  const ignoredViolations = ignoredChecks.filter(
-    ({ file, ignored }) => ignored && !isVendoredSource(file),
-  );
+  const excluded = ({ file }) => isVendoredSource(file) || isGeneratedCopy(file);
+  const vendored = ignoredChecks.filter((entry) => entry.ignored && excluded(entry));
+  const ignoredViolations = ignoredChecks.filter((entry) => entry.ignored && !excluded(entry));
   const lintableSource = ignoredChecks.filter(({ ignored }) => !ignored).map(({ file }) => file);
   const violations = uncovered(lintableSource, scope);
   const markdownViolations = await uncoveredMarkdown(markdown, repoRoot);
@@ -235,7 +248,7 @@ export async function main() {
   ) {
     console.log(
       `check-lint-coverage: OK - ${String(lintableSource.length)} source files reached by ESLint; ` +
-        `${String(vendored.length)} vendored source files explicitly excluded; ` +
+        `${String(vendored.length)} copied source files explicitly excluded; ` +
         `${String(markdown.length)} Markdown files reached by Prettier; ` +
         "0 unexplained exemptions.",
     );

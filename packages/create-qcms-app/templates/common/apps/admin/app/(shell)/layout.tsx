@@ -1,0 +1,159 @@
+import { cookies } from "next/headers";
+import type { ReactNode } from "react";
+
+import { AccountMenu } from "@/components/account-menu";
+import { AdminNav } from "@/components/admin-nav";
+import { Announcer } from "@/components/announcer";
+import { AppearanceMenu } from "@/components/appearance-menu";
+import { MeasuredMain } from "@/components/measured-main";
+import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { secureCookies } from "@/lib/server/config";
+import { t } from "@/lib/i18n/en";
+import { requireAdminSession } from "@/lib/server/session";
+
+/**
+ * The authenticated shell (task 031; screen contract "ASCII sketch - authenticated shell").
+ *
+ * This layout is the authentication gate for every **page** tasks 032-035 add: a page
+ * placed in this route group is behind `requireAdminSession()` by construction, so a
+ * new area cannot ship accidentally public. Auth screens sit outside the group, which
+ * is why they are unaffected by it.
+ *
+ * It covers **pages only**. A Next layout wraps the page tree and never runs for a
+ * `route.ts` or a `"use server"` action in the same segment: both are request handlers
+ * the browser reaches directly. Being inside `(shell)` is therefore no evidence that
+ * one of those authenticated, and each guards itself - a server action with
+ * `requireAdminSession()`, a route handler with `requireAdminSessionForRequest()`.
+ * `lib/server/shell-route-guards.test.ts` is the structural tripwire that fails when a
+ * new handler here does not (issue #177); do not weaken it into a comment.
+ *
+ * Sign-out is a form POST rather than a link, because signing out is a state change
+ * and a GET link would let a prefetch or a crawler end someone's session. It is the
+ * same reason the auth screens post: no client JavaScript is involved in any
+ * credential or session transition here. Task 032 moved the button into the account
+ * menu without changing any of that - the form is still rendered on every page and
+ * still the only sign-out path (`components/account-menu.tsx`).
+ *
+ * The trailing group is two controls and nothing else (task 032, design card
+ * `plan/admin-theme/ds-navbar.html`): a 32px icon-only appearance trigger and a 32px
+ * circular account monogram.
+ */
+export default async function ShellLayout({
+  children,
+  rail,
+}: {
+  readonly children: ReactNode;
+  /**
+   * The §7 rail's slot (issue 559), filled by the parallel route tree under `@rail`.
+   *
+   * WHY A SLOT RATHER THAN A COMPONENT THIS LAYOUT RENDERS. The rail is per-object data - a
+   * form's steps and its per-step issue counts, a question's versions - and a Next layout is
+   * never told which child route rendered, let alone which `[formId]` it carried. So the
+   * layout cannot fetch it. A parallel route can: `@rail/forms/[formId]/links/page.tsx` is
+   * matched against the same URL as the page it accompanies, gets the same params, and
+   * renders beside `<main>` instead of inside it.
+   *
+   * EVERY ROUTE HAS A PAGE IN THE SLOT, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN
+   * TIDINESS (issue 701, and issue 633 before it). Only ten routes have a rail, but all
+   * seventeen have a page here, because on a soft navigation Next keeps the previously
+   * active state of a slot the new URL does not match and consults `default.tsx` only after
+   * a full-page load - the file convention's own reference says so. A screen with no match
+   * therefore did not get an empty rail: it got the PREVIOUS screen's, and walking from
+   * Settings to the question library left the Settings rail standing beside a table it says
+   * nothing about. The seven screens that carry no rail have a page that returns `null`,
+   * which is a different thing from having no page at all. `lib/rail-routes.test.ts` reads
+   * both trees off the filesystem and fails the moment one has a route the other does not.
+   *
+   * WHY IT MATTERS THAT IT IS BESIDE `<main>` AND NOT INSIDE IT. `<main>`'s width is capped
+   * per route (issue 558), and §6 asks that width question about the CONTENT column. A rail
+   * nested inside that cap would make the cap govern rail-plus-content instead, quietly
+   * taking 240px off the measure nine screens were assigned and standing the rail on
+   * `<main>`'s padding rather than on the shell's edge. Outside it, the two systems compose
+   * the way both documents describe.
+   */
+  readonly rail: ReactNode;
+}) {
+  const session = await requireAdminSession();
+  // The topbar's mode control is a client component, so its starting selection comes
+  // in as a prop from the one place that can read a cookie: here. `secureCookies()` is
+  // read here too, for the same reason - `lib/server/` is unreachable from a client
+  // module by construction (the R2 import-surface test) - and it is the same function
+  // the enrollment cookies and the API's better-auth instance decide from, so all three
+  // cookie families on this origin carry the same `Secure` attribute (see its doc).
+  const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
+
+  return (
+    <div className="flex min-h-dvh flex-col">
+      {/* The one live region every authenticated screen speaks into (issue #355). It is
+          here, above the page, because an action that revalidates its own route unmounts
+          the screen that performed it - and a region taken out of the document mid
+          announcement says nothing. See `components/announcer.tsx`. */}
+      <Announcer />
+      <header className="qcms-topbar">
+        {/* Three siblings of one wrapping row, not two nested groups, and the design
+            card's 390px demo is why (task 032): the nav is the only elastic member
+            (`flex-1 basis-40 min-w-0`), so as the bar narrows the nav shrinks and its
+            own items wrap onto further lines while the trailing controls stay on the
+            top row beside the wordmark. Nested inside a "wordmark plus nav" group they
+            were pushed onto a row of their own below the whole nav instead. */}
+        {/* THE BAR IS NOT CAPPED AND NOT CENTRED (issue 648). Every POC that draws the
+            shell writes one identical rule for it, `.topbar__inner { display: flex;
+            flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem;
+            min-height: 56px; }`, with NO `max-width` and NO auto margin - ten of the
+            eleven files, the eleventh being `auth-poc.html`, which drops the shell
+            deliberately and so has no bar to cap. The bar spans the viewport and its
+            first item starts at the page's own inline padding.
+
+            It carried `mx-auto max-w-5xl` until now, which put the wordmark ~145px in
+            from the left edge at 1280 while the content column beside a rail started at
+            24px: two unrelated layouts on one screen.
+
+            `px-6` rather than the POC's 1.25rem, and that 4px is a DEVIATION rather than
+            a reading of the drawing (issue 675). The POC pads the bar and the column by
+            one value and gets its shared edge that way; this app's column has carried
+            `p-6` since the shell was built, so the bar matches the column and the edge is
+            shared at 24px instead of 20px. Following the drawing on the bar alone would
+            put a 20px bar against a 24px column and break the very property issue 648 is
+            about; following it properly means moving `<main>` to `p-5`, a density change
+            on all sixteen screens that neither issue asks for and that wants its own
+            frames. Recorded as its own issue rather than settled here. */}
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2">
+          {/* "QCMS" and nothing else. No sub-label, and no word here names this app
+              to an operator: the product is QCMS and the respondent app is the
+              Portal (Code Owner naming call, 2026-07-30). */}
+          <span className="qcms-wordmark flex-shrink-0">{t("app.title")}</span>
+          <div className="min-w-0 flex-1 basis-40">
+            <AdminNav />
+          </div>
+          <div className="flex flex-shrink-0 items-center gap-x-2">
+            <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
+            <AccountMenu email={session.email} name={session.name} />
+          </div>
+        </div>
+      </header>
+      {/* The shell body: the rail's track and the content column, and the thing that grows
+          to fill whatever height the topbar leaves (issue 559, and N2 of
+          `plan/admin-redesign-implementation-plan.md` §1). Without a rail it is a flex
+          column and `<main>`'s own `flex-1` keeps stretching it exactly as before; with
+          one, and at `--bp-sidebar` and above, it is the two-track grid §7 describes.
+          `app/globals.css` holds both, keyed off whether a rail is actually a child.
+
+          IT IS ALSO THE LAST THING ON THE PAGE NOW. A footer used to sit below both tracks
+          carrying "Signed in as ...", and that strip is what stopped a rail reaching the
+          bottom of the screen: the rail ended where this element ended and the footer sat
+          under it. The email is shell chrome rather than a credential and it was never only
+          here - the account menu carries it on every screen, including the seven with no
+          rail - so the line went rather than moving somewhere it would have been absent
+          half the time (Code Owner decision, 2026-08-23). */}
+      <div className="qcms-shell-body">
+        {rail}
+        {/* The content column's cap is set by the ROUTE, not by one number here (issue
+            558, `plan/admin-ux-audit.md` §6): five screens earn width, two render
+            respondent-facing content and take less than the default, nine keep the
+            measure they have. The sixteen answers are one table in `lib/measure.ts`;
+            `MeasuredMain` only applies the row that matches the pathname. */}
+        <MeasuredMain>{children}</MeasuredMain>
+      </div>
+    </div>
+  );
+}

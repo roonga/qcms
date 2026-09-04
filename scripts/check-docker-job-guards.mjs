@@ -98,6 +98,11 @@ export const JOB_GUARDS = {
     assert: false,
     why: "GitHub-hosted static analysis. No Docker on the path at all.",
   },
+  "create-app-e2e.yml#create-app-e2e": {
+    mirror: true,
+    assert: false,
+    why: "scaffolds an adopter project and boots its Compose topology on the mirrored Postgres, so it needs the mirror. Deliberately outside the Hub assertion for the same build-time reason as full-stack-e2e: it BUILDS the three application images from the scaffolded tree, whose base image is not mirrored, so the assertion would fail on a pull the job legitimately makes.",
+  },
   "e2e.yml#changes": {
     mirror: false,
     assert: false,

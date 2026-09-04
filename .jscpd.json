@@ -8,6 +8,7 @@
     "**/.turbo/**",
     "**/coverage/**",
     "packages/ui/src/components/**",
+    "packages/create-qcms-app/templates/**",
     "**/*.test.ts",
     "**/*.test.tsx",
     "**/*.integration.test.ts",

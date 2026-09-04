@@ -1,0 +1,44 @@
+{
+  "name": "qcms-api",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/serve.js",
+    "create-admin": "node dist/create-admin.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.1",
+    "@hono/otel": "^1.1.2",
+    "@hono/zod-openapi": "^1.6.1",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.221.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.221.0",
+    "@opentelemetry/instrumentation-http": "^0.221.0",
+    "@opentelemetry/instrumentation-pg": "^0.73.0",
+    "@opentelemetry/instrumentation-undici": "^0.31.0",
+    "@opentelemetry/sdk-logs": "^0.221.0",
+    "@opentelemetry/sdk-node": "^0.221.0",
+    "@opentelemetry/sdk-trace": "^2.10.0",
+    "@qcms/a2ui-compiler": "^0.2.0",
+    "@qcms/core": "^0.0.0",
+    "@qcms/csv": "^0.0.0",
+    "@qcms/db": "^0.0.0",
+    "@qcms/observability": "^0.0.0",
+    "better-auth": "^1.7.2",
+    "drizzle-orm": "^0.45.2",
+    "hono": "^4.13.5",
+    "pg": "^8.23.0",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.23.1",
+    "typescript": "^6.0.3"
+  }
+}

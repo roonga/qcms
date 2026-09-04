@@ -242,8 +242,17 @@ describe("check-changeset helpers", () => {
     expect(findPublishablePackages(REPO_ROOT).map((pkg) => pkg.name)).toEqual([
       "@qcms/a2ui-compiler",
       "@qcms/core",
+      // `@qcms/csv` and `@qcms/observability` were private helpers until task 037
+      // needed them installable: all three scaffolded apps depend on them at runtime,
+      // and a scaffolded project has no workspace to resolve `workspace:*` against.
+      "@qcms/csv",
       "@qcms/db",
+      "@qcms/observability",
       "@qcms/ui",
+      // The scaffolding CLI (task 037) is unscoped, and publishable for the same
+      // reason the packages are: an adopter runs `pnpm create qcms-app`, so a change
+      // to it is a change a consumer can see and needs a changeset.
+      "create-qcms-app",
     ]);
   });
 

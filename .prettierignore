@@ -23,6 +23,16 @@ plan/**/*.css
 # drizzle-kit generates these in a non-Prettier format (task 014 friction)
 packages/db/migrations/meta/
 
+# Generated scaffolding templates (task 037): derived from `apps/` by
+# `pnpm qcms:sync-templates`, which owns their bytes. Prettier owns the SOURCES, and
+# `pnpm check:templates` proves each template equals its source modulo the declared
+# transforms, so formatting the copy independently buys nothing and costs the gate:
+# a transform that shortens a line (issue #457 rewrites two message strings) makes
+# Prettier reflow the generated file, and the next `--check` reports drift the
+# generator did not cause. Same structural reason as the ESLint ignore in
+# `eslint.config.js`.
+packages/create-qcms-app/templates/
+
 # Vendored a2-react-aria component sources (task 028): upstream-owned, kept
 # byte-for-byte (tabs/format) for a clean `a2ra diff` (ADR-22). Vitest snapshots
 # are tool-generated.

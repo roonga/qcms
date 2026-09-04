@@ -1,0 +1,42 @@
+{
+  "name": "create-qcms-app",
+  "version": "0.0.0",
+  "private": false,
+  "description": "Scaffold a QCMS deployment: the owned application shell plus the versioned @qcms/* packages (ADR-05).",
+  "license": "MIT",
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "create-qcms-app": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates",
+    "src",
+    "!src/**/*.test.*"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --root ../.. --project create-qcms-app",
+    "lint": "eslint src scripts e2e",
+    "sync-templates": "node scripts/sync-templates.mjs --write",
+    "check-templates": "node scripts/sync-templates.mjs --check"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3"
+  }
+}

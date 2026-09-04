@@ -107,6 +107,10 @@ const GLOBS = [
   // exempted. Both spellings, so a bare `Dockerfile` added later is covered too.
   "*.Dockerfile",
   "Dockerfile",
+  // A Dockerfile the scaffolding generator stamps a project name into (task 037) is
+  // still a Dockerfile: it reaches an adopter as one. Without this glob the three
+  // generated copies leave the gate's view entirely the moment they gain a placeholder.
+  "*.Dockerfile.tmpl",
   ".devcontainer/devcontainer.json",
   "*.env.example",
   ".env.example",
@@ -239,6 +243,48 @@ export const ALLOWED = [
     file: "apps/api/src/features/webhooks/ssrf.test.ts",
     value: 8443,
     why: "an arbitrary destination in an SSRF fixture URL: the point is that it is somewhere else, and nothing binds it.",
+  },
+  // The seven below are the generated scaffolding templates (task 037), each a copy of
+  // an app file whose original is already exempted above for a stated reason. They are
+  // listed one by one rather than exempting the template directory wholesale, so that
+  // a port introduced by a template TRANSFORM (rather than inherited from a file the
+  // gate already scans) is still caught. `pnpm check:templates` guarantees each of
+  // these is byte-identical to its source modulo the declared transforms, so an
+  // entry here can never outlive the entry it mirrors.
+  {
+    file: "packages/create-qcms-app/templates/common/apps/api/src/main.ts",
+    value: 3000,
+    why: "the generated copy of apps/api/src/main.ts: the API's shipped default for adopters, which is exactly who this file is for.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/apps/api/src/openapi-document.ts",
+    value: 5432,
+    why: "the generated copy of apps/api/src/openapi-document.ts: Postgres's own well-known port, in an adopter-facing example connection string.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/apps/api/src/telemetry.ts",
+    value: 4318,
+    why: "the generated copy of apps/api/src/telemetry.ts: the OTLP exporter's own default, which that file's guard exists to avoid.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/apps/portal/instrumentation.ts",
+    value: 4318,
+    why: "the generated copy of apps/portal/instrumentation.ts: same OTLP default, in the portal's composition root.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl",
+    value: 3000,
+    why: "the generated copy of docker/api.Dockerfile: the container's OWN listening port, dialled by its HEALTHCHECK from inside the container.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/admin.Dockerfile.tmpl",
+    value: 3000,
+    why: "the generated copy of docker/admin.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
+  },
+  {
+    file: "packages/create-qcms-app/templates/common/docker/portal.Dockerfile.tmpl",
+    value: 3000,
+    why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
   },
   {
     file: ".github/actions/assert-no-docker-hub-pulls/action.yml",

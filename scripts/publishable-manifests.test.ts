@@ -36,10 +36,17 @@ const REPO_ROOT = new URL("../", import.meta.url);
  * Package directories under `packages/`, read from Git rather than from a directory
  * walk (a walk also reads build output an earlier gate left behind, issue #629) and
  * never written out, so a new package is covered the day it is added.
+ *
+ * `:(glob)` is load-bearing. A plain `packages/*\/package.json` pathspec uses fnmatch
+ * WITHOUT `FNM_PATHNAME`, so its `*` crosses `/` and the pattern also matches
+ * `packages/create-qcms-app/templates/common/apps/api/package.json`: the three
+ * manifests the scaffolding generator stamps (task 037) each read back as a fourth
+ * copy of `create-qcms-app`. With `:(glob)`, `*` stops at a slash, which is what this
+ * pattern was always meant to say. Deduplicating instead would have hidden it.
  */
 const PACKAGE_DIRS: readonly string[] = execFileSync(
   "git",
-  ["ls-files", "packages/*/package.json"],
+  ["ls-files", ":(glob)packages/*/package.json"],
   { cwd: fileURLToPath(REPO_ROOT), encoding: "utf8" },
 )
   .split("\n")
@@ -71,15 +78,20 @@ function publishablePackages(): readonly (readonly [string, Manifest])[] {
 describe("publishable package manifests", () => {
   const publishable = publishablePackages();
 
-  it("finds the four packages that publish", () => {
+  it("finds every package that publishes", () => {
     // Guards the derivation: a filter that matched nothing would make the
     // assertion below vacuous, which is the shape of defect this repository keeps
-    // meeting one level down.
+    // meeting one level down. It is also what keeps the test below honest now that
+    // nothing under `packages/` is private: a package flipping to `private` silently
+    // fails HERE rather than quietly emptying the private-package check.
     expect(publishable.map(([, manifest]) => manifest.name).sort()).toEqual([
       "@qcms/a2ui-compiler",
       "@qcms/core",
+      "@qcms/csv",
       "@qcms/db",
+      "@qcms/observability",
       "@qcms/ui",
+      "create-qcms-app",
     ]);
   });
 
@@ -98,10 +110,14 @@ describe("publishable package manifests", () => {
 
   it("leaves private packages alone", () => {
     // `publishConfig` on a package that never publishes is noise, and its presence
-    // would suggest a publishing intent that the `private` flag denies.
-    for (const dir of ["csv", "observability"]) {
+    // would suggest a publishing intent that the `private` flag denies. There are no
+    // private packages under `packages/` today (`@qcms/csv` and `@qcms/observability`
+    // became installable for task 037), so this currently ranges over nothing. It is
+    // kept rather than deleted because the property is about the NEXT private package,
+    // and the assertion above is what stops the emptiness from being silent.
+    for (const dir of PACKAGE_DIRS) {
       const manifest = readManifest(dir);
-      expect(manifest.private).toBe(true);
+      if (manifest.private !== true) continue;
       expect(manifest.publishConfig).toBeUndefined();
     }
   });

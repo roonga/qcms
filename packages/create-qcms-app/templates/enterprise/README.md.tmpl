@@ -1,0 +1,129 @@
+# {{projectName}}
+
+A QCMS (Question CMS) deployment, scaffolded by `create-qcms-app`.
+
+**Deployment shape: enterprise.** The same images as the solo shape, in a different
+arrangement: the API runs as two processes with different route mounts, the admin sits
+behind your private network, and TLS terminates at your load balancer. What changes
+between the two shapes is instance count and mount flags, never the images.
+
+No proxy overlay is stamped for this shape. Ingress and TLS are operator
+infrastructure (ADR-20), and at this size you already have a load balancer.
+
+## What you own and what you upgrade
+
+The three applications under `apps/` are **your source**. Edit them: routes, pages,
+theming, adapters, the message catalog. They will never be overwritten, because
+nothing overwrites them: there is no upgrade command that touches this tree.
+
+The `@qcms/*` packages they depend on are **versioned dependencies**. They carry the
+domain model, rule evaluation, the publish compiler, the migration history, the
+renderer, the redacting logger and the CSV export guard, and they are upgraded with
+pnpm like any other dependency. `docs/ownership-seam.md` in the QCMS repository lists
+the seam file by file, and the upgrade story for each package.
+
+## Prove it locally first
+
+`docker-compose.yml` is the single-host arrangement. Run it once to confirm the images
+and the database agree before you wire the real topology.
+
+```sh
+# 1. Review the environment. `.env` was generated for you with random secrets and
+#    the answers you gave the scaffolder.
+$EDITOR .env
+
+# 2. Build the three images, run the migrations, start the stack.
+docker compose up -d --build
+
+# 3. Migrations are always their own step, never something the API does at boot:
+#    with more than one API instance, boot-time migration is a race.
+docker compose run --rm migrate
+
+# 4. Create the first administrator. Credentials travel in the environment, never as
+#    arguments: an argument lands in your shell history and in every `ps` listing.
+docker compose exec \
+  -e QCMS_ADMIN_EMAIL=you@example.com \
+  -e QCMS_ADMIN_PASSWORD='a long passphrase' \
+  api node dist/create-admin.js
+
+# 5. Open the admin and sign in.
+#    {{adminBaseUrl}}
+```
+
+The respondent portal is at {{portalBaseUrl}}.
+
+Admin two-factor authentication is **{{adminTwoFactor}}** in this deployment
+(`QCMS_ADMIN_2FA` in `.env`). `optional` is a development escape hatch; keep it
+`required` anywhere real.
+
+## The mount split
+
+`QCMS_MOUNT` decides which route groups a process serves. An unmounted route does not
+exist: it answers 404, not 403. That is the whole segmentation mechanism, and it is
+why the enterprise shape needs no second build.
+
+| Process | `QCMS_MOUNT` | Reachable from | Notes |
+| --- | --- | --- | --- |
+| `api-public` | `public` | The internet, through your load balancer | Serves respondents only. Scale horizontally. |
+| `api-internal` | `internal,admin` | Your private network only | Serves the two BFFs, and runs the outbox deliverer and the retention sweep. Run exactly one. |
+| `portal` | n/a | The internet, through your load balancer | Talks to `api-public` and `api-internal`. |
+| `admin` | n/a | VPN or private network only | Never publish this. |
+| `postgres` | n/a | Your private network only | Managed Postgres is fine. |
+
+Run one `api-internal` instance, not several: it holds the outbox deliverer and the
+retention sweep, and running two would double-deliver.
+
+## Environment per process
+
+`.env.example` documents every variable, generated from the API configuration schema.
+The split that matters at this size:
+
+- **`DATABASE_URL` belongs to the API processes only.** Neither BFF holds a database
+  credential of any kind. If you find yourself adding one to the admin, something else
+  is wrong.
+- **`QCMS_INTERNAL_TOKEN` is shared** by the API and both BFFs. It is the service
+  credential on every internal call. Rotating it is a two-deploy operation: add the
+  new token to the API's list, deploy, move the BFFs onto it, deploy, drop the old one.
+- **`QCMS_PORTAL_BASE_URL` and `QCMS_ADMIN_BASE_URL` are public origins**, not
+  container addresses. Secure links and cookie scopes are built from them.
+- **`QCMS_LINK_KEYS`, `QCMS_SESSION_KEYS` and `QCMS_APP_KEY` are key material.** The
+  first key in a list signs, all of them verify, which is what makes rotation possible
+  without invalidating live links. `QCMS_APP_KEY` has no such list: changing it makes
+  every at-rest secret undecryptable.
+
+## Layout
+
+| Path | What it is |
+| --- | --- |
+| `apps/api` | The API composition root and its vertical slices. Fetch-pure handlers. |
+| `apps/portal` | The respondent portal (Next.js, SSR plus a strict BFF). |
+| `apps/admin` | The authoring admin (Next.js, strict BFF; holds no database handle). |
+| `docker/` | The three production Dockerfiles. |
+| `docker-compose.yml` | The single-host arrangement, for local proving. |
+| `.env.example` | Every variable the stack reads, generated from the API configuration schema. |
+
+## Day-to-day commands
+
+**This project is a pnpm workspace, and the scaffolder offered no alternative.**
+
+> {{packageManagerRationale}}
+
+Adopting npm or yarn means rewriting `docker/*.Dockerfile` yourself: the images copy a
+`pnpm-lock.yaml` your install would never write, and prune their runtime tree with a
+command those two have no equivalent for. The QCMS issue tracker carries #449 for
+restoring the choice properly.
+
+```sh
+pnpm install    # install workspace dependencies
+pnpm up         # docker compose up -d --build
+pnpm down       # docker compose down
+pnpm logs       # follow every container's logs
+pnpm migrate    # run pending migrations
+```
+
+## Upgrading
+
+Bump the `@qcms/*` versions in `apps/*/package.json`, install, rebuild the images, roll
+them out, and run the migrations as their own step before the new API instances take
+traffic. Published QCMS versions are immutable and the compiled-form corpus is
+append-only, so a form published on an older version keeps rendering exactly as it did.

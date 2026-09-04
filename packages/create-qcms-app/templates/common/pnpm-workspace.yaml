@@ -1,0 +1,35 @@
+# The three applications are the code you own (ADR-05). The @qcms/* packages they
+# depend on come from the registry and are upgraded, not edited: see README.md.
+#
+# This file is stamped whatever package manager you chose for local development,
+# because the shipped Dockerfiles always build with pnpm inside the image: the
+# runtime tree is pruned with `pnpm deploy --prod`, which has no npm or yarn
+# equivalent. Removing this file breaks `docker compose build`.
+packages:
+  - "apps/*"
+
+# pnpm 11 refuses an install that silently skipped a dependency's build script, so
+# every package in this tree that legitimately has one is named here. Adding a
+# dependency with a build script means adding it here, and the error message names
+# the package when you forget. These three come from the OpenTelemetry and Next
+# toolchains, not from anything QCMS wrote.
+allowBuilds:
+  esbuild: true
+  protobufjs: true
+  sharp: true
+
+# Supply-chain release-age hold, inherited from the QCMS repository's own policy
+# (SEC-11, issue #455): a version published in the last 24 hours is not installed at
+# all. The window is what a compromised release usually lives inside before it is
+# yanked, and it costs you nothing except the newest patch of anything for a day.
+#
+# This is YOUR file and you own it (ADR-05), so lower it or delete both lines if your
+# release cadence needs them gone. If you keep it, keep BOTH: pnpm turns
+# minimumReleaseAgeStrict on by default only when minimumReleaseAge is explicitly
+# configured, so `strict` beside an inherited default is a policy nothing enforces.
+#
+# Strict means an install that NEEDS a too-new version fails instead of quietly
+# exempting it. When that happens, wait out the window or pin the dependency one
+# version back; do not add an exclusion you will never remove.
+minimumReleaseAge: 1440
+minimumReleaseAgeStrict: true

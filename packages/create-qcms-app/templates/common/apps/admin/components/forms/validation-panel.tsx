@@ -1,0 +1,295 @@
+"use client";
+
+import { useBuilderRail } from "@/lib/forms/builder-bridge";
+import {
+  anchorFor,
+  anchorIsOnRulesScreen,
+  locationOf,
+  messageForIssue,
+  stepOwningAnchor,
+} from "@/lib/forms/issues";
+import type { DraftForm, FormIssue } from "@/lib/forms/types";
+import { t } from "@/lib/i18n/en";
+
+/**
+ * The live validation panel (task 033; screen contract "validation panel").
+ *
+ * ## This panel counts issues and says nothing about saving (issue 518)
+ *
+ * It used to do both: 033 put the save indicator's sentence in the same live region as the
+ * issue count, and design-language element 7 objects to exactly that placement. The save
+ * state now lives in the builder's ambient chrome (`components/save-model.tsx`), and this
+ * panel keeps the job `plan/admin-ux-audit.md` §5.6 gives it - being the **single
+ * authoritative issue count** on the screen. That authority is why the split has to be
+ * clean in both directions: nothing here mentions saving, and nothing in the strip counts
+ * anything. Two things that both read as "status" on one screen is how a reader ends up
+ * doing arithmetic they cannot check.
+ *
+ * Two of the builder's statuses are still read here, and both are about issues rather than
+ * storage, because the validate round trip is a second call that decides what the count
+ * *is*. `"validating"` is this panel reporting that its own number is being refreshed;
+ * `"error"` is it reporting that the refresh did not land. Neither says anything about
+ * whether the draft was stored - the ambient strip owns that, and it is right to keep
+ * saying "Saved" through a failed validate, because the draft genuinely is saved.
+ *
+ * ## A failed check is stated here, not left silent
+ *
+ * The panel used to render `"error"` as "The last save failed.", which was false: the
+ * draft is stored before `status` becomes `"validating"`. Removing that was correct, but
+ * removing it without a replacement was worse than the lie it removed. With no consumer
+ * for `"error"`, a failed validate rendered as *"No issues. Everything here would pass a
+ * publish."* beside the Publish button, because the API supplies an empty issue list for
+ * any failure that is not a 422 - so the count was not stale, it was reset, and the panel
+ * asserted an all-clear at the one moment it knew least. §5.6 makes this panel the single
+ * authority on the count, and an authority that cannot refresh owes the author that fact
+ * rather than a confident zero. The sentence stays in issue vocabulary and carries no save
+ * state, so the split with the strip holds in both directions.
+ *
+ * ## A check that has not run yet is a third thing, and it is the common one (issue 625)
+ *
+ * The argument above was written about `"error"` and it applies unchanged one door along.
+ * The builder seeds its issue list empty and only talks to the API once the author has
+ * changed something, so opening a form and touching nothing rendered the all-clear beside
+ * the Publish button on a draft nothing had ever validated. On the seeded insurance form,
+ * whose two pins name versions that were never published, the API's dry run reports two
+ * issues and the §7 rail badges them on the other seven form screens - while this panel,
+ * the one §5.6 makes authoritative, said there were none.
+ *
+ * So the absence of a verdict is now a value rather than an empty list: `issues` is
+ * `undefined` until a check lands, and that is the state this panel reports. It is a
+ * separate sentence from `"error"` on purpose. "The check did not land" is something an
+ * author can act on and "the check has not run" is not, and collapsing them would tell
+ * someone their draft failed a check nobody attempted.
+ *
+ * **`status` cannot carry this fact**, which is why the absence lives on `issues`. The
+ * builder sets `status` to `"saving"` the moment anything is touched, so a panel keyed on
+ * `"idle"` would go back to announcing the all-clear for the whole of the first debounce
+ * and round trip: the same fabricated zero, one keystroke later.
+ *
+ * Every entry is a **link that moves focus**, which is the whole reason the API's issues
+ * carry a structured domain path rather than a positional index: `{ rule: "rul_x" }` is an
+ * address the builder can resolve to a DOM id it owns, so "your rule targets a question
+ * that comes earlier" can put the author's cursor on that rule instead of asking them to
+ * go and find it. An entry whose target is not rendered (a `DANGLING_QUESTION_REF` naming
+ * a question that is by definition not pinned anywhere) renders as text rather than as a
+ * link to nothing. Nothing is ever dropped.
+ *
+ * The count sits in an `aria-live="polite"` region, per the screen contract's a11y note. The
+ * **summary only**, never the list: re-announcing twelve sentences every time a debounce
+ * lands would make the panel unusable with a screen reader, while "3 issues would block a
+ * publish" is the change an author actually needs to hear.
+ *
+ * `href="#id"` **and** a click handler, not one or the other. The href makes it a real
+ * link - announced as a link, middle-clickable, meaningful before hydration - and the
+ * handler adds the focus move that a bare fragment navigation does not reliably make.
+ */
+export type BuilderStatus = "idle" | "validating" | "saved" | "saving" | "error";
+
+export function ValidationPanel({
+  draft,
+  issues,
+  warnings = [],
+  status,
+}: {
+  readonly draft: DraftForm;
+  /** The verdict, or `undefined` when no check has landed yet. Never a stand-in for zero. */
+  readonly issues: readonly FormIssue[] | undefined;
+  /**
+   * Non-blocking advisories (issue #123): things that would publish and probably will
+   * not behave the way they read. Rendered below the issue list, never counted into it.
+   *
+   * A plain array rather than the three-state value `issues` carries, and the asymmetry
+   * is deliberate. The count above is an assertion an author acts on, so "not checked
+   * yet" had to be distinguishable from "none". A warning list asserts nothing: it
+   * either has something to show or it does not, and an empty one misleads nobody.
+   */
+  readonly warnings?: readonly FormIssue[];
+  readonly status: BuilderStatus;
+}) {
+  return (
+    <section
+      aria-labelledby="qcms-validation-heading"
+      className="flex flex-col gap-3 rounded-md border border-(--color-border) bg-(--color-background-muted) p-4"
+    >
+      <h2 id="qcms-validation-heading" className="text-base font-semibold text-(--color-text)">
+        {t("forms.validation.title")}
+      </h2>
+
+      {/* Testid on the region as well as on its sentence, so the `aria-live` can be
+          asserted directly (#368): the span is attached and carries its text whether or
+          not the paragraph around it is still a live region. */}
+      <p
+        aria-live="polite"
+        className="flex flex-col gap-1 text-sm text-(--color-text-muted)"
+        data-testid="qcms-validation-status"
+      >
+        <span data-testid="qcms-issue-summary">{issueSummary(issues, status)}</span>
+      </p>
+
+      {issues !== undefined && issues.length > 0 && (
+        <ul className="flex flex-col gap-2">
+          {issues.map((issue, index) => (
+            <li key={`${issue.code}:${locationOf(issue)}:${String(index)}`}>
+              <IssueEntry issue={issue} draft={draft} />
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* Warnings, below the issues and visibly a second list (issue #123). Same entry
+          component, so a warning is a link that moves focus exactly as an issue is - the
+          structured path is the same shape and the anchors are the same anchors. What is
+          NOT shared is the count: this heading and sentence stay out of the `aria-live`
+          region above, because that region is the single authority on how many things
+          would block a publish and a warning blocks nothing. Folding the two numbers
+          together is how an author ends up unable to tell which of them stops them. */}
+      {warnings.length > 0 && (
+        <div className="flex flex-col gap-2" data-testid="qcms-validation-warnings">
+          <h3 className="text-sm font-semibold text-(--color-text)">
+            {t("forms.warning.heading")}
+          </h3>
+          <p className="text-sm text-(--color-text-muted)" data-testid="qcms-warning-summary">
+            {warningSummary(warnings)}
+          </p>
+          <ul className="flex flex-col gap-2">
+            {warnings.map((warning, index) => (
+              <li key={`${warning.code}:${locationOf(warning)}:${String(index)}`}>
+                <IssueEntry issue={warning} draft={draft} />
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/** What the draft's issues add up to, in one sentence. */
+function issueSummary(issues: readonly FormIssue[] | undefined, status: BuilderStatus): string {
+  if (status === "validating") return t("forms.validation.checking");
+  // A failed round trip is reported here, and the order matters: `"error"` has to be
+  // read BEFORE the count, because the count on that path is not a count. The API
+  // supplies an empty issue list for any failure that is not a 422 carrying
+  // `details.issues`, so falling through to the count branches renders the all-clear
+  // sentence at the exact moment the app knows least - beside the Publish button.
+  if (status === "error") return t("forms.validation.unchecked");
+  // No verdict at all, which is neither a count nor a failure. Read before the count
+  // branches for the same reason `"error"` is: there is no number here to fall through to.
+  if (issues === undefined) return t("forms.validation.notChecked");
+  const count = issues.length;
+  if (count === 0) return t("forms.validation.none");
+  if (count === 1) return t("forms.validation.countOne");
+  return t("forms.validation.count", { count });
+}
+
+/**
+ * What the draft's warnings add up to, in one sentence.
+ *
+ * No `"validating"`, `"error"` or not-yet-checked branch, and that is not an omission:
+ * this sentence is only ever rendered beside a non-empty list, so there is no state in
+ * which it would have to speak for a number it does not have.
+ */
+function warningSummary(warnings: readonly FormIssue[]): string {
+  return warnings.length === 1
+    ? t("forms.warning.countOne")
+    : t("forms.warning.count", { count: warnings.length });
+}
+
+/**
+ * One issue, rendered as a link into the builder when its path resolves to something on
+ * screen and as plain text when it does not.
+ *
+ * Exported because 034's publish-rejection list is the same object in a different place:
+ * the issues a publish refuses on are the issues validate reports, and an author should
+ * not meet two different renderings of the same sentence depending on which button they
+ * pressed.
+ */
+export function IssueEntry({
+  issue,
+  draft,
+}: {
+  readonly issue: FormIssue;
+  readonly draft: DraftForm;
+}) {
+  const anchor = anchorFor(issue, draft);
+  const builder = useBuilderRail();
+  const where = locationOf(issue);
+  const body = (
+    <>
+      <span className="block text-sm text-(--color-text)">{messageForIssue(issue)}</span>
+      <span className="block text-xs text-(--color-text-muted)">
+        {where === "" ? issue.message : `${where} - ${issue.message}`}
+      </span>
+    </>
+  );
+
+  if (anchor === undefined) return <div data-issue-code={issue.code}>{body}</div>;
+
+  return (
+    <a
+      href={`#${anchor}`}
+      data-issue-code={issue.code}
+      className="qcms-text-link block"
+      onClick={(event) => {
+        const target = document.getElementById(anchor);
+        if (target !== null) {
+          event.preventDefault();
+          focusAnchor(target);
+          return;
+        }
+
+        // NOT ON SCREEN IS NOT THE SAME AS NOT THERE. The builder shows one screen at a
+        // time, so a link fires with its target unrendered whenever the target belongs to
+        // another one: a pin lives in one step's editor, and since 2026-08-26 a rule lives
+        // on the rules screen. The old code returned here and let the browser follow
+        // `#anchor` to nothing at all, which is a link that silently does nothing.
+        //
+        // This is what let the rules move without the degradation `plan/admin-ux-audit.md`
+        // §5.5 warned a rules SCREEN would cost. It only works because the screens are
+        // selections in one tree; against a route this could not be written.
+        if (builder === undefined) return;
+        if (anchorIsOnRulesScreen(issue, draft)) {
+          event.preventDefault();
+          builder.chooseRules();
+          focusWhenRendered(anchor);
+          return;
+        }
+        const stepId = stepOwningAnchor(issue, draft);
+        if (stepId === undefined) return;
+        event.preventDefault();
+        builder.choose(stepId);
+        focusWhenRendered(anchor);
+      }}
+    >
+      {body}
+    </a>
+  );
+}
+
+/** Scroll a destination into view and put focus on it, which is the whole point of a jump. */
+function focusAnchor(target: HTMLElement): void {
+  target.scrollIntoView({ block: "nearest" });
+  target.focus();
+}
+
+/**
+ * Focus an element that does not exist yet because a screen switch is still rendering.
+ *
+ * `builder.choose` is a state update, so the step's editor is not in the document when the
+ * click handler returns. Waiting a bounded number of animation frames is deliberately
+ * dumber than it could be: the alternative is threading a "focus this after you render"
+ * value through the bridge, which would give the rail a second kind of state to own for one
+ * caller. Three frames is enough for a re-render and gives up rather than looping if the
+ * element never arrives, which is the honest outcome when an issue names something the
+ * draft no longer has.
+ */
+function focusWhenRendered(anchor: string, attemptsLeft = 3): void {
+  requestAnimationFrame(() => {
+    const target = document.getElementById(anchor);
+    if (target !== null) {
+      focusAnchor(target);
+      return;
+    }
+    if (attemptsLeft > 0) focusWhenRendered(anchor, attemptsLeft - 1);
+  });
+}

@@ -1,0 +1,26 @@
+.git
+node_modules
+.turbo
+coverage
+dist
+**/.next
+**/.next-dev
+**/coverage
+.env
+.env.*
+!.env.example
+*.log
+
+# Build output at any depth, not just the root `dist` above. Every image builds
+# what it needs inside itself, so a host-built `apps/*/dist` in the context is
+# never used on purpose, only by accident, and that accident makes a build pass
+# on a developer's machine and fail from a clean checkout.
+**/dist
+
+# Tests and browser specs have no business in a production image. Excluding them
+# is load-bearing rather than tidiness: Next type-checks every file its tsconfig
+# includes, so a spec reaching for a dependency the app deliberately does not
+# declare would fail the image build.
+**/e2e
+**/*.test.ts
+**/*.test.tsx
