@@ -4,6 +4,7 @@ import {
   CONTENTION_SIGNATURES,
   classifyFailure,
   describeNeighbours,
+  mergeNeighbours,
   neighbourStacks,
   otherSeats,
   parseContainerCensus,
@@ -132,6 +133,42 @@ describe("describeNeighbours", () => {
     // load-bearing half; the pid is the convenience.
     expect(describeNeighbours([stack(5, 17540)])).toEqual(["  - seat 5: admin 17540"]);
   });
+
+  it("says when a neighbour only appeared at one end of the run", () => {
+    // The asymmetry is the interesting part: one that arrived partway through is a
+    // different story from one that was there all along.
+    const merged = mergeNeighbours([stack(3, 17340, 11)], [stack(7, 17740, 12)]);
+    expect(describeNeighbours(merged)).toEqual([
+      "  - seat 3: admin 17340 (pid 11, cwd /w/other) [gone by the end of the run]",
+      "  - seat 7: admin 17740 (pid 12, cwd /w/other) [arrived during the run]",
+    ]);
+  });
+
+  it("leaves a neighbour present throughout untagged", () => {
+    const merged = mergeNeighbours([stack(3, 17340, 11)], [stack(3, 17340, 11)]);
+    expect(describeNeighbours(merged)).toEqual(["  - seat 3: admin 17340 (pid 11, cwd /w/other)"]);
+  });
+});
+
+describe("mergeNeighbours", () => {
+  it("is the union of both samples, not either one of them", () => {
+    const merged = mergeNeighbours([stack(3, 17340, 11)], [stack(7, 17740, 12)]);
+    expect(merged.map((entry) => [entry.seat, entry.seenAt])).toEqual([
+      [3, "start"],
+      [7, "end"],
+    ]);
+  });
+
+  it("counts a port seen in both samples once", () => {
+    expect(mergeNeighbours([stack(3, 17340, 11)], [stack(3, 17340, 11)])).toEqual([
+      { ...stack(3, 17340, 11), seenAt: "both" },
+    ]);
+  });
+
+  it("orders by seat and then by port, so the report reads the same way twice", () => {
+    const merged = mergeNeighbours([stack(7, 17740, 1), stack(3, 17340, 2)], [stack(3, 17300, 3)]);
+    expect(merged.map((entry) => entry.port)).toEqual([17300, 17340, 17740]);
+  });
 });
 
 describe("classifyFailure", () => {
@@ -199,6 +236,24 @@ describe("renderContentionReport", () => {
     expect(report).toContain("none occupied");
     expect(report).toContain("this branch's own");
     expect(report).not.toContain("was not alone");
+  });
+
+  it("lists every neighbour the header counts, including one that only arrived later", () => {
+    // The defect this pins: the header counted the union of both samples while the detail
+    // lines rendered the start sample, so a lane that arrived mid-run - while another was
+    // already there - was counted above and missing below. A report about who else was on
+    // the machine has to agree with itself, or it is worse than no report.
+    const report = renderContentionReport({
+      seat: 1,
+      start: { ...EMPTY, neighbours: [stack(3, 17340, 9)] },
+      end: { ...EMPTY, neighbours: [stack(3, 17340, 9), stack(7, 17740, 10)] },
+      failures: failing,
+    });
+    expect(report).toContain("OCCUPIED on seats 3, 7");
+    expect(report).toContain("  - seat 3: admin 17340 (pid 9, cwd /w/other)");
+    expect(report).toContain(
+      "  - seat 7: admin 17740 (pid 10, cwd /w/other) [arrived during the run]",
+    );
   });
 
   it("names the neighbour and the contention-shaped failures when there was one", () => {

@@ -27,12 +27,23 @@ import { waitForHydration } from "./hydration.js";
  * be waited for, so one retry is the right price. It is not what makes the hydration case
  * safe, and it never was - the value it re-checks is wiped after the check, not before it.
  *
+ * ## Why the wait is INSIDE the retry
+ *
+ * Because the two failures compose, and putting the wait outside left the composition
+ * uncovered. The retry exists precisely for the case where the document was replaced, and
+ * a replaced document is a NEW pre-hydration document: waiting once before the loop proves
+ * something about a page that no longer exists, and the retry then fills a fresh
+ * server-rendered form whose React is still in flight - reopening, on the retry path, the
+ * exact race this helper was changed to close. Re-waiting each attempt costs nothing on an
+ * already-hydrated page (the marker is on `<html>` and the check returns at once) and is
+ * the only version that holds for every attempt rather than only the first.
+ *
  * Nothing here papers over a product failure: a rejected code still redirects and still
  * renders its message, and the assertions about that are untouched.
  */
 export async function fillStable(field: Locator, value: string): Promise<void> {
-  await waitForHydration(field.page());
   await expect(async () => {
+    await waitForHydration(field.page());
     await field.fill(value);
     await expect(field).toHaveValue(value, { timeout: 1000 });
   }).toPass({ timeout: 15_000 });

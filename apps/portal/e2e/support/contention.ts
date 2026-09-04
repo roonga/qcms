@@ -319,9 +319,72 @@ function describeContainers(census: ContainerCensus | undefined): string {
   );
 }
 
-/** Neighbouring seats, deduplicated and ordered, as they read in the report. */
-export function describeNeighbours(neighbours: readonly NeighbourStack[]): string[] {
-  const bySeat = new Map<number, NeighbourStack[]>();
+/** Which of the run's two samples saw a neighbour. */
+export type NeighbourPresence = "start" | "end" | "both";
+
+/** A neighbour, plus when it was observed. */
+export interface ObservedNeighbour extends NeighbourStack {
+  readonly seenAt: NeighbourPresence;
+}
+
+/** One key per listening port, which is what makes the two samples comparable. */
+function neighbourKey(stack: NeighbourStack): string {
+  return `${String(stack.seat)}:${stack.service}:${String(stack.port)}`;
+}
+
+/**
+ * Every neighbour seen at either end of the run, tagged with which samples saw it.
+ *
+ * The report's header counts the UNION of the two samples, so the detail lines have to be
+ * the union too. They were not: they rendered the start sample and fell back to the end one
+ * only when start was empty, so a lane that arrived mid-run - while another was already
+ * there - was counted in the header and then missing from the list underneath it. In a
+ * report whose entire purpose is to be trusted about what else was on the machine, an
+ * internally inconsistent one is worse than none.
+ *
+ * The tag is kept because the asymmetry is the interesting part: a neighbour that arrived
+ * partway through is a different story from one that was there all along, and a reader
+ * chasing a red wants to know which.
+ */
+export function mergeNeighbours(
+  start: readonly NeighbourStack[],
+  end: readonly NeighbourStack[],
+): ObservedNeighbour[] {
+  const merged = new Map<string, ObservedNeighbour>();
+  for (const stack of start) merged.set(neighbourKey(stack), { ...stack, seenAt: "start" });
+  for (const stack of end) {
+    const key = neighbourKey(stack);
+    const already = merged.get(key);
+    merged.set(
+      key,
+      already === undefined ? { ...stack, seenAt: "end" } : { ...already, seenAt: "both" },
+    );
+  }
+  return [...merged.values()].sort((a, b) => a.seat - b.seat || a.port - b.port);
+}
+
+/**
+ * How a neighbour's observation window reads, or `""` when it needs no comment.
+ *
+ * A neighbour present in both samples is the unremarkable case and is left untagged; the
+ * two asymmetric cases are the ones that carry information, so only they are named.
+ */
+function describePresence(seenAt: NeighbourPresence | undefined): string {
+  if (seenAt === "start") return " [gone by the end of the run]";
+  if (seenAt === "end") return " [arrived during the run]";
+  return "";
+}
+
+/**
+ * Neighbouring seats, deduplicated and ordered, as they read in the report.
+ *
+ * Accepts plain stacks (the start notice, which has only one sample and nothing to tag) or
+ * merged ones (the end-of-run report, where the tag says which sample saw each).
+ */
+export function describeNeighbours(
+  neighbours: readonly (NeighbourStack | ObservedNeighbour)[],
+): string[] {
+  const bySeat = new Map<number, (NeighbourStack | ObservedNeighbour)[]>();
   for (const stack of neighbours) {
     const existing = bySeat.get(stack.seat);
     if (existing === undefined) bySeat.set(stack.seat, [stack]);
@@ -334,7 +397,10 @@ export function describeNeighbours(neighbours: readonly NeighbourStack[]): strin
         .map(
           (stack) =>
             `${stack.service} ${String(stack.port)}` +
-            (stack.pid === undefined ? "" : ` (pid ${String(stack.pid)}, cwd ${stack.cwd ?? "?"})`),
+            (stack.pid === undefined
+              ? ""
+              : ` (pid ${String(stack.pid)}, cwd ${stack.cwd ?? "?"})`) +
+            describePresence("seenAt" in stack ? stack.seenAt : undefined),
         )
         .join(", ");
       return `  - seat ${String(seat)}: ${where}`;
@@ -363,9 +429,10 @@ export function renderStartNotice(seat: number, neighbours: readonly NeighbourSt
 export function renderContentionReport(report: ContentionReport): string {
   const { seat, start, end, failures } = report;
   const annotated = failures.filter((failure) => failure.signature !== undefined);
-  const neighbourSeats = [
-    ...new Set([...start.neighbours, ...end.neighbours].map((stack) => stack.seat)),
-  ].sort((a, b) => a - b);
+  // One merged list, and the header counts derived FROM it, so the summary line and the
+  // detail lines under it can never disagree about who was there.
+  const neighbours = mergeNeighbours(start.neighbours, end.neighbours);
+  const neighbourSeats = [...new Set(neighbours.map((stack) => stack.seat))].sort((a, b) => a - b);
 
   const lines = [
     "",
@@ -387,7 +454,7 @@ export function renderContentionReport(report: ContentionReport): string {
     lines.push(
       `other seats' harness ports: OCCUPIED on seat${neighbourSeats.length === 1 ? "" : "s"} ` +
         `${neighbourSeats.join(", ")}.`,
-      ...describeNeighbours(start.neighbours.length > 0 ? start.neighbours : end.neighbours),
+      ...describeNeighbours(neighbours),
     );
   }
 
