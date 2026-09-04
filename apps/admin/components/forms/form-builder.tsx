@@ -502,10 +502,20 @@ export function FormBuilder({
           so the three screens below split into two columns only when the panel is actually
           present. With the flag off both wrappers are `display: contents`, which means a
           default deployment renders the identical box tree it did before this task: no
-          grid, no extra column, and no assist affordance anywhere in the tree to find. */}
+          grid, no extra column, and no assist affordance anywhere in the tree to find.
+
+          `sidebar:`, and it has to be one of the two. `globals.css` clears Tailwind's own
+          sm/md/lg/xl scale with `--breakpoint-*: initial`, so a `lg:` prefix does not
+          compile at all - it is a dead class, not a narrower boundary, which is exactly
+          what that block exists to prevent. Of the two the app does have, `--bp-sidebar`
+          is the right one: it is where the rail becomes a permanent sidebar and the
+          content column is at its widest, and a 22rem pane taken out of a `--bp-compact`
+          (640px) column would leave the builder itself under 300px. Below it the panel
+          stacks under the builder, full width, which is the phone-shaped reading of a
+          docked pane. */}
       <div
         className={
-          assist === undefined ? "contents" : "grid gap-4 lg:grid-cols-[minmax(0,1fr)_22rem]"
+          assist === undefined ? "contents" : "grid gap-4 sidebar:grid-cols-[minmax(0,1fr)_22rem]"
         }
       >
         <div className={assist === undefined ? "contents" : "flex flex-col gap-6"}>
