@@ -462,9 +462,25 @@ export function FormBuilder({
    * Task 041's Accept: the same `mutate` every other edit goes through, plus a flag
    * for the save the debounce above will run next. The builder's own autosave and
    * validation loop is what actually stores this - nothing here calls `saveDraft`.
+   *
+   * The selection needs looking at first, and this is the one edit in the builder that
+   * can invalidate it wholesale. Every other mutation changes a part of the draft; a
+   * proposal REPLACES it, so the step this screen is showing may simply not be in what
+   * the author just accepted. The rule is already written, one screen over, in the
+   * rail's own `remove` handler: the screen cannot stay on a step that no longer
+   * exists, and the form is the one destination that is always there. Without this the
+   * builder lands on a blank column - `selectedStep` resolves to nothing and the step
+   * branch renders `null` - one press after the author accepted a change they were
+   * told would rewrite the form, with nothing on screen saying so.
    */
   function acceptAssistProposal(proposedDraft: DraftForm) {
     pendingAgentAssisted.current = true;
+    if (
+      selection.kind === "step" &&
+      !proposedDraft.steps.some((step) => step.stepId === selection.stepId)
+    ) {
+      setSelection({ kind: "form" });
+    }
     mutate(proposedDraft);
   }
 

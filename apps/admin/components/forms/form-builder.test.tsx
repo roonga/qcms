@@ -6,7 +6,37 @@ import type { FormDetail, PinnableQuestion } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { t } from "@/lib/i18n/en";
 
+import { useBuilderRail } from "@/lib/forms/builder-bridge";
+
 import { FormBuilder } from "./form-builder";
+
+/**
+ * A stand-in for the app rail, which lives outside this component's tree.
+ *
+ * The builder publishes its selection and its handlers through
+ * `lib/forms/builder-bridge.ts`, and the real rail is rendered by the shell. A test
+ * that needs the builder to be showing a STEP has to press what the rail presses, so
+ * this renders one button per step doing exactly that and nothing else.
+ */
+function RailStandIn() {
+  const rail = useBuilderRail();
+  if (rail === undefined) return null;
+  return (
+    <div>
+      {rail.draft.steps.map((step) => (
+        <button
+          key={step.stepId}
+          type="button"
+          onClick={() => {
+            rail.choose(step.stepId);
+          }}
+        >
+          {`rail: ${step.stepId}`}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 /**
  * Task 041: the builder's own wiring of the assist panel and its Accept path.
@@ -162,5 +192,73 @@ describe("FormBuilder and the assist panel (task 041)", () => {
     const [savedDraft, agentAssisted] = call;
     expect(agentAssisted).toBe(true);
     expect(savedDraft.steps[0]?.title["en"]).toBe("Basics (renamed)");
+  });
+
+  /**
+   * A proposal replaces the whole draft, so it can delete the step the screen is on.
+   *
+   * This is the one edit in the builder that can invalidate the selection wholesale -
+   * every other mutation changes a part of the draft - and the browser suite is where
+   * it was found: accepting left the builder on a step that no longer existed, whose
+   * branch renders `null`, so the column went blank with nothing saying why. The rule
+   * applied is the rail's own for a removed step: the form is the one destination that
+   * is always there.
+   */
+  it("returns to the form when the accepted proposal deletes the step on screen", async () => {
+    const proposal = {
+      proposal: {
+        proposedDraft: {
+          ...DETAIL.draft,
+          steps: [
+            {
+              stepId: "stp_history",
+              title: { en: "Driving history" },
+              items: [{ questionId: "q_name", version: 1 }],
+            },
+          ],
+        },
+        newQuestions: [],
+        rationale: "Replaced the step.",
+        issues: [],
+        warnings: [],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <>
+        <FormBuilder
+          detail={DETAIL}
+          {...CHROME}
+          {...builderActions()}
+          assist={{ endpoint: "/forms/frm_quote/assist" }}
+        />
+        <RailStandIn />
+      </>,
+    );
+
+    // Stand on the step the proposal is about to delete. The form title field is the
+    // form screen's own control, so its absence is what "showing a step" looks like.
+    await waitFor(() => expect(screen.getByText("rail: stp_basics")).toBeTruthy());
+    fireEvent.click(screen.getByText("rail: stp_basics"));
+    await waitFor(() => expect(screen.queryByLabelText(t("forms.builder.formTitle"))).toBeNull());
+
+    const input = screen.getByLabelText(t("forms.assist.inputLabel"));
+    fireEvent.change(input, { target: { value: "Replace my step" } });
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.send") }));
+    await waitFor(() => expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+
+    // Back on the form, not on a blank column.
+    await waitFor(() => expect(screen.getByLabelText(t("forms.builder.formTitle"))).toBeTruthy());
   });
 });
