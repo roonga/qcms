@@ -197,6 +197,45 @@ describe("AssistPanel", () => {
     expect(alert.textContent).toContain("30");
   });
 
+  /**
+   * The rejection handler `components/rejection-coverage.test.ts` declares for this file
+   * (issue #352), driven rather than declared.
+   *
+   * `errorForResponse` reads the failure body with `response.json().catch(() => undefined)`.
+   * The `.catch` is the whole point: a failing response does not have to carry JSON. An
+   * ingress returning its own HTML error page, or a truncated body, is the ordinary shape
+   * of the failures this panel exists to survive, and without the handler the parse
+   * rejection would escape the send path and leave the operator watching a spinner that
+   * never resolves. With it, the status number is what they are told instead.
+   *
+   * Verified red: dropping the `.catch` fails this test with an unhandled `SyntaxError`
+   * rather than a rendered alert.
+   */
+  it("reports the status when a failing response carries no JSON body", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response("<html><body>502 Bad Gateway</body></html>", {
+          status: 502,
+          headers: { "content-type": "text/html" },
+        }),
+      ),
+    );
+
+    render(
+      <AssistPanel
+        endpoint="/forms/frm_quote/assist"
+        draft={DRAFT}
+        draftUpdatedAt={undefined}
+        onAccept={vi.fn()}
+      />,
+    );
+    sendMessage("Add a step");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("502");
+  });
+
   it("renders no proposal card, and no error, before anything is sent", () => {
     render(
       <AssistPanel
