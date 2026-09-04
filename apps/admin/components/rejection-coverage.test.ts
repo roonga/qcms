@@ -1,8 +1,12 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
+
+// Plain JavaScript with a hand-written declaration file beside it, imported by relative
+// path the way `lib/rail-routes.test.ts` in this app imports the same helper.
+import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
 
 /**
  * Every rejection handler in `components/forms/` and `components/ops/` is named here, and
@@ -74,15 +78,39 @@ const HANDLERS: Readonly<Record<string, readonly string[]>> = {
   ],
 };
 
-/** Every `.tsx` file directly under one of the two trees, sorted. */
-function componentFiles(tree: string): readonly string[] {
-  return readdirSync(join(COMPONENTS_ROOT, tree))
-    .filter((name) => name.endsWith(".tsx") && !name.endsWith(".test.tsx"))
-    .map((name) => `${tree}/${name}`)
-    .sort();
+/**
+ * Every component source file in the two trees, as paths relative to `components/`.
+ *
+ * Asked of git rather than walked (CONTRIBUTING's derivation rule, issues #635 and #641).
+ * Two things follow, and both matter to what this file claims:
+ *
+ * - **It is recursive by construction.** `git ls-files` lists the whole subtree, so a
+ *   handler added in a future subdirectory of `forms/` or `ops/` is in scope on the day it
+ *   lands. A `readdirSync` of each tree, which is what this was, reads one level only, so
+ *   exactly the case this file exists to prevent would have escaped it silently.
+ * - **It enumerates the repository, not the working directory.** A walk also reads
+ *   untracked scratch files as source, which is how one gate came to be a stable red in any
+ *   checkout that had run the browser suite and a stable green on CI.
+ *
+ * The regex carries no `g` or `y` flag: `trackedFilesUnder` refuses those, because
+ * `RegExp.prototype.test` is stateful with them and would silently drop half the corpus.
+ */
+function componentFiles(): readonly string[] {
+  return trackedFilesUnder(COMPONENTS_ROOT, { match: /^(?:forms|ops)\/.+\.tsx$/ }).filter(
+    (path) => !path.endsWith(".test.tsx"),
+  );
 }
 
-/** How many `.catch(` sites a source file holds. */
+/**
+ * How many `.catch(` sites a source file holds.
+ *
+ * A TEXTUAL count, so a comment containing the literal `.catch(` is counted as a handler
+ * and fails this file. That is the known failure mode and it is left as-is rather than
+ * parsed around: the components here discuss their own handlers at length, and every one
+ * of those comments writes `.catch` without the parenthesis, which is enough to stay clear
+ * of the count. If this test fails with a number one higher than you expect and the file
+ * has gained no handler, look in its prose for the literal string.
+ */
 function catchSites(relative: string): number {
   const source = readFileSync(join(COMPONENTS_ROOT, relative), "utf8");
   return source.split(".catch(").length - 1;
@@ -91,11 +119,9 @@ function catchSites(relative: string): number {
 describe("the rejection handlers of the admin's forms and ops components", () => {
   it("are exactly the ones a rendered test drives", () => {
     const found: Record<string, number> = {};
-    for (const tree of ["forms", "ops"]) {
-      for (const file of componentFiles(tree)) {
-        const count = catchSites(file);
-        if (count > 0) found[file] = count;
-      }
+    for (const file of componentFiles()) {
+      const count = catchSites(file);
+      if (count > 0) found[file] = count;
     }
 
     const declared = Object.fromEntries(
