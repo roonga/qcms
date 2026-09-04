@@ -4,7 +4,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import { addStep, createForm, pinQuestion, waitForSaved } from "./support/forms.js";
+import {
+  addStep,
+  createForm,
+  pinQuestion,
+  savedStamp,
+  waitForSaveAfter,
+  waitForSaved,
+} from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
@@ -125,14 +132,19 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   await expect(panel.getByRole("button", { name: /publish/iu })).toHaveCount(0);
   await expect(panel.getByRole("button", { name: /erase|webhook|link/iu })).toHaveCount(0);
 
-  const previousSave = (await page.getByTestId("qcms-save-state").textContent()) ?? "";
+  // THROUGH THE HARNESS HELPERS, not by reading the strip's testid directly. The
+  // builder is three screens behind one route now, and only the FORM screen carries
+  // the ambient save strip - this spec is standing on a STEP, having just pinned a
+  // question into it, so `getByTestId("qcms-save-state")` finds nothing here.
+  // `savedStamp` and `waitForSaveAfter` know that: they step to the form's own screen,
+  // read the strip's raw `data-saved-at` instant, and come back to the step they were
+  // on. The stamp rather than the sentence, because "Last saved" is already on screen
+  // from the pin above and would satisfy a text wait immediately (issues 748, 750).
+  const previousSave = await savedStamp(page);
   await page.getByTestId("qcms-assist-accept").locator("button").click();
 
   // Accepting is an ordinary draft save, so the builder's own save state moves.
-  await expect(page.getByTestId("qcms-save-state")).not.toHaveText(previousSave, {
-    timeout: 30_000,
-  });
-  await waitForSaved(page);
+  await waitForSaveAfter(page, previousSave);
 
   // And the human who publishes is told what they are signing.
   await expect(page.getByTestId("qcms-builder-provenance")).toBeVisible();
