@@ -2,6 +2,7 @@
 "qcms-api": minor
 "qcms-admin": minor
 "create-qcms-app": minor
+"@roonga/qcms-observability": patch
 ---
 
 Accepting an agent proposal now creates its proposed NEW questions as unpublished
@@ -66,3 +67,13 @@ fake provider actually call the verb. The script proposes one question and a ste
 it; its id suffix comes from a `#qcms-fake-new:<word>` directive, because accepting
 _creates_ the question and an id is never reused (R6), so a canned id would work once
 against the shared harness database and fail every run after.
+
+`@roonga/qcms-observability` classifies the accept path's two log records. Both go in
+`SAFE_EVENTS`: how often a proposal is accepted and how many question drafts it produced,
+and how often the authoring boundary refuses one outright, are both things an operator
+counts, and a rising refusal rate is the only visible signal that a configured model is
+producing definitions the kernel will not take. Every attribute either record sets
+(`formId`, `createdQuestions`, `questionId`, `issues`) is absent from `SAFE_ATTRIBUTES` and
+is deleted on export, so the event name and its count are all that leave the process -
+which matters most for `questionId` on a refusal, an id a model invented and read
+positionally off a definition that failed to parse.
