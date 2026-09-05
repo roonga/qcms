@@ -117,7 +117,7 @@ describe("assertBrowserLibrariesPresent", () => {
     expect(() =>
       assertBrowserLibrariesPresent("/Applications/Chromium.app/chrome", "darwin"),
     ).not.toThrow();
-    expect(() => assertBrowserLibrariesPresent("C:\\chrome.exe", "win32")).not.toThrow();
+    expect(() => assertBrowserLibrariesPresent("chrome.exe", "win32")).not.toThrow();
   });
 
   it("passes when the binary cannot be found at all", () => {

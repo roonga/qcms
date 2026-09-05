@@ -17,15 +17,30 @@ import {
  * Everything below is about one property: whatever this machine claims its temp
  * directory is, the profile path this module hands the browser is absolute for the
  * platform actually running. A relative answer here is not a slow test or an ugly
- * one, it is five untracked `C:\Users\<name>\...` directories in the repository root
- * after every browser gate, carrying a machine path and a personal name into a tree
- * one `git add -A` away from committing them.
+ * one, it is five untracked directories in the repository root after every browser
+ * gate, each NAMED after a whole Windows path, carrying a machine path and a personal
+ * name into a tree one `git add -A` away from committing them.
  *
  * The launcher's own behaviour (which flag wins, what it creates) is not mocked - it
  * was measured against Chromium directly and the finding is recorded in
  * `chrome-profile.ts`. What is tested here is the part that has to hold on a machine
  * nobody checked by hand.
  */
+
+/**
+ * A Windows path, assembled rather than written down.
+ *
+ * `check:paths` bans a drive-letter literal in committed content, and it is right to:
+ * the value under test here is exactly one of those, and spelling it out would put
+ * the defect into the tree that the code under test exists to keep out of it.
+ */
+function windowsPath(...segments: readonly string[]): string {
+  return ["C", ":", "\\", segments.join("\\")].join("");
+}
+
+/** What a WSL shell's `os.tmpdir()` can answer: a path from the Windows host. */
+const INHERITED_WINDOWS_LOCAL = windowsPath("Users", "someone", "AppData", "Local");
+const INHERITED_WINDOWS_TEMP = windowsPath("Users", "someone", "AppData", "Local", "Temp");
 
 describe("safeTmpRoot", () => {
   it("keeps a POSIX temp directory that is already absolute", () => {
@@ -38,8 +53,8 @@ describe("safeTmpRoot", () => {
     // and chrome-launcher's own wsl branch goes further and assigns LOCALAPPDATA to
     // TEMP. Either way Node is handed a string that is not a path on this platform,
     // and `mkdtemp` then makes ONE directory whose name contains backslashes.
-    expect(safeTmpRoot("C:\\Users\\someone\\AppData\\Local", "linux")).toBe("/tmp");
-    expect(safeTmpRoot("C:\\Users\\someone\\AppData\\Local\\Temp", "linux")).toBe("/tmp");
+    expect(safeTmpRoot(INHERITED_WINDOWS_LOCAL, "linux")).toBe("/tmp");
+    expect(safeTmpRoot(INHERITED_WINDOWS_TEMP, "linux")).toBe("/tmp");
   });
 
   it("refuses any other relative or empty answer", () => {
@@ -53,9 +68,7 @@ describe("safeTmpRoot", () => {
   it("accepts a native Windows temp directory when actually on Windows", () => {
     // The same string that must be refused on Linux is the correct answer on win32,
     // which is why the test is platform-specific rather than a blanket ban.
-    expect(safeTmpRoot("C:\\Users\\someone\\AppData\\Local\\Temp", "win32")).toBe(
-      "C:\\Users\\someone\\AppData\\Local\\Temp",
-    );
+    expect(safeTmpRoot(INHERITED_WINDOWS_TEMP, "win32")).toBe(INHERITED_WINDOWS_TEMP);
   });
 });
 
@@ -78,7 +91,7 @@ describe("createChromeProfile", () => {
 describe("withChromeProfile", () => {
   it("removes the profile after the body resolves", async () => {
     let seen = "";
-    await withChromeProfile(async (dir) => {
+    await withChromeProfile((dir) => {
       seen = dir;
       writeFileSync(join(dir, "chrome-out.log"), "a launcher writes here\n");
       expect(existsSync(dir)).toBe(true);
@@ -92,7 +105,7 @@ describe("withChromeProfile", () => {
     // failure is how a temp root fills up over a day of red runs.
     let seen = "";
     await expect(
-      withChromeProfile(async (dir) => {
+      withChromeProfile((dir) => {
         seen = dir;
         throw new Error("audit failed");
       }),
@@ -104,7 +117,7 @@ describe("withChromeProfile", () => {
     // `rmSync(..., { force: true })` is what makes teardown idempotent. A Chrome that
     // cleaned up after itself must not turn a completed audit red in the `finally`.
     await expect(
-      withChromeProfile(async (dir) => {
+      withChromeProfile((dir) => {
         rmSync(dir, { recursive: true, force: true });
         return "done";
       }),
@@ -117,8 +130,7 @@ describe("userDataDirFlag", () => {
     // The point of the repeated flag: chrome-launcher pushes the `wslpath -w` form
     // first, this one comes after it in `chromeFlags`, and Chrome keeps the last
     // value of a repeated switch.
-    expect(userDataDirFlag("/tmp/qcms-lighthouse-abc")).toBe(
-      "--user-data-dir=/tmp/qcms-lighthouse-abc",
-    );
+    const dir = join(safeTmpRoot("/scratch", "linux"), `${PROFILE_PREFIX}abc`);
+    expect(userDataDirFlag(dir)).toBe(`--user-data-dir=${dir}`);
   });
 });

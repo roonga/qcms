@@ -40,8 +40,8 @@ test.describe.configure({ mode: "serial", timeout: 120_000 });
  */
 async function accessibilityScore(url: string, cookie?: string): Promise<number> {
   // The profile directory is chosen here rather than by chrome-launcher (issue #248):
-  // on WSL its default writes a literal `C:\Users\...` directory into the repository
-  // root, five per run, never cleaned up. `userDataDir` stops it creating one, the
+  // on WSL its default writes a directory whose NAME is a whole Windows path into the
+  // repository root, five per run, never cleaned up. `userDataDir` stops it, the
   // repeated flag in `chromeFlags` overrides the `wslpath`-converted spelling
   // chrome-launcher passes to the browser, and `withChromeProfile` owns the removal
   // that the option disables. The whole mechanism is in `support/chrome-profile.ts`.

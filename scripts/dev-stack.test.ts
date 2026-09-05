@@ -133,7 +133,9 @@ describe("every fixture the seed reads still exists", () => {
   });
 
   it.each(FIXTURE_READ_PATHS)("resolves %s", (relativePath) => {
-    expect(existsSync(new URL(relativePath, repoRoot)), `${relativePath} does not exist`).toBe(true);
+    expect(existsSync(new URL(relativePath, repoRoot)), `${relativePath} does not exist`).toBe(
+      true,
+    );
   });
 });
 

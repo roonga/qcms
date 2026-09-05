@@ -39,6 +39,17 @@ import { dirname, join } from "node:path";
 const NOT_FOUND = "=> not found";
 
 /**
+ * Where `ldd` is, named rather than looked up on `PATH`.
+ *
+ * A preflight that resolves its own tool through `PATH` can be pointed at anything a
+ * writable directory on that `PATH` contains, and this one runs automatically at
+ * config load on every browser run. Both entries are the standard locations; a
+ * distribution with neither simply gets no preflight, which is the correct outcome
+ * for a check that must never block a working machine.
+ */
+const LDD_PATHS = ["/usr/bin/ldd", "/bin/ldd"];
+
+/**
  * Shared libraries `binary` needs and the loader cannot find.
  *
  * Empty for anything this cannot answer honestly (no `ldd`, no binary, a static or
@@ -47,7 +58,9 @@ const NOT_FOUND = "=> not found";
  */
 export function missingSharedLibraries(binary: string): string[] {
   if (!existsSync(binary)) return [];
-  const result = spawnSync("ldd", [binary], { encoding: "utf8", timeout: 20_000 });
+  const ldd = LDD_PATHS.find((candidate) => existsSync(candidate));
+  if (ldd === undefined) return [];
+  const result = spawnSync(ldd, [binary], { encoding: "utf8", timeout: 20_000 });
   if (result.error !== undefined || typeof result.stdout !== "string") return [];
   return parseMissingLibraries(result.stdout);
 }
