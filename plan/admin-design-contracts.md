@@ -116,6 +116,68 @@ What this invalidates, named so it is not re-derived:
   handler is a control only a mouse understands, and it cannot be opened in a new tab.
   Neither depends on scripting being off.
 
+## Reading a multi-screen POC
+
+**Added 2026-09-06 under the Code Owner decision of 2026-09-05 (issue #678).** This is a
+reading key for drawings that already exist, not a tenth contract: it constrains no design,
+it says what the files are already saying. It is written down because the same misreading
+produced four wrong route caps and two mid-lane corrections during the #648/#657 work, and
+nothing in the repository warned the next reader.
+
+**The key, in one line.** In a POC file that packs several screens behind a switcher, a
+shared `.main` is **chrome** - a wrapper around the switcher, an artefact of packing several
+screens into one page - and a **per-screen width is expressed with an inner class**. A
+shared `.main` is **not** each packed screen's width answer.
+
+The convention is only visible by comparing two files, which is why it needs stating.
+`plan/admin-shell-poc/deployment-ops-poc.html` gives each of its three screens its own inner
+class (`.ops-inner--responses` 900px, `.ops-inner--erasures` 1180px, `.ops-inner--webhooks`
+1820px), and its wrapper says nothing per screen.
+`plan/admin-shell-poc/preview-versions-poc.html` puts all three of its screens inside one
+`.main` at 1600px and draws no inner class at all. So where the author wanted a per-screen
+width, they said so with an inner class; a shared cap is the packing wrapper, and the
+screen's own answer is one level in.
+
+**Which files this applies to.** Eight of the eleven POC files under
+`plan/admin-shell-poc/` pack more than one screen behind a switcher. Verified 2026-09-06 by
+opening each file and counting the sibling screen containers its switcher toggles:
+
+| POC file                        | Screens drawn                                                                                                                | Where the width lives                                             |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| `admin-shell-poc.html`          | 2 - form screen, step screen                                                                                                 | shared `.main` 1600px (chrome)                                    |
+| `auth-poc.html`                 | 6 drawings of 5 screens - sign in, sign in (error), 2FA challenge, 2FA enrollment, recovery-code entry, recovery-code reveal | shared `.auth-main` 26rem (chrome)                                |
+| `deployment-ops-poc.html`       | 3 - responses index, erasure log, webhooks queue                                                                             | per-screen inner classes, 900px / 1180px / 1820px                 |
+| `library-lists-poc.html`        | 2 - question library, forms list                                                                                             | shared `.main` 1080px (chrome)                                    |
+| `links-webhooks-poc.html`       | 2 - secure links, webhooks                                                                                                   | shared `.main` 1600px (chrome)                                    |
+| `preview-versions-poc.html`     | 3 - preview, versions, version detail                                                                                        | shared `.main` 1600px (chrome)                                    |
+| `responses-poc.html`            | 2 - responses list, response detail                                                                                          | shared `.main` 1600px (chrome)                                    |
+| `settings-newquestion-poc.html` | 2 - settings, new question                                                                                                   | per-screen containers: `.settings-shell-body`, `.page-main` 40rem |
+
+The other three files draw one screen each. Their switchers toggle a **state** of that
+screen rather than a sibling screen, which is why they are not on the list:
+`add-question-poc.html` (a dialog variant), `question-editor-poc.html` (draft versus
+published version state) and `rules-screen-poc.html` (populated versus empty rules state).
+
+**Issue #678 said six of eleven; inspection finds eight.** The two its own list missed are
+`admin-shell-poc.html` and `auth-poc.html`. That is the failure the issue is about,
+happening one level up: a scan that under-counts. The table above is the verified set, and
+the counting rule is stated with it so the next reader can re-derive it rather than trust
+it - a screen is a sibling container the switcher shows and hides, not a state of one
+container.
+
+**The list is the load-bearing half, not the key.** A multi-screen file does not only make a
+cap ambiguous; it hides whole screens from anyone scanning file-by-file.
+`settings-newquestion-poc.html` draws **two** screens, and the second one, `/questions/new`,
+was missed entirely on a file-by-file pass - it turned out to be the second-largest width
+move in the set. A misread `.main` costs a wrong number, which review can catch. A screen
+nobody knew was drawn costs the screen.
+
+**Wave 4 removes the need for both, and that is the durable fix.** When the POCs are
+regenerated, regenerate them **one file per screen**. That resolves the ambiguity at the
+source instead of documenting it: no packing wrapper to misread, no hidden second screen,
+and a file name that answers "which screen is this" without a switcher. This section becomes
+obsolete on that day and should be deleted with the old files. Until then it stands.
+
 ## 1. Breakpoints
 
 Two, tokenized, no others:
@@ -691,6 +753,33 @@ closes with it.
   The same-page half goes with it, for the same reason and by the same authority:
   the builder's step rows select a step on the screen the reader is already on.
   That is what the drawing has always shown.
+
+  **Rule editing DOES move to its own route, unlike Validation. Ruled 2026-09-05
+  (Code Owner), issue #669.** The struck clause above rejects one route, and that
+  rejection stands: Validation stayed a **selection on the builder page** (issue
+  #659, built as #719), because its entries are focus-moving anchors into the
+  builder's own controls and the same list is reused verbatim for a refused
+  publish. Rule editing is the other half of the same drawing and was decided the
+  other way. `rules-screen-poc.html` is built as drawn: rule editing moves to its
+  own `/rules` route and the builder keeps a compact read-only rules lens. So the
+  two halves of one POC screen use different mechanisms. That is deliberate and
+  priced - `plan/admin-ux-audit.md` §5.5 costed the rules move as a two-hop path
+  for rule-scoped issues, "a real degradation to accept knowingly rather than
+  discover", and it is accepted. This note exists so the pair reads as a decision
+  rather than as a contradiction between two lines of the same section.
+
+  The ruling carries a **mandatory constraint on that build**, which is what makes
+  the split safe: every behaviour that today resolves against ids on the builder
+  page must survive the move. Audit every rule-editing affordance and every
+  focus-moving anchor the builder offers for rules; any link that must survive
+  carries the route as well as the fragment (`/forms/:formId/rules#anchor`, the
+  handler switching route and then focusing) rather than a bare fragment that
+  resolves to nothing off-page; and re-confirm the refused-publish path that reuses
+  the validation list is not collaterally broken by the new route (it should be
+  unaffected, since Validation stays a builder selection). Nothing may disappear
+  silently in the move, which was the audit's whole objection. The build is an
+  admin-wave item and is tracked on issue #669, which stays open for it; this
+  document records only the ruling.
 
 - Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
   and the **form's** issue total (`plan/admin-mobile-stance.md`, amended

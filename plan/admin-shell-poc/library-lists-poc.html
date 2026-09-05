@@ -319,7 +319,8 @@ h1.page-title { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.01em; ma
 
 /* Table: the frozen data-table card (plan/admin-theme/ds-table.html) is the reference this
    task exists to bring these two screens onto. Uppercase small letter-spaced headers on a
-   strong bottom rule, 44px rows, tabular figures, zebra striping, hover. No editable cells
+   strong bottom rule, 44px rows, tabular figures, zebra striping (superseded by design
+   contract 2 - see the annotation at the nth-child rule below), hover. No editable cells
    here (unlike the step editor's qgrid): every column on both lists is owned by the row's
    own entity, so there is no foreign-owner distinction to draw and no grip/reorder
    affordance, because neither list has an author-controlled row order.
@@ -339,6 +340,12 @@ table.lib-table { width: 100%; min-width: 720px; border-collapse: collapse; font
   text-transform: uppercase; letter-spacing: 0.06em; padding: 0.6rem 0.75rem; border-bottom: 2px solid var(--color-border-strong);
   background: var(--color-background-muted); white-space: nowrap; }
 .lib-table tbody tr { border-bottom: 1px solid var(--color-border); }
+/* Superseded by design contract 2 (no zebra striping); retained as frozen history.
+   Code Owner decision 2026-09-05, issue #681. Section 2 of plan/admin-design-contracts.md
+   and the shipped .qcms-table family (apps/admin/app/globals.css) both say no zebra, and
+   the frozen card carries the same annotation. The rule below is dead rather than a
+   property to carry across; the drawing keeps it because a frozen artifact is annotated,
+   not amended. Wave 4's regeneration drops it at source. */
 .lib-table tbody tr:nth-child(even) { background: var(--color-background-muted); }
 .lib-table tbody tr:last-child { border-bottom: none; }
 .lib-table tbody tr:hover { background: var(--color-surface-hover); }

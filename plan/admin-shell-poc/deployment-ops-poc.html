@@ -272,7 +272,8 @@ h3.ops-subheading { font-size: 0.88rem; font-weight: 700; margin: 0 0 0.4rem; co
 
 /* The frozen data-table card (plan/admin-theme/ds-table.html): real <table>, uppercase
    header row with a 2px strong bottom border, 44px rows, tabular figures, alternating
-   row shading and a hover state. Every table in this file follows it. History, not a live
+   row shading (superseded by design contract 2 - see the annotation at the nth-child rule
+   below) and a hover state. Every table in this file follows it. History, not a live
    warning: an audit found none of the app's nine shipped tables followed the card, and
    issue #514 put them all on one .qcms-table family on 2026-08-21 (PR #571,
    apps/admin/app/globals.css). Where that family and this card disagree, section 2 of
@@ -291,6 +292,12 @@ table.ops-table { width: 100%; min-width: 560px; border-collapse: collapse; font
 .ops-table tbody th, .ops-table tbody td { padding: 0.4rem var(--admin-section-pad); height: var(--admin-table-row-h);
   vertical-align: middle; font-variant-numeric: tabular-nums; font-weight: 400; text-align: left; border-bottom: 1px solid var(--color-border); }
 .ops-table tbody tr:last-child th, .ops-table tbody tr:last-child td { border-bottom: none; }
+/* Superseded by design contract 2 (no zebra striping); retained as frozen history.
+   Code Owner decision 2026-09-05, issue #681. Section 2 of plan/admin-design-contracts.md
+   and the shipped .qcms-table family (apps/admin/app/globals.css) both say no zebra, and
+   the frozen card carries the same annotation. The rule below is dead rather than a
+   property to carry across; the drawing keeps it because a frozen artifact is annotated,
+   not amended. Wave 4's regeneration drops it at source. */
 .ops-table tbody tr:nth-child(even) { background: var(--color-background-muted); }
 .ops-table tbody tr:hover { background: var(--color-surface-hover); }
 .ops-table tbody tr[data-status="deadLettered"] { background: var(--color-danger-subtle); }
