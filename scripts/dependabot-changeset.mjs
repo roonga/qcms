@@ -61,6 +61,22 @@ import {
   parseChangesetPackages,
 } from "./check-changeset.mjs";
 
+/**
+ * One dependency range that moved between two revisions of a manifest.
+ *
+ * @typedef {{ field: string, name: string, from: string, to: string }} DependencyMove
+ */
+
+/**
+ * One package's line in the changeset: what to name, what bump it earns, and the moves
+ * the body describes. Named rather than written inline at each of the four places it
+ * appears, because the shape has to be the SAME shape at all of them: `plan()` builds
+ * it and `renderChangeset()` consumes it, and the two agreeing is the whole contract
+ * between the halves of this file.
+ *
+ * @typedef {{ name: string, bump: "minor" | "patch", moves: DependencyMove[] }} PackageEntry
+ */
+
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
 /** The manifest fields a dependency bump is allowed to touch. */
@@ -105,7 +121,7 @@ function resolveBaseRef() {
  *
  * @param {string} beforeText
  * @param {string} afterText
- * @returns {{ moves: { field: string, name: string, from: string, to: string }[], otherFieldsChanged: boolean }}
+ * @returns {{ moves: DependencyMove[], otherFieldsChanged: boolean }}
  */
 export function manifestDependencyMoves(beforeText, afterText) {
   const before = JSON.parse(beforeText);
@@ -166,7 +182,7 @@ export function changesetFileName(branch) {
  * The changeset body: frontmatter naming each package, then the moves, grouped by
  * package and split into what a consumer resolves and what it does not.
  *
- * @param {{ name: string, bump: string, moves: { field: string, name: string, from: string, to: string }[] }[]} entries
+ * @param {PackageEntry[]} entries
  * @returns {string}
  */
 export function renderChangeset(entries) {
@@ -211,7 +227,7 @@ export function renderChangeset(entries) {
  * Everything the generator needs to decide, from a diff.
  *
  * @param {string} mergeBase
- * @returns {{ entries: unknown[], refusal?: string, alreadyCovered: string[] }}
+ * @returns {{ entries: PackageEntry[], refusal?: string, alreadyCovered: string[] }}
  */
 function plan(mergeBase) {
   const nameStatus = git(["diff", "--name-status", "-M", mergeBase, "HEAD"]);
@@ -247,7 +263,9 @@ function plan(mergeBase) {
     for (const name of parseChangesetPackages(content)) declared.add(name);
   }
 
+  /** @type {PackageEntry[]} */
   const entries = [];
+  /** @type {string[]} */
   const alreadyCovered = [];
   for (const [name, files] of [...touched].sort(([a], [b]) => a.localeCompare(b))) {
     if (declared.has(name)) {
@@ -324,7 +342,7 @@ function main() {
   const named = process.env.GITHUB_HEAD_REF ?? tryGit(["rev-parse", "--abbrev-ref", "HEAD"]) ?? "";
   const branch = named.trim() === "" || named.trim() === "HEAD" ? "deps" : named.trim();
   const fileName = changesetFileName(branch);
-  const body = renderChangeset(/** @type {never} */ (entries));
+  const body = renderChangeset(entries);
 
   if (!write) {
     console.log(`dependabot-changeset: would write .changeset/${fileName}\n`);
