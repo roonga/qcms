@@ -109,6 +109,22 @@ describe("selfContainedToolSchema", () => {
     expect(() => selfContainedToolSchema(recursiveDocument as never, 0)).toThrow(/unsatisfiable/iu);
   });
 
+  it("keeps a closed object closed rather than reading `false` as unsatisfiable", () => {
+    // A real defect this caught during the fix, and the reason the sentinel is
+    // an internal marker rather than the JSON Schema `false` literal: nearly
+    // every converted schema carries `additionalProperties: false`, which is the
+    // author saying "no extra properties", not "no instance can match". Reading
+    // the two as the same thing made every tool schema unsatisfiable at once.
+    const closed = {
+      type: "object",
+      properties: { a: { type: "string" } },
+      additionalProperties: false,
+    } as const;
+    const out = selfContainedToolSchema(closed, 3);
+    expect(out.additionalProperties).toBe(false);
+    expect(out.properties).toEqual({ a: { type: "string" } });
+  });
+
   it("leaves a schema with no references alone", () => {
     const plain = { type: "object", properties: { a: { type: "string" } } } as const;
     expect(selfContainedToolSchema(plain as never, 3)).toEqual(plain);
@@ -120,9 +136,9 @@ describe("selfContainedToolSchema", () => {
       properties: { when: { $ref: "#/definitions/node", description: "keep me" } },
       definitions: { node: { type: "string" } },
     } as const;
-    const out = selfContainedToolSchema(described as never, 2);
-    const when = (out.properties as Record<string, { description?: string }>).when;
-    expect(when.description).toBe("keep me");
+    const out = selfContainedToolSchema(described, 2);
+    const properties = out.properties as Record<string, { description?: string } | undefined>;
+    expect(properties["when"]?.description).toBe("keep me");
   });
 });
 

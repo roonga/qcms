@@ -191,26 +191,23 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
   });
 
-  it("maps a provider failure to PROVIDER_ERROR", async () => {
-    const { ctx } = contextFor("#qcms-fake:provider-error hello");
-    const events = await collect(ctx);
-    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "PROVIDER_ERROR" });
-  });
-
   /**
-   * The split issue #818 exists for, asserted from both sides.
+   * The split issue #818 exists for, asserted from both sides in one table.
    *
    * The live failure was a real account with no balance: a 429 the SDK had
    * already marked non-retryable, rendered as "try again shortly". Retryable and
    * non-retryable have to reach the panel as different codes or the operator is
-   * told to wait when they must act, so both directions are pinned - a plain
-   * failure must NOT become the permanent code, which is the regression that
-   * would send someone to check an account that is fine.
+   * told to wait when they must act - and the second row is only half of it. The
+   * first row is the regression that would send someone to check an account that
+   * is fine, so a plain failure staying `PROVIDER_ERROR` is pinned beside it.
    */
-  it("maps a non-retryable provider failure to PROVIDER_REJECTED", async () => {
-    const { ctx } = contextFor("#qcms-fake:provider-rejected hello");
+  it.each([
+    ["provider-error", "PROVIDER_ERROR"],
+    ["provider-rejected", "PROVIDER_REJECTED"],
+  ])("maps the %s script to %s", async (script, code) => {
+    const { ctx } = contextFor(`#qcms-fake:${script} hello`);
     const events = await collect(ctx);
-    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "PROVIDER_REJECTED" });
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code });
   });
 
   it("logs the refusal without writing any vendor detail into the record", async () => {
@@ -227,6 +224,57 @@ describe("draft assistant tool loop (fake provider)", () => {
     // does not ride into the log, where an exporter or an aggregator would take
     // it somewhere nobody chose.
     expect(JSON.stringify(record)).not.toContain("upstream provider refused");
+  });
+
+  /**
+   * A failed tool call is not a failed turn (found live on 2026-09-05).
+   *
+   * The Code Owner drove "add step called registration" against a local model.
+   * It malformed one `propose_draft` call, corrected itself, proposed
+   * successfully, and finished with `stop` in six of its twelve steps - and the
+   * panel showed the narration followed by "the assistant is unavailable right
+   * now. Try again shortly", with the proposal discarded. The turn had worked.
+   *
+   * The cause was a `tool-error` part being routed to the same place a stream
+   * failure goes. A provider error is terminal and is checked before the
+   * proposal, so one bad call anywhere destroyed everything after it. Local
+   * models produce at least one such call on most real turns, so this was not
+   * an edge: it was the common path.
+   */
+  it("keeps the proposal when a tool call failed and the model recovered", async () => {
+    const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
+    const events = await collect(ctx);
+
+    const proposal = events.find((e) => e.type === "proposal");
+    expect(
+      proposal,
+      `no proposal survived: ${JSON.stringify(events.map((e) => e.type))}`,
+    ).toBeDefined();
+    // And nothing told the operator the provider was unavailable.
+    expect(events.filter((e) => e.type === "error")).toHaveLength(0);
+  });
+
+  it("counts the failed call in the turn record without quoting it", async () => {
+    // The count is what makes a recovered turn diagnosable at all now that it no
+    // longer surfaces as an error. The message must not travel with it: a tool
+    // error's text is assembled from input the model wrote (SEC-8).
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
+    await collect(ctx, logger);
+
+    const record = lines.find((line) => line["msg"] === "draft assistant turn");
+    expect(record).toMatchObject({ toolErrors: 1, finishReason: "stop" });
+    expect(JSON.stringify(record)).not.toContain("formId");
+  });
+
+  it("still stops the turn when the failed call was a refused verb", async () => {
+    // The one tool failure that must remain terminal: an unallowlisted verb
+    // arrives the same way, and 041's control is that a model which reached for
+    // it gets none of its other work accepted.
+    const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
+    const events = await collect(ctx);
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 
   it("reports NO_PROPOSAL when the turn ends without one", async () => {

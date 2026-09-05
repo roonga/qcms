@@ -84,9 +84,24 @@ type JSONSchema7Definition = JSONSchema7 | boolean;
  */
 export const TOOL_SCHEMA_CONDITION_DEPTH = 3;
 
-/** The sentinel for a branch that cannot be written within the depth budget. */
-const UNSATISFIABLE = Symbol("unsatisfiable");
-type Expanded = JSONSchema7Definition | typeof UNSATISFIABLE;
+/**
+ * What expanding one node or one keyword produced, or nothing.
+ *
+ * "Unsatisfiable" rather than "omitted" because that is what an absent value
+ * means here: no instance matches the branch. The honest edits then differ by
+ * position - drop it where the schema stays coherent without it (one arm of a
+ * union, one optional property), propagate it where it does not (an array's
+ * element type, a required property) - and every caller below picks one.
+ */
+interface Expansion<T> {
+  readonly value: T | undefined;
+}
+
+const UNSATISFIABLE: Expansion<never> = { value: undefined };
+
+function written<T>(value: T): Expansion<T> {
+  return { value };
+}
 
 /** Keywords whose value is a single subschema. */
 const SUBSCHEMA_KEYS = ["items", "additionalProperties", "not", "contains"] as const;
@@ -122,104 +137,143 @@ function resolvePointer(root: JSONSchema7, ref: string): JSONSchema7Definition |
 
 /** A stable, readable `$defs` name for one reference unrolled at one budget. */
 function definitionName(ref: string, budget: number): string {
-  const tail = ref.slice(ref.lastIndexOf("/") + 1).replace(/[^A-Za-z0-9_]/gu, "_");
+  const tail = ref.slice(ref.lastIndexOf("/") + 1).replaceAll(/\W/gu, "_");
   return `${tail}_d${String(budget)}`;
 }
 
 interface Rewriter {
   readonly root: JSONSchema7;
-  /** Name to entry, or `undefined` while an entry is known unsatisfiable. */
-  readonly defs: Map<string, JSONSchema7Definition | typeof UNSATISFIABLE>;
+  /** Every `$defs` entry decided so far, by name. */
+  readonly defs: Map<string, Expansion<JSONSchema7Definition>>;
 }
 
 /**
- * Expand one node, unrolling references until `budget` runs out.
+ * Expand a `$ref` into a `$defs` entry numbered by the remaining budget.
  *
- * The budget strictly decreases through every reference, so the walk terminates
- * on a cyclic document and the emitted `$defs` graph is acyclic by construction:
- * an entry written at budget *n* only ever references entries at budget *n-1*.
+ * The budget strictly decreases through every reference, so an entry written at
+ * budget *n* only ever names entries at budget *n-1*: the walk terminates on a
+ * cyclic document, and the emitted graph is acyclic by construction rather than
+ * by a cycle check that could be got wrong.
  */
-function expand(node: JSONSchema7Definition, budget: number, rewriter: Rewriter): Expanded {
-  if (typeof node === "boolean") return node;
-  if (!isRecord(node)) return node;
+function expandRef(
+  node: JSONSchema7,
+  ref: string,
+  budget: number,
+  rewriter: Rewriter,
+): Expansion<JSONSchema7Definition> {
+  if (budget <= 0) return UNSATISFIABLE;
+  const name = definitionName(ref, budget);
 
-  if (typeof node.$ref === "string") {
-    if (budget <= 0) return UNSATISFIABLE;
-    const name = definitionName(node.$ref, budget);
-    if (!rewriter.defs.has(name)) {
-      const target = resolvePointer(rewriter.root, node.$ref);
-      // Placed before the recursive call purely so a pathological document that
-      // reaches the same name at the same budget cannot loop. The budget rule
-      // already prevents it; this is the belt to that pair of braces.
-      rewriter.defs.set(name, UNSATISFIABLE);
-      const resolved = target === undefined ? UNSATISFIABLE : expand(target, budget - 1, rewriter);
-      rewriter.defs.set(name, resolved);
-    }
-    if (rewriter.defs.get(name) === UNSATISFIABLE) return UNSATISFIABLE;
-    // Keywords sitting beside the `$ref` (a `description`, typically) are kept.
-    const { $ref: _ref, ...siblings } = node;
-    return { ...siblings, $ref: `#/$defs/${name}` };
+  // No re-entry guard is needed and none is written: computing an entry at
+  // budget n only ever asks for entries at budget n-1, and budget 0 terminates.
+  // A guard here would be a second, weaker statement of that same fact.
+  if (!rewriter.defs.has(name)) {
+    const target = resolvePointer(rewriter.root, ref);
+    rewriter.defs.set(
+      name,
+      target === undefined ? UNSATISFIABLE : expand(target, budget - 1, rewriter),
+    );
   }
+  if (rewriter.defs.get(name)?.value === undefined) return UNSATISFIABLE;
+
+  // Keywords sitting beside the `$ref` (a `description`, typically) are kept.
+  const siblings = Object.fromEntries(Object.entries(node).filter(([key]) => key !== "$ref"));
+  return written({ ...siblings, $ref: `#/$defs/${name}` });
+}
+
+/** A map of named subschemas. An entry that cannot be written is not offered. */
+function expandMap(
+  value: Record<string, unknown>,
+  budget: number,
+  rewriter: Rewriter,
+): Record<string, JSONSchema7Definition> {
+  const mapped: Record<string, JSONSchema7Definition> = {};
+  for (const [name, sub] of Object.entries(value)) {
+    const { value: expanded } = expand(sub as JSONSchema7Definition, budget, rewriter);
+    if (expanded !== undefined) mapped[name] = expanded;
+  }
+  return mapped;
+}
+
+/**
+ * A branch list. A union that lost every arm describes nothing; `allOf` is
+ * stricter still, since dropping a conjunct would *widen* the schema.
+ */
+function expandBranch(
+  key: string,
+  value: unknown[],
+  budget: number,
+  rewriter: Rewriter,
+): Expansion<JSONSchema7Definition[]> {
+  const arms = value
+    .map((arm) => expand(arm as JSONSchema7Definition, budget, rewriter).value)
+    .filter((arm): arm is JSONSchema7Definition => arm !== undefined);
+  if (arms.length === 0) return UNSATISFIABLE;
+  if (key === "allOf" && arms.length !== value.length) return UNSATISFIABLE;
+  return written(arms);
+}
+
+/**
+ * One keyword's value. `UNSATISFIABLE` here poisons the whole node: these are
+ * the positions (an array's element type, a tuple member, an open-properties
+ * schema) where an unwritable subschema makes the container unwritable too.
+ */
+function expandKeyword(
+  key: string,
+  value: unknown,
+  budget: number,
+  rewriter: Rewriter,
+): Expansion<unknown> {
+  if ((SUBSCHEMA_MAP_KEYS as readonly string[]).includes(key) && isRecord(value)) {
+    return written(expandMap(value, budget, rewriter));
+  }
+  if ((BRANCH_KEYS as readonly string[]).includes(key) && Array.isArray(value)) {
+    return expandBranch(key, value, budget, rewriter);
+  }
+  if (!(SUBSCHEMA_KEYS as readonly string[]).includes(key)) return written(value);
+  if (Array.isArray(value)) {
+    const items = value.map(
+      (item) => expand(item as JSONSchema7Definition, budget, rewriter).value,
+    );
+    return items.includes(undefined) ? UNSATISFIABLE : written(items);
+  }
+  return expand(value as JSONSchema7Definition, budget, rewriter);
+}
+
+/** Whether every `required` name still has a property to point at. */
+function requiredNamesSurvive(node: Record<string, unknown>): boolean {
+  if (!Array.isArray(node.required) || !isRecord(node.properties)) return true;
+  const properties = node.properties;
+  return node.required.every((name) => typeof name !== "string" || name in properties);
+}
+
+/** Expand one schema node, unrolling references until `budget` runs out. */
+function expand(
+  node: JSONSchema7Definition,
+  budget: number,
+  rewriter: Rewriter,
+): Expansion<JSONSchema7Definition> {
+  // The boolean shorthand passes through verbatim. `false` here is the author's
+  // own "nothing matches" and is meaningful where it sits - `additionalProperties:
+  // false` closes an object and appears on nearly every converted schema - so it
+  // is emphatically not the unsatisfiable sentinel, which means "this branch could
+  // not be WRITTEN within the budget".
+  if (typeof node === "boolean") return written(node);
+  if (typeof node.$ref === "string") return expandRef(node, node.$ref, budget, rewriter);
 
   const out: Record<string, unknown> = {};
-
   for (const [key, value] of Object.entries(node)) {
-    // The original definition blocks are the raw material, not output: every
-    // reference to them is rewritten into this document's own `$defs`.
+    // The original definition blocks are raw material, not output: every
+    // reference into them is rewritten to this document's own `$defs`.
     if (key === "definitions" || key === "$defs") continue;
-
-    if ((SUBSCHEMA_MAP_KEYS as readonly string[]).includes(key) && isRecord(value)) {
-      const mapped: Record<string, JSONSchema7Definition> = {};
-      for (const [name, sub] of Object.entries(value)) {
-        const result = expand(sub as JSONSchema7Definition, budget, rewriter);
-        // An optional property that cannot be written is simply not offered.
-        if (result !== UNSATISFIABLE) mapped[name] = result;
-      }
-      out[key] = mapped;
-      continue;
-    }
-
-    if ((BRANCH_KEYS as readonly string[]).includes(key) && Array.isArray(value)) {
-      const arms = value
-        .map((arm) => expand(arm as JSONSchema7Definition, budget, rewriter))
-        .filter((arm): arm is JSONSchema7Definition => arm !== UNSATISFIABLE);
-      // A union that lost every arm describes nothing, and `allOf` is stricter
-      // still: a dropped conjunct would widen the schema, so the whole node goes.
-      if (arms.length === 0 || (key === "allOf" && arms.length !== value.length)) {
-        return UNSATISFIABLE;
-      }
-      out[key] = arms;
-      continue;
-    }
-
-    if ((SUBSCHEMA_KEYS as readonly string[]).includes(key)) {
-      if (Array.isArray(value)) {
-        const items = value.map((item) => expand(item as JSONSchema7Definition, budget, rewriter));
-        if (items.includes(UNSATISFIABLE)) return UNSATISFIABLE;
-        out[key] = items;
-        continue;
-      }
-      const result = expand(value as JSONSchema7Definition, budget, rewriter);
-      // An array whose element type cannot be written, or an object whose open
-      // properties cannot be, is unwritable itself.
-      if (result === UNSATISFIABLE) return UNSATISFIABLE;
-      out[key] = result;
-      continue;
-    }
-
-    out[key] = value;
+    const expanded = expandKeyword(key, value, budget, rewriter);
+    if (expanded.value === undefined) return UNSATISFIABLE;
+    out[key] = expanded.value;
   }
 
-  // A required property that was dropped above leaves an object no instance can
-  // satisfy, so the object goes rather than becoming quietly wrong.
-  if (Array.isArray(out.required) && isRecord(out.properties)) {
-    const properties = out.properties;
-    for (const name of out.required) {
-      if (typeof name === "string" && !(name in properties)) return UNSATISFIABLE;
-    }
-  }
-
-  return out as JSONSchema7;
+  // A required property dropped by `expandMap` above leaves an object no
+  // instance can satisfy, so the object goes rather than becoming quietly wrong.
+  return requiredNamesSurvive(out) ? written(out as JSONSchema7Definition) : UNSATISFIABLE;
 }
 
 /**
@@ -239,14 +293,14 @@ export function selfContainedToolSchema(
   budget: number = TOOL_SCHEMA_CONDITION_DEPTH,
 ): JSONSchema7 {
   const rewriter: Rewriter = { root: schema, defs: new Map() };
-  const rewritten = expand(schema, budget, rewriter);
-  if (rewritten === UNSATISFIABLE || typeof rewritten === "boolean") {
+  const rewritten = expand(schema, budget, rewriter).value;
+  if (rewritten === undefined || typeof rewritten === "boolean") {
     throw new Error("Tool schema is unsatisfiable at the configured reference depth");
   }
 
   const defs: Record<string, JSONSchema7Definition> = {};
   for (const [name, entry] of rewriter.defs) {
-    if (entry !== UNSATISFIABLE) defs[name] = entry;
+    if (entry.value !== undefined) defs[name] = entry.value;
   }
   if (Object.keys(defs).length === 0) return rewritten;
   return { ...rewritten, $defs: defs };

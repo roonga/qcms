@@ -52,6 +52,11 @@ interface RunOutcome {
   providerRetryable: boolean;
   /** The upstream HTTP status, when the failure had one. Logged, never rendered. */
   providerStatus: number | undefined;
+  /**
+   * How many individual tool calls failed during the turn. Counted, never
+   * quoted: a tool error's text is assembled from model-supplied input.
+   */
+  toolErrors: number;
 }
 
 /**
@@ -121,8 +126,8 @@ function errorMessage(error: unknown): string {
 function providerRetryAdvice(error: unknown): boolean {
   if (APICallError.isInstance(error)) return error.isRetryable;
   if (typeof error === "object" && error !== null && "isRetryable" in error) {
-    const flag = (error as { isRetryable: unknown }).isRetryable;
-    if (typeof flag === "boolean") return flag;
+    const { isRetryable } = error;
+    if (typeof isRetryable === "boolean") return isRetryable;
   }
   return true;
 }
@@ -131,8 +136,8 @@ function providerRetryAdvice(error: unknown): boolean {
 function providerStatusCode(error: unknown): number | undefined {
   if (APICallError.isInstance(error)) return error.statusCode;
   if (typeof error === "object" && error !== null && "statusCode" in error) {
-    const status = (error as { statusCode: unknown }).statusCode;
-    if (typeof status === "number") return status;
+    const { statusCode } = error;
+    if (typeof statusCode === "number") return statusCode;
   }
   return undefined;
 }
@@ -174,6 +179,38 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
 }
 
 /**
+ * Record one failed tool call, which is **not** a failed turn.
+ *
+ * A `tool-error` part means one call did not execute: the model sent input the
+ * schema refused, or an executor threw. The SDK hands the error back to the
+ * model as that call's result and the loop carries on, which is exactly what a
+ * capable model does with it - fix the arguments and call again. Every local
+ * model observed doing real work has produced at least one.
+ *
+ * It used to be routed into {@link noteFailure} alongside a genuine stream
+ * failure, and because a provider error is terminal that made one bad call
+ * anywhere in a turn discard everything the turn went on to produce. Observed on
+ * 2026-09-05: a turn that malformed a `propose_draft` call, corrected itself,
+ * proposed successfully and finished with `stop` in six of twelve steps was
+ * reported to the operator as "the assistant is unavailable right now" with the
+ * proposal thrown away. The narration had already streamed, so the panel showed
+ * a described proposal and then an unavailable provider.
+ *
+ * A refusal is the one exception and still travels: an unallowlisted verb
+ * arrives as a `tool-error` too, and that one **must** stop the turn (041's
+ * allowlist control - a model that reached for `publish` gets none of its other
+ * work accepted).
+ */
+function noteToolFailure(outcome: RunOutcome, raw: unknown): void {
+  const refused = refusedToolName(raw);
+  if (refused === undefined) {
+    outcome.toolErrors += 1;
+  } else {
+    outcome.rejectedTool = refused;
+  }
+}
+
+/**
  * Map one SDK stream part onto the slice's own event vocabulary, recording what
  * the turn's terminal events will need. Returns `undefined` for parts that only
  * update the outcome.
@@ -196,6 +233,8 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       outcome.rejectedTool = part.toolName;
       return undefined;
     case "tool-error":
+      noteToolFailure(outcome, part.error);
+      return undefined;
     case "error":
       noteFailure(outcome, part.error);
       return undefined;
@@ -229,6 +268,7 @@ async function* runTurn(args: {
     providerError: undefined,
     providerRetryable: true,
     providerStatus: undefined,
+    toolErrors: 0,
   };
 
   const result = streamText({
@@ -323,6 +363,10 @@ async function* finishTurn(args: {
     outputTokens: outcome.outputTokens,
     finishReason: outcome.finishReason,
     toolRejected: outcome.rejectedTool !== undefined,
+    // A count, never the text: a tool error's message is assembled from input
+    // the model wrote (SEC-8). Non-zero on a turn that still proposed is normal
+    // and is how a model correcting itself looks from here.
+    toolErrors: outcome.toolErrors,
   });
 
   yield {

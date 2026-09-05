@@ -47,6 +47,7 @@ export const FAKE_SCRIPTS = [
   "refusal",
   "provider-error",
   "provider-rejected",
+  "tool-error-recovered",
   "no-proposal",
   "length",
   "step-limit",
@@ -296,6 +297,39 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
 
   const results = toolResults(prompt);
+
+  if (script === "tool-error-recovered") {
+    // A model that gets one call wrong, is told, and carries on - which is what
+    // a real local model doing real work looks like, and what used to discard
+    // the whole turn (found live on 2026-09-05). Step one asks `propose_draft`
+    // for a definition the schema refuses, so the SDK reports a `tool-error`
+    // part and hands the failure back as that call's result. The rest is the
+    // default script's own path, and it ends with `stop`.
+    const round = prompt.filter((m) => m.role === "tool").length;
+    if (round === 0) {
+      return [
+        ...textParts("Let me propose that straight away."),
+        toolCallPart("propose_draft", { definition: { formId: 42 } }, "_bad"),
+        finishPart("tool-calls"),
+      ];
+    }
+    if (round === 1) {
+      return [
+        ...textParts("That was malformed. Let me look the questions up first."),
+        toolCallPart("search_question_library", { limit: 10 }),
+        finishPart("tool-calls"),
+      ];
+    }
+    if (round === 2) {
+      const draft = currentDraft(prompt) ?? {};
+      return [
+        toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+        finishPart("tool-calls"),
+      ];
+    }
+    return [...textParts("I have proposed the draft."), finishPart("stop")];
+  }
+
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [

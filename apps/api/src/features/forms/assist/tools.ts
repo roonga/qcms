@@ -242,7 +242,7 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
       validate: (value: unknown) => {
         const result = zodType.safeParse(value);
         return result.success
-          ? { success: true as const, value: result.data as unknown }
+          ? { success: true as const, value: result.data }
           : { success: false as const, error: result.error };
       },
     },

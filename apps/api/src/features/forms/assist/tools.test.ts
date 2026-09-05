@@ -329,7 +329,7 @@ describe("every emitted tool schema is one a provider can convert", () => {
     }
   });
 
-  it("still validates against the kernel's own schema, not the bounded one", async () => {
+  it("still validates against the kernel's own schema, not the bounded one", () => {
     // The property that makes a bounded advertisement safe: the tool set's
     // `validate` is the untouched Zod schema, so a draft the bounded document
     // does not describe is still accepted, and one the kernel rejects is still
