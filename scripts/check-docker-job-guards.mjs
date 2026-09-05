@@ -88,7 +88,7 @@ export const JOB_GUARDS = {
     assert: true,
     why: "each of the API scenario files boots its own Testcontainers Postgres.",
   },
-  "ci.yml#portal-e2e": {
+  "ci.yml#browser-e2e": {
     mirror: true,
     assert: true,
     why: "the Playwright globalSetup boots a Testcontainers Postgres and composes the API against it.",

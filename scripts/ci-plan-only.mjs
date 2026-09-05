@@ -111,7 +111,7 @@ export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", PLAN_PREFIX];
  * nothing" must never read as "saw only the admin". Every uncertain case runs the
  * full browser suite (issue #696).
  *
- * The admin's own browser project is NOT skipped when this is true - `portal-e2e`
+ * The admin's own browser project is NOT skipped when this is true - `browser-e2e`
  * narrows to `--project admin-chromium` instead, so an admin-only PR still gets the
  * browser coverage for the surface it did change. The job was already running that
  * project; what it stops paying for is the portal half it cannot exercise.

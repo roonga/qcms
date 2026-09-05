@@ -74,7 +74,7 @@ jobs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
       # `admin_only` (issue #696): every changed path is under `apps/admin/`, `docs/`
       # or `plan/`, so nothing in the diff can move a portal-rendered surface and
-      # `portal-e2e` narrows to the admin Playwright project instead of running the
+      # `browser-e2e` narrows to the admin Playwright project instead of running the
       # whole browser suite. It inherits `plan_only`'s posture exactly - unresolvable,
       # empty or ambiguous means `false`, which means run everything - and it does NOT
       # mean "the diff touches admin": the two apps share `@roonga/qcms-ui` and
@@ -135,7 +135,7 @@ jobs:
     # The CI enactment of `pnpm verify` (issue #19 / PR #83): same superset,
     # split into named steps for failure granularity. Renamed from `ci` so the
     # check list reads as what each job is: verify (node-NN), api-e2e,
-    # portal-e2e, full-stack-e2e.
+    # browser-e2e, full-stack-e2e.
     #
     # The `name:` is what `protect-main` matches on ("verify (node-24)"). Do not move
     # it, reword it, or change the matrix key it interpolates: the ruleset has no
@@ -399,7 +399,7 @@ jobs:
   #
   # The job id IS the check context (no `name:`, same as `full-stack-e2e` in
   # e2e.yml), so it carries its scope: this repo publishes three end-to-end
-  # checks - `api-e2e` here, `portal-e2e` below, `full-stack-e2e` in e2e.yml -
+  # checks - `api-e2e` here, `browser-e2e` below, `full-stack-e2e` in e2e.yml -
   # and a bare `e2e` said nothing about which layer had broken.
   #
   # On the plan-only fast lane every step below is guarded off, but the JOB still
@@ -461,18 +461,18 @@ jobs:
   # config, 029/ADR-23), as its own job for signal clarity: when this is red, a
   # rendered surface broke.
   #
-  # The job id under-reports what it runs, and deliberately keeps doing so (issue
-  # #493). `pnpm exec playwright test` takes no project filter, and
+  # The job id says so on purpose (issue #493). It used to be `portal-e2e`, which
+  # under-reported the job: `pnpm exec playwright test` takes no project filter, and
   # `playwright.config.ts` carries `admin-chromium` alongside the three portal
-  # viewport projects, so the admin browser suite is covered by a required check
-  # whose NAME says it is not. The name is the defect and the fix would be to call it
-  # `browser-e2e` - but the job id IS the required check context in `protect-main`,
-  # which has no bypass actors, so renaming it is a branch-protection change and not a
-  # workflow change. Until that is made in one deliberate step (rename the job, update
-  # the ruleset's required context, update CONTRIBUTING's CI-mapping row), the scope
-  # is written down here, in the step names below, and in CONTRIBUTING, so a reviewer
-  # asking "what must pass before this merges" gets the true answer from every place
-  # except the context string itself.
+  # viewport projects, so the admin browser suite was covered by a required check
+  # whose NAME said it was not. The job id IS the required check context in
+  # `protect-main`, which has no bypass actors, so the rename was a branch-protection
+  # change and not a workflow change: it landed as one coordinated step on 2026-09-06
+  # (Code Owner ruling on #493) with the ruleset's required context moved to
+  # `browser-e2e` through the GitHub API immediately before the rename merged.
+  # DO NOT rename it again casually. A job id that no longer matches the ruleset is
+  # not a red check, it is every future pull request waiting forever on a context
+  # nobody publishes.
   #
   # It boots a Testcontainers Postgres + the composed API in globalSetup and drives
   # the Next.js portal and the admin in a real browser. This is where the task 030
@@ -484,7 +484,7 @@ jobs:
   # Same fast-lane shape as `api-e2e` above: guarded steps, unguarded job, context
   # still reported. It has a second gear the others do not - see `admin_only` on the
   # `changes` job and the two mutually exclusive run steps below (issue #696).
-  portal-e2e:
+  browser-e2e:
     runs-on: ubuntu-latest
     # Measured over the same 15 runs: p50 27.1, p95 28.0, max 28.3. This is by far the
     # longest job in the repository (Playwright plus two Lighthouse runs, on top of a
@@ -503,7 +503,7 @@ jobs:
 
       - name: Plan-only change, no rendered surface to exercise
         if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely under plan/ - reporting portal-e2e green without running the suite."
+        run: echo "Diff is entirely under plan/ - reporting browser-e2e green without running the suite."
 
       - uses: pnpm/action-setup@v6.0.9
         if: env.PLAN_ONLY != 'true'
@@ -545,7 +545,7 @@ jobs:
 
       # The narrow gear (issue #696). When the diff touches nothing outside
       # `apps/admin/`, `docs/` and `plan/`, no portal-rendered surface can have moved,
-      # and this job was spending its full ~27 minutes proving it: `portal-e2e` was
+      # and this job was spending its full ~27 minutes proving it: it was
       # the last check still pending on all seven admin PRs merged on 2026-08-22, so
       # an armed auto-merge sat in BLOCKED long after the admin legs were green.
       #
@@ -569,7 +569,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         if: ${{ failure() && env.PLAN_ONLY != 'true' }}
         with:
-          name: portal-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          name: browser-e2e-failure-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             apps/portal/.playwright/output
             apps/portal/.playwright/server-logs

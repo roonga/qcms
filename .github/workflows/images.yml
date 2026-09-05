@@ -18,7 +18,7 @@ name: Images
 # `docker compose build`.
 #
 # THIS JOB IS NOT A REQUIRED CONTEXT. `protect-main` requires exactly four
-# (`verify (node-24)`, `api-e2e`, `portal-e2e`, `full-stack-e2e`), so a red build here
+# (`verify (node-24)`, `api-e2e`, `browser-e2e`, `full-stack-e2e`), so a red build here
 # reports beside a mergeable pull request rather than blocking it. It is not alone:
 # `codeql.yml`'s analyze job and `audit.yml` are in the same position, and that set is
 # recorded here rather than left to be rediscovered (issue #468, whose own subject -
