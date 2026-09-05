@@ -237,8 +237,7 @@ function providerSchema(zodType: z.ZodType): Schema<unknown> {
   return jsonSchema<unknown>(
     // A thunk, so a deployment that never runs a turn never converts a schema,
     // and `streamText` resolves it once per tool set rather than per step.
-    async (): Promise<JSONSchema7> =>
-      selfContainedToolSchema(await asSchema(zodType).jsonSchema),
+    async (): Promise<JSONSchema7> => selfContainedToolSchema(await asSchema(zodType).jsonSchema),
     {
       validate: (value: unknown) => {
         const result = zodType.safeParse(value);

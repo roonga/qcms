@@ -152,8 +152,7 @@ function expand(node: JSONSchema7Definition, budget: number, rewriter: Rewriter)
       // reaches the same name at the same budget cannot loop. The budget rule
       // already prevents it; this is the belt to that pair of braces.
       rewriter.defs.set(name, UNSATISFIABLE);
-      const resolved =
-        target === undefined ? UNSATISFIABLE : expand(target, budget - 1, rewriter);
+      const resolved = target === undefined ? UNSATISFIABLE : expand(target, budget - 1, rewriter);
       rewriter.defs.set(name, resolved);
     }
     if (rewriter.defs.get(name) === UNSATISFIABLE) return UNSATISFIABLE;
