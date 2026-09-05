@@ -84,6 +84,11 @@ inside `pnpm verify`) fails when it drifts. Two views of one set: the directory 
 is for reading, the collapsed manifest is the literal answer to "every scaffolded
 path", so the completeness claim is checkable rather than asserted.
 
+**Run `pnpm format` straight after regenerating** (issue #811). The generator writes the
+tables below compactly and Prettier repads them, so a fresh `pnpm qcms:sync-templates`
+always leaves this one file unformatted and `pnpm verify` fails on `prettier --check`
+alone. Regenerate, format, then verify.
+
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
 ### Scaffolded paths (357 files common to both shapes)

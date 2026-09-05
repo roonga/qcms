@@ -323,6 +323,16 @@ Every task and issue PR requires an independent reviewer subagent. Its PR commen
 
 **Never run two interactive sessions in one checkout.** If you want a second hands-on session, give it its own `git worktree add ../qcms-me main`.
 
+**Editing a PR body: `gh pr edit` fails silently here** (issue #813). On this repository `gh pr edit --body-file` hits a Projects-classic GraphQL deprecation, prints a URL-shaped success line, and leaves the body unchanged. The exit code is 0 and nothing is red, so only reading the body back catches it - the fourth instance of the signal-that-cannot-go-red pattern, and three separate agent lanes rediscovered the same workaround independently before it was written down. Edit through the REST endpoint instead, and read back rather than trusting the response:
+
+```sh
+# The braces are gh's own placeholders: it resolves them from the checkout's remote.
+gh api -X PATCH "repos/{owner}/{repo}/pulls/<number>" -F body=@<file>
+gh pr view <number> --json body -q .body    # read back and confirm the text landed
+```
+
+**A body edit retriggers CI; a comment does not.** Editing the body fires the `pull_request` `edited` event, so the required checks run again on an unchanged head. A PR comment fires no such event. So put review verdicts, gate evidence and running notes in comments, and reserve body edits for text that has to be in the body (the `Fixes #NN` lines, the summary a merge commit inherits). Where a body edit is genuinely needed on an already-green PR, expect the re-run and wait for it before merging.
+
 ## Human gates
 
 Only gates explicitly named by an authoritative task or decision apply. The agent prepares the requested material and parks the branch with `HANDOFF: AWAITING-HUMAN` until the Code Owner responds. Unrelated work may continue when its dependencies and file footprint are independent.

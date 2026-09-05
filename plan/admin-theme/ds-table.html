@@ -222,6 +222,12 @@ h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--c
 table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
 th { text-align: left; color: var(--color-text-muted); font-weight: 600; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; padding: 0.5rem 0.75rem; border-bottom: 2px solid var(--color-border-strong); }
 td { padding: 0 0.75rem; height: 44px; border-bottom: 1px solid var(--color-border); font-variant-numeric: tabular-nums; }
+/* Superseded by design contract 2 (no zebra striping); retained as frozen history.
+   Code Owner decision 2026-09-05, issue #681. The confirmed contract
+   (plan/admin-design-contracts.md section 2) and the shipped family
+   (apps/admin/app/globals.css) both say no zebra, and they are the authority. This card is
+   a dated drawing and is annotated rather than amended: the rule below is dead, not a
+   property to carry across. Wave 4's regeneration drops it at source. */
 tbody tr:nth-child(even) { background: var(--color-background-muted); }
 tbody tr:hover { background: var(--color-surface-hover); }
 code { background: var(--color-background-muted); padding: 0.05rem 0.35rem; border-radius: var(--radius-sm); font-size: 0.85em; }
