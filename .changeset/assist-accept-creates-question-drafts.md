@@ -1,6 +1,4 @@
 ---
-"qcms-api": minor
-"qcms-admin": minor
 "create-qcms-app": minor
 "@roonga/qcms-observability": patch
 ---

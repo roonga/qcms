@@ -217,7 +217,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1680` lines across `309` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1681` lines across `309` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and

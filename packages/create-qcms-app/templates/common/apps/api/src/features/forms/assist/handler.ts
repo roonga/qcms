@@ -17,6 +17,7 @@ import {
   listQuestionVersions,
   listQuestions,
 } from "@roonga/qcms-db";
+import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../../deps.js";
@@ -267,6 +268,49 @@ function proposedIdOf(value: unknown): string {
   return typeof id === "string" && id !== "" ? id : "(unnamed)";
 }
 
+/** What one created question is, so the accumulator below is not an evolving array. */
+type CreatedQuestion = { question: QuestionRow; version: QuestionVersionRow };
+
+/** The envelope code an `ApiError` carries, for the refusal record's `reason`. */
+function codeOf(error: unknown): string {
+  return error instanceof ApiError ? error.code : "UNKNOWN";
+}
+
+/**
+ * One refused accept, recorded (issue #823).
+ *
+ * **Every** refusal takes this path, not only the authoring-boundary one: a
+ * proposed id the library has used before (R6) and a slug collision are refusals
+ * with the same consequence - the whole accept fails and nothing is written - and
+ * a rising rate of any of them is the same operational signal, that a configured
+ * model is producing definitions this deployment cannot take. One event name and
+ * one attribute shape, so the three are counted together and told apart by
+ * `reason`.
+ *
+ * Ids and codes, never the definition (SEC-8's habit applied to authoring content
+ * too). A refused accept is the one outcome an operator cannot reconstruct from
+ * the screen, because the proposal that caused it is gone the moment they ask the
+ * assistant again. What actually leaves the process is narrower still: every
+ * attribute here is absent from the OTLP allowlist's `SAFE_ATTRIBUTES` and is
+ * dropped on export, so a collector sees the event name and its count. That is
+ * load-bearing for `questionId`, which on a boundary refusal is an id a *model*
+ * invented, read positionally off a definition that failed to parse.
+ */
+function logRefusal(
+  deps: Deps,
+  formId: FormId,
+  questionId: string,
+  reason: string,
+  issues: readonly DefinitionRefusal[],
+): void {
+  deps.logger.warn("agent proposal refused", {
+    formId,
+    questionId,
+    reason,
+    issues: issues.map((issue) => issue.code),
+  });
+}
+
 /**
  * Accept an agent proposal: store the draft **and** materialise the proposal's
  * new question definitions as unpublished drafts in the library (issue #823).
@@ -315,16 +359,9 @@ export function makeAcceptProposalHandler(
     const proposed = body.newQuestions.map((entry) => {
       const checked = checkQuestionDefinition(entry.definition);
       if (!checked.ok) {
-        // Ids and codes, never the definition (SEC-8's habit applied to authoring
-        // content too). A refused accept is the one outcome an operator cannot
-        // reconstruct from the screen alone, because the proposal that caused it is
-        // gone the moment they ask the assistant again.
-        deps.logger.warn("agent proposal refused at the authoring boundary", {
-          formId,
-          questionId: proposedIdOf(entry.definition),
-          issues: checked.issues.map((issue) => issue.code),
-        });
-        throw fail.proposedQuestionRefused(proposedIdOf(entry.definition), checked.issues);
+        const questionId = proposedIdOf(entry.definition);
+        logRefusal(deps, formId, questionId, "INVALID_QUESTION_DEFINITION", checked.issues);
+        throw fail.proposedQuestionRefused(questionId, checked.issues);
       }
       return {
         definition: checked.definition,
@@ -333,11 +370,21 @@ export function makeAcceptProposalHandler(
     });
 
     const stored = await deps.db.transaction(async (tx) => {
-      const created = [];
+      const created: CreatedQuestion[] = [];
       for (const question of proposed) {
         // Sequential rather than concurrent: these share one connection handle,
         // and an id or slug collision has to be attributable to a question.
-        created.push(await createQuestionWithFirstDraft(tx, question));
+        try {
+          created.push(await createQuestionWithFirstDraft(tx, question));
+        } catch (error) {
+          // The 409s (R6 id reuse, slug collision) are refusals too, and they get the
+          // same record for the same reason the 422 does. Logging here rather than in
+          // `create.ts` keeps that module loggerless: it is the questions slice's
+          // authoring door, shared with `POST /admin/questions`, and a create that is
+          // one request rather than one of several has nothing to disambiguate.
+          logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
+          throw error;
+        }
       }
       const draft = await storeDraftDefinition(tx, formId, definition, true);
       return { created, draft };

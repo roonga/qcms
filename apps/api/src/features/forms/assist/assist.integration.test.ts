@@ -424,6 +424,11 @@ describe("accepting a proposal with new questions", () => {
     });
   }
 
+  /** Every refusal record the API has written so far, oldest first. */
+  function refusalLines(): Record<string, unknown>[] {
+    return logLines.filter((line) => line["msg"] === "agent proposal refused");
+  }
+
   async function storedVersions(id: string): Promise<{ version: number; status: string }[]> {
     const rows = await listQuestionVersions(testDb.db, QuestionId.parse(id));
     return rows.map((row) => ({ version: row.version, status: row.status }));
@@ -533,6 +538,13 @@ describe("accepting a proposal with new questions", () => {
       expect(body.error.message).toContain("'v' flag");
       expect(body.error.details?.questionId).toBe("q_bad_pattern");
 
+      // The boundary refusal takes the same record, with its own `reason`.
+      expect(refusalLines().at(-1)).toMatchObject({
+        formId: "frm_refused",
+        questionId: "q_bad_pattern",
+        reason: "INVALID_QUESTION_DEFINITION",
+      });
+
       // No half-accepted state. Neither proposed question exists - not even the one
       // that was fine - and the stored draft is untouched.
       expect(await storedVersions("q_good_one")).toEqual([]);
@@ -568,6 +580,19 @@ describe("accepting a proposal with new questions", () => {
       // One transaction: the first insert rolled back with the second's refusal.
       expect(await storedVersions("q_fresh_one")).toEqual([]);
       expect(await storedVersions("q_taken_id")).toEqual([{ version: 1, status: "published" }]);
+
+      // Every refusal is recorded, not only the authoring-boundary one, and under the
+      // same event name so the three are counted together. A refused accept is the one
+      // outcome an operator cannot reconstruct from the screen: the proposal that
+      // caused it is gone the moment they ask the assistant again.
+      const refusal = refusalLines().at(-1);
+      expect(refusal).toMatchObject({
+        formId: "frm_reuse",
+        questionId: "q_taken_id",
+        reason: "QUESTION_ID_REUSED",
+      });
+      // Never the definition itself (SEC-8), on any refusal path.
+      expect(JSON.stringify(refusal)).not.toContain("Reused");
     },
     BOOT_TIMEOUT,
   );
