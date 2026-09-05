@@ -260,10 +260,18 @@ test("accepting a proposal creates its new question as an unpublished library dr
 
   // The advisory now describes reality: the pin resolves to a stored version, and what
   // is left is the publish step - which the operator can actually perform.
-  const validation = page.getByTestId("qcms-validation-status");
-  await expect(validation).toContainText("can only pin a published version", {
+  //
+  // The region rather than `qcms-validation-status`, which carries only the count
+  // sentence; the issue's own wording is in the list beside it. Both are asserted,
+  // because the two claims are different: the COUNT is that the advisory set matches
+  // the created set exactly (one question proposed, one created, one thing left to
+  // do), and the WORDING is that what is left is publishing rather than the dangling
+  // reference the same pin produced one moment earlier.
+  const validation = page.getByRole("region", { name: "Validation" });
+  await expect(validation.getByTestId("qcms-issue-summary")).toContainText("1 issue", {
     timeout: 30_000,
   });
+  await expect(validation).toContainText("can only pin a published version");
   await expect(validation).not.toContainText("does not resolve");
 
   // The step's grid resolves the pin to its real label and marks it unpublished,
