@@ -15,7 +15,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 import { asSchema } from "ai";
 
-import { Condition, FormDefinition } from "@qcms/core";
+import { Condition, FormDefinition } from "@roonga/qcms-core";
 
 import {
   collectRefs,

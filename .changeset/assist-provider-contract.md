@@ -1,5 +1,5 @@
 ---
-"@qcms/observability": patch
+"@roonga/qcms-observability": patch
 "create-qcms-app": patch
 ---
 
@@ -24,6 +24,6 @@ waiting is right, and the account cannot pay, where waiting is useless. It now s
 the SDK's own `isRetryable` into `PROVIDER_REJECTED`, whose copy sends the operator to the
 provider account. No vendor message, error code or URL reaches that copy.
 
-`@qcms/observability` classifies the one new log literal in the exported event vocabulary,
+`@roonga/qcms-observability` classifies the one new log literal in the exported event vocabulary,
 so a provider refusal an operator must act on leaves a countable trace with no vendor text
 in it. `create-qcms-app`'s templates carry both changes.
