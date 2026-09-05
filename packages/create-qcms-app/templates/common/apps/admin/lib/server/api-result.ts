@@ -39,9 +39,7 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   const body: unknown = await response.json().catch(() => undefined);
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
   const code = typeof envelope?.code === "string" ? envelope.code : `http_${response.status}`;
-  const details = envelope?.details as
-    | { issues?: unknown; questionId?: unknown }
-    | undefined;
+  const details = envelope?.details as { issues?: unknown; questionId?: unknown } | undefined;
   return {
     ok: false,
     code,
