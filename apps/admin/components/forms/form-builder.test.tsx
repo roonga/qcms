@@ -194,6 +194,71 @@ describe("FormBuilder and the assist panel (task 041)", () => {
   });
 
   /**
+   * Issue #823: the proposal's NEW question definitions have to reach the save.
+   *
+   * Before this they stopped at the diff, so accepting stored a draft pinning
+   * question ids nothing had ever created. The builder is not the thing that
+   * creates them - the accept endpoint is - but it is the thing that has them,
+   * and dropping them here is where the defect started.
+   */
+  it("carries the proposal's new question definitions into the accepting save", async () => {
+    const actions = builderActions();
+    const newQuestion = { questionId: "q_first_name", type: "shortText", label: { en: "First" } };
+    const proposal = {
+      proposal: {
+        proposedDraft: {
+          ...DETAIL.draft,
+          steps: [
+            {
+              ...(DETAIL.draft?.steps[0] ?? { stepId: "", title: {}, items: [] }),
+              title: { en: "Basics (with a new question)" },
+            },
+          ],
+        },
+        newQuestions: [newQuestion],
+        rationale: "Proposed one new question.",
+        issues: [],
+      },
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseBody([frame("proposal", proposal)]), {
+          status: 200,
+          headers: { "content-type": "text/event-stream" },
+        }),
+      ),
+    );
+
+    render(
+      <FormBuilder
+        detail={DETAIL}
+        {...CHROME}
+        {...actions}
+        assist={{ endpoint: "/forms/frm_quote/assist" }}
+      />,
+    );
+
+    const input = screen.getByLabelText(t("forms.assist.inputLabel"));
+    fireEvent.change(input, { target: { value: "Add a name question" } });
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.send") }));
+
+    await waitFor(() => expect(screen.getByTestId("qcms-assist-proposal")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: t("forms.assist.accept") }));
+
+    await waitFor(() => expect(actions.saveDraft).toHaveBeenCalled(), { timeout: 2000 });
+
+    const [, agentAssisted, newQuestions] = actions.saveDraft.mock.calls[0] as [
+      unknown,
+      boolean,
+      readonly unknown[],
+    ];
+    expect(agentAssisted).toBe(true);
+    // Verbatim: the builder relays the definitions, it does not reinterpret them.
+    expect(newQuestions).toEqual([newQuestion]);
+  });
+
+  /**
    * A proposal replaces the whole draft, so it can delete the step the screen is on.
    *
    * This is the one edit in the builder that can invalidate the selection wholesale -

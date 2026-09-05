@@ -172,11 +172,17 @@ export async function createFormAction(
  * An inconsistent draft saves fine and comes back with the issues that would block a
  * publish, so a `saved` status carrying a non-empty `issues` list is the normal case
  * rather than a contradiction.
+ *
+ * `newQuestions` is the one exception to "saves fine": an accept carrying proposed
+ * question definitions creates them alongside the draft (issue #823), and a definition
+ * the authoring boundary refuses fails the whole save, so a draft never pins a question
+ * that was not created. The error names which question and why.
  */
 export async function saveDraftAction(
   formId: string,
   draft: DraftForm,
   agentAssisted?: boolean,
+  newQuestions?: readonly unknown[],
 ): Promise<SaveDraftState> {
   const session = await requireAdminSession();
   if (!withinCap(draft)) {
@@ -189,7 +195,7 @@ export async function saveDraftAction(
     };
   }
 
-  const result = await saveDraft(session, formId, draft, agentAssisted);
+  const result = await saveDraft(session, formId, draft, agentAssisted, newQuestions);
   if (!result.ok) {
     return {
       status: "error",

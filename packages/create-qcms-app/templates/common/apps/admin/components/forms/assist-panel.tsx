@@ -29,6 +29,13 @@ import { IssueEntry } from "./validation-panel";
  * calls `saveDraft` itself, and nothing here can: this module never imports
  * `lib/server/*`.
  *
+ * Accept hands up the proposal's NEW question definitions alongside the draft (issue
+ * #823). They are the definitions the proposed draft pins, and the save that stores the
+ * draft is the one that creates them: before that they existed only in this panel's
+ * diff, so accepting produced a draft pinning questions nothing had ever created. They
+ * travel as opaque values, unparsed - this component renders a diff of them and has no
+ * business deciding whether the kernel will take one.
+ *
  * ## The guardrail surface
  *
  * There is no publish, erase, link or webhook affordance anywhere below - not
@@ -56,8 +63,11 @@ export function AssistPanel({
   readonly draft: DraftForm;
   /** The stored draft's `updatedAt`, sent as `clientState` (a 409 means it moved). */
   readonly draftUpdatedAt: string | undefined;
-  /** Accept: the parsed proposed draft, ready for the builder's own save path. */
-  readonly onAccept: (proposedDraft: DraftForm) => void;
+  /**
+   * Accept: the parsed proposed draft plus the proposal's new question definitions,
+   * ready for the builder's own save path.
+   */
+  readonly onAccept: (proposedDraft: DraftForm, newQuestions: readonly unknown[]) => void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [conversation, setConversation] = useState<readonly AssistTurn[]>([]);
@@ -167,7 +177,7 @@ export function AssistPanel({
 
   function accept() {
     if (proposal === undefined) return;
-    onAccept(acceptedDraft(draft, proposal.proposal.proposedDraft));
+    onAccept(acceptedDraft(draft, proposal.proposal.proposedDraft), proposal.proposal.newQuestions);
     setProposal(undefined);
     setFocusToken((token) => token + 1);
   }

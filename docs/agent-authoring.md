@@ -2,7 +2,7 @@
 
 **Status:** shipped by task 041 · flag-gated, **off by default** · governed by **ADR-25**
 
-QCMS can put a chat panel beside the form builder that drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself through the ordinary publish flow.
+QCMS can put a chat panel beside the form builder that drafts a form for you: describe what you want, get a proposal, look at the diff, accept it into your draft, then publish it yourself through the ordinary publish flow. Questions the proposal invented are created as unpublished drafts when you accept, so publishing them stays your decision too.
 
 The whole feature rests on one sentence, and it is worth reading twice:
 
@@ -182,11 +182,23 @@ It is assembled from the kernel's own exports where the kernel exposes a list (q
 3. Progress streams back as server-sent events: a working indicator, the assistant's prose as it arrives, and which tool it is using.
 4. When the loop ends, **the server runs the publish validation itself** over the proposed draft and attaches both of its advisory lists: the issues that would block a publish, and the warnings that would not. The panel is never handed an unvalidated proposal.
 5. You see a diff of steps, questions and rules against your current draft, with the validation result beside it. It is the same verdict, from the same kernel call, that the builder's own validation panel would show for that draft, so accepting a proposal never changes what you are told about it.
-6. **Accept into draft** saves the proposal through the ordinary draft save. The builder's own autosave and live validation take over; nothing bypasses them.
+6. **Accept into draft** saves the proposal through the builder's own autosave and live validation; nothing bypasses them. When the proposal introduced new questions, that save also creates them (below).
 7. The draft is marked "includes agent-assisted changes". The mark is sticky and shows on the builder and on the publish confirmation, so whoever publishes knows what they are signing.
 8. You publish, or not, exactly as you would for a hand-authored form.
 
-A proposed question that is not published yet will validate as an unpublished pin. That is correct and is reported plainly: create and publish the question, then re-accept. The agent's view of validity and the builder's are the same view.
+### What happens to questions the agent invented
+
+A proposal can pin questions that are not in your library yet, and accepting it **creates them as unpublished drafts** in the question library alongside the form draft.
+
+That is the "a human publishes" half of the rule, and it is what makes the advice you are given performable. The accepted draft pins those questions, the validation panel says they are pinned but not published, and the fix is the one it names: open the question in the library, review the definition the agent wrote, and publish it. Do that for each one and the pins resolve. Nothing is published on your behalf.
+
+Three things worth knowing:
+
+- **Each proposed definition faces the same validation a hand-authored question faces**, including the authoring rules the schema itself does not carry. If one is refused, the whole accept is refused and **nothing** is saved - not the draft, not the other questions - and the error names which question and why. Fix the proposal (or ask the assistant to) and accept again.
+- **Question ids are never reused (R6).** A proposal that reaches for an id your library has used before, even for a question you deprecated, is refused for that reason.
+- **The library slug is derived from the question id** when the proposal does not name one: `q_first_name` becomes `first-name`. If that slug is already taken the accept is refused rather than silently renamed.
+
+Before this behaviour existed, accepting such a proposal stored a draft pinning question ids nothing had ever created, and the builder showed "Version not found" with no draft to review or publish.
 
 ---
 
