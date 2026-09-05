@@ -1,7 +1,7 @@
 /**
  * Shell chrome class helpers (task 029). These style the portal's own chrome
  * buttons (Continue / Back / Start) and links - NOT the A2UI form controls, which
- * are rendered and styled by @qcms/ui. Kept as token-based Tailwind strings so
+ * are rendered and styled by @roonga/qcms-ui. Kept as token-based Tailwind strings so
  * adopter re-skinning through the color tokens flows here too.
  */
 

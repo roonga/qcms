@@ -26,7 +26,7 @@ Node LTS, pnpm, Turborepo, Zod, Hono, Next.js, Postgres, Drizzle, better-auth, `
 
 - **R1:** Published versions are immutable. A new session resolves the newest published version by default or an exact published version when its public or secure link pins one. The session stays pinned to that starting version.
 - **R2:** BFF handlers manage sessions, credentials, and proxying only. Business logic belongs elsewhere.
-- **R3:** `@qcms/core` never imports the database. Answers are append-only. Erasure and retention purge are the only whole-session delete paths.
+- **R3:** `@roonga/qcms-core` never imports the database. Answers are append-only. Erasure and retention purge are the only whole-session delete paths.
 - **R4:** API handlers remain Fetch API pure. Use WebCrypto, not Node-only APIs.
 - **R5:** Put multi-field or multi-row invariants in core functions. Otherwise use plain transaction scripts. Do not add repository interfaces, a mediator, or NestJS.
 - **R6:** `questionId` and `optionId` are stable and never reused with a different meaning.

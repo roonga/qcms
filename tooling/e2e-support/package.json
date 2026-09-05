@@ -1,5 +1,5 @@
 {
-  "name": "@qcms/e2e-support",
+  "name": "@roonga/qcms-e2e-support",
   "version": "0.0.0",
   "private": true,
   "description": "Browser-suite helpers both QCMS frontends share, so a hardening lands once (issues 187, 236)",

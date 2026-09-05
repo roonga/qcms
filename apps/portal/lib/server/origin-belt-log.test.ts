@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { createJsonLogger } from "@qcms/observability/logger";
-import { allowlistingLogRecordProcessor, safeEventName } from "@qcms/observability/logs";
+import { createJsonLogger } from "@roonga/qcms-observability/logger";
+import { allowlistingLogRecordProcessor, safeEventName } from "@roonga/qcms-observability/logs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {

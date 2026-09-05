@@ -8,7 +8,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseFormDefinition, parseQuestionDefinition, type FormDefinition } from "@qcms/core";
+import {
+  parseFormDefinition,
+  parseQuestionDefinition,
+  type FormDefinition,
+} from "@roonga/qcms-core";
 
 import { createNullLogger } from "../../../logger.js";
 import { aiSdkDraftAssistant } from "./assistant.js";

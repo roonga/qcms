@@ -1,5 +1,5 @@
 /**
- * Every package `@qcms/db` imports must be declared in its own manifest, from
+ * Every package `@roonga/qcms-db` imports must be declared in its own manifest, from
  * EVERY published entry point (issue #386).
  *
  * Issue #156 was the instance: the `./testing` subpath imported
@@ -55,7 +55,7 @@ const manifest = JSON.parse(
  * down because an unstated limitation is how this file's own defect class starts:
  *
  * - `require("x")` and `import x = require("y")` are not recognized. That is safe
- *   only because `@qcms/db` is `"type": "module"` and neither form appears in the
+ *   only because `@roonga/qcms-db` is `"type": "module"` and neither form appears in the
  *   walked sources; a CommonJS source added under `src/` would slip past.
  * - Comment stripping is textual, so a `//` inside a string literal would truncate
  *   the rest of that line. No string in the walked files contains one, and the
@@ -196,7 +196,7 @@ function packageSources(dir = SRC_DIR): string[] {
   return found;
 }
 
-describe("@qcms/db's imports against its own manifest (issue #386)", () => {
+describe("@roonga/qcms-db's imports against its own manifest (issue #386)", () => {
   const walk = walkFrom(entryPointSources());
 
   it("declares every package any published entry point imports", () => {

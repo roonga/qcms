@@ -19,7 +19,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { COMPILER_VERSION } from "@qcms/a2ui-compiler";
+import { COMPILER_VERSION } from "@roonga/qcms-a2ui-compiler";
 
 const REPO_ROOT = new URL("../../../../", import.meta.url);
 
@@ -226,7 +226,7 @@ export const AUTHOR_MESSAGES_GOLDEN = readFixture(AUTHOR_MESSAGES_COMPILED_PATH)
  *
  * A compiled document seeded verbatim into `form_versions` and then asserted
  * against by browser specs is only worth anything while it is what the compiler
- * still emits. Nothing recompiled these, so a `@qcms/a2ui-compiler` change
+ * still emits. Nothing recompiled these, so a `@roonga/qcms-a2ui-compiler` change
  * desynced them silently: every spec kept passing against a document the
  * compiler no longer produces (issue #321). Adding a compiled fixture means
  * adding a row here.

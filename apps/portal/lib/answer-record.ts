@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@qcms/ui";
+import type { A2UIAnswerValue, A2UIErrors, A2UIValues } from "@roonga/qcms-ui";
 
 import type { CommitMoment } from "./visible";
 
@@ -83,7 +83,7 @@ export function answerKey(value: A2UIAnswerValue | undefined): string {
  * A typed `Array.isArray`: the only array shape an `A2UIAnswerValue` has is a
  * multiChoice selection. Written as a predicate because bare `Array.isArray`
  * narrows a `readonly string[]` member to `any[]`, and spreading that is an
- * unchecked `any` the lint rules refuse (the same reason `@qcms/ui`'s registry
+ * unchecked `any` the lint rules refuse (the same reason `@roonga/qcms-ui`'s registry
  * carries `isStringArray`).
  */
 function isSelection(value: A2UIAnswerValue | undefined): value is readonly string[] {

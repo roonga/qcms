@@ -29,7 +29,7 @@ import {
   type FormDefinition,
   type QuestionDefinition,
   type QuestionId,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 
 import type { AssistContext } from "./types.js";
 

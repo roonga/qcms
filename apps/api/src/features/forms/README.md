@@ -2,8 +2,8 @@
 
 The form library, on the **admin** surface. Draft CRUD is honest transaction
 script (R5); **publish is the aggregate** - the one slice where the kernel
-(`@qcms/core` `compileDraft`, 008), the compiler (`@qcms/a2ui-compiler`
-`compileForm`, 011), and storage (`@qcms/db`, 014) meet: it freezes an immutable
+(`@roonga/qcms-core` `compileDraft`, 008), the compiler (`@roonga/qcms-a2ui-compiler`
+`compileForm`, 011), and storage (`@roonga/qcms-db`, 014) meet: it freezes an immutable
 snapshot, projects it to A2UI, and persists version + compiled + stamps in one
 transaction. Publish compiles **once** and stores the result (ADR-18); the serve
 path (019) reads the stored compiled A2UI and never recompiles - this slice is
@@ -32,7 +32,7 @@ in the generated OpenAPI document so Phase-4 activation is wiring, not archaeolo
 
 `POST .../draft/preview-condition` answers one question: _does this rule's
 condition match these hypothetical answers?_ The admin app cannot answer it -
-it is a strict BFF with no `@qcms/core` value import at all (R2, enforced by its
+it is a strict BFF with no `@roonga/qcms-core` value import at all (R2, enforced by its
 `r2-import-surface.test.ts`) - so the evaluator runs here, exactly as 032 put the
 question-preview compile here. The 042 screen contract's original "client-side
 evaluation" wording is superseded by the enforced server-side boundary.
@@ -168,7 +168,7 @@ all (ADR-09), so these paths 404, never 403.
 - `GET /admin/forms` reads each row's draft + latest version (one read per row).
   Fine at launch admin scale; a denormalized status column is a Phase-4
   optimization (R7), not a launch need.
-- `@qcms/db`'s enum-bearing (and branded-id) row types resolve to a TS _error_
+- `@roonga/qcms-db`'s enum-bearing (and branded-id) row types resolve to a TS _error_
   type through the emitted `.d.ts` (issue #5). Reads are laundered through narrow
   local views with a single cast on an unannotated const - the sanctioned
-  pattern; do not "fix" `@qcms/db` here.
+  pattern; do not "fix" `@roonga/qcms-db` here.

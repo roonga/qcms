@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Export `toVSafePattern` and `compilesUnderV` from the package root (issue #53).

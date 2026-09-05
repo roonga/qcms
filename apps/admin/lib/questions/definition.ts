@@ -164,7 +164,7 @@ export const CONSTRAINT_FIELDS: Readonly<Record<QuestionType, readonly string[]>
  * an author-supplied message for (task 048, ADR-32). In canonical
  * {@link VALIDATION_MESSAGE_KEYS} order.
  *
- * This restates `authoredMessageKeys` from `@qcms/core`, which the admin cannot import as
+ * This restates `authoredMessageKeys` from `@roonga/qcms-core`, which the admin cannot import as
  * a value (R2, `lib/server/r2-import-surface.test.ts`) - exactly as `CONSTRAINT_FIELDS`
  * above restates the type-to-constraints map. The kernel remains the authority: it reports
  * `ORPHAN_MESSAGE_KEY` at publish for a message keyed by a constraint the question does not

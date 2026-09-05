@@ -63,7 +63,7 @@ describe("the batch CSV export", () => {
     // Formula injection: several spreadsheet programs evaluate a cell starting with one
     // of these. A minted URL never starts with `=`, and an export that would hand a
     // formula to an operator if one ever did is not one worth shipping. Since issue #470
-    // the guard is `@qcms/csv`, shared with the API's response export, where the cells
+    // the guard is `@roonga/qcms-csv`, shared with the API's response export, where the cells
     // really are respondent-controlled; this asserts it still reaches this export.
     for (const lead of ["=", "+", "-", "@", "\t", "\r"]) {
       const csv = mintedLinksCsv([minted({ url: `${lead}FIXTURE_PAYLOAD` })]);

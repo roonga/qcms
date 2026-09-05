@@ -5,7 +5,7 @@ import {
   type A2UIAnswerValue,
   type A2UIStepDocument,
   type A2UIValues,
-} from "@qcms/ui";
+} from "@roonga/qcms-ui";
 import { useCallback, useState } from "react";
 
 import { Button } from "@/components/kit";

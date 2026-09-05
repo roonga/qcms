@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add `listVersionsForQuestions`: every stored version of many questions in one read

@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add per-form abuse-control settings to the `forms` table (migration `0008`):

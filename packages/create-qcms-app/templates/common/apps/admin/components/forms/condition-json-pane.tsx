@@ -51,7 +51,7 @@ import type { ReadState } from "@/lib/read-state";
  *
  * `op`, `questionId` and `optionId`, exactly as the task names them, and all three come
  * from the draft rather than from a JSON Schema: there is no schema to load here, because
- * a schema is a runtime value and this app takes no `@qcms/core` value import (the
+ * a schema is a runtime value and this app takes no `@roonga/qcms-core` value import (the
  * type-only import `lib/forms/condition.ts` uses is erased and carries no schema with
  * it). `questionId` offers the questions
  * this form **pins**, and `optionId` offers the options of the **pinned version** of the

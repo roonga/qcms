@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 A2UI renderer (task 028): `<A2UIStepRenderer>`, the single, controlled renderer
@@ -24,4 +24,4 @@ registry commit.
 - New dependencies are the ADR-22/23 stack: `react-aria-components`,
   `@internationalized/date`, `zod`, React 19 (peer), and the Vitest component
   layer (`@testing-library/*`, `axe-core`, `jsdom`). Reference design tokens are
-  exposed at `@qcms/ui/theme.css` (upstream tokens; shells set their own).
+  exposed at `@roonga/qcms-ui/theme.css` (upstream tokens; shells set their own).

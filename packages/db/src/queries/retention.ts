@@ -1,6 +1,6 @@
 import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 
-import type { SessionId } from "@qcms/core";
+import type { SessionId } from "@roonga/qcms-core";
 
 import { answers, sessions, submissions } from "../schema/index.js";
 import { openAnswerDeleteDoor } from "./erasure.js";

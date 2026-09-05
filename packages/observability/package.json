@@ -1,5 +1,5 @@
 {
-  "name": "@qcms/observability",
+  "name": "@roonga/qcms-observability",
   "version": "0.0.0",
   "private": false,
   "publishConfig": {
@@ -37,7 +37,7 @@
   "scripts": {
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --root ../.. --project @qcms/observability",
+    "test": "vitest run --root ../.. --project @roonga/qcms-observability",
     "lint": "eslint src"
   },
   "dependencies": {

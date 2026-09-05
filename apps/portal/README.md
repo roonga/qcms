@@ -1,7 +1,7 @@
 # qcms-portal
 
 The respondent portal (Next.js App Router): fast SSR pages for the devices that
-open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029.
+open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. Task 029.
 
 ## Architecture (ADR-26, R2)
 
@@ -14,7 +14,7 @@ open registration links, hydrating into the shared `@qcms/ui` renderer. Task 029
   `lib/server/` do proxy + session + credential duty ONLY: they attach the SEC-4
   internal token and the session bearer, forward to the internal API, and shape
   the result. They perform no rule evaluation and no validation authority (that
-  is the API's, always). The portal imports nothing from `@qcms/core` (asserted
+  is the API's, always). The portal imports nothing from `@roonga/qcms-core` (asserted
   by `lib/server/r2-import-surface.test.ts`). The internal API base URL and
   internal token are server-only (`lib/server/config.ts`).
 - **Session token.** Held only in an httpOnly, SameSite cookie (`qcms_session`),
@@ -58,7 +58,7 @@ Every theme is authored in Light and Dark and shares ONE High-contrast mode
 layer. `?mode=light|dark|hc` and the `qcms-theme` cookie override the configured
 default; the respondent-facing switcher is task 053.
 
-The font registry (task 052) lives in `@qcms/ui` and is **entirely self-hosted**:
+The font registry (task 052) lives in `@roonga/qcms-ui` and is **entirely self-hosted**:
 the `woff2` binaries are committed in the package, so no font selection causes an
 external request and there is nothing for the CSP to allow. `QCMS_PORTAL_FONTS`
 is the launch-time curation surface (`system` is always offered and cannot be
@@ -80,7 +80,7 @@ Optional theming: `QCMS_PORTAL_THEME`, `QCMS_PORTAL_CORNERS`, `QCMS_PORTAL_MODE`
 ## Progressive enhancement: no-JS submission (task 044)
 
 The flow works with JavaScript disabled. The SSR paints a natively submittable
-`<form method="post">` (the `@qcms/ui` renderer's opt-in native-submit mode): the
+`<form method="post">` (the `@roonga/qcms-ui` renderer's opt-in native-submit mode): the
 controls serialize their answers natively and a real submit control POSTs the
 whole step to the BFF's `/s/:sessionId/step` route, which forwards each answer to
 the API, and - once the API says the flow is ready - submits the session and

@@ -155,7 +155,7 @@ Legend: **req** required (boot fails without it) · opt optional · cond require
 Migration is a deliberate, separate step rather than migrate-on-boot, precisely because this topology runs more than one API process: a boot-time migration in an N-instance deployment is N racing migrators, and the adopter loses the ability to decide when schema change happens. So:
 
 0. **First deployment only:** create the two database roles and hand `public` to the migration role, as a superuser, before anything connects. The SQL, and the one-time ownership handover for a database that was migrated under a single credential, are in the "Least-privilege database roles" section of `docs/operations.md`. Roles are cluster-level and environment-specific, so no migration creates them; this step is the operator's, once per database.
-1. Run the migration once, from the API image (`node node_modules/@qcms/db/dist/migrate.js`), against the database **as `qcms_migrate`**, with nothing else starting.
+1. Run the migration once, from the API image (`qcms-db-migrate`, the bin `@roonga/qcms-db` puts on PATH), against the database **as `qcms_migrate`**, with nothing else starting. Use the bin rather than a deep `node .../dist/migrate.js` path, which bypasses the package's exports map and breaks when the layout changes (issue #294); this is the same command `docker-compose.yml` runs as its `migrate` one-shot.
 2. Start or restart `api-internal`, then `api-public`, then the two front ends.
 3. Create the first administrator once, against `api-internal`'s image, with `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` supplied per-command rather than in a stored environment file. There is no self-registration path in any composition (SEC-1), so this command is the only door.
 

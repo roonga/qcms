@@ -1,5 +1,5 @@
 ---
-"@qcms/core": minor
+"@roonga/qcms-core": minor
 ---
 
 Remove the reserved `advanceOnComplete` boolean from `FormDefinition` (ADR-28,

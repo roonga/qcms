@@ -1,12 +1,12 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add the query-helper vocabulary the API slices call (task 014): typed,
 shape-preserving reads and writes over the operational schema. Every helper
 takes a Drizzle handle or transaction as its first argument, so slices own
 transaction boundaries (R3) - no business logic, validation, or rule evaluation
-lives here (that is `@qcms/core`'s job, R5).
+lives here (that is `@roonga/qcms-core`'s job, R5).
 
 Helpers cover questions/versions (create, version, publish, deprecate, get,
 list-latest, `isQuestionIdTaken` incl. historic answer use for R6), forms

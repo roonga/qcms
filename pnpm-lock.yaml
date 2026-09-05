@@ -102,13 +102,13 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@qcms/csv':
+      '@roonga/qcms-csv':
         specifier: workspace:*
         version: link:../../packages/csv
-      '@qcms/observability':
+      '@roonga/qcms-observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@qcms/ui':
+      '@roonga/qcms-ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@vercel/otel':
@@ -127,10 +127,10 @@ importers:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@qcms/e2e-support':
+      '@roonga/qcms-e2e-support':
         specifier: workspace:*
         version: link:../../tooling/e2e-support
       '@tailwindcss/postcss':
@@ -217,19 +217,19 @@ importers:
       '@opentelemetry/sdk-trace':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@qcms/a2ui-compiler':
+      '@roonga/qcms-a2ui-compiler':
         specifier: workspace:*
         version: link:../../packages/a2ui-compiler
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@qcms/csv':
+      '@roonga/qcms-csv':
         specifier: workspace:*
         version: link:../../packages/csv
-      '@qcms/db':
+      '@roonga/qcms-db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@qcms/observability':
+      '@roonga/qcms-observability':
         specifier: workspace:*
         version: link:../../packages/observability
       ai:
@@ -272,7 +272,7 @@ importers:
       '@playwright/test':
         specifier: ^1.62.1
         version: 1.62.1
-      '@qcms/db':
+      '@roonga/qcms-db':
         specifier: workspace:*
         version: link:../../packages/db
       '@types/node':
@@ -302,10 +302,10 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^2.10.0
         version: 2.10.0(@opentelemetry/api@1.9.1)
-      '@qcms/observability':
+      '@roonga/qcms-observability':
         specifier: workspace:*
         version: link:../../packages/observability
-      '@qcms/ui':
+      '@roonga/qcms-ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@vercel/otel':
@@ -324,7 +324,7 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@qcms/e2e-support':
+      '@roonga/qcms-e2e-support':
         specifier: workspace:*
         version: link:../../tooling/e2e-support
       '@tailwindcss/postcss':
@@ -345,7 +345,7 @@ importers:
 
   packages/a2ui-compiler:
     dependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
     devDependencies:
@@ -383,10 +383,10 @@ importers:
 
   packages/db:
     dependencies:
-      '@qcms/a2ui-compiler':
+      '@roonga/qcms-a2ui-compiler':
         specifier: workspace:*
         version: link:../a2ui-compiler
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
       drizzle-orm:
@@ -443,7 +443,7 @@ importers:
         specifier: ^4.5.4
         version: 4.5.4
     devDependencies:
-      '@qcms/core':
+      '@roonga/qcms-core':
         specifier: workspace:*
         version: link:../core
       '@testing-library/dom':

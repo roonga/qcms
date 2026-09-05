@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 // Import-surface guard (exit criterion 5, ADR-22): the shipped renderer bundle
 // - the qcms code AND the vendored a2-react-aria sources - imports ONLY the
 // a2ra stack. No second component library, ever. Test files are exempt (they
-// legitimately use @qcms/core, testing-library, axe, node); everything else is
+// legitimately use @roonga/qcms-core, testing-library, axe, node); everything else is
 // scanned. This is the exhaustive allow-list; the eslint rule is the fast fence.
 const ALLOWED = new Set([
   "@a2ra/core",
@@ -54,7 +54,7 @@ function shippedSourceFiles(dir: string): string[] {
 }
 
 const IMPORT_RE = /\b(?:import|export)\b[^"'`]*?\bfrom\s*["']([^"']+)["']/g;
-// The `(?<!@)` is load-bearing: a CSS `@import "@qcms/ui/theme.css";` inside a
+// The `(?<!@)` is load-bearing: a CSS `@import "@roonga/qcms-ui/theme.css";` inside a
 // string literal (font-registry.ts builds the generated stylesheet's header
 // comment, which documents exactly that) is not a JavaScript import, and without
 // the lookbehind it is reported as a forbidden dependency.
@@ -73,7 +73,7 @@ function bareSpecifiers(source: string): string[] {
   return [...specs];
 }
 
-describe("@qcms/ui import surface (ADR-22)", () => {
+describe("@roonga/qcms-ui import surface (ADR-22)", () => {
   const files = shippedSourceFiles(SRC_ROOT);
 
   it("scans the whole shipped tree (qcms code + vendored components)", () => {

@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type Condition, parseCondition, QUESTION_TYPES } from "@qcms/core";
+import { type Condition, parseCondition, QUESTION_TYPES } from "@roonga/qcms-core";
 
 import { buildSystemPrompt, CONDITION_OPERATORS, SYSTEM_PROMPT_VERSION } from "./system-prompt.js";
 

@@ -27,7 +27,7 @@
  */
 
 import type { OpenAPIHono } from "@hono/zod-openapi";
-import type { Executor } from "@qcms/db";
+import type { Executor } from "@roonga/qcms-db";
 
 import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";

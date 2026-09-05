@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
-Dependency maintenance (Dependabot grouped minor/patch, 8 updates). `@qcms/ui` is
+Dependency maintenance (Dependabot grouped minor/patch, 8 updates). `@roonga/qcms-ui` is
 the only publishable package the group touches, and all three of its moves are in
 `devDependencies`: `@testing-library/react` to `^16.3.3`,
 `@testing-library/user-event` to `^14.6.6`, and `@types/react-dom` to `^19.2.5`.

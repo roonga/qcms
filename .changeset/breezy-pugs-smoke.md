@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
-Widen the `@qcms/ui/kit` barrel with the four input primitives the QCMS question
+Widen the `@roonga/qcms-ui/kit` barrel with the four input primitives the QCMS question
 editor needs: `Select`, `Checkbox`, `NumberField`, and `DatePicker` (task 032).
 
 Nothing new was vendored. These are the same a2-react-aria sources the A2UI

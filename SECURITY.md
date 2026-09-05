@@ -55,11 +55,11 @@ will not be pursued.
 Once 1.0 ships, security patches are released as patch versions and announced in
 the release notes and in a GitHub advisory. Adopters run an owned scaffolded shell
 (the shadcn model), so an advisory will state whether the fix lands in a
-`@qcms/*` package upgrade or requires a change in the adopter's own shell.
+`@roonga/qcms-*` package upgrade or requires a change in the adopter's own shell.
 
 ## Scope
 
-**In scope:** the `@qcms/*` packages and the apps in this repository (portal,
+**In scope:** the `@roonga/qcms-*` packages and the apps in this repository (portal,
 admin, api), the `create-qcms-app` scaffold, and the shipped Docker and Compose
 artefacts.
 

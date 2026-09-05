@@ -24,9 +24,9 @@ The second principle is the **ownership seam**: code a customizer would reasonab
 Three schemas, a single direction of derivation. No layer reaches upward.
 
 ```
-FormDefinition ──compile──▶ A2UI documents ──persist──▶ Postgres
-   (meaning)                   (views)                  (storage)
-  @qcms/core              @qcms/a2ui-compiler           @qcms/db
+FormDefinition ──────compile──────▶ A2UI documents ──────persist──────▶ Postgres
+   (meaning)                            (views)                        (storage)
+@roonga/qcms-core            @roonga/qcms-a2ui-compiler            @roonga/qcms-db
 ```
 
 **FormDefinition** (domain) governs meaning: stable `questionId`s, semantic types, constraints, locale-mapped text, pinned question versions, the branching rules DSL. Rule evaluation, answer validation, publish invariants, and reporting operate exclusively on this model.
@@ -59,7 +59,7 @@ apps/
                    # so it deploys independently on the VPN.
 ```
 
-### 4.1 The domain kernel (`@qcms/core`)
+### 4.1 The domain kernel (`@roonga/qcms-core`)
 
 A functional core: pure functions over immutable data. Public surface, roughly:
 
@@ -69,7 +69,7 @@ A functional core: pure functions over immutable data. Public surface, roughly:
 | `evaluateRules(snapshot, answers, resolveQuestion): Result<FlowState, EvalError>` | **Single forward pass in document order (ADR-16).** Deterministic, total on valid input; semantics versioned with the snapshot. Conditions over unanswered questions are `false` except `answered`; hidden questions' answers are excluded from evaluation - safe because forward-only ordering makes evaluation single-pass. `resolveQuestion` injects the pinned question definitions (required flags) - same I/O-free lookup pattern as the publish-time type check (task 006, DOMAIN_SCHEMA §3). |
 | `validateAnswer(question, value): Result`                                         | Per-type validity; canonical `AnswerValue` encodings are defined with the Stage 1 schema (dates are timezone-less ISO `YYYY-MM-DD`; numbers are IEEE doubles with an `integer` constraint; choice values are `optionId`s).                                                                                                                                                                                                                                                                           |
 | `mintSecureLink / verifySecureLink`                                               | Signed, expiring, single-form tokens. Pure given key material - key storage and rotation live in the shell/API.                                                                                                                                                                                                                                                                                                                                                                                      |
-| Erasure semantics (ADR-17)                                                        | Core defines what erasure means (which records, tombstone shape, invariants preserved); `@qcms/db` implements it.                                                                                                                                                                                                                                                                                                                                                                                    |
+| Erasure semantics (ADR-17)                                                        | Core defines what erasure means (which records, tombstone shape, invariants preserved); `@roonga/qcms-db` implements it.                                                                                                                                                                                                                                                                                                                                                                             |
 
 Everything outside the invariant zones is deliberately _not_ domain-modeled: admin CRUD, listing, export, configuration are transaction scripts in their API slices. Decision rule (R5): an invariant spanning more than one field or row belongs in a core function; anything else talks to the database directly.
 
@@ -86,7 +86,7 @@ A closed, typed JSON rule language: `equals`, `notEquals`, `in`, `gt/gte/lt/lte`
 
 ### 4.3 Data architecture
 
-Operational tables (owned by `@qcms/db`):
+Operational tables (owned by `@roonga/qcms-db`):
 
 | Table                            | Purpose                                                                                                                                             |
 | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -186,7 +186,7 @@ portal · admin · api (all groups + workers; no published port) · postgres
 
 Both topologies run the same images; the difference is instance count and mount flags. The solo shape - four containers (portal, admin, api, postgres), one a database, with TLS/ingress supplied by the operator (ADR-20) - is the operability budget and the reference deployment the scaffold produces.
 
-**The API is the only process in either topology that holds a database handle.** Neither frontend has one. `apps/admin` declares no `pg`, `drizzle-orm`, or `@qcms/db` dependency, receives no `DATABASE_URL`, and has an import-surface test that enforces an empty allowlist of `@qcms/db` value bindings.
+**The API is the only process in either topology that holds a database handle.** Neither frontend has one. `apps/admin` declares no `pg`, `drizzle-orm`, or `@roonga/qcms-db` dependency, receives no `DATABASE_URL`, and has an import-surface test that enforces an empty allowlist of `@roonga/qcms-db` value bindings.
 
 ## 10. Operations
 
@@ -212,7 +212,7 @@ QCMS is adopter-hosted, so it ships **instrumentation and conventions, never a b
 | `apps/portal` (`instrumentation.ts`)              | Next's documented route: `register()` + `registerOTel` from `@vercel/otel`, Node runtime only                                                                                               | Next's own request/render spans plus its `fetch` span for the BFF hop, with `propagateContextUrls` covering the API origin so the fetch carries `traceparent`                                                     |
 | `apps/admin` (`instrumentation.ts`)               | the same documented Next composition-root setup and API-origin propagation as the Portal                                                                                                    | Next request/render spans and the Admin-to-API `fetch` span                                                                                                                                                       |
 
-Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). The API's raw incoming `node:http` span is suppressed because `@hono/otel` supplies the semantic server span; this prevents duplicate SERVER spans for one request. `@qcms/core` stays **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction.
+Instrumentation is an **explicit list of official packages**; `auto-instrumentations-node` is deliberately excluded (same code, 100+ packages of dependency surface), and no fetch/undici instrumentation is added to the Next apps (Next already emits that span, so adding one double-instruments the hop). The API's raw incoming `node:http` span is suppressed because `@hono/otel` supplies the semantic server span; this prevents duplicate SERVER spans for one request. `@roonga/qcms-core` stays **OTel-free**: spans wrap the kernel, never enter it, so determinism and the golden corpus are untouched by construction.
 
 **One respondent action is one trace, and `x-request-id` still works.** The trace starts at the portal server (browser-side telemetry is out of the baseline: CSP surface, consent, payload cost - and R2 means the browser only ever talks to the portal). `traceparent` is the machine propagation; `x-request-id` remains the human-facing token in the error envelope and in support conversations, now minted once per browser request by the portal proxy, forwarded by the BFF, honoured by the API, and recorded on the API's server span as `qcms.request_id`. That gives three joins on one id: the response header, the log line, and the span.
 
@@ -234,7 +234,7 @@ Instrumentation is an **explicit list of official packages**; `auto-instrumentat
 
 | Seam                              | Where it lives                              | What it enables later                                              |
 | --------------------------------- | ------------------------------------------- | ------------------------------------------------------------------ |
-| Step-resolver / compiler swap     | `@qcms/a2ui-compiler`                       | Agent-adaptive _serving_ flows (Phase 4)                           |
+| Step-resolver / compiler swap     | `@roonga/qcms-a2ui-compiler`                | Agent-adaptive _serving_ flows (Phase 4)                           |
 | `DraftAssistant` provider adapter | `apps/api` (041, ADR-25)                    | Any LLM vendor behind agent-assisted authoring; local models later |
 | `/api/v1` route group             | `apps/api` composition root                 | Versioned pull API with generated OpenAPI                          |
 | Challenge adapter                 | Shell                                       | Any CAPTCHA/risk vendor                                            |
@@ -278,7 +278,7 @@ qcms/
 │   └── api-walkthrough.md (027) · launch-validation.md (038)
 │
 ├── packages/
-│   ├── core/                     # @qcms/core - pure domain kernel (R3: no I/O, no db import)
+│   ├── core/                     # @roonga/qcms-core - pure domain kernel (R3: no I/O, no db import)
 │   │   ├── src/
 │   │   │   ├── ids.ts · localized-text.ts · answer-value.ts       (002)
 │   │   │   ├── question.ts                                        (003)
@@ -292,11 +292,11 @@ qcms/
 │   │   ├── fixtures/  questions/ · forms/ (kitchen-sink, insurance…) (003, 004)
 │   │   └── golden/    evaluator/  # scenario corpus + CORPUS.md      (007)
 │   │
-│   ├── a2ui-compiler/            # @qcms/a2ui-compiler - the agent seam
+│   ├── a2ui-compiler/            # @roonga/qcms-a2ui-compiler - the agent seam
 │   │   ├── src/  compile.ts · mapping.ts · step-resolver.ts        (011)
 │   │   └── golden/ v1/           # APPEND-ONLY corpus (ADR-18)      (012)
 │   │
-│   ├── db/                       # @qcms/db - Drizzle schema, migrations, helpers
+│   ├── db/                       # @roonga/qcms-db - Drizzle schema, migrations, helpers
 │   │   ├── src/
 │   │   │   ├── schema/           # tables incl. outbox, tombstones  (013)
 │   │   │   ├── queries/          # helpers incl. latestAnswers      (014)
@@ -305,16 +305,16 @@ qcms/
 │   │   ├── migrations/           # immutable once released          (013+)
 │   │   └── test/  harness.ts     # testcontainers withTestDb        (013)
 │   │
-│   ├── ui/                       # @qcms/ui - A2Renderer + vendored a2ra components (ADR-22)
+│   ├── ui/                       # @roonga/qcms-ui - A2Renderer + vendored a2ra components (ADR-22)
 │   │   └── src/  A2UIStepRenderer.tsx · components/a2ui/ (vendored via
 │   │             @a2ra/cli, a2ra.json committed) · conformance/          (028)
 │   │
-│   ├── observability/            # @qcms/observability - shared server logging (published)
+│   ├── observability/            # @roonga/qcms-observability - shared server logging (published)
 │   │   └── src/  logger.ts       # redacting JSON logger + trace correlation (062)
 │   │             otlp-log-allowlist.ts  # SEC-13 allowlist for exported logs (062)
 │   │             next-span-redaction.ts # SEC-13 span redaction for both Next apps (062)
 │   │
-│   └── csv/                      # @qcms/csv - RFC 4180 quoting + the formula-injection
+│   └── csv/                      # @roonga/qcms-csv - RFC 4180 quoting + the formula-injection
 │       └── src/  index.ts        # guard every exported cell passes through (#470)
 │
 ├── apps/

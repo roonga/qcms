@@ -4,4 +4,4 @@ export {
   redactingNextSpanProcessor as redactingSpanProcessor,
   sanitizeNextSpan as sanitizeSpan,
   sanitizeNextSpanAttributes as sanitizeAttributes,
-} from "@qcms/observability/next";
+} from "@roonga/qcms-observability/next";

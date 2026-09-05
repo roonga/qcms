@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Add `headingLevelOffset` to `A2UIStepRenderer`, plus the `withDemotedHeadings` transform

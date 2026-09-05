@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
-import type { FormId } from "@qcms/core";
+import type { FormId } from "@roonga/qcms-core";
 
 import { outbox, webhookDeliveries, webhooks } from "../schema/index.js";
 import type { Executor } from "./executor.js";

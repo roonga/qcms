@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
-import { settleTransitions } from "@qcms/e2e-support/animations";
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { HARNESS_THEME } from "../../portal/e2e/support/harness-config.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";

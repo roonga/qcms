@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { settleTransitions } from "@qcms/e2e-support/animations";
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -425,7 +425,7 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
  *
  * A note on where these rules live, because it is not where step 9 says to look. The
  * menu box that actually paints in this app is `.qcms-menu` in `app/globals.css`. This
- * app does import `@qcms/ui/theme-components.css` (task 060), but every rule in that
+ * app does import `@roonga/qcms-ui/theme-components.css` (task 060), but every rule in that
  * sheet is a descendant of the scope carrier `[data-qcms-theme-scope]` (ADR-38), and no
  * chrome element here carries it - so those rules reach the form preview and nothing
  * else. They are correct and they are the right place for a menu rendered inside a

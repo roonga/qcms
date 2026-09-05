@@ -21,10 +21,10 @@
  *     own README and its generated CHANGELOG.
  *   - Test files and test directories inside a publishable package: a test-only
  *     change alters nothing a consumer can call. The repo has merged both
- *     conventions (packages/db tests WITH a changeset in PR #59, @qcms/ui tests
+ *     conventions (packages/db tests WITH a changeset in PR #59, @roonga/qcms-ui tests
  *     WITHOUT one in 30147c3); exempting is the only choice that contradicts
  *     neither, because a changeset that is not required is still allowed.
- *     Note `src/testing/` is NOT a test path: it is @qcms/db's exported
+ *     Note `src/testing/` is NOT a test path: it is @roonga/qcms-db's exported
  *     `./testing` subpath, which consumers import.
  *
  * It compares COMMITTED state (merge-base..HEAD), like

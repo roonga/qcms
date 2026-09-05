@@ -17,7 +17,7 @@
  *     delete rolls the whole publish back (no version, draft intact, no event).
  */
 
-import { compileForm } from "@qcms/a2ui-compiler";
+import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
   compileDraft,
   type FormDefinition,
@@ -26,7 +26,7 @@ import {
   QuestionId,
   type QuestionVersionRecord,
   SessionId,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   createQuestion,
   createQuestionVersion,
@@ -37,8 +37,8 @@ import {
   listFormVersions,
   listQuestionVersions,
   publishQuestionVersion,
-} from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";

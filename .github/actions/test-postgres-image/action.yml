@@ -1,7 +1,7 @@
 name: Prepare Testcontainers
 description: >
   Make a Testcontainers job independent of Docker Hub. Pre-pulls the Postgres
-  image the @qcms/db harness boots (from the GHCR mirror when available) and
+  image the @roonga/qcms-db harness boots (from the GHCR mirror when available) and
   exports QCMS_TEST_POSTGRES_IMAGE (issue #74), and disables the Ryuk reaper,
   which was the last image still pulled from Docker Hub (issue #150). Every job
   that runs Testcontainers must use this.

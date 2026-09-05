@@ -21,7 +21,7 @@ import {
   SessionId,
   importCompactTokenKey,
   mintSecureLink,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   closeForm,
   consumeSecureLink,
@@ -31,8 +31,8 @@ import {
   insertFormVersion,
   insertSecureLink,
   revokeSecureLink,
-} from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -46,7 +46,7 @@ const TTL_MS = 24 * 60 * 60 * 1000;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 
 // Opaque domain JSONB - Postgres does not interpret it; tests store empties.
-// Types derived from the helper so apps/api needn't depend on @qcms/a2ui-compiler.
+// Types derived from the helper so apps/api needn't depend on @roonga/qcms-a2ui-compiler.
 type VersionInput = Parameters<typeof insertFormVersion>[1];
 const emptyDef = {} as unknown as VersionInput["definition"];
 const emptyCompiled = {} as unknown as VersionInput["compiled"];

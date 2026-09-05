@@ -50,8 +50,8 @@ import {
  *
  * The gate (`scripts/check-security-hygiene.mjs`) is the shared vertex, so agreement with it
  * on both sides is agreement across all four readers. Importing `apps/api/src/config.ts` here
- * would have made the assertion direct and would also have pulled `@qcms/db` and
- * `@qcms/a2ui-compiler` into a project that runs outside turbo's build ordering, which is a
+ * would have made the assertion direct and would also have pulled `@roonga/qcms-db` and
+ * `@roonga/qcms-a2ui-compiler` into a project that runs outside turbo's build ordering, which is a
  * fragility bought for no extra coverage.
  */
 

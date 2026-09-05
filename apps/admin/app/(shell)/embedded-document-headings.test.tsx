@@ -20,7 +20,7 @@ import type { FormVersionSnapshot } from "../../lib/forms/types.ts";
  *
  * The renderer's, not the chrome's. The compiled document is stored, immutable content
  * served for the life of the snapshot (R1, ADR-18) and cannot know what page it will be
- * shown inside; the page is the only party that can know. So `@qcms/ui`'s
+ * shown inside; the page is the only party that can know. So `@roonga/qcms-ui`'s
  * `A2UIStepRenderer` grew a `headingLevelOffset`, applied at render time exactly as
  * `withNativeSubmit` and `documentForVisible` already shape the tree without touching the
  * stored bytes, and the three embedding surfaces pass `1`.
@@ -59,7 +59,7 @@ const { VersionView } = await import("../../components/forms/version-view.tsx");
  * the form-title `h1`, the step-title `h2`, and the step's content. Hand-written rather
  * than read from the golden corpus because the corpus is two packages away and the claim
  * here is only "the offset reaches the renderer"; the corpus-wide claim is made in
- * `@qcms/ui`, against the real bytes.
+ * `@roonga/qcms-ui`, against the real bytes.
  */
 const FIRST_STEP = {
   stepId: "step_1",

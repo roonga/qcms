@@ -3,7 +3,7 @@
  * the **real** kernel and the 013 Testcontainers harness DB - never a mock of
  * our own packages (CONTRIBUTING). Requires Docker.
  *
- * The fixture is the canonical `insurance` form (`@qcms/core` fixtures): one
+ * The fixture is the canonical `insurance` form (`@roonga/qcms-core` fixtures): one
  * step `stp_history` with `q_at_fault_accident` (boolean, required) and `q_accident_count`
  * (number, required), the follow-up shown only when `q_at_fault_accident = true`. Its
  * published `form_versions` row stores the committed golden compiled A2UI
@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FormId, QuestionId, SessionId } from "@qcms/core";
+import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
 import {
   answerLedger,
   createForm,
@@ -34,8 +34,8 @@ import {
   insertFormVersion,
   latestAnswers,
   markSubmitted,
-} from "@qcms/db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@qcms/db/testing";
+} from "@roonga/qcms-db";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -332,7 +332,7 @@ describe("branching answer loop (exit criterion 1)", () => {
     // Ledger holds all three appended rows (append-only, I5). The row type is
     // laundered through a local view - `answers` references the enum-bearing
     // `sessions` table, so its `$inferSelect` resolves to a TS error type through
-    // @qcms/db's emitted .d.ts (issue #5); only `questionId` is read here.
+    // @roonga/qcms-db's emitted .d.ts (issue #5); only `questionId` is read here.
     const ledger = (await answerLedger(testDb.db, SessionId.parse(sessionId))) as {
       questionId: string;
     }[];

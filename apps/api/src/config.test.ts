@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@qcms/db";
+import { DEFAULT_RESPONSE_SNIPPET_RETENTION_MS } from "@roonga/qcms-db";
 
 import {
   challengeEnforceable,
@@ -615,7 +615,7 @@ describe("draft assistant configuration (041)", () => {
  * remove an operator's strictest setting; this is what fails if it does.
  */
 describe("QCMS_DELIVERY_SNIPPET_TTL_MS (issue #304)", () => {
-  it("defaults to the 7 days @qcms/db documents", () => {
+  it("defaults to the 7 days @roonga/qcms-db documents", () => {
     expect(loadConfig(validEnv()).ttl.deliveryResponseSnippetMs).toBe(
       DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
     );

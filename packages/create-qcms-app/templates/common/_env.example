@@ -187,7 +187,7 @@ QCMS_PORTAL_BASE_URL=
 # QCMS_PORTAL_CORNERS=
 
 # Spacing token group.
-# (optional, default the @qcms/ui default density)
+# (optional, default the @roonga/qcms-ui default density)
 # QCMS_PORTAL_DENSITY=
 
 # Public hostname Caddy serves the portal on. Required by the proxy overlay;

@@ -1,5 +1,5 @@
 ---
-"@qcms/db": patch
+"@roonga/qcms-db": patch
 ---
 
 The outbox payload retention sweep names its candidates instead of letting the planner guess (issue #781), and migration `0017_account_issuer` gets the snapshot it shipped without (issue #780).

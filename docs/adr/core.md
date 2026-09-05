@@ -30,7 +30,7 @@
 
 **Note.** Two artifacts now enforce the closed set, one per side. `packages/core/src/visibility-rule.test.ts` pins the thirteen operators as a hand-edited list checked against the `Condition` union, so adding one is a deliberate edit rather than a diff nobody reads. `apps/admin/lib/forms/condition.ts` ties the admin's parallel copy of the set to the same union through a **type-only** import of `Condition`, which R2 permits because it is erased at compile time and carries no kernel code into the app; a new operator in core therefore fails the admin's typecheck. Neither side can move alone.
 
-**Note (flagged).** There is still no DSL **version** constant, and `@qcms/core` has never been published, so "versioned core change" remains a review convention rather than a released number.
+**Note (flagged).** There is still no DSL **version** constant, and `@roonga/qcms-core` has never been published, so "versioned core change" remains a review convention rather than a released number.
 
 ### ADR-07 - Pinned sessions and submission lock
 
@@ -140,7 +140,7 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Decision.** The Hono API uses fetch-pure vertical slices with explicit dependencies. Multi-field and multi-row invariants live in core functions; other work uses plain transaction scripts. Background delivery and retention jobs run inside the API process.
 
-**Note.** The schedulers start only where the internal surface is mounted (in the solo topology, always). Fetch purity is lint-enforced for `@qcms/core` and the compiler but convention-only in `apps/api`. Retention now runs three rules: the session sweep plus the aged redaction of response snippets (#304) and outbox payloads (#329).
+**Note.** The schedulers start only where the internal surface is mounted (in the solo topology, always). Fetch purity is lint-enforced for `@roonga/qcms-core` and the compiler but convention-only in `apps/api`. Retention now runs three rules: the session sweep plus the aged redaction of response snippets (#304) and outbox payloads (#329).
 
 ### ADR-15 - Runtime baseline
 
@@ -212,15 +212,15 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Decision.** Admin and portal are separate Next.js applications with different product needs. Both use strict BFF handlers and the same QCMS renderer for form content, so admin previews match the respondent portal.
 
-**Note.** The shared surface is a triple - compiler, `documentForVisible` projection, and renderer - all taken from `@qcms/ui` by both apps.
+**Note.** The shared surface is a triple - compiler, `documentForVisible` projection, and renderer - all taken from `@roonga/qcms-ui` by both apps.
 
 ### ADR-22 - One UI component stack
 
 **Status:** implemented.
 
-**Decision.** Both frontends use `a2-react-aria`: `@a2ra/core` is exact-pinned and components are vendored into `@qcms/ui`. No competing component library is allowed. Upgrades are reviewed events and must preserve golden-document conformance.
+**Decision.** Both frontends use `a2-react-aria`: `@a2ra/core` is exact-pinned and components are vendored into `@roonga/qcms-ui`. No competing component library is allowed. Upgrades are reviewed events and must preserve golden-document conformance.
 
-**Note.** The competing-library lint fence covers `packages/ui` only; the apps hold the rule by consuming `@qcms/ui/kit`. **Vendor-tree fidelity became an automated gate on 2026-09-03 (issue #189)**, so the clause that stood here calling it a reviewed artifact and not a gate is corrected rather than left standing: `pnpm check:a2ra-fidelity` compares every file under `src/components/a2ui/` against `packages/ui/a2ra-manifest.json`, a record of upstream's content at the pinned commit, on every `pnpm verify` and in CI, offline. `packages/ui/a2ra-diff.md` remains the reviewed artifact beside it, refreshed at each pin move; the gate is what holds on the days in between. The decision is unchanged - this note records how it is enforced.
+**Note.** The competing-library lint fence covers `packages/ui` only; the apps hold the rule by consuming `@roonga/qcms-ui/kit`. **Vendor-tree fidelity became an automated gate on 2026-09-03 (issue #189)**, so the clause that stood here calling it a reviewed artifact and not a gate is corrected rather than left standing: `pnpm check:a2ra-fidelity` compares every file under `src/components/a2ui/` against `packages/ui/a2ra-manifest.json`, a record of upstream's content at the pinned commit, on every `pnpm verify` and in CI, offline. `packages/ui/a2ra-diff.md` remains the reviewed artifact beside it, refreshed at each pin move; the gate is what holds on the days in between. The decision is unchanged - this note records how it is enforced.
 
 ### ADR-26 - Different frontend decisions by surface
 

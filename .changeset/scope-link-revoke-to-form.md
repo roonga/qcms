@@ -1,5 +1,5 @@
 ---
-"@qcms/db": major
+"@roonga/qcms-db": major
 ---
 
 Scope `revokeSecureLink` to its form (#478).

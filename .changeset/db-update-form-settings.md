@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add `updateFormSettings(exec, formId, { challengeRequired?, minSubmitMs? })`, a

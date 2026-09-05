@@ -11,7 +11,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@qcms/db": "workspace:*",
+    "@roonga/qcms-db": "workspace:*",
     "@types/node": "^24.13.3",
     "otplib": "^13.5.0"
   }

@@ -3,7 +3,7 @@
  *
  * This is a **transaction script** (R5): the only kernel calls are token
  * verify/mint (`verifySecureLink`, `mintSessionToken`); everything else is
- * shape-preserving `@qcms/db` reads/writes the slice sequences and whose
+ * shape-preserving `@roonga/qcms-db` reads/writes the slice sequences and whose
  * transaction boundary it owns (R3). Handlers are fetch-pure (R4): time via
  * `deps.clock`, crypto via WebCrypto, no `node:*`.
  *
@@ -25,8 +25,8 @@
  */
 
 import type { RouteHandler } from "@hono/zod-openapi";
-import { importCompactTokenKey, verifySecureLink } from "@qcms/core";
-import type { FormId, LinkId, SessionId } from "@qcms/core";
+import { importCompactTokenKey, verifySecureLink } from "@roonga/qcms-core";
+import type { FormId, LinkId, SessionId } from "@roonga/qcms-core";
 import {
   consumeSecureLink,
   createSession,
@@ -36,8 +36,8 @@ import {
   getSecureLink,
   getSession,
   sessionExpiresAt,
-} from "@qcms/db";
-import type { Executor, SecureLinkRow, SessionTtlConfig } from "@qcms/db";
+} from "@roonga/qcms-db";
+import type { Executor, SecureLinkRow, SessionTtlConfig } from "@roonga/qcms-db";
 
 import type { Config } from "../../../config.js";
 import type { Deps } from "../../../deps.js";
@@ -73,7 +73,7 @@ function newSessionId(): SessionId {
   return `ses_${hex}` as SessionId;
 }
 
-/** The @qcms/db TTL policy for the API's configured anonymous session lifetime. */
+/** The @roonga/qcms-db TTL policy for the API's configured anonymous session lifetime. */
 function ttlConfig(config: Config): SessionTtlConfig {
   return { anonymousTtlMs: config.ttl.anonymousSessionMs };
 }
@@ -203,7 +203,7 @@ async function startFromSecureLink(
   await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
   // Session expiry never outlives the link, nor the anonymous TTL ceiling
-  // (SEC-2). The min(link, now + TTL) policy lives in the @qcms/db helper so
+  // (SEC-2). The min(link, now + TTL) policy lives in the @roonga/qcms-db helper so
   // this slice and any future resume/extend caller stay consistent (issue #6).
   const expiresAt = sessionExpiresAt({
     accessMode: "secure_link",

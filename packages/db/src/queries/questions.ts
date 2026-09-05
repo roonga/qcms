@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
-import type { QuestionDefinition, QuestionId } from "@qcms/core";
+import type { QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import { questionStatus, questions, questionVersions } from "../schema/index.js";
 import type { Executor } from "./executor.js";

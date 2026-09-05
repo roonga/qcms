@@ -7,7 +7,7 @@
  * The pure diff/target functions here are unit-tested; the DOM focus helpers are
  * exercised by the Playwright keyboard walkthrough.
  *
- * Focus targets rely on the questionId-keyed handle @qcms/ui stamps on every
+ * Focus targets rely on the questionId-keyed handle @roonga/qcms-ui stamps on every
  * control (`[data-qcms-field]`, `id={questionId}`, task 030): the portal never
  * reverse-engineers a control type's internal DOM.
  */

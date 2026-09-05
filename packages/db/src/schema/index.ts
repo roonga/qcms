@@ -1,7 +1,7 @@
 /**
- * The @qcms/db schema surface - every table, enum, and index that migrations
+ * The @roonga/qcms-db schema surface - every table, enum, and index that migrations
  * are generated from (`drizzle-kit generate` reads this module). Postgres stores
- * and indexes the domain JSONB but never interprets it; the kernel (`@qcms/core`)
+ * and indexes the domain JSONB but never interprets it; the kernel (`@roonga/qcms-core`)
  * owns every invariant, and the database enforces the immutability and
  * append-only backstops via triggers (migration 0001).
  */

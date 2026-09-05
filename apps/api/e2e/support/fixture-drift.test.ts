@@ -4,7 +4,7 @@
  * `apps/api/e2e/support/fixtures/*.a2ui.json` are compiled A2UI documents seeded
  * verbatim into `form_versions` by `seed.ts`, and several API and browser specs
  * then assert against what the serve path replays out of them. Nothing
- * recompiled them, so a `@qcms/a2ui-compiler` change desynced them **silently**:
+ * recompiled them, so a `@roonga/qcms-a2ui-compiler` change desynced them **silently**:
  * every spec stayed green while asserting against a document the compiler no
  * longer produces, which is the worst failure mode a fixture has. The insurance
  * read had already drifted a whole corpus generation behind by the time this was
@@ -40,7 +40,7 @@
 
 import { readFileSync, writeFileSync } from "node:fs";
 
-import { compileForm, COMPILER_VERSION } from "@qcms/a2ui-compiler";
+import { compileForm, COMPILER_VERSION } from "@roonga/qcms-a2ui-compiler";
 import {
   compileDraft,
   parseFormDefinition,
@@ -49,7 +49,7 @@ import {
   type FrozenSnapshot,
   type QuestionId,
   type QuestionVersionRecord,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import {

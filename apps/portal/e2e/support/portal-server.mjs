@@ -298,7 +298,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
  *
  * Any HTTP response used to settle this probe true, which disarmed the startup
  * watch for a server that was answering nothing but errors (issue #381). The case
- * that found it: `@qcms/ui`'s `fonts` subpath resolves to `dist`, so in a tree
+ * that found it: `@roonga/qcms-ui`'s `fonts` subpath resolves to `dist`, so in a tree
  * where it had not been built the portal 500'd on every request, including `/`.
  * The wrapper called that ready, cleared `startupOutput`, and never looked at the
  * fatal output again - so the whole failure reduced to Playwright's own poll

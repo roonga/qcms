@@ -1,5 +1,5 @@
 ---
-"@qcms/a2ui-compiler": minor
+"@roonga/qcms-a2ui-compiler": minor
 ---
 
 Emit a visually-hidden honeypot decoy in every compiled step document (abuse

@@ -1,6 +1,6 @@
 # 049 - Admin theme editor: customize tokens and save named custom themes
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin` · `@qcms/ui` (token contract consumer) · **Depends on:** 038 (launch validation), 031 (admin shell), 047 (token contract + predefined themes)
+**Stage:** 9 (Phase 4) · **Apps/packages:** `apps/admin` · `@roonga/qcms-ui` (token contract consumer) · **Depends on:** 038 (launch validation), 031 (admin shell), 047 (token contract + predefined themes)
 **References:** ADR-30 · ADR-22/26 · WCAG 2.2 AA · issue #26
 
 ## Context

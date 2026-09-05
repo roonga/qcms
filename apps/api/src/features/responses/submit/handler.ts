@@ -9,7 +9,7 @@
  * integration can never observe a submission that isn't durable, and a durable
  * submission can never miss its event (transactional outbox, at-least-once).
  *
- * A **transaction script** (R5): load state (`@qcms/db`) → call the kernel
+ * A **transaction script** (R5): load state (`@roonga/qcms-db`) → call the kernel
  * (`prepareSubmission`) → persist. Invariants spanning rows go through the
  * kernel; the slice owns the transaction boundary (R3). Fetch-pure (R4): time
  * via `deps.clock`, no `node:*`.
@@ -40,7 +40,7 @@ import {
   type SessionId,
   SNAPSHOT_SCHEMA_VERSION,
   type SubmissionError,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import {
   enqueue,
   getForm,
@@ -52,7 +52,7 @@ import {
   latestAnswers,
   markSubmitted,
   type SessionRow,
-} from "@qcms/db";
+} from "@roonga/qcms-db";
 import { sql } from "drizzle-orm";
 import type { Context } from "hono";
 
@@ -81,7 +81,7 @@ const fail = {
 } as const;
 
 // The enum-bearing `sessions`, `forms`, and `question_versions` rows are
-// hand-authored and sound across @qcms/db's package boundary (issue #5), so this
+// hand-authored and sound across @roonga/qcms-db's package boundary (issue #5), so this
 // slice consumes `SessionRow` and the inferred `forms`/`question_versions` rows
 // directly - no local view or cast for the row types. (`forms.min_submit_ms` is
 // the per-form abuse floor this slice reads, task 026.)

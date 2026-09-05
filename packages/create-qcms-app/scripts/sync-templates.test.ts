@@ -228,7 +228,7 @@ describe("appManifest", () => {
       const all = { ...manifest.dependencies, ...manifest.devDependencies };
       expect(Object.values(all)).not.toContain("workspace:*");
       for (const [name, range] of Object.entries(all)) {
-        if (name.startsWith("@qcms/")) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
+        if (name.startsWith("@roonga/qcms-")) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);
       }
     },
   );
@@ -251,8 +251,10 @@ describe("appManifest", () => {
 describe("assertImports", () => {
   it("refuses a scaffolded file importing a package its app does not declare", () => {
     const tree = new Map(buildTemplates());
-    tree.set("common/apps/portal/lib/rogue.ts", 'import { x } from "@qcms/db";');
-    expect(() => assertImports(tree)).toThrow(/@qcms\/db, which apps\/portal does not declare/);
+    tree.set("common/apps/portal/lib/rogue.ts", 'import { x } from "@roonga/qcms-db";');
+    expect(() => assertImports(tree)).toThrow(
+      /@roonga\/qcms-db, which apps\/portal does not declare/,
+    );
   });
 
   it("passes on the tree the generator actually produces", () => {
@@ -424,7 +426,7 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
     // twice over: wrong file, wrong kind.
     const drifted = withFile(
       "common/tsconfig.base.json",
-      '{ "compilerOptions": { "paths": { "@qcms/core": ["../../packages/core/src"] } } }',
+      '{ "compilerOptions": { "paths": { "@roonga/qcms-core": ["../../packages/core/src"] } } }',
     );
     expect(() => assertNoEscapingPaths(drifted)).toThrow(/climbs past the project root/);
   });
@@ -451,12 +453,12 @@ describe("the guards, proved red rather than merely green (issue #456)", () => {
     // adopter's manifest, where no registry can satisfy it. The message has to name
     // the package, or the next person reads a resolution error in someone else's
     // project instead of a generator error in ours.
-    expect(() => rewriteDependencies({ "@qcms/unpublished": "workspace:*" }, {}, false)).toThrow(
-      /@qcms\/unpublished/,
-    );
+    expect(() =>
+      rewriteDependencies({ "@roonga/qcms-unpublished": "workspace:*" }, {}, false),
+    ).toThrow(/@roonga\/qcms-unpublished/);
     // A published one still resolves, so the guard is about the unknown case only.
     expect(
-      rewriteDependencies({ hono: "^4.0.0" }, { "@qcms/core": "^1.0.0" }, false),
+      rewriteDependencies({ hono: "^4.0.0" }, { "@roonga/qcms-core": "^1.0.0" }, false),
     ).toStrictEqual({ hono: "^4.0.0" });
   });
 });

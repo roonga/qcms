@@ -14,8 +14,8 @@
  * spacing, radius and the type scale reach them through `theme-components.css`,
  * which is the qcms-owned CSS layer over the same tokens. Import both:
  *
- *   @import "@qcms/ui/theme.css";             // the tokens (this file)
- *   @import "@qcms/ui/theme-components.css";  // components consume them
+ *   @import "@roonga/qcms-ui/theme.css";             // the tokens (this file)
+ *   @import "@roonga/qcms-ui/theme-components.css";  // components consume them
  *
  * SELECTOR CONVENTION
  * Every block below is anchored on `:is(:root, [data-qcms-theme-scope])` (the

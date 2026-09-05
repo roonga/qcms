@@ -38,7 +38,7 @@
     "test": "turbo run test && pnpm test:tooling",
     "test:tooling": "vitest run --project tooling",
     "env-arrival": "node scripts/print-passthrough-env.mjs",
-    "test:golden-drift": "vitest run --project @qcms/core packages/core/src/golden-corpus.test.ts",
+    "test:golden-drift": "vitest run --project @roonga/qcms-core packages/core/src/golden-corpus.test.ts",
     "check:golden-append-only": "node scripts/check-golden-append-only.mjs",
     "typecheck": "turbo run typecheck",
     "lint": "eslint scripts .devcontainer plan eslint.config.js vitest.config.ts playwright.config.ts playwright.compose.config.ts packages/db/drizzle.config.ts packages/ui/vitest.config.ts packages/ui/vitest.setup.ts && turbo run lint && prettier --check . && node scripts/check-fixture-domain.mjs",

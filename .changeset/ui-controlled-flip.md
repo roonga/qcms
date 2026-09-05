@@ -1,11 +1,11 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
 A control never changes between controlled and uncontrolled, and never serves a
 second question (issue #144).
 
-`@qcms/ui` (patch: bug fix, no API change). react-stately decides
+`@roonga/qcms-ui` (patch: bug fix, no API change). react-stately decides
 controlled-vs-uncontrolled by `value !== undefined` alone, so the `undefined` the
 RadioGroup and Select adapters passed for "nothing selected" was read as
 UNCONTROLLED: the first selection flipped the mounted control to controlled, and a

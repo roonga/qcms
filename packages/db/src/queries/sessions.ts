@@ -1,6 +1,6 @@
 import { and, eq, inArray, lte } from "drizzle-orm";
 
-import type { FormId, LinkId, SessionId } from "@qcms/core";
+import type { FormId, LinkId, SessionId } from "@roonga/qcms-core";
 
 import { accessMode, sessionStatus, sessions } from "../schema/index.js";
 import type { Executor } from "./executor.js";

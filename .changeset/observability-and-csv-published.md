@@ -1,9 +1,9 @@
 ---
-"@qcms/observability": minor
-"@qcms/csv": minor
+"@roonga/qcms-observability": minor
+"@roonga/qcms-csv": minor
 ---
 
-Publish `@qcms/observability` and `@qcms/csv`.
+Publish `@roonga/qcms-observability` and `@roonga/qcms-csv`.
 
 Both were private workspace packages, and all three applications depend on them at
 runtime: the redacting logger and the SEC-13 allowlists in one, the RFC 4180 quoting

@@ -2,8 +2,8 @@ import { createContext, useCallback, useContext } from "react";
 
 /**
  * The canonical answer encodings this renderer round-trips (task 002,
- * DOMAIN_SCHEMA §2.4), expressed structurally so `@qcms/ui` stays decoupled
- * from `@qcms/core` at runtime:
+ * DOMAIN_SCHEMA §2.4), expressed structurally so `@roonga/qcms-ui` stays decoupled
+ * from `@roonga/qcms-core` at runtime:
  *
  * | Question type        | Encoding                         | JS shape        |
  * |----------------------|----------------------------------|-----------------|
@@ -14,7 +14,7 @@ import { createContext, useCallback, useContext } from "react";
  * | singleChoice         | OptionId                         | `string`        |
  * | multiChoice          | OptionId[], deduplicated         | `readonly string[]` |
  *
- * The equivalence to `@qcms/core`'s `AnswerValue` schemas is asserted by the
+ * The equivalence to `@roonga/qcms-core`'s `AnswerValue` schemas is asserted by the
  * conformance round-trip suite (which parses every emitted value with the core
  * parsers), not by a compile-time type dependency.
  */

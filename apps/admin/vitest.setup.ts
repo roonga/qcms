@@ -8,7 +8,7 @@ import { afterEach } from "vitest";
  * the same vendored a2-react-aria controls through `components/kit.tsx` and so trips the
  * same missing browser APIs. It is duplicated rather than imported: a setup file is
  * project configuration, and reaching into another workspace member's config to get it
- * would make `@qcms/ui`'s test wiring part of the admin's public surface.
+ * would make `@roonga/qcms-ui`'s test wiring part of the admin's public surface.
  *
  * None of these shims affect the accessibility tree. They exist so a control mounts at
  * all under jsdom, which lacks media queries, resize observation, scrolling into view,

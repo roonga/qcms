@@ -1,6 +1,6 @@
 # 030 - Portal accessibility pass
 
-**Stage:** 7 (exit gate) · **Apps/packages:** `apps/portal`, `@qcms/ui` · **Depends on:** 029
+**Stage:** 7 (exit gate) · **Apps/packages:** `apps/portal`, `@roonga/qcms-ui` · **Depends on:** 029
 **References:** `ARCHITECTURE.md` §11 · `PROJECT_GOAL.md` success criteria · WCAG 2.2 AA
 
 ## Context

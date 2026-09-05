@@ -13,9 +13,9 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc tsconfig.base.json .
 COPY apps ./apps
 
 RUN pnpm install --frozen-lockfile
-# The `pnpm --filter @qcms/db... build` prefix that used to lead this line is gone.
+# The `pnpm --filter @roonga/qcms-db... build` prefix that used to lead this line is gone.
 # It existed because Next type-checked the portal's E2E support files, which import
-# @qcms/db even though the production portal has no runtime database dependency, and
+# @roonga/qcms-db even though the production portal has no runtime database dependency, and
 # building that package was one way to satisfy them. The image now excludes `**/e2e`
 # and `**/*.test.*` from the build context instead (.dockerignore), so those files
 # are not in the image to type-check and the workaround has nothing left to fix.

@@ -160,7 +160,7 @@ If a Testcontainers-backed suite cannot reach the container it just started (sib
 **A Testcontainers env knob only works if `turbo.json` passes it through.** turbo 2.x runs tasks in **strict** env mode: a task sees only the variables declared in `turbo.json` plus turbo's own defaults. `pnpm test` is `turbo run test`, so `QCMS_TEST_POSTGRES_IMAGE`, `TESTCONTAINERS_RYUK_DISABLED`, `TESTCONTAINERS_HOST_OVERRIDE` and the `DOCKER_*` overrides reach the _job_ and not the Vitest process unless they are listed in `globalPassThroughEnv`. That is how the #74 GHCR mirror was silently bypassed inside CI's `verify` job while the `api-e2e` and `portal-e2e` jobs (which invoke Vitest and Playwright directly, no turbo) used it correctly: the harness fell back to the default `postgres:16-alpine`, which was not the pre-pulled reference, and Docker went to Docker Hub for it. To prove a knob actually arrives, give it a value nothing can serve and watch the suite fail:
 
 ```sh
-QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test --filter @qcms/db --force
+QCMS_TEST_POSTGRES_IMAGE=localhost:1/nope pnpm exec turbo run test --filter @roonga/qcms-db --force
 ```
 
 If that **passes**, the variable is being stripped.
@@ -221,7 +221,7 @@ pnpm dev:seed
 
 It is safe to re-run and reports what it skipped (`Seeded 0 question(s); 7 already present.`). A question that exists is left exactly as it is, because an id is permanent (R6) and a re-run must never look like an attempt to reuse one. The loader goes through the kernel rather than inserting rows, so what lands is what the compiler can render; it seeds **questions only**, not forms.
 
-**Why this is a command rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@qcms/core`, `@qcms/db`, drizzle and `pg`.
+**Why this is a command rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@roonga/qcms-core`, `@roonga/qcms-db`, drizzle and `pg`.
 
 Two shapes were rejected and both for reasons that bite elsewhere in this repo. A **bind mount of the checkout** breaks the canonical dev-container seat: Compose drives the host daemon (ADR-29), so a repository path is resolved on the host's filesystem where it does not exist, and Docker silently creates an empty directory there. **Baking the loader into the API image** would put a sample-data writer and the fixture corpus into the deployed artifact; `apps/api/package.json` ships `files: ["dist"]`, and the seeding image is a separate Dockerfile so it stays that way.
 
@@ -377,4 +377,4 @@ After changing `.claude/skills/` or `.claude/agents/`, restart running sessions.
 
 ## Conventions the agents follow (so you can spot violations)
 
-One task per PR/branch (`feat/NNN-slug`) · Conventional Commits with the task number · **no AI attribution trailers in commit messages** · green-or-clean, where green means **`pnpm verify`** (one command, a superset of CI's unit job; `pnpm verify:browser` adds the Playwright suite for portal/admin/`@qcms/ui` work) · never merge red · discoveries become issues (`phase-4` for cut-line itches), never scope creep · docs named in a task update in the same change.
+One task per PR/branch (`feat/NNN-slug`) · Conventional Commits with the task number · **no AI attribution trailers in commit messages** · green-or-clean, where green means **`pnpm verify`** (one command, a superset of CI's unit job; `pnpm verify:browser` adds the Playwright suite for portal/admin/`@roonga/qcms-ui` work) · never merge red · discoveries become issues (`phase-4` for cut-line itches), never scope creep · docs named in a task update in the same change.

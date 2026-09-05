@@ -1,7 +1,7 @@
 import { asc, desc, eq } from "drizzle-orm";
 
-import type { AnswerMap } from "@qcms/core";
-import type { AnswerValue, QuestionId, SessionId } from "@qcms/core";
+import type { AnswerMap } from "@roonga/qcms-core";
+import type { AnswerValue, QuestionId, SessionId } from "@roonga/qcms-core";
 
 import { answers } from "../schema/index.js";
 import type { Executor } from "./executor.js";

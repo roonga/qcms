@@ -9,7 +9,7 @@ import { buildAdminExec, classifyBootstrap, generatePassword } from "./compose-a
  *
  * These three sentences are copied verbatim from `describeRefusal` in
  * `apps/api/src/features/auth/bootstrap.ts`. They are not imported: that module
- * pulls in `@qcms/db`, drizzle and the better-auth instance, which is a large
+ * pulls in `@roonga/qcms-db`, drizzle and the better-auth instance, which is a large
  * runtime dependency for a tooling test to carry in order to read three strings.
  * The trade is stated rather than hidden - if that function is reworded, update
  * these fixtures, and the assertions below say what has to stay true.

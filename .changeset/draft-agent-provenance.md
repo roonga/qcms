@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Record on a form draft whether it carries agent-assisted changes (task 041,

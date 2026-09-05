@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Add a nullable `flaggedReason` column to `submissions` (migration `0005`) and

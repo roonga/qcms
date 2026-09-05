@@ -10,7 +10,7 @@ import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "./harness-config.js";
  * The suite needs an admin account with a password better-auth can verify, before the
  * browser opens. The instance that can create one now lives in `apps/api`, so this module
  * is a thin call into `apps/api/e2e/support/admin-accounts.ts` - which is also what keeps
- * the admin package free of a database client (`pg`, `drizzle-orm` and `@qcms/db` resolve
+ * the admin package free of a database client (`pg`, `drizzle-orm` and `@roonga/qcms-db` resolve
  * from the api workspace there, never from this one).
  *
  * ## Where the database URL comes from now

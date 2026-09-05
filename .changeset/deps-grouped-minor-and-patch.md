@@ -1,10 +1,10 @@
 ---
-"@qcms/db": patch
-"@qcms/ui": patch
+"@roonga/qcms-db": patch
+"@roonga/qcms-ui": patch
 ---
 
-Dependency maintenance (Dependabot grouped minor/patch). `@qcms/db`: the `@types/pg`
-dev range moves to `^8.20.3`. `@qcms/ui`: `@internationalized/date` moves to
+Dependency maintenance (Dependabot grouped minor/patch). `@roonga/qcms-db`: the `@types/pg`
+dev range moves to `^8.20.3`. `@roonga/qcms-ui`: `@internationalized/date` moves to
 `^3.12.3`, and the `@types/react` / `@types/react-dom` dev ranges to `^19.2.18` /
 `^19.2.4`. No API or behavior change in either package; consumers resolve newer
 in-range versions of these dependencies.

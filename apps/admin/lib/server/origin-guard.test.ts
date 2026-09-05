@@ -170,7 +170,7 @@ const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
  * the admin, and `emitted` holds the very lines an operator would grep.
  */
 vi.mock("./logger.ts", async () => {
-  const { createJsonLogger } = await import("@qcms/observability/logger");
+  const { createJsonLogger } = await import("@roonga/qcms-observability/logger");
   return {
     serverLogger: createJsonLogger({
       base: { service: "qcms-admin" },

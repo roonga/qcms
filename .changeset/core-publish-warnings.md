@@ -1,5 +1,5 @@
 ---
-"@qcms/core": minor
+"@roonga/qcms-core": minor
 ---
 
 `compileDraft` gains a warning channel and two publish checks (issues #123, #53,

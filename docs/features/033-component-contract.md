@@ -167,7 +167,7 @@ Dialog, Form, MenuItem, MenuList, MenuPopover, MenuSeparator, MenuTrigger,
 MenuTriggerButton, NumberField, Select, Table, Text, TextField`.
 
 Use `Checkbox` for the switch, a styled `<span>` for a tag, `<details>/<summary>` for an
-accordion. ADR-22 forbids another component library and adding a control to `@qcms/ui` is a
+accordion. ADR-22 forbids another component library and adding a control to `@roonga/qcms-ui` is a
 `docs/COMPONENT_GUIDELINES.md` process that is OUT OF SCOPE for 033. Report each
 substitution.
 
@@ -175,9 +175,9 @@ substitution.
 
 Over every non-test `.ts`/`.tsx` under `app/`, `components/`, `lib/`, `scripts/`:
 
-- no `@qcms/core` import, not even `import type`;
+- no `@roonga/qcms-core` import, not even `import type`;
 - a `"use client"` module may not value-import anything whose specifier contains
-  `lib/server/`, or `better-auth`, `@qcms/db`, `drizzle-orm`, `pg`;
+  `lib/server/`, or `better-auth`, `@roonga/qcms-db`, `drizzle-orm`, `pg`;
 - **no file may contain the literal text `.select(`, `.insert(`, `.update(`, `.delete(` or
   `.transaction(`** anywhere, comments included (raw regex over file text);
 - **no file except `lib/server/api.ts` may contain `fetch(`**, comments included.

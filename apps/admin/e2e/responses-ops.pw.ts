@@ -267,7 +267,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     // The third fact has three clauses, and each is a separate promise about a
     // different copy of the data (059). Asserted one at a time so a rewrite that drops
     // one fails here rather than passing on the other two; the behaviour behind each is
-    // asserted in test 6 below and in the @qcms/db integration suite.
+    // asserted in test 6 below and in the @roonga/qcms-db integration suite.
     await expect(dialog).toContainText("An event already delivered stays delivered");
     await expect(dialog).toContainText(
       "the consumer's to erase, as an independent data controller",
@@ -585,7 +585,7 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
       // Read from the DELIVERED row rather than the first row on screen: the table is
       // ordered by creation and the redelivered one is not necessarily at the top. A
       // first-time success after the reset shows zero FAILED attempts, which is what
-      // that column counts (`markDeliveryDelivered` in @qcms/db explains why).
+      // that column counts (`markDeliveryDelivered` in @roonga/qcms-db explains why).
       await expect(deliveredRow.getByTestId("qcms-delivery-attempts")).toHaveText("0");
 
       // 6. Bulk redeliver takes everything that is left. Nothing is refused, because

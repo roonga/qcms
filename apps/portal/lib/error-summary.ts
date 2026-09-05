@@ -1,4 +1,4 @@
-import type { A2UIErrors, A2UIStepDocument } from "@qcms/ui";
+import type { A2UIErrors, A2UIStepDocument } from "@roonga/qcms-ui";
 
 import { t } from "./i18n/en";
 import { authorMessageFor } from "./validation-message";

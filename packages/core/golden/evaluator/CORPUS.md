@@ -52,7 +52,7 @@ needs the evaluator to be able to honor both versions before it is taken.
 CI enforces drift two ways with the same runner
 (`packages/core/src/golden-corpus.test.ts`):
 
-- `pnpm test` - the corpus is part of the `@qcms/core` suite;
+- `pnpm test` - the corpus is part of the `@roonga/qcms-core` suite;
 - `pnpm test:golden-drift` (root) - runs only the corpus, as the named guard:
   it fails if any golden's `expected` differs from live evaluator output.
 

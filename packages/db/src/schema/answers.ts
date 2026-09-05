@@ -1,6 +1,6 @@
 import { boolean, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
-import type { AnswerValue, QuestionId, SessionId } from "@qcms/core";
+import type { AnswerValue, QuestionId, SessionId } from "@roonga/qcms-core";
 
 import { sessions } from "./sessions.js";
 

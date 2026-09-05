@@ -1,8 +1,8 @@
 ---
-"@qcms/ui": patch
+"@roonga/qcms-ui": patch
 ---
 
-`@qcms/ui` gains an offline proof that its vendored `a2-react-aria` sources
+`@roonga/qcms-ui` gains an offline proof that its vendored `a2-react-aria` sources
 still match upstream (issue #189, ADR-22).
 
 `packages/ui/a2ra-manifest.json` records a sha256 of every file in

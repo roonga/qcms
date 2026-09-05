@@ -5,7 +5,7 @@ import {
   type FrozenSnapshot,
   type QuestionId,
   type QuestionVersionRecord,
-} from "@qcms/core";
+} from "@roonga/qcms-core";
 import { describe, expect, it } from "vitest";
 
 import { compileForm } from "./compile.js";

@@ -20,7 +20,7 @@ import {
   type ToolSet,
 } from "ai";
 
-import type { FormDefinition } from "@qcms/core";
+import type { FormDefinition } from "@roonga/qcms-core";
 
 import type { Config } from "../../../config.js";
 import type { Logger } from "../../../logger.js";

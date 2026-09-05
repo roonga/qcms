@@ -27,8 +27,8 @@ import { z } from "zod";
  * A resolved author message map: constraint key -> display string for the
  * active locale (the compiler resolved the `LocalizedText` at publish time).
  *
- * The key set mirrors `@qcms/core`'s `ValidationMessageKey`. It is restated
- * rather than imported because `@qcms/ui` is a browser package that must not
+ * The key set mirrors `@roonga/qcms-core`'s `ValidationMessageKey`. It is restated
+ * rather than imported because `@roonga/qcms-ui` is a browser package that must not
  * pull the kernel into the client bundle; `packages/a2ui-compiler` is what pairs
  * the two, and the golden corpus rendered by `conformance.test.tsx` is what
  * proves they still agree.

@@ -18,7 +18,7 @@
  *
  * This file is for the deployment that wants values the predefined themes do not
  * offer. It is imported last, so anything declared here wins over
- * `@qcms/ui/theme.css`. Override token NAMES from the four-group contract; never
+ * `@roonga/qcms-ui/theme.css`. Override token NAMES from the four-group contract; never
  * edit globals.css, theme.css, or a component.
  *
  *   1. Typography: `--font-portal` (self-host the files and add an `@font-face`

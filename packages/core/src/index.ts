@@ -1,5 +1,5 @@
 /**
- * @qcms/core public surface (task 002: IDs, LocalizedText, canonical
+ * @roonga/qcms-core public surface (task 002: IDs, LocalizedText, canonical
  * AnswerValue, error primitives · task 003: question definitions · task 004:
  * form definitions and the typed publish error model · task 005: rules DSL
  * and dependency-graph analysis · task 006: the forward-pass rules evaluator,

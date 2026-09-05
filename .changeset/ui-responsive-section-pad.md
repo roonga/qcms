@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Give `--space-section-pad` a viewport dimension in `theme.css`, so the step card is

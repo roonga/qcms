@@ -188,7 +188,7 @@ describe("classifyFailure", () => {
     // directory was missing. The server-log gate then failed a spec that touched nothing.
     expect(
       classifyFailure(
-        "[portal] Error: Module not found: Can't resolve '@qcms/ui/fonts'\n" +
+        "[portal] Error: Module not found: Can't resolve '@roonga/qcms-ui/fonts'\n" +
           "at ./apps/portal/lib/server/theme.ts:33:1",
       ),
     ).toBe("workspace rebuild");

@@ -11,7 +11,7 @@
  * Answer values stay `unknown` all the way to the renderer. They are canonical
  * encodings the reporting view froze (015) - a string, a number, a boolean, or an
  * array of option ids - and this app has no business narrowing them: it has no
- * `@qcms/core` value import at all (`r2-import-surface.test.ts`).
+ * `@roonga/qcms-core` value import at all (`r2-import-surface.test.ts`).
  */
 
 /** How the respondent reached the form. */
@@ -128,7 +128,7 @@ export type DeliveryStatus = "delivered" | "cancelled" | "deadLettered" | "pendi
  *
  * `attempts` counts **failed** attempts, which is what the retry schedule reads it
  * as, so a first-time success is `0`. The column is labelled accordingly; see
- * `markDeliveryDelivered` in `@qcms/db` for why the counter was not redefined.
+ * `markDeliveryDelivered` in `@roonga/qcms-db` for why the counter was not redefined.
  *
  * `requestHeaders` arrives with `x-qcms-signature` already masked - the deliverer
  * masks it before storage, so the HMAC is absent from the database rather than

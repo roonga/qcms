@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 
-import type { CompiledForm } from "@qcms/a2ui-compiler";
-import type { FormDefinition, FormId } from "@qcms/core";
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
+import type { FormDefinition, FormId } from "@roonga/qcms-core";
 
 import { formDrafts, formStatus, formVersions, forms } from "../schema/index.js";
 import type { Executor } from "./executor.js";

@@ -14,7 +14,7 @@
  * call; `composeApi(db, env, flags)` turns (db, env, shape) into a running app.
  */
 
-import { startTestDb, type TestDb } from "@qcms/db/testing";
+import { startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 
 import { createApp } from "../../src/app.js";
 import type { Deps } from "../../src/deps.js";

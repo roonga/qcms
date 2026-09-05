@@ -3,7 +3,7 @@
  *
  * The canonical `NodeSDK` setup from the OTel JS docs, at the one place a
  * composition root may do this kind of thing: the process entry. Nothing else in
- * `apps/api` starts, configures, or shuts down an SDK, and `@qcms/core` never
+ * `apps/api` starts, configures, or shuts down an SDK, and `@roonga/qcms-core` never
  * sees OpenTelemetry at all.
  *
  * **The gate is ours, not the exporter's.** With `OTEL_EXPORTER_OTLP_ENDPOINT`
@@ -29,7 +29,7 @@
  * `traceparent` from the portal's BFF hop.
  */
 
-import { allowlistingLogRecordProcessor } from "@qcms/observability/logs";
+import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
 import { SpanKind, type Context } from "@opentelemetry/api";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace";
 

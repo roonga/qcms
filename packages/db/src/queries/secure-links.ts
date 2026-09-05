@@ -1,6 +1,6 @@
 import { and, desc, eq, isNull } from "drizzle-orm";
 
-import type { FormId, LinkId } from "@qcms/core";
+import type { FormId, LinkId } from "@roonga/qcms-core";
 
 import { secureLinks } from "../schema/index.js";
 import type { Executor } from "./executor.js";

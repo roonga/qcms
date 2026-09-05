@@ -14,7 +14,7 @@
 #      label is unreliable in both directions. Run `pnpm why -r <package>` and
 #      read where the path terminates before treating an alert as shipped. Two
 #      facts make that trace decisive rather than advisory: a devDependency of a
-#      workspace project is never in a published @qcms/* package, and every
+#      workspace project is never in a published @roonga/qcms-* package, and every
 #      image in docker/ ships a `pnpm deploy --prod` pruned tree, so a dev-scope
 #      transitive cannot reach a runtime image by construction.
 #

@@ -1,8 +1,8 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
-Build the `@qcms/db/testing` subpath, so the published harness resolves to compiled
+Build the `@roonga/qcms-db/testing` subpath, so the published harness resolves to compiled
 JavaScript and a `.d.ts` instead of to TypeScript source (issues #382 and #407).
 
 The export condition pointed at `src/testing/harness.ts`. Vitest transformed it, which is

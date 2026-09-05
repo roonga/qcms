@@ -235,7 +235,7 @@ services:
         VERSION: ${QCMS_IMAGE_VERSION:-dev}
     # The package's own bin, not a path into its `dist/` (issue #294). A deep
     # filesystem path resolves nothing: it worked only by bypassing the `exports`
-    # map @qcms/db publishes, which pinned a build layout that package is otherwise
+    # map @roonga/qcms-db publishes, which pinned a build layout that package is otherwise
     # free to change. `qcms-db-migrate` is on PATH because docker/api.Dockerfile
     # puts this image's `node_modules/.bin` there.
     command: ["qcms-db-migrate"]

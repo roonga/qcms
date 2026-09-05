@@ -124,7 +124,7 @@ const { emitted } = vi.hoisted(() => ({ emitted: [] as string[] }));
  * do in the portal, and `emitted` holds the very lines an operator would grep.
  */
 vi.mock("./logger", async () => {
-  const { createJsonLogger } = await import("@qcms/observability/logger");
+  const { createJsonLogger } = await import("@roonga/qcms-observability/logger");
   return {
     serverLogger: createJsonLogger({
       base: { service: "qcms-portal" },

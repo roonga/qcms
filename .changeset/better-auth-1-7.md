@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Reconcile the auth schema mirror with better-auth 1.7, which keys an account on

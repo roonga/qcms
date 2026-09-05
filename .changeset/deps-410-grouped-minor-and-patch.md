@@ -1,23 +1,23 @@
 ---
-"@qcms/db": minor
-"@qcms/ui": minor
+"@roonga/qcms-db": minor
+"@roonga/qcms-ui": minor
 ---
 
 Dependency maintenance (Dependabot grouped minor/patch, 13 updates). Two of them
 reach a published surface and are described individually below; the rest are
 dev-scope or app-scope and change nothing a consumer resolves.
 
-**`@qcms/db`: the optional-peer contract moves.** `testcontainers` and
+**`@roonga/qcms-db`: the optional-peer contract moves.** `testcontainers` and
 `@testcontainers/postgresql` go from `^12.0.4` to `^12.1.0` in
 `peerDependencies`, not only in `devDependencies`. Since #156 those two are a
-declared part of this package's contract: the published `@qcms/db/testing`
+declared part of this package's contract: the published `@roonga/qcms-db/testing`
 subpath asks a consumer to install them, and the range in `peerDependencies` is
 what tells the consumer's package manager which versions satisfy that ask. The
 new range no longer admits `12.0.x`, so an adopter pinned there will see a peer
 warning on their next install and should move to `12.1.0` or later. Both peers
 remain optional, so a consumer who never boots a container is unaffected.
 
-**`@qcms/ui`: `react-aria-components` `^1.19.0` to `^1.20.0`.** This is a runtime
+**`@roonga/qcms-ui`: `react-aria-components` `^1.19.0` to `^1.20.0`.** This is a runtime
 `dependencies` entry, so it is code a consumer ships, not a build-time tool.
 1.20.0 carries no API change this package uses, but it does change when
 hydration adopts a server-rendered `Table` row: measured on the admin suite, a

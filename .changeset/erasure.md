@@ -1,15 +1,15 @@
 ---
-"@qcms/core": minor
-"@qcms/db": minor
+"@roonga/qcms-core": minor
+"@roonga/qcms-db": minor
 ---
 
 Add right-to-erasure: hard-delete a session's content with a tombstone (task 016, ADR-17, I11).
 
-`@qcms/core` (`src/erasure.ts`) owns the _meaning_: `EraseRequest`, `EraseOutcome`, and
+`@roonga/qcms-core` (`src/erasure.ts`) owns the _meaning_: `EraseRequest`, `EraseOutcome`, and
 `EraseErrorCode`, plus a documented statement of what erasure deletes, what it retains, and
 what the tombstone asserts. Pure - no I/O (R3).
 
-`@qcms/db` (`queries/erasure.ts`) owns the _execution_:
+`@roonga/qcms-db` (`queries/erasure.ts`) owns the _execution_:
 
 - `eraseSession(exec, sessionId, reason): Promise<EraseOutcome>` runs one transaction that
   deletes every `answers` row and the `submissions` lock, scrubs respondent-linkable session

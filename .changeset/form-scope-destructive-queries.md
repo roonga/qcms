@@ -1,5 +1,5 @@
 ---
-"@qcms/db": major
+"@roonga/qcms-db": major
 ---
 
 Scope the destructive delivery and erasure query helpers by form (issue #305).

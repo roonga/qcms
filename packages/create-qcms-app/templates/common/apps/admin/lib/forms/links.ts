@@ -1,4 +1,4 @@
-import { csvFieldAlwaysQuoted } from "@qcms/csv";
+import { csvFieldAlwaysQuoted } from "@roonga/qcms-csv";
 
 import type { MessageKey } from "../i18n/en.ts";
 
@@ -44,7 +44,7 @@ const CSV_COLUMNS = ["linkId", "url", "expiresAt"] as const;
  * CRLF line endings, because RFC 4180 says so and because it is the ending every
  * spreadsheet program on every platform reads without a prompt.
  *
- * Fields come from `@qcms/csv`, shared with the API's response export (issue #470). The
+ * Fields come from `@roonga/qcms-csv`, shared with the API's response export (issue #470). The
  * always-quoted policy is this export's own: a link URL contains no comma, quote or
  * newline today, and quoting anyway means a field that grows a separator later cannot
  * silently shift every column. The formula-injection guard the helper also applies is the

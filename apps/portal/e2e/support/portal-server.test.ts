@@ -312,7 +312,7 @@ createServer((_req, res) => {
   armed = true;
   setTimeout(
     () => process.stdout.write(
-      "Unhandled Rejection: Error: Cannot find module '@qcms/ui/fonts'\\n",
+      "Unhandled Rejection: Error: Cannot find module '@roonga/qcms-ui/fonts'\\n",
     ),
     500,
   );
@@ -409,8 +409,8 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
     async () => {
       // The failure this pins: readiness used to mean "an HTTP response arrived",
       // so a dev server that 500s every request disarmed the startup watch. The
-      // reproduction was a tree where `@qcms/ui` had not been built, which makes
-      // the portal's `@qcms/ui/fonts` import fail on every render. Everything the
+      // reproduction was a tree where `@roonga/qcms-ui` had not been built, which makes
+      // the portal's `@roonga/qcms-ui/fonts` import fail on every render. Everything the
       // #58 machinery adds was then switched off, and the run degraded back to
       // Playwright's own 180-second poll ending in a bare "Timed out waiting",
       // with the cause only inside the captured log.
@@ -429,7 +429,7 @@ describe("portal-server wrapper startup fail-fast (issue #58)", () => {
       ).toBeLessThan(FAST_FAILURE_BUDGET_MS);
       const stderr = wrapper.stderr();
       expect(stderr).toContain("portal dev server failed during startup");
-      expect(stderr).toContain("Cannot find module '@qcms/ui/fonts'");
+      expect(stderr).toContain("Cannot find module '@roonga/qcms-ui/fonts'");
     },
     BUDGET_TEST_TIMEOUT_MS,
   );

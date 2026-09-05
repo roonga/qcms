@@ -39,7 +39,7 @@
  * just not a switchable one. See docs/theming.md.
  */
 
-import { fontClass } from "@qcms/ui/fonts";
+import { fontClass } from "@roonga/qcms-ui/fonts";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppearance, type FontChoice } from "@/components/appearance-context";

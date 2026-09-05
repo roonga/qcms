@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { check, integer, jsonb, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
-import type { QuestionDefinition, QuestionId } from "@qcms/core";
+import type { QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
 import { questionStatus } from "./enums.js";
 

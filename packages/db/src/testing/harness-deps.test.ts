@@ -1,9 +1,9 @@
 /**
- * The published `@qcms/db/testing` subpath must be installable.
+ * The published `@roonga/qcms-db/testing` subpath must be installable.
  *
  * Issue #156: the harness imported `@testcontainers/postgresql` and
  * `testcontainers`, both declared only as **devDependencies**. devDependencies
- * are not installed for consumers, so an adopter who installed `@qcms/db` and
+ * are not installed for consumers, so an adopter who installed `@roonga/qcms-db` and
  * imported the documented entry point got a bare `Cannot find package` naming
  * one of them, with no indication of what to install or why.
  *
@@ -32,7 +32,7 @@ const manifest = JSON.parse(
   readFileSync(fileURLToPath(new URL("../../package.json", import.meta.url)), "utf8"),
 ) as Manifest;
 
-describe("the published @qcms/db/testing subpath", () => {
+describe("the published @roonga/qcms-db/testing subpath", () => {
   it("keeps the Testcontainers packages optional, so runtime consumers do not install a Docker client", () => {
     for (const name of ["@testcontainers/postgresql", "testcontainers"]) {
       expect(manifest.peerDependencies?.[name]).toBeDefined();
@@ -113,7 +113,9 @@ describe("the published @qcms/db/testing subpath", () => {
     },
     {
       runner: "vitest/vite",
-      error: new Error('Could not resolve "@testcontainers/postgresql" imported by "@qcms/db".'),
+      error: new Error(
+        'Could not resolve "@testcontainers/postgresql" imported by "@roonga/qcms-db".',
+      ),
     },
   ] as const;
 

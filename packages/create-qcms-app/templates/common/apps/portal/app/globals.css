@@ -3,15 +3,15 @@
  *
  * Layering (ADR-26 two-surface mandate, ADR-30 token contract):
  *   1. Tailwind v4 - the utility engine the vendored a2-react-aria components
- *      (rendered through @qcms/ui) style themselves with.
- *   2. @qcms/ui theme.css - the four-group token contract (color / typography /
+ *      (rendered through @roonga/qcms-ui) style themselves with.
+ *   2. @roonga/qcms-ui theme.css - the four-group token contract (color / typography /
  *      spacing / radius): the four predefined themes, each authored Light and
  *      Dark, plus the single shared High-contrast mode layer.
- *   3. @qcms/ui theme-components.css - the qcms-owned CSS that makes the vendored
+ *   3. @roonga/qcms-ui theme-components.css - the qcms-owned CSS that makes the vendored
  *      controls consume the spacing, radius and type-scale tokens, the tabular
  *      figures rule, plus the HC mode scaffold. Kept out of theme.css because it is
  *      CSS, not token values.
- *   4. @qcms/ui fonts.css - the declarative font registry (task 052): one
+ *   4. @roonga/qcms-ui fonts.css - the declarative font registry (task 052): one
  *      `@font-face` per self-hosted weight and one `:root.font-<key>` block that
  *      repoints `--font-portal`. Every face is served from this origin, so a font
  *      selection costs zero external requests and needs no CSP allowance (SEC-9).
@@ -25,7 +25,7 @@
  * the mode / corners / font root classes onto <html>. See docs/theming.md.
  *
  * `@source` tells Tailwind where the utility-class strings live: the portal's own
- * files are auto-detected; the @qcms/ui renderer sources are declared explicitly
+ * files are auto-detected; the @roonga/qcms-ui renderer sources are declared explicitly
  * because they sit under node_modules-equivalent workspace paths.
  *
  * A DIRECTORY MISSING FROM THAT LIST FAILS SILENTLY (issue 591): the class compiles to
@@ -34,9 +34,9 @@
  * loud; it is what found `lib/` below still missing here after 558 added it to the app.
  */
 @import "tailwindcss";
-@import "../node_modules/@qcms/ui/src/theme.css";
-@import "../node_modules/@qcms/ui/src/theme-components.css";
-@import "../node_modules/@qcms/ui/src/fonts.css";
+@import "../node_modules/@roonga/qcms-ui/src/theme.css";
+@import "../node_modules/@roonga/qcms-ui/src/theme-components.css";
+@import "../node_modules/@roonga/qcms-ui/src/fonts.css";
 @import "./adopter-theme.css";
 
 @source "../app";
@@ -49,7 +49,7 @@
    `scripts/check-tailwind-sources.mjs`, which is the same omission issue 558 hit in the
    QCMS app. */
 @source "../lib";
-@source "../node_modules/@qcms/ui/src";
+@source "../node_modules/@roonga/qcms-ui/src";
 
 /*
  * Base page surface - mobile-first; respondents are on phones (ADR-26).
@@ -128,7 +128,7 @@ body {
 
 /*
  * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance,
- * task 030). Zero-specificity `:where()` so the vendored @qcms/ui controls keep
+ * task 030). Zero-specificity `:where()` so the vendored @roonga/qcms-ui controls keep
  * their own focus rings; every other focusable element - the skip link, the
  * error-summary "jump to field" links, a step heading focused after a branch
  * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1

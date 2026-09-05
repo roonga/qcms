@@ -2,7 +2,7 @@
   "name": "create-qcms-app",
   "version": "0.0.0",
   "private": false,
-  "description": "Scaffold a QCMS deployment: the owned application shell plus the versioned @qcms/* packages (ADR-05).",
+  "description": "Scaffold a QCMS deployment: the owned application shell plus the versioned @roonga/qcms-* packages (ADR-05).",
   "license": "MIT",
   "type": "module",
   "publishConfig": {

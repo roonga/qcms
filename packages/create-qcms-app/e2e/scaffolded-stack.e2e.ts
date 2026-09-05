@@ -8,7 +8,7 @@
  * suite is, so it never runs inside `pnpm test`, where there is no stack to drive.
  *
  * It speaks plain HTTP and imports nothing from this workspace. That is the point:
- * an adopter has no `@qcms/core` types at the wire, and a helper imported from here
+ * an adopter has no `@roonga/qcms-core` types at the wire, and a helper imported from here
  * could be right about a shape the shipped image is wrong about.
  */
 

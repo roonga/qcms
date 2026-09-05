@@ -1,4 +1,4 @@
-import type { A2UIAnswerValue, A2UIValues } from "@qcms/ui";
+import type { A2UIAnswerValue, A2UIValues } from "@roonga/qcms-ui";
 
 /**
  * Combining the answers the API holds with the ones the no-JS re-render cookie

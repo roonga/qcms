@@ -1,6 +1,6 @@
 # Reporting view - the qcms SQL contract
 
-**Package:** `@qcms/db` · **Since:** 0.x (task 015) · **Stability:** versioned (see
+**Package:** `@roonga/qcms-db` · **Since:** 0.x (task 015) · **Stability:** versioned (see
 [Stability promise](#stability-promise))
 
 The reporting schema is qcms's **pull-integration path at launch** - a documented,
@@ -143,13 +143,13 @@ views. Point BI/ETL tools at this role.
 
 ## Stability promise
 
-This schema is **versioned via `@qcms/db`** (Changesets, from Stage 5):
+This schema is **versioned via `@roonga/qcms-db`** (Changesets, from Stage 5):
 
 - **Additive changes are minor.** New views, or new columns appended to an existing view, ship
-  in a minor `@qcms/db` release. Consumers selecting explicit columns are unaffected.
+  in a minor `@roonga/qcms-db` release. Consumers selecting explicit columns are unaffected.
 - **Renames and removals are major.** Renaming or dropping a view or a column, or changing a
   column's type or an answer's canonical encoding, is a breaking change and requires a **major**
-  `@qcms/db` version.
+  `@roonga/qcms-db` version.
 - Column **order** is not part of the promise - select columns by name.
 
 A drift test (`reporting-retention.integration.test.ts`) asserts the live view column lists
@@ -160,7 +160,7 @@ the migration.
 
 ## Retention (companion policy)
 
-Retention lives beside reporting in `@qcms/db` (task 015) and shapes what the views can ever
+Retention lives beside reporting in `@roonga/qcms-db` (task 015) and shapes what the views can ever
 show:
 
 - **`sweepExpiredSessions(exec, now)`** transitions abandoned `created`/`in_progress` sessions
@@ -173,7 +173,7 @@ show:
   never submitted**, whose `expiresAt` is strictly before `olderThan`. It never touches
   submitted content or erased sessions (their session row is already gone).
 
-**Scheduling is the API's job (task 017), not this package's** - `@qcms/db` provides the
+**Scheduling is the API's job (task 017), not this package's** - `@roonga/qcms-db` provides the
 operations; the retention scheduler in the API process invokes them.
 
 ### Default session TTLs

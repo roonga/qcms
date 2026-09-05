@@ -1,5 +1,5 @@
 /**
- * @qcms/db public surface (task 013): the Drizzle schema for the operational
+ * @roonga/qcms-db public surface (task 013): the Drizzle schema for the operational
  * skeleton - questions and versions, forms/drafts/versions, sessions, secure
  * links, the append-only answer ledger, submissions, erasure tombstones, the
  * transactional outbox, and the better-auth tables.

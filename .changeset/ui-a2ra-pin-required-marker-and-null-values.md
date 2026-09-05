@@ -1,11 +1,11 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Move the a2ra vendoring pin to the upstream commit carrying four fixes, and retire the
 adapter workarounds three of them existed to remove (issues #99, #549, #148, #151).
 
-**Minor rather than patch** because the vendored surface `@qcms/ui` re-exports changes in
+**Minor rather than patch** because the vendored surface `@roonga/qcms-ui` re-exports changes in
 a way a consumer can observe and depend on: `RadioGroup`, `Select` and `DatePicker` now
 accept `value: string | null`, which is a widened public type, and a required date
 question renders a marker it did not render before. Nothing is removed and no call site

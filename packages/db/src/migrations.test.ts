@@ -41,7 +41,7 @@ async function triggerExists(testDb: TestDb, name: string): Promise<boolean> {
   return res.rowCount === 1;
 }
 
-describe("@qcms/db migrations", () => {
+describe("@roonga/qcms-db migrations", () => {
   describe("migrate from zero", () => {
     let testDb: TestDb;
 

@@ -180,7 +180,7 @@ It is a **development** tool. It writes the database directly, which is why it l
   navigation, which resets client state).
 - **The single-question preview is compiled by the API**, at
   `GET /admin/questions/{id}/versions/{v}/preview`, and only rendered here, through
-  `A2UIStepRenderer` from `@qcms/ui`. Compiling in the app would put the compiler and the
+  `A2UIStepRenderer` from `@roonga/qcms-ui`. Compiling in the app would put the compiler and the
   kernel behind it inside the BFF; leaving it in the API means preview and publish run the
   same code in the same process, so fidelity cannot drift. It is a recompilation of a
   possibly unpublished draft, which is why it exists only on the admin surface: the portal
@@ -188,12 +188,12 @@ It is a **development** tool. It writes the database directly, which is why it l
 - **`lib/server/`** is server-only and never reaches the client bundle: the better-auth
   instance, the database handle (auth only), the session reader, the CSP builder, and the
   one API client. `lib/server/r2-import-surface.test.ts` enforces that boundary, plus R2
-  itself: no `@qcms/core` value import, no domain-table access, and API calls only
+  itself: no `@roonga/qcms-core` value import, no domain-table access, and API calls only
   through `lib/server/api.ts`.
 - **Auth flows are native form POSTs** to route handlers, not client fetches or server
   actions. The whole sign-in and 2FA loop therefore works before hydration and with
   JavaScript off, and no credential passes through client JavaScript.
-- **`components/kit.tsx`** is the single `"use client"` boundary over `@qcms/ui/kit` (the
+- **`components/kit.tsx`** is the single `"use client"` boundary over `@roonga/qcms-ui/kit` (the
   vendored a2-react-aria components, ADR-22). It is a re-export with no wrappers: admin
   screens and rendered A2UI steps use literally the same components. Admin screens are
   ordinary React; A2UI documents appear only in the preview pane (task 034).

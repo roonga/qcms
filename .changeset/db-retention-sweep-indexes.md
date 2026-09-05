@@ -1,5 +1,5 @@
 ---
-"@qcms/db": minor
+"@roonga/qcms-db": minor
 ---
 
 Give both hourly retention sweeps a supporting index, after measuring what they cost without

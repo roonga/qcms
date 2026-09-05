@@ -14,8 +14,8 @@ to publish the port or bridge it, and `scripts/compose-config.test.ts` asserts t
 and `postgres` stay unpublished with the toolbox overlay layered on.
 
 So the loader runs inside the Compose network, as a one-shot container built from the API
-image, which is the one image whose dependency tree already carries `@qcms/core`,
-`@qcms/db`, drizzle and `pg`. The service lives in `docker-compose.dev-tools.yml` behind a
+image, which is the one image whose dependency tree already carries `@roonga/qcms-core`,
+`@roonga/qcms-db`, drizzle and `pg`. The service lives in `docker-compose.dev-tools.yml` behind a
 `seed` profile, so `dev:up` neither builds nor runs it; `scripts/compose-seed.mjs` is the
 sibling of `scripts/compose-admin.mjs` that knows how to invoke it, and carries the same
 control over credentials: the database URL travels in the docker CLI's own environment and

@@ -1,5 +1,5 @@
 ---
-"@qcms/ui": minor
+"@roonga/qcms-ui": minor
 ---
 
 Ship the four-group theming token contract, the predefined themes, and the
@@ -23,7 +23,7 @@ High-contrast is a single theme-agnostic mode layer, never a palette per theme: 
 theme contributes only its AAA-safe accent, so a new theme gets High-contrast for
 free.
 
-New export `@qcms/ui/theme-components.css`: the qcms-owned CSS that makes the
+New export `@roonga/qcms-ui/theme-components.css`: the qcms-owned CSS that makes the
 vendored a2-react-aria controls consume the spacing, radius and type-scale tokens
 (the vendored sources stay byte-for-byte upstream, ADR-22) and that carries the
 High-contrast treatment which is CSS rather than token values (heavy black

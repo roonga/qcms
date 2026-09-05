@@ -78,7 +78,7 @@ export class Db {
   /**
    * The latest answer per question (DISTINCT ON, newest wins), as a map. A
    * question whose newest row is a retraction is omitted entirely, mirroring
-   * `latestAnswers` in `@qcms/db` (ADR-33): the filter runs AFTER the pick, since
+   * `latestAnswers` in `@roonga/qcms-db` (ADR-33): the filter runs AFTER the pick, since
    * excluding retractions from it would resurrect the cleared answer.
    */
   async latestAnswers(sessionId: string): Promise<Map<string, unknown>> {

@@ -17,12 +17,12 @@ import { describe, expect, it } from "vitest";
  * So the four things that would have to be true for a second one to exist are asserted
  * instead:
  *
- * 1. `A2UIStepRenderer` is imported in exactly one module, and it comes from `@qcms/ui`.
- * 2. Nothing reaches `@a2ra/core` (the renderer engine) directly. Only `@qcms/ui` may.
+ * 1. `A2UIStepRenderer` is imported in exactly one module, and it comes from `@roonga/qcms-ui`.
+ * 2. Nothing reaches `@a2ra/core` (the renderer engine) directly. Only `@roonga/qcms-ui` may.
  * 3. Nothing imports `react-aria-components` directly. The vendored components are
- *    reachable only through `@qcms/ui/kit`, which is ADR-22's single-stack rule stated
+ *    reachable only through `@roonga/qcms-ui/kit`, which is ADR-22's single-stack rule stated
  *    as a test.
- * 4. Nothing imports `@qcms/a2ui-compiler`. Compilation happens in the API, which is
+ * 4. Nothing imports `@roonga/qcms-a2ui-compiler`. Compilation happens in the API, which is
  *    what makes preview fidelity structural rather than a version coincidence (see
  *    `components/questions/question-preview.tsx` for the full argument).
  */
@@ -36,7 +36,7 @@ const SCAN_DIRS = ["app", "components", "lib"];
  * Three, and each is a different *thing being rendered*, not a different renderer: one
  * question version (032), a compiled draft (034's preview), and a stored published
  * snapshot (034's history view). All three mount the same `A2UIStepRenderer` from
- * `@qcms/ui`, which is what the assertions below check. Adding a fourth entry here is
+ * `@roonga/qcms-ui`, which is what the assertions below check. Adding a fourth entry here is
  * where review gets to ask why a screen is drawing A2UI.
  */
 const RENDERING_MODULES = [
@@ -99,15 +99,15 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     expect(modulesMentioning("A2UIStepRenderer")).toEqual(RENDERING_MODULES);
   });
 
-  it("takes the renderer from @qcms/ui in every one of them", () => {
+  it("takes the renderer from @roonga/qcms-ui in every one of them", () => {
     for (const path of RENDERING_MODULES) {
       const module = files.find((file) => file.path === path);
       expect(module, `${path} should be scanned`).toBeDefined();
-      expect(module!.text).toContain('from "@qcms/ui"');
+      expect(module!.text).toContain('from "@roonga/qcms-ui"');
     }
   });
 
-  it("takes the visibility projection from @qcms/ui too, so the portal shares it", () => {
+  it("takes the visibility projection from @roonga/qcms-ui too, so the portal shares it", () => {
     // The preview drops the questions the flow says are not visible with exactly the
     // function the portal uses. A local reimplementation here would be the one part of
     // the preview free to disagree with what a respondent gets (ARCHITECTURE §6).
@@ -115,7 +115,7 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     expect(modules).toEqual(["components/forms/draft-preview.tsx"]);
     const preview = files.find((file) => file.path === "components/forms/draft-preview.tsx");
     expect(preview!.text).toContain("documentForVisible");
-    expect(preview!.text).toContain('from "@qcms/ui"');
+    expect(preview!.text).toContain('from "@roonga/qcms-ui"');
   });
 
   it("mounts every render inside the one preview styling seam", () => {
@@ -185,6 +185,6 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
   });
 
   it("runs no compiler: the API compiles the preview (R2)", () => {
-    expect(modulesMentioning("@qcms/a2ui-compiler")).toEqual([]);
+    expect(modulesMentioning("@roonga/qcms-a2ui-compiler")).toEqual([]);
   });
 });

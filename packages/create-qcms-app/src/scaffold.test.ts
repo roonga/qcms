@@ -97,14 +97,14 @@ describe("scaffold", () => {
     expect(scaffold(options).unresolvedEnv).toStrictEqual([]);
   });
 
-  it("gives every scaffolded app a real version range for every @qcms package", () => {
+  it("gives every scaffolded app a real version range for every @roonga/qcms-* package", () => {
     const { read } = stamp();
     for (const app of ["api", "portal", "admin"]) {
       const manifest = JSON.parse(read(`apps/${app}/package.json`)) as {
         dependencies: Record<string, string>;
       };
       const qcms = Object.entries(manifest.dependencies).filter(([name]) =>
-        name.startsWith("@qcms/"),
+        name.startsWith("@roonga/qcms-"),
       );
       expect(qcms.length).toBeGreaterThan(0);
       for (const [, range] of qcms) expect(range).toMatch(/^\^\d+\.\d+\.\d+$/);

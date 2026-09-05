@@ -1,6 +1,6 @@
 "use client";
 
-import { compilesUnderV, toVSafePattern } from "@qcms/ui";
+import { compilesUnderV, toVSafePattern } from "@roonga/qcms-ui";
 import { useState } from "react";
 
 import { Checkbox, DatePicker, NumberField, TextField } from "@/components/kit";
