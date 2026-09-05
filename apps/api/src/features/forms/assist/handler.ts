@@ -315,6 +315,15 @@ export function makeAcceptProposalHandler(
     const proposed = body.newQuestions.map((entry) => {
       const checked = checkQuestionDefinition(entry.definition);
       if (!checked.ok) {
+        // Ids and codes, never the definition (SEC-8's habit applied to authoring
+        // content too). A refused accept is the one outcome an operator cannot
+        // reconstruct from the screen alone, because the proposal that caused it is
+        // gone the moment they ask the assistant again.
+        deps.logger.warn("agent proposal refused at the authoring boundary", {
+          formId,
+          questionId: proposedIdOf(entry.definition),
+          issues: checked.issues.map((issue) => issue.code),
+        });
         throw fail.proposedQuestionRefused(proposedIdOf(entry.definition), checked.issues);
       }
       return {

@@ -941,6 +941,16 @@ export const messages = {
   "forms.error.unauthorized": "Your session is no longer valid. Sign in again.",
   "forms.error.rateLimited": "Too many requests just now. Try again shortly.",
   "forms.error.internal": "Something went wrong on the server. Try again.",
+  // Accepting an agent proposal that carried new questions (issue #823). The whole
+  // accept is refused when one proposed definition is not acceptable, so the sentence
+  // has to name WHICH question and say that nothing at all was stored - an operator
+  // looking at a card listing three questions cannot act on "the request failed".
+  "forms.error.proposedQuestionRefused":
+    "Nothing was saved. The question \u201c{question}\u201d that the assistant proposed was refused: {reason}",
+  "forms.error.proposedQuestionIdReused":
+    "Nothing was saved. The question ID \u201c{question}\u201d has been used before, and an ID is never reused for a different meaning (R6). Ask the assistant for a different ID.",
+  "forms.error.proposedQuestionSlugTaken":
+    "Nothing was saved. The library slug for the proposed question \u201c{question}\u201d is already in use. Rename the existing question, or ask the assistant for a different ID.",
   "forms.error.unknown": "The request failed ({code}).",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",

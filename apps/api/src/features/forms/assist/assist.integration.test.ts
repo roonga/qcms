@@ -560,8 +560,10 @@ describe("accepting a proposal with new questions", () => {
       );
 
       expect(res.status).toBe(409);
-      expect((await res.json()) as { error: { code: string } }).toMatchObject({
-        error: { code: "QUESTION_ID_REUSED" },
+      // The envelope names the question, because the accept refused a list and the
+      // operator is looking at a card that lists several.
+      expect((await res.json()) as { error: { code: string; details?: unknown } }).toMatchObject({
+        error: { code: "QUESTION_ID_REUSED", details: { questionId: "q_taken_id" } },
       });
       // One transaction: the first insert rolled back with the second's refusal.
       expect(await storedVersions("q_fresh_one")).toEqual([]);

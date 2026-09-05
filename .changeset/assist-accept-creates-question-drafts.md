@@ -1,6 +1,7 @@
 ---
 "qcms-api": minor
 "qcms-admin": minor
+"create-qcms-app": minor
 ---
 
 Accepting an agent proposal now creates its proposed NEW questions as unpublished

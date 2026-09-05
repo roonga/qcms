@@ -61,13 +61,18 @@ export const questionFail = {
     new ApiError("INVALID_QUESTION_DEFINITION", 422, "The question definition is invalid", {
       issues,
     }),
-  idReused: (): ApiError =>
+  // Both name the question in `details`. `POST /admin/questions` creates one at a
+  // time, so the id is implied there; 041's accept creates several, and the operator
+  // has to be told which of them the refusal is about (issue #823).
+  idReused: (questionId: string): ApiError =>
     new ApiError(
       "QUESTION_ID_REUSED",
       409,
       "This questionId has been used before; ids are never reused (R6)",
+      { questionId },
     ),
-  slugTaken: (): ApiError => new ApiError("SLUG_TAKEN", 409, "That slug is already in use"),
+  slugTaken: (questionId: string, slug: string): ApiError =>
+    new ApiError("SLUG_TAKEN", 409, "That slug is already in use", { questionId, slug }),
 } as const;
 
 /**
@@ -176,7 +181,7 @@ export async function createQuestionWithFirstDraft(
   const questionId = input.definition.questionId;
 
   // R6: reject any id ever used - including a deprecated/erased one.
-  if (await isQuestionIdTaken(exec, questionId)) throw questionFail.idReused();
+  if (await isQuestionIdTaken(exec, questionId)) throw questionFail.idReused(questionId);
 
   // R6 passed: insert the identity (slug collision -> clean 409) then its first
   // draft version.
@@ -184,7 +189,7 @@ export async function createQuestionWithFirstDraft(
   try {
     question = await createQuestion(exec, { questionId, slug: input.slug });
   } catch (err: unknown) {
-    if (isUniqueViolation(err)) throw questionFail.slugTaken();
+    if (isUniqueViolation(err)) throw questionFail.slugTaken(questionId, input.slug);
     throw err;
   }
   const version = await createQuestionVersion(exec, {
