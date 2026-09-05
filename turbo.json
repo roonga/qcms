@@ -92,8 +92,25 @@
     //     the build's typecheck), not build product, and it is where a running
     //     server would keep any data or image cache. Excluding it keeps a cache hit
     //     from putting an older copy over a newer one.
+    // `next build` type-checks before it emits, over `apps/portal/tsconfig.json` - the
+    // same program the portal's `typecheck` task builds, with the same undeclared reach
+    // into `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler` (the
+    // note on `qcms-portal#typecheck` below has the full derivation). So `build` needs
+    // the same edges, and issue #810 is what that costs when it does not have them: a
+    // portal build failing with 40-odd TS2307s because `@roonga/qcms-db#build` was
+    // sitting between its `clean-dist` and its `tsc` at the moment the portal's checker
+    // read that `dist`. Issue #796 is the same gap seen from the typecheck side.
+    //
+    // `scripts/turbo-build-order.test.ts` now derives this class for `build` as well as
+    // for `typecheck` and `lint`, so the next missing edge fails structurally rather
+    // than as one more race.
     "qcms-portal#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build",
+        "@roonga/qcms-db#build",
+        "@roonga/qcms-a2ui-compiler#build",
+        "@roonga/qcms-csv#build"
+      ],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     // The admin (task 031) writes `apps/admin/.next` and needs the same entry for the
@@ -104,8 +121,13 @@
     // `.next` would be tarred into the shared artifact and restored over live dev
     // state in any worktree (issue #54/#57), `cache` because Next's incremental cache
     // is not build product and a hit must not put an older copy over a newer one.
+    // The admin's build carries the two edges its typecheck and lint carry, for the
+    // reason the note on `qcms-admin#typecheck` gives: `next build` type-checks the same
+    // program, so it reads the same two dists the admin's own manifest names neither of.
+    // Not observed as a failing run the way the portal's was (#810), and that is the
+    // point of a derived gate rather than a per-race fix.
     "qcms-admin#build": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "@roonga/qcms-db#build", "@roonga/qcms-a2ui-compiler#build"],
       "outputs": [".next/**", "!.next/cache/**", "!.next/dev/**"]
     },
     "test": {
