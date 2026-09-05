@@ -653,7 +653,7 @@ review document is committed and no high-severity finding is open.
 exactly this one under the Code Owner's ruling of 2026-08-15 that #361 tracks
 "zero open high-severity findings" rather than "040 complete".
 
-It does **not** make task 040 complete. **Criterion 4 remains open on #360**: the
+It does **not** make task 040 complete. **Criterion 4 remains open on #360**:
 nothing is published, so the provenance publish cannot be verified. Whoever
 flips 040's ledger row to `done` owes that distinction rather than reading #361's
 closure as the task finishing.
