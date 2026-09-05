@@ -5,7 +5,14 @@ import path from "node:path";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { PLAN_PREFIX, changedFiles, isPlanOnly, parsePaths } from "./ci-plan-only.mjs";
+import {
+  ADMIN_ONLY_PREFIXES,
+  PLAN_PREFIX,
+  changedFiles,
+  isAdminOnly,
+  isPlanOnly,
+  parsePaths,
+} from "./ci-plan-only.mjs";
 
 /**
  * Tests for the CI fast-lane classifier.
@@ -80,6 +87,83 @@ describe("plan-only classification", () => {
 
   it("keeps the prefix anchored with a trailing separator", () => {
     expect(PLAN_PREFIX).toBe("plan/");
+  });
+});
+
+/**
+ * Admin-only classification (issue #696).
+ *
+ * The asymmetry is milder than the plan-only lane's but the same shape. A false
+ * negative costs the full browser suite on a PR that did not need it, which is what
+ * happens today. A false positive runs only `admin-chromium` on a diff that CAN move
+ * a portal surface, so a portal regression merges with a green required context.
+ *
+ * The trap worth being explicit about is `@qcms/ui` and `@qcms/core`: the two apps
+ * share them, so "touches admin" and "cannot reach the portal" are different
+ * questions and only the second one is safe.
+ */
+describe("admin-only classification", () => {
+  it("accepts a diff confined to the admin app", () => {
+    expect(isAdminOnly(["apps/admin/app/(shell)/page.tsx", "apps/admin/e2e/forms.pw.ts"])).toBe(
+      true,
+    );
+  });
+
+  it("accepts an admin diff carrying prose, which is what an admin PR looks like", () => {
+    expect(
+      isAdminOnly([
+        "apps/admin/components/forms/form-page-header.tsx",
+        "docs/features/README.md",
+        "plan/admin-ux-audit.md",
+      ]),
+    ).toBe(true);
+  });
+
+  it("REJECTS a diff touching the shared UI package", () => {
+    // The case the classification exists to get right. `@qcms/ui` renders both apps,
+    // so an admin PR that also moves a control genuinely can break the portal.
+    expect(isAdminOnly(["apps/admin/app/page.tsx", "packages/ui/src/registry.tsx"])).toBe(false);
+  });
+
+  it("REJECTS a diff touching the shared core package", () => {
+    expect(isAdminOnly(["apps/admin/app/page.tsx", "packages/core/src/rules.ts"])).toBe(false);
+  });
+
+  it("rejects anything that touches the portal, the API or the workflow itself", () => {
+    expect(isAdminOnly(["apps/portal/app/page.tsx"])).toBe(false);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", "apps/api/src/routes/forms.ts"])).toBe(false);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", ".github/workflows/ci.yml"])).toBe(false);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", "playwright.config.ts"])).toBe(false);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", "pnpm-lock.yaml"])).toBe(false);
+  });
+
+  it("rejects an EMPTY diff, exactly as the plan-only lane does", () => {
+    // "Saw nothing" must never read as "saw only the admin". Both classifications
+    // inherit the fail-safe posture the `changes` job's own comment states.
+    expect(isAdminOnly([])).toBe(false);
+    expect(isAdminOnly([""])).toBe(false);
+  });
+
+  it("keeps every prefix anchored with a trailing separator", () => {
+    // `apps/administration/` and `docsite/` are not in scope, and without the
+    // separator both would classify as admin-only.
+    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/"]);
+    expect(isAdminOnly(["apps/administration/page.tsx"])).toBe(false);
+    expect(isAdminOnly(["docsite/index.html"])).toBe(false);
+    expect(isAdminOnly(["apps/admin"])).toBe(false);
+  });
+
+  it("preserves a leading space rather than accepting it as an admin path", () => {
+    // The same defect the NUL parse exists for, asserted on the second lane too.
+    expect(isAdminOnly(parsePaths(" apps/admin/evil.ts\0"))).toBe(false);
+  });
+
+  it("classifies a plan-only diff as admin-only too, which changes nothing", () => {
+    // `plan/` is inside both scopes, and `plan_only` is checked first in every job,
+    // so the narrower lane never sees these. Recorded so the overlap is deliberate
+    // rather than discovered.
+    expect(isPlanOnly(["plan/notes.md"])).toBe(true);
+    expect(isAdminOnly(["plan/notes.md"])).toBe(true);
   });
 });
 

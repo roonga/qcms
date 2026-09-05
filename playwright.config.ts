@@ -1,6 +1,7 @@
-import { defineConfig, devices } from "@playwright/test";
+import { chromium, defineConfig, devices } from "@playwright/test";
 
 import { ADMIN_BASE_URL, ADMIN_PORT } from "./apps/admin/e2e/support/harness-config.js";
+import { assertBrowserLibrariesPresent } from "./apps/portal/e2e/support/browser-libs.js";
 import {
   API_BASE_URL,
   API_PORT,
@@ -90,6 +91,15 @@ import {
 // Read BEFORE the preflight, which is what sets the sentinel.
 const FIRST_LOAD = process.env[PREFLIGHT_DONE_VAR] !== "1";
 const ADOPTABLE = seatPreflight();
+
+// The second preflight, after the seat guard and strictly additive to it (issue
+// #249): can the browser this run will launch actually start? Downloaded browsers
+// whose OS libraries are missing fail every test with "Target page, context or
+// browser has been closed", six minutes in and several frames above the real
+// message, and `playwright install` reports nothing wrong. Two `ldd` calls answer it
+// before the first launch. Silent on anything it cannot check, so it can only ever
+// convert a red run into an explained one. See `support/browser-libs.ts`.
+if (FIRST_LOAD) assertBrowserLibrariesPresent(chromium.executablePath());
 
 // Announce the seat ONCE per invocation. A run's own output is then self-describing
 // ("this was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to

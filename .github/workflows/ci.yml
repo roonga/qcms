@@ -72,6 +72,19 @@ jobs:
     timeout-minutes: 5
     outputs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
+      # `admin_only` (issue #696): every changed path is under `apps/admin/`, `docs/`
+      # or `plan/`, so nothing in the diff can move a portal-rendered surface and
+      # `portal-e2e` narrows to the admin Playwright project instead of running the
+      # whole browser suite. It inherits `plan_only`'s posture exactly - unresolvable,
+      # empty or ambiguous means `false`, which means run everything - and it does NOT
+      # mean "the diff touches admin": the two apps share `@qcms/ui` and `@qcms/core`,
+      # so a diff reaching either of those is not admin-only. See
+      # scripts/ci-plan-only.mjs.
+      #
+      # A classifier at the base ref that predates this output writes nothing for it,
+      # which arrives as the empty string, which is not `true`, which is the full run.
+      # That is the intended behaviour on the pull request that introduces it.
+      admin_only: ${{ steps.classify.outputs.admin_only }}
     steps:
       # fetch-depth: 0 because the classifier diffs against the merge base with the
       # base branch, and the default shallow clone does not contain it. Getting this
@@ -107,7 +120,7 @@ jobs:
           set -euo pipefail
           if [ "${GITHUB_EVENT_NAME}" != "pull_request" ]; then
             echo "Event is ${GITHUB_EVENT_NAME}, not pull_request: running the full suite."
-            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
             exit 0
           fi
           if git show "origin/${GITHUB_BASE_REF}:${CLASSIFIER}" > "${RUNNER_TEMP}/classify.mjs"; then
@@ -115,7 +128,7 @@ jobs:
             node "${RUNNER_TEMP}/classify.mjs"
           else
             echo "::warning::ci-plan-only: ${CLASSIFIER} is absent on origin/${GITHUB_BASE_REF}; running the full suite."
-            echo "plan_only=false" >> "$GITHUB_OUTPUT"
+            printf 'plan_only=false\nadmin_only=false\n' >> "$GITHUB_OUTPUT"
           fi
 
   verify:
@@ -430,16 +443,33 @@ jobs:
       - uses: ./.github/actions/assert-no-docker-hub-pulls
         if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
 
-  # The portal browser suite (the ONE Playwright config, 029/ADR-23), as its own
-  # job for signal clarity: when this is red, a respondent-facing surface broke.
+  # THE BROWSER SUITE FOR BOTH FRONTENDS, portal and admin (the ONE Playwright
+  # config, 029/ADR-23), as its own job for signal clarity: when this is red, a
+  # rendered surface broke.
+  #
+  # The job id under-reports what it runs, and deliberately keeps doing so (issue
+  # #493). `pnpm exec playwright test` takes no project filter, and
+  # `playwright.config.ts` carries `admin-chromium` alongside the three portal
+  # viewport projects, so the admin browser suite is covered by a required check
+  # whose NAME says it is not. The name is the defect and the fix would be to call it
+  # `browser-e2e` - but the job id IS the required check context in `protect-main`,
+  # which has no bypass actors, so renaming it is a branch-protection change and not a
+  # workflow change. Until that is made in one deliberate step (rename the job, update
+  # the ruleset's required context, update CONTRIBUTING's CI-mapping row), the scope
+  # is written down here, in the step names below, and in CONTRIBUTING, so a reviewer
+  # asking "what must pass before this merges" gets the true answer from every place
+  # except the context string itself.
+  #
   # It boots a Testcontainers Postgres + the composed API in globalSetup and drives
-  # the Next.js portal in a real browser. This is where the task 030 accessibility
-  # gates ENFORCE: axe (zero violations) on every flow state including post-branch
-  # changes, the keyboard-only walkthrough, reduced-motion/200%-zoom, and Lighthouse
-  # accessibility = 100 on the entry/flow/error/completion pages. Docker is
+  # the Next.js portal and the admin in a real browser. This is where the task 030
+  # accessibility gates ENFORCE: axe (zero violations) on every flow state including
+  # post-branch changes, the keyboard-only walkthrough, reduced-motion/200%-zoom, and
+  # Lighthouse accessibility = 100 on the entry/flow/error/completion pages. Docker is
   # available on ubuntu-latest (anonymous pulls, no registry creds).
+  #
   # Same fast-lane shape as `api-e2e` above: guarded steps, unguarded job, context
-  # still reported.
+  # still reported. It has a second gear the others do not - see `admin_only` on the
+  # `changes` job and the two mutually exclusive run steps below (issue #696).
   portal-e2e:
     runs-on: ubuntu-latest
     # Measured over the same 15 runs: p50 27.1, p95 28.0, max 28.3. This is by far the
@@ -453,6 +483,7 @@ jobs:
     if: ${{ !cancelled() }}
     env:
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
+      ADMIN_ONLY: ${{ needs.changes.outputs.admin_only }}
     steps:
       - uses: actions/checkout@v7
 
@@ -491,10 +522,30 @@ jobs:
       - uses: ./.github/actions/test-postgres-image
         if: env.PLAN_ONLY != 'true'
 
-      # Runs the whole root Playwright config (CI=true, so it never reuses a server
-      # and forbids `test.only`). ~1-2 min including the DB boot and Lighthouse runs.
-      - run: pnpm exec playwright test
-        if: env.PLAN_ONLY != 'true'
+      # The whole root Playwright config (CI=true, so it never reuses a server and
+      # forbids `test.only`): the three portal viewport projects AND `admin-chromium`,
+      # plus the axe, keyboard and Lighthouse accessibility gates.
+      - name: Portal and admin browser suites (all Playwright projects)
+        run: pnpm exec playwright test
+        if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY != 'true'
+
+      # The narrow gear (issue #696). When the diff touches nothing outside
+      # `apps/admin/`, `docs/` and `plan/`, no portal-rendered surface can have moved,
+      # and this job was spending its full ~27 minutes proving it: `portal-e2e` was
+      # the last check still pending on all seven admin PRs merged on 2026-08-27, so
+      # an armed auto-merge sat in BLOCKED long after the admin legs were green.
+      #
+      # The admin project still runs. This narrows the suite to the surface the diff
+      # CAN change rather than skipping the browser gate, which is what keeps the
+      # required context honest: an admin-only PR still has its admin browser coverage
+      # enforced here, on the same job, with the same Postgres and composed API.
+      #
+      # Mutually exclusive with the step above by construction, and the fail-safe
+      # direction is the same as the plan-only lane: an unset, empty or `false`
+      # `admin_only` runs everything.
+      - name: Admin browser suite only (diff cannot reach a portal surface)
+        run: pnpm exec playwright test --project admin-chromium
+        if: env.PLAN_ONLY != 'true' && env.ADMIN_ONLY == 'true'
 
       - uses: ./.github/actions/assert-no-docker-hub-pulls
         if: ${{ !cancelled() && env.PLAN_ONLY != 'true' }}
