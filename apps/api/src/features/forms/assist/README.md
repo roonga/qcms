@@ -12,9 +12,10 @@ the PII boundary statement) is `docs/agent-authoring.md`.
 
 ## Routes
 
-| Method & path                        | Scope (SEC-5) | Notes                                                                               |
-| ------------------------------------ | ------------- | ----------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/draft/assist` | `forms:write` | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`. |
+| Method & path                               | Scope (SEC-5)                    | Notes                                                                                     |
+| ------------------------------------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `POST /admin/forms/:id/draft/assist`        | `forms:write`                    | One agent turn. Body `{ conversation, clientState? }`. Answers `text/event-stream`.       |
+| `POST /admin/forms/:id/draft/assist/accept` | `forms:write`, `questions:write` | The human's Accept. Body `{ definition, newQuestions }`. Answers a saved-draft JSON body. |
 
 **The flag gates the mount, not a handler branch.** With
 `QCMS_FLAG_AGENT_AUTHORING=none` (the default) `registerFormsAssist` registers
@@ -76,7 +77,10 @@ in the other direction: a model that cannot see a warning cannot act on it.
 A proposed question that is not published yet validates as an unpublished pin.
 That is correct rather than a gap: the agent's view of validity and the builder's
 are the same view, so the human is told to publish the question rather than being
-shown a proposal that would fail at publish time.
+shown a proposal that would fail at publish time. Since issue #823 that sentence
+is also true after the accept, because the accept creates the draft the operator
+is told to publish; before it, the pin resolved to nothing at all and the advice
+named a step nobody could perform.
 
 ## The deterministic fake provider
 
@@ -90,14 +94,67 @@ draft that references that run's own fixtures and actually publishes.
 
 A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
-`refusal`, `provider-error`, `no-proposal`. The `rogue-*` scripts exist because a
-hostile model is the threat the allowlist is for, and the only honest way to test
-a refusal is to have something actually attempt the forbidden call.
+`refusal`, `provider-error`, `provider-rejected`, `tool-error-recovered`,
+`propose-questions`, `no-proposal`, `length`, `step-limit`. The `rogue-*` scripts
+exist because a hostile model is the threat the allowlist is for, and the only
+honest way to test a refusal is to have something actually attempt the forbidden
+call.
+
+`propose-questions` is the one script that calls `propose_questions`, and it was
+added with issue #823's fix. Until then the verb had **no e2e consumer at all**:
+every scripted proposal pinned questions the run had already published, so an
+accept that silently discarded the proposed definitions looked green from the
+deterministic lane. A tool the fake provider never calls is a tool the browser
+suite cannot vouch for, which is the same blind spot issue #820 found on the tool
+schemas. The script proposes one question and a step that pins it; the id suffix
+comes from a `#qcms-fake-new:<word>` directive, because accepting **creates** the
+question and a `questionId` is never reused (R6), so a canned id would work once
+against the shared harness database and fail every run after.
 
 ## Accepting a proposal
 
-Accepting is the ordinary draft save (`PUT /admin/forms/:id/draft`) with
-`agentAssisted: true`, which sets a sticky provenance flag on the draft row. The
-builder header and the publish confirmation show it, so the human publishing
-knows what they are signing. An ordinary later save never clears it; discarding
-the draft does, because that removes the row.
+Accepting a proposal that only re-pins **existing library questions** is the
+ordinary draft save (`PUT /admin/forms/:id/draft`) with `agentAssisted: true`,
+which sets a sticky provenance flag on the draft row. The builder header and the
+publish confirmation show it, so the human publishing knows what they are
+signing. An ordinary later save never clears it; discarding the draft does,
+because that removes the row.
+
+Accepting a proposal that carries **new question definitions** goes to
+`POST /admin/forms/:id/draft/assist/accept` instead, and that route is issue
+#823's fix. It stores the draft and materialises every proposed definition as an
+**unpublished question draft** in the library, in one transaction.
+
+Three things about it are decisions rather than details.
+
+**One transaction, not ordered-with-rollback.** Both halves are single-row
+inserts through `@roonga/qcms-db` helpers that take an `Executor`, and the slice
+owns the transaction boundary (R5), so the publish handler's shape applies here
+too: open a transaction, write the questions, write the draft, let a refusal roll
+the lot back. A stored draft therefore never pins a question whose creation
+failed, and no compensating delete has to be written or tested.
+
+**The questions slice's own door, not a second one.** Every proposed definition
+goes through `checkQuestionDefinition` in `features/questions/create.ts`, which
+is the kernel parse plus the authoring-boundary refusals the kernel deliberately
+does not carry - the #453-era `v`-flag pattern check among them. `POST
+/admin/questions` calls the same function and the same
+`createQuestionWithFirstDraft`. An accept is an authoring act by the human who
+pressed Accept, so it meets the boundary a hand-authored question meets, and a
+refused definition fails the **whole** accept with a message naming which
+question and why. Validation runs before the transaction opens, so a refusal
+costs no database work.
+
+**A route of its own, not a field on the draft save.** Accept creates library
+questions, so it needs `questions:write` beside `forms:write`; declaring both on
+`PUT /forms/{id}/draft` would overstate what every keystroke autosave requires.
+And an agent-authoring capability belongs behind the mount flag: a field on the
+core draft route would have handed every `forms:write` caller a second way to
+create questions whether `QCMS_FLAG_AGENT_AUTHORING` was set or not.
+
+The advisories then describe reality. The created drafts resolve, so the pins
+stop being `DANGLING_QUESTION_REF` and become `UNPUBLISHED_QUESTION_PIN` until
+the operator publishes them, which is the resolution step the assistant's own
+narration promises. The builder grid shows an accepted-but-unpublished pin the
+way it shows any unpublished pin, and it resolves fully once the operator
+publishes the question from the library screen.

@@ -33,34 +33,30 @@ import {
   type TextResolver,
 } from "@roonga/qcms-a2ui-compiler";
 import {
-  compilesUnderV,
   LocaleCode,
   parseLocaleCode,
-  parseQuestionDefinition,
   parseQuestionId,
-  toVSafePattern,
   type LocalizedText,
   type QuestionDefinition,
   type QuestionId,
 } from "@roonga/qcms-core";
 import {
-  createQuestion,
   createQuestionVersion,
   deprecateQuestionVersion,
   getQuestion,
   getQuestionVersion,
-  isQuestionIdTaken,
   listQuestionVersions,
   listQuestions,
   listVersionsForQuestions,
   publishQuestionVersion,
   updateDraftDefinition,
 } from "@roonga/qcms-db";
-import type { Executor, QuestionRow, QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
+import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { createQuestionWithFirstDraft, requireQuestionDefinition } from "./create.js";
 import type {
   createQuestionRoute,
   createVersionRoute,
@@ -75,37 +71,14 @@ import type { QuestionListItem, QuestionVersionView } from "./schema.js";
 
 // --- typed failures (envelope codes the admin app keys off, 032) -------------
 
-/**
- * What a definition refusal carries: the kernel's own `QuestionDefinitionError`
- * or an {@link AuthoringIssue} this boundary raises. Structural rather than a
- * union of the two, because the editor reads these by shape - a `code`, a
- * sentence, and the domain `path` that decides which field it lands on.
- */
-interface DefinitionRefusal {
-  readonly code: string;
-  readonly message: string;
-  readonly path?: readonly (string | number)[] | undefined;
-}
-
 const fail = {
   invalidId: (): ApiError => new ApiError("INVALID_QUESTION_ID", 400, "Malformed question id"),
-  invalidDefinition: (issues: readonly DefinitionRefusal[]): ApiError =>
-    new ApiError("INVALID_QUESTION_DEFINITION", 422, "The question definition is invalid", {
-      issues,
-    }),
   idMismatch: (): ApiError =>
     new ApiError(
       "QUESTION_ID_MISMATCH",
       422,
       "The definition's questionId does not match the path id (identity is fixed, R6)",
     ),
-  idReused: (): ApiError =>
-    new ApiError(
-      "QUESTION_ID_REUSED",
-      409,
-      "This questionId has been used before; ids are never reused (R6)",
-    ),
-  slugTaken: (): ApiError => new ApiError("SLUG_TAKEN", 409, "That slug is already in use"),
   questionNotFound: (): ApiError => new ApiError("QUESTION_NOT_FOUND", 404, "No such question"),
   versionNotFound: (): ApiError =>
     new ApiError("VERSION_NOT_FOUND", 404, "No such question version"),
@@ -145,80 +118,6 @@ function requireVersion(v: string): number {
   return n;
 }
 
-/**
- * One boundary refusal, shaped like a kernel definition issue.
- *
- * The shape is the contract rather than the union: the editor lands an issue on
- * the field its `path` names, so a refusal raised here reaches the author on the
- * pattern control exactly as a kernel refinement does. It is deliberately not a
- * `QuestionDefinitionError`, because that enum means "codes the schema's
- * refinements raise" and this rule is not one of them.
- */
-interface AuthoringIssue {
-  readonly code: string;
-  readonly message: string;
-  readonly path: readonly (string | number)[];
-}
-
-/** The code a v-invalid authored pattern is refused with (issue #53). */
-const PATTERN_NOT_BROWSER_SAFE = "PATTERN_NOT_BROWSER_SAFE";
-
-/**
- * The `v`-flag gate on newly authored patterns (issue #53, Code Owner
- * 2026-09-02).
- *
- * Browsers compile the HTML `pattern` attribute with the `v` flag, whose
- * character-class grammar is narrower than the `u` semantics `checkSafePattern`
- * validates against, so a pattern such as `^[A-Za-z][A-Za-z .,'-]{0,99}$` is
- * dropped by the browser with a console error and the field loses its native
- * hint. This refuses such a pattern **at the authoring boundary** rather than in
- * the schema, and that placement is what makes the stance reject-new-only:
- *
- * - a **new or edited** definition arriving through this API is refused here;
- * - **stored** definitions never come back through this path, so already
- *   published content keeps reading and serving unchanged (R1), repaired at
- *   render time by the normalize-or-omit path PR #52 added;
- * - the golden corpus and the seed fixtures parse through
- *   `parseQuestionDefinition` directly, so they are untouched (ADR-18).
- *
- * The message offers the normalized spelling whenever one is provably
- * meaning-preserving. That quotes a rewrite of the caller's own pattern back to
- * the authenticated author who just submitted it, which is why it is built here
- * and not in the kernel: `checkSafePattern` keeps its rule of never echoing a
- * pattern into a parse message.
- */
-function browserSafePatternIssues(definition: QuestionDefinition): AuthoringIssue[] {
-  if (definition.type !== "shortText") return [];
-  const { pattern } = definition.constraints;
-  if (pattern === undefined || compilesUnderV(pattern)) return [];
-
-  const suggestion = toVSafePattern(pattern);
-  const why =
-    "A browser compiles the pattern attribute with the 'v' flag, which rejects this expression, so the field would lose its in-page validation hint";
-  return [
-    {
-      code: PATTERN_NOT_BROWSER_SAFE,
-      message:
-        suggestion === undefined
-          ? `${why}. No equivalent spelling could be derived automatically: rewrite the character class so it compiles under 'v'.`
-          : `${why}. Use "${suggestion}" instead - it matches exactly the same answers.`,
-      path: ["constraints", "pattern"],
-    },
-  ];
-}
-
-/**
- * Validate an opaque definition body through the kernel (422 on failure), then
- * apply the authoring-boundary rules the kernel deliberately does not carry.
- */
-function requireDefinition(value: unknown): QuestionDefinition {
-  const parsed = parseQuestionDefinition(value);
-  if (!parsed.ok) throw fail.invalidDefinition(parsed.error);
-  const boundary = browserSafePatternIssues(parsed.value);
-  if (boundary.length > 0) throw fail.invalidDefinition(boundary);
-  return parsed.value;
-}
-
 /** Shape a stored version row into its response view. */
 function toVersionView(row: QuestionVersionRow): QuestionVersionView {
   return {
@@ -246,31 +145,6 @@ function typeOf(definition: QuestionDefinition): QuestionListItem["type"] {
   return (definition as { type: QuestionListItem["type"] }).type;
 }
 
-/**
- * True for a Postgres unique-violation (SQLSTATE 23505). drizzle wraps the pg
- * error, so the code can sit on the error or on its `cause` - check both.
- */
-function isUniqueViolation(err: unknown): boolean {
-  const codeOf = (e: unknown): string | undefined =>
-    typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
-  return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
-}
-
-/** Insert the library identity, mapping a slug-unique collision to a clean 409. */
-async function insertQuestionRow(
-  exec: Executor,
-  questionId: QuestionId,
-  slug: string,
-): Promise<QuestionRow> {
-  try {
-    const row = await createQuestion(exec, { questionId, slug });
-    return row;
-  } catch (err: unknown) {
-    if (isUniqueViolation(err)) throw fail.slugTaken();
-    throw err;
-  }
-}
-
 // --- POST /admin/questions --------------------------------------------------
 
 export function makeCreateQuestionHandler(
@@ -278,23 +152,14 @@ export function makeCreateQuestionHandler(
 ): RouteHandler<typeof createQuestionRoute, ApiEnv> {
   return async (c) => {
     const body = c.req.valid("json");
-    const definition = requireDefinition(body.definition);
-    const questionId = definition.questionId;
+    const definition = requireQuestionDefinition(body.definition);
 
-    const created = await deps.db.transaction(async (tx) => {
-      // R6: reject any id ever used - including a deprecated/erased one.
-      if (await isQuestionIdTaken(tx, questionId)) throw fail.idReused();
-
-      // R6 passed: insert the identity (slug collision → clean 409) then its
-      // first draft version.
-      const question = await insertQuestionRow(tx, questionId, body.slug);
-      const version = await createQuestionVersion(tx, {
-        questionId,
-        definition,
-      });
-
-      return { question, version };
-    });
+    // The identity check, the identity row and the first draft version are one
+    // atomic decision, and they live in `create.ts` so 041's accept can make the
+    // same one (issue #823) instead of growing a second create path.
+    const created = await deps.db.transaction((tx) =>
+      createQuestionWithFirstDraft(tx, { definition, slug: body.slug }),
+    );
 
     return c.json(
       {
@@ -341,7 +206,7 @@ export function makeEditVersionHandler(deps: Deps): RouteHandler<typeof editVers
     const { id, v } = c.req.valid("param");
     const questionId = requireQuestionId(id);
     const version = requireVersion(v);
-    const definition = requireDefinition(c.req.valid("json").definition);
+    const definition = requireQuestionDefinition(c.req.valid("json").definition);
 
     // Identity is fixed (R6): a draft edit cannot repoint the version's id.
     if (definition.questionId !== questionId) throw fail.idMismatch();
@@ -616,7 +481,7 @@ export function makePreviewQuestionVersionHandler(
     if (row === undefined) throw fail.versionNotFound();
 
     // Stored definitions are kernel-parsed on the way in (create/edit both go
-    // through `requireDefinition`), so the row is a valid QuestionDefinition and
+    // through `requireQuestionDefinition`), so the row is a valid QuestionDefinition and
     // `questionToNode` is total over it - no re-validation here.
     const questionNode = questionToNode(row.definition, previewTextResolver(locale), locale);
 

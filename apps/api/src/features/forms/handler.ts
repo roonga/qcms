@@ -71,6 +71,7 @@ import {
   updateFormSettings,
   upsertDraft,
 } from "@roonga/qcms-db";
+import type { Executor, FormDraftRow } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
@@ -189,6 +190,36 @@ function requireDefinition(value: unknown): FormDefinition {
   if (!parsed.ok) throw fail.invalidDefinition(parsed.error);
   return parsed.value;
 }
+
+/**
+ * The draft-save leg of `PUT /admin/forms/:id/draft`, minus the response.
+ *
+ * Exported for 041's accept (issue #823), which stores the accepted draft in the
+ * **same transaction** that materialises the proposal's new questions. Taking an
+ * `Executor` rather than reaching for `deps.db` is what lets that transaction be
+ * the caller's: the slice owns the boundary, never the helper (R5).
+ *
+ * The parse is the caller's, deliberately. Accept validates every proposed
+ * question *and* the draft before it opens a transaction, so a refusal costs no
+ * database work and cannot leave a half-written accept behind.
+ */
+export async function storeDraftDefinition(
+  exec: Executor,
+  formId: FormId,
+  definition: FormDefinition,
+  agentAssisted: boolean,
+): Promise<FormDraftRow> {
+  // Identity is fixed: a draft save cannot repoint the form's id.
+  if (definition.formId !== formId) throw fail.idMismatch();
+
+  const form = await getForm(exec, formId);
+  if (form === undefined) throw fail.formNotFound();
+
+  return upsertDraft(exec, { formId, definition, agentAssisted });
+}
+
+/** {@link requireDefinition}, exported under a name that says which definition. */
+export const requireFormDefinition = requireDefinition;
 
 /** Key a pin by identity + version. */
 function pinKey(questionId: QuestionId, version: number): string {
@@ -497,21 +528,18 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const definition = requireDefinition(c.req.valid("json").definition);
-    // Identity is fixed: a draft save cannot repoint the form's id.
-    if (definition.formId !== formId) throw fail.idMismatch();
-
-    const form = await getForm(deps.db, formId);
-    if (form === undefined) throw fail.formNotFound();
 
     // Save first (drafts may be temporarily inconsistent), then advise. Advisory
     // issues do not block the save; they block publish.
-    const saved = await upsertDraft(deps.db, {
+    //
+    // 041: an accepted agent proposal marks the draft's provenance. Sticky in
+    // the query, so a plain save after one never clears the mark.
+    const saved = await storeDraftDefinition(
+      deps.db,
       formId,
       definition,
-      // 041: an accepted agent proposal marks the draft's provenance. Sticky in
-      // the query, so a plain save after one never clears the mark.
-      agentAssisted: c.req.valid("json").agentAssisted ?? false,
-    });
+      c.req.valid("json").agentAssisted ?? false,
+    );
     const { issues, warnings } = await validateDraft(deps, definition);
 
     return c.json(

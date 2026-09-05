@@ -7,6 +7,8 @@ import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
   addStep,
   createForm,
+  openStep,
+  pinLabel,
   pinQuestion,
   savedStamp,
   waitForSaveAfter,
@@ -203,4 +205,91 @@ test("refuses a scripted rogue tool call and proposes nothing (exit criterion 4)
   // reached for a forbidden verb does not get the rest of its work accepted.
   await expect(page.getByTestId("qcms-assist-error")).toBeVisible({ timeout: 60_000 });
   await expect(page.getByTestId("qcms-assist-proposal")).toHaveCount(0);
+});
+
+/**
+ * Accepting a proposal that invented a question (issue #823).
+ *
+ * The deterministic lane never drove this path before, and that is exactly how the
+ * defect shipped: every scripted proposal pinned questions the run had already
+ * published, so `propose_questions` had no e2e consumer at all and an accept that
+ * silently discarded its output looked green from here. The `propose-questions`
+ * script exists to close that, and this test is its consumer.
+ *
+ * What it pins is the whole ADR-25 sentence, in order: the agent proposes, the
+ * kernel validates on accept, and the human publishes. The middle step is the one
+ * that used to be missing - the pin resolved to nothing, so the "publish it" advice
+ * named a step that could not be performed.
+ *
+ * Its own form, deliberately. The forms above are published and re-read by three
+ * later tests; a proposal carrying an unpublished pin cannot publish until someone
+ * publishes the question, and threading that through their fixture would have made
+ * them depend on a two-stage publish they are not about.
+ */
+test("accepting a proposal creates its new question as an unpublished library draft (#823)", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const newFormId = await createForm(page, `e2e-assist-new-q-${RUN}`, "Onboarding");
+  // A step with a pin, so the builder's autosave is not paused by an empty step and
+  // the proposal has something to be a diff against.
+  await addStep(page, "Start");
+  await pinQuestion(page, questionIdFor(FIRST), 1);
+  await waitForSaved(page);
+
+  // R6: the id is never reused, and this harness database survives a local rerun, so
+  // the run tag rides into the id the script invents.
+  const proposedId = `q_fake_new_${RUN.replace(/[^a-z0-9_]/gu, "")}`;
+
+  await send(page, `#qcms-fake:propose-questions #qcms-fake-new:${RUN} add a name question`);
+
+  const proposal = page.getByTestId("qcms-assist-proposal");
+  await expect(proposal).toBeVisible({ timeout: 60_000 });
+
+  // Before the accept the pin resolves to nothing, because nothing has created it.
+  // This is the honest state, and it is the one the operator used to be left in.
+  await expect(page.getByTestId("qcms-assist-validation")).toContainText("does not resolve", {
+    timeout: 30_000,
+  });
+
+  const previousSave = await savedStamp(page);
+  await page.getByTestId("qcms-assist-accept").locator("button").click();
+  await waitForSaveAfter(page, previousSave);
+
+  // The advisory now describes reality: the pin resolves to a stored version, and what
+  // is left is the publish step - which the operator can actually perform.
+  //
+  // The region rather than `qcms-validation-status`, which carries only the count
+  // sentence; the issue's own wording is in the list beside it. Both are asserted,
+  // because the two claims are different: the COUNT is that the advisory set matches
+  // the created set exactly (one question proposed, one created, one thing left to
+  // do), and the WORDING is that what is left is publishing rather than the dangling
+  // reference the same pin produced one moment earlier.
+  const validation = page.getByRole("region", { name: "Validation" });
+  await expect(validation.getByTestId("qcms-issue-summary")).toContainText("1 issue", {
+    timeout: 30_000,
+  });
+  await expect(validation).toContainText("can only pin a published version");
+  await expect(validation).not.toContainText("does not resolve");
+
+  // The step's grid resolves the pin to its real label and marks it unpublished,
+  // rather than the "Unknown / Version not found" the missing row produced.
+  await openStep(page, "About you");
+  await expect(pinLabel(page, proposedId, 1)).toContainText("Preferred name");
+  await expect(pinLabel(page, proposedId, 1)).toContainText("Unpublished version");
+
+  // The human publishes. Nothing about this is agent-specific: it is the library
+  // screen's own lifecycle control on an ordinary draft version.
+  await page.goto(`/questions/${proposedId}`);
+  await expect(page.getByRole("heading", { name: proposedId })).toBeVisible({ timeout: 30_000 });
+  await confirmLifecycle(page, /^Publish version 1$/, "Publish");
+
+  // And the pin resolves fully: the chip is gone and the form has nothing blocking it.
+  await page.goto(`/forms/${newFormId}`);
+  await openStep(page, "About you");
+  await expect(pinLabel(page, proposedId, 1)).not.toContainText("Unpublished version", {
+    timeout: 30_000,
+  });
 });

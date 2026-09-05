@@ -23,8 +23,8 @@ import { errorResponses, withScopes, type ApiEnv } from "../../../openapi.js";
 import { clientAddress } from "../../../client-address.js";
 import { rateLimit } from "../../../rate-limit.js";
 import { FormIdParam } from "../schema.js";
-import { makeAssistHandler } from "./handler.js";
-import { AssistBody } from "./schema.js";
+import { makeAcceptProposalHandler, makeAssistHandler } from "./handler.js";
+import { AcceptProposalBody, AcceptProposalResponse, AssistBody } from "./schema.js";
 
 const tags = ["forms"];
 
@@ -36,7 +36,8 @@ export const assistRoute = createRoute({
     "One agent turn over the form's current draft. The response is a `text/event-stream` of " +
     "assist events; the terminal `proposal` event carries the proposed draft, any proposed new " +
     "questions, a rationale, and the advisory publish issues the server computed for it. " +
-    "The agent can never publish: accepting a proposal is a normal draft save by the human.",
+    "The agent can never publish: accepting a proposal stores a draft and unpublished question " +
+    "drafts, and a human publishes them.",
   tags,
   request: {
     params: FormIdParam,
@@ -49,6 +50,46 @@ export const assistRoute = createRoute({
     ...errorResponses(400, 401, 404, 409, 429),
   },
   ...withScopes("forms:write"),
+});
+
+/**
+ * Accepting a proposal (issue #823).
+ *
+ * A route of its own rather than a field on `PUT /forms/{id}/draft`, and that is
+ * the design decision this file records. Accept creates library questions, so
+ * the surface that offers it needs `questions:write` as well as `forms:write` -
+ * declaring both on the ordinary draft save would overstate what every keystroke
+ * autosave requires. And accept is an agent-authoring capability: gating the
+ * mount keeps it out of a default build entirely (ADR-09), where a field on the
+ * core draft route would have handed every `forms:write` caller a second way to
+ * create questions whether the flag was on or not.
+ */
+export const acceptProposalRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/draft/assist/accept",
+  summary:
+    "Accept an agent proposal: save the draft and create its new questions (admin, flag-gated)",
+  description:
+    "Stores the accepted draft with agent provenance and materialises the proposal's new " +
+    "question definitions as UNPUBLISHED question drafts in the library, in one transaction. " +
+    "Each definition passes the same kernel and authoring-boundary validation " +
+    "`POST /admin/questions` applies; a refused definition fails the whole accept and nothing " +
+    "is written. Publishing the created drafts stays a separate human act (ADR-25).",
+  tags,
+  request: {
+    params: FormIdParam,
+    body: { required: true, content: { "application/json": { schema: AcceptProposalBody } } },
+  },
+  responses: {
+    200: {
+      description: "The saved draft, its advisory issues, and the question drafts created",
+      content: { "application/json": { schema: AcceptProposalResponse } },
+    },
+    // 409: a proposed questionId was already used (R6) or its slug is taken.
+    // 422: the draft or one of the proposed definitions did not validate.
+    ...errorResponses(400, 401, 404, 409, 422),
+  },
+  ...withScopes("forms:write", "questions:write"),
 });
 
 /**
@@ -73,6 +114,11 @@ function assistLimiter(deps: Deps) {
 
 export const registerFormsAssist: SliceRegistrar = (group, deps: Deps): void => {
   if (deps.config.agent.provider === "none") return;
+  // Hono matches a `use` path exactly unless it ends in `*`, so the turn limiter
+  // covers `/draft/assist` and not `/draft/assist/accept`. That is deliberate:
+  // the ceiling exists to bound upstream provider calls, and an accept makes
+  // none - it is an ordinary admin write, limited like every other one.
   group.use("/forms/:id/draft/assist", assistLimiter(deps));
   group.openapi(assistRoute, makeAssistHandler(deps));
+  group.openapi(acceptProposalRoute, makeAcceptProposalHandler(deps));
 };

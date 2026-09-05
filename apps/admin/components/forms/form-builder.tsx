@@ -152,7 +152,11 @@ export function FormBuilder({
    * Read from the request's cookie by the page, so the first render is already right.
    */
   readonly concurrentNoticeRead: boolean;
-  readonly saveDraft: (draft: DraftForm, agentAssisted?: boolean) => Promise<SaveDraftState>;
+  readonly saveDraft: (
+    draft: DraftForm,
+    agentAssisted?: boolean,
+    newQuestions?: readonly unknown[],
+  ) => Promise<SaveDraftState>;
   readonly validateDraft: (draft: DraftForm) => Promise<ValidateDraftState>;
   readonly updateSettings: (patch: {
     challengeRequired?: boolean;
@@ -242,6 +246,15 @@ export function FormBuilder({
   // mode this component stays in.
   const pendingAgentAssisted = useRef(false);
 
+  // Task 041 / issue #823: the proposal's NEW question definitions, waiting for the save
+  // that will create them. Held until a save actually succeeds, not cleared on read like
+  // the marker above, and the difference is the point. The accepted draft PINS these
+  // questions, so a save that stores the draft without creating them is exactly the
+  // defect #823 reports. If the accept is refused - a definition the authoring boundary
+  // will not take - nothing was written, and the next save must try the whole thing
+  // again rather than quietly storing dangling pins.
+  const pendingNewQuestions = useRef<readonly unknown[]>([]);
+
   // The three actions live in a ref, and that is not a style choice. They arrive already
   // bound to this route's form id, so the page hands down a NEW function identity on every
   // server render - and a successful save calls `revalidatePath`, which causes one. An
@@ -268,7 +281,12 @@ export function FormBuilder({
       void (async () => {
         const agentAssistedSave = pendingAgentAssisted.current;
         pendingAgentAssisted.current = false;
-        const saved = await actions.current.saveDraft(draft, agentAssistedSave ? true : undefined);
+        const newQuestions = pendingNewQuestions.current;
+        const saved = await actions.current.saveDraft(
+          draft,
+          agentAssistedSave || newQuestions.length > 0 ? true : undefined,
+          newQuestions,
+        );
         if (saved.status === "error") {
           // The verdict is left exactly as it was, which on a first save means still
           // absent. `saved.issues` is the empty list a failed read supplies, and writing
@@ -278,6 +296,9 @@ export function FormBuilder({
           setStatus("error");
           return;
         }
+        // Created, so nothing is left to create. Cleared only here: a refused accept
+        // leaves them pending so the retry is the whole accept again.
+        pendingNewQuestions.current = [];
         setIssues(saved.issues);
         setWarnings(saved.warnings);
         setSaveError(undefined);
@@ -463,6 +484,12 @@ export function FormBuilder({
    * for the save the debounce above will run next. The builder's own autosave and
    * validation loop is what actually stores this - nothing here calls `saveDraft`.
    *
+   * The proposal's new question definitions ride along on that same save (issue #823).
+   * They are stored in one transaction with the draft that pins them, so the accept
+   * either produces a draft plus its unpublished question drafts or produces nothing:
+   * there is no state in which this screen shows a pin to a question no create ever
+   * made, which is what it used to render as "Unknown / Version not found".
+   *
    * The selection needs looking at first, and this is the one edit in the builder that
    * can invalidate it wholesale. Every other mutation changes a part of the draft; a
    * proposal REPLACES it, so the step this screen is showing may simply not be in what
@@ -473,8 +500,9 @@ export function FormBuilder({
    * branch renders `null` - one press after the author accepted a change they were
    * told would rewrite the form, with nothing on screen saying so.
    */
-  function acceptAssistProposal(proposedDraft: DraftForm) {
+  function acceptAssistProposal(proposedDraft: DraftForm, newQuestions: readonly unknown[]) {
     pendingAgentAssisted.current = true;
+    pendingNewQuestions.current = newQuestions;
     if (
       selection.kind === "step" &&
       !proposedDraft.steps.some((step) => step.stepId === selection.stepId)

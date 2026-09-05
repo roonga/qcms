@@ -397,6 +397,207 @@ describe("the assist slice over HTTP", () => {
   );
 });
 
+/**
+ * Accepting a proposal that carries NEW questions (issue #823).
+ *
+ * The defect these pin: accept used to store a draft pinning `q_first_name@1`
+ * while the `questions` table stayed empty, so the builder rendered "Version not
+ * found" and the assistant's promise that the warning "will resolve once the
+ * question is published" named a publish step that could not be performed. What
+ * accept has to produce instead is the human-publishes half of ADR-25: the
+ * question drafts exist, unpublished, and the advisories say exactly that.
+ */
+describe("accepting a proposal with new questions", () => {
+  /** A shortText definition the kernel takes and the authoring boundary allows. */
+  function questionDefinition(id: string, label: string): Record<string, unknown> {
+    return { questionId: id, type: "shortText", label: { en: label } };
+  }
+
+  async function accept(
+    formId: string,
+    questionIds: readonly string[],
+    newQuestions: readonly unknown[],
+  ): Promise<Response> {
+    return post(`/forms/${formId}/draft/assist/accept`, {
+      definition: draftFor(formId, questionIds),
+      newQuestions,
+    });
+  }
+
+  /** Every refusal record the API has written so far, oldest first. */
+  function refusalLines(): Record<string, unknown>[] {
+    return logLines.filter((line) => line["msg"] === "agent proposal refused");
+  }
+
+  async function storedVersions(id: string): Promise<{ version: number; status: string }[]> {
+    const rows = await listQuestionVersions(testDb.db, QuestionId.parse(id));
+    return rows.map((row) => ({ version: row.version, status: row.status }));
+  }
+
+  it(
+    "creates exactly the proposed questions as unpublished drafts, and stores the draft that pins them",
+    async () => {
+      await post("/forms", { formId: "frm_new_q", slug: "new-q", defaultLocale: "en" });
+
+      const res = await accept(
+        "frm_new_q",
+        ["q_first_name", "q_last_name"],
+        [
+          { definition: questionDefinition("q_first_name", "First name") },
+          { definition: questionDefinition("q_last_name", "Last name") },
+        ],
+      );
+      expect(res.status).toBe(200);
+
+      const body = (await res.json()) as {
+        agentAssisted: boolean;
+        createdQuestions: { questionId: string; slug: string; version: number; status: string }[];
+        issues: { code: string; path?: { question?: string } }[];
+      };
+
+      // Exactly those two, at version 1, DRAFT. Accept creates; it never publishes.
+      expect(body.createdQuestions).toEqual([
+        { questionId: "q_first_name", slug: "first-name", version: 1, status: "draft" },
+        { questionId: "q_last_name", slug: "last-name", version: 1, status: "draft" },
+      ]);
+      expect(body.agentAssisted).toBe(true);
+
+      // The rows are really there, and really unpublished.
+      expect(await storedVersions("q_first_name")).toEqual([{ version: 1, status: "draft" }]);
+      expect(await storedVersions("q_last_name")).toEqual([{ version: 1, status: "draft" }]);
+
+      // The advisories now describe reality. Nothing dangles - every pin resolves to
+      // a stored version - and the set of "publish this first" findings is exactly
+      // the set that was created.
+      expect(body.issues.filter((issue) => issue.code === "DANGLING_QUESTION_REF")).toEqual([]);
+      const unpublished = body.issues
+        .filter((issue) => issue.code === "UNPUBLISHED_QUESTION_PIN")
+        .map((issue) => issue.path?.question);
+      expect(unpublished).toEqual(["q_first_name", "q_last_name"]);
+
+      // And the draft that pins them is stored, not merely echoed.
+      const draft = await getDraft(testDb.db, "frm_new_q" as never);
+      expect(draft?.agentAssisted).toBe(true);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "creates nothing when the proposal references only library questions",
+    async () => {
+      await seedPublishedQuestion("q_library_only", "Library only");
+      await post("/forms", { formId: "frm_lib_only", slug: "lib-only", defaultLocale: "en" });
+
+      const before = await testDb.client.query(`select count(*)::int as n from questions`);
+      const res = await accept("frm_lib_only", ["q_library_only"], []);
+      expect(res.status).toBe(200);
+
+      const body = (await res.json()) as {
+        createdQuestions: unknown[];
+        issues: { code: string }[];
+      };
+      expect(body.createdQuestions).toEqual([]);
+      const after = await testDb.client.query(`select count(*)::int as n from questions`);
+      expect(after.rows[0]).toEqual(before.rows[0]);
+
+      // A pin to a published library question is clean: nothing to publish first.
+      expect(body.issues).toEqual([]);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "fails the WHOLE accept when the authoring boundary refuses a proposed definition",
+    async () => {
+      await seedPublishedQuestion("q_ok_pin", "Fine");
+      const before = await seedForm("frm_refused", ["q_ok_pin"]);
+
+      const res = await accept(
+        "frm_refused",
+        ["q_ok_pin", "q_good_one", "q_bad_pattern"],
+        [
+          { definition: questionDefinition("q_good_one", "Good one") },
+          {
+            definition: {
+              ...questionDefinition("q_bad_pattern", "Bad pattern"),
+              // Valid to the kernel, refused at the authoring boundary: a browser
+              // compiles `pattern` with the `v` flag and drops this one (issue #53).
+              constraints: { pattern: "^[A-Za-z][A-Za-z .,'-]{0,99}$" },
+            },
+          },
+        ],
+      );
+
+      expect(res.status).toBe(422);
+      const body = (await res.json()) as {
+        error: { code: string; message: string; details?: { questionId?: string } };
+      };
+      expect(body.error.code).toBe("INVALID_QUESTION_DEFINITION");
+      // Which question, and why: the operator is looking at a card listing three.
+      expect(body.error.message).toContain("q_bad_pattern");
+      expect(body.error.message).toContain("'v' flag");
+      expect(body.error.details?.questionId).toBe("q_bad_pattern");
+
+      // The boundary refusal takes the same record, with its own `reason`.
+      expect(refusalLines().at(-1)).toMatchObject({
+        formId: "frm_refused",
+        questionId: "q_bad_pattern",
+        reason: "INVALID_QUESTION_DEFINITION",
+      });
+
+      // No half-accepted state. Neither proposed question exists - not even the one
+      // that was fine - and the stored draft is untouched.
+      expect(await storedVersions("q_good_one")).toEqual([]);
+      expect(await storedVersions("q_bad_pattern")).toEqual([]);
+      const draft = await getDraft(testDb.db, "frm_refused" as never);
+      expect(draft?.agentAssisted).toBe(false);
+      expect(draft?.updatedAt.toISOString()).toBe(before);
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "refuses a proposed id that has been used before, and creates nothing (R6)",
+    async () => {
+      await seedPublishedQuestion("q_taken_id", "Taken");
+      await post("/forms", { formId: "frm_reuse", slug: "reuse", defaultLocale: "en" });
+
+      const res = await accept(
+        "frm_reuse",
+        ["q_taken_id", "q_fresh_one"],
+        [
+          { definition: questionDefinition("q_fresh_one", "Fresh") },
+          { definition: questionDefinition("q_taken_id", "Reused") },
+        ],
+      );
+
+      expect(res.status).toBe(409);
+      // The envelope names the question, because the accept refused a list and the
+      // operator is looking at a card that lists several.
+      expect((await res.json()) as { error: { code: string; details?: unknown } }).toMatchObject({
+        error: { code: "QUESTION_ID_REUSED", details: { questionId: "q_taken_id" } },
+      });
+      // One transaction: the first insert rolled back with the second's refusal.
+      expect(await storedVersions("q_fresh_one")).toEqual([]);
+      expect(await storedVersions("q_taken_id")).toEqual([{ version: 1, status: "published" }]);
+
+      // Every refusal is recorded, not only the authoring-boundary one, and under the
+      // same event name so the three are counted together. A refused accept is the one
+      // outcome an operator cannot reconstruct from the screen: the proposal that
+      // caused it is gone the moment they ask the assistant again.
+      const refusal = refusalLines().at(-1);
+      expect(refusal).toMatchObject({
+        formId: "frm_reuse",
+        questionId: "q_taken_id",
+        reason: "QUESTION_ID_REUSED",
+      });
+      // Never the definition itself (SEC-8), on any refusal path.
+      expect(JSON.stringify(refusal)).not.toContain("Reused");
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
 describe("the assist slice when the flag is none", () => {
   it(
     "404s for an authenticated admin, because the route is not mounted",
@@ -405,16 +606,26 @@ describe("the assist slice when the flag is none", () => {
       const offApp = createApp(offDeps, ADMIN_ONLY, {
         groups: { admin: [registerAdminAuth, registerForms, registerFormsAssist] },
       });
+      const headers = {
+        "content-type": "application/json",
+        "x-qcms-internal-token": internalTokenFor(offDeps.config),
+        [ADMIN_SESSION_HEADER]: adminSessionToken,
+      };
       const res = await offApp.request("/admin/forms/frm_assist/draft/assist", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-qcms-internal-token": internalTokenFor(offDeps.config),
-          [ADMIN_SESSION_HEADER]: adminSessionToken,
-        },
+        headers,
         body: JSON.stringify({ conversation: [{ role: "user", content: "hi" }] }),
       });
       expect(res.status).toBe(404);
+
+      // Accept goes with it (issue #823). Gating the mount is what keeps a
+      // default build from carrying a second way to create library questions.
+      const accept = await offApp.request("/admin/forms/frm_assist/draft/assist/accept", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ definition: draftFor("frm_assist", []), newQuestions: [] }),
+      });
+      expect(accept.status).toBe(404);
     },
     BOOT_TIMEOUT,
   );

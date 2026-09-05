@@ -17,13 +17,19 @@ import {
   listQuestionVersions,
   listQuestions,
 } from "@roonga/qcms-db";
+import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
-import { validateDraft } from "../handler.js";
-import type { assistRoute } from "./route.js";
+import {
+  checkQuestionDefinition,
+  createQuestionWithFirstDraft,
+  type DefinitionRefusal,
+} from "../../questions/create.js";
+import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../handler.js";
+import type { acceptProposalRoute, assistRoute } from "./route.js";
 import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./types.js";
 
 const fail = {
@@ -34,6 +40,22 @@ const fail = {
       "DRAFT_STALE",
       409,
       "The draft changed since this conversation started; reload the builder and try again",
+    ),
+  /**
+   * A proposed definition the authoring boundary refused, named.
+   *
+   * The whole accept fails on this, and the sentence has to carry **which**
+   * question and **why**: the operator is looking at a proposal card listing
+   * several questions, and "the question definition is invalid" would leave them
+   * to guess which one. The envelope code is the questions slice's own, so an
+   * admin that already renders a refused create renders this unchanged.
+   */
+  proposedQuestionRefused: (questionId: string, issues: readonly DefinitionRefusal[]): ApiError =>
+    new ApiError(
+      "INVALID_QUESTION_DEFINITION",
+      422,
+      `Proposed question "${questionId}" was refused: ${issues[0]?.message ?? "the definition is invalid"} Nothing was saved.`,
+      { questionId, issues },
     ),
 };
 
@@ -215,5 +237,185 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
         "x-accel-buffering": "no",
       },
     });
+  };
+}
+
+// --- POST /admin/forms/:id/draft/assist/accept ------------------------------
+
+/**
+ * The library slug a proposed question gets when the proposal does not name one.
+ *
+ * A `questionId` is `q_[a-z0-9_]+` (002), so dropping the prefix and spelling
+ * the separators as hyphens always yields a usable slug: `q_first_name` becomes
+ * `first-name`. Derived rather than invented so the operator can predict it, and
+ * a collision with an existing slug is a clean `SLUG_TAKEN` 409 that fails the
+ * whole accept rather than a silently mangled name.
+ */
+function slugFor(questionId: string): string {
+  return questionId.replace(/^q_/, "").replace(/_/g, "-");
+}
+
+/**
+ * The identity a refused definition is reported under, read positionally.
+ *
+ * The value failed to parse, so there is no kernel-blessed id to quote; the
+ * `questionId` field is read off the raw object when it is a string precisely so
+ * the operator hears the name the agent used. `"(unnamed)"` is the honest answer
+ * when even that is missing.
+ */
+function proposedIdOf(value: unknown): string {
+  const id = (value as { questionId?: unknown } | null)?.questionId;
+  return typeof id === "string" && id !== "" ? id : "(unnamed)";
+}
+
+/** What one created question is, so the accumulator below is not an evolving array. */
+type CreatedQuestion = { question: QuestionRow; version: QuestionVersionRow };
+
+/** The envelope code an `ApiError` carries, for the refusal record's `reason`. */
+function codeOf(error: unknown): string {
+  return error instanceof ApiError ? error.code : "UNKNOWN";
+}
+
+/**
+ * One refused accept, recorded (issue #823).
+ *
+ * **Every** refusal takes this path, not only the authoring-boundary one: a
+ * proposed id the library has used before (R6) and a slug collision are refusals
+ * with the same consequence - the whole accept fails and nothing is written - and
+ * a rising rate of any of them is the same operational signal, that a configured
+ * model is producing definitions this deployment cannot take. One event name and
+ * one attribute shape, so the three are counted together and told apart by
+ * `reason`.
+ *
+ * Ids and codes, never the definition (SEC-8's habit applied to authoring content
+ * too). A refused accept is the one outcome an operator cannot reconstruct from
+ * the screen, because the proposal that caused it is gone the moment they ask the
+ * assistant again. What actually leaves the process is narrower still: every
+ * attribute here is absent from the OTLP allowlist's `SAFE_ATTRIBUTES` and is
+ * dropped on export, so a collector sees the event name and its count. That is
+ * load-bearing for `questionId`, which on a boundary refusal is an id a *model*
+ * invented, read positionally off a definition that failed to parse.
+ */
+function logRefusal(
+  deps: Deps,
+  formId: FormId,
+  questionId: string,
+  reason: string,
+  issues: readonly DefinitionRefusal[],
+): void {
+  deps.logger.warn("agent proposal refused", {
+    formId,
+    questionId,
+    reason,
+    issues: issues.map((issue) => issue.code),
+  });
+}
+
+/**
+ * Accept an agent proposal: store the draft **and** materialise the proposal's
+ * new question definitions as unpublished drafts in the library (issue #823).
+ *
+ * ADR-25's third clause is the whole point. Before this route, accepting a
+ * proposal that carried new questions saved a draft pinning ids nothing had ever
+ * created: the builder honestly rendered "Version not found", the assistant
+ * promised a `DANGLING_QUESTION_REF` that "will resolve once the question is
+ * published", and there was no draft to publish. The human-publishes step has to
+ * exist for the agent-proposes step to mean anything.
+ *
+ * **One transaction, not ordered-with-rollback.** Both writes are single-row
+ * inserts through `@roonga/qcms-db` helpers that take an `Executor`, and this
+ * slice owns the boundary (R5, `apps/api/CONTRIBUTING.md`), so the cheap correct
+ * shape is the one the publish handler already uses: open a transaction, write
+ * the questions, write the draft, and let a refusal roll the lot back. A draft
+ * therefore never pins a question whose creation failed, and no compensating
+ * delete has to be written or tested.
+ *
+ * **Kernel validation happens before the transaction opens.** Every proposed
+ * definition goes through `checkQuestionDefinition`, the questions slice's own
+ * door - the kernel parse plus the authoring-boundary refusals the kernel does
+ * not carry, the #453-era `v`-flag pattern check among them. A proposal is an
+ * authoring act by the human who pressed Accept, so it meets the boundary a
+ * hand-authored question meets. Validating first means a refusal costs no
+ * database work at all, and the operator is told which question and why.
+ *
+ * The advisories then describe reality: the created drafts resolve, so the pins
+ * stop being `DANGLING_QUESTION_REF` and become `UNPUBLISHED_QUESTION_PIN` until
+ * the operator publishes them - which is exactly the resolution step the
+ * assistant's narration promises.
+ */
+export function makeAcceptProposalHandler(
+  deps: Deps,
+): RouteHandler<typeof acceptProposalRoute, ApiEnv> {
+  return async (c) => {
+    const parsedId = parseFormId(c.req.valid("param").id);
+    if (!parsedId.ok) throw fail.invalidId();
+    const formId: FormId = parsedId.value;
+
+    const body = c.req.valid("json");
+    const definition = requireFormDefinition(body.definition);
+
+    // Validate every proposed question first: no transaction is opened for a
+    // proposal the boundary is going to refuse, and the refusal names it.
+    const proposed = body.newQuestions.map((entry) => {
+      const checked = checkQuestionDefinition(entry.definition);
+      if (!checked.ok) {
+        const questionId = proposedIdOf(entry.definition);
+        logRefusal(deps, formId, questionId, "INVALID_QUESTION_DEFINITION", checked.issues);
+        throw fail.proposedQuestionRefused(questionId, checked.issues);
+      }
+      return {
+        definition: checked.definition,
+        slug: entry.slug ?? slugFor(checked.definition.questionId),
+      };
+    });
+
+    const stored = await deps.db.transaction(async (tx) => {
+      const created: CreatedQuestion[] = [];
+      for (const question of proposed) {
+        // Sequential rather than concurrent: these share one connection handle,
+        // and an id or slug collision has to be attributable to a question.
+        try {
+          created.push(await createQuestionWithFirstDraft(tx, question));
+        } catch (error) {
+          // The 409s (R6 id reuse, slug collision) are refusals too, and they get the
+          // same record for the same reason the 422 does. Logging here rather than in
+          // `create.ts` keeps that module loggerless: it is the questions slice's
+          // authoring door, shared with `POST /admin/questions`, and a create that is
+          // one request rather than one of several has nothing to disambiguate.
+          logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
+          throw error;
+        }
+      }
+      const draft = await storeDraftDefinition(tx, formId, definition, true);
+      return { created, draft };
+    });
+
+    deps.logger.info("agent proposal accepted", {
+      formId,
+      createdQuestions: stored.created.length,
+    });
+
+    // Advisory validation runs after the commit, so it sees the drafts this
+    // accept just created - the count the panel shows is the truth about the
+    // library, not about the library one transaction ago.
+    const { issues, warnings } = await validateDraft(deps, definition);
+
+    return c.json(
+      {
+        draft: definition,
+        issues,
+        warnings: [...warnings],
+        agentAssisted: stored.draft.agentAssisted,
+        updatedAt: stored.draft.updatedAt.toISOString(),
+        createdQuestions: stored.created.map(({ question, version }) => ({
+          questionId: question.questionId,
+          slug: question.slug,
+          version: version.version,
+          // Always a draft: accept creates, it never publishes (ADR-25).
+          status: "draft" as const,
+        })),
+      },
+      200,
+    );
   };
 }

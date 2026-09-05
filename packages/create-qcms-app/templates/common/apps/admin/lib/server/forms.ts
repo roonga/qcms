@@ -128,12 +128,20 @@ export const getForm: (session: AdminSession, formId: string) => Promise<ApiResu
  * are read back rather than assumed: whether this draft still carries the marker (and
  * what its fresh `clientState` token is, for the next assist call) is the server's
  * answer, not this app's guess.
+ *
+ * **One accept carrying proposed questions goes to a different endpoint** (issue
+ * #823): `POST .../draft/assist/accept` stores the draft and creates those question
+ * drafts in one transaction, because a draft that pins a question nothing created is
+ * the defect that route exists to close. Choosing between the two here is proxy
+ * routing, not business logic (R2) - which endpoint answers "save this accept" is a
+ * fact about the API, and both answer with the same body.
  */
 export async function saveDraft(
   session: AdminSession,
   formId: string,
   definition: DraftForm,
   agentAssisted?: boolean,
+  newQuestions?: readonly unknown[],
 ): Promise<
   ApiResult<{
     readonly issues: readonly FormIssue[];
@@ -142,16 +150,27 @@ export async function saveDraft(
     readonly updatedAt: string;
   }>
 > {
+  const accepting = newQuestions !== undefined && newQuestions.length > 0;
+  const draftPath = `/forms/${encodeURIComponent(formId)}/draft` as const;
+
   const result = await read<{
     issues?: unknown;
     warnings?: unknown;
     agentAssisted?: unknown;
     updatedAt?: unknown;
   }>(
-    await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/draft`, {
-      method: "PUT",
-      body: agentAssisted === undefined ? { definition } : { definition, agentAssisted },
-    }),
+    accepting
+      ? await adminApiFetch(session, `${draftPath}/assist/accept`, {
+          method: "POST",
+          body: {
+            definition,
+            newQuestions: newQuestions.map((question) => ({ definition: question })),
+          },
+        })
+      : await adminApiFetch(session, draftPath, {
+          method: "PUT",
+          body: agentAssisted === undefined ? { definition } : { definition, agentAssisted },
+        }),
   );
   if (!result.ok) return result;
   return {

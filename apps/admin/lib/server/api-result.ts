@@ -39,13 +39,33 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   const body: unknown = await response.json().catch(() => undefined);
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
   const code = typeof envelope?.code === "string" ? envelope.code : `http_${response.status}`;
-  const details = envelope?.details as { issues?: unknown } | undefined;
+  const details = envelope?.details as { issues?: unknown; questionId?: unknown } | undefined;
   return {
     ok: false,
     code,
-    message: messageForFormCode(code),
+    // `details.questionId` and the first issue's sentence are what let a refused
+    // accept say which question and why (issue #823). Every other code ignores them.
+    message: messageForFormCode(code, {
+      question: typeof details?.questionId === "string" ? details.questionId : undefined,
+      reason: firstIssueMessage(details?.issues),
+    }),
     issues: parseIssues(details?.issues),
   };
+}
+
+/**
+ * The sentence off the first refusal in `details.issues`, if there is one.
+ *
+ * Read positionally rather than through `parseIssues`, because a *definition* refusal
+ * is shaped like a kernel definition issue (a `code`, a sentence, an array `path` into
+ * the definition) and not like a publish issue (whose `path` is `{ step, question }`).
+ * The two lists share a channel and not a shape, so the publish-issue parser is the
+ * wrong reader for this one.
+ */
+function firstIssueMessage(issues: unknown): string | undefined {
+  if (!Array.isArray(issues)) return undefined;
+  const message = (issues[0] as { message?: unknown } | undefined)?.message;
+  return typeof message === "string" && message !== "" ? message : undefined;
 }
 
 /** Parse a 2xx body, or normalise the failure. */
