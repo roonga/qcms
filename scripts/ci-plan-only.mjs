@@ -96,8 +96,8 @@ export function isPlanOnly(files) {
  * cannot render anything either and an admin PR routinely carries some.
  *
  * What is deliberately NOT here is the condition someone will reach for first,
- * "the diff touches admin". The admin and the portal share `@qcms/ui` and
- * `@qcms/core`, so a PR touching either genuinely can change portal behaviour and
+ * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
+ * `@roonga/qcms-core`, so a PR touching either genuinely can change portal behaviour and
  * must run the whole suite. The safe question is what the diff touches OUTSIDE this
  * list, and one path outside it is enough to run everything.
  */

@@ -98,9 +98,9 @@ describe("plan-only classification", () => {
  * happens today. A false positive runs only `admin-chromium` on a diff that CAN move
  * a portal surface, so a portal regression merges with a green required context.
  *
- * The trap worth being explicit about is `@qcms/ui` and `@qcms/core`: the two apps
- * share them, so "touches admin" and "cannot reach the portal" are different
- * questions and only the second one is safe.
+ * The trap worth being explicit about is `@roonga/qcms-ui` and
+ * `@roonga/qcms-core`: the two apps share them, so "touches admin" and "cannot reach
+ * the portal" are different questions and only the second one is safe.
  */
 describe("admin-only classification", () => {
   it("accepts a diff confined to the admin app", () => {
@@ -120,8 +120,8 @@ describe("admin-only classification", () => {
   });
 
   it("REJECTS a diff touching the shared UI package", () => {
-    // The case the classification exists to get right. `@qcms/ui` renders both apps,
-    // so an admin PR that also moves a control genuinely can break the portal.
+    // The case the classification exists to get right. `@roonga/qcms-ui` renders
+    // both apps, so an admin PR that also moves a control can break the portal.
     expect(isAdminOnly(["apps/admin/app/page.tsx", "packages/ui/src/registry.tsx"])).toBe(false);
   });
 

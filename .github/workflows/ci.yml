@@ -77,9 +77,9 @@ jobs:
       # `portal-e2e` narrows to the admin Playwright project instead of running the
       # whole browser suite. It inherits `plan_only`'s posture exactly - unresolvable,
       # empty or ambiguous means `false`, which means run everything - and it does NOT
-      # mean "the diff touches admin": the two apps share `@qcms/ui` and `@qcms/core`,
-      # so a diff reaching either of those is not admin-only. See
-      # scripts/ci-plan-only.mjs.
+      # mean "the diff touches admin": the two apps share `@roonga/qcms-ui` and
+      # `@roonga/qcms-core`, so a diff reaching either of those is not admin-only.
+      # See scripts/ci-plan-only.mjs.
       #
       # A classifier at the base ref that predates this output writes nothing for it,
       # which arrives as the empty string, which is not `true`, which is the full run.
@@ -532,7 +532,7 @@ jobs:
       # The narrow gear (issue #696). When the diff touches nothing outside
       # `apps/admin/`, `docs/` and `plan/`, no portal-rendered surface can have moved,
       # and this job was spending its full ~27 minutes proving it: `portal-e2e` was
-      # the last check still pending on all seven admin PRs merged on 2026-08-27, so
+      # the last check still pending on all seven admin PRs merged on 2026-08-22, so
       # an armed auto-merge sat in BLOCKED long after the admin legs were green.
       #
       # The admin project still runs. This narrows the suite to the surface the diff
