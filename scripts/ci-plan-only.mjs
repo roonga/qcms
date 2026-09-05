@@ -1,9 +1,20 @@
 #!/usr/bin/env node
 // @ts-check
 /**
- * Classify a pull request diff as plan-only. Plan-only changes skip application
- * build and test jobs, but `check:plan` still runs ESLint and Prettier over the plan
- * tree along with its security and theme checks.
+ * Classify a pull request diff, so a job does the work its diff can actually be
+ * observed by and no more. Two classifications, both fail-safe:
+ *
+ *   - **`plan_only`**: every changed path is under `plan/`. Those changes skip
+ *     application build and test jobs, but `check:plan` still runs ESLint and
+ *     Prettier over the plan tree along with its security and theme checks.
+ *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or
+ *     `plan/`, so nothing in the diff can reach a portal-rendered surface. See
+ *     {@link isAdminOnly}.
+ *
+ * The file keeps its original name despite now answering two questions. The workflow
+ * runs the copy at the pull request's BASE ref by path (see below), so a rename would
+ * make every PR read a classifier that is not there and take the full run until the
+ * new name reached `main` - a cost with nothing on the other side of it.
  *
  * ## The contract this script has to keep
  *
@@ -79,6 +90,42 @@ export function isPlanOnly(files) {
 }
 
 /**
+ * Directories a change can be confined to without any portal-rendered surface moving.
+ *
+ * `apps/admin/` is the whole point; `docs/` and `plan/` ride along because prose
+ * cannot render anything either and an admin PR routinely carries some.
+ *
+ * What is deliberately NOT here is the condition someone will reach for first,
+ * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
+ * `@roonga/qcms-core`, so a PR touching either genuinely can change portal behaviour and
+ * must run the whole suite. The safe question is what the diff touches OUTSIDE this
+ * list, and one path outside it is enough to run everything.
+ */
+export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", PLAN_PREFIX];
+
+/**
+ * Can this diff move a portal-rendered surface?
+ *
+ * `false` whenever the answer is not a confident no, on the same rule as
+ * {@link isPlanOnly}: an empty list is a classification that saw nothing, and "saw
+ * nothing" must never read as "saw only the admin". Every uncertain case runs the
+ * full browser suite (issue #696).
+ *
+ * The admin's own browser project is NOT skipped when this is true - `portal-e2e`
+ * narrows to `--project admin-chromium` instead, so an admin-only PR still gets the
+ * browser coverage for the surface it did change. The job was already running that
+ * project; what it stops paying for is the portal half it cannot exercise.
+ *
+ * @param {readonly string[]} files repo-relative paths, as `git diff --name-only` reports them.
+ * @returns {boolean}
+ */
+export function isAdminOnly(files) {
+  const paths = files.filter((path) => path !== "");
+  if (paths.length === 0) return false;
+  return paths.every((path) => ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)));
+}
+
+/**
  * @param {readonly string[]} args
  * @param {string | undefined} [cwd] repository to run in; the process cwd by default.
  * @returns {string}
@@ -129,17 +176,33 @@ export function changedFiles(baseRef, options = {}) {
 }
 
 /**
- * Write `plan_only=<value>` where the workflow can read it, and echo it to the log.
+ * Write one `<name>=<value>` where the workflow can read it, and echo it to the log.
  *
+ * @param {string} name output name, e.g. "plan_only".
  * @param {boolean} value
  * @param {string} why one line, printed so a run explains itself without a rerun.
  */
-function report(value, why) {
-  stdout.write(`plan_only=${value} (${why})\n`);
+function report(name, value, why) {
+  stdout.write(`${name}=${value} (${why})\n`);
   const outputFile = env["GITHUB_OUTPUT"];
   if (outputFile !== undefined && outputFile !== "") {
-    appendFileSync(outputFile, `plan_only=${value}\n`);
+    appendFileSync(outputFile, `${name}=${value}\n`);
   }
+}
+
+/**
+ * Report every classification as `false` with one shared reason.
+ *
+ * The fail-safe path, and it writes ALL of them rather than only the one it was
+ * thinking about: an output a job reads and this script never wrote arrives as the
+ * empty string, and while `'' != 'true'` happens to be the safe direction today, a
+ * classification that silently omits itself is one `== 'false'` away from inverting.
+ *
+ * @param {string} why
+ */
+function reportAllFalse(why) {
+  report("plan_only", false, why);
+  report("admin_only", false, why);
 }
 
 function main() {
@@ -147,11 +210,11 @@ function main() {
   const baseRef = env["BASE_REF"] ?? env["GITHUB_BASE_REF"] ?? "";
 
   if (eventName !== undefined && eventName !== "pull_request") {
-    report(false, `event is ${eventName}, not pull_request`);
+    reportAllFalse(`event is ${eventName}, not pull_request`);
     return;
   }
   if (baseRef === "") {
-    report(false, "no base ref available");
+    reportAllFalse("no base ref available");
     return;
   }
 
@@ -160,12 +223,12 @@ function main() {
     files = changedFiles(baseRef);
   } catch (error) {
     stdout.write(`::warning::ci-plan-only: diff failed (${String(error)})\n`);
-    report(false, "diff failed");
+    reportAllFalse("diff failed");
     return;
   }
   if (files === null) {
     stdout.write(`::warning::ci-plan-only: cannot resolve origin/${baseRef}\n`);
-    report(false, `origin/${baseRef} not resolvable`);
+    reportAllFalse(`origin/${baseRef} not resolvable`);
     return;
   }
 
@@ -178,15 +241,29 @@ function main() {
   if (files.length > LOG_LIMIT) stdout.write(`  ... and ${files.length - LOG_LIMIT} more\n`);
 
   if (files.length === 0) {
-    report(false, "empty diff, so nothing was classified");
+    reportAllFalse("empty diff, so nothing was classified");
     return;
   }
-  const outside = files.filter((path) => !path.startsWith(PLAN_PREFIX));
+
+  const outsidePlan = files.filter((path) => !path.startsWith(PLAN_PREFIX));
   report(
+    "plan_only",
     isPlanOnly(files),
-    outside.length === 0
+    outsidePlan.length === 0
       ? `${files.length} path(s), all under ${PLAN_PREFIX}`
-      : `${outside.length} path(s) outside ${PLAN_PREFIX}, first: ${JSON.stringify(outside[0])}`,
+      : `${outsidePlan.length} path(s) outside ${PLAN_PREFIX}, first: ${JSON.stringify(outsidePlan[0])}`,
+  );
+
+  const adminScope = ADMIN_ONLY_PREFIXES.join(", ");
+  const outsideAdmin = files.filter(
+    (path) => !ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)),
+  );
+  report(
+    "admin_only",
+    isAdminOnly(files),
+    outsideAdmin.length === 0
+      ? `${files.length} path(s), all under ${adminScope}`
+      : `${outsideAdmin.length} path(s) outside ${adminScope}, first: ${JSON.stringify(outsideAdmin[0])}`,
   );
 }
 

@@ -20,6 +20,7 @@ import { expect, test } from "./support/gates.js";
 import * as chromeLauncher from "chrome-launcher";
 import lighthouse from "lighthouse";
 
+import { userDataDirFlag, withChromeProfile } from "./support/chrome-profile.js";
 import { PORTAL_PORT } from "./support/harness-config.js";
 import { readFixtures } from "./support/fixtures.js";
 import { startAnonymousFlow } from "./support/flow.js";
@@ -38,31 +39,45 @@ test.describe.configure({ mode: "serial", timeout: 120_000 });
  * authenticated in Lighthouse's own Chrome.
  */
 async function accessibilityScore(url: string, cookie?: string): Promise<number> {
-  const chrome = await chromeLauncher.launch({
-    chromePath: chromium.executablePath(),
-    chromeFlags: ["--headless=new", "--no-sandbox", "--disable-gpu"],
-  });
-  try {
-    const runnerResult = await lighthouse(url, {
-      port: chrome.port,
-      onlyCategories: ["accessibility"],
-      output: "json",
-      logLevel: "error",
-      ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
+  // The profile directory is chosen here rather than by chrome-launcher (issue #248):
+  // on WSL its default writes a directory whose NAME is a whole Windows path into the
+  // repository root, five per run, never cleaned up. `userDataDir` stops it, the
+  // repeated flag in `chromeFlags` overrides the `wslpath`-converted spelling
+  // chrome-launcher passes to the browser, and `withChromeProfile` owns the removal
+  // that the option disables. The whole mechanism is in `support/chrome-profile.ts`.
+  return withChromeProfile(async (userDataDir) => {
+    const chrome = await chromeLauncher.launch({
+      chromePath: chromium.executablePath(),
+      chromeFlags: [
+        "--headless=new",
+        "--no-sandbox",
+        "--disable-gpu",
+        userDataDirFlag(userDataDir),
+      ],
+      userDataDir,
     });
-    const score = runnerResult?.lhr.categories.accessibility?.score;
-    return typeof score === "number" ? score : 0;
-  } finally {
-    // On Windows, chrome-launcher's temp-profile cleanup can throw EPERM because
-    // the just-killed Chrome has not released its profile files yet. The audit is
-    // already complete, so this teardown race must not fail the test. `kill()` is
-    // synchronous (chrome-launcher returns void), so a throw is caught directly.
     try {
-      chrome.kill();
-    } catch {
-      /* best-effort: leaked temp profile is cleaned by the OS */
+      const runnerResult = await lighthouse(url, {
+        port: chrome.port,
+        onlyCategories: ["accessibility"],
+        output: "json",
+        logLevel: "error",
+        ...(cookie ? { extraHeaders: { Cookie: cookie } } : {}),
+      });
+      const score = runnerResult?.lhr.categories.accessibility?.score;
+      return typeof score === "number" ? score : 0;
+    } finally {
+      // On Windows, chrome-launcher's temp-profile cleanup can throw EPERM because
+      // the just-killed Chrome has not released its profile files yet. The audit is
+      // already complete, so this teardown race must not fail the test. `kill()` is
+      // synchronous (chrome-launcher returns void), so a throw is caught directly.
+      try {
+        chrome.kill();
+      } catch {
+        /* best-effort: leaked temp profile is cleaned by the OS */
+      }
     }
-  }
+  });
 }
 
 test("lighthouse a11y=100: entry page", async () => {

@@ -108,12 +108,28 @@ const ADMIN_BASE_URL = `http://localhost:${ADMIN_PORT}`;
 const FORM_ID = "frm_kitchen_sink";
 const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
 
+/**
+ * The one vehicle-domain kitchen-sink definition and its committed golden compiled
+ * A2UI - the same pair the portal e2e seeds.
+ *
+ * Named constants rather than literals at the read site because these are the only
+ * paths in this file that point outside `packages/`, and they went stale exactly
+ * that way: PR #779 (#129) renamed both fixtures to the `vehicle-` prefix, the
+ * rename swept `apps/api/e2e` and not `scripts/`, and `pnpm dev:admin` and
+ * `pnpm dev:portal` then died on an ENOENT in the seeder before the API started
+ * (issue #817). `scripts/dev-stack.test.ts` derives its assertion from
+ * {@link FIXTURE_READ_PATHS} below, so a future rename fails a test in `verify`
+ * instead of the next person's dev stack.
+ */
+const KITCHEN_SINK_DEFINITION = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json";
+const KITCHEN_SINK_GOLDEN = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json";
+
 // The kitchen-sink form pins these library questions (see the ONE vehicle-domain
-// definition at apps/api/e2e/support/fixtures/kitchen-sink-form.json - the same
-// fixture the portal e2e seeds). Five map to the shared neutral kernel fixtures;
-// the two unique to this form (optional cover, extra detail) live in the e2e
-// support directory (043 neutral-domain rule). q_at_fault_accident is pinned at
-// version 2, so it gets two versions (identical bytes), mirroring the e2e seed.
+// definition named above - the same fixture the portal e2e seeds). Five map to the
+// shared neutral kernel fixtures; the two unique to this form (optional cover, extra
+// detail) live in the e2e support directory (043 neutral-domain rule).
+// q_at_fault_accident is pinned at version 2, so it gets two versions (identical
+// bytes), mirroring the e2e seed.
 const QUESTIONS = [
   {
     id: "q_full_name",
@@ -157,6 +173,22 @@ const QUESTIONS = [
     path: "packages/core/fixtures/questions/valid/single-choice.json",
     versions: 1,
   },
+];
+
+/**
+ * Every repo-relative fixture this launcher reads, derived from the two lists above
+ * rather than restated (issue #817).
+ *
+ * `scripts/**` has no typecheck and nothing in `verify` executes this script, so a
+ * fixture rename elsewhere in the repo is invisible here until a human runs
+ * `pnpm dev:admin` and gets an ENOENT. Deriving the list is what lets
+ * `scripts/dev-stack.test.ts` assert that all of them still resolve, in a suite that
+ * does run - the "derive the read sites" lesson issue #817 records.
+ */
+export const FIXTURE_READ_PATHS = [
+  KITCHEN_SINK_DEFINITION,
+  KITCHEN_SINK_GOLDEN,
+  ...QUESTIONS.map((question) => question.path),
 ];
 
 const IS_WINDOWS = process.platform === "win32";
@@ -326,8 +358,8 @@ async function seedKitchenSink({ handle, db, core }) {
     defaultLocale: "en",
   });
 
-  const definition = readJson("apps/api/e2e/support/fixtures/kitchen-sink-form.json");
-  const golden = readJson("apps/api/e2e/support/fixtures/kitchen-sink.a2ui.json");
+  const definition = readJson(KITCHEN_SINK_DEFINITION);
+  const golden = readJson(KITCHEN_SINK_GOLDEN);
   await db.insertFormVersion(handle, {
     formId: core.FormId.parse(FORM_ID),
     definition,

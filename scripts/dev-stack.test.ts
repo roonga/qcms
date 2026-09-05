@@ -5,6 +5,7 @@ import { existsSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  FIXTURE_READ_PATHS,
   apiChildEnv,
   descendantsOf,
   frontendChildEnv,
@@ -100,6 +101,40 @@ describe("the two sides agree on the admin's own origin", () => {
     // succeed and bounces.
     expect(frontendChildEnv("admin", frontendInputs).QCMS_ADMIN_BASE_URL).toBe(
       apiChildEnv(inputs).QCMS_ADMIN_BASE_URL,
+    );
+  });
+});
+
+/**
+ * The seed's read sites, derived rather than restated (issue #817).
+ *
+ * `pnpm dev:admin` and `pnpm dev:portal` were both dead on `main` for as long as it
+ * took someone to run one: PR #779 (#129) renamed the kitchen-sink fixtures to
+ * `vehicle-kitchen-sink-*`, the rename swept `apps/api/e2e` but not `scripts/`, and
+ * the seeder threw ENOENT before the API started. Nothing caught it because nothing
+ * in `verify` executes this launcher and `scripts/**` has no typecheck.
+ *
+ * A path this module reads is now in `FIXTURE_READ_PATHS`, so this test fails the
+ * moment a fixture moves - which is the cheapest place in the repository to learn it.
+ */
+describe("every fixture the seed reads still exists", () => {
+  const repoRoot = new URL("../", import.meta.url);
+
+  it("lists both halves of the kitchen-sink form and one path per pinned question", () => {
+    // A guard on the derivation itself: an empty or truncated list would pass the
+    // loop below while asserting nothing at all.
+    expect(FIXTURE_READ_PATHS.length).toBeGreaterThanOrEqual(9);
+    expect(FIXTURE_READ_PATHS).toContain(
+      "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json",
+    );
+    expect(FIXTURE_READ_PATHS).toContain(
+      "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json",
+    );
+  });
+
+  it.each(FIXTURE_READ_PATHS)("resolves %s", (relativePath) => {
+    expect(existsSync(new URL(relativePath, repoRoot)), `${relativePath} does not exist`).toBe(
+      true,
     );
   });
 });
