@@ -147,6 +147,8 @@ split described next, from day one.
 
 **A turbo `outputs` glob must match only files the build itself writes.** turbo tars whatever matches when a task ends, so anything else that lives in those paths (a dev server's directory, a runtime cache, a log) is captured and restored over the live copy on the next cache hit, in any worktree.
 
+**One turbo invocation at a time.** A `pnpm build` in a second terminal removes every `packages/*/dist` before rebuilding it (issue #494), and a dev server or browser suite running from the first terminal reads those directories while they are gone: the symptom is a `TS2307 Cannot find module '@roonga/qcms-db'` storm, or a dev server that 500s on a workspace import, in a tree that is green again on a rebuild. Ordering is a per-run property, so nothing in `turbo.json` can help across two processes (issue #798). Wait for one to finish; CONTRIBUTING has the full account beside the related `.next` trap.
+
 If a Testcontainers-backed suite cannot reach the container it just started (sibling containers, not children), set `TESTCONTAINERS_HOST_OVERRIDE`. It has never been needed here. Prefer the default-route gateway over `host.docker.internal` if you do need it, for the Postgres-session reason noted above.
 
 **Testcontainers behaves differently locally and on CI, in exactly one way (issue #150).** The Ryuk reaper (Testcontainers' cleanup sidecar, image `testcontainers/ryuk`) runs **locally** and is **disabled on CI** via `TESTCONTAINERS_RYUK_DISABLED=true`, set by `.github/actions/test-postgres-image` for every Testcontainers job:
