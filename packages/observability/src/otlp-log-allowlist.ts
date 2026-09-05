@@ -42,6 +42,22 @@ const SAFE_EVENTS = new Set([
   // SAFE_ATTRIBUTES and are deleted below. The vendor message that arrives with
   // the failure is never one of them - it is not logged at all (SEC-8).
   "draft assistant provider failure",
+  // The accept path's two records (issue #823). Accepting a proposal creates library
+  // questions, so both halves of the outcome are things an operator counts: how often a
+  // proposal is accepted and how many question drafts it produced, and how often the
+  // authoring boundary refuses one of the proposed definitions outright. A rising
+  // refusal rate is the signal that a configured model is producing definitions the
+  // kernel will not take, which is visible nowhere else.
+  //
+  // Safe for the reason the three above are, and one of them matters more here. Every
+  // attribute either sets (`formId`, `createdQuestions`, `questionId`, `issues`) is
+  // absent from SAFE_ATTRIBUTES and is deleted below, so the event name and its count
+  // are all that leave the process. `questionId` on a refusal is the load-bearing case:
+  // it is an id a MODEL invented, read positionally off a definition that failed to
+  // parse, and it is exactly the kind of outside-influenced string that must not travel.
+  // It does not. Nor does the definition itself, which is never logged at all (SEC-8).
+  "agent proposal accepted",
+  "agent proposal refused at the authoring boundary",
   "handled error",
   "http exception",
   "listening",
