@@ -126,10 +126,10 @@ const KITCHEN_SINK_GOLDEN = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.
 
 // The kitchen-sink form pins these library questions (see the ONE vehicle-domain
 // definition named above - the same fixture the portal e2e seeds). Five map to the
-// shared neutral kernel fixtures;
-// the two unique to this form (optional cover, extra detail) live in the e2e
-// support directory (043 neutral-domain rule). q_at_fault_accident is pinned at
-// version 2, so it gets two versions (identical bytes), mirroring the e2e seed.
+// shared neutral kernel fixtures; the two unique to this form (optional cover, extra
+// detail) live in the e2e support directory (043 neutral-domain rule).
+// q_at_fault_accident is pinned at version 2, so it gets two versions (identical
+// bytes), mirroring the e2e seed.
 const QUESTIONS = [
   {
     id: "q_full_name",

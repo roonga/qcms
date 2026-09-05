@@ -1,7 +1,7 @@
-import { chromium, defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
 
 import { ADMIN_BASE_URL, ADMIN_PORT } from "./apps/admin/e2e/support/harness-config.js";
-import { assertBrowserLibrariesPresent } from "./apps/portal/e2e/support/browser-libs.js";
+import { preflightBrowserLibraries } from "./apps/portal/e2e/support/browser-libs.js";
 import {
   API_BASE_URL,
   API_PORT,
@@ -99,7 +99,7 @@ const ADOPTABLE = seatPreflight();
 // message, and `playwright install` reports nothing wrong. Two `ldd` calls answer it
 // before the first launch. Silent on anything it cannot check, so it can only ever
 // convert a red run into an explained one. See `support/browser-libs.ts`.
-if (FIRST_LOAD) assertBrowserLibrariesPresent(chromium.executablePath());
+if (FIRST_LOAD) preflightBrowserLibraries();
 
 // Announce the seat ONCE per invocation. A run's own output is then self-describing
 // ("this was seat 2, on 17200/17210/17230/17240"), which is what a reviewer needs to

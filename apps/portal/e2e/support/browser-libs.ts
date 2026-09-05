@@ -35,6 +35,8 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
+import { chromium } from "@playwright/test";
+
 /** How a dynamic linker reports a dependency it could not resolve. */
 const NOT_FOUND = "=> not found";
 
@@ -185,4 +187,24 @@ export function assertBrowserLibrariesPresent(
   }
   if (gaps.length === 0) return;
   throw new Error(describeLibraryGaps(gaps));
+}
+
+/**
+ * The preflight as `playwright.config.ts` calls it: resolve Playwright's Chromium and
+ * check it.
+ *
+ * `executablePath()` throws when the browsers have never been downloaded, and that is
+ * emphatically not this preflight's question - Playwright's own "Executable doesn't
+ * exist ... run `playwright install`" is already the clearest message anyone could
+ * want, and it must not be replaced by a failure to load the config. So the resolution
+ * is guarded and an unresolvable browser means no preflight.
+ */
+export function preflightBrowserLibraries(): void {
+  let chromePath;
+  try {
+    chromePath = chromium.executablePath();
+  } catch {
+    return;
+  }
+  assertBrowserLibrariesPresent(chromePath);
 }

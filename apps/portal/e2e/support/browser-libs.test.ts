@@ -7,6 +7,7 @@ import {
   launchableBinaries,
   missingSharedLibraries,
   parseMissingLibraries,
+  preflightBrowserLibraries,
 } from "./browser-libs.js";
 
 /**
@@ -124,5 +125,15 @@ describe("assertBrowserLibrariesPresent", () => {
     // Not this preflight's question. A missing browser is Playwright's own error and
     // it is already a clear one.
     expect(() => assertBrowserLibrariesPresent("/nonexistent/chrome", "linux")).not.toThrow();
+  });
+});
+
+describe("preflightBrowserLibraries", () => {
+  it("says nothing on a machine where the suite can run", () => {
+    // The half that has to hold everywhere this test itself runs. A refusal on a
+    // working host would block the merge gate rather than explain it, and a host with
+    // no browsers downloaded at all (CI's `verify` job) must reach Playwright's own
+    // "run playwright install" rather than a config that fails to load.
+    expect(() => preflightBrowserLibraries()).not.toThrow();
   });
 });
