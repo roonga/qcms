@@ -438,6 +438,7 @@ const SIMPLE_ERROR_MESSAGES: Readonly<
   >
 > = {
   PROVIDER_ERROR: "forms.assist.error.PROVIDER_ERROR",
+  PROVIDER_REJECTED: "forms.assist.error.PROVIDER_REJECTED",
   NO_PROPOSAL: "forms.assist.error.NO_PROPOSAL",
   LENGTH: "forms.assist.error.LENGTH",
   STEP_LIMIT: "forms.assist.error.STEP_LIMIT",

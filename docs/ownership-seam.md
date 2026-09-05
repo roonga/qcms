@@ -86,12 +86,12 @@ path", so the completeness claim is checkable rather than asserted.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (355 files common to both shapes)
+### Scaffolded paths (356 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 344   |
+| `apps/`                                                              | 345   |
 | `apps/admin/`                                                        | 205   |
 | `apps/admin/app/`                                                    | 64    |
 | `apps/admin/app/(shell)/`                                            | 48    |
@@ -158,12 +158,12 @@ path", so the completeness claim is checkable rather than asserted.
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 6     |
 | `apps/admin/lib/server/`                                             | 22    |
-| `apps/api/`                                                          | 78    |
-| `apps/api/src/`                                                      | 75    |
-| `apps/api/src/features/`                                             | 47    |
+| `apps/api/`                                                          | 79    |
+| `apps/api/src/`                                                      | 76    |
+| `apps/api/src/features/`                                             | 48    |
 | `apps/api/src/features/auth/`                                        | 3     |
-| `apps/api/src/features/forms/`                                       | 11    |
-| `apps/api/src/features/forms/assist/`                                | 8     |
+| `apps/api/src/features/forms/`                                       | 12    |
+| `apps/api/src/features/forms/assist/`                                | 9     |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 3     |
@@ -217,7 +217,7 @@ path", so the completeness claim is checkable rather than asserted.
 
 ### QCMS-internal references in the scaffolded source
 
-`1643` lines across `305` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1657` lines across `306` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -232,7 +232,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (355)</summary>
+<summary>Every scaffolded file (356)</summary>
 
 ```
 .dockerignore
@@ -461,6 +461,7 @@ apps/api/src/features/forms/assist/handler.ts
 apps/api/src/features/forms/assist/route.ts
 apps/api/src/features/forms/assist/schema.ts
 apps/api/src/features/forms/assist/system-prompt.ts
+apps/api/src/features/forms/assist/tool-schema.ts
 apps/api/src/features/forms/assist/tools.ts
 apps/api/src/features/forms/assist/types.ts
 apps/api/src/features/forms/handler.ts

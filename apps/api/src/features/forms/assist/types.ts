@@ -131,6 +131,12 @@ export interface AssistProposal {
  */
 export const ASSIST_ERROR_CODES = [
   "PROVIDER_ERROR",
+  // The other half of what `PROVIDER_ERROR` used to hold on its own (issue
+  // #818). Waiting out a transient upstream failure is right; waiting out a
+  // provider that has refused the account is not, and one sentence cannot give
+  // both pieces of advice. The split is drawn on the SDK's own `isRetryable`,
+  // never on vendor text - see `providerRetryAdvice` in `assistant.ts`.
+  "PROVIDER_REJECTED",
   "NO_PROPOSAL",
   "REFUSED",
   "LENGTH",

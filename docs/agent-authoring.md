@@ -60,11 +60,11 @@ The Vercel AI SDK's per-provider options passthrough is wired through `aiSdkDraf
 
 ---
 
-## 3. Local models: a walkthrough with Ollama
+## 3. Local models: Ollama, and LM Studio on Windows
 
 A locally hosted model is a first-class configuration, not a workaround. It is also the strongest privacy posture available: **with a local model, your form structure never leaves the deployment at all.**
 
-Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cpp's server). Ollama below because it is the shortest path.
+Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cpp's server). Ollama first because it is the shortest path; [LM Studio](#lm-studio-on-windows-with-wsl2-or-docker) after it, because the Windows and WSL2 route it implies has two steps nothing else in this guide needs and both are easy to lose an evening to.
 
 1. Install Ollama and pull a model that supports tool calling:
 
@@ -91,6 +91,44 @@ Any OpenAI-protocol server works the same way (Ollama, vLLM, LM Studio, llama.cp
 4. Restart the API, restart the admin with the flag set, open a form in the builder. The Assistant panel appears docked beside it.
 
 Expect a local model to be slower and less reliable at producing a valid `FormDefinition` than a frontier hosted model. That is a quality trade, not a correctness one: the kernel validates every proposal identically whatever produced it, so a weak model wastes your time but cannot corrupt anything.
+
+### LM Studio, on Windows with WSL2 or Docker
+
+LM Studio is the same `openai-compatible` provider as everything above, and its server needs no key. What is different is not QCMS, it is the network: LM Studio runs as a Windows application, and the thing configuring QCMS is usually not Windows.
+
+1. **Load a model that really does function calling.** The assist loop is entirely tool-driven: the model searches the question library, proposes questions, proposes the draft and asks for validation, all as tool calls. A model that emits prose instead of a tool call produces no proposal, so you see the "assistant did not propose a draft" state on every turn and it looks like the feature is broken. It is not. Use a recent instruct model in the 14B class or above whose card claims function calling, and check the claim rather than the size: a small model with tool support beats a large one without it here, because the loop has no prose path to fall back on.
+
+2. **Start the server and turn on Serve on Local Network.** LM Studio's developer server binds `127.0.0.1` by default, which is reachable only from Windows itself. WSL2 in its default NAT mode is a different machine to that socket, and so is a container: from either one, `127.0.0.1:1234` is your own loopback and nothing answers. The toggle rebinds the listener to `0.0.0.0`. Windows will raise a firewall prompt the first time; allow it for private networks, or the rebind changes nothing you can observe.
+
+3. **Pick the address for where the API actually runs.** Two different answers, and reading them off the wrong machine is the usual dead end:
+
+   | The API process runs in      | `QCMS_AGENT_BASE_URL`                                                                                           |
+   | ---------------------------- | --------------------------------------------------------------------------------------------------------------- |
+   | Windows itself               | `http://localhost:1234/v1`                                                                                      |
+   | WSL2, directly               | `http://<Windows host gateway IP>:1234/v1` - the `default via` address from `ip route show default` inside WSL2 |
+   | A container (Docker Desktop) | `http://host.docker.internal:1234/v1`                                                                           |
+
+   No `QCMS_AGENT_API_KEY` in any of the three. The gateway address WSL2 reports is an RFC-1918 private address and `host.docker.internal` is named outright, so all three satisfy the local-endpoint rule in §3 step 2 and the key requirement is relaxed.
+
+4. **From Compose, name the host gateway and the variables.** `docker-compose.yml` does not name any `QCMS_AGENT_*` variable, and Compose forwards only what a service names, so putting them in `.env` reaches nothing. Add a local override file:
+
+   ```yaml
+   services:
+     api:
+       extra_hosts:
+         - "host.docker.internal:host-gateway"
+       environment:
+         QCMS_FLAG_AGENT_AUTHORING: openai-compatible
+         QCMS_AGENT_BASE_URL: http://host.docker.internal:1234/v1
+         QCMS_AGENT_MODEL: your-loaded-model-id
+     admin:
+       environment:
+         QCMS_FLAG_AGENT_AUTHORING: openai-compatible
+   ```
+
+   The container route is the one worth reaching for first on Windows, and not only because Compose is how this repository ships: Docker Desktop forwards `host.docker.internal` to the Windows host for you, so it works whether or not step 2's toggle is on, while the direct WSL2 route depends on it entirely. If a turn fails from WSL2 but succeeds from the container, the toggle is the thing to check.
+
+5. **Use the model id LM Studio publishes, not the file name.** `GET http://<address>:1234/v1/models` lists them; `QCMS_AGENT_MODEL` takes an `id` from that list verbatim.
 
 ---
 
@@ -158,6 +196,8 @@ A proposed question that is not published yet will validate as an unpublished pi
 - **Rate limited per admin principal** on the assist endpoint. The panel shows the retry-after.
 - **Closing the panel or the tab aborts the upstream call** rather than leaving it running.
 - Failure states are shown explicitly rather than silently: provider unreachable or misconfigured, rate limited, the model refused, the model ran out of output room, the model proposed nothing, the draft changed underneath the conversation, and an attempted tool call refused.
+- **A tool call the model got wrong is not a failed turn.** Models malform a call and correct themselves on the next step, and a smaller local model does it on most real turns. The loop hands the failure back as that call's result and carries on, so a turn that recovered still ends with its proposal. The API log's per-turn record carries a `toolErrors` count, which is where to look when a model seems slow: several failed calls means it is spending its step budget learning the schema. The one tool failure that does stop a turn is an attempt at a verb outside the allowlist, and that is deliberate.
+- **A provider that will not serve your account is its own state, separate from one that is having a bad minute.** They need opposite responses - wait, or go and fix something - and one message cannot give both, so the panel says "try again shortly" only when the provider indicated the failure is transient. When it indicated otherwise (an exhausted balance, a revoked key, a model your account cannot call) the panel says so and points you at the provider account instead. It quotes nothing the provider wrote: no vendor message, no error code, no link. Your provider's own dashboard is where the specifics live, and the API log records the turn with the provider id, whether it was retryable and the HTTP status.
 
 ---
 

@@ -11,6 +11,7 @@
  */
 
 import {
+  APICallError,
   NoSuchToolError,
   stepCountIs,
   streamText,
@@ -47,6 +48,15 @@ interface RunOutcome {
   finishReason: string;
   rejectedTool: string | undefined;
   providerError: string | undefined;
+  /** What the provider said about trying again. See {@link providerRetryAdvice}. */
+  providerRetryable: boolean;
+  /** The upstream HTTP status, when the failure had one. Logged, never rendered. */
+  providerStatus: number | undefined;
+  /**
+   * How many individual tool calls failed during the turn. Counted, never
+   * quoted: a tool error's text is assembled from model-supplied input.
+   */
+  toolErrors: number;
 }
 
 /**
@@ -86,6 +96,53 @@ function errorMessage(error: unknown): string {
 }
 
 /**
+ * Whether the provider said trying again could work (issue #818).
+ *
+ * One error code held two conditions with opposite guidance: "the vendor is
+ * down", where waiting is the right advice, and "this account cannot pay for the
+ * call", where waiting is the wrong advice and the operator has to go and do
+ * something. A real turn against a funded-then-emptied account showed the second
+ * one rendered as the first - `429 insufficient_quota`, `isRetryable: false`,
+ * and an assist panel saying "try again shortly".
+ *
+ * The SDK already knows. It sets `isRetryable` at the point the failure is built
+ * (429 and 5xx are retryable by default; a provider narrows that, and the OpenAI
+ * package explicitly excludes `insufficient_quota`), so the distinction is
+ * available **without parsing vendor text**, which is what keeps SEC-8 intact:
+ * nothing here reads a vendor message, a vendor code or a URL, and none of them
+ * reaches the operator.
+ *
+ * Two shapes carry the flag - `APICallError` for a failed request, and the
+ * plain stream-error payload a provider emits mid-stream - and only the first is
+ * re-exported by `ai`. The second is read structurally rather than by pulling in
+ * `@ai-sdk/provider-utils` for one type guard.
+ *
+ * **Defaults to `true`**, deliberately. Absent a definite "this will not
+ * succeed" from the provider, the operator gets the advice they got before this
+ * split existed. A wrongly-permanent message sends someone to check an account
+ * that is fine; a wrongly-transient one is the failure being fixed here, and
+ * only positive evidence should trigger it.
+ */
+function providerRetryAdvice(error: unknown): boolean {
+  if (APICallError.isInstance(error)) return error.isRetryable;
+  if (typeof error === "object" && error !== null && "isRetryable" in error) {
+    const { isRetryable } = error;
+    if (typeof isRetryable === "boolean") return isRetryable;
+  }
+  return true;
+}
+
+/** The upstream status code, when the failure carried one. */
+function providerStatusCode(error: unknown): number | undefined {
+  if (APICallError.isInstance(error)) return error.statusCode;
+  if (typeof error === "object" && error !== null && "statusCode" in error) {
+    const { statusCode } = error;
+    if (typeof statusCode === "number") return statusCode;
+  }
+  return undefined;
+}
+
+/**
  * Build the assistant over any AI SDK language model.
  *
  * `providerOptions` is the SDK's per-provider passthrough, and it is the seam
@@ -114,6 +171,40 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
   const refused = refusedToolName(raw);
   if (refused === undefined) {
     outcome.providerError = errorMessage(raw);
+    outcome.providerRetryable = providerRetryAdvice(raw);
+    outcome.providerStatus = providerStatusCode(raw);
+  } else {
+    outcome.rejectedTool = refused;
+  }
+}
+
+/**
+ * Record one failed tool call, which is **not** a failed turn.
+ *
+ * A `tool-error` part means one call did not execute: the model sent input the
+ * schema refused, or an executor threw. The SDK hands the error back to the
+ * model as that call's result and the loop carries on, which is exactly what a
+ * capable model does with it - fix the arguments and call again. Every local
+ * model observed doing real work has produced at least one.
+ *
+ * It used to be routed into {@link noteFailure} alongside a genuine stream
+ * failure, and because a provider error is terminal that made one bad call
+ * anywhere in a turn discard everything the turn went on to produce. Observed on
+ * 2026-09-05: a turn that malformed a `propose_draft` call, corrected itself,
+ * proposed successfully and finished with `stop` in six of twelve steps was
+ * reported to the operator as "the assistant is unavailable right now" with the
+ * proposal thrown away. The narration had already streamed, so the panel showed
+ * a described proposal and then an unavailable provider.
+ *
+ * A refusal is the one exception and still travels: an unallowlisted verb
+ * arrives as a `tool-error` too, and that one **must** stop the turn (041's
+ * allowlist control - a model that reached for `publish` gets none of its other
+ * work accepted).
+ */
+function noteToolFailure(outcome: RunOutcome, raw: unknown): void {
+  const refused = refusedToolName(raw);
+  if (refused === undefined) {
+    outcome.toolErrors += 1;
   } else {
     outcome.rejectedTool = refused;
   }
@@ -142,6 +233,8 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       outcome.rejectedTool = part.toolName;
       return undefined;
     case "tool-error":
+      noteToolFailure(outcome, part.error);
+      return undefined;
     case "error":
       noteFailure(outcome, part.error);
       return undefined;
@@ -173,6 +266,9 @@ async function* runTurn(args: {
     finishReason: "unknown",
     rejectedTool: undefined,
     providerError: undefined,
+    providerRetryable: true,
+    providerStatus: undefined,
+    toolErrors: 0,
   };
 
   const result = streamText({
@@ -267,6 +363,10 @@ async function* finishTurn(args: {
     outputTokens: outcome.outputTokens,
     finishReason: outcome.finishReason,
     toolRejected: outcome.rejectedTool !== undefined,
+    // A count, never the text: a tool error's message is assembled from input
+    // the model wrote (SEC-8). Non-zero on a turn that still proposed is normal
+    // and is how a model correcting itself looks from here.
+    toolErrors: outcome.toolErrors,
   });
 
   yield {
@@ -292,7 +392,25 @@ async function* finishTurn(args: {
   }
 
   if (outcome.providerError !== undefined) {
-    yield { type: "error", code: "PROVIDER_ERROR", message: outcome.providerError };
+    // Two conditions, two codes, opposite advice (issue #818). The record is
+    // logged here because the panel deliberately shows the operator no vendor
+    // detail: without this line a permanent refusal leaves no trace an operator
+    // can act on. Every field is ours - a provider id from configuration, a
+    // boolean the SDK set, an HTTP status - and no vendor message, code or URL
+    // is written (SEC-8). The event name is classified in the OTLP export
+    // vocabulary (SEC-13); its attributes are outside the attribute allowlist
+    // and are dropped on export, so what leaves the process is the name and a
+    // count.
+    logger.warn("draft assistant provider failure", {
+      provider: providerId,
+      retryable: outcome.providerRetryable,
+      statusCode: outcome.providerStatus,
+    });
+    yield {
+      type: "error",
+      code: outcome.providerRetryable ? "PROVIDER_ERROR" : "PROVIDER_REJECTED",
+      message: outcome.providerError,
+    };
     return;
   }
 

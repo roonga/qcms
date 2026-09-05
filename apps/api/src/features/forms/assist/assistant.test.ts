@@ -14,7 +14,8 @@ import {
   type FormDefinition,
 } from "@roonga/qcms-core";
 
-import { createNullLogger } from "../../../logger.js";
+import { createNullLogger, type Logger } from "../../../logger.js";
+import { recordingLogger } from "../../../test-support.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import {
@@ -88,11 +89,14 @@ function contextFor(
   return { ctx, validated };
 }
 
-async function collect(ctx: AssistContext): Promise<AssistEvent[]> {
+async function collect(
+  ctx: AssistContext,
+  logger: Logger = createNullLogger(),
+): Promise<AssistEvent[]> {
   const assistant = aiSdkDraftAssistant({
     model: fakeAssistantModel(),
     providerId: "fake",
-    logger: createNullLogger(),
+    logger,
   });
   const events: AssistEvent[] = [];
   for await (const event of assistant.assist(ctx, new AbortController().signal)) {
@@ -187,10 +191,90 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
   });
 
-  it("maps a provider failure to PROVIDER_ERROR", async () => {
-    const { ctx } = contextFor("#qcms-fake:provider-error hello");
+  /**
+   * The split issue #818 exists for, asserted from both sides in one table.
+   *
+   * The live failure was a real account with no balance: a 429 the SDK had
+   * already marked non-retryable, rendered as "try again shortly". Retryable and
+   * non-retryable have to reach the panel as different codes or the operator is
+   * told to wait when they must act - and the second row is only half of it. The
+   * first row is the regression that would send someone to check an account that
+   * is fine, so a plain failure staying `PROVIDER_ERROR` is pinned beside it.
+   */
+  it.each([
+    ["provider-error", "PROVIDER_ERROR"],
+    ["provider-rejected", "PROVIDER_REJECTED"],
+  ])("maps the %s script to %s", async (script, code) => {
+    const { ctx } = contextFor(`#qcms-fake:${script} hello`);
     const events = await collect(ctx);
-    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "PROVIDER_ERROR" });
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code });
+  });
+
+  it("logs the refusal without writing any vendor detail into the record", async () => {
+    // The panel shows the operator no vendor detail at all (SEC-8), so this log
+    // line is the only trace of a permanent refusal. It must carry enough to act
+    // on and nothing the vendor wrote.
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:provider-rejected hello");
+    await collect(ctx, logger);
+    const record = lines.find((line) => line["msg"] === "draft assistant provider failure");
+    expect(record).toBeDefined();
+    expect(record).toMatchObject({ provider: "fake", retryable: false, statusCode: 429 });
+    // The SDK's own sentence rides on the event to an authenticated admin; it
+    // does not ride into the log, where an exporter or an aggregator would take
+    // it somewhere nobody chose.
+    expect(JSON.stringify(record)).not.toContain("upstream provider refused");
+  });
+
+  /**
+   * A failed tool call is not a failed turn (found live on 2026-09-05).
+   *
+   * The Code Owner drove "add step called registration" against a local model.
+   * It malformed one `propose_draft` call, corrected itself, proposed
+   * successfully, and finished with `stop` in six of its twelve steps - and the
+   * panel showed the narration followed by "the assistant is unavailable right
+   * now. Try again shortly", with the proposal discarded. The turn had worked.
+   *
+   * The cause was a `tool-error` part being routed to the same place a stream
+   * failure goes. A provider error is terminal and is checked before the
+   * proposal, so one bad call anywhere destroyed everything after it. Local
+   * models produce at least one such call on most real turns, so this was not
+   * an edge: it was the common path.
+   */
+  it("keeps the proposal when a tool call failed and the model recovered", async () => {
+    const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
+    const events = await collect(ctx);
+
+    const proposal = events.find((e) => e.type === "proposal");
+    expect(
+      proposal,
+      `no proposal survived: ${JSON.stringify(events.map((e) => e.type))}`,
+    ).toBeDefined();
+    // And nothing told the operator the provider was unavailable.
+    expect(events.filter((e) => e.type === "error")).toHaveLength(0);
+  });
+
+  it("counts the failed call in the turn record without quoting it", async () => {
+    // The count is what makes a recovered turn diagnosable at all now that it no
+    // longer surfaces as an error. The message must not travel with it: a tool
+    // error's text is assembled from input the model wrote (SEC-8).
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:tool-error-recovered build me a form");
+    await collect(ctx, logger);
+
+    const record = lines.find((line) => line["msg"] === "draft assistant turn");
+    expect(record).toMatchObject({ toolErrors: 1, finishReason: "stop" });
+    expect(JSON.stringify(record)).not.toContain("formId");
+  });
+
+  it("still stops the turn when the failed call was a refused verb", async () => {
+    // The one tool failure that must remain terminal: an unallowlisted verb
+    // arrives the same way, and 041's control is that a model which reached for
+    // it gets none of its other work accepted.
+    const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
+    const events = await collect(ctx);
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "REFUSED" });
+    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 
   it("reports NO_PROPOSAL when the turn ends without one", async () => {
@@ -215,6 +299,7 @@ describe("draft assistant tool loop (fake provider)", () => {
  */
 const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
   ["provider-error", "PROVIDER_ERROR"],
+  ["provider-rejected", "PROVIDER_REJECTED"],
   ["no-proposal", "NO_PROPOSAL"],
   ["refusal", "REFUSED"],
   ["length", "LENGTH"],

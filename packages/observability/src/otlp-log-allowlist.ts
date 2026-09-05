@@ -33,6 +33,15 @@ const SAFE_EVENTS = new Set([
   // and counting those is the whole point of 041's control.
   "draft assistant turn",
   "draft assistant tool call rejected",
+  // The third assist record (issue #818). It exists so a provider refusal an
+  // operator must act on - an account that cannot pay, a key the vendor has
+  // stopped honouring - leaves a trace, because the panel deliberately shows
+  // the operator no vendor detail at all. Safe for exactly the reason the two
+  // above are: the body is a constant declared at the call site, and its three
+  // attributes (`provider`, `retryable`, `statusCode`) are absent from
+  // SAFE_ATTRIBUTES and are deleted below. The vendor message that arrives with
+  // the failure is never one of them - it is not logged at all (SEC-8).
+  "draft assistant provider failure",
   "handled error",
   "http exception",
   "listening",

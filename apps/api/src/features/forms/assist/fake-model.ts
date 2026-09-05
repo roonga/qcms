@@ -46,6 +46,8 @@ export const FAKE_SCRIPTS = [
   "rogue-responses",
   "refusal",
   "provider-error",
+  "provider-rejected",
+  "tool-error-recovered",
   "no-proposal",
   "length",
   "step-limit",
@@ -241,6 +243,44 @@ function toolCallPart(toolName: string, input: unknown, nonce = ""): StreamPart 
   };
 }
 
+/**
+ * A model that gets one call wrong, is told, and carries on.
+ *
+ * That is what a real local model doing real work looks like, and what used to
+ * discard the whole turn (found live on 2026-09-05). Round one asks
+ * `propose_draft` for a definition the schema refuses, so the SDK reports a
+ * `tool-error` part and hands the failure back as that call's result; the rest
+ * is the default script's own path, ending with `stop` and a real proposal.
+ */
+function planRecoveredStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  const round = prompt.filter((m) => m.role === "tool").length;
+  if (round === 0) {
+    return [
+      ...textParts("Let me propose that straight away."),
+      toolCallPart("propose_draft", { definition: { formId: 42 } }, "_bad"),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (round === 1) {
+    return [
+      ...textParts("That was malformed. Let me look the questions up first."),
+      toolCallPart("search_question_library", { limit: 10 }),
+      finishPart("tool-calls"),
+    ];
+  }
+  if (round === 2) {
+    const draft = currentDraft(prompt) ?? {};
+    return [
+      toolCallPart("propose_draft", { definition: buildProposal(draft, libraryHits(results)) }),
+      finishPart("tool-calls"),
+    ];
+  }
+  return [...textParts("I have proposed the draft."), finishPart("stop")];
+}
+
 /** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
@@ -256,6 +296,25 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
   if (script === "provider-error") {
     return [{ type: "error", error: new Error("upstream provider unavailable") }];
+  }
+  if (script === "provider-rejected") {
+    // The shape a provider emits mid-stream for a permanent refusal, as
+    // observed live on a real account with no balance (issue #818): a 429 that
+    // the SDK has already marked non-retryable. Scripted as the payload rather
+    // than as an `APICallError` because that is the path the live failure took,
+    // and because the flag is what `providerRetryAdvice` reads - not the class,
+    // and never the vendor text carried alongside it.
+    return [
+      {
+        type: "error",
+        error: {
+          message: "upstream provider refused the request",
+          statusCode: 429,
+          isRetryable: false,
+          data: undefined,
+        },
+      },
+    ];
   }
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];
@@ -276,6 +335,11 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
 
   const results = toolResults(prompt);
+
+  if (script === "tool-error-recovered") {
+    return planRecoveredStep(prompt, results);
+  }
+
   if (!results.has("search_question_library")) {
     const query = pickSearchQuery(prompt);
     return [
