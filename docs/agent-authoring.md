@@ -197,6 +197,7 @@ Three things worth knowing:
 - **Each proposed definition faces the same validation a hand-authored question faces**, including the authoring rules the schema itself does not carry. If one is refused, the whole accept is refused and **nothing** is saved - not the draft, not the other questions - and the error names which question and why. Fix the proposal (or ask the assistant to) and accept again.
 - **Question ids are never reused (R6).** A proposal that reaches for an id your library has used before, even for a question you deprecated, is refused for that reason.
 - **The library slug is derived from the question id** when the proposal does not name one: `q_first_name` becomes `first-name`. If that slug is already taken the accept is refused rather than silently renamed.
+- **The created question drafts outlive a discarded form draft.** Discarding the draft removes the form draft and its agent-assisted mark; it does not remove the questions, because they are ordinary kernel-validated library drafts by then and a question id is never reused (R6), so deleting them could not give you the id back anyway. If you do not want them, deprecate or leave them in the library like any other draft you decided against.
 
 Before this behaviour existed, accepting such a proposal stored a draft pinning question ids nothing had ever created, and the builder showed "Version not found" with no draft to review or publish.
 

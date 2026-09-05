@@ -94,9 +94,22 @@ draft that references that run's own fixtures and actually publishes.
 
 A script is selected by a `#qcms-fake:<script>` directive in a user turn:
 `default`, `rogue-publish`, `rogue-erase`, `rogue-webhook`, `rogue-responses`,
-`refusal`, `provider-error`, `no-proposal`. The `rogue-*` scripts exist because a
-hostile model is the threat the allowlist is for, and the only honest way to test
-a refusal is to have something actually attempt the forbidden call.
+`refusal`, `provider-error`, `provider-rejected`, `tool-error-recovered`,
+`propose-questions`, `no-proposal`, `length`, `step-limit`. The `rogue-*` scripts
+exist because a hostile model is the threat the allowlist is for, and the only
+honest way to test a refusal is to have something actually attempt the forbidden
+call.
+
+`propose-questions` is the one script that calls `propose_questions`, and it was
+added with issue #823's fix. Until then the verb had **no e2e consumer at all**:
+every scripted proposal pinned questions the run had already published, so an
+accept that silently discarded the proposed definitions looked green from the
+deterministic lane. A tool the fake provider never calls is a tool the browser
+suite cannot vouch for, which is the same blind spot issue #820 found on the tool
+schemas. The script proposes one question and a step that pins it; the id suffix
+comes from a `#qcms-fake-new:<word>` directive, because accepting **creates** the
+question and a `questionId` is never reused (R6), so a canned id would work once
+against the shared harness database and fail every run after.
 
 ## Accepting a proposal
 

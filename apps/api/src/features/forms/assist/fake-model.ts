@@ -38,6 +38,18 @@ const DIRECTIVE = "#qcms-fake:";
  */
 const SEARCH_DIRECTIVE = "#qcms-fake-search:";
 
+/**
+ * An optional directive that fixes the id suffix the `propose-questions` script
+ * invents: `#qcms-fake-new:<word>` proposes `q_fake_new_<word>`.
+ *
+ * It exists because a proposed question is *created* when the human accepts it
+ * (issue #823) and a `questionId` is never reused (R6), so a canned id would
+ * work exactly once against the browser suite's shared database and then fail
+ * every later run with `QUESTION_ID_REUSED`. A spec supplies a word unique to
+ * itself. Test-only, like the whole module.
+ */
+const NEW_QUESTION_DIRECTIVE = "#qcms-fake-new:";
+
 export const FAKE_SCRIPTS = [
   "default",
   "rogue-publish",
@@ -48,6 +60,7 @@ export const FAKE_SCRIPTS = [
   "provider-error",
   "provider-rejected",
   "tool-error-recovered",
+  "propose-questions",
   "no-proposal",
   "length",
   "step-limit",
@@ -281,6 +294,92 @@ function planRecoveredStep(
   return [...textParts("I have proposed the draft."), finishPart("stop")];
 }
 
+/**
+ * The id the `propose-questions` script proposes, sanitised to the `q_[a-z0-9_]+`
+ * grammar (002) so a directive word can never produce an id the kernel refuses -
+ * which would test the refusal path while claiming to test the accept path.
+ */
+function newQuestionId(prompt: readonly PromptMessage[]): string {
+  const word = (wordAfter(userText(prompt), NEW_QUESTION_DIRECTIVE) ?? "question")
+    .toLowerCase()
+    .replace(/[^a-z0-9_]/gu, "");
+  return `q_fake_new_${word === "" ? "question" : word}`;
+}
+
+/**
+ * The `propose-questions` script: propose ONE question the library does not have,
+ * then a draft that pins it.
+ *
+ * One question rather than several, because what needs pinning end to end is the
+ * flow - propose, accept, the definition becomes an unpublished library draft,
+ * the pin resolves once a human publishes it (issue #823). A second question
+ * would exercise the same path twice. The *list* behaviours (a refusal failing
+ * the whole accept, a reused id rolling the batch back) are pinned against a real
+ * database in `assist.integration.test.ts`, where they can be asserted precisely;
+ * a scripted model is the wrong instrument for them.
+ *
+ * Deliberately NOT the `default` script's job. `default` proposes a draft over
+ * questions that already exist and publishes cleanly, and a great many specs rely
+ * on exactly that; a proposal carrying a new question cannot publish until
+ * someone publishes the question, so folding the two together would have made
+ * every one of those specs depend on a two-stage publish they do not care about.
+ */
+function planProposeQuestionsStep(
+  prompt: readonly PromptMessage[],
+  results: Map<string, unknown>,
+): StreamPart[] {
+  const questionId = newQuestionId(prompt);
+
+  if (!results.has("propose_questions")) {
+    return [
+      ...textParts("This needs a question the library does not have yet."),
+      toolCallPart("propose_questions", {
+        questions: [
+          {
+            questionId,
+            type: "shortText",
+            label: { en: "Preferred name" },
+            required: false,
+            constraints: {},
+          },
+        ],
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+
+  if (!results.has("propose_draft")) {
+    const draft = currentDraft(prompt) ?? {};
+    const locale = typeof draft.defaultLocale === "string" ? draft.defaultLocale : "en";
+    const title = (draft.title as Record<string, string> | undefined) ?? {};
+    return [
+      toolCallPart("propose_draft", {
+        definition: {
+          formId: draft.formId,
+          defaultLocale: locale,
+          title: Object.keys(title).length > 0 ? title : { [locale]: "Vehicle insurance quote" },
+          steps: [
+            {
+              stepId: "stp_agent_new_question",
+              title: { [locale]: "About you" },
+              items: [{ questionId, version: 1 }],
+            },
+          ],
+          rules: [],
+        },
+      }),
+      finishPart("tool-calls"),
+    ];
+  }
+
+  return [
+    ...textParts(
+      "I proposed one new question and a step that pins it. Accepting will create it as an unpublished draft in the library; publish it there and the pin resolves.",
+    ),
+    finishPart("stop"),
+  ];
+}
+
 /** Plan the parts this step emits, given everything that has happened so far. */
 function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamPart[] {
   const rogueTool = ROGUE_TOOLS[script];
@@ -338,6 +437,10 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
 
   if (script === "tool-error-recovered") {
     return planRecoveredStep(prompt, results);
+  }
+
+  if (script === "propose-questions") {
+    return planProposeQuestionsStep(prompt, results);
   }
 
   if (!results.has("search_question_library")) {

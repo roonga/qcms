@@ -56,3 +56,13 @@ assistant's narration describes.
 The admin builder carries the proposal's definitions into the save that stores the draft
 they are pinned by, and holds them until that save actually succeeds, so a refused accept
 is retried whole rather than degrading into the dangling-pin save it was refused for.
+
+The fake provider gains a `propose-questions` script, and the browser suite gains the case
+that drives it. Until now `propose_questions` had **no e2e consumer at all**: every scripted
+proposal pinned questions the run had already published, so an accept that silently
+discarded the proposed definitions looked green from the deterministic lane. That is the
+same blind spot issue #820 found on the tool schemas, and the fix is the same one: have the
+fake provider actually call the verb. The script proposes one question and a step pinning
+it; its id suffix comes from a `#qcms-fake-new:<word>` directive, because accepting
+_creates_ the question and an id is never reused (R6), so a canned id would work once
+against the shared harness database and fail every run after.
