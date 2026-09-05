@@ -1222,7 +1222,13 @@ export const messages = {
   "forms.assist.accept": "Accept into draft",
   "forms.assist.discard": "Discard",
 
+  // Two provider failures, two sentences, because the advice is opposite
+  // (issue #818). Neither repeats what the provider said: no vendor message,
+  // no vendor error code, no URL and no key material reaches this copy
+  // (SEC-8). The split is decided upstream from the SDK's `isRetryable`.
   "forms.assist.error.PROVIDER_ERROR": "The assistant is unavailable right now. Try again shortly.",
+  "forms.assist.error.PROVIDER_REJECTED":
+    "The model provider refused this request, and trying again will not help. Check the provider account and the assistant settings for this deployment.",
   "forms.assist.error.NO_PROPOSAL":
     "No proposal could be produced from the current draft. Try describing a smaller change.",
   "forms.assist.error.REFUSED": "The assistant declined that request. {message}",

@@ -46,6 +46,7 @@ export const FAKE_SCRIPTS = [
   "rogue-responses",
   "refusal",
   "provider-error",
+  "provider-rejected",
   "no-proposal",
   "length",
   "step-limit",
@@ -256,6 +257,25 @@ function planStep(prompt: readonly PromptMessage[], script: FakeScript): StreamP
   }
   if (script === "provider-error") {
     return [{ type: "error", error: new Error("upstream provider unavailable") }];
+  }
+  if (script === "provider-rejected") {
+    // The shape a provider emits mid-stream for a permanent refusal, as
+    // observed live on a real account with no balance (issue #818): a 429 that
+    // the SDK has already marked non-retryable. Scripted as the payload rather
+    // than as an `APICallError` because that is the path the live failure took,
+    // and because the flag is what `providerRetryAdvice` reads - not the class,
+    // and never the vendor text carried alongside it.
+    return [
+      {
+        type: "error",
+        error: {
+          message: "upstream provider refused the request",
+          statusCode: 429,
+          isRetryable: false,
+          data: undefined,
+        },
+      },
+    ];
   }
   if (script === "no-proposal") {
     return [...textParts("I need more detail before I can propose anything."), finishPart("stop")];

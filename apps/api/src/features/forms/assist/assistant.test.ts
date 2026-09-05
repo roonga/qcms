@@ -14,7 +14,8 @@ import {
   type FormDefinition,
 } from "@roonga/qcms-core";
 
-import { createNullLogger } from "../../../logger.js";
+import { createNullLogger, type Logger } from "../../../logger.js";
+import { recordingLogger } from "../../../test-support.js";
 import { aiSdkDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
 import {
@@ -88,11 +89,14 @@ function contextFor(
   return { ctx, validated };
 }
 
-async function collect(ctx: AssistContext): Promise<AssistEvent[]> {
+async function collect(
+  ctx: AssistContext,
+  logger: Logger = createNullLogger(),
+): Promise<AssistEvent[]> {
   const assistant = aiSdkDraftAssistant({
     model: fakeAssistantModel(),
     providerId: "fake",
-    logger: createNullLogger(),
+    logger,
   });
   const events: AssistEvent[] = [];
   for await (const event of assistant.assist(ctx, new AbortController().signal)) {
@@ -193,6 +197,38 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.find((e) => e.type === "error")).toMatchObject({ code: "PROVIDER_ERROR" });
   });
 
+  /**
+   * The split issue #818 exists for, asserted from both sides.
+   *
+   * The live failure was a real account with no balance: a 429 the SDK had
+   * already marked non-retryable, rendered as "try again shortly". Retryable and
+   * non-retryable have to reach the panel as different codes or the operator is
+   * told to wait when they must act, so both directions are pinned - a plain
+   * failure must NOT become the permanent code, which is the regression that
+   * would send someone to check an account that is fine.
+   */
+  it("maps a non-retryable provider failure to PROVIDER_REJECTED", async () => {
+    const { ctx } = contextFor("#qcms-fake:provider-rejected hello");
+    const events = await collect(ctx);
+    expect(events.find((e) => e.type === "error")).toMatchObject({ code: "PROVIDER_REJECTED" });
+  });
+
+  it("logs the refusal without writing any vendor detail into the record", async () => {
+    // The panel shows the operator no vendor detail at all (SEC-8), so this log
+    // line is the only trace of a permanent refusal. It must carry enough to act
+    // on and nothing the vendor wrote.
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:provider-rejected hello");
+    await collect(ctx, logger);
+    const record = lines.find((line) => line["msg"] === "draft assistant provider failure");
+    expect(record).toBeDefined();
+    expect(record).toMatchObject({ provider: "fake", retryable: false, statusCode: 429 });
+    // The SDK's own sentence rides on the event to an authenticated admin; it
+    // does not ride into the log, where an exporter or an aggregator would take
+    // it somewhere nobody chose.
+    expect(JSON.stringify(record)).not.toContain("upstream provider refused");
+  });
+
   it("reports NO_PROPOSAL when the turn ends without one", async () => {
     const { ctx } = contextFor("#qcms-fake:no-proposal hello");
     const events = await collect(ctx);
@@ -215,6 +251,7 @@ describe("draft assistant tool loop (fake provider)", () => {
  */
 const ERROR_SCENARIOS: readonly (readonly [string, string])[] = [
   ["provider-error", "PROVIDER_ERROR"],
+  ["provider-rejected", "PROVIDER_REJECTED"],
   ["no-proposal", "NO_PROPOSAL"],
   ["refusal", "REFUSED"],
   ["length", "LENGTH"],

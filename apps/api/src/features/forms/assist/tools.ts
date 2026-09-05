@@ -20,7 +20,7 @@
  *    `answers` row, which is the PII boundary ADR-25 requires.
  */
 
-import { tool, type ToolSet } from "ai";
+import { asSchema, jsonSchema, tool, type JSONSchema7, type Schema, type ToolSet } from "ai";
 import { z } from "zod";
 
 import {
@@ -31,6 +31,7 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 
+import { selfContainedToolSchema } from "./tool-schema.js";
 import type { AssistContext } from "./types.js";
 
 /**
@@ -213,6 +214,41 @@ const REGISTRY: Readonly<Record<AssistToolName, AssistToolDef>> = Object.freeze(
   },
 });
 
+// --- what the provider is actually shown ------------------------------------
+
+/**
+ * The provider-facing schema for one tool: our JSON Schema, our Zod validator.
+ *
+ * Zod stays the authority. What changes is only the *document handed upstream*:
+ * `FormDefinition.rules[].when` is recursive, a conversion has to hoist it
+ * behind a `$ref`, and the hoisted form is not portable - LM Studio rejected
+ * the entire tool set with HTTP 400 before reaching the model, because it reads
+ * `$defs` and the conversion writes draft-07 `definitions` (issue #820). So the
+ * emitted document is rewritten into a self-contained, acyclic one by
+ * {@link selfContainedToolSchema}, while `validate` still runs the untouched Zod
+ * schema over whatever the model sends.
+ *
+ * That split is the point. The advertisement is bounded; the acceptance is not.
+ * Every executor re-parses its input with the same Zod schema anyway, so a
+ * bounded document can neither admit a form the kernel would reject nor reject
+ * one the kernel would take.
+ */
+function providerSchema(zodType: z.ZodType): Schema<unknown> {
+  return jsonSchema<unknown>(
+    // A thunk, so a deployment that never runs a turn never converts a schema,
+    // and `streamText` resolves it once per tool set rather than per step.
+    async (): Promise<JSONSchema7> => selfContainedToolSchema(await asSchema(zodType).jsonSchema),
+    {
+      validate: (value: unknown) => {
+        const result = zodType.safeParse(value);
+        return result.success
+          ? { success: true as const, value: result.data as unknown }
+          : { success: false as const, error: result.error };
+      },
+    },
+  );
+}
+
 /**
  * **The only door.** Every tool execution in this slice goes through here, and a
  * name outside the allowlist is refused before anything is dispatched - so the
@@ -239,9 +275,25 @@ export function assistToolSet(ctx: AssistContext, state: ProposalState): ToolSet
     const def = REGISTRY[name];
     set[name] = tool({
       description: def.description,
-      inputSchema: def.inputSchema,
+      inputSchema: providerSchema(def.inputSchema),
       execute: (input: unknown) => runAssistTool(name, input, ctx, state),
     });
   }
   return set as ToolSet;
+}
+
+/**
+ * The exact JSON Schema documents this slice hands a provider, by tool name.
+ *
+ * Exported for the regression pin in `tools.test.ts` and for nothing else. The
+ * fake provider never reads a tool schema, so before issue #820 no test in the
+ * suite ever converted one: the tool set could ship a document no engine would
+ * accept and every gate stayed green. This is the seam that closes that.
+ */
+export async function assistToolJsonSchemas(): Promise<Record<AssistToolName, JSONSchema7>> {
+  const out: Partial<Record<AssistToolName, JSONSchema7>> = {};
+  for (const name of ASSIST_TOOL_NAMES) {
+    out[name] = await asSchema(providerSchema(REGISTRY[name].inputSchema)).jsonSchema;
+  }
+  return out as Record<AssistToolName, JSONSchema7>;
 }

@@ -15,8 +15,10 @@ import { recordingLogger, validEnv } from "../../../test-support.js";
 import { loadConfig } from "../../../config.js";
 import { aiSdkDraftAssistant, selectDraftAssistant } from "./assistant.js";
 import { fakeAssistantModel } from "./fake-model.js";
+import { collectRefs } from "./tool-schema.js";
 import {
   ASSIST_TOOL_NAMES,
+  assistToolJsonSchemas,
   assistToolSet,
   createProposalState,
   isAllowedToolName,
@@ -246,5 +248,97 @@ describe("the configured selector", () => {
       events.push(event);
     }
     expect(events.some((e) => e.type === "usage")).toBe(true);
+  });
+});
+
+/**
+ * The schema the provider actually receives (issue #820).
+ *
+ * This is the blind spot the 041 gates had, described precisely so it is not
+ * reopened: **the fake provider never reads a tool schema.** `MockLanguageModelV3`
+ * is handed the tool set and ignores it, so no test in the suite ever converted
+ * one, and `propose_draft` shipped a document that every strict engine rejects
+ * while every gate stayed green. The first real provider call died in 1.0s with
+ * HTTP 400, before inference.
+ *
+ * Three properties, and the order matters because the middle one is the one the
+ * issue's own suggested pin would have missed.
+ */
+describe("every emitted tool schema is one a provider can convert", () => {
+  it("names every tool in the allowlist and nothing else", async () => {
+    const schemas = await assistToolJsonSchemas();
+    expect(Object.keys(schemas).sort()).toEqual([...ASSIST_TOOL_NAMES].sort());
+  });
+
+  it("resolves every $ref inside the document it ships", async () => {
+    // The dangling half of the defect: the conversion hoisted the recursive
+    // `Condition` into a block, and a reader that did not carry the block with
+    // the schema was left holding a pointer to nothing.
+    const schemas = await assistToolJsonSchemas();
+    for (const [name, schema] of Object.entries(schemas)) {
+      for (const { ref, resolves } of collectRefs(schema)) {
+        expect(resolves, `${name} ships a $ref to ${ref} that resolves to nothing`).toBe(true);
+      }
+    }
+  });
+
+  it("uses the $defs spelling, never draft-07 definitions", async () => {
+    // This is what actually broke. LM Studio's schema-to-grammar conversion
+    // reads `$defs`; the Zod conversion writes `definitions`; the block was
+    // dropped as an unknown keyword and the $ref then resolved to nothing -
+    // "Error resolving ref #/definitions/__schema0: definitions not in {...}".
+    // A resolve check alone passes on that document, because within the JSON
+    // the block IS there. Only the spelling assertion catches it.
+    const schemas = await assistToolJsonSchemas();
+    for (const [name, schema] of Object.entries(schemas)) {
+      expect(JSON.stringify(schema), `${name} emits a draft-07 definitions block`).not.toContain(
+        '"definitions"',
+      );
+    }
+  });
+
+  it("ships no reference cycle", async () => {
+    // The second half, and the reason a rename would not have been enough: a
+    // recursive $ref is unconvertible for providers that resolve by inlining.
+    // The AI SDK's Google provider refuses one outright and falls back to
+    // handing the vendor the raw document instead of its native parameters.
+    const schemas = await assistToolJsonSchemas();
+    for (const [name, schema] of Object.entries(schemas)) {
+      const defs = (schema.$defs ?? {}) as Record<string, unknown>;
+      const edges = new Map<string, string[]>();
+      for (const [entry, body] of Object.entries(defs)) {
+        edges.set(
+          entry,
+          collectRefs(body as Parameters<typeof collectRefs>[0]).map((r) =>
+            r.ref.slice(r.ref.lastIndexOf("/") + 1),
+          ),
+        );
+      }
+      const state = new Map<string, "open" | "done">();
+      const visit = (node: string, trail: string[]): void => {
+        if (state.get(node) === "done") return;
+        expect(
+          state.get(node),
+          `${name}: reference cycle ${[...trail, node].join(" -> ")}`,
+        ).not.toBe("open");
+        state.set(node, "open");
+        for (const next of edges.get(node) ?? []) visit(next, [...trail, node]);
+        state.set(node, "done");
+      };
+      for (const entry of edges.keys()) visit(entry, []);
+    }
+  });
+
+  it("still validates against the kernel's own schema, not the bounded one", async () => {
+    // The property that makes a bounded advertisement safe: the tool set's
+    // `validate` is the untouched Zod schema, so a draft the bounded document
+    // does not describe is still accepted, and one the kernel rejects is still
+    // rejected. Asserted through the real tool set rather than in prose.
+    const set = assistToolSet(contextFixture("x"), createProposalState());
+    const schema = (set.propose_draft as { inputSchema: { validate?: unknown } }).inputSchema;
+    expect(typeof schema.validate).toBe("function");
+    const validate = schema.validate as (v: unknown) => { success: boolean };
+    expect(validate({ definition: { formId: "not a form" } }).success).toBe(false);
+    expect(validate({ definition: draftFixture() }).success).toBe(true);
   });
 });

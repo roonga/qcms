@@ -52,6 +52,7 @@ export interface AssistProposal {
  */
 export const ASSIST_ERROR_CODES = [
   "PROVIDER_ERROR",
+  "PROVIDER_REJECTED",
   "NO_PROPOSAL",
   "REFUSED",
   "LENGTH",

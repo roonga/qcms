@@ -11,6 +11,7 @@
  */
 
 import {
+  APICallError,
   NoSuchToolError,
   stepCountIs,
   streamText,
@@ -47,6 +48,10 @@ interface RunOutcome {
   finishReason: string;
   rejectedTool: string | undefined;
   providerError: string | undefined;
+  /** What the provider said about trying again. See {@link providerRetryAdvice}. */
+  providerRetryable: boolean;
+  /** The upstream HTTP status, when the failure had one. Logged, never rendered. */
+  providerStatus: number | undefined;
 }
 
 /**
@@ -86,6 +91,53 @@ function errorMessage(error: unknown): string {
 }
 
 /**
+ * Whether the provider said trying again could work (issue #818).
+ *
+ * One error code held two conditions with opposite guidance: "the vendor is
+ * down", where waiting is the right advice, and "this account cannot pay for the
+ * call", where waiting is the wrong advice and the operator has to go and do
+ * something. A real turn against a funded-then-emptied account showed the second
+ * one rendered as the first - `429 insufficient_quota`, `isRetryable: false`,
+ * and an assist panel saying "try again shortly".
+ *
+ * The SDK already knows. It sets `isRetryable` at the point the failure is built
+ * (429 and 5xx are retryable by default; a provider narrows that, and the OpenAI
+ * package explicitly excludes `insufficient_quota`), so the distinction is
+ * available **without parsing vendor text**, which is what keeps SEC-8 intact:
+ * nothing here reads a vendor message, a vendor code or a URL, and none of them
+ * reaches the operator.
+ *
+ * Two shapes carry the flag - `APICallError` for a failed request, and the
+ * plain stream-error payload a provider emits mid-stream - and only the first is
+ * re-exported by `ai`. The second is read structurally rather than by pulling in
+ * `@ai-sdk/provider-utils` for one type guard.
+ *
+ * **Defaults to `true`**, deliberately. Absent a definite "this will not
+ * succeed" from the provider, the operator gets the advice they got before this
+ * split existed. A wrongly-permanent message sends someone to check an account
+ * that is fine; a wrongly-transient one is the failure being fixed here, and
+ * only positive evidence should trigger it.
+ */
+function providerRetryAdvice(error: unknown): boolean {
+  if (APICallError.isInstance(error)) return error.isRetryable;
+  if (typeof error === "object" && error !== null && "isRetryable" in error) {
+    const flag = (error as { isRetryable: unknown }).isRetryable;
+    if (typeof flag === "boolean") return flag;
+  }
+  return true;
+}
+
+/** The upstream status code, when the failure carried one. */
+function providerStatusCode(error: unknown): number | undefined {
+  if (APICallError.isInstance(error)) return error.statusCode;
+  if (typeof error === "object" && error !== null && "statusCode" in error) {
+    const status = (error as { statusCode: unknown }).statusCode;
+    if (typeof status === "number") return status;
+  }
+  return undefined;
+}
+
+/**
  * Build the assistant over any AI SDK language model.
  *
  * `providerOptions` is the SDK's per-provider passthrough, and it is the seam
@@ -114,6 +166,8 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
   const refused = refusedToolName(raw);
   if (refused === undefined) {
     outcome.providerError = errorMessage(raw);
+    outcome.providerRetryable = providerRetryAdvice(raw);
+    outcome.providerStatus = providerStatusCode(raw);
   } else {
     outcome.rejectedTool = refused;
   }
@@ -173,6 +227,8 @@ async function* runTurn(args: {
     finishReason: "unknown",
     rejectedTool: undefined,
     providerError: undefined,
+    providerRetryable: true,
+    providerStatus: undefined,
   };
 
   const result = streamText({
@@ -292,7 +348,25 @@ async function* finishTurn(args: {
   }
 
   if (outcome.providerError !== undefined) {
-    yield { type: "error", code: "PROVIDER_ERROR", message: outcome.providerError };
+    // Two conditions, two codes, opposite advice (issue #818). The record is
+    // logged here because the panel deliberately shows the operator no vendor
+    // detail: without this line a permanent refusal leaves no trace an operator
+    // can act on. Every field is ours - a provider id from configuration, a
+    // boolean the SDK set, an HTTP status - and no vendor message, code or URL
+    // is written (SEC-8). The event name is classified in the OTLP export
+    // vocabulary (SEC-13); its attributes are outside the attribute allowlist
+    // and are dropped on export, so what leaves the process is the name and a
+    // count.
+    logger.warn("draft assistant provider failure", {
+      provider: providerId,
+      retryable: outcome.providerRetryable,
+      statusCode: outcome.providerStatus,
+    });
+    yield {
+      type: "error",
+      code: outcome.providerRetryable ? "PROVIDER_ERROR" : "PROVIDER_REJECTED",
+      message: outcome.providerError,
+    };
     return;
   }
 
