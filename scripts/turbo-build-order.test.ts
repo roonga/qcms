@@ -9,14 +9,14 @@ import { isGeneratedCopy } from "./generated-copy.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
- * Every `dist` a program-shaped task reads is built before that task starts (issue
- * #765).
+ * Every `dist` a program-shaped task reads is built before that task starts (issues
+ * #765, #796, #810).
  *
  * ## What goes wrong without this
  *
- * `typecheck` and `lint` are program-shaped: both build a tsc program, so both read
- * the BUILT declarations of every workspace package the program reaches. A tsc
- * program is not bounded by the manifest. `apps/portal/tsconfig.json` includes
+ * `build`, `typecheck` and `lint` are program-shaped: each builds a tsc program, so
+ * each reads the BUILT declarations of every workspace package the program reaches. A
+ * tsc program is not bounded by the manifest. `apps/portal/tsconfig.json` includes
  * `**\/*.ts`, which takes in the Playwright harness, and two files there import
  * apps/api source by relative path, so the portal's program transitively contains the
  * API's source tree and therefore `@roonga/qcms-db`, `@roonga/qcms-csv` and `@roonga/qcms-a2ui-compiler` -
@@ -27,6 +27,23 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * hit it and took the devDependency route. The portal had the same reach the whole
  * time and neither, which is how the same defect was fixed twice and shipped a third
  * time.
+ *
+ * ## Why `build` belongs in that list, and what it cost to leave it out
+ *
+ * This file was written for `typecheck` and `lint` and covered only those two, on the
+ * reading that a build emits rather than checks. That is false for the two Next apps:
+ * `next build` type-checks `apps/<app>/tsconfig.json` before it emits, over the same
+ * program the app's `typecheck` task builds, reaching the same undeclared dists. So
+ * the portal's BUILD raced `@roonga/qcms-db`'s `clean-dist` and failed with 40-odd
+ * TS2307s (issue #810) while the gate for exactly that race sat green beside it,
+ * because the task it checked was spelled differently. Issue #796 is the same gap
+ * reported from the typecheck side, and it named `@roonga/qcms-csv` as the edge a
+ * hand-mirrored portal fix would still have missed.
+ *
+ * Adding `build` to {@link PROGRAM_SHAPED_TASKS} demanded five edges and no surplus
+ * ones: the two Next apps, and nothing from `packages/*`, whose builds run
+ * `tsc -p tsconfig.build.json` over programs their own manifests already declare, so
+ * `^build` orders them.
  *
  * ## Why it read as a flake rather than as a missing edge
  *
@@ -56,7 +73,7 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  */
 
 /** turbo tasks that build a tsc program and therefore read built declarations. */
-const PROGRAM_SHAPED_TASKS = ["typecheck", "lint"] as const;
+const PROGRAM_SHAPED_TASKS = ["build", "typecheck", "lint"] as const;
 
 /** A module specifier, as opposed to a fragment of prose a loose regex matched. */
 const PLAUSIBLE_SPECIFIER = /^[^\s'"`;(){}]+$/;

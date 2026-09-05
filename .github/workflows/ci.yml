@@ -182,9 +182,13 @@ jobs:
 
       # Build before typecheck so every workspace package's dist/ (and its emitted
       # .d.ts) exists on disk first. `pnpm typecheck` (turbo, ^build) should build
-      # deps itself, but on a cold CI cache it intermittently races and fails to
-      # resolve a just-built workspace package (e.g. `@roonga/qcms-db`); an explicit build
-      # makes resolution deterministic. Root cause tracked in the CI-race issue.
+      # deps itself, but on a cold CI cache it intermittently raced and failed to
+      # resolve a just-built workspace package (e.g. `@roonga/qcms-db`); an explicit
+      # build made resolution deterministic. The root cause is now known and fixed:
+      # a program-shaped task reading a `dist` that turbo never ordered ahead of it
+      # (issues #765, #796, #810), derived by scripts/turbo-build-order.test.ts. The
+      # step stays because `pnpm verify` runs it too and this job is that gate's CI
+      # enactment, not because the race is still open.
       - run: pnpm build
         if: env.PLAN_ONLY != 'true'
 
@@ -236,6 +240,16 @@ jobs:
         if: env.PLAN_ONLY != 'true'
         env:
           DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
+
+      # The other changeset question, and the one nothing asked (issue #797): does the
+      # set of changesets on this branch actually ASSEMBLE into a release plan? A
+      # changeset naming the root manifest sat on main for weeks, unreleasable, because
+      # the gate above only ever asked whether a changed package was named. The wrapper
+      # is there because `changeset status` also wants `main` as a local ref, which a
+      # pull-request checkout does not have; scripts/check-changeset-status.mjs has the
+      # reasoning.
+      - run: pnpm check:changeset-status
+        if: env.PLAN_ONLY != 'true'
 
       # A NUL byte once shipped in a .ts and passed every gate (workshop retro,
       # Stage 4); this rejects control chars (except tab/LF/CR) in tracked source.
