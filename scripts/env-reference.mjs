@@ -1198,6 +1198,26 @@ export function scanSourceText(text) {
 }
 
 /**
+ * Variables the framework sets, which an operator must never set.
+ *
+ * The table above is "every environment variable an operator can set", and this gate
+ * asserts it against what the source reads, so a variable that is read but is not the
+ * operator's would otherwise force a row that tells an operator to set something they
+ * must leave alone. Exactly one qualifies today.
+ *
+ * `NEXT_RUNTIME` is Next's own: it names the runtime a module was compiled for, and Next
+ * substitutes a literal for it at build time. `instrumentation.ts` reads it so that the
+ * boot-refusal write to `process.stderr` compiles away on the edge target, where that
+ * stream does not exist and a bare reference made Turbopack print `Ecmascript file had
+ * an error` on every dev boot (issue #829). Setting it in a deployment would not select
+ * a runtime, it would only misreport one.
+ *
+ * Anything added here has to meet the same bar: set by the framework or the platform,
+ * read for a compile-time or runtime branch, and harmful rather than useful to set.
+ */
+const FRAMEWORK_PROVIDED = new Set(["NEXT_RUNTIME"]);
+
+/**
  * Every environment variable `processName` actually reads, from its source.
  *
  * @param {"api" | "portal" | "admin" | "compose"} processName
@@ -1225,6 +1245,7 @@ export function scanEnvNames(processName) {
     found.delete(prefix);
     for (const suffix of suffixes) found.add(`${prefix}${suffix}`);
   }
+  for (const name of FRAMEWORK_PROVIDED) found.delete(name);
   return found;
 }
 
