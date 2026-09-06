@@ -308,6 +308,12 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  * Safe to run rather than skip because the failure is deterministic: the mismatch
  * is one attribute on every reload of this step, not a race.
  *
+ * The failing attempt this leaves in the run is an EXPECTED one, so a run whose only
+ * red is this test is green. The contention reporter classifies by
+ * `TestCase.outcome()` for exactly that reason (issue #828,
+ * `e2e/support/contention-reporter.ts`): counting the raw result status made it print
+ * its whole report, and claim one failing test, on green runs.
+ *
  * The limit of `test.fail`, stated because it is easy to miss: it accepts ANY
  * failure, so a future unrelated regression inside this body would also satisfy it
  * and pass silently. It buys "this defect is still here", not "everything else in
