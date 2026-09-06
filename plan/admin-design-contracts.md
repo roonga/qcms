@@ -207,8 +207,45 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
 - 44px rows (`--admin-table-row-h`), header 0.72rem strong-border underline, cell
   padding 0.4rem 0.6rem, `tabular-nums` on numeric and stamp columns.
 - No zebra striping. Rationale: the 44px row and hairline dividers carry the row
-  rhythm; zebra fights the ownership-grid contrast (element 4) where the two
-  meet, and the frozen card does not stripe.
+  rhythm, and zebra fights the ownership-grid contrast (element 4) where the two
+  meet.
+
+  **Corrected 2026-09-06 (issue #831): a third clause of this rationale was false and is
+  removed.** It read _"and the frozen card does not stripe"_. The card stripes.
+  `plan/admin-theme/ds-table.html` sets
+  `tbody tr:nth-child(even) { background: var(--color-background-muted); }`, which is what
+  the dev seat's #681 found: the rule cited the frozen card as support for the opposite of
+  what the card says, and nothing checked it until that sweep. Nothing about the rule moves
+  when the clause goes, because the two surviving clauses are the ones the decision rests
+  on.
+
+  **The rule is not narrowed, and that is the half worth reading.** PR #664 drafted a
+  narrowing of this bullet to _"no zebra on a table that carries the ownership grid"_, and
+  the #681 comment of 2026-08-22 recorded it as _"Landed on #664 at `a16e867`"_. It did not
+  land. **PR #664 was closed unmerged on 2026-08-23**, so none of its nine commits reach
+  `origin/main` and `a16e867` is an object on an abandoned branch rather than history. The
+  narrowing was a draft that read as a ruling because a comment said so.
+
+  **The ruling is the Code Owner decision of 2026-09-05 on #681**, made a fortnight later
+  and against this bullet as it stands rather than as #664 wanted it. No zebra, unqualified.
+  The frozen card and the two POCs that copy it (`library-lists-poc.html` and
+  `deployment-ops-poc.html`, both under `plan/admin-shell-poc/`) are **annotated as
+  superseded by this section**, which PR #830 landed on 2026-09-06; the drawings are not
+  amended and this section is not narrowed to fit them. The shipped family is already
+  correct - the comment in `apps/admin/app/globals.css` reads _"NO ZEBRA (§2) ... nothing
+  else may add one"_ - so **no code change follows from this correction.** The #681
+  disposition of 2026-08-22 that called that comment "too broad" and wanted an issue for it
+  was downstream of the narrowing, and lapses with it.
+
+  **Two error shapes here, and the second is the new one.** The first is the familiar one:
+  a rule stated more broadly than its reason supports, resting on a fact nobody re-read.
+  The second is a claim of landing that nothing checked against `main`. That is the failure
+  `CONTRIBUTING.md`'s "record a ruling at the artifact it changes" rule exists for, taken
+  one step further on: a comment recording a pending amendment is a handoff to whoever
+  picks the work up, and it turns into a false record the moment the amendment does not
+  merge. So a comment that says a change landed names the commit **on `main`**, not the
+  commit on the branch that proposed it.
+
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
   and no-JS work); whole-row `onRowAction` click is retired with the kit-table
   migration. Rows with an author-controlled order get the grip menu; rows without
