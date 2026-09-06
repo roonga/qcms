@@ -18,22 +18,27 @@ answers "do the bytes still match" on every run, and this file answers "what mov
 pin, and what did a human check" once per pin move.
 
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
-  `d34c95057b3862ead7c2115197b50a2e0177d8c7`
+  `7347b3b9c8067869f5a0407ab490ef1c83814d53`
 - **Previous pin**: `075c3a9324e146a4701d1c47a5cfcc0afccc2f7b`
 - **Captured**: 2026-09-06, the upstream pass carrying issues #804, #789 and #793
 - **Components installed**: alert, breadcrumb, button, card, checkbox, date-picker,
   dialog, form, layout, menu, number-field, radio, select, table, text, text-area,
   text-field
 
-**The pin names an upstream BRANCH head, not `main`.** It is the single commit of
-roonga/a2-react-aria#78, which is open and green rather than merged: the merge action was
-refused by this session's permission system, so the pass stops short of it rather than
-working around it. That repository merges by rebasing a clean branch, so the merge will
-produce a different sha carrying identical content, exactly as the previous pin move did
-(`e4f8b36` became `075c3a9`). **The pin moves to the merged commit before this change
-lands**, and this transcript and `a2ra-manifest.json` are regenerated at that commit in the
-same push; a manifest generated at another commit is a hard failure of
-`check:a2ra-fidelity` rather than a silent pass, so the two cannot drift apart quietly.
+**The pin names upstream `main`. It briefly named `d34c9505`**, the branch commit of
+roonga/a2-react-aria#78, because the upstream change was not merged yet: the merge action
+was refused by this session's permission system, so the pass stopped short of it rather
+than working around it, and the work below was captured and gated against the branch head.
+That repository squash-merges, so the branch commit could never become `main` history: the
+merge landed its content as `7347b3b9`, and the pin moved to it. The two commits are
+byte-identical over the whole tree (`git diff d34c9505 7347b3b9` is empty), which is why
+the re-pin rewrites no vendored byte and the regenerated `a2ra-manifest.json` reproduces
+byte-for-byte apart from the recorded sha. This is the same shape as the previous pin move,
+where `e4f8b36` became `075c3a9`.
+
+A manifest generated at another commit is a hard failure of `check:a2ra-fidelity` rather
+than a silent pass, so the pin, the manifest and the tree cannot drift apart quietly: the
+re-pin and the refresh are one change.
 
 ## What moved, and the proof that nothing else did
 
@@ -120,8 +125,13 @@ $ pnpm dlx @a2ra/cli diff
 ✓ All installed components are up to date.
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ d34c95057b38 (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 7347b3b9c806 (ADR-22).
 ```
+
+Re-taken at the merged pin rather than carried over from the branch pin, so the line above
+is what this pin produces. The whole-component sweep and the negative control below were
+captured against `d34c9505` and are not re-transcribed: the two commits are byte-identical,
+and the gate line above is the check that says so at the pin actually recorded.
 
 ## The negative control
 
