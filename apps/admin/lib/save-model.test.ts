@@ -468,9 +468,13 @@ describe("no screen shows two different save-state statements", () => {
     // screen's own, a settings loop's own - would be a second model wearing the first
     // one's clothes: one strip reporting two loops that settle at different moments as one
     // save state.
-    const declarations = uiSources()
-      .concat(["lib/forms/autosave.ts"])
-      .filter((file) => /const AUTOSAVE_DEBOUNCE_MS/u.test(source(file)));
+    // Swept over `lib/` as well as the UI tree, because the loop itself lives in `lib/`
+    // and a second one would most naturally be written beside it rather than in a
+    // component.
+    const tsx = (name: string): boolean => /\.tsx?$/u.test(name) && !/\.test\.tsx?$/u.test(name);
+    const declarations = [...uiSources(), ...filesUnder("lib", tsx)].filter((file) =>
+      /const AUTOSAVE_DEBOUNCE_MS/u.test(source(file)),
+    );
     expect(
       declarations,
       "the debounce is declared in the shared loop and nowhere else",
