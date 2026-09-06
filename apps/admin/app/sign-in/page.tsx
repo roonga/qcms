@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
+import { authFailureMessage } from "@/lib/auth-failure-message";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
@@ -19,22 +20,11 @@ import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
  * through client JavaScript and the screen works before hydration. Failures come
  * back as an opaque `?error=1` marker that renders one fixed sentence: an unknown
  * email and a wrong password are indistinguishable here and in the API's logs.
+ *
+ * Which sentence a marker renders is `lib/auth-failure-message.ts`, shared with the 2FA
+ * screens since issue #805 so that the throttled state cannot be answered by one screen
+ * and collapsed into "wrong code" by the next.
  */
-
-/**
- * The one message this screen may show, chosen from the opaque markers a failed POST
- * redirects with. Three distinguishable markers, one for each state the screen contract names
- * (generic failure, throttled, session expired) - and nothing more granular than that,
- * because a fourth marker is how enumeration gets reintroduced (SEC-1).
- */
-function signInMessage(
-  params: Readonly<Record<string, string | string[] | undefined>>,
-): string | undefined {
-  if (params.throttled !== undefined) return t("signIn.throttled");
-  if (params.expired !== undefined) return t("signIn.expired");
-  if (params.error !== undefined) return t("signIn.error");
-  return undefined;
-}
 
 /** The browser-tab title for this route (issue #536). */
 export function generateMetadata(): Metadata {
@@ -51,7 +41,7 @@ export default async function SignInPage({
   if ((await currentAdminSession()) !== undefined) redirect(SHELL_HOME_PATH);
 
   const params = await searchParams;
-  const error = signInMessage(params);
+  const error = authFailureMessage(params);
 
   return (
     <AuthScreen title={t("signIn.title")} error={error}>

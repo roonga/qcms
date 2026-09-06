@@ -2,6 +2,7 @@ import { verifyTotp } from "@/lib/server/auth-api";
 import { clearEnrollmentCookie } from "@/lib/server/enrollment";
 import {
   authRefused,
+  authThrottled,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -23,6 +24,13 @@ import { ENROLL_PATH, SIGN_IN_PATH } from "@/lib/server/session";
  * every other auth failure uses. The enrollment cookie is deliberately left in place
  * on failure, so a mistyped digit does not throw away the secret the admin has
  * already added to their authenticator.
+ *
+ * The `429` refusal is separated out for the reason `../../challenge/verify/route.ts`
+ * records at length (issue #805): this call goes to the same `/two-factor/*` bucket, so
+ * an operator can be throttled here by traffic that is not theirs, and "your code is
+ * wrong" is then both false and the advice most likely to keep the window shut. The
+ * first-run case is the sharpest one, because someone who has just scanned a QR code has
+ * every reason to doubt their setup rather than the message.
  */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectWithGenericFailure(ENROLL_PATH);
@@ -32,8 +40,11 @@ export async function POST(request: Request): Promise<Response> {
 
   const verified = await verifyTotp(request.headers, code);
 
-  // A wrong code arrives as a 4xx Response rather than a throw (see `authRefused`).
-  if (authRefused(verified)) return redirectWithGenericFailure(ENROLL_PATH);
+  // A wrong code arrives as a 4xx Response rather than a throw (see `authRefused`), and
+  // so does the throttle's refusal - the status is the only thing separating them.
+  if (authRefused(verified)) {
+    return redirectWithGenericFailure(ENROLL_PATH, authThrottled(verified) ? "throttled" : "error");
+  }
 
   // Defensive: a successful verify always issues a session. No cookies would mean the
   // sign-in session lapsed mid-enrollment, and re-provisioning needs the password.
