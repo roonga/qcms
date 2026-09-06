@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { register } from "./instrumentation";
@@ -27,6 +29,15 @@ import { register } from "./instrumentation";
  * - the refusal message is read back off `process.stderr`, so a call that ran but
  *   decided nothing cannot satisfy it.
  *
+ * The second thing pinned here is narrower, and it is about compilation rather than
+ * behaviour (issue #829). Turbopack compiles `instrumentation.ts` for the edge target as
+ * well as the Node one, so a bare `process.stderr` made every dev boot print `Ecmascript
+ * file had an error` against this file. The reference now sits inside a
+ * `process.env.NEXT_RUNTIME === "nodejs"` block, which Next's build-time substitution
+ * turns into dead code on the edge target, and `the edge compilation path` below reads
+ * the source to keep it there. A source-level assertion is the honest instrument for
+ * that: no in-process test can observe what a Turbopack target did or did not emit.
+ *
  * The twin is `apps/portal/instrumentation.test.ts`. The two `register()` functions
  * are separate call sites that can be unwired independently, so they get separate
  * tests rather than one shared one - a single test would let one of them rot silently.
@@ -53,6 +64,17 @@ function stubAcceptedConfiguration(): void {
   vi.stubEnv("QCMS_ADMIN_BASE_URL", "https://admin.example.test");
 }
 
+/**
+ * The runtime Next reports through `NEXT_RUNTIME`.
+ *
+ * `register()` is loaded on both runtimes, so a case has to say which one it speaks for.
+ * Vitest is neither, and leaving the variable unset would quietly exercise the edge path
+ * in tests written to cover the Node one.
+ */
+function stubRuntime(runtime: "nodejs" | "edge"): void {
+  vi.stubEnv("NEXT_RUNTIME", runtime);
+}
+
 /** Spies on the two calls a refusal is observable through. */
 function watchProcess() {
   const exit = vi.spyOn(process, "exit").mockImplementation((code) => {
@@ -70,6 +92,7 @@ afterEach(() => {
 describe("register", () => {
   it("terminates the process instead of booting when cookie security is downgraded off loopback", () => {
     stubRefusedConfiguration();
+    stubRuntime("nodejs");
     const { exit, stderr } = watchProcess();
 
     // `process.exit` never returns, so a `register()` that runs to completion here
@@ -93,6 +116,7 @@ describe("register", () => {
 
   it("boots normally when the cookie configuration is one a browser will protect", () => {
     stubAcceptedConfiguration();
+    stubRuntime("nodejs");
     const { exit, stderr } = watchProcess();
 
     // The control for the case above: it must be red because of the poisoned
@@ -102,5 +126,43 @@ describe("register", () => {
     }).not.toThrow();
     expect(exit).not.toHaveBeenCalled();
     expect(stderr()).toBe("");
+  });
+
+  it("still refuses, and writes nothing, when Next loads the hook on the edge runtime", () => {
+    stubRefusedConfiguration();
+    stubRuntime("edge");
+    const { exit, stderr } = watchProcess();
+
+    // Only the write is gated, never the refusal. `process.exit` exists here because the
+    // test process is Node; in the real edge sandbox it does not, and the rethrow is what
+    // an operator gets instead - the behaviour the `typeof` guard above already chose.
+    expect(() => {
+      register();
+    }).toThrow(EXIT_SENTINEL);
+    expect(exit).toHaveBeenCalledWith(1);
+    expect(stderr()).toBe("");
+  });
+});
+
+describe("the edge compilation path", () => {
+  /** The module with its comments removed, so prose about this rule cannot satisfy it. */
+  function moduleCode(): string {
+    return readFileSync(new URL("./instrumentation.ts", import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split("\n")
+      .filter((line) => !line.trimStart().startsWith("//"))
+      .join("\n")
+      .replace(/\s+/g, " ");
+  }
+
+  it("references process.stderr exactly once, inside the Node-runtime guard", () => {
+    const code = moduleCode();
+
+    // Turbopack drops the guarded block on the edge target because Next substitutes a
+    // literal for `NEXT_RUNTIME` before this compiles, so a reference anywhere else - a
+    // second write, or this one hoisted out of the block - is an `Ecmascript file had an
+    // error` line on every `pnpm dev:admin` boot and every build.
+    expect(code.split("process.stderr")).toHaveLength(2);
+    expect(code).toContain('if (process.env.NEXT_RUNTIME === "nodejs") { process.stderr');
   });
 });

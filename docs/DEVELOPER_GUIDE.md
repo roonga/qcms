@@ -338,6 +338,8 @@ gh api -X PATCH "repos/{owner}/{repo}/pulls/<number>" -F body=@<file>
 gh pr view <number> --json body -q .body    # read back and confirm the text landed
 ```
 
+**Reading is hit by the same deprecation** (issue #813): the default `gh issue view <number>` and `gh pr view <number>` ask for `projectCards` and so error out where an explicit field selection like the `--json body -q .body` read-back above still works, which makes `gh api "repos/{owner}/{repo}/issues/<number>" --jq .body` and `gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body` the reads to reach for.
+
 **A body edit retriggers CI; a comment does not.** Editing the body fires the `pull_request` `edited` event, so the required checks run again on an unchanged head. A PR comment fires no such event. So put review verdicts, gate evidence and running notes in comments, and reserve body edits for text that has to be in the body (the `Fixes #NN` lines, the summary a merge commit inherits). Where a body edit is genuinely needed on an already-green PR, expect the re-run and wait for it before merging.
 
 ### Triaging a Dependabot pull request
