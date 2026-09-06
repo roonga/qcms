@@ -126,6 +126,14 @@ export function useDraftAutosave({
 
   const isDirty = useRef(false);
 
+  // THE EDIT THE DEBOUNCE IS STILL HOLDING, or `undefined` when nothing is waiting.
+  //
+  // Armed when the effect below sets its timer and cleared the moment that timer fires, so
+  // it names exactly the window in which an edit exists on screen and nowhere else. What
+  // reads it is the unmount flush further down; see there for why the window matters more
+  // than it used to.
+  const pending = useRef<DraftForm | undefined>(undefined);
+
   // The actions live in a ref, and that is not a style choice. They arrive already bound to
   // a route's form id, so the page hands down a NEW function identity on every server
   // render - and a successful save calls `revalidatePath`, which causes one. An effect that
@@ -139,7 +147,11 @@ export function useDraftAutosave({
   useEffect(() => {
     if (!isDirty.current || paused !== undefined) return undefined;
     setStatus("saving");
+    pending.current = draft;
     const timer = setTimeout(() => {
+      // Claimed before the request goes out, so the flush below cannot send a second copy
+      // of an edit this leg is already sending.
+      pending.current = undefined;
       void (async () => {
         const saved = await actions.current.saveDraft(draft);
         if (saved.status === "error") {
@@ -179,6 +191,38 @@ export function useDraftAutosave({
       clearTimeout(timer);
     };
   }, [draft, paused]);
+
+  // LEAVING THE SCREEN STORES WHAT IS ON IT (issue #669).
+  //
+  // An unmount clears the debounce above, which used to mean an edit made inside the last
+  // 600ms was simply gone - no request, no error, nothing on screen to say so. That was
+  // always true of this app and was rarely reached, because leaving the builder meant going
+  // to Preview or Links: screens an author visits deliberately, having stopped typing.
+  //
+  // Splitting rule editing onto its own route made it ordinary. Pin a question and press
+  // Rules, save a rule and press the form's row, and the crossing happens exactly when a
+  // hand is still moving. The ruling behind that split says no behaviour may disappear
+  // silently in the move, and an edit that vanishes because the reader navigated is the
+  // plainest reading of that.
+  //
+  // Fire-and-forget, and mount-scoped rather than hung off the debounce effect: that one
+  // re-runs on every draft change, so its cleanup fires on every keystroke and would send
+  // one request per character. This cleanup runs once, when the screen actually goes away.
+  // React's StrictMode double-mount is harmless here - nothing is armed at mount, so the
+  // simulated unmount finds `pending.current` empty and sends nothing.
+  //
+  // WHAT IT DOES NOT PROMISE: the destination's own read may still overtake this request,
+  // so a reader can land on a screen that has not seen the edit yet. It is a guarantee that
+  // the work is STORED, not that the next screen shows it - which is why the browser walks
+  // still wait for the save before they cross a route boundary.
+  useEffect(() => {
+    return () => {
+      const unsaved = pending.current;
+      pending.current = undefined;
+      if (unsaved === undefined) return;
+      void actions.current.saveDraft(unsaved);
+    };
+  }, []);
 
   return {
     issues,

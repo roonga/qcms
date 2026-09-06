@@ -31,6 +31,7 @@ import {
   toggleCheckbox,
   toggleTarget,
   waitForSaveAfter,
+  waitForSaved,
 } from "./support/forms.js";
 import {
   addOption,
@@ -136,6 +137,15 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
 
   await addStep(page, "Claim details");
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
+
+  // WAIT FOR THE PINS TO REACH THE SERVER BEFORE LEAVING THIS ROUTE (issue #669). The rules
+  // screen renders the draft the SERVER holds, so crossing inside the 600ms debounce would
+  // open it on a form with no steps - which is a form no rule can be added to, and the
+  // screen says so by disabling Add rule. The product does not lose the edit (the loop
+  // flushes what it is holding when the screen goes away, `lib/forms/autosave.ts`), but the
+  // flush and the next screen's own read are two requests in flight at once, so a walk that
+  // wants to SEE the pins has to wait for them rather than race them.
+  await waitForSaved(page);
 
   // Rules belong to the FORM, so reaching them means leaving the step screen pinning left
   // us on. The rules are a ROUTE of their own since issue #669, reached from the rail row
