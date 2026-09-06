@@ -659,6 +659,21 @@ export const messages = {
   "forms.rules.title": "Rules",
   "forms.rules.add": "Add rule",
   "forms.rules.empty": "No rules yet. A rule shows questions or steps when its condition matches.",
+  // --- the builder's read-only rules lens (issue #669) ---
+  //
+  // The builder stopped editing rules on 2026-09-05 and started summarising them, so the
+  // card needs words for what it is rather than for what it does. `lensNote` is the POC's
+  // own sentence (`plan/admin-shell-poc/admin-shell-poc.html`), which states the scope of
+  // the list rather than describing the control - a reader who has just published knows
+  // what a rule is and wants to know which of them this card is counting.
+  "forms.rules.lensNote":
+    "Lists rules whose conditions read, or whose targets include, questions in this form.",
+  "forms.rules.lensCountOne": "1 rule",
+  "forms.rules.lensCount": "{count} rules",
+  // The lens's way through to the screen that edits. Named for the destination rather than
+  // for the gesture ("Edit rules", not "Open"), because it is the only place in the builder
+  // that says rule editing happens somewhere else.
+  "forms.rules.editAll": "Edit rules",
   "forms.rules.needPin": "Pin a question first: a condition has to read one.",
   "forms.rules.column.rule": "Rule",
   "forms.rules.column.issues": "Issues",
@@ -1004,6 +1019,13 @@ export const messages = {
   // this one correctly is what let the other go. The builder route's own `<h1>` is the
   // bare slug (issue 679), so nothing else on the screen moves with this.
   "forms.tab.builder": "Form details",
+  // The seventh section, and the newest (issue #669, Code Owner 2026-09-05). Rule
+  // editing moved from a selection on the builder to a route of its own, so "Rules" is
+  // now a screen name like the five beside it rather than a rail-only label: it heads
+  // `/forms/{formId}/rules`, ends that screen's breadcrumb, names its rail row and
+  // composes its browser-tab title. `forms.rail.rules` was the old label and is gone -
+  // one name for one screen is what keeps the rail from inventing a second one.
+  "forms.tab.rules": "Rules",
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Version history",
   "forms.tab.links": "Links",
@@ -1724,7 +1746,6 @@ export const messages = {
   "forms.rail.label": "{slug} steps and sections",
   "forms.rail.steps": "Steps",
   "forms.rail.formMenu": "Actions for {title}",
-  "forms.rail.rules": "Rules",
   "forms.rail.sections": "Sections",
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).

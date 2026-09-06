@@ -90,7 +90,6 @@ function builderActions() {
       .fn()
       .mockResolvedValue({ status: "ok" as const, valid: true, issues: [], warnings: [] }),
     updateSettings: vi.fn(),
-    previewCondition: vi.fn(),
   };
 }
 

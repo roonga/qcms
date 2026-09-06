@@ -219,45 +219,8 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
 - 44px rows (`--admin-table-row-h`), header 0.72rem strong-border underline, cell
   padding 0.4rem 0.6rem, `tabular-nums` on numeric and stamp columns.
 - No zebra striping. Rationale: the 44px row and hairline dividers carry the row
-  rhythm, and zebra fights the ownership-grid contrast (element 4) where the two
-  meet.
-
-  **Corrected 2026-09-06 (issue #831): a third clause of this rationale was false and is
-  removed.** It read _"and the frozen card does not stripe"_. The card stripes.
-  `plan/admin-theme/ds-table.html` sets
-  `tbody tr:nth-child(even) { background: var(--color-background-muted); }`, which is what
-  the dev seat's #681 found: the rule cited the frozen card as support for the opposite of
-  what the card says, and nothing checked it until that sweep. Nothing about the rule moves
-  when the clause goes, because the two surviving clauses are the ones the decision rests
-  on.
-
-  **The rule is not narrowed, and that is the half worth reading.** PR #664 drafted a
-  narrowing of this bullet to _"no zebra on a table that carries the ownership grid"_, and
-  the #681 comment of 2026-08-22 recorded it as _"Landed on #664 at `a16e867`"_. It did not
-  land. **PR #664 was closed unmerged on 2026-08-23**, so none of its nine commits reach
-  `origin/main` and `a16e867` is an object on an abandoned branch rather than history. The
-  narrowing was a draft that read as a ruling because a comment said so.
-
-  **The ruling is the Code Owner decision of 2026-09-05 on #681**, made a fortnight later
-  and against this bullet as it stands rather than as #664 wanted it. No zebra, unqualified.
-  The frozen card and the two POCs that copy it (`library-lists-poc.html` and
-  `deployment-ops-poc.html`, both under `plan/admin-shell-poc/`) are **annotated as
-  superseded by this section**, which PR #830 landed on 2026-09-06; the drawings are not
-  amended and this section is not narrowed to fit them. The shipped family is already
-  correct - the comment in `apps/admin/app/globals.css` reads _"NO ZEBRA (§2) ... nothing
-  else may add one"_ - so **no code change follows from this correction.** The #681
-  disposition of 2026-08-22 that called that comment "too broad" and wanted an issue for it
-  was downstream of the narrowing, and lapses with it.
-
-  **Two error shapes here, and the second is the new one.** The first is the familiar one:
-  a rule stated more broadly than its reason supports, resting on a fact nobody re-read.
-  The second is a claim of landing that nothing checked against `main`. That is the failure
-  `CONTRIBUTING.md`'s "record a ruling at the artifact it changes" rule exists for, taken
-  one step further on: a comment recording a pending amendment is a handoff to whoever
-  picks the work up, and it turns into a false record the moment the amendment does not
-  merge. So a comment that says a change landed names the commit **on `main`**, not the
-  commit on the branch that proposed it.
-
+  rhythm; zebra fights the ownership-grid contrast (element 4) where the two
+  meet, and the frozen card does not stripe.
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
   and no-JS work); whole-row `onRowAction` click is retired with the kit-table
   migration. Rows with an author-controlled order get the grip menu; rows without
@@ -826,9 +789,45 @@ closes with it.
   resolves to nothing off-page; and re-confirm the refused-publish path that reuses
   the validation list is not collaterally broken by the new route (it should be
   unaffected, since Validation stays a builder selection). Nothing may disappear
-  silently in the move, which was the audit's whole objection. The build is an
-  admin-wave item and is tracked on issue #669, which stays open for it; this
-  document records only the ruling.
+  silently in the move, which was the audit's whole objection.
+
+  **Built, 2026-09-06.** `/forms/[formId]/rules` exists and carries the editing
+  surface `rules-screen-poc.html` draws; the builder's Rules card is
+  `apps/admin/components/forms/rules-lens.tsx`, the compact read-only list
+  `admin-shell-poc.html` draws in its place. Three consequences of the constraint
+  are worth reading here rather than only in the code, because each is the kind of
+  thing a later pass would "tidy" without knowing what it was for.
+
+  - **Every rule address is a route plus a fragment**, minted in one place
+    (`ruleHref`, `apps/admin/lib/forms/issues.ts`). The lens's rule lines, its
+    "Edit rules" and "Add rule" footer, the validation panel's rule entries and the
+    refused publish's work list all read it, so a bare `#rule-...` cannot be
+    reintroduced one caller at a time. The fragment is deliberately left unescaped
+    while the form id is escaped: a fragment's only job is to equal the DOM id at
+    the far end, and escaping one side of that equality is how a link stops
+    matching its own destination.
+  - **The focus half happens at the far end.**
+    `apps/admin/components/forms/rules-screen.tsx` reads the fragment on arrival
+    and focuses the row. That is the behaviour §5.5 said a route split would lose,
+    so it is what the browser coverage asserts across the boundary
+    (`apps/admin/e2e/forms-publish.pw.ts` checks the href, the navigation and the
+    focused element in one pass).
+  - **Two pre-split addresses are forwarded rather than dropped.**
+    `/forms/:formId#rules` and `/forms/:formId#rule-...` were how the rail row and
+    the publish rejection reached the selection. Nothing emits either now, but a
+    bookmark can still carry one, so the builder redirects it onto the route with
+    its fragment intact. "No behaviour disappears silently" reaches a saved URL too.
+
+  The refused-publish path was re-checked and is unaffected, as the ruling
+  expected: it renders the same `IssueEntry` component, whose step and
+  pinned-question entries keep their bare fragments because those controls are
+  still on the builder page. Validation itself did not move.
+
+  One simplification the split paid for, recorded because it removes a defect
+  class: the Rules row is an ordinary member of the rail's sibling list now rather
+  than a row the builder drew for itself. The two-branch row it replaced - a button
+  on the builder, an anchor on the other seven screens - is what produced the
+  geometry defects `apps/admin/e2e/rail-screens.pw.ts` exists for.
 
 - Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
   and the **form's** issue total (`plan/admin-mobile-stance.md`, amended

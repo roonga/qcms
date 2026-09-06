@@ -2,7 +2,8 @@ import { stepIssueCounts } from "../forms/issues.ts";
 import { textOf } from "../questions/definition.ts";
 import type { DraftStep } from "../forms/types.ts";
 
-import { getForm, validateDraft } from "./forms.ts";
+import { getForm } from "./forms.ts";
+import { formVerdict } from "./form-verdict.ts";
 import type { AdminSession } from "./session.ts";
 
 /**
@@ -15,6 +16,11 @@ import type { AdminSession } from "./session.ts";
  * is handed). So a rail costs one extra dry-run validation per render of a form-scoped
  * screen. That cost is stated here rather than hidden: it is the price of the badge the
  * contract asks for, and the call writes nothing.
+ *
+ * SINCE ISSUE #669 THE COST IS SHARED. The rules screen wants the same verdict, and it
+ * renders in a different tree from this slot, so the call moved behind a per-request
+ * memo (`lib/server/form-verdict.ts`) rather than being made twice. Still one dry run per
+ * render of a form-scoped screen; now one whoever asks for it.
  *
  * **That one call is now the whole of the rail's cost** (issue #626). It used to be
  * three: the slot also re-read the session and re-read the form, both of which the page
@@ -82,12 +88,14 @@ export async function loadFormRail(
   if (draft === null) {
     return { formId: form.formId, slug: form.slug, title: "", steps: [], issueCounts: new Map() };
   }
-  const verdict = await validateDraft(session, form.formId, draft);
+  // Memoized per request (`lib/server/form-verdict.ts`), so the rules screen beside this
+  // rail shares the one dry run rather than paying for a second of the same call.
+  const verdict = await formVerdict(session, form.formId, draft);
   return {
     formId: form.formId,
     slug: form.slug,
     title: textOf(draft.title, form.defaultLocale),
     steps: draft.steps,
-    issueCounts: verdict.ok ? stepIssueCounts(verdict.data.issues, draft) : new Map(),
+    issueCounts: verdict === undefined ? new Map() : stepIssueCounts(verdict.issues, draft),
   };
 }

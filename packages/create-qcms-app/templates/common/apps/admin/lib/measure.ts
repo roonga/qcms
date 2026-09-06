@@ -7,7 +7,8 @@
  * selector inside it that carries the cap. Issue 558 built this mechanism and sourced
  * its values from `plan/admin-ux-audit.md` §6, which was the correct authority then;
  * issue 657 re-sourced all sixteen from the drawings without touching the mechanism, and
- * issue 685 added the seventeenth by exactly the one-line route this table promises.
+ * issue 685 added the seventeenth by exactly the one-line route this table promises, and
+ * issue #669 the eighteenth the same way.
  *
  * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS TABLE IS ONE. A POC caps an outer
  * `.main` and then, on some screens, caps the content inside it again - a 720px
@@ -32,8 +33,8 @@
  * ONE ROW IS OPEN. `/webhooks` is drawn at 1820, wider than any token here, so it keeps
  * the cap it had. See its comment.
  *
- * WHY A TABLE, AND WHY HERE. Seventeen screens is a routing question, so it is answered
- * once, in route terms, in this file - not by seventeen pages each reaching up to override
+ * WHY A TABLE, AND WHY HERE. Eighteen screens is a routing question, so it is answered
+ * once, in route terms, in this file - not by eighteen pages each reaching up to override
  * a container they do not own. The practical difference is what happens when a
  * new screen arrives: with the table, its cap is one row added below, and
  * `measure.test.ts` fails until that row exists, because it reads the route patterns off
@@ -63,7 +64,7 @@
 /**
  * The class each answer puts on the shell's content column.
  *
- * Six caps for seventeen screens, and the count is the POCs' rather than a taste: seven
+ * Six caps for eighteen screens, and the count is the POCs' rather than a taste: eight
  * screens share the drawings' dominant 1600, three sit on the narrow measure, three share
  * 40rem, two share 1080, and two are each the only screen drawn at their number.
  * Collapsing a singleton onto a neighbour would be this file deciding a width the drawing
@@ -112,6 +113,18 @@ export const MEASURE_BY_ROUTE = {
   "/forms/new": "prose",
   /** `admin-shell-poc.html` `.main` 1600. The builder is what that file draws. */
   "/forms/[formId]": "wide",
+  /**
+   * `rules-screen-poc.html` `.main` 1600, and that file draws nothing narrower inside it.
+   *
+   * The eighteenth row (issue #669), and the second reached because a ruling moved a screen
+   * rather than because someone drew a new one: the rules were a selection on the builder
+   * until 2026-09-05, and this file has always had a POC of its own. 1600 is also what the
+   * screen was already getting, since it was rendering inside the builder's column - so
+   * this row keeps the width an author has, which is the honest outcome when a screen moves
+   * house. It is the widest thing the app builds and the drawing agrees: a condition tree
+   * beside its JSON mirror, with a full-width target list under both.
+   */
+  "/forms/[formId]/rules": "wide",
   /** `links-webhooks-poc.html` `.main` 1600, its Secure links screen. */
   "/forms/[formId]/links": "wide",
   /**

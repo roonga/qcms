@@ -1,5 +1,6 @@
 import { Breadcrumb, type BreadcrumbItem } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
+import { sectionHeadingId } from "@/lib/page-headings";
 
 /**
  * The chrome every form section shares: breadcrumb and identity line (034; 035 adds the
@@ -64,7 +65,8 @@ export function FormPageHeader({
    * the section half of the default `<h1>`. One key for both, so a section cannot end up
    * called one thing in the breadcrumb and another in the heading above it.
    */
-  readonly section: "builder" | "preview" | "versions" | "links" | "responses" | "webhooks";
+  readonly section:
+    "builder" | "rules" | "preview" | "versions" | "links" | "responses" | "webhooks";
   readonly status?: "open" | "closed";
   /**
    * Overrides the `<h1>` for a route whose subject is one child of the form.
@@ -99,8 +101,16 @@ export function FormPageHeader({
           breadcrumb does not, and stays visible. That is also the branch that takes focus
           programmatically, and a focus destination nobody can see would be a worse thing
           to have than a repeated title. */}
+      {/* THE DEFAULT HEADING CARRIES AN ID TOO (issue #669). It used to have one only when
+          a route overrode it, which was enough while every default heading was decoration
+          above a breadcrumb that had already said the same word. `/forms/{formId}/rules`
+          is the first section screen whose body is a labelled region: the rules editor
+          points its `aria-labelledby` at this heading rather than minting a second one,
+          because two level-one headings on one screen is the defect, not the fix. Derived
+          from the section in `lib/page-headings.ts`, so a section cannot arrive with an id
+          nobody wrote. */}
       <h1
-        id={heading?.id}
+        id={heading?.id ?? sectionHeadingId(section)}
         tabIndex={heading === undefined ? undefined : -1}
         className={
           heading === undefined

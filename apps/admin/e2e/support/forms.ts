@@ -117,10 +117,10 @@ export async function openRail(page: Page): Promise<void> {
 }
 
 /**
- * Show the form's own details: its title, settings, rules, test bench and validation.
+ * Show the form's own details: its title, settings, the read-only rules lens and validation.
  *
  * THE BUILDER IS TWO SCREENS behind one route since 2026-08-26, and the rail switches
- * between them. It opens on this one, so most callers need it only after having opened a
+ * between them. (It was three for ten days; issue #669 moved the rules to a route.) It opens on this one, so most callers need it only after having opened a
  * step - but calling it when it is already current is a press on a row that is already
  * `aria-current`, which changes nothing. Helpers below that act on a form-level panel go
  * through here rather than each spec remembering to.
@@ -152,10 +152,33 @@ export async function addStep(page: Page, title: string): Promise<void> {
   await expect(page.getByRole("button", { name: `Open step ${title}` })).toBeVisible();
 }
 
-/** Select a step in the rail, which is what decides which step the editor is editing. */
+/**
+ * Open a step from the rail, which is what decides which step the editor is editing.
+ *
+ * TWO GESTURES FOR ONE INTENT, because the rail has two states and a caller should not
+ * have to know which one it is standing in. On the builder a step row is a BUTTON that
+ * selects in place; on every other form screen - including `/forms/{formId}/rules` since
+ * issue #669 - it is an ANCHOR that navigates to the builder carrying `#step-{stepId}`,
+ * and the builder selects the step named by the fragment on arrival. Both land on the same
+ * screen, which is why the assertion below is shared: it is the product's own promise that
+ * a step is reachable from anywhere in the form's subtree.
+ *
+ * The anchor branch is not a fallback in the apologetic sense. It exercises the
+ * cross-route step link, which is the mechanism `plan/admin-design-contracts.md` §7 minted
+ * `stepAnchorId` for and the one the rules route now depends on.
+ */
 export async function openStep(page: Page, title: string): Promise<void> {
   await openRail(page);
-  await page.getByRole("button", { name: `Open step ${title}` }).click();
+  const select = page.getByRole("button", { name: `Open step ${title}` });
+  if ((await select.count()) > 0) {
+    await select.click();
+  } else {
+    await page
+      .locator('[data-rail-group="steps"] [data-rail-item^="step:"]')
+      .filter({ hasText: title })
+      .first()
+      .click();
+  }
   await expect(page.getByRole("heading", { name: `Step: ${title}` })).toBeVisible();
 }
 
@@ -270,16 +293,38 @@ export async function pinnedOrder(page: Page): Promise<string[]> {
 }
 
 /**
- * Show the form's rules, which are a screen of their own since 2026-08-26.
+ * Show the form's rules, which are a ROUTE of their own since issue #669.
  *
- * They were on the form's details screen, and every helper below that touches a rule goes
- * through here rather than each spec remembering which of the builder's three screens a
- * rule is on.
+ * They were a panel on the form's details screen, then one of the builder's three
+ * selections, and they are `/forms/{formId}/rules` now (Code Owner, 2026-09-05). Every
+ * helper below that touches a rule goes through here rather than each spec remembering
+ * where a rule lives this month.
+ *
+ * Driven through the rail's own row rather than by `page.goto`, because the row IS the
+ * affordance under test on most of the specs that call this: a helper that navigated by
+ * URL would keep passing after the row stopped leading anywhere.
+ *
+ * Idempotent. Pressing a row that is already `aria-current` re-navigates to the same URL,
+ * which Next resolves without a reload, so a caller already on the rules screen pays a
+ * no-op rather than a round trip.
  */
 export async function openRules(page: Page): Promise<void> {
   await openRail(page);
-  await page.locator('[data-rail-item="rules"]').click();
-  await expect(page.locator("#qcms-rules-heading")).toBeVisible();
+  await page.locator('[data-rail-item="section:rules"]').click();
+  await expect(page).toHaveURL(/\/rules(?:[#?]|$)/u);
+  await rulesHeading(page).waitFor();
+}
+
+/**
+ * The rules screen's own `<h1>`, which is visually hidden because the breadcrumb directly
+ * above it already ends in "Rules".
+ *
+ * Attached rather than visible, for that reason: `FormPageHeader` hides a default heading
+ * that would only repeat the crumb, and `qcms-visually-hidden` is a clipped box rather
+ * than `display: none`, so it is in the accessibility tree and not in the picture.
+ */
+export function rulesHeading(page: Page): Locator {
+  return page.locator("#qcms-rules-heading");
 }
 
 /**
@@ -295,7 +340,7 @@ export async function openRules(page: Page): Promise<void> {
  * against the first pinned question, which says nothing useful.
  */
 export async function addRule(page: Page): Promise<string> {
-  // Rules have their own screen now. A spec that has just been working on a step, or on the
+  // Rules have their own route now. A spec that has just been working on a step, or on the
   // form's details, is looking at neither of the places this button is.
   await openRules(page);
   await page.getByRole("button", { name: "Add rule", exact: true }).click();
@@ -309,9 +354,9 @@ export async function addRule(page: Page): Promise<string> {
 /**
  * Every rule region currently on screen, by id, in document order.
  *
- * "On screen" is load-bearing: the rules are one of the builder's three screens, so a
- * caller that has not opened it gets an empty list rather than a failure. Callers that mean
- * "this form's rules" open the screen first, which `addRule` does for them.
+ * "On screen" is load-bearing: the rules are a route of their own, so a caller that is not
+ * on it gets an empty list rather than a failure. Callers that mean "this form's rules"
+ * open the screen first, which `addRule` does for them.
  */
 export async function ruleIds(page: Page): Promise<string[]> {
   const ids = await page
@@ -518,35 +563,38 @@ export async function movePin(page: Page, questionId: string, version: number): 
 }
 
 /**
- * Run a read that needs the save strip, from whichever of the builder's three screens the
+ * Run a read that needs the save strip, from whichever of the builder's two screens the
  * caller is standing on, and put them back where they were.
  *
- * THE SAVE STRIP IS ON THE FORM SCREEN ONLY since 2026-08-26, so a spec standing on a step
- * or on the rules screen cannot see it. That is the product's behaviour rather than a test problem
- * - a person editing a step has to look at the form screen too - and this is that trip,
- * made once here instead of scattered through a dozen specs as a pair of screen switches
- * that would then have to be kept in step with each other.
+ * THE SAVE STRIP IS ON THE FORM SCREEN ONLY on this route since 2026-08-26, so a spec
+ * standing on a step cannot see it. That is the product's behaviour rather than a test
+ * problem - a person editing a step has to look at the form screen too - and this is that
+ * trip, made once here instead of scattered through a dozen specs as a pair of screen
+ * switches that would then have to be kept in step with each other.
+ *
+ * THE RULES SCREEN NEEDS NO TRIP since issue #669. It is a route now and it stores the
+ * draft itself, so §6 gives it a strip of its own: a caller standing there reads it where
+ * it stands, and the branch that used to walk them to the builder and back is gone.
  *
  * The return leg reads the current step out of the rail rather than taking it as an
  * argument, so a caller that was on the form screen already makes no trip at all.
  */
 async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
-  // Which of the builder's three screens the caller is standing on, read from the rail
+  // Which of the builder's two screens the caller is standing on, read from the rail
   // rather than tracked, so a spec that navigated by any route still comes back to where
-  // it was. The rules screen joined the step screens on 2026-08-26; both lack the strip,
-  // and only the form's own screen has it.
+  // it was. On the rules route no step row is current, so this is `null` and the read
+  // happens where the caller stands - which is right, because that screen has its own
+  // strip.
   const currentStep = page.locator('[data-rail-step-select][aria-current="page"]');
   const step =
     (await currentStep.count()) > 0
       ? await currentStep.getAttribute("data-rail-step-select")
       : null;
-  const onRules = (await page.locator('[data-rail-item="rules"][aria-current="page"]').count()) > 0;
-  if (step === null && !onRules) return read();
+  if (step === null) return read();
 
   await openFormDetails(page);
   const value = await read();
-  if (step !== null) await openStep(page, step);
-  else await openRules(page);
+  await openStep(page, step);
   return value;
 }
 
@@ -574,11 +622,11 @@ export async function waitForSaved(page: Page): Promise<void> {
 }
 
 /**
- * The builder's paused-autosave notice, rendered above all three screens.
+ * The paused-autosave notice, rendered above every screen that edits the draft.
  *
- * `components/forms/form-builder.tsx` puts `SaveNotices` at the top of the builder's own
- * tree rather than inside the screen switch, so this is findable from a step, from the
- * rules screen and from the form's own screen alike.
+ * `components/forms/save-notices.tsx` is rendered at the top of the builder's own tree
+ * rather than inside its screen switch, and at the top of the rules route as well, so this
+ * is findable from a step, from the rules screen and from the form's own screen alike.
  */
 function pausedNotice(page: Page): Locator {
   return page.getByTestId("qcms-autosave-paused");

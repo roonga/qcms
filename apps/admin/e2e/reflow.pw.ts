@@ -42,7 +42,7 @@ import { submitResponse } from "./support/ops.js";
  * ## Why the screen list is read off the route tree
  *
  * The same reason `lib/measure.test.ts` reads it: a hand-written list of sixteen
- * paths silently stops covering the app the moment a seventeenth screen lands, and a
+ * paths silently stops covering the app the moment a further screen lands, and a
  * screen nobody measured is exactly how this class of defect survives. Here the
  * patterns come from `app/(shell)` and the dynamic segments are filled from the
  * seeded fixture, so a new route is swept the day it appears, with no list to update.

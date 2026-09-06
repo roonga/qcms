@@ -3005,19 +3005,21 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-inline-start-color: transparent;
 }
 
-/* The rules row, which stands alone rather than beside a menu trigger. `__form` cannot
-   be reused for it: that one is a flex ITEM sized by the row it shares, so on its own it
-   shrank to the width of its text and took its tint with it - 57px of highlight on a
-   223px row. This one owns the full width instead. */
 /* WHERE THE GROUPING IS, now that the indent and the tree line have gone. The rail's rows
    sit 2px apart, so with the Rules row butted against the Add step button above it and the
    Preview row below it, it read as part of the step controls rather than as another screen.
 
    The two margins say what the tree means: the steps and their add control are one cluster,
-   Rules is a screen beside them, and the six routes underneath are a different kind of
+   Rules is a screen beside them, and the five routes underneath are a different kind of
    thing altogether. Space rather than a rule or an indent, because both of those were tried
-   and removed for saying it twice. */
-.qcms-rail-steps__rules {
+   and removed for saying it twice.
+
+   SELECTED BY ITS ROW RATHER THAN BY A CLASS since issue #669. Rules used to be the one row
+   `rail-steps.tsx` drew itself - a button on the builder and an anchor everywhere else,
+   because it switched a selection that only the builder could make - and it carried a class
+   of its own to reset the button. It is a route now and `form-subtree-rail.tsx` renders it
+   exactly like Preview or Links, so all that is left to say is where the space goes. */
+[data-rail-item="section:rules"] {
   /* 8px of GROUP separation above and below, stated as the part the row itself owes on top
      of the 2px its container already puts between rows. Written as `0.5rem` flat, the two
      sides came out 8px and 10px, because above this row the gap comes from the cluster and
@@ -3025,15 +3027,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
      being crooked rather than as two containers meeting. */
   margin-block-start: calc(0.5rem - var(--admin-rail-row-gap));
   margin-block-end: calc(0.5rem - var(--admin-rail-row-gap));
-  display: flex;
-  inline-size: 100%;
-  border-block: 0;
-  border-inline-end: 0;
-  background-color: transparent;
-  font-family: inherit;
-  text-align: start;
-  cursor: pointer;
-  appearance: none;
 }
 
 /* The form's own row, which is the tree's first row and the parent of the steps. A

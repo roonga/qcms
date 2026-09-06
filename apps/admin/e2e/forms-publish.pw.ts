@@ -153,9 +153,12 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await waitForSaveAfter(page, beforeRule);
 
   // Publish freezes the draft the SERVER holds, and the confirmation's counts are read
-  // from that same stored draft. Reloading first is not a workaround for that, it is the
-  // assertion: what is about to be frozen is what a fresh read of the API returns.
-  await page.reload();
+  // from that same stored draft. Loading the builder afresh is not a workaround for that,
+  // it is the assertion: what is about to be frozen is what a fresh read of the API
+  // returns. It used to be `page.reload()`, which did the same job while the rules were a
+  // selection on this route; since issue #669 the rule work happened on
+  // `/forms/{formId}/rules`, so this is a navigation back to the screen Publish is on.
+  await page.goto(`/forms/${formId}`);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
 
   // The confirmation reads the author's own work back to them: what freezes, what
@@ -373,8 +376,10 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // about the validation panel agreeing (`waitForSaveAfter` records why).
   await waitForSaveAfter(page, beforeBreak);
 
-  // The rule was broken on the rules screen; Publish is on the form's. Three screens now,
-  // and the publish controls belong to the form rather than to any of its parts.
+  // The rule was broken from a step screen; Publish is on the form's, and the rules live on
+  // a route of their own since issue #669. The publish controls belong to the form rather
+  // than to any of its parts, so getting to them is a screen switch from wherever you were.
+  await page.goto(`/forms/${formId}`);
   await openFormDetails(page);
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await page
@@ -403,11 +408,31 @@ test("a refused publish lists every issue and each one moves focus (exit criteri
   // defect a second time, this is what notices.
   await expect(actionsStatus.getByTestId("qcms-publish-rejected")).toHaveCount(0);
 
-  // Each entry is a link into the builder: activating it puts the author's focus on the
-  // rule that caused the refusal, which is what the structured `path` is for.
-  await issue(rejected, "RULE_BACKWARD_TARGET").click();
-  const focused = await page.evaluate(() => document.activeElement?.id ?? "");
-  expect(focused, "the issue link should focus its rule").toContain(ruleId);
+  // THE ANCHOR THAT CROSSES A ROUTE BOUNDARY, which is issue #669's acceptance criterion
+  // and the thing `plan/admin-ux-audit.md` §5.5 predicted a rules route would break.
+  //
+  // Rule editing left the builder on 2026-09-05, so this entry is no longer a fragment that
+  // resolves on the page it is rendered on: its href carries the ROUTE as well as the
+  // fragment, activating it navigates, and the screen at the far end focuses the row named
+  // by the fragment. All three halves are asserted, because each fails differently - a href
+  // that lost its route is a link to nothing, a navigation that lost its fragment lands on
+  // the wrong rule, and a screen that never focuses is the degradation the ruling forbade.
+  const entry = issue(rejected, "RULE_BACKWARD_TARGET");
+  await expect(entry, "the rule's entry carries the route, not a bare fragment").toHaveAttribute(
+    "href",
+    `/forms/${formId}/rules#rule-${ruleId}`,
+  );
+  await entry.click();
+  await expect(page).toHaveURL(`/forms/${formId}/rules#rule-${ruleId}`);
+  // The row is a destination rather than a tab stop, so it takes focus only because
+  // something sent it there. `toPass` because the focus lands a frame or two after the
+  // route's first paint, which is the arrival effect doing its job.
+  await expect(async () => {
+    const focused = await page.evaluate(() => document.activeElement?.id ?? "");
+    expect(focused, "the issue link should focus its rule on the rules screen").toBe(
+      `rule-${ruleId}`,
+    );
+  }).toPass({ timeout: 30_000 });
 
   // Nothing was frozen: the version list is still what it was before the attempt.
   await page.goto(`/forms/${formId}/versions`);

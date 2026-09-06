@@ -17,7 +17,6 @@ import {
   streamText,
   type JSONValue,
   type LanguageModel,
-  type StopCondition,
   type TextStreamPart,
   type ToolSet,
 } from "ai";
@@ -200,8 +199,7 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
  * A refusal is the one exception and still travels: an unallowlisted verb
  * arrives as a `tool-error` too, and that one **must** stop the turn (041's
  * allowlist control - a model that reached for `publish` gets none of its other
- * work accepted). Since issue #814 it stops the loop as well, at the refusing
- * step: see {@link stopOnRejectedTool}.
+ * work accepted).
  */
 function noteToolFailure(outcome: RunOutcome, raw: unknown): void {
   const refused = refusedToolName(raw);
@@ -228,9 +226,7 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
     case "tool-call":
       // Defence in depth: `assistToolSet` never offered a verb outside the
       // allowlist and `runAssistTool` would refuse it, but the refusal is
-      // *observed* here so the turn ends refused rather than half-done. What
-      // ends the loop is `stopOnRejectedTool`, which reads the same allowlist
-      // off the SDK's step record; this line is what makes the outcome refused.
+      // *observed* here so the turn ends refused rather than half-done.
       if (isAllowedToolName(part.toolName)) {
         return { type: "status", phase: "tool", tool: part.toolName };
       }
@@ -251,45 +247,6 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       return undefined;
   }
 }
-
-/**
- * Stop the loop at the step that reached for a verb outside the allowlist
- * (issue #814).
- *
- * The refusal was always **recorded** the moment it was observed, and no
- * proposal has ever survived one. What did not happen is the loop ending: the
- * only stop condition was `stepCountIs(maxSteps)`, so a model that asked for
- * `publish` was handed the SDK's "no such tool" result and asked again, up to
- * the full budget. A refused turn therefore billed a real provider for up to
- * `QCMS_AGENT_MAX_STEPS` round trips to reach a conclusion that was settled at
- * the first one, and the refused-state screenshot in #814 shows the same
- * narration eight times over.
- *
- * This is composed with the ceiling rather than replacing it, and it reads the
- * SDK's own step record rather than {@link RunOutcome}. Both choices are load
- * bearing:
- *
- * - **`stopWhen`, not an abort on the rejection event.** Aborting would end the
- *   turn through the failure path, where an `AbortError` has to be told apart
- *   from a genuine provider failure before {@link finishTurn} can still reach
- *   the refusal. `stopWhen` is the loop's own termination seam, so the turn ends
- *   the way a completed turn ends and the refusal copy stays in exactly one
- *   place: nothing about the recorded outcome, the logged record or the emitted
- *   events changes, only how many steps ran before them.
- * - **The step record, not the outcome field.** `outcome.rejectedTool` is set by
- *   {@link handlePart} as *this process* drains `result.stream`, which is
- *   decoupled from the SDK's internal loop; a predicate reading it would be
- *   racing the consumer. `steps` is what the loop has already committed, so the
- *   answer is the same on every run.
- *
- * The membership test is {@link isAllowedToolName}, the same one the tool set,
- * the dispatch door and the event mapping use. There is one allowlist.
- */
-const stopOnRejectedTool: StopCondition<ToolSet> = ({ steps }) =>
-  steps
-    .at(-1)
-    ?.content.some((part) => part.type === "tool-call" && !isAllowedToolName(part.toolName)) ??
-  false;
 
 async function* runTurn(args: {
   ctx: AssistContext;
@@ -319,7 +276,7 @@ async function* runTurn(args: {
     system: buildSystemPrompt(),
     messages: toModelMessages(ctx),
     tools: assistToolSet(ctx, state),
-    stopWhen: [stepCountIs(ctx.maxSteps), stopOnRejectedTool],
+    stopWhen: stepCountIs(ctx.maxSteps),
     abortSignal: signal,
     // The SDK's per-provider passthrough. Empty by default; this is the seam a
     // deployment uses for vendor capabilities (prompt caching over the frozen
@@ -387,10 +344,7 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
  *
  * The refusal is emitted **and logged** here, which is the "rejected and logged"
  * half of 041's allowlist control. A refused turn produces no proposal at all:
- * a model that reached for `publish` does not get its other work accepted. It
- * also reaches here at the refusing step rather than at the step ceiling, which
- * is issue #814; the events are identical either way, so this function did not
- * have to change for that.
+ * a model that reached for `publish` does not get its other work accepted.
  */
 async function* finishTurn(args: {
   ctx: AssistContext;

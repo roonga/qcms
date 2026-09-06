@@ -8,9 +8,11 @@ import type { DraftStep } from "./types.ts";
  * What the form-subtree rail carries, as data (`plan/admin-design-contracts.md` §7,
  * issue 559).
  *
- * The contract is one tree: the form's **siblings** (Builder, Preview, Versions, Links,
- * Responses, Webhooks), with the form's **children** - its steps, carrying per-step issue
- * badges - nested under the Builder row rather than standing beside it as a second group.
+ * The contract is one tree: the form's **siblings** (Builder, Rules, Preview, Versions,
+ * Links, Responses, Webhooks), with the form's **children** - its steps, carrying per-step
+ * issue badges - nested under the Builder row rather than standing beside it as a second
+ * group. Rules is the seventh and newest (Code Owner 2026-09-05, issue #669): it was a row
+ * that switched a SELECTION on the builder, and it is a route now.
  *
  * AMENDED 2026-08-25 (Code Owner) on both counts. §7 used to describe two sibling groups in
  * one order with one divider, and used to say the rail "never carries a same-page section
@@ -19,7 +21,11 @@ import type { DraftStep } from "./types.ts";
  * What survives unchanged is that the rail never carries a route the audit rejected - Validation
  * stays on the builder page (`plan/admin-ux-audit.md` §5.5), so it is absent from
  * {@link RAIL_SECTIONS} and adding it here would break the anchored issue links the
- * validation panel and the publish rejection list are both built out of.
+ * validation panel and the publish rejection list are both built out of. RULES IS NOT THAT
+ * CASE and the difference is the whole of issue #669's ruling: its anchors were rebuilt as
+ * `/forms/{formId}/rules#rule-{ruleId}` links that switch route and then focus, so nothing
+ * resolves to nothing. Validation's could not be, because its entries point at controls the
+ * builder itself renders.
  *
  * WHY THE ANSWER IS A PURE FUNCTION AND NOT MARKUP. Three of the four things the
  * acceptance asks about - both groups in the right order, the badge on the right step,
@@ -40,9 +46,25 @@ import type { DraftStep } from "./types.ts";
  * names. No new route, no new scope, no new pattern.
  */
 
-/** The six sibling routes, in the order §7 lists them. Validation is deliberately absent. */
+/**
+ * The seven sibling routes, in the order §7 lists them. Validation is deliberately absent.
+ *
+ * RULES JOINED THEM ON 2026-09-05 (Code Owner, issue #669) and Validation still has not,
+ * which is the pair reading as one decision rather than as a contradiction. §7's struck
+ * clause rejected a Validation route because that panel's entries are focus-moving anchors
+ * into the builder's OWN controls and the publish rejection reuses the same list verbatim;
+ * rule editing is the other half of `rules-screen-poc.html` and was decided the other way,
+ * with the anchors rebuilt as route-plus-fragment links rather than left to resolve to
+ * nothing (`plan/admin-ux-audit.md` §5.5 priced that as a two-hop path and it is accepted).
+ *
+ * Second in the list, directly after the form's own row and the steps nested under it,
+ * which is where `plan/admin-shell-poc/rules-screen-poc.html` draws it: the rules are
+ * form-level work, so they sit beside the work rather than among the six screens that
+ * report on a published form.
+ */
 export const RAIL_SECTIONS = [
   "builder",
+  "rules",
   "preview",
   "versions",
   "links",

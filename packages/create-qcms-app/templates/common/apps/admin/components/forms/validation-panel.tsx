@@ -1,11 +1,15 @@
 "use client";
 
+import Link from "next/link";
+
+import type { BuilderStatus } from "@/lib/forms/autosave";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
 import {
   anchorFor,
-  anchorIsOnRulesScreen,
   locationOf,
   messageForIssue,
+  ruleForIssue,
+  ruleHref,
   stepOwningAnchor,
 } from "@/lib/forms/issues";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
@@ -79,11 +83,18 @@ import { t } from "@/lib/i18n/en";
  * lands would make the panel unusable with a screen reader, while "3 issues would block a
  * publish" is the change an author actually needs to hear.
  *
- * `href="#id"` **and** a click handler, not one or the other. The href makes it a real
- * link - announced as a link, middle-clickable, meaningful before hydration - and the
- * handler adds the focus move that a bare fragment navigation does not reliably make.
+ * An href **and** a click handler, not one or the other. The href makes it a real link -
+ * announced as a link, middle-clickable, meaningful before hydration - and the handler adds
+ * the focus move that a fragment navigation does not reliably make.
+ *
+ * SINCE ISSUE #669 A RULE'S HREF CARRIES A ROUTE, not a bare fragment. Rule editing moved
+ * to `/forms/{formId}/rules`, so `#rule-{ruleId}` fired from the builder would resolve to
+ * nothing - exactly the regression `plan/admin-ux-audit.md` §5.5 warned a route split would
+ * cause, and exactly what the Code Owner's ruling made a mandatory constraint on the build.
+ * The two anchors that stay on this screen (a step, a pinned question) keep their bare
+ * fragments, because that is still where they are.
  */
-export type BuilderStatus = "idle" | "validating" | "saved" | "saving" | "error";
+export type { BuilderStatus };
 
 export function ValidationPanel({
   draft,
@@ -214,6 +225,9 @@ export function IssueEntry({
   const anchor = anchorFor(issue, draft);
   const builder = useBuilderRail();
   const where = locationOf(issue);
+  // WHERE THE ANCHOR ACTUALLY IS, which decides what kind of link this is. A rule is on
+  // another route; a step and a pinned question are on this one.
+  const rule = ruleForIssue(issue, draft);
   const body = (
     <>
       <span className="block text-sm text-(--color-text)">{messageForIssue(issue)}</span>
@@ -224,6 +238,27 @@ export function IssueEntry({
   );
 
   if (anchor === undefined) return <div data-issue-code={issue.code}>{body}</div>;
+
+  // A RULE LEAVES THIS SCREEN (issue #669), so its entry is an ordinary navigation rather
+  // than a focus move with a fragment on it: `Link` for the soft transition, the ROUTE and
+  // the fragment in the href, and no handler at all. The focus half - the thing
+  // `plan/admin-ux-audit.md` §5.5 said a route split would lose, and the thing the Code
+  // Owner's ruling made a mandatory constraint - happens at the far end, where
+  // `components/forms/rules-screen.tsx` reads the fragment on arrival and focuses the row.
+  //
+  // No `preventDefault` anywhere on this path, which is what makes it work with JavaScript
+  // off, under a middle click, and from a "copy link address".
+  if (rule !== undefined) {
+    return (
+      <Link
+        href={ruleHref(draft.formId, rule)}
+        data-issue-code={issue.code}
+        className="qcms-text-link block"
+      >
+        {body}
+      </Link>
+    );
+  }
 
   return (
     <a
@@ -240,20 +275,10 @@ export function IssueEntry({
 
         // NOT ON SCREEN IS NOT THE SAME AS NOT THERE. The builder shows one screen at a
         // time, so a link fires with its target unrendered whenever the target belongs to
-        // another one: a pin lives in one step's editor, and since 2026-08-26 a rule lives
-        // on the rules screen. The old code returned here and let the browser follow
-        // `#anchor` to nothing at all, which is a link that silently does nothing.
-        //
-        // This is what let the rules move without the degradation `plan/admin-ux-audit.md`
-        // §5.5 warned a rules SCREEN would cost. It only works because the screens are
-        // selections in one tree; against a route this could not be written.
+        // the other one: a pin lives inside one step's editor. The old code returned here
+        // and let the browser follow `#anchor` to nothing at all, which is a link that
+        // silently does nothing.
         if (builder === undefined) return;
-        if (anchorIsOnRulesScreen(issue, draft)) {
-          event.preventDefault();
-          builder.chooseRules();
-          focusWhenRendered(anchor);
-          return;
-        }
         const stepId = stepOwningAnchor(issue, draft);
         if (stepId === undefined) return;
         event.preventDefault();

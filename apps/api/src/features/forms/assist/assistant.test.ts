@@ -277,50 +277,6 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });
 
-  /**
-   * A refused turn stops at the refusing step (issue #814).
-   *
-   * The security control always held - no proposal is yielded - but the loop
-   * carried on asking. `stopWhen` was `stepCountIs(maxSteps)` alone, so a model
-   * that reached for `publish` was told "no such tool" and asked again until the
-   * budget ran out: eight round trips a real provider bills for, to reach a
-   * conclusion that was settled at the first one. The `rogue-publish` script
-   * asks on every step, so the step count is the whole assertion - with the
-   * ceiling at 8 and no stop condition on the refusal this reads 8.
-   */
-  it("stops at the step that reached for the forbidden verb, not at the ceiling", async () => {
-    const { ctx } = contextFor("#qcms-fake:rogue-publish do it", { maxSteps: 8 });
-    const events = await collect(ctx);
-
-    const usage = events.find((e) => e.type === "usage");
-    if (usage?.type !== "usage") throw new Error("expected a usage event");
-    expect(usage.steps).toBe(1);
-
-    // What the operator saw in #814's screenshot was the same narration eight
-    // times over, which is the same defect from the panel's side.
-    expect(events.filter((e) => e.type === "text")).toHaveLength(1);
-  });
-
-  it("keeps the refusal single and its copy unchanged when the loop stops early", async () => {
-    // Ending the loop sooner must not change what a refused turn IS. The
-    // rejection is named once, the code and the sentence are the ones the panel
-    // already renders, and nothing else rides along.
-    const { ctx } = contextFor("#qcms-fake:rogue-publish do it", { maxSteps: 8 });
-    const events = await collect(ctx);
-
-    expect(events.filter((e) => e.type === "tool-rejected")).toEqual([
-      { type: "tool-rejected", tool: "publish_form" },
-    ]);
-    expect(events.filter((e) => e.type === "error")).toEqual([
-      {
-        type: "error",
-        code: "REFUSED",
-        message: "The assistant attempted an action outside its allowed tools and was stopped.",
-      },
-    ]);
-    expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
-  });
-
   it("reports NO_PROPOSAL when the turn ends without one", async () => {
     const { ctx } = contextFor("#qcms-fake:no-proposal hello");
     const events = await collect(ctx);

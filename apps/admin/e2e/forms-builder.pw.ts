@@ -138,8 +138,8 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await pinQuestion(page, questionIdFor(CLAIM_NOTES), 1);
 
   // Rules belong to the FORM, so reaching them means leaving the step screen pinning left
-  // us on. The builder has been three screens behind one route since 2026-08-26, and the
-  // rules are one of them.
+  // us on. The rules are a ROUTE of their own since issue #669, reached from the rail row
+  // that used to switch a selection on this one.
   await openRules(page);
 
   // The section that lists rules is headed "Rules", which is the word its own button, its
@@ -170,13 +170,30 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await closeRuleEditor(page);
 
   await waitForSaveAfter(page, beforeRule);
-  // The verdict is the FORM's and the rule is not, so the panel is read on the form's own
-  // screen. Three screens, three homes: this is the one that counts issues.
+  // The verdict on the rule is read where the rule is: the table tags a rule that carries
+  // issues and stays silent about one that does not, which is this screen's half of the
+  // engine's answer.
+  await expect(page.locator("tr[data-rule-id] [data-rule-issues]")).toHaveCount(0);
+
+  // WHAT CROSSING THE ROUTE BOUNDARY COSTS, asserted rather than left to be discovered
+  // (issue #669). The builder is a fresh mount when it is navigated to, and its panel only
+  // ever reports a check IT ran - `forms.validation.notChecked` is the honest sentence for
+  // a mount that has not run one, and issue 625 is why it is a sentence rather than a
+  // fabricated zero. That was already true walking back from Preview or Links; the rules
+  // route joined that set rather than inventing the behaviour. The rail's step badges
+  // beside it are the server's own dry run and do carry a verdict on arrival.
   await openFormDetails(page);
+  await expect(issueSummary(page)).toContainText("has not been checked yet");
+  // And the count it CAN make is the form's, once this mount has checked anything: one
+  // keystroke in the form's title is enough to arm the round trip.
+  const beforeTitle = await savedStamp(page);
+  await field(page, "Form title").fill("Insurance quote");
+  await waitForSaveAfter(page, beforeTitle);
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
 
   // The draft is on the server, not just on screen: a reload rebuilds it from the API. Each
-  // of the three screens is asked for its own half of it.
+  // of the three surfaces - the builder's steps, its form details, the rules route - is
+  // asked for its own half of it.
   await page.reload();
   await expect(page.getByRole("button", { name: "Open step Driving history" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Open step Claim details" })).toBeVisible();
@@ -184,6 +201,72 @@ test("builds the insurance form through the UI and saves it (exit criterion 1)",
   await expect(page.locator("tr[data-rule-id]")).toHaveCount(1);
   await openStep(page, "Driving history");
   await expect(pinLabel(page, questionIdFor(AT_FAULT), 1)).toBeVisible();
+});
+
+test("the builder's rules card reads, and every way out of it crosses to the rules route", async ({
+  page,
+}) => {
+  // ISSUE #669'S ACCEPTANCE, in the browser, from the side the ruling is most specific
+  // about. Rule editing moved to `/forms/{formId}/rules` and the builder kept a compact
+  // READ-ONLY lens; the constraint attached to that move is that nothing an author could
+  // do before may quietly stop working, and that links carry "the route as well as the
+  // fragment, not a bare `#fragment` that resolves to nothing off-page".
+  //
+  // The failure this guards against is invisible: a bare fragment renders, announces as a
+  // link, takes focus and does nothing at all. So each affordance is followed rather than
+  // inspected - the assertion is where the browser ENDED UP, plus what has focus once it
+  // got there.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.goto(`/forms/${insuranceFormId}`);
+
+  const lens = page.getByTestId("qcms-rules-lens");
+  await expect(lens).toBeVisible();
+  // READ-ONLY: the table's per-row controls are the ones that must not be here. A lens
+  // that grew an Edit button would be the builder editing rules again.
+  await expect(lens.locator(".qcms-rule-action")).toHaveCount(0);
+  await expect(lens.locator("button")).toHaveCount(0);
+  // And it states what it is a lens ON: one rule, counted where the drawing counts it.
+  await expect(lens.locator("[data-rule-count]")).toHaveAttribute("data-rule-count", "1");
+
+  // 1. A RULE LINE. It carries the route and the fragment, and following it lands with
+  //    focus on the row rather than merely scrolled near it - which is the half a
+  //    fragment cannot do for itself across a navigation.
+  const ruleId = (await lens.locator("a[href*='#rule-']").first().getAttribute("href")) ?? "";
+  expect(ruleId, "a rule line addresses the route, not a bare fragment").toContain(
+    `/forms/${insuranceFormId}/rules#rule-`,
+  );
+  await lens.locator("a[href*='#rule-']").first().click();
+  await expect(page).toHaveURL(ruleId);
+  const anchored = ruleId.slice(ruleId.indexOf("#") + 1);
+  await expect(async () => {
+    const focused = await page.evaluate(() => document.activeElement?.id ?? "");
+    expect(focused, "the lens line focuses the rule it names").toBe(anchored);
+  }).toPass({ timeout: 30_000 });
+  // The row it landed on is the rule's own row in the editing table, so the two-hop path
+  // ends where the work is rather than at the top of a screen.
+  await expect(page.locator(`tr[data-rule-id="${anchored.replace("rule-", "")}"]`)).toBeVisible();
+
+  // 2. "EDIT RULES", the plain way through, which is the affordance the rules rail row
+  //    used to be when it switched a selection.
+  await page.goto(`/forms/${insuranceFormId}`);
+  await page.getByTestId("qcms-rules-lens-edit").click();
+  await expect(page).toHaveURL(`/forms/${insuranceFormId}/rules`);
+
+  // 3. "ADD RULE". Adding a rule was a button on the builder before the split, so it has
+  //    to remain reachable from the builder: it is an anchor carrying `#new-rule`, and the
+  //    rules screen opens its wizard on arrival. A link that navigated and then sat there
+  //    would have lost the affordance while appearing to keep it.
+  await page.goto(`/forms/${insuranceFormId}`);
+  await page.getByTestId("qcms-rules-lens-add").click();
+  await expect(page).toHaveURL(/\/rules(?:#new-rule)?$/u);
+  const minted = page.locator("section[data-rule-id]");
+  await expect(minted, "arriving with #new-rule opens the wizard on a fresh rule").toBeVisible({
+    timeout: 30_000,
+  });
+  await cancelRuleEditor(page);
+  // Cancelled, so nothing was added: the wizard buffers and only Save reaches the draft.
+  await expect(page.locator("tr[data-rule-id]")).toHaveCount(1);
 });
 
 test("a backward target is flagged instantly and refused by the engine (exit criterion 2)", async ({
@@ -218,6 +301,12 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // holding the question the condition reads puts the target before the condition without
   // anything about the rule changing.
   await cancelRuleEditor(page);
+  // REORDERING IS THE BUILDER'S, and reaching it is a navigation since issue #669. The rail
+  // beside the rules route is the same navigation rail the other six form screens carry -
+  // anchors, no per-step menu - because there is no step editor here to act on. This is
+  // that trip, and it is a step affordance rather than a rule one: it did not move, the
+  // reader did.
+  await openFormDetails(page);
   await moveStep(page, "Claim details", "up");
   // The move landed, asserted before the save is waited on: a wait that times out because
   // the thing it is waiting for never happened is the least informative failure there is.
@@ -225,6 +314,12 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
     "data-rail-step-select",
     "Claim details",
   );
+  // The form's own count, on the mount that computed it. The move is a builder edit, so
+  // this screen's own round trip produced the verdict - which is what makes this the right
+  // place to read the FORM-level number, rather than after a navigation that remounts the
+  // panel with nothing checked (issue 625's sentence, and `lib/server/form-verdict.ts` on
+  // why the rules route is seeded and this one is not).
+  await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "then");
 
@@ -253,8 +348,12 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // satisfy the stamp and not this. Its 30s budget carries the debounce, the round trip and
   // the validate call, exactly as the panel assertions elsewhere in this file do.
   await closeRuleEditor(page);
-  await openFormDetails(page);
-  await expect(issueSummary(page)).toContainText("would block a publish", { timeout: 30_000 });
+  // The same verdict as a per-rule tag, on the screen the rule lives on. The rules route is
+  // seeded with the server's own dry run precisely so a reader who ARRIVED here from an
+  // issue link is shown the issue rather than a clean table (issue #669).
+  await expect(page.locator(`tr[data-rule-id="${ruleId}"] [data-rule-issues]`)).toBeVisible({
+    timeout: 30_000,
+  });
 
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list. Two mechanisms, two assertions: a test that
@@ -271,14 +370,16 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // It also restores the form for the rest of this file, which expects the order criterion
   // 1 built.
   await closeRuleEditor(page);
-  await moveStep(page, "Claim details", "down");
-  await openRuleEditor(page, ruleId);
-  await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
-  await closeRuleEditor(page);
   await openFormDetails(page);
+  await moveStep(page, "Claim details", "down");
+  // Read here, on the mount whose own round trip the move armed, for the reason given at
+  // the first of these two assertions.
   await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.", {
     timeout: 30_000,
   });
+  await openRuleEditor(page, ruleId);
+  await expect(page.getByTestId("qcms-backward-flag")).toHaveCount(0);
+  await closeRuleEditor(page);
 });
 
 test("moving a pin re-runs validation and surfaces the broken option ref (exit criterion 3)", async ({
@@ -328,17 +429,25 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   await toggleTarget(page, ruleId, questionIdFor(CLAIM_NOTES), true);
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeRule);
-  await openFormDetails(page);
-  await expect(issueSummary(page)).toHaveText("No issues. Everything here would pass a publish.");
+  // The rule saved clean, read where the rule is. The form's own panel is a fresh mount
+  // after the walk back and reports no check of its own until one runs - see the note on
+  // the build walk above, which asserts that boundary directly.
+  await expect(page.locator("tr[data-rule-id] [data-rule-issues]")).toHaveCount(0);
 
   // The move itself: one pin, one version, chosen from the menu that lists published
   // versions only (R7). Nothing else in the draft changes.
+  await openFormDetails(page);
   await openStep(page, "Cover");
+  const beforeMove = await savedStamp(page);
   await movePin(page, questionIdFor(COVER_LEVEL), 2);
 
   // The version change is on screen, validation re-ran on its own, and the consequence is
   // reported at the rule that carries the now-dangling option id.
   await expect(pinLabel(page, questionIdFor(COVER_LEVEL), 2)).toBeVisible();
+  // The save is waited on before leaving this route, and that is not belt and braces: the
+  // rules screen is a different render since issue #669, so it reads the draft the SERVER
+  // holds. Navigating mid-debounce would show it the draft before the move.
+  await waitForSaveAfter(page, beforeMove);
   // Three screens, three readings of one consequence: the pin is the step's, the finding is
   // on the rule and therefore on the rules screen, and the count is the form's.
   await openRuleEditor(page, ruleId);
@@ -347,8 +456,13 @@ test("moving a pin re-runs validation and surfaces the broken option ref (exit c
   // says "I only looked".
   await expect(issue(scope, "DANGLING_OPTION_REF")).toBeVisible({ timeout: 30_000 });
   await cancelRuleEditor(page);
-  await openFormDetails(page);
-  await expect(issueSummary(page)).toContainText("would block a publish");
+  // The same finding as a COUNT, which is the form's rather than the rule's. Read on the
+  // rules screen's own table, because that mount has the verdict: the tag on the row is
+  // the third reading of one consequence, after the pin's version on the step and the
+  // issue inside the rule's own editor.
+  await expect(page.locator(`tr[data-rule-id="${ruleId}"] [data-rule-issues]`)).toBeVisible({
+    timeout: 30_000,
+  });
 });
 
 test("the settings panel says a required challenge is unenforceable, and stores it unpressed", async ({

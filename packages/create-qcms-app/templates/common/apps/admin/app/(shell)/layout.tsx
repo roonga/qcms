@@ -55,7 +55,7 @@ export default async function ShellLayout({
    *
    * EVERY ROUTE HAS A PAGE IN THE SLOT, AND THAT IS A CORRECTNESS REQUIREMENT RATHER THAN
    * TIDINESS (issue 701, and issue 633 before it). Only ten routes have a rail, but all
-   * seventeen have a page here, because on a soft navigation Next keeps the previously
+   * eighteen have a page here, because on a soft navigation Next keeps the previously
    * active state of a slot the new URL does not match and consults `default.tsx` only after
    * a full-page load - the file convention's own reference says so. A screen with no match
    * therefore did not get an empty rail: it got the PREVIOUS screen's, and walking from
@@ -115,7 +115,7 @@ export default async function ShellLayout({
             shared at 24px instead of 20px. Following the drawing on the bar alone would
             put a 20px bar against a 24px column and break the very property issue 648 is
             about; following it properly means moving `<main>` to `p-5`, a density change
-            on all sixteen screens that neither issue asks for and that wants its own
+            on all eighteen screens that neither issue asks for and that wants its own
             frames. Recorded as its own issue rather than settled here. */}
         <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2">
           {/* "QCMS" and nothing else. No sub-label, and no word here names this app

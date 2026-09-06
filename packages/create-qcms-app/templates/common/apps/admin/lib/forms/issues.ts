@@ -24,10 +24,50 @@ import type { DraftForm, FormIssue, IssuePath } from "./types.ts";
  * plain text instead. That is why {@link anchorFor} takes the draft.
  */
 
-/** The DOM id of one rule's region in the builder. */
+/** The DOM id of one rule's row on the rules screen. */
 export function ruleAnchorId(ruleId: string): string {
   return `rule-${ruleId}`;
 }
+
+/** The rules screen of one form. */
+export function rulesHref(formId: string): string {
+  return `/forms/${encodeURIComponent(formId)}/rules`;
+}
+
+/**
+ * The address of one rule: the rules ROUTE plus that rule's fragment.
+ *
+ * THE ROUTE IS PART OF THE LINK AND THAT IS THE POINT (Code Owner, 2026-09-05, issue
+ * #669). Rule editing used to be a selection on the builder, so `#rule-{id}` on its own
+ * resolved wherever an author happened to be standing. It is a route now, and a bare
+ * fragment fired from the builder would scroll the builder to an element that is no longer
+ * on it - a link that silently does nothing, which is exactly what
+ * `plan/admin-ux-audit.md` §5.5 said a route split would cost if the anchors were not
+ * rebuilt. The ruling's mandatory constraint is that they are: every link that must
+ * survive the move carries the route as well as the fragment, and the click handler
+ * switches route and then focuses.
+ *
+ * THE FRAGMENT IS NOT ESCAPED and the form id is, which is not an inconsistency. A
+ * fragment has one job here: to equal the DOM id {@link ruleAnchorId} put on the row.
+ * Escaping one side of that equality and not the other is how a link stops matching its
+ * own destination, and the destination is what a reader is being sent to. Only a caller
+ * that has found the rule in the draft ever builds one of these, so the id is this app's
+ * own `rul_`-shaped value rather than arbitrary bytes off the wire.
+ */
+export function ruleHref(formId: string, ruleId: string): string {
+  return `${rulesHref(formId)}#${ruleAnchorId(ruleId)}`;
+}
+
+/**
+ * The fragment the rules screen reads as "open the wizard on a new rule".
+ *
+ * The same shape as the rail's `#new-step`, and the same reason: it is a request to the
+ * BROWSER about what to do on arrival rather than a different resource, so `/rules` and
+ * `/rules#new-rule` stay one page with one cache entry. `new-rule` rather than `add-rule`
+ * for the reason `components/forms/rail-steps.tsx` records at length - `scripts/
+ * check-admin-theme.mjs` reads `#add` as a three-digit hex colour.
+ */
+export const NEW_RULE_HASH = "#new-rule";
 
 /** The DOM id of one step's region in the builder. */
 export function stepAnchorId(stepId: string): string {
@@ -128,7 +168,7 @@ export function anchorFor(issue: FormIssue, draft: DraftForm): string | undefine
  * step. This is what lets the link switch screens first rather than resolving to nothing.
  *
  * A rule anchor and a step anchor both return `undefined`, and for opposite reasons: a rule
- * is on the rules screen, which {@link anchorIsOnRulesScreen} answers for separately, and a
+ * is on the rules ROUTE, which {@link anchorIsOnRulesScreen} answers for separately, and a
  * step's own anchor is in the RAIL, which every screen of this route shows. Neither needs a
  * step to be selected.
  */
@@ -145,18 +185,38 @@ export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | u
 /**
  * Whether the element {@link anchorFor} names is rendered by the RULES screen.
  *
- * The companion to {@link stepOwningAnchor}, and the reason the rules could move at all.
- * `plan/admin-ux-audit.md` §5.5 refused the POC's rules screen because it was drawn as a
- * ROUTE: "move Validation to its own route and every one of those anchors resolves to
- * nothing", and the same list is reused verbatim for a refused publish. Rules is a
- * selection instead, so the link switches to it and then focuses - the audit's "two-hop
- * path... a real degradation" was the cost of a route split, and there is no route split.
+ * The companion to {@link stepOwningAnchor}, and what tells a caller which of the two
+ * moves an issue link has to make: switch the builder's step selection, or leave this
+ * route entirely.
+ *
+ * IT IS A ROUTE SINCE 2026-09-05 (Code Owner, issue #669), and the audit's objection is
+ * answered rather than avoided. `plan/admin-ux-audit.md` §5.5 warned that moving a panel
+ * to its own route resolves every one of its focus anchors to nothing; the ruling's
+ * mandatory constraint is that a link which must survive carries the route as well as the
+ * fragment ({@link ruleHref}) and that its handler switches route before focusing. So the
+ * two-hop path §5.5 priced is what an author gets, knowingly, and nothing disappears.
+ *
+ * Validation went the other way for a reason that does not apply here: its entries point
+ * at controls the BUILDER renders - a pin row, a step row - so there is no route that
+ * could carry them.
  */
 export function anchorIsOnRulesScreen(issue: FormIssue, draft: DraftForm): boolean {
+  return ruleForIssue(issue, draft) !== undefined;
+}
+
+/**
+ * The rule this issue is about, when the draft actually has it, and `undefined` otherwise.
+ *
+ * The value behind {@link anchorIsOnRulesScreen}, exported because a caller that has to
+ * BUILD the address needs the id rather than the yes/no. Reading it back out of the DOM id
+ * would be parsing a string this module had just minted.
+ */
+export function ruleForIssue(issue: FormIssue, draft: DraftForm): string | undefined {
   const path = issue.path;
-  if (path === undefined) return false;
+  if (path === undefined) return undefined;
   const rule = ruleOf(path);
-  return rule !== undefined && draft.rules.some((candidate) => candidate.ruleId === rule);
+  if (rule === undefined) return undefined;
+  return draft.rules.some((candidate) => candidate.ruleId === rule) ? rule : undefined;
 }
 
 function isPinnedAnywhere(draft: DraftForm, questionId: string): boolean {

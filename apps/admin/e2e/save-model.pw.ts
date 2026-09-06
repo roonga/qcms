@@ -169,6 +169,72 @@ test("the builder states one save model, in ambient chrome outside the validatio
   expect(await savedStamp(page), "a second save moved the instant").not.toBe(before);
 });
 
+test("the rules route states the same one model, and no second one beside it", async ({ page }) => {
+  // THE SECOND AUTOSAVING SCREEN (issue #669). Rule editing moved to
+  // `/forms/{formId}/rules`, which means a second screen holds an accumulated working
+  // draft - and §6's rule is per SCREEN: a screen that stores owes exactly one statement of
+  // when it stored. The builder's strip is a route away describing a different copy of the
+  // draft, so reading it there would be worse than having none.
+  //
+  // What this is really guarding is the shape of the second one. The easy mistakes are a
+  // screen that stores silently, and a screen that grows a save vocabulary of its own; the
+  // assertions below are one each. `apps/admin/lib/save-model.test.ts` carries the
+  // whole-app half - that no THIRD renderer of the strip appears - because a browser can
+  // only speak for the screens it opens.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const slug = `e2e-save-model-rules-${RUN}`;
+  const formId = await createForm(page, slug, "Rules save model");
+  await addStep(page, "Only step");
+  await pinQuestion(page, questionIdFor(PINNED_SLUG), 1);
+  await waitForSaved(page);
+
+  await page.goto(`/forms/${formId}/rules`);
+  const strip = page.getByTestId("qcms-save-status");
+
+  // 1. Exactly one statement, and it opens honest: this mount has stored nothing yet, so
+  //    it says so rather than borrowing the builder's timestamp.
+  await expect(strip).toHaveCount(1);
+  await expect(strip.getByTestId("qcms-save-state")).toHaveText("Not saved yet");
+  await expect(strip).not.toHaveAttribute("data-saved-at", /./u);
+
+  // 2. It is the SAME model, said the same way, one press away. Two screens saving one
+  //    document must not describe that in two vocabularies.
+  await page.getByRole("button", { name: "How does this screen save?" }).click();
+  await expect(page.getByTestId("qcms-save-model")).toHaveText(
+    "This draft saves automatically as you edit.",
+  );
+  await page.getByRole("button", { name: "How does this screen save?" }).click();
+
+  // 3. There is no validation panel here to hold a rival statement, and no second strip.
+  //    Validation stayed on the builder (#659, built as #719) because its entries point at
+  //    controls the builder renders; this asserts that decision from the other side.
+  await expect(page.getByTestId("qcms-validation-status")).toHaveCount(0);
+  await expect(strip).not.toContainText(/issue/iu);
+
+  // 4. THE PAUSE REACHES THIS SCREEN TOO. A rule that shows nothing cannot be stored
+  //    (`unsaveableReason`'s third case), and a screen that quietly stopped saving without
+  //    saying so is the exact failure §6 exists for. Saving a freshly minted rule is the
+  //    shortest way into that state, and it is the state an author passes through every
+  //    time they author a rule.
+  await page.getByRole("button", { name: "Add rule", exact: true }).click();
+  await expect(page.locator("section[data-rule-id]")).toBeVisible();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const paused = page.getByTestId("qcms-autosave-paused");
+  await expect(paused).toBeVisible();
+  await expect(paused).toHaveAttribute("data-paused-reason", "ruleWithoutTarget");
+
+  // 5. And when the draft can be stored again, this screen's own loop stores it and says
+  //    so. Removing the rule is the repair; the strip moving off "Not saved yet" is the
+  //    proof that the save happened here rather than one route away.
+  await page.locator("tr[data-rule-id]").getByRole("button", { name: "Remove" }).click();
+  await expect(paused).toHaveCount(0);
+  await expect(strip.getByTestId("qcms-save-state")).toContainText(/^Last saved /, {
+    timeout: 30_000,
+  });
+});
+
 test("the question editor states its manual model, visibly, with no ambient strip", async ({
   page,
 }) => {
