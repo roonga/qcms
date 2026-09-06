@@ -103,28 +103,6 @@ export interface RailItem {
   readonly isCurrent: boolean;
 }
 
-/**
- * WHY NO ROW IN THIS RAIL IS PREFETCHED (issue #669).
- *
- * Next prefetches a `<Link>` in the viewport and keeps the payload it gets back. Every row
- * of this rail leads to a screen rendered from ONE form's live state, and since rule
- * editing became a route there are two of those screens that hold the working DRAFT. A
- * prefetch is therefore a snapshot of the draft taken before the reader's next keystroke,
- * and serving it on the click is not a slightly stale screen but a wrong one: the rules
- * route opened on a draft with no steps, said autosave was paused for want of one, and
- * disabled its own Add rule - on a form that had two steps and three pins. An edit saved
- * from there would have written that older draft back over the newer one.
- *
- * The server side of the same problem is handled where the writes are: `saveDraftAction`
- * revalidates this form's whole segment rather than the one page. This is the client half,
- * and both are needed - revalidation cannot reach a payload the browser fetched before the
- * save existed.
- *
- * The cost is a navigation that fetches on the click rather than before it. That is the
- * right trade for a rail whose whole subject is a document being edited.
- */
-export const RAIL_PREFETCH = false;
-
 /** The two groups, in the order the divider separates them. */
 export interface RailGroups {
   readonly children: readonly RailItem[];

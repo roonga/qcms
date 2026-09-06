@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { issuesForRule, NEW_RULE_HASH, ruleHref, rulesHref } from "@/lib/forms/issues";
 import { ruleSentence, type RuleSentenceSegment } from "@/lib/forms/rule-sentence";
-import { issueCountLabel, RAIL_PREFETCH } from "@/lib/forms/subtree-rail";
+import { issueCountLabel } from "@/lib/forms/subtree-rail";
 import type { DraftForm, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
@@ -96,15 +96,7 @@ export function RulesLens({
       )}
 
       <div className="flex flex-wrap items-center gap-4">
-        {/* Not prefetched, for the reason `RAIL_PREFETCH` records: this card sits on the
-            screen an author is editing, so a prefetched rules payload is a snapshot of the
-            draft taken before their next keystroke. */}
-        <Link
-          href={href}
-          prefetch={RAIL_PREFETCH}
-          className="qcms-text-link"
-          data-testid="qcms-rules-lens-edit"
-        >
+        <Link href={href} className="qcms-text-link" data-testid="qcms-rules-lens-edit">
           {t("forms.rules.editAll")}
         </Link>
         {/* AN ANCHOR, NOT A BUTTON, because off the rules screen this NAVIGATES: there is
@@ -115,7 +107,6 @@ export function RulesLens({
         {canAdd ? (
           <Link
             href={`${href}${NEW_RULE_HASH}`}
-            prefetch={RAIL_PREFETCH}
             className="qcms-text-link"
             data-testid="qcms-rules-lens-add"
           >
@@ -147,7 +138,7 @@ function RuleLine({
   readonly issueCount: number;
 }) {
   return (
-    <Link href={href} prefetch={RAIL_PREFETCH} className="qcms-text-link block">
+    <Link href={href} className="qcms-text-link block">
       <span className="qcms-rule-sentence">
         {sentence.map((segment, index) => (
           <span

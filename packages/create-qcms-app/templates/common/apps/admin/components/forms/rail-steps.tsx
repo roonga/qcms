@@ -15,7 +15,7 @@ import {
 } from "@/components/kit";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
 import { stepAnchorId } from "@/lib/forms/issues";
-import { issueCountLabel, RAIL_PREFETCH, type RailItem } from "@/lib/forms/subtree-rail";
+import { issueCountLabel, type RailItem } from "@/lib/forms/subtree-rail";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 
@@ -125,7 +125,6 @@ export function RailSteps({
             would pull that module into the client bundle to reuse four lines of markup. */}
         <Link
           href={item.href}
-          prefetch={RAIL_PREFETCH}
           className="qcms-rail__link"
           data-rail-item={item.key}
           {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
@@ -277,7 +276,6 @@ function ServerSteps({ items }: { readonly items: readonly RailItem[] }) {
         >
           <Link
             href={item.href}
-            prefetch={RAIL_PREFETCH}
             className="qcms-rail__link"
             data-rail-item={item.key}
             {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
@@ -571,7 +569,7 @@ function AddStepDialog({
 function AddStepLink({ href }: { readonly href: string }) {
   return (
     <div className="qcms-rail-steps__add">
-      <Link href={href} prefetch={RAIL_PREFETCH} className="qcms-rail-steps__add-link">
+      <Link href={href} className="qcms-rail-steps__add-link">
         {t("forms.steps.add")}
       </Link>
     </div>

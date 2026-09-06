@@ -206,18 +206,11 @@ export async function saveDraftAction(
     };
   }
   revalidatePath("/forms");
-  // "layout", NOT the default "page" (issue #669). A form's draft is now rendered by TWO
-  // routes - the builder and `/forms/{formId}/rules` - and `revalidatePath` with the
-  // default type invalidates the exact page only. So a save made on one of them left the
-  // other's cached RSC payload standing, and Next PREFETCHES a `<Link>` in the viewport:
-  // the rail's Rules row is prefetched while the builder renders, which means the payload
-  // in the client's router cache can predate every edit made since the screen opened.
-  //
-  // The symptom is not a stale-looking screen, it is a WRONG one: the rules screen opened
-  // on a draft with no pins and disabled its own Add rule, and an edit saved from there
-  // would have written that older draft back over the newer one. "layout" invalidates this
-  // segment and everything nested under it, which is exactly the set of screens that
-  // render this form.
+  // "layout", NOT the default "page" (issue #669). A form's draft is rendered by TWO routes
+  // now - the builder and `/forms/{formId}/rules` - and the default type invalidates the
+  // exact page only, so a save made on one of them left the other's cached render standing.
+  // "layout" invalidates this segment and everything nested under it, which is exactly the
+  // set of screens that render this form.
   revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "saved",

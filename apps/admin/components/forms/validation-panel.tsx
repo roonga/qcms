@@ -12,7 +12,6 @@ import {
   ruleHref,
   stepOwningAnchor,
 } from "@/lib/forms/issues";
-import { RAIL_PREFETCH } from "@/lib/forms/subtree-rail";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 
@@ -253,9 +252,6 @@ export function IssueEntry({
     return (
       <Link
         href={ruleHref(draft.formId, rule)}
-        // Not prefetched: this entry sits on the screen the draft is being edited on, and
-        // `RAIL_PREFETCH` records what a prefetched draft payload costs.
-        prefetch={RAIL_PREFETCH}
         data-issue-code={issue.code}
         className="qcms-text-link block"
       >

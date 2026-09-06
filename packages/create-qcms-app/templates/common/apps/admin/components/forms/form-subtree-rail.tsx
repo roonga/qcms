@@ -5,7 +5,6 @@ import { RailFrame } from "@/components/rail-frame";
 import {
   formSubtreeRail,
   issueCountLabel,
-  RAIL_PREFETCH,
   railSummary,
   type RailCurrent,
   type RailItem,
@@ -176,8 +175,6 @@ function RailRow({ item }: { readonly item: RailItem }) {
   return (
     <Link
       href={item.href}
-      // Not prefetched: `RAIL_PREFETCH` in `lib/forms/subtree-rail.ts` says why at length.
-      prefetch={RAIL_PREFETCH}
       className="qcms-rail__link"
       data-rail-item={item.key}
       {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
