@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { messageForCode } from "../questions/errors.ts";
 import type {
   DefinitionIssue,
@@ -86,15 +88,39 @@ export async function listQuestions(
   return result.ok ? { ok: true, data: result.data.questions } : result;
 }
 
-/** `GET /admin/questions/{id}` - the question and every version, oldest first. */
-export async function getQuestion(
+/**
+ * `GET /admin/questions/{id}` - the question and every version, oldest first.
+ *
+ * ## Once per request, not once per tree (issue #808)
+ *
+ * The question detail screen is a page and a `@rail` slot rendered from one request.
+ * They are separate React trees, neither can hand the other a value, and both need the
+ * same question - the page to render the selected version, the rail to list every
+ * version - so the same `GET /admin/questions/{id}` went out twice per render.
+ * `lib/server/question-rail.ts` stated that cost in prose and named this as the place to
+ * change it, which is what `cache()` here does.
+ *
+ * This is the question-side half of issue #626, which memoized `currentAdminSession` and
+ * `getForm` for exactly this reason and stopped at form-scoped screens. The same two
+ * properties carry over. **The memo key is the argument list, by identity**, so the
+ * dedupe holds only because `currentAdminSession` is memoized too and every caller in a
+ * request therefore holds the *same* session object. And **per request and no longer**,
+ * so nothing here can serve a question a mutation has already changed: a server action
+ * runs before the re-render it triggers, and no action in `app/(shell)/questions/actions.ts`
+ * reads a question. Across requests this memo does not exist.
+ *
+ * The version preview beside it deliberately does NOT join: `getPreview` is a different
+ * resource (one version's compiled document) and each render asks for exactly one.
+ */
+export const getQuestion: (
   session: AdminSession,
   questionId: string,
-): Promise<ApiResult<QuestionDetail>> {
-  return read<QuestionDetail>(
-    await adminApiFetch(session, `/questions/${encodeURIComponent(questionId)}`),
-  );
-}
+) => Promise<ApiResult<QuestionDetail>> = cache(
+  async (session: AdminSession, questionId: string): Promise<ApiResult<QuestionDetail>> =>
+    read<QuestionDetail>(
+      await adminApiFetch(session, `/questions/${encodeURIComponent(questionId)}`),
+    ),
+);
 
 /**
  * `GET /admin/questions/{id}/versions/{v}/preview` - the A2UI document for one version.
