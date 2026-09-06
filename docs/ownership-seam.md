@@ -91,13 +91,13 @@ alone. Regenerate, format, then verify.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (357 files common to both shapes)
+### Scaffolded paths (358 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 346   |
-| `apps/admin/`                                                        | 205   |
+| `apps/`                                                              | 347   |
+| `apps/admin/`                                                        | 206   |
 | `apps/admin/app/`                                                    | 64    |
 | `apps/admin/app/(shell)/`                                            | 48    |
 | `apps/admin/app/(shell)/@rail/`                                      | 20    |
@@ -157,7 +157,7 @@ alone. Regenerate, format, then verify.
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
 | `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 72    |
+| `apps/admin/lib/`                                                    | 73    |
 | `apps/admin/lib/forms/`                                              | 19    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
@@ -222,7 +222,7 @@ alone. Regenerate, format, then verify.
 
 ### QCMS-internal references in the scaffolded source
 
-`1688` lines across `309` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1701` lines across `310` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -237,7 +237,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (357)</summary>
+<summary>Every scaffolded file (358)</summary>
 
 ```
 .dockerignore
@@ -374,6 +374,7 @@ apps/admin/components/test-support/markup.ts
 apps/admin/instrumentation.ts
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
+apps/admin/lib/auth-failure-message.ts
 apps/admin/lib/builder-notice.ts
 apps/admin/lib/forms/assist-diff.ts
 apps/admin/lib/forms/assist-stream.ts

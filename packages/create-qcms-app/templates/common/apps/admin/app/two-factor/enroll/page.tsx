@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 
 import { AuthScreen } from "@/components/auth-screen";
 import { Button, TextField } from "@/components/kit";
+import { authFailureMessage } from "@/lib/auth-failure-message";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { pendingEnrollment } from "@/lib/server/enrollment";
@@ -45,7 +46,9 @@ export default async function EnrollPage({
   readonly searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   await requireEnrollingSession();
-  const error = (await searchParams).error !== undefined ? t("signIn.error") : undefined;
+  // Shared with sign-in so the throttled state survives the trip to this screen: this
+  // line used to read `error` alone, which reported a `429` as a wrong code (issue #805).
+  const error = authFailureMessage(await searchParams);
 
   const totpUri = await pendingEnrollment();
   if (totpUri === undefined) redirect(`${SIGN_IN_PATH}?expired=1`);

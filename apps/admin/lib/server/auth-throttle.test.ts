@@ -148,8 +148,7 @@ const ROUTES: readonly RefusingRoute[] = [
     path: "app/two-factor/challenge/verify/route.ts",
     screen: "/two-factor/challenge",
     refuseWith: (status) => seams.verifyTotp.mockResolvedValue(refusal(status)),
-    post: () =>
-      challengeRoute.POST(formPost("/two-factor/challenge/verify", { code: "123456" })),
+    post: () => challengeRoute.POST(formPost("/two-factor/challenge/verify", { code: "123456" })),
   },
   {
     path: "app/two-factor/enroll/verify/route.ts",
@@ -161,8 +160,7 @@ const ROUTES: readonly RefusingRoute[] = [
     path: "app/two-factor/recovery/verify/route.ts",
     screen: "/two-factor/recovery",
     refuseWith: (status) => seams.verifyBackupCode.mockResolvedValue(refusal(status)),
-    post: () =>
-      recoveryRoute.POST(formPost("/two-factor/recovery/verify", { code: "aaaa-bbbb" })),
+    post: () => recoveryRoute.POST(formPost("/two-factor/recovery/verify", { code: "aaaa-bbbb" })),
   },
 ];
 
