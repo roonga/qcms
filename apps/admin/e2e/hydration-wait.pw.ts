@@ -27,7 +27,18 @@
  *    (four unwaited runs at rate 6 all passed). `holdScripts` moves only the half that
  *    has to move.
  *
- * 4. **It must not fire where React is never coming.** The auth loop is a native form and
+ * 4. **A PRESS on a React-only control is not swallowed** (issue #815). The keystroke
+ *    half above is the auth loop's; the shell's failure is a press. A menu trigger is
+ *    served as a button with no behaviour behind it, so a press before the attach is
+ *    received by nothing, and the helper that pressed once and then polled could only
+ *    spend its whole timeout - which is how `signOut` failed twice on a loaded host with
+ *    `aria-expanded` stuck at false. The fourth test schedules that press with the same
+ *    `holdScripts` device: it starts `openMenu` on a shell React has not reached, requires
+ *    it to be still waiting rather than to have pressed, and requires the menu to open once
+ *    the bundle is let in. Remove the wait from `openMenu` and the press lands on the inert
+ *    button, nothing re-issues it, and the last assertion reds.
+ *
+ * 5. **It must not fire where React is never coming.** The auth loop is a native form and
  *    works with scripts off entirely, which three specs prove in
  *    `test.use({ javaScriptEnabled: false })` blocks. The marker cannot appear there, so a
  *    wait for it is minutes of timeout on a page that was never at risk. The last test pins
@@ -62,7 +73,13 @@ import { starveScripts } from "../../portal/e2e/support/script-starve.js";
 import { HYDRATED_ATTRIBUTE } from "../lib/hydration.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, submitSignIn } from "./support/flow.js";
+import {
+  accountTrigger,
+  enrollNewAdmin,
+  openMenu,
+  signInWithTotp,
+  submitSignIn,
+} from "./support/flow.js";
 import { holdScripts, waitForHydration } from "./support/hydration.js";
 
 test.describe.configure({ mode: "serial" });
@@ -218,6 +235,63 @@ test("a value typed before hydration survives it, and the waited path completes"
   await expect(page.getByRole("button", { name: "Verify" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/questions$/);
+});
+
+/**
+ * How long a correct helper must still be waiting for, with the bundle held.
+ *
+ * A probe rather than a budget: it is not asserting that hydration takes this long, it is
+ * asserting that the helper has not pressed and returned while it provably cannot have
+ * worked. Deliberately short, because the discriminating assertion is the one after the
+ * release - a helper that pressed early is ALSO still waiting here, on a poll of an
+ * attribute nothing is going to change, and only the release tells the two apart.
+ */
+const PRE_HYDRATION_PROBE_MS = 1_500;
+
+test("a menu press waits for the attach rather than landing on an inert trigger", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  const held = holdScripts(page);
+  try {
+    // The shell, served whole, with React held outside the door. `waitUntil: "commit"`
+    // is what makes that possible: the default waits for the very scripts being held.
+    await page.goto("/questions", { waitUntil: "commit" });
+
+    // The trigger is here and it is inert, which is the state the defect lives in. Its
+    // `aria-expanded` is the server's, and nothing in the document will change it.
+    const trigger = accountTrigger(page);
+    await expect(trigger, "the shell's account trigger is server-rendered").toBeAttached();
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+
+    const opening = openMenu(trigger);
+
+    // Still waiting, not pressing. `openMenu` cannot succeed here by any route, so a
+    // resolution now would mean it had found a menu that cannot exist.
+    const early = await Promise.race([
+      opening.then(
+        () => "resolved" as const,
+        () => "rejected" as const,
+      ),
+      new Promise<"waiting">((resolve) => {
+        setTimeout(() => {
+          resolve("waiting");
+        }, PRE_HYDRATION_PROBE_MS);
+      }),
+    ]);
+    expect(early, "the menu cannot open on a shell React has not reached").toBe("waiting");
+
+    // Let React in. THIS is the assertion the fix is for: the press is issued after the
+    // attach, so it is received. Without the wait the press was issued at the top of this
+    // block, was received by nothing, and no poll can put it back - `aria-expanded` stays
+    // false until the assertion inside `openMenu` gives up.
+    held.release();
+    await opening;
+    await expect(page.getByRole("menu")).toBeVisible();
+  } finally {
+    held.release();
+  }
 });
 
 test.describe("without JavaScript", () => {

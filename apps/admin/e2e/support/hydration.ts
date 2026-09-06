@@ -22,6 +22,26 @@
  * instead of paying for it repeatedly. A retry also cannot help the case that actually
  * fails here, where the value is wiped between the fill and the keystroke that submits it.
  *
+ * ## The other half: a PRESS that lands before React attaches (issue #815)
+ *
+ * The wipe above is what a pre-hydration keystroke does. A pre-hydration *press* fails a
+ * second way, and across far more of the admin than the auth loop. Every menu, popover,
+ * dialog, tab and vendored picker in the shell belongs to React alone: the server renders
+ * the trigger and none of its behaviour, so a press on it in that window is swallowed
+ * whole. The support helpers that drive those controls each pressed ONCE and then polled
+ * for the result, and a poll cannot recover a gesture that was never received - it can
+ * only spend its entire timeout. That is how #815 was reported twice, as a shell account
+ * trigger whose `aria-expanded` stayed false for fifteen seconds under a loaded host while
+ * the same file passed alone in nine seconds.
+ *
+ * A retry is the wrong shape for most of these, because a menu trigger is a TOGGLE and
+ * pressing it twice is pressing it never. So every support helper whose FIRST act is a
+ * React-dependent interaction waits here before it, and a helper that begins by calling
+ * one of those inherits the guarantee rather than repeating it - which is why `openStep`,
+ * `addRule` and their neighbours carry no wait of their own and `openRail` does. On an
+ * already-hydrated page the wait resolves on its first poll, so holding the rule
+ * everywhere costs nothing.
+ *
  * ## The signal
  *
  * `components/hydration-marker.tsx` stamps `data-qcms-hydrated` on `<html>` from a mount

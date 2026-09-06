@@ -13,6 +13,8 @@ import {
 } from "../../../portal/e2e/support/harness-config.js";
 import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
 
+import { waitForHydration } from "./hydration.js";
+
 /**
  * Harness steps for the operations e2e (task 035): make real responses exist, run
  * real webhook deliveries, and stand up a real consumer to receive them.
@@ -405,6 +407,10 @@ export async function openWebhooks(page: Page, formId: string): Promise<void> {
  */
 export async function deactivateExistingWebhooks(page: Page, formId: string): Promise<void> {
   await openWebhooks(page, formId);
+  // `openWebhooks` above is a `goto`, so the press below is this helper's first act on a
+  // document React may still be attaching to, and the confirmation it opens is a React
+  // dialog: press early and the loop waits for an alert nobody mounted (issue #815).
+  await waitForHydration(page);
   const table = page.getByTestId("qcms-webhooks-table");
   if ((await table.count()) === 0) return;
   for (;;) {

@@ -142,8 +142,44 @@ export function accountTrigger(page: Page): Locator {
   return page.getByRole("button", { name: /^Account menu for / });
 }
 
-/** Open a menu from its trigger and wait for the popover to be on screen. */
+/**
+ * Open a menu from its trigger and wait for the popover to be on screen.
+ *
+ * ## The wait, which is what closes issue #815
+ *
+ * A menu trigger belongs to React alone. The server renders a button carrying
+ * `aria-expanded="false"` and nothing behind it: the popover, the attribute flip and the
+ * keyboard contract all arrive with the commit that attaches React, and until then a press
+ * on that button does nothing whatsoever. This helper used to press ONCE and then poll the
+ * attribute, so a press that landed in that window was never re-issued and the poll spent
+ * its entire timeout watching an attribute nobody was going to change.
+ *
+ * That is what `auth-2fa.pw.ts` failed on twice inside {@link signOut}, both times under a
+ * loaded host: `aria-expanded` stayed false for the full fifteen seconds while three other
+ * `signOut` calls in the same run passed, and the file passed alone in under nine seconds.
+ * A menu defect does not fail one call in four; a press landing before hydration does.
+ *
+ * The wait is the same mechanism `fillStable` carries for the same class (issue #210), and
+ * it costs nothing on a page that has already hydrated - the marker is an attribute on
+ * `<html>`, so the check returns on its first poll - and returns immediately on a page
+ * whose scripts will never run, which is what the no-JS blocks need.
+ *
+ * ## Why NOT a retry around the press
+ *
+ * Issue #815 offered either shape, and for a menu only this one is safe: a trigger is a
+ * TOGGLE, the one control where re-issuing the gesture undoes it. A `toPass` loop that
+ * pressed again after a slow first attempt would shut the menu it had just opened, and
+ * could sit alternating until the budget ran out. `fillStable` may retry because filling a
+ * field twice with the same value is filling it once; pressing a toggle twice is pressing
+ * it never. The retry there is also documented as answering a different failure - a
+ * `next dev` recompile replacing the document - rather than this one.
+ *
+ * So the wait removes the window rather than paying for it, which is what this window
+ * deserves: there is an exact moment after which the press is meaningful, and the page
+ * says when it arrives.
+ */
 export async function openMenu(trigger: Locator): Promise<void> {
+  await waitForHydration(trigger.page());
   await trigger.click();
   await expect(trigger).toHaveAttribute("aria-expanded", "true");
   await expect(trigger.page().getByRole("menu")).toBeVisible();
