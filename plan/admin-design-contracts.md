@@ -759,9 +759,14 @@ closes with it.
 
 - The rail carries **navigation within one form's subtree**: the form's children
   (its steps, with per-step issue badges) and the form's sibling screens
-  (Builder, Preview, Versions, Links, Responses, Webhooks). A question's version
-  list counts as children on the question detail screen. ~~That is the whole
+  (Builder, **Rules**, Preview, Versions, Links, Responses, Webhooks). A question's
+  version list counts as children on the question detail screen. ~~That is the whole
   contract: two groups, in that order, with one divider.~~
+
+  **Rules is the seventh, added 2026-09-06 with the build below (issue #669).** It
+  sits directly after the Builder row and the steps nested under it, which is where
+  `rules-screen-poc.html` draws it: the rules are form-level WORK, so they sit beside
+  the work rather than among the screens that report on a published form.
 
   **Amended 2026-08-25 (Code Owner): one tree, not two groups.** The steps are
   nested inside the Form row rather than stacked above the sections, so there is
