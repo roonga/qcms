@@ -49,7 +49,8 @@ Two properties hold structurally, and both are tested:
    name outside `ASSIST_TOOL_NAMES` before dispatch. The tool set handed to the
    provider is built from the same frozen registry, so the model is never told
    the other verbs exist. A refused call is logged and the turn produces **no
-   proposal at all**.
+   proposal at all**, and since issue #814 the loop also ends at the refusing
+   step rather than asking again until `QCMS_AGENT_MAX_STEPS` runs out.
 2. **No respondent data.** Every tool draws on `AssistContext`, which carries the
    draft, a search-only library port, an advisory validation function and the
    conversation. There is no `Executor` on it, no session reader and no answer
