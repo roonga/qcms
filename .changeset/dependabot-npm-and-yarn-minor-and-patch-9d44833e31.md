@@ -3,8 +3,14 @@
 "@roonga/qcms-ui": patch
 ---
 
-Dependency maintenance. No source in these packages changed and their public APIs
-are identical; only the ranges below moved.
+Dependency maintenance. The public API of both packages is identical; the ranges
+below moved, and one type name inside `@roonga/qcms-observability` moved with them.
+
+`@opentelemetry/sdk-logs` 0.222.0 deprecates `SdkLogRecord`, which is now an alias
+for `ReadWriteLogRecord`, so `packages/observability/src/otlp-log-allowlist.ts`
+names the successor type instead. It is the same type under a new name, used on a
+type-only import and one internal signature, so nothing a consumer imports or calls
+changes and the SEC-13 redaction behaviour is untouched.
 
 **@roonga/qcms-observability**
 

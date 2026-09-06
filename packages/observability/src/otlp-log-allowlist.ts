@@ -1,4 +1,4 @@
-import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
+import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-logs";
 
 /**
  * The exported event vocabulary. An unlisted `msg` is replaced with
@@ -97,7 +97,7 @@ export function safeEventName(body: unknown): string {
   return typeof body === "string" && SAFE_EVENTS.has(body) ? body : "application.event";
 }
 
-function allowlist(record: SdkLogRecord): void {
+function allowlist(record: ReadWriteLogRecord): void {
   record.setBody(safeEventName(record.body));
   for (const key of Object.keys(record.attributes)) {
     if (!SAFE_ATTRIBUTES.has(key)) delete record.attributes[key];
