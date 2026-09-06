@@ -31,7 +31,13 @@ function testCase(title: string, outcome: ReturnType<TestCase["outcome"]>): Test
   } as unknown as TestCase;
 }
 
-/** A failing attempt, with text that carries no contention signature. */
+/**
+ * A failing attempt, whose text carries no contention signature unless one is passed.
+ *
+ * Cast like the fixture above: a real `TestResult` carries a dozen fields (duration,
+ * attachments, steps, worker index) that this reporter never reads, and a literal
+ * holding only what it does read says which fields the behaviour depends on.
+ */
 function failedResult(message = "expect(received).toBeVisible()"): TestResult {
   return { status: "failed", errors: [{ message }] } as unknown as TestResult;
 }
@@ -153,6 +159,9 @@ describe("ContentionReporter", () => {
   });
 
   it("counts a timeout nothing expected as a failure", () => {
+    // A timed-out attempt is the other status the reporter accepts, and Playwright gives
+    // a `test.fail` that times out the outcome "unexpected" too: the marker says the body
+    // fails, not that it hangs.
     const { reporter, output } = harness();
     reporter.onBegin();
     reporter.onTestEnd(testCase("waits for the API", "unexpected"), {
