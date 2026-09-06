@@ -1853,8 +1853,15 @@ export function currentSeamBlock() {
 
 // --- write / check ----------------------------------------------------------
 
-/** Everything currently committed under the template directory. */
-function currentTemplates() {
+/**
+ * Everything currently committed under the template directory.
+ *
+ * Exported because `scripts/dependabot-changeset.mjs` asks the same question this
+ * file's `--check` mode asks (issue #834): which generated template files disagree
+ * with the working tree. Two readers of one tree have to read it the same way, so
+ * the helper borrows this rather than walking the directory a second time.
+ */
+export function currentTemplates() {
   /** @type {Map<string, string>} */
   const tree = new Map();
   try {
@@ -1922,7 +1929,9 @@ export function main(args = argv.slice(2)) {
   if (problems.length > 0) {
     process.stderr.write(
       `The scaffolding templates have drifted from the canonical apps:\n\n  ${problems.join("\n  ")}\n\n` +
-        `Regenerate them with \`pnpm qcms:sync-templates\` and commit the result.\n`,
+        "Regenerate them with `pnpm qcms:sync-templates`, run `pnpm format` (issue #811),\n" +
+        "and commit the result. On a Dependabot bump, `pnpm changeset:dependabot -- --write`\n" +
+        "does the regeneration and writes the changeset it also needs (issue #834).\n",
     );
     return 1;
   }
