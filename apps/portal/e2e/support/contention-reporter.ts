@@ -124,12 +124,6 @@ export interface ContentionReporterOptions {
   readonly seat?: number;
 }
 
-/** A failure held for the end of the run, with the test it came from. */
-interface PendingFailure {
-  readonly test: TestCase;
-  readonly note: FailureNote;
-}
-
 export default class ContentionReporter implements Reporter {
   private readonly seat: number;
   private readonly snapshot: (seat: number) => HostSnapshot;
@@ -142,7 +136,7 @@ export default class ContentionReporter implements Reporter {
    * that counted attempts would say "2 failing tests" of one. The last failing attempt
    * wins, which is the one whose text a reader would go looking at.
    */
-  private readonly pending = new Map<TestCase, PendingFailure>();
+  private readonly pending = new Map<TestCase, FailureNote>();
 
   constructor(options: ContentionReporterOptions = {}) {
     this.seat = options.seat ?? PORT_SEAT;
@@ -163,11 +157,8 @@ export default class ContentionReporter implements Reporter {
   onTestEnd(test: TestCase, result: TestResult): void {
     if (result.status !== "failed" && result.status !== "timedOut") return;
     this.pending.set(test, {
-      test,
-      note: {
-        title: test.titlePath().slice(1).join(" > "),
-        signature: classifyFailure(failureText(result)),
-      },
+      title: test.titlePath().slice(1).join(" > "),
+      signature: classifyFailure(failureText(result)),
     });
   }
 
@@ -179,9 +170,9 @@ export default class ContentionReporter implements Reporter {
     //
     // "Passing" is the OUTCOME, not the raw status (#828): an expected failure and a
     // retry-recovered flake both leave a failed attempt behind and neither reds the run.
-    const failures = [...this.pending.values()]
-      .filter((pending) => pending.test.outcome() === "unexpected")
-      .map((pending) => pending.note);
+    const failures = [...this.pending]
+      .filter(([test]) => test.outcome() === "unexpected")
+      .map(([, note]) => note);
     if (failures.length === 0) return;
     this.write(
       `${renderContentionReport({
