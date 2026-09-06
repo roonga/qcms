@@ -26,7 +26,16 @@ export function Checkbox({
 	isSelected,
 	defaultSelected,
 	isDisabled = false,
-	isRequired = false,
+	// Deliberately NOT defaulted. Inside a CheckboxGroup, React Aria resolves an item's
+	// required state as `props.isRequired ?? state.isRequired`, so a literal `false` here
+	// wins over the group and the required state of a required group never reaches any of
+	// its checkboxes: the group conveys required visually (`data-required`) and says
+	// nothing to assistive technology. Left undefined, each checkbox inherits
+	// `aria-required` (aria validation) or `required` (native validation) for exactly as
+	// long as nothing in the group is selected, which is React Aria's own encoding of
+	// "at least one". The other two flags are combined with `||` upstream, so their
+	// defaults are harmless.
+	isRequired,
 	isReadOnly = false,
 	isIndeterminate = false,
 	isInvalid = false,

@@ -18,117 +18,96 @@ answers "do the bytes still match" on every run, and this file answers "what mov
 pin, and what did a human check" once per pin move.
 
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
-  `075c3a9324e146a4701d1c47a5cfcc0afccc2f7b`
-- **Previous pin**: `924eac1a04c86fcf0945859ade3de14af3ba7ce7`
-- **Captured**: 2026-09-03, the upstream pass carrying issues #99, #148, #549 and #151
+  `d34c95057b3862ead7c2115197b50a2e0177d8c7`
+- **Previous pin**: `075c3a9324e146a4701d1c47a5cfcc0afccc2f7b`
+- **Captured**: 2026-09-06, the upstream pass carrying issues #804, #789 and #793
 - **Components installed**: alert, breadcrumb, button, card, checkbox, date-picker,
   dialog, form, layout, menu, number-field, radio, select, table, text, text-area,
   text-field
 
-The pin names upstream `main`. It briefly named `e4f8b36`, the branch commit this pass
-was reviewed against, because the upstream change was not merged yet. That repository
-squash-merges, so the branch commit could never become `main` history: the merge landed
-its content as `075c3a9`, and the pin moved to it. The two commits are byte-identical
-over the whole tree (`git diff e4f8b36 075c3a9` is empty), which is why the pin move
-below rewrites no vendored byte.
+**The pin names an upstream BRANCH head, not `main`.** It is the single commit of
+roonga/a2-react-aria#78, which is open and green rather than merged: the merge action was
+refused by this session's permission system, so the pass stops short of it rather than
+working around it. That repository merges by rebasing a clean branch, so the merge will
+produce a different sha carrying identical content, exactly as the previous pin move did
+(`e4f8b36` became `075c3a9`). **The pin moves to the merged commit before this change
+lands**, and this transcript and `a2ra-manifest.json` are regenerated at that commit in the
+same push; a manifest generated at another commit is a hard failure of
+`check:a2ra-fidelity` rather than a silent pass, so the two cannot drift apart quietly.
 
 ## What moved, and the proof that nothing else did
 
 A pin move re-vendors **every** component at once, so "only the intended fix changed" is
 a claim about the whole tree rather than about the files that happen to be in the diff.
 The new pin is a single commit on top of the previous one, and it was diffed component
-by component before the overwrite: `date-picker`, `radio` and `select` drifted, and the
-other fourteen reported clean.
+by component before the overwrite: `checkbox`, `number-field` and `text-field` drifted,
+and the other fourteen reported clean.
 
 ```console
 $ pnpm dlx @a2ra/cli --version
 1.0.0-preview.4
 
-$ for c in alert breadcrumb button card checkbox dialog form layout menu \
->          number-field table text text-area text-field; do
+$ for c in alert breadcrumb button card date-picker dialog form layout menu \
+>          radio select table text text-area; do
 >   printf "%-14s " "$c"; pnpm dlx @a2ra/cli diff $c; done
 
 alert          ✓ All installed components are up to date.
 breadcrumb     ✓ All installed components are up to date.
 button         ✓ All installed components are up to date.
 card           ✓ All installed components are up to date.
-checkbox       ✓ All installed components are up to date.
+date-picker    ✓ All installed components are up to date.
 dialog         ✓ All installed components are up to date.
 form           ✓ All installed components are up to date.
 layout         ✓ All installed components are up to date.
 menu           ✓ All installed components are up to date.
-number-field   ✓ All installed components are up to date.
+radio          ✓ All installed components are up to date.
+select         ✓ All installed components are up to date.
 table          ✓ All installed components are up to date.
 text           ✓ All installed components are up to date.
 text-area      ✓ All installed components are up to date.
-text-field     ✓ All installed components are up to date.
 ```
 
 Run `a2ra diff` with **one component named**, not bare: the bare form stops after the
 first drifting file it finds, so it is a "something moved" signal rather than an
 enumeration. That is why the sweep above is a loop.
 
-The three that drifted match the four upstream fixes exactly, and nothing else:
+The three that drifted match the three upstream component fixes exactly, and nothing else:
 
-| Component     | File                     | Change                                                            | Issue           |
-| ------------- | ------------------------ | ----------------------------------------------------------------- | --------------- |
-| `date-picker` | `date-picker.styles.ts`  | `requiredIndicator` token added                                   | #99             |
-| `date-picker` | `DatePicker.tsx`         | required marker in the `<Label>`; guarded parse; `string \| null` | #99, #549, #148 |
-| `date-picker` | `DateRangePicker.tsx`    | required marker in the `<Label>`; guarded parse                   | #99, #549       |
-| `date-picker` | `date-picker.shared.tsx` | `parseDateOrNull` / `parseDateRangeOrNull` helpers added          | #549            |
-| `radio`       | `RadioGroup.tsx`         | `value?: string \| null`                                          | #148            |
-| `select`      | `Select.tsx`             | `value?: string \| null`                                          | #148            |
+| Component      | File              | Change                                                 | Issue |
+| -------------- | ----------------- | ------------------------------------------------------ | ----- |
+| `text-field`   | `TextField.tsx`   | seeds its initial value from the server-rendered input | #804  |
+| `number-field` | `NumberField.tsx` | `aria-hidden="true"` on the required marker            | #789  |
+| `checkbox`     | `Checkbox.tsx`    | `isRequired` no longer defaults to `false`             | #789  |
 
-The fourth upstream change (#151) is a dependency range on `@a2ra/core`, not a component,
-so it does not appear in this transcript at all. See the PR body for how it was verified.
+The fourth upstream change (#793) moves no component source at all: it teaches upstream's
+registry generator to follow a component's imports out of its own directory, so
+`group-schema-fields.ts` is now shipped by the `checkbox` and `radio` items instead of
+belonging to none. The vendored bytes are unchanged, which is why `radio` reports clean
+above; what changes here is the manifest, where that file's `origin` moves from
+`repo:packages/core/src/components/group-schema-fields.ts` to `registry:checkbox`, and
+`scripts/check-a2ra-fidelity.mjs`, whose `UPSTREAM_REPO_SOURCES` mapping is now empty.
 
-## The pin move to the merged commit rewrote nothing
+## The whole-tree overwrite
 
-`e4f8b36` to `075c3a9` is a re-pin, not an upgrade, so the interesting property is that
-the vendored tree does **not** move. Proved by rewriting it rather than by reasoning
-about it: every file of the three components that drifted at the previous pin move was
-overwritten from the new registry, and the working tree stayed clean apart from
-`a2ra.json` itself.
-
-```console
-$ pnpm dlx @a2ra/cli add date-picker radio select --overwrite
-
-✓ Added 15 file(s) for date-picker, radio, select.
-
-$ git status --porcelain
- M packages/ui/a2ra.json
-```
-
-Fifteen files written, zero bytes changed.
-
-The whole-tree sweep was re-run at the merged pin as well, and this time all seventeen
-report clean, because the tree is already vendored from content identical to it. The
-14-clean/3-drifted sweep above is the state against the PREVIOUS pin, which is what says
-what the upgrade moved; this one says the re-pin moved nothing.
+Every component was re-vendored from the new registry, not only the three that drifted, so
+the tree is a copy of the pinned registry rather than the previous tree with three files
+replaced.
 
 ```console
-$ for c in alert breadcrumb button card checkbox date-picker dialog form layout menu \
->          number-field radio select table text text-area text-field; do
->   printf "%-14s " "$c"; pnpm dlx @a2ra/cli diff $c; done
+$ pnpm dlx @a2ra/cli add alert breadcrumb button card checkbox date-picker dialog form \
+>   layout menu number-field radio select table text text-area text-field --overwrite
 
-alert          ✓ All installed components are up to date.
-breadcrumb     ✓ All installed components are up to date.
-button         ✓ All installed components are up to date.
-card           ✓ All installed components are up to date.
-checkbox       ✓ All installed components are up to date.
-date-picker    ✓ All installed components are up to date.
-dialog         ✓ All installed components are up to date.
-form           ✓ All installed components are up to date.
-layout         ✓ All installed components are up to date.
-menu           ✓ All installed components are up to date.
-number-field   ✓ All installed components are up to date.
-radio          ✓ All installed components are up to date.
-select         ✓ All installed components are up to date.
-table          ✓ All installed components are up to date.
-text           ✓ All installed components are up to date.
-text-area      ✓ All installed components are up to date.
-text-field     ✓ All installed components are up to date.
+✓ Added 75 file(s) for alert, breadcrumb, button, card, checkbox, date-picker, dialog,
+  form, layout, menu, number-field, radio, select, table, text, text-area, text-field.
+
+$ git status --porcelain packages/ui/src
+ M packages/ui/src/components/a2ui/checkbox/Checkbox.tsx
+ M packages/ui/src/components/a2ui/number-field/NumberField.tsx
+ M packages/ui/src/components/a2ui/text-field/TextField.tsx
 ```
+
+Seventy-five files written, three changed. The count is one above the tree's 74 files
+because `group-schema-fields.ts` is now shipped by two items and written twice.
 
 ## The verdict
 
@@ -139,6 +118,9 @@ $ pnpm dlx @a2ra/cli --version
 $ pnpm dlx @a2ra/cli diff
 
 ✓ All installed components are up to date.
+
+$ node scripts/check-a2ra-fidelity.mjs
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ d34c95057b38 (ADR-22).
 ```
 
 ## The negative control
@@ -148,36 +130,33 @@ control (055's retro lesson, applied here). One byte was appended to a vendored 
 diff was re-run, and the file was restored - so the line above is known to mean
 "identical" rather than "not checked".
 
-The control is taken on `date-picker.styles.ts` this time, one of the files this pass
-changed: a control on an untouched file would prove the harness works without proving it
-works on the bytes under review. It was re-taken against the merged pin rather than
-carried over from the branch pin, so the transcript below is what this pin produces.
+The control is taken on `text-field/TextField.tsx`, one of the three files this pass
+changed and the one carrying the #804 fix: a control on an untouched file would prove the
+harness works without proving it works on the bytes under review.
 
 Context lines are elided where marked; nothing else is edited.
 
 ```console
-$ printf "\n" >> src/components/a2ui/date-picker/date-picker.styles.ts   # deliberate one-byte drift
+$ printf "\n" >> src/components/a2ui/text-field/TextField.tsx   # deliberate one-byte drift
 
-$ pnpm dlx @a2ra/cli diff date-picker
+$ pnpm dlx @a2ra/cli diff text-field
 
-── date-picker/date-picker.styles.ts ──
-  export const getDatePickerStyles = () => ({
-  	root: "flex flex-col gap-1",
-  	label: "text-sm font-medium text-(--color-text)",
-  	requiredIndicator: "text-(--color-danger)",
+── text-field/TextField.tsx ──
+  import { useContext, useEffect, useId, useState, useSyncExternalStore } from "react"
 
-[... 43 unchanged context lines elided ...]
+[... 150 unchanged context lines elided ...]
 
-  	rangeSeparator: "text-(--color-text-muted) px-1 text-sm",
-  })
+  		</RACTextField>
+  	)
+  }
 
 -
 
 Run `a2ra add <name> --overwrite` to update.
 
-$ pnpm dlx @a2ra/cli add date-picker --overwrite   # restore from the registry
+$ pnpm dlx @a2ra/cli add text-field --overwrite   # restore from the registry
 
-✓ Added 6 file(s) for date-picker.
+✓ Added 4 file(s) for text-field.
 
 $ pnpm dlx @a2ra/cli diff
 

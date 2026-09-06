@@ -17,8 +17,17 @@
  *
  * These components still render server-side. Next SSRs client components, so the
  * sign-in and 2FA screens produce complete HTML and their `<form method="post">`
- * submits natively - the whole auth loop works before hydration and with JavaScript
- * off.
+ * submits natively - the whole auth loop works with JavaScript off.
+ *
+ * It works with JavaScript still ON ITS WAY too, but only since the pin move carrying
+ * roonga/a2-react-aria#78, and the earlier version of this sentence claimed it while it
+ * was false (issues #210, #804). react-aria renders a CONTROLLED input whatever it is
+ * handed, so the commit that attached React used to write its own empty initial state
+ * over anything typed into the server-rendered field beforehand. On the `required`
+ * six-digit code field the browser's own constraint validation then refused the submit,
+ * with no submit event, no request and nothing on screen to explain it. The vendored
+ * `TextField` now seeds its initial value from its server-rendered input, so a value
+ * typed before hydration survives it.
  */
 
 export {

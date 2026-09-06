@@ -67,34 +67,44 @@ const cases: Case[] = loadGoldenSteps().flatMap((step) =>
 );
 
 /**
- * The one control whose marker is NOT hidden from assistive technology, pinned here
- * rather than left as an unstated difference.
+ * The controls whose marker is NOT hidden from assistive technology: none of them,
+ * since the pin moved past roonga/a2-react-aria#78 (issue #789).
  *
- * Six of the seven vendored controls wrap the marker in `aria-hidden="true"`, so a
- * screen reader announces the field's required STATE (`aria-required`) and not a
- * literal asterisk. The vendored `NumberField` does not, so its computed accessible
- * name ends in " *" - visible in the conformance snapshot as `"How many? *"`. That
- * inconsistency was found while diagnosing #99 and is upstream work in
- * a2-react-aria, out of scope for the pin move that carried #99, #148 and #549.
+ * Six of the seven vendored controls already wrapped the marker in
+ * `aria-hidden="true"`, so a screen reader announces the field's required STATE
+ * (`aria-required`) and not a literal asterisk. The vendored `NumberField` did not,
+ * so its computed accessible name ended in " *" - visible in the conformance
+ * snapshot as `"How many? *"`. It was found while diagnosing #99, reported rather
+ * than patched here because ADR-22 freezes the vendored tree byte-for-byte, and
+ * fixed upstream in the pass this exception was written to survive.
  *
- * This is an exact-set assertion, so it fails the day upstream fixes it: that
- * failure is the prompt to delete this exception, not a regression.
+ * The set stays, empty, rather than being deleted along with the assertions reading
+ * it: it is what makes "no control leaks its marker" an exhaustive claim over the
+ * corpus-derived set instead of a sentence, and a control that regresses names
+ * itself in a diff.
  */
-const MARKER_IN_ACCESSIBLE_NAME = new Set(["NumberField"]);
+const MARKER_IN_ACCESSIBLE_NAME = new Set<string>();
 
 /**
- * The controls that convey required only VISUALLY, pinned for the same reason.
+ * The controls that convey required only VISUALLY: none of them, for the same
+ * reason.
  *
  * react-aria-components puts `aria-required` on the element carrying the control's
- * semantics for the single-value controls, but a `CheckboxGroup` gets only
+ * semantics for the single-value controls, and a `CheckboxGroup` got only
  * `data-required="true"` - a styling hook, invisible to assistive technology - so a
- * required multiChoice question announces nothing about being required until its
- * error fires. That is the same defect family as #99 one control over, it sits in
- * react-aria-components rather than in the vendored wrapper, and it is outside the
- * pin move that carried #99, #148 and #549. Recorded here so it is a known gap with
- * a failing-when-fixed marker rather than an unstated one.
+ * required multiChoice announced nothing about being required until its error fired.
+ * The cause was in the vendored `Checkbox`, which defaulted `isRequired` to `false`
+ * and passed it down: react-aria resolves a group item's required state as
+ * `props.isRequired ?? state.isRequired`, so the literal `false` won over the group
+ * and the group's own required state reached none of its items.
+ *
+ * ARIA does not allow `aria-required` on `role="group"`, so the upstream fix does not
+ * put it there. Each checkbox carries it instead (or `required`, under native
+ * validation) for exactly as long as nothing in the group is selected, which is
+ * react-aria's own encoding of "at least one" - which is why the assertion below
+ * searches the whole field wrapper rather than the group element.
  */
-const REQUIRED_STATE_NOT_EXPOSED = new Set(["CheckboxGroup"]);
+const REQUIRED_STATE_NOT_EXPOSED = new Set<string>();
 
 /** The `display:contents` wrapper the adapter puts around one question's control. */
 function fieldWrapper(container: HTMLElement, name: string): HTMLElement {
@@ -145,9 +155,11 @@ describe("every required control renders the required marker (issue #99)", () =>
       // The required STATE, which is what assistive technology reports. RAC sets it
       // from `isRequired` on whatever element carries the control's semantics: the
       // input for the text-shaped controls, each date segment for the DatePicker,
-      // the group for the checkbox and radio groups.
+      // the group for the RadioGroup, and each item for the CheckboxGroup, whose
+      // group element cannot carry it. Searching the whole field wrapper is what
+      // lets one assertion cover all four placements.
       const required = wrapper.querySelectorAll("[aria-required='true'], [required]");
-      expect(required.length > 0).toBe(!REQUIRED_STATE_NOT_EXPOSED.has(control.type));
+      expect(required.length > 0).toBe(true);
 
       // And the NAME still reads as the question, with the asterisk hidden - except
       // for the one control documented above.
@@ -176,5 +188,21 @@ describe("every required control renders the required marker (issue #99)", () =>
       if (marker?.getAttribute("aria-hidden") !== "true") leaking.add(control.type);
     }
     expect(leaking).toEqual(MARKER_IN_ACCESSIBLE_NAME);
+  });
+
+  it("pins exactly which controls convey required only visually", () => {
+    // The companion exact-set assertion to the one above, and the reason the
+    // per-case check is a plain `toBe(true)`: the exception is stated once, here,
+    // where a regression names the control rather than reddening seventy cases.
+    // One case per control TYPE, for the reason given above.
+    const byType = new Map(cases.map((c) => [c.control.type, c]));
+    const visualOnly = new Set<string>();
+    for (const { step, specVersion, control } of byType.values()) {
+      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
+      const wrapper = fieldWrapper(container, control.name);
+      const required = wrapper.querySelectorAll("[aria-required='true'], [required]");
+      if (required.length === 0) visualOnly.add(control.type);
+    }
+    expect(visualOnly).toEqual(REQUIRED_STATE_NOT_EXPOSED);
   });
 });

@@ -75,7 +75,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/constr
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -164,7 +164,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/deep-n
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -218,7 +218,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/insura
     "role": "radio",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
 ]
@@ -325,7 +325,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v1/kitche
     "role": "checkbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -400,7 +400,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/author
     "role": "textbox",
   },
   {
-    "name": "Odometer reading *",
+    "name": "Odometer reading",
     "role": "textbox",
   },
   {
@@ -542,7 +542,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/constr
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -631,7 +631,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/deep-n
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -685,7 +685,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/insura
     "role": "radio",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
 ]
@@ -792,7 +792,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v2/kitche
     "role": "checkbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -867,7 +867,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/author
     "role": "textbox",
   },
   {
-    "name": "Odometer reading *",
+    "name": "Odometer reading",
     "role": "textbox",
   },
   {
@@ -1009,7 +1009,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/constr
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -1098,7 +1098,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/deep-n
     "role": "textbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
@@ -1152,7 +1152,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/insura
     "role": "radio",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
 ]
@@ -1259,7 +1259,7 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v3/kitche
     "role": "checkbox",
   },
   {
-    "name": "How many? *",
+    "name": "How many?",
     "role": "textbox",
   },
   {
