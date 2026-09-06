@@ -81,7 +81,12 @@ export function NumberField({
 			{label && (
 				<Label className={styles.label}>
 					{label}
-					{isRequired && <span className={styles.requiredIndicator}> *</span>}
+					{isRequired && (
+						<span aria-hidden="true" className={styles.requiredIndicator}>
+							{" "}
+							*
+						</span>
+					)}
 				</Label>
 			)}
 			<Group className={styles.inputGroup}>

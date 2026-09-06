@@ -84,23 +84,22 @@ const UI_PACKAGE = "packages/ui";
  * Vendored files upstream does NOT publish through the registry, and where its repository
  * keeps them instead.
  *
- * `group-schema-fields.ts` is the whole list today. It sits at the root of the vendored
- * tree, `checkbox/checkbox.schema.ts` and `radio/radio.schema.ts` import it, and no
- * component's registry JSON contains it at this pin - so the 17 installed components
- * yield 73 files and the tree holds 74. Upstream keeps it at
- * `packages/core/src/components/group-schema-fields.ts`, which is what the refresh hashes,
- * and the two copies are byte-identical. Treating it as an unexplained extra would have
- * been the easy wrong answer: it would fail a gate on a file the vendored components
- * cannot compile without.
+ * **Empty, and that is the intended state.** It held one entry until the pin moved past
+ * roonga/a2-react-aria#78: `group-schema-fields.ts` sits at the root of the vendored tree,
+ * `checkbox/checkbox.schema.ts` and `radio/radio.schema.ts` import it, and it was in no
+ * component's registry entry at all, so a consumer running `a2ra add checkbox` received
+ * source with a dangling import (issue #793). Upstream's generator now follows a
+ * component's imports out of its own directory, and both items ship the file, so it
+ * arrives through the registry like every other vendored byte and needs no mapping.
  *
  * An entry is a repo path in the upstream repository, fetched at the pin. Adding one is a
- * statement that upstream owns the file by another route, so each needs its reason here.
+ * statement that upstream owns the file by another route rather than through the registry,
+ * so each needs its reason here - and the reason to prefer is usually the one taken above:
+ * fix the registry upstream so no mapping is needed.
  *
  * @type {Record<string, string>}
  */
-const UPSTREAM_REPO_SOURCES = {
-  "group-schema-fields.ts": "packages/core/src/components/group-schema-fields.ts",
-};
+const UPSTREAM_REPO_SOURCES = {};
 
 /** @param {string} text @returns {string} lowercase hex sha256 of the UTF-8 bytes */
 export function sha256(text) {

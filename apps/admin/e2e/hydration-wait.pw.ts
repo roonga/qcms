@@ -35,15 +35,23 @@
  *    of this change reddened all three of those blocks, and only the full browser suite
  *    caught it.
  *
- * The mechanism, for whoever debugs this next, because nothing about the failure names it:
- * react-aria's `TextField` receives neither `value` nor `defaultValue`, so it renders a
- * CONTROLLED input seeded empty. The commit that attaches React writes that empty value
+ * The mechanism, for whoever debugs this next, because nothing about the failure named it:
+ * react-aria's `TextField` received neither `value` nor `defaultValue`, so it rendered a
+ * CONTROLLED input seeded empty, and the commit that attached React wrote that empty value
  * over anything typed into the server-rendered input beforehand. The six-digit code field
- * is `required`, so the Enter that follows is refused by the browser's own constraint
+ * is `required`, so the Enter that followed was refused by the browser's own constraint
  * validation: no submit event, no request, no error alert, and no navigation. The red
- * arrives much later, as a URL assertion timing out on the screen the test believed it had
+ * arrived much later, as a URL assertion timing out on the screen the test believed it had
  * left, with the field mysteriously empty. Measured before the fix: 12 wipes in 20
  * attempts, hydration landing 76-404ms after the document commit on an idle machine.
+ *
+ * **That half is fixed at its cause** (issue #804, upstream roonga/a2-react-aria#78, in
+ * through the `a2ra.json` pin): the vendored `TextField` seeds its initial value from its
+ * own server-rendered input during the hydrating render, so a value typed early survives.
+ * The third test below asserted the wipe and now asserts its absence, which is how the pin
+ * move learned the fix had arrived. The waits stay: what is closed is the silent loss of a
+ * typed value, not the general race between a keystroke and the attach that gives the
+ * control its handlers, focus management and validation state.
  */
 
 import { generate } from "otplib";
@@ -148,12 +156,12 @@ test("enrol this file's account", async ({ page }) => {
   totpSecret = await enrollNewAdmin(page, EMAIL);
 });
 
-test("hydration discards what was typed first, which is what the wait exists to prevent", async ({
+test("a value typed before hydration survives it, and the waited path completes", async ({
   page,
 }) => {
-  // Half one pins the hazard, scheduled rather than hoped for. `holdScripts` keeps React
-  // out of the page until this test lets it in, so the interleaving that loses - type,
-  // THEN hydrate, THEN submit - happens on demand instead of once in every few runs.
+  // Half one drives the interleaving that used to lose, scheduled rather than hoped for.
+  // `holdScripts` keeps React out of the page until this test lets it in, so type, THEN
+  // hydrate, THEN submit happens on demand instead of once in every few runs.
   await submitSignIn(page, EMAIL);
   await expect(page).toHaveURL(/\/two-factor\/challenge$/);
 
@@ -171,17 +179,24 @@ test("hydration discards what was typed first, which is what the wait exists to 
       TYPED_PROBE_CODE,
     );
 
-    // Let React in, and it takes the value away. This assertion is deliberately an
-    // assertion about a DEFECT rather than about a feature: react-aria's `TextField` is
-    // handed neither `value` nor `defaultValue`, so it renders a controlled input seeded
-    // empty and the attaching commit writes that empty state over the DOM. It lives in the
-    // vendored tree, which ADR-22 freezes byte-for-byte against upstream, so it is an
-    // upstream fix and a pin move rather than something to patch here. The day that lands,
-    // THIS is the line that will fail, and failing is the correct way to find out: the
-    // waits below exist only for as long as this stays true.
+    // Let React in, and the typed value is still there. This assertion used to be the
+    // opposite: it asserted the DEFECT, `toHaveValue("")`, because react-aria's
+    // `TextField` rendered a controlled input seeded empty and the attaching commit wrote
+    // that empty state over the DOM. The vendored tree is frozen byte-for-byte against
+    // upstream by ADR-22, so the fix was upstream (roonga/a2-react-aria#78) plus a pin
+    // move, and this line was written to fail the day it landed. It did, which is how the
+    // pin move found it. The vendored `TextField` now seeds its initial value from its own
+    // server-rendered input, so nothing overwrites what an operator typed early.
+    //
+    // The waits elsewhere in the admin suite are NOT redundant now. This closes the
+    // silent-data-loss half; a spec that types into a control React has not attached to
+    // still races the attach for focus, event handlers and validation state, which is a
+    // different failure with a different fix.
     held.release();
     await waitForHydration(page, { timeout: HYDRATION_BUDGET_MS });
-    await expect(field, "hydration overwrites a pre-hydration value (issue #210)").toHaveValue("");
+    await expect(field, "a pre-hydration value must survive hydration (issue #804)").toHaveValue(
+      TYPED_PROBE_CODE,
+    );
   } finally {
     held.release();
   }
