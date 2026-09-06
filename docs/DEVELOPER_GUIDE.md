@@ -340,6 +340,19 @@ gh pr view <number> --json body -q .body    # read back and confirm the text lan
 
 **A body edit retriggers CI; a comment does not.** Editing the body fires the `pull_request` `edited` event, so the required checks run again on an unchanged head. A PR comment fires no such event. So put review verdicts, gate evidence and running notes in comments, and reserve body edits for text that has to be in the body (the `Fixes #NN` lines, the summary a merge commit inherits). Where a body edit is genuinely needed on an already-green PR, expect the re-run and wait for it before merging.
 
+### Triaging a Dependabot pull request
+
+A bump arrives red, and none of the red is about the bump: the bot edits manifests and writes neither the changeset `check:changeset` wants nor the scaffolding template re-sync `check:templates` wants. One command from the bot's branch fixes both (issues #421 and #834):
+
+```sh
+gh pr checkout <number>
+pnpm changeset:dependabot -- --write   # regenerates the templates, writes one changeset
+pnpm format                            # the generated inventory in docs/ownership-seam.md, issue #811
+pnpm verify
+```
+
+Run it without `--write` first if you want to read what it would say. It refuses, naming the file, when the branch carries anything it cannot honestly call dependency maintenance - a source file, an `exports` edit, an app change that would ride into the scaffold - and that refusal is the point: a bot pull request should be red for a reason specific to it. Whatever `verify` reports after those two commands is about the dependencies.
+
 ## Human gates
 
 Only gates explicitly named by an authoritative task or decision apply. The agent prepares the requested material and parks the branch with `HANDOFF: AWAITING-HUMAN` until the Code Owner responds. Unrelated work may continue when its dependencies and file footprint are independent.

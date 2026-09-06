@@ -50,6 +50,7 @@ export declare function renderEnvExample(
   composeFiles: { text: string; alwaysRuns: boolean }[],
 ): string;
 export declare function buildTemplates(): Map<string, string>;
+export declare function currentTemplates(): Map<string, string>;
 export declare function diffTrees(
   expected: Map<string, string>,
   actual: Map<string, string>,
