@@ -340,13 +340,13 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
 
   // The editor is modal, so leaving it is part of the journey rather than cleanup.
   //
-  // NO SAVE STAMP IS WAITED ON, here or after either step move, and that is deliberate
-  // rather than a gap. The stamp is a statement about the SCREEN; what this test is about
-  // is the ENGINE's verdict, which only exists once the draft the move produced has been
-  // stored and validated. So the verdict is the wait: `issueSummary` is a strictly stronger
-  // assertion than the stamp, because a stamp that changed for some other reason would
-  // satisfy the stamp and not this. Its 30s budget carries the debounce, the round trip and
-  // the validate call, exactly as the panel assertions elsewhere in this file do.
+  // A VERDICT IS THE WAIT WHERE ONE FOLLOWS, and a save stamp is the wait where a
+  // NAVIGATION follows. The two are different jobs, and issue #669 is what made the second
+  // one necessary: a verdict assertion is strictly stronger than a stamp, because a stamp
+  // that moved for some other reason would satisfy the stamp and not the verdict - but it
+  // says nothing about whether the draft reached the SERVER, which is what the screen on
+  // the other side of a route boundary reads. So each step move above is followed by the
+  // panel's own count, and each crossing is preceded by a stamp.
   await closeRuleEditor(page);
   // The same verdict as a per-rule tag, on the screen the rule lives on. The rules route is
   // seeded with the server's own dry run precisely so a reader who ARRIVED here from an
@@ -358,6 +358,10 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // And the engine's own finding, from `analyzeRuleGraph` inside the validate call, lands
   // on this rule rather than in a general list. Two mechanisms, two assertions: a test that
   // only checked this one would pass with the instant feedback deleted.
+  //
+  // The stamp is taken with no dialog on screen, because the strip sits behind the modal
+  // overlay once one is open, and nothing saves between here and the Save below.
+  const beforeReopen = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(issue(scope, "RULE_BACKWARD_TARGET")).toBeVisible({ timeout: 30_000 });
 
@@ -370,6 +374,7 @@ test("a backward target is flagged instantly and refused by the engine (exit cri
   // It also restores the form for the rest of this file, which expects the order criterion
   // 1 built.
   await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeReopen);
   await openFormDetails(page);
   await moveStep(page, "Claim details", "down");
   // Read here, on the mount whose own round trip the move armed, for the reason given at
