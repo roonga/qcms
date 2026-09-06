@@ -325,6 +325,12 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     const generated = new Map([["common/apps/portal/package.json", TEMPLATE_AFTER]]);
     const onDisk = new Map([["common/apps/portal/package.json", TEMPLATE_BEFORE]]);
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    // The helper names the file after `GITHUB_HEAD_REF` when it is set, because a
+    // workflow checkout is detached and `rev-parse --abbrev-ref HEAD` answers "HEAD"
+    // there. CI sets it for THIS pull request, so a test that reads the fixture's branch
+    // has to say so: without this the assertion below passes locally and fails on CI
+    // with the name of whatever branch the suite happens to be running on.
+    vi.stubEnv("GITHUB_HEAD_REF", undefined);
 
     const status = main(["--write"], {
       cwd: root,
@@ -336,6 +342,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
       },
     });
     log.mockRestore();
+    vi.unstubAllEnvs();
 
     expect(status).toBe(0);
 
@@ -361,6 +368,30 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
       ]),
     );
     expect(diffTrees(generated, readBack)).toStrictEqual([]);
+  });
+
+  it("names the changeset after GITHUB_HEAD_REF when a workflow checkout is detached", () => {
+    // The reason that preference exists: a workflow checkout has no branch name to read,
+    // so every bot pull request would otherwise claim the same file name.
+    const root = makeBumpedRepo();
+    run(root, ["git", "checkout", "-q", "--detach"]);
+    const generated = new Map([["common/apps/portal/package.json", TEMPLATE_AFTER]]);
+    const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    vi.stubEnv("GITHUB_HEAD_REF", "dependabot/npm_and_yarn/grouped-99");
+
+    const status = main(["--write"], {
+      cwd: root,
+      templates: generated,
+      current: generated,
+      syncTemplates: () => undefined,
+    });
+    log.mockRestore();
+    vi.unstubAllEnvs();
+
+    expect(status).toBe(0);
+    expect(
+      readdirSync(join(root, ".changeset")).filter((name) => name.startsWith("dependabot-")),
+    ).toStrictEqual(["dependabot-npm-and-yarn-grouped-99.md"]);
   });
 
   it("refuses when re-syncing would carry more than a dependency range into the scaffold", () => {
