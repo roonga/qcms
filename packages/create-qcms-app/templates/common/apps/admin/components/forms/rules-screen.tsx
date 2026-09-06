@@ -11,6 +11,7 @@ import { ruleAnchorId } from "@/lib/forms/issues";
 import type { DraftForm, FormDetail, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 
+import { AgentProvenanceTag } from "./agent-provenance-tag";
 import { RulesEditor } from "./rules-editor";
 import { SaveNotices } from "./save-notices";
 
@@ -89,11 +90,19 @@ export function RulesScreen({
   const [draft, setDraft] = useState<DraftForm>(
     detail.draft ?? blankDraft(detail.formId, detail.defaultLocale),
   );
+  // Task 041's provenance marker (ADR-25). Seeded from the server's own read of the stored
+  // draft and kept in step with what each save reports, exactly as the builder does it: the
+  // source of truth for "does this draft carry an agent-assisted change" is the API rather
+  // than a local guess.
+  const [agentAssisted, setAgentAssisted] = useState(detail.draftAgentAssisted);
   const autosave = useDraftAutosave({
     draft,
     saveDraft,
     validateDraft,
     ...(verdict === undefined ? {} : { initialVerdict: verdict }),
+    onSaved: (saved) => {
+      if (saved.agentAssisted !== undefined) setAgentAssisted(saved.agentAssisted);
+    },
   });
 
   const mutate = (next: DraftForm): void => {
@@ -126,6 +135,18 @@ export function RulesScreen({
   return (
     <div className="flex flex-col gap-6">
       <SaveNotices paused={autosave.paused} saveError={autosave.saveError} />
+
+      {/* THE DRAFT CARRIES AGENT-ASSISTED CHANGES (task 041, ADR-25), stated here for the
+          same reason the builder states it above all of its screens: it is a fact about the
+          DRAFT being edited, and the reader can be on any screen of the form when they go
+          to publish. It followed the reader between the builder's three screens before
+          issue #669 made this one a route, so it follows them across the route too - a
+          standing fact that stops being stated at a boundary is one that disappeared. */}
+      {agentAssisted && (
+        <div data-testid="qcms-builder-provenance">
+          <AgentProvenanceTag />
+        </div>
+      )}
 
       {/* ONE SAVE STATEMENT, at the top of the screen that stores. §6 gives a screen
           holding accumulated authored state exactly one statement of when that state was
