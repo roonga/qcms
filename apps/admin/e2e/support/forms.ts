@@ -120,10 +120,11 @@ export async function openRail(page: Page): Promise<void> {
  * Show the form's own details: its title, settings, the read-only rules lens and validation.
  *
  * THE BUILDER IS TWO SCREENS behind one route since 2026-08-26, and the rail switches
- * between them. (It was three for ten days; issue #669 moved the rules to a route.) It opens on this one, so most callers need it only after having opened a
- * step - but calling it when it is already current is a press on a row that is already
- * `aria-current`, which changes nothing. Helpers below that act on a form-level panel go
- * through here rather than each spec remembering to.
+ * between them. (It was three for ten days; issue #669 moved the rules to a route of their
+ * own.) It opens on this one, so most callers need it only after having opened a step - but
+ * calling it when it is already current is a press on a row that is already `aria-current`,
+ * which changes nothing. Helpers below that act on a form-level panel go through here
+ * rather than each spec remembering to.
  */
 export async function openFormDetails(page: Page): Promise<void> {
   await openRail(page);

@@ -232,13 +232,13 @@ test("the builder's rules card reads, and every way out of it crosses to the rul
   // 1. A RULE LINE. It carries the route and the fragment, and following it lands with
   //    focus on the row rather than merely scrolled near it - which is the half a
   //    fragment cannot do for itself across a navigation.
-  const ruleId = (await lens.locator("a[href*='#rule-']").first().getAttribute("href")) ?? "";
-  expect(ruleId, "a rule line addresses the route, not a bare fragment").toContain(
+  const ruleUrl = (await lens.locator("a[href*='#rule-']").first().getAttribute("href")) ?? "";
+  expect(ruleUrl, "a rule line addresses the route, not a bare fragment").toContain(
     `/forms/${insuranceFormId}/rules#rule-`,
   );
   await lens.locator("a[href*='#rule-']").first().click();
-  await expect(page).toHaveURL(ruleId);
-  const anchored = ruleId.slice(ruleId.indexOf("#") + 1);
+  await expect(page).toHaveURL(ruleUrl);
+  const anchored = ruleUrl.slice(ruleUrl.indexOf("#") + 1);
   await expect(async () => {
     const focused = await page.evaluate(() => document.activeElement?.id ?? "");
     expect(focused, "the lens line focuses the rule it names").toBe(anchored);
