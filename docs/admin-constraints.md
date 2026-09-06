@@ -20,6 +20,13 @@ drawing.
 **There are no design or technical limits beyond the POCs.** JavaScript is available and a
 design may depend on it.
 
+**A POC's shorthand against a shipped house convention is per-case judgement** (issue #691,
+Code Owner decision 2026-09-07, settled by the #674 ruling). Where a POC's incidental
+shorthand - spacing, radii, token names - and a house convention already shipped in the code
+disagree, the lane decides case by case and states the deviation in the PR body. There is no
+blanket rule in either direction, and neither "the drawing is literal" nor "the convention
+survives" is the default.
+
 ## Accessibility
 
 **Aim for WCAG 2.2 AA.** It is a goal the admin builds toward and a legitimate reason to

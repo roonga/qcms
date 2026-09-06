@@ -178,6 +178,18 @@ source instead of documenting it: no packing wrapper to misread, no hidden secon
 and a file name that answers "which screen is this" without a switcher. This section becomes
 obsolete on that day and should be deleted with the old files. Until then it stands.
 
+## Demoing an overlay in a frozen card
+
+**Added 2026-09-07 under the Code Owner decision of the same day (issue #414).** A frozen
+design card under `plan/admin-theme/` that specifies an overlay - a menu, a popover, anything
+absolutely positioned - carries at least one demo showing it composed inside the shell it
+ships in, not only in an isolated box, so a composition defect is visible at freeze time
+rather than vendored faithfully into an implementation. `ds-option-grid.html` demoed the row
+menu in a 230x180 box it would never live in, and `.qcms-opt-grid { overflow: hidden }`
+clipped that menu in the real composition until PR #399 found "Remove option" unreachable by
+mouse on a two-option list. Existing cards gain the composed demo when they are next touched,
+not in a sweep.
+
 ## 1. Breakpoints
 
 Two, tokenized, no others:
