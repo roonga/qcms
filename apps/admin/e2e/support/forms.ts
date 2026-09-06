@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import { fillStable } from "./flow.js";
+import { waitForHydration } from "./hydration.js";
 
 /**
  * Browser steps for the form builder, shared by the build walk and accessibility suite.
@@ -94,6 +95,13 @@ export async function openRail(page: Page): Promise<void> {
       "the rail cannot be reached while a dialog is open - close it first (closeRuleEditor)",
     );
   }
+  // THIS IS THE GATE THE RAIL-ROUTED HELPERS INHERIT (issue #815). `openFormDetails`,
+  // `openStep`, `openRules`, `addRule`, `addStep` and `moveStep` all begin here and then
+  // press a control React owns, and most of them are reached straight off a `page.goto`.
+  // Waiting once, at the one point they share, is why none of them carries a wait of its
+  // own. The `data-ready` assertion below is NOT a substitute: it is skipped entirely on a
+  // screen with no disclosure, which is precisely when the caller's press is unguarded.
+  await waitForHydration(page);
   const disclosure = page.locator("details.qcms-rail__disclosure");
   if ((await disclosure.count()) === 0) return;
   // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
@@ -185,6 +193,8 @@ export async function pinQuestions(
   page: Page,
   pins: readonly { questionId: string; version: number }[],
 ): Promise<void> {
+  // The picker is a React dialog, so an early press opens nothing (issue #815).
+  await waitForHydration(page);
   await page.getByRole("button", { name: "Add question from library" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
@@ -232,6 +242,9 @@ export async function usePinRowMenu(
   questionId: string,
   action: "insertAbove" | "insertBelow" | "moveUp" | "moveDown" | "remove",
 ): Promise<void> {
+  // The grip's menu is the `openMenu` shape again: one press, then a poll that cannot
+  // recover a press React was not there to receive (issue #815).
+  await waitForHydration(page);
   await pinGrip(page, questionId).click();
   await page.locator(`[role="menuitem"][data-row-menu-item="${action}"]`).click();
 }
@@ -355,6 +368,10 @@ export const RULE_PHASES = {
  * label. A stepper built out of plain buttons would fail here rather than pass quietly.
  */
 export async function openRulePhase(page: Page, phase: keyof typeof RULE_PHASES): Promise<void> {
+  // Tabs are React's: the panel switch and the `aria-selected` flip both arrive with the
+  // attach, so an early press leaves the poll below watching a static attribute. This also
+  // covers `toggleTarget`, whose own first act is this call (issue #815).
+  await waitForHydration(page);
   const tab = page.getByRole("tab", { name: RULE_PHASES[phase], exact: true });
   await tab.click();
   await expect(tab).toHaveAttribute("aria-selected", "true");
@@ -400,6 +417,10 @@ export async function cancelRuleEditor(page: Page): Promise<void> {
  * `chooseType` in `questions.ts` encodes as `/Type$/` without saying why.
  */
 export async function chooseOption(scope: Locator, label: string, option: string): Promise<void> {
+  // Both shapes are vendored controls whose option list only exists once React has
+  // attached, and `preview-theme-island.pw.ts` drives one from a scope it resolved itself
+  // rather than through a helper that had already waited (issue #815).
+  await waitForHydration(scope.page());
   const combobox = scope.getByRole("combobox", { name: label, exact: true });
   if ((await combobox.count()) > 0) {
     const field = combobox.first();
@@ -466,6 +487,12 @@ export async function toggleCheckbox(
   label: string,
   shouldBeSelected: boolean,
 ): Promise<void> {
+  // The nastiest member of the family, because it can pass while doing nothing
+  // (issue #815). `forms-builder.pw.ts` calls this straight off a `page.goto`, and a label
+  // press before the attach still flips the native input through the label association -
+  // so the assertion below is satisfied - while the settings change never reaches React
+  // and hydration puts the box back. A green helper and an unchanged form.
+  await waitForHydration(page);
   const box = page.getByRole("checkbox", { name: label, exact: true });
   if ((await box.isChecked()) !== shouldBeSelected) {
     await page.getByText(label, { exact: true }).click();
@@ -480,6 +507,8 @@ export async function toggleCheckbox(
  * menu rather than editing anything underneath it.
  */
 export async function movePin(page: Page, questionId: string, version: number): Promise<void> {
+  // A menu again, and the builder's only version change (issue #815).
+  await waitForHydration(page);
   await page
     .getByRole("button", { name: `Move pin for ${questionId}` })
     .first()

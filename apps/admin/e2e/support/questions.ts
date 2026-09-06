@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
 import { fillStable } from "./flow.js";
+import { waitForHydration } from "./hydration.js";
 
 /**
  * Browser steps for the question library, shared by the lifecycle walk and the axe gate
@@ -24,6 +25,10 @@ export function field(page: Page, name: string): Locator {
 
 /** Pick a question type in the creation form's `Select`. */
 export async function chooseType(page: Page, label: string): Promise<void> {
+  // The picker is a vendored `Select`: server-rendered as a bare button, opened only by
+  // React. `a11y-axe.pw.ts` reaches this straight off a `goto`, so the press has to wait
+  // for the attach or it is swallowed and the option list never appears (issue #815).
+  await waitForHydration(page);
   const picker = page.getByRole("button", { name: /Type$/ });
   await picker.click();
   await page.getByRole("option", { name: label, exact: true }).click();
@@ -79,6 +84,9 @@ export function grip(page: Page, index: number): Locator {
  * committed row rather than the pending one.
  */
 export async function addOption(page: Page, label: string): Promise<void> {
+  // The ghost row is minted by React, so a press before the attach adds nothing and the
+  // focus assertion below then times out on a row that was never opened (issue #815).
+  await waitForHydration(page);
   await page.getByRole("button", { name: "Add option" }).click();
   await expect(pendingRow(page)).toBeFocused();
   await fillStable(pendingRow(page), label);
@@ -95,6 +103,9 @@ export async function addOption(page: Page, label: string): Promise<void> {
  * reveal-on-hover and reveal-on-focus behaviours are asserted on their own elsewhere.
  */
 export async function insertOptionAbove(page: Page, index: number, label: string): Promise<void> {
+  // Same swallowed press as `addOption`, and `force` makes it quieter rather than safer:
+  // it skips the actionability checks, so nothing else here would notice (issue #815).
+  await waitForHydration(page);
   await page
     .locator(`[data-option-index="${String(index)}"] .qcms-opt-insert`)
     .first()
@@ -106,6 +117,8 @@ export async function insertOptionAbove(page: Page, index: number, label: string
 
 /** Reorder by keyboard: focus a row's grip and press an arrow, as the card specifies. */
 export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" | "ArrowDown") {
+  // The grip's arrow handling is React's, so an early press moves nothing (issue #815).
+  await waitForHydration(page);
   await grip(page, index).focus();
   await grip(page, index).press(key);
 }
@@ -120,6 +133,9 @@ export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" 
  * items into needing a gesture, fails here rather than in a comment.
  */
 export async function openRowMenuByPointer(page: Page, index: number): Promise<Locator> {
+  // The same one-press-then-poll shape `openMenu` was filed for, on the row menu: press
+  // before the attach and the menu never opens and never will (issue #815).
+  await waitForHydration(page);
   await page.locator(".qcms-opt-grid").scrollIntoViewIfNeeded();
   await grip(page, index).click();
   const menu = page.getByRole("menu");
@@ -129,6 +145,9 @@ export async function openRowMenuByPointer(page: Page, index: number): Promise<L
 
 /** Open a row's menu from the keyboard (Enter on the focused grip) and pick an item. */
 export async function useRowMenu(page: Page, index: number, item: RegExp): Promise<void> {
+  // As `openRowMenuByPointer`, by the keyboard route: Enter on a grip React has not
+  // attached to is Enter on a plain element (issue #815).
+  await waitForHydration(page);
   await grip(page, index).focus();
   await grip(page, index).press("Enter");
   await expect(page.getByRole("menu")).toBeVisible();
@@ -145,6 +164,9 @@ export async function useRowMenu(page: Page, index: number, item: RegExp): Promi
  * trailing-year assertion below fails loudly rather than silently if that ever changes.
  */
 export async function fillDate(page: Page, label: string, digits: string): Promise<void> {
+  // A `DatePicker`'s segments hold no value of their own; the digits are read by React's
+  // key handling, so typing before the attach types into nothing (issue #815).
+  await waitForHydration(page);
   const group = page.getByRole("group", { name: label });
   await group.getByRole("spinbutton").first().click();
   await page.keyboard.type(digits);
@@ -153,6 +175,10 @@ export async function fillDate(page: Page, label: string, digits: string): Promi
 
 /** Open a lifecycle confirmation and accept it. */
 export async function confirmLifecycle(page: Page, open: RegExp, confirm: string): Promise<void> {
+  // The dialog is mounted by React, and both fixtures in `rail.ts` and `question-rail.ts`
+  // call this directly off a `page.goto`, which is the pre-hydration press exactly
+  // (issue #815).
+  await waitForHydration(page);
   await page.getByRole("button", { name: open }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
