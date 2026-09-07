@@ -141,9 +141,18 @@ beforeEach(() => {
  * The refusal outcome read back off a real refusal response, in the same vocabulary
  * the log line uses. Derived from the wire rather than from the route table, so that
  * comparing the two says something.
+ *
+ * `/appearance` is the one route whose refusal cannot be told apart by its `Location`,
+ * and that is a property of the feature rather than a gap here: the no-JS appearance
+ * form sends the respondent back to whatever page they submitted it from (issue #195),
+ * so its refusal target is a step path, an entry path or the root depending only on
+ * where they were standing. It is therefore recognised by route, and what pins the
+ * response for that entry is its `assertRefusal`, which asserts the exact `Location`
+ * and that no cookie was written.
  */
-function outcomeOnTheWire(response: Response): string {
+function outcomeOnTheWire(route: GuardedRoute, response: Response): string {
   if (response.status === 403) return "forbidden";
+  if (route.logged.beltRoute === "/appearance") return "redirect-to-page";
   const location = new URL(response.headers.get("location") ?? "", PORTAL_BASE);
   return location.pathname.startsWith("/f/") ? "redirect-to-entry" : "redirect-to-step";
 }
@@ -169,10 +178,14 @@ function refusalLines(): Record<string, unknown>[] {
 vi.mock("@/lib/server/config", async () => await import("./config"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
+vi.mock("@/lib/server/appearance-form", async () => await import("./appearance-form"));
+vi.mock("@/lib/server/theme", async () => await import("./theme"));
+vi.mock("@/lib/appearance", async () => await import("../appearance"));
 vi.mock("@/lib/i18n/en", async () => await import("../i18n/en"));
 vi.mock("@/lib/validation-message", async () => await import("../validation-message"));
 
 const { isSameOriginPost } = await import("./route-helpers");
+const appearanceRoute = await import("../../app/appearance/route");
 const startRoute = await import("../../app/f/[formSlug]/start/route");
 const answersRoute = await import("../../app/s/[sessionId]/answers/route");
 const stepRoute = await import("../../app/s/[sessionId]/step/route");
@@ -247,8 +260,18 @@ interface GuardedRoute {
   readonly path: string;
   /** Invoke `POST` with these request headers. */
   readonly post: (headers: Record<string, string>) => Promise<Response>;
-  /** The API call this route makes once it is past the belt. */
-  readonly reached: () => (typeof api)[keyof typeof api];
+  /**
+   * Whether this route ACTED: the thing that would have changed had the belt let a
+   * forged request through.
+   *
+   * A predicate rather than "the API spy this route calls", because since issue #195
+   * one belted route changes state without calling the internal API at all: the no-JS
+   * appearance form writes presentation cookies. Asserting only on the API client
+   * would have declared that route guarded while never looking at what it does, which
+   * is the shape of miss this whole file exists to refuse. The four proxying routes
+   * still answer this by reading their own API spy.
+   */
+  readonly acted: (response: Response) => boolean;
   /** What the refusal looks like on the wire, beyond having changed nothing. */
   readonly assertRefusal: (response: Response) => void | Promise<void>;
   /**
@@ -276,6 +299,28 @@ function jsonPost(url: string, headers: Record<string, string>, body: unknown): 
 
 const ROUTES: readonly GuardedRoute[] = [
   {
+    path: "app/appearance/route.ts",
+    post: (headers) => {
+      const form = new FormData();
+      form.set("mode", "hc");
+      form.set("returnTo", "/s/ses_1");
+      return appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, headers, form));
+    },
+    // The no-JS appearance form (issue #195) calls no internal API: what it changes is
+    // three presentation cookies, so that is what "acted" has to mean here. A refused
+    // request must leave the respondent's appearance exactly as it was.
+    acted: (response) => response.headers.getSetCookie().length > 0,
+    assertRefusal: (response) => {
+      expect(response.status).toBe(303);
+      // Back to the page the form was submitted from, and nothing written. The
+      // respondent sees their own page, unchanged: the refusal is invisible to them,
+      // which is why the log line for it exists.
+      expect(response.headers.get("location")).toBe("/s/ses_1");
+      expect(response.headers.getSetCookie()).toEqual([]);
+    },
+    logged: { beltRoute: "/appearance", beltOutcome: "redirect-to-page" },
+  },
+  {
     path: "app/f/[formSlug]/start/route.ts",
     post: (headers) => {
       const form = new FormData();
@@ -284,7 +329,7 @@ const ROUTES: readonly GuardedRoute[] = [
         params: Promise.resolve({ formSlug: "survey" }),
       });
     },
-    reached: () => api.startSession,
+    acted: () => api.startSession.mock.calls.length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/f/survey?state=error`);
@@ -298,7 +343,7 @@ const ROUTES: readonly GuardedRoute[] = [
         jsonPost(`${PORTAL_BASE}/s/ses_1/answers`, headers, { questionId: "q_1", value: "x" }),
         { params: Promise.resolve({ sessionId: "ses_1" }) },
       ),
-    reached: () => api.submitAnswer,
+    acted: () => api.submitAnswer.mock.calls.length > 0,
     assertRefusal: async (response) => {
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
@@ -311,7 +356,7 @@ const ROUTES: readonly GuardedRoute[] = [
       stepRoute.POST(formPost(`${PORTAL_BASE}/s/ses_1/step`, headers, new FormData()), {
         params: Promise.resolve({ sessionId: "ses_1" }),
       }),
-    reached: () => api.getStep,
+    acted: () => api.getStep.mock.calls.length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/s/ses_1`);
@@ -324,7 +369,7 @@ const ROUTES: readonly GuardedRoute[] = [
       submitRoute.POST(jsonPost(`${PORTAL_BASE}/s/ses_1/submit`, headers, {}), {
         params: Promise.resolve({ sessionId: "ses_1" }),
       }),
-    reached: () => api.submitSession,
+    acted: () => api.submitSession.mock.calls.length > 0,
     assertRefusal: async (response) => {
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
@@ -382,10 +427,10 @@ describe.each(ROUTES)("$path", (route) => {
   });
 
   it.each(ORIGIN_CASES.filter((probe) => probe.allowed))(
-    "proceeds to the internal API with $name",
+    "acts on the request with $name",
     async ({ headers }) => {
-      await route.post(headers);
-      expect(route.reached()).toHaveBeenCalled();
+      const response = await route.post(headers);
+      expect(route.acted(response)).toBe(true);
       // An admitted request writes no refusal line. Without this, a belt that logged
       // unconditionally would pass every "exactly one" assertion below while making
       // the count useless.
@@ -397,7 +442,7 @@ describe.each(ROUTES)("$path", (route) => {
     "changes nothing and refuses with $name",
     async ({ headers }) => {
       const response = await route.post(headers);
-      expect(route.reached()).not.toHaveBeenCalled();
+      expect(route.acted(response)).toBe(false);
       // Nothing else on the client may have been reached either: a route that
       // refused one call but made another has still let a cross-site caller act.
       for (const call of Object.values(api)) expect(call).not.toHaveBeenCalled();
@@ -432,6 +477,6 @@ describe.each(ROUTES)("$path", (route) => {
     const refused = ORIGIN_CASES.find((probe) => !probe.allowed);
     const response = await route.post(refused?.headers ?? {});
     await route.assertRefusal(response);
-    expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(response));
+    expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(route, response));
   });
 });

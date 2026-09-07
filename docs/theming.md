@@ -594,14 +594,48 @@ traversal, the group name announced with each option, and the "N of 3" position
 count all come from the browser. Font is a native `<select>`, which is also how the
 registry's groups reach a screen reader for free.
 
-### Without JavaScript the controls are hidden
+### Without JavaScript the controls post a form
 
-A `<noscript>` rule hides the whole disclosure, because a radio a respondent can
-move that changes nothing reads as a broken page. A no-JS respondent still gets a
-correct, branded, themed, server-rendered page from the deployment's configured
-defaults; what they do not get is a switchable one. Note that `?mode=` and the OS
-signals also need scripting (they are resolved by the pre-paint script), so for a
-no-JS visitor the chain is just cookie, then config.
+Task 053 hid the whole disclosure with a `<noscript>` rule, because a radio a
+respondent can move that changes nothing reads as a broken page. That left a no-JS
+respondent with a chain of cookie, then config, and **no way to set the cookie** -
+and High contrast and the legibility faces (Atkinson Hyperlegible, Lexend,
+OpenDyslexic) are the controls a respondent with scripting off or restricted is most
+likely to need. Issue #195 closed that.
+
+The same markup is now a real `<form method="post">` posting to `/appearance`
+(`apps/portal/app/appearance/route.ts`), which validates the three values against the
+same enumerations this page documents, writes the same three cookies through the same
+writer the browser controls use (`appearanceCookie` in `apps/portal/lib/appearance.ts`),
+and answers `303` back to the page the form came from. The next render is a server
+render, so the choice is correct in the first byte.
+
+The progressive-enhancement seam is one element wide: the **Apply** button. It is in
+the markup always, hidden by CSS always, and revealed by the `<noscript>` rule in
+`apps/portal/app/layout.tsx`. So the served HTML is one document either way, a
+scripted respondent meets no hydration boundary and no layout shift, and with
+scripting on the controls still apply on click with no round trip (the form's own
+submit handler prevents the navigation that Enter inside the `<select>` would
+otherwise cause).
+
+Two limits are worth stating rather than discovering:
+
+- **`?mode=` and the OS signals still need scripting.** They are resolved by the
+  pre-paint script, so a no-JS respondent whose OS asks for `prefers-contrast: more`
+  still gets the configured default and must pick High contrast themselves. Issue #28
+  (`forced-colors` / Windows High Contrast Mode) is the separate CSS-level answer to
+  part of that, and is deliberately not folded in here.
+- **The redirect target is validated, never reflected.** The return path arrives in a
+  hidden field, so it is respondent-controllable: it is accepted only when it resolves
+  inside this origin, and falls back to the `Referer` (when that names the portal's own
+  origin) and then to `/`. The portal sends `Referrer-Policy: no-referrer`, so in
+  practice the hidden field is what carries it. See
+  `apps/portal/lib/server/appearance-form.ts`.
+
+The route carries SEC-9's CSRF belt like every other state-changing portal handler, so
+the small population of browsers that send no `Sec-Fetch-Site` cannot use this form
+either; they get their page back unchanged, and the refusal is visible only in the
+`origin.belt.refused` line (`beltOutcome: "redirect-to-page"`, `docs/operations.md`).
 
 ### Measured: target sizes per density
 

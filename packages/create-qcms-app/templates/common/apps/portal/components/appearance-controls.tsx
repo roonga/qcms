@@ -32,24 +32,40 @@
  * native `<select>` with `<optgroup>`, which is also how the registry's groups
  * reach a screen reader for free.
  *
- * WITHOUT JAVASCRIPT the whole control is hidden (the `<noscript>` rule in
- * `app/layout.tsx`), because a radio a respondent can move but that changes
- * nothing is worse than no control. The deployment's configured default still
- * applies, and it is a server render, so a no-JS respondent sees a correct page -
- * just not a switchable one. See docs/theming.md.
+ * WITHOUT JAVASCRIPT the same markup is a real `<form method="post">` posting to
+ * `app/appearance/route.ts`, which writes the same three cookies and redirects back
+ * (issue #195). Task 053 hid the whole disclosure instead, because a radio a
+ * respondent can move but that changes nothing is worse than no control - the fix is
+ * to make it change something, not to keep hiding it, since High contrast and the
+ * legibility faces are the controls a respondent with scripting off may most need.
+ *
+ * The progressive-enhancement seam is the one task 044 used for step submission, and
+ * it is exactly one element wide: the Apply button. It is in the markup always and
+ * hidden by CSS always, and the `<noscript>` rule in `app/layout.tsx` reveals it. So
+ * there is no second render, no hydration boundary and no layout shift when scripting
+ * is on - the scripted respondent gets the same DOM they got before, minus a button
+ * they cannot see and plus a form element that never submits, because
+ * {@link AppearanceControls} calls `preventDefault` on it once hydrated. That handler
+ * exists for implicit submission (Enter inside the `<select>`), which would otherwise
+ * reload a page whose appearance the click handlers had already changed.
+ *
+ * See docs/theming.md.
  */
 
 import { fontClass } from "@roonga/qcms-ui/fonts";
+import { usePathname } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppearance, type FontChoice } from "@/components/appearance-context";
 import {
   APPEARANCE_MODES,
+  APPEARANCE_ROUTE,
   DENSITY_CLASSES,
   DENSITY_LEVELS,
   DENSITY_COOKIE,
   FONT_COOKIE,
   MODE_COOKIE,
+  RETURN_FIELD,
   appearanceCookie,
   densityClass,
   type AppearanceMode,
@@ -169,6 +185,12 @@ function fontGroups(fonts: readonly FontChoice[]): readonly [string, readonly Fo
 
 export function AppearanceControls() {
   const state = useAppearance();
+  // The page to come back to after the no-JS POST. `usePathname` renders on the
+  // server too, so the hidden field is correct in the served HTML - which is the only
+  // render a no-JS respondent ever gets. The search string is deliberately not
+  // carried: the one parameter the portal reads is `?state=error` on the entry page,
+  // and re-showing a stale error after an appearance change would be wrong.
+  const pathname = usePathname();
   const [mode, setMode] = useState<AppearanceMode>(state?.mode ?? "light");
   const [font, setFont] = useState<string>(state?.font ?? "");
   const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");
@@ -221,6 +243,16 @@ export function AppearanceControls() {
     document.cookie = appearanceCookie(DENSITY_COOKIE, next, secure);
   };
 
+  /**
+   * Hydrated, the form never submits: the click handlers above have already applied
+   * the choice and written the cookie, so a navigation would only cost a reload. This
+   * binds after hydration, which is what makes the no-JS path work - with no
+   * JavaScript there is no handler and the browser posts the form natively.
+   */
+  const keepOnPage = (event: { preventDefault: () => void }): void => {
+    event.preventDefault();
+  };
+
   return (
     <details className="qcms-appearance" data-testid="appearance">
       <summary className="qcms-appearance__summary">
@@ -242,7 +274,13 @@ export function AppearanceControls() {
         </svg>
         {t("appearance.title")}
       </summary>
-      <div className="qcms-appearance__panel">
+      <form
+        className="qcms-appearance__panel"
+        method="post"
+        action={APPEARANCE_ROUTE}
+        onSubmit={keepOnPage}
+      >
+        <input type="hidden" name={RETURN_FIELD} value={pathname ?? "/"} />
         <Segmented
           name="mode"
           legend={t("appearance.mode.legend")}
@@ -262,6 +300,10 @@ export function AppearanceControls() {
             id="qcms-font-select"
             className="qcms-appearance__select"
             data-testid="appearance-font"
+            // The field name the no-JS POST serializes under, matching the `mode` and
+            // `density` radio group names above and the schema in
+            // `lib/server/appearance-form.ts`.
+            name="font"
             value={font}
             onChange={(event) => chooseFont(event.target.value)}
           >
@@ -288,7 +330,14 @@ export function AppearanceControls() {
             icon: <DensityIcon gap={DENSITY_ICON_GAP[value]} />,
           }))}
         />
-      </div>
+
+        {/* Revealed only by the `<noscript>` rule in `app/layout.tsx`. Hidden by
+            default rather than rendered conditionally, so the served HTML is the same
+            document either way and a scripted respondent meets no shift. */}
+        <button type="submit" className="qcms-appearance__apply">
+          {t("appearance.apply")}
+        </button>
+      </form>
     </details>
   );
 }

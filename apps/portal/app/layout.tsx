@@ -119,15 +119,19 @@ export default async function RootLayout({ children }: { readonly children: Reac
             __html: modeBootstrapScript(configuredMode, appearance.modeChosen ? state.mode : null),
           }}
         />
-        {/* Without scripting the appearance controls cannot do anything, and a
-            radio a respondent can move that changes nothing is worse than no
-            control at all: it reads as a broken page. The configured default plus
-            the server render still give a no-JS respondent a correct page, and
-            `style-src` already allows inline styles, so no nonce is involved.
-            Hidden with CSS rather than by not rendering it, so a scripted
-            respondent gets no hydration boundary and no layout shift. */}
+        {/* The no-JS half of the appearance controls (issue #195). Until then this
+            rule hid the whole disclosure, because a radio a respondent can move that
+            changes nothing reads as a broken page; the controls now post a real form
+            to `app/appearance/route.ts`, so what the rule reveals is the one element
+            that path needs - its Apply button, hidden by default in `globals.css`.
+
+            Reveal rather than hide, and CSS rather than conditional rendering, for the
+            same reason the previous rule gave: the served HTML is one document either
+            way, so a scripted respondent gets no hydration boundary and no layout
+            shift. `style-src` already allows inline styles, so no nonce is
+            involved. */}
         <noscript>
-          <style>{".qcms-appearance{display:none}"}</style>
+          <style>{".qcms-appearance__apply{display:inline-flex}"}</style>
         </noscript>
       </head>
       <body>

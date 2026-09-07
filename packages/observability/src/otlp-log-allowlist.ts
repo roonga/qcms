@@ -100,7 +100,7 @@ const SAFE_ATTRIBUTES = new Set([
   // token, a session id, an address or an attacker-chosen string.
   //
   // The two apps' vocabularies for these names are disjoint but not identical in size
-  // (`beltOutcome` has three members on the portal and two on the admin), which is a
+  // (`beltOutcome` has four members on the portal and two on the admin), which is a
   // property of those modules rather than of this set: nothing here enumerates values,
   // only names.
   "beltRoute",
