@@ -15,7 +15,11 @@ import { loadAdminAuthConfig } from "../../config.js";
 import { validEnv } from "../../test-support.js";
 import { createInitialAdmin } from "./bootstrap.js";
 import { createAdminAuth, type AdminAuth } from "./instance.js";
-import { describeResetRefusal, resetAdminTwoFactor } from "./reset-two-factor.js";
+import {
+  describeResetOutcome,
+  describeResetRefusal,
+  resetAdminTwoFactor,
+} from "./reset-two-factor.js";
 
 /**
  * The `qcms:reset-2fa` break-glass, against a real Postgres with the real role
@@ -290,6 +294,10 @@ describe("the dry run", () => {
     expect(outcome.target.email).toBe(EMAIL);
     expect(outcome.target.factorRows).toBe(1);
     expect(outcome.target.wasEnrolled).toBe(true);
+    // The dry run says so in as many words; an operator who misses it acts on the
+    // wrong belief, so the sentence is part of the contract.
+    expect(describeResetOutcome(outcome)).toContain("Nothing has changed");
+    expect(describeResetOutcome(outcome)).toContain("--yes");
 
     expect(await factorRows()).toHaveLength(1);
     expect(await isEnrolled(EMAIL)).toBe(true);
@@ -309,6 +317,15 @@ describe("the reset itself", () => {
     // them in `twoFactor.backupCodes`, which is why no separate statement clears them.
     expect(await factorRows()).toHaveLength(0);
     expect(await isEnrolled(EMAIL)).toBe(false);
+
+    // What the operator actually reads. Asserted here rather than in a unit test
+    // because these are the real values: a real audit id and the role the reset
+    // genuinely ran as, not a fixture's idea of them.
+    const printed = describeResetOutcome(outcome);
+    expect(printed).toContain(EMAIL);
+    expect(printed).toContain(outcome.auditId);
+    expect(printed).toContain(MIGRATE_ROLE);
+    expect(printed).toContain("Existing sessions are left alone");
 
     const audit = await auditRows();
     expect(audit).toHaveLength(1);

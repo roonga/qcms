@@ -43,6 +43,12 @@ export function parseArgs(argv: readonly string[]): Invocation {
   let confirm = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
+    // The end-of-options separator, skipped rather than refused. The root script is
+    // `pnpm --filter qcms-api reset-2fa --`, and that `--` is what makes pnpm forward
+    // the operator's flags verbatim instead of trying to read `--email` as its own -
+    // so it always arrives here, and a run through `pnpm qcms:reset-2fa` printed the
+    // usage for an unrecognised argument until this line existed.
+    if (arg === "--") continue;
     if (arg === "--yes") {
       confirm = true;
       continue;

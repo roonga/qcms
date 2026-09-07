@@ -35,6 +35,18 @@ describe("parseArgs", () => {
     expect(parsed.ok && parsed.email).toBe("a@example.test");
   });
 
+  it("skips the end-of-options separator pnpm always inserts", () => {
+    // `pnpm qcms:reset-2fa --email a@example.test --yes` arrives as
+    // `node dist/reset-2fa.js -- --email a@example.test --yes`, and refusing that
+    // `--` made every invocation through the root script print the usage.
+    const parsed = parseArgs(["--", "--email", "a@example.test", "--yes"]);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.ok && parsed.email).toBe("a@example.test");
+    expect(parsed.ok && parsed.confirm).toBe(true);
+    // And a bare separator with nothing after it is still a missing address.
+    expect(parseArgs(["--"]).ok).toBe(false);
+  });
+
   it("requires an address", () => {
     expect(parseArgs([]).ok).toBe(false);
     expect(parseArgs(["--yes"]).ok).toBe(false);
