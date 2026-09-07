@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
  * The form library's search, status filter and sort (issue 686), at the layer that can
@@ -85,6 +85,20 @@ async function renderForms(searchParams: Record<string, string | string[]> = {})
 function askedFor(): unknown {
   return askedFilters;
 }
+
+/**
+ * Pay the page module's first import here rather than inside the first case.
+ *
+ * `import("./forms/page.tsx")` pulls the whole vendored kit in behind it, and on a
+ * loaded machine that transform can outlast a test's default five-second budget on its
+ * own - which is what it did on a forced parallel run of every package's suite, failing
+ * the first `it` in this file with a timeout that had nothing to do with the assertion
+ * in it. Charging it to a `beforeAll` with a real budget keeps every case below timing
+ * only the render it is about (CONTRIBUTING, issue 503).
+ */
+beforeAll(async () => {
+  await import("./forms/page.tsx");
+}, 60_000);
 
 beforeEach(() => {
   formsResult = { ok: true, data: [FORM_ROW] };
