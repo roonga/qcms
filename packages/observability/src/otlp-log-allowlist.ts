@@ -9,6 +9,21 @@ import type { LogRecordProcessor, ReadWriteLogRecord } from "@opentelemetry/sdk-
  * or recorded there as intentionally opaque (issue #490).
  */
 const SAFE_EVENTS = new Set([
+  // The break-glass that clears an administrator's second factor (issue #432).
+  // Admitted because it is the one signal that a factor was removed out of band:
+  // the command has no HTTP surface, so nothing else an observability backend can
+  // see records that it ran, and an operator who wants an alert on "somebody
+  // exercised the recovery path" has this event and nothing else.
+  //
+  // It carries **no attributes at all**, which is the whole of its privacy
+  // argument and is not an accident of the call site. The facts worth knowing
+  // about a reset are an email address and a user id, and this decision names
+  // direct identifiers as never belonging in any exported signal. They are on the
+  // `two_factor_resets` row instead, in the adopter's own database, under the
+  // erasure and retention controls that reach it - which the exported record's
+  // destination is outside of. So what leaves the process is the event name and
+  // its count, by construction rather than by the deletion below.
+  "admin two-factor reset",
   "api.call",
   "auth.api.call",
   // The two retention-sweep redaction records (issue #490). Both are the evidence that a

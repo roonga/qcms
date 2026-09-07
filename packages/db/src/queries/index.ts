@@ -13,6 +13,21 @@ export type { Executor } from "./executor.js";
 // verification in the API middleware, and the first-run bootstrap guard.
 export { type AdminSessionRow, getAdminSessionByToken, countAdminUsers } from "./auth.js";
 
+// The `qcms:reset-2fa` break-glass (issue #432): resolve the account an operator
+// named, delete its second factor and recovery codes, and append the audit row.
+// The one sanctioned write to the auth tables; `auth.js` records why.
+export {
+  type AdminIdentityRow,
+  type TwoFactorResetRecord,
+  findAdminsByEmail,
+  clearAdminTwoFactor,
+  recordTwoFactorReset,
+} from "./auth.js";
+
+// SEC-10: which Postgres role this connection holds, and whether it owns the
+// schema. The break-glass refuses to run as the application credential.
+export { type ConnectedRole, RESET_TABLE_COUNT, readConnectedRole } from "./database-role.js";
+
 export {
   type QuestionRow,
   type QuestionVersionRow,

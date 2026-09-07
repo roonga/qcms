@@ -139,6 +139,17 @@ describe("query helper import surface", () => {
     // no backup codes).
     "getAdminSessionByToken",
     "countAdminUsers",
+    // The `qcms:reset-2fa` break-glass (issue #432). `clearAdminTwoFactor` is the
+    // one write to the auth tables in this package, and it is a deletion: the
+    // stored TOTP secret and the recovery codes are ciphertext under a key the
+    // command's whole reason for existing is the loss of, so better-auth cannot
+    // disable the factor and nothing here can read it. `readConnectedRole` is the
+    // SEC-10 guard in front of it, and it returns no credential either - a role
+    // name and two counts off the system catalog.
+    "findAdminsByEmail",
+    "clearAdminTwoFactor",
+    "recordTwoFactorReset",
+    "readConnectedRole",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {
