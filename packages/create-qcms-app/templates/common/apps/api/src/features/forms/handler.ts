@@ -449,22 +449,25 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
 
     // One draft/version read per row is fine at launch admin scale (R7); a
     // denormalized status column is a Phase-4 optimization, not a launch need.
-    const forms = [];
+    const assembled = [];
     for (const row of byStatus) {
       const draft = await getDraft(deps.db, row.formId);
       const latest = await getLatestPublishedVersion(deps.db, row.formId);
-      forms.push({
-        formId: row.formId,
-        slug: row.slug,
-        defaultLocale: row.defaultLocale,
-        status: row.status,
-        hasDraft: draft !== undefined,
-        latestVersion: latest === undefined ? null : latest.version,
-        publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
-        // Not part of the response: the title is read for the search only, from the
-        // definitions the two reads above already loaded. The list screen shows the
-        // slug, and adding a title column to it is a change to which columns the
-        // table carries rather than a change to how it is filtered.
+      assembled.push({
+        row: {
+          formId: row.formId,
+          slug: row.slug,
+          defaultLocale: row.defaultLocale,
+          status: row.status,
+          hasDraft: draft !== undefined,
+          latestVersion: latest === undefined ? null : latest.version,
+          publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
+        },
+        // Beside the row rather than in it: the title is read for the search only, from
+        // the definitions the two reads above already loaded, and the response carries
+        // no title field. The list screen shows the slug, and adding a title column to
+        // it is a change to which columns the table carries rather than a change to how
+        // it is filtered, so the search reaches further than the table does.
         title: titleOf(draft?.definition ?? latest?.definition),
       });
     }
@@ -476,12 +479,13 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
     const needle = search?.trim().toLowerCase();
     const matched =
       needle === undefined || needle === ""
-        ? forms
-        : forms.filter(
-            (form) => form.slug.toLowerCase().includes(needle) || titleMatches(form.title, needle),
+        ? assembled
+        : assembled.filter(
+            (entry) =>
+              entry.row.slug.toLowerCase().includes(needle) || titleMatches(entry.title, needle),
           );
 
-    return c.json({ forms: sortForms(matched, sort ?? "slug-asc").map(withoutTitle) }, 200);
+    return c.json({ forms: sortForms(matched, sort ?? "slug-asc").map((entry) => entry.row) }, 200);
   };
 }
 
@@ -498,17 +502,9 @@ function titleMatches(title: unknown, needle: string): boolean {
   );
 }
 
-/** One assembled row, before the search-only `title` is dropped from the response. */
-interface ListRow {
-  readonly slug: string;
-  readonly publishedAt: string | null;
-  readonly title: unknown;
-}
-
-/** Drop the search-only field, so the response is exactly `FormListItem`. */
-function withoutTitle<T extends ListRow>(row: T): Omit<T, "title"> {
-  const { title: _title, ...rest } = row;
-  return rest;
+/** The two fields an order is decided on, whatever else the assembled row carries. */
+interface Orderable {
+  readonly row: { readonly slug: string; readonly publishedAt: string | null };
 }
 
 /**
@@ -525,16 +521,18 @@ function withoutTitle<T extends ListRow>(row: T): Omit<T, "title"> {
  * among themselves by slug. Every comparison falls back to the slug, so the order is
  * total and two renders of the same library never disagree.
  */
-function sortForms<T extends ListRow>(rows: readonly T[], sort: SortKey): T[] {
-  const bySlug = (a: T, b: T): number => a.slug.localeCompare(b.slug);
+function sortForms<T extends Orderable>(rows: readonly T[], sort: SortKey): T[] {
+  const bySlug = (a: T, b: T): number => a.row.slug.localeCompare(b.row.slug);
   const byPublished = (a: T, b: T, newestFirst: boolean): number => {
-    if (a.publishedAt === null || b.publishedAt === null) {
-      if (a.publishedAt === b.publishedAt) return bySlug(a, b);
-      return a.publishedAt === null ? 1 : -1;
+    const left = a.row.publishedAt;
+    const right = b.row.publishedAt;
+    if (left === null || right === null) {
+      if (left === right) return bySlug(a, b);
+      return left === null ? 1 : -1;
     }
-    if (a.publishedAt === b.publishedAt) return bySlug(a, b);
-    const older = a.publishedAt < b.publishedAt ? -1 : 1;
-    return newestFirst ? -older : older;
+    if (left === right) return bySlug(a, b);
+    const oldestFirst = left < right ? -1 : 1;
+    return newestFirst ? -oldestFirst : oldestFirst;
   };
   const sorted = [...rows];
   switch (sort) {

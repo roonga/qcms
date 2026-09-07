@@ -61,10 +61,14 @@ export const ListFormsQuery = z.object({
    * characters is far past any slug or form title an author writes, and past it the
    * route answers 400 rather than doing the work.
    */
-  search: z.string().max(200).optional().openapi({
-    param: { name: "search", in: "query" },
-    example: "vehicle",
-  }),
+  search: z
+    .string()
+    .max(200)
+    .optional()
+    .openapi({
+      param: { name: "search", in: "query" },
+      example: "vehicle",
+    }),
   sort: z
     .enum(["slug-asc", "slug-desc", "published-desc", "published-asc"])
     .optional()
