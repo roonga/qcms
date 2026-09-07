@@ -166,7 +166,12 @@ const APP_QCMS_DEPENDENCIES = {
 
 /** Scripts an app keeps in the scaffold; everything else is this repository's. */
 const APP_SCRIPTS = {
-  api: ["build", "typecheck", "start", "create-admin"],
+  // `reset-2fa` rides beside `create-admin` for the same reason `create-admin` is
+  // here (issue #432): a scaffolded project ships the same 2FA policy, the same
+  // encrypted-at-rest enrolment and the same two-role Compose topology, so it has
+  // the same lockout and needs the same way out. Leaving it behind would scaffold a
+  // deployment whose only recovery is hand-editing the database.
+  api: ["build", "typecheck", "start", "create-admin", "reset-2fa"],
   portal: ["dev", "build", "start", "typecheck"],
   admin: ["dev", "build", "start", "typecheck"],
 };
@@ -498,6 +503,13 @@ const ADOPTER_TEXT_REPLACEMENTS = [
     replace:
       '"  docker compose exec -e QCMS_ADMIN_EMAIL -e QCMS_ADMIN_PASSWORD api node dist/create-admin.js\\n" +',
     why: "the usage this command prints when it is run without credentials. In a scaffolded project it runs inside the api container, and the scaffolded README says so; the tool and its own documentation disagreed in the adopter's tree.",
+  },
+  {
+    path: "apps/api/src/reset-2fa-args.ts",
+    find: '"Usage: pnpm qcms:reset-2fa --email <address> [--yes]",',
+    replace:
+      '"Usage: docker compose run --rm migrate node dist/reset-2fa.js --email <address> [--yes]",',
+    why: "the usage this command prints. `pnpm qcms:reset-2fa` is a root script of the QCMS repository, and the adopter's route to the migration credential is the `migrate` service, which is the one place in their Compose file that holds it (SEC-10). Naming `api` here instead would print a recipe the command itself refuses.",
   },
 ];
 

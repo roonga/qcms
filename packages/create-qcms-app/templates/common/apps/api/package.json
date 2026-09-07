@@ -10,7 +10,8 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "node dist/serve.js",
-    "create-admin": "node dist/create-admin.js"
+    "create-admin": "node dist/create-admin.js",
+    "reset-2fa": "node dist/reset-2fa.js"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.49",

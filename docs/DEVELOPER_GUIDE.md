@@ -127,14 +127,79 @@ plain JSON - that was wrong (issue #319). The plugin defaults `storeBackupCodes`
 and falls through to the plain-JSON `return safeJSONParse(backupCodes)` on `:50` only
 when a caller _overrides_ the default), so
 the codes are ciphertext under the same key as the TOTP secret and die with it. There is
-no re-enrolment screen and no 2FA reset command (issue #432), so the fastest way out of a
-lost dev secret is a fresh database. Setting `QCMS_ADMIN_2FA=optional` afterwards does not
-rescue it: the challenge is demanded whenever the account's `twoFactorEnabled` is true.
+no re-enrolment screen, and until issue #432 there was no way out at all short of a fresh
+database. There is now: `pnpm qcms:reset-2fa`, documented below. Setting
+`QCMS_ADMIN_2FA=optional` afterwards does not rescue an enrolment on its own: the
+challenge is demanded whenever the account's `twoFactorEnabled` is true, and clearing that
+flag is exactly what the reset command does.
 
 For a **deployment**, the answer is not to lose the secret and not to change it in place:
 rotate it through `QCMS_ADMIN_AUTH_SECRETS`, a versioned list where the newest entry
 encrypts and older entries keep reading, so a key change costs a round of sign-ins rather
 than every enrolment (`docs/operations.md`, "Admin auth secret rotation").
+
+**Getting back in: `pnpm qcms:reset-2fa`** (issue #432).
+The break-glass that clears one administrator's second factor and recovery codes, so that
+account can sign in on its password and enrol again.
+It is a sibling of `qcms:create-admin` and of the migration command, in the same family
+and for the same reason: a privileged, out-of-band operation that a running process must
+not be able to perform.
+
+```bash
+# Report only. Writes nothing, so a mistyped address costs a line of output.
+DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
+  pnpm qcms:reset-2fa --email you@example.test
+
+# Apply.
+DATABASE_URL=postgres://qcms:qcms@127.0.0.1:7020/qcms \
+  pnpm qcms:reset-2fa --email you@example.test --yes
+```
+
+Five things about it are decisions rather than defaults, and each is the answer to a way
+this could have been worse.
+
+**`DATABASE_URL` must name the migration role**, `qcms_migrate` in the shipped Compose
+recipe, and the command refuses the application credential `qcms_app` (SEC-10).
+The check is ownership of the schema, not the role's name, so an adopter who names their
+roles differently is still held to the property rather than to the spelling.
+The dev database above has one role that owns everything, so it passes.
+On the composed stack the route to that credential is the `migrate` service, which is the
+one place in `docker-compose.yml` holding it:
+`docker compose run --rm migrate node dist/reset-2fa.js --email you@example.test --yes`.
+
+**`--yes` is required to change anything.**
+A bare invocation resolves the account, prints exactly what it would clear, and exits
+having written nothing.
+This is the one operation in the system that removes an authentication factor, so the
+shape where a typo is a report rather than a lockout is worth the extra word.
+
+**It reads no `QCMS_ADMIN_AUTH_SECRET`**, unlike `qcms:create-admin`, which validates the
+whole admin-auth block.
+That is the point rather than an omission: one of the two cases this recovers from is a
+**lost or changed** auth secret, so requiring that variable would gate the recovery on the
+thing that broke.
+Nothing here builds a better-auth instance, because with the key gone the library can
+neither verify the stored factor nor disable it.
+
+**It refuses an address that matches zero admins or more than one.**
+The match is case-insensitive, which is how an operator reads an address, and
+`user.email` is compared case-sensitively by Postgres, so `Ada@example.test` and
+`ada@example.test` are two accounts and one argument.
+Guessing which was meant is the one mistake a re-run cannot undo.
+
+**Every applied run appends a `two_factor_resets` row** naming the account, the timestamp
+and the database role that did it, and emits one `admin two-factor reset` log event
+through the SEC-13 allowlist.
+The row is written even when there was nothing to clear, because "somebody exercised the
+break-glass against this account" is the fact worth having.
+The log event carries no attributes at all: the identity is in the audit row, in your own
+database, and a direct identifier does not belong in an exported signal.
+
+What it leaves behind is a password-only account.
+Existing sessions are **not** revoked, deliberately: any session that exists already
+passed the second factor when it was issued.
+On the next sign-in better-auth issues a session with no challenge and the SEC-1 default
+then forces enrolment before the account reaches anything else.
 
 The command refuses to run once any admin account exists, so it is safe in a runbook and
 safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
