@@ -10,9 +10,13 @@
  * had opened the file.
  *
  * An agent's Read tool renders a PNG directly, and that is the better look every time it
- * is available. This script is the fallback for a terminal-only lane: enough of the
- * picture to tell a clipped glyph from an ellipsis, a blank capture from a populated
- * one, or a light theme from a dark one, before anyone writes a sentence about it.
+ * is available. This script is the fallback for a terminal-only lane, and it answers a
+ * coarser question than the Read tool does: whether a capture is blank or populated,
+ * whether the dark band is where a claim says it is, whether a region has content in it
+ * at all, and whether the theme is light or dark. It works at the scale of a block of
+ * pixels averaged into one character, so it cannot tell a clipped glyph from an
+ * ellipsis, which was 057's own question. A claim that fine still needs the Read tool or
+ * a human; what this removes is the case where nobody looked at all.
  *
  * Dependency-free on purpose (`CONTRIBUTING.md`, "Minimal-dependency policy"). The
  * repository has no PIL, no ImageMagick, and `playwright` resolves only through
@@ -215,9 +219,15 @@ export function paeth(a, b, c) {
 export function unfilter(raw, { width, height, channels }) {
   const stride = width * channels;
   const expected = (stride + 1) * height;
-  if (raw.length < expected) {
+  // Exactly, not at least. A non-interlaced stream is fully determined by IHDR, so any
+  // other length means the header and the payload disagree about the image, and this
+  // script's whole posture is to refuse rather than preview pixels it had to guess at.
+  // Short is a truncated file. Long is the dangerous one: the first `expected` bytes
+  // decode cleanly, so a payload holding a 4x4 image behind a 2x2 IHDR would print a
+  // confident preview of its top-left corner and exit 0.
+  if (raw.length !== expected) {
     throw new PngError(
-      `malformed PNG: image data is ${String(raw.length)} bytes, expected ${String(expected)}`,
+      `malformed PNG: image data is ${String(raw.length)} bytes, expected exactly ${String(expected)}`,
     );
   }
 

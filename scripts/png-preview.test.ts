@@ -132,6 +132,25 @@ function encodePng(spec: PngSpec): Buffer {
   ]);
 }
 
+/**
+ * A greyscale PNG whose IHDR says `width` x `height` while its inflated payload is
+ * `payloadBytes` long. `encodePng` cannot express this: it derives the payload from the
+ * header, which is the invariant under test.
+ */
+function mismatchedPayload(width: number, height: number, payloadBytes: number): Buffer {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(width, 0);
+  header.writeUInt32BE(height, 4);
+  header.writeUInt8(8, 8);
+  header.writeUInt8(0, 9);
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk("IHDR", header),
+    chunk("IDAT", deflateSync(Buffer.alloc(payloadBytes))),
+    chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+
 /** 16x16 truecolour: the left half black, the right half white. */
 function halfAndHalf(filter = 0): Buffer {
   const samples: number[] = [];
@@ -223,19 +242,19 @@ describe("decodePng", () => {
   });
 
   it("refuses a truncated image data stream instead of previewing partial rows", () => {
-    const header = Buffer.alloc(13);
-    header.writeUInt32BE(4, 0);
-    header.writeUInt32BE(4, 4);
-    header.writeUInt8(8, 8);
-    header.writeUInt8(0, 9);
-    const png = Buffer.concat([
-      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-      chunk("IHDR", header),
-      chunk("IDAT", deflateSync(Buffer.alloc(5))),
-      chunk("IEND", Buffer.alloc(0)),
-    ]);
+    // A 4x4 greyscale image is exactly (4 + 1) * 4 = 20 bytes inflated.
+    const png = mismatchedPayload(4, 4, 5);
     expect(() => decodePng(png)).toThrow(PngError);
-    expect(() => decodePng(png)).toThrow(/image data is 5 bytes, expected 20/);
+    expect(() => decodePng(png)).toThrow(/image data is 5 bytes, expected exactly 20/);
+  });
+
+  it("refuses an oversized image data stream rather than previewing its top-left corner", () => {
+    // The dangerous direction, and the one a `<` check waves through: the first 20 bytes
+    // decode cleanly, so a 4x4 payload behind a 2x2 IHDR would have printed a confident
+    // preview of one quarter of the image and exited 0.
+    const png = mismatchedPayload(2, 2, 20);
+    expect(() => decodePng(png)).toThrow(PngError);
+    expect(() => decodePng(png)).toThrow(/image data is 20 bytes, expected exactly 6/);
   });
 });
 
