@@ -482,9 +482,32 @@ export const messages = {
   "forms.version.value": "v{version}",
   "forms.version.valueAt": "v{version} on {date}",
 
+  // The library toolbar (issue 686). Worded from `plan/admin-shell-poc/library-lists-poc.html`,
+  // which draws all three controls on this screen and labels each one; the question
+  // library's equivalent keys are the sibling wording, so "Search" and "Status" read the
+  // same on both screens and only the hint differs by what each list holds.
+  "forms.filter.legend": "Search and filter forms",
+  "forms.filter.search": "Search",
+  "forms.filter.searchHint": "Matches the slug and the form title.",
+  "forms.filter.status": "Status",
+  "forms.filter.statusAll": "Any status",
+  "forms.filter.sort": "Sort by",
+  "forms.filter.sort.slug-asc": "Slug (A to Z)",
+  "forms.filter.sort.slug-desc": "Slug (Z to A)",
+  "forms.filter.sort.published-desc": "Newest published",
+  "forms.filter.sort.published-asc": "Oldest published",
+  "forms.filter.apply": "Apply",
+  "forms.filter.clear": "Clear filters",
+  // The POC's result count, which is the one line that says how many rows the filters
+  // just produced. Singular and plural are separate keys rather than one string with a
+  // conditional "s", because a second locale is a catalog swap and not a code change.
+  "forms.count.one": "{count} form.",
+  "forms.count.other": "{count} forms.",
+
   "forms.empty.title": "No forms yet",
   "forms.empty.body":
     "Create the first form, then pin published questions into its steps. A question has to be published before a form can pin it.",
+  "forms.empty.filtered": "No form matches this search.",
 
   "forms.create.title": "New form",
   "forms.create.slug": "Slug",

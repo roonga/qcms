@@ -2544,7 +2544,7 @@
         }
       },
       "get": {
-        "summary": "List forms with draft/published status (admin)",
+        "summary": "List forms with draft/published status; filter by status, search slug/title, choose a sort (admin)",
         "tags": [
           "forms"
         ],
@@ -2555,6 +2555,46 @@
             ]
           }
         ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "open",
+                "closed"
+              ],
+              "example": "open"
+            },
+            "required": false,
+            "name": "status",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "example": "vehicle"
+            },
+            "required": false,
+            "name": "search",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "slug-asc",
+                "slug-desc",
+                "published-desc",
+                "published-asc"
+              ],
+              "example": "slug-asc"
+            },
+            "required": false,
+            "name": "sort",
+            "in": "query"
+          }
+        ],
         "responses": {
           "200": {
             "description": "The form library",
@@ -2562,6 +2602,16 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ListFormsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

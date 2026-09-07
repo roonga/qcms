@@ -45,6 +45,7 @@ import {
   FormStatusResponse,
   FormVersionParam,
   FormVersionSnapshotResponse,
+  ListFormsQuery,
   ListFormsResponse,
   PreviewConditionBody,
   PreviewConditionResponse,
@@ -80,14 +81,21 @@ export const createFormRoute = createRoute({
 export const listFormsRoute = createRoute({
   method: "get",
   path: "/forms",
-  summary: "List forms with draft/published status (admin)",
+  summary:
+    "List forms with draft/published status; filter by status, search slug/title, choose a sort (admin)",
   tags,
+  request: { query: ListFormsQuery },
   responses: {
     200: {
       description: "The form library",
       content: { "application/json": { schema: ListFormsResponse } },
     },
-    ...errorResponses(401),
+    // 400: the query schema refuses an unknown status, an unknown sort key or an
+    // over-long search term before the handler runs, the same way the question
+    // library's list route does (issue 686). There is no page parameter here: the
+    // POC draws a pager and records it as an upstream gap, and inventing one on the
+    // way past would be a second decision riding on this one.
+    ...errorResponses(400, 401),
   },
   ...withScopes("forms:read"),
 });

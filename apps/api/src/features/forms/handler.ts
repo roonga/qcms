@@ -25,7 +25,7 @@
  * well.
  */
 
-import type { RouteHandler } from "@hono/zod-openapi";
+import type { RouteHandler, z } from "@hono/zod-openapi";
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
   type AnswerMap,
@@ -91,6 +91,7 @@ import type {
   updateFormSettingsRoute,
   validateDraftRoute,
 } from "./route.js";
+import type { ListFormsQuery } from "./schema.js";
 
 /** The outbox event type for a completed publish (ARCHITECTURE §5.3, §11). */
 const FORM_PUBLISHED = "form.published" as const;
@@ -438,12 +439,18 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
+    const { status, search, sort } = c.req.valid("query");
     const rows = await listForms(deps.db);
+
+    // The status filter is the identity row's own column, so it narrows before the
+    // per-row reads below rather than after them: a closed-only list of a library of
+    // fifty forms should not pay for fifty drafts.
+    const byStatus = status === undefined ? rows : rows.filter((row) => row.status === status);
 
     // One draft/version read per row is fine at launch admin scale (R7); a
     // denormalized status column is a Phase-4 optimization, not a launch need.
     const forms = [];
-    for (const row of rows) {
+    for (const row of byStatus) {
       const draft = await getDraft(deps.db, row.formId);
       const latest = await getLatestPublishedVersion(deps.db, row.formId);
       forms.push({
@@ -454,12 +461,96 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
         hasDraft: draft !== undefined,
         latestVersion: latest === undefined ? null : latest.version,
         publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
+        // Not part of the response: the title is read for the search only, from the
+        // definitions the two reads above already loaded. The list screen shows the
+        // slug, and adding a title column to it is a change to which columns the
+        // table carries rather than a change to how it is filtered.
+        title: titleOf(draft?.definition ?? latest?.definition),
       });
     }
 
-    return c.json({ forms }, 200);
+    // Search matches the slug or any locale of the form title, which is the question
+    // library's rule with `label` swapped for `title`. The author's own draft title
+    // wins over the published one when both exist: a rename that has not been
+    // published yet is still what the author is looking for.
+    const needle = search?.trim().toLowerCase();
+    const matched =
+      needle === undefined || needle === ""
+        ? forms
+        : forms.filter(
+            (form) => form.slug.toLowerCase().includes(needle) || titleMatches(form.title, needle),
+          );
+
+    return c.json({ forms: sortForms(matched, sort ?? "slug-asc").map(withoutTitle) }, 200);
   };
 }
+
+/** The localized title carried by any form definition (used for list search). */
+function titleOf(definition: FormDefinition | undefined): unknown {
+  return definition === undefined ? undefined : (definition as { title?: unknown }).title;
+}
+
+/** Substring-match a needle against any locale value of a localized title. */
+function titleMatches(title: unknown, needle: string): boolean {
+  if (title === null || typeof title !== "object") return false;
+  return Object.values(title as Record<string, unknown>).some(
+    (value) => typeof value === "string" && value.toLowerCase().includes(needle),
+  );
+}
+
+/** One assembled row, before the search-only `title` is dropped from the response. */
+interface ListRow {
+  readonly slug: string;
+  readonly publishedAt: string | null;
+  readonly title: unknown;
+}
+
+/** Drop the search-only field, so the response is exactly `FormListItem`. */
+function withoutTitle<T extends ListRow>(row: T): Omit<T, "title"> {
+  const { title: _title, ...rest } = row;
+  return rest;
+}
+
+/**
+ * Order the library (issue 686).
+ *
+ * `slug-asc` is the default because the slug is what the list's identifying column
+ * shows and what an author names a form by; the previous order was `forms.form_id`,
+ * which is an id column nothing on the screen reads.
+ *
+ * A form that was never published has no publish date, so it cannot take a position
+ * on a publish-date axis. Rather than invent one (treating it as the epoch would put
+ * every unpublished form at the top of "oldest published", which answers a question
+ * nobody asked), unpublished rows go **last in both directions** and are ordered
+ * among themselves by slug. Every comparison falls back to the slug, so the order is
+ * total and two renders of the same library never disagree.
+ */
+function sortForms<T extends ListRow>(rows: readonly T[], sort: SortKey): T[] {
+  const bySlug = (a: T, b: T): number => a.slug.localeCompare(b.slug);
+  const byPublished = (a: T, b: T, newestFirst: boolean): number => {
+    if (a.publishedAt === null || b.publishedAt === null) {
+      if (a.publishedAt === b.publishedAt) return bySlug(a, b);
+      return a.publishedAt === null ? 1 : -1;
+    }
+    if (a.publishedAt === b.publishedAt) return bySlug(a, b);
+    const older = a.publishedAt < b.publishedAt ? -1 : 1;
+    return newestFirst ? -older : older;
+  };
+  const sorted = [...rows];
+  switch (sort) {
+    case "slug-asc":
+      return sorted.sort(bySlug);
+    case "slug-desc":
+      return sorted.sort((a, b) => bySlug(b, a));
+    case "published-desc":
+      return sorted.sort((a, b) => byPublished(a, b, true));
+    case "published-asc":
+      return sorted.sort((a, b) => byPublished(a, b, false));
+  }
+}
+
+/** The orders `GET /admin/forms` guarantees, from the route's own query schema. */
+type SortKey = NonNullable<z.infer<typeof ListFormsQuery>["sort"]>;
 
 // --- GET /admin/forms/:id ---------------------------------------------------
 

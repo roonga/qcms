@@ -265,9 +265,9 @@ async function renderQuestions(searchParams: Record<string, string>): Promise<st
   return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
-async function renderForms(): Promise<string> {
+async function renderForms(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./forms/page.tsx");
-  return renderToStaticMarkup(await Page());
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
 /**
