@@ -1068,12 +1068,17 @@ carries the version that wrote it, and moves forward as it is used.
    under the current version. TOTP secrets do **not** - they are written once at
    enrolment and only read afterwards.
 4. Because of step 3, **keep the old version in the list**. A TOTP secret written
-   under version 1 stays readable only while version 1 is listed, and the launch admin
-   surface exposes no way to re-enrol an account that already has a live factor
-   (`two-factor/disable` is deliberately unmounted). So at launch a retired version is
-   retired for good and there is no supported path to drop the trailing entry: add
-   versions, do not remove them. Pruning becomes possible when a 2FA reset exists
-   (issue #432).
+   under version 1 stays readable only while version 1 is listed, and the admin surface
+   exposes no way to re-enrol an account that already has a live factor
+   (`two-factor/disable` is deliberately unmounted). So the default answer is still
+   "add versions, do not remove them". What has changed is that dropping a trailing
+   entry is now _possible_ rather than impossible (issue #432): `qcms:reset-2fa` clears
+   an account's factor, so an administrator still holding a version-1 enrolment can be
+   reset and re-enrol under the current version, after which that entry reads nothing.
+   That is a deliberate operation with a cost - every such administrator re-enrols, and
+   each reset is a break-glass with an audit row - so it is a planned key retirement,
+   not a tidy-up. Confirm no `two_factor` row predates the version you intend to drop
+   before you drop it.
 
 A fourth limit is not conditional on rotating at all: **the deploy that introduced this
 list is a one-way door.** From that release onward every piece of stored two-factor
@@ -1092,10 +1097,57 @@ Numbering: versions are integers, unique, and are **not** positional - they iden
 the key inside the stored ciphertext, so never renumber an existing key. Add a higher
 number at the head of the list and leave the older ones alone.
 
-If the secret is lost outright there is currently no break-glass: nothing resets an
-account's 2FA state, so both factors are gone with the key. That gap is tracked
-separately (issue #432); until it closes, treat this secret with the same care as the
-database it protects, and back the two up together.
+If the secret is lost outright, both stored factors are gone with it: nothing can decrypt
+a TOTP secret or a recovery code without the key that wrote them. The break-glass is
+"Recovering an administrator locked out of two-factor" below, which clears the unreadable
+enrolment rather than recovering it. That is a recovery of _access_, not of the material,
+so it still costs every enrolled administrator a fresh enrolment: treat this secret with
+the same care as the database it protects, and back the two up together.
+
+### Recovering an administrator locked out of two-factor
+
+Two ways in, and neither has a screen: an authenticator that is gone, and a
+`QCMS_ADMIN_AUTH_SECRET` that changed or was lost, which leaves an enrolment nothing can
+verify because the stored secret and the recovery codes are ciphertext under that key.
+`qcms:reset-2fa` clears that account's second factor and recovery codes so it can sign in
+on its password and enrol again (issue #432, `docs/SECURITY_DESIGN.md` §2.1).
+
+On the Compose stack, run it on the **`migrate`** service:
+
+```sh
+# Report only. Writes nothing, so a mistyped address costs a line of output.
+docker compose run --rm migrate node dist/reset-2fa.js --email locked.out@example.com
+
+# Apply.
+docker compose run --rm migrate node dist/reset-2fa.js --email locked.out@example.com --yes
+```
+
+`migrate` rather than `api`, and that is the control rather than a detail. That service is
+the one place in `docker-compose.yml` holding the migration credential, and the command
+**refuses `qcms_app`**, which is what `api` connects as (SEC-10). It tests ownership of the
+schema rather than the role's name, so it holds if you have renamed the roles. Nothing else
+guards it: whoever holds the credential that owns your schema can clear any administrator's
+second factor, which is the same person who can already `DROP TABLE`.
+
+Four things to expect:
+
+- **Nothing happens without `--yes`.** A bare run resolves the account and reports what it
+  would clear.
+- **An address matching zero or more than one account is refused**, not guessed at. The
+  match ignores case, and Postgres compares `user.email` case-sensitively, so two accounts
+  can share one address as you read it.
+- **Every applied run appends a `two_factor_resets` row** naming the account, the time and
+  the database role, and logs one `admin two-factor reset` event. The row is written even
+  when there was nothing to clear, so a mistargeted run is visible. Read it back with
+  `select email, performed_at, database_role, cleared_factors from two_factor_resets order
+by performed_at desc;`.
+- **Existing sessions are not revoked.** Any session that exists passed the second factor
+  when it was issued. If you are resetting because you suspect a compromise rather than a
+  lockout, change the password too: better-auth invalidates sessions on that.
+
+It reads only `DATABASE_URL` - deliberately not `QCMS_ADMIN_AUTH_SECRET`, because a lost
+auth secret is one of the two cases it exists for, and requiring that variable would gate
+the recovery on the thing that broke.
 
 ### App encryption key: there is no in-place rotation
 

@@ -220,8 +220,8 @@ beforeAll(async () => {
 
   migratePool = new pg.Pool({ connectionString: uriFor(MIGRATE_ROLE, migratePassword) });
   appPool = new pg.Pool({ connectionString: uriFor(APP_ROLE, appPassword) });
-  migrateDb = drizzle(migratePool, { schema }) as unknown as Executor;
-  appDb = drizzle(appPool, { schema }) as unknown as Executor;
+  migrateDb = drizzle(migratePool, { schema });
+  appDb = drizzle(appPool, { schema });
 
   const config = loadAdminAuthConfig(
     validEnv({ DATABASE_URL: testDb.connectionUri, QCMS_ADMIN_BASE_URL: "http://localhost:7040" }),
