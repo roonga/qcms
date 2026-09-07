@@ -43,9 +43,15 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
 }
 
 describe("the form-subtree rail's contents", () => {
-  it("carries the six sibling routes in §7's order, and Validation is not one of them", () => {
+  it("carries the seven sibling routes in §7's order, and Validation is not one of them", () => {
+    // RULES IS ONE OF THEM SINCE 2026-09-05 and Validation still is not, which is the pair
+    // reading as a decision rather than as an inconsistency. Rule editing moved to a route
+    // (issue #669) with its anchors rebuilt as route-plus-fragment links; Validation could
+    // not move, because its entries point at controls the BUILDER renders and the publish
+    // rejection reuses the same list verbatim (`plan/admin-ux-audit.md` §5.5).
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
+      "rules",
       "preview",
       "versions",
       "links",
@@ -70,6 +76,9 @@ describe("the form-subtree rail's contents", () => {
       // form is what a reader recognises - with the slug as the fallback, which
       // `formDisplayName` is tested for below.
       TITLE,
+      // The rules screen (issue #669), directly after the form's own row and the steps
+      // nested under it, which is where `rules-screen-poc.html` draws it.
+      "Rules",
       "Preview",
       // "Version history" since issue 679, which named the version list's screen and so,
       // by §7's rule that the rail carries the screen's own name, named this row too.
@@ -84,6 +93,7 @@ describe("the form-subtree rail's contents", () => {
     const groups = rail({ kind: "section", section: "links" });
     expect(groups.siblings.map((item) => item.href)).toStrictEqual([
       "/forms/frm_life",
+      "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/links",

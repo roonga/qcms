@@ -9,10 +9,11 @@ import { textOf } from "@/lib/questions/definition";
 /**
  * The builder's breadcrumb, whose last crumb is the SCREEN the reader is on.
  *
- * The builder is three screens behind one route, and the breadcrumb is rendered once per
- * route - so it said "Form details" while the reader was looking at a step's questions or
- * at the form's rules. A trail that names somewhere you are not is worse than no trail: it
- * is the one part of the chrome whose whole job is to say where you are.
+ * The builder is two screens behind one route, and the breadcrumb is rendered once per
+ * route - so it said "Form details" while the reader was looking at a step's questions. A
+ * trail that names somewhere you are not is worse than no trail: it is the one part of the
+ * chrome whose whole job is to say where you are. (It was three until issue #669 gave the
+ * rules a route; that screen has a breadcrumb of its own now, from `FormPageHeader`.)
  *
  * A client component for that reason, and it reads the same bridge the rail does rather
  * than taking the selection as a prop, because the page that renders it is a server
@@ -57,7 +58,6 @@ export function currentScreenName(
   steps: readonly DraftStep[],
 ): string {
   if (selection === undefined || selection.kind === "form") return t("forms.tab.builder");
-  if (selection.kind === "rules") return t("forms.rail.rules");
   const step = steps.find((candidate) => candidate.stepId === selection.stepId);
   if (step === undefined) return t("forms.tab.builder");
   const title = textOf(step.title);

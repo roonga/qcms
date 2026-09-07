@@ -42,8 +42,15 @@ import { t } from "./i18n/en.ts";
  * here, so a route added without a title cannot ship quietly.
  */
 
-/** The six sections of one form, as `forms.tab.*` names them. */
-export type FormSection = "builder" | "preview" | "versions" | "links" | "responses" | "webhooks";
+/**
+ * The seven sections of one form, as `forms.tab.*` names them.
+ *
+ * Six until issue #669, which gave rule editing a route (`/forms/{formId}/rules`) rather
+ * than leaving it a selection on the builder. A section here is a screen with a tab title,
+ * a breadcrumb crumb, an `<h1>` and a rail row, and the rules screen is all four.
+ */
+export type FormSection =
+  "builder" | "rules" | "preview" | "versions" | "links" | "responses" | "webhooks";
 
 /** One route's metadata: its page name, in the app's one title pattern. */
 export function pageMetadata(page: string): Metadata {

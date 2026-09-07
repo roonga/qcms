@@ -91,22 +91,23 @@ alone. Regenerate, format, then verify.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (358 files common to both shapes)
+### Scaffolded paths (366 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 347   |
-| `apps/admin/`                                                        | 206   |
-| `apps/admin/app/`                                                    | 64    |
-| `apps/admin/app/(shell)/`                                            | 48    |
-| `apps/admin/app/(shell)/@rail/`                                      | 20    |
-| `apps/admin/app/(shell)/@rail/forms/`                                | 11    |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 9     |
+| `apps/`                                                              | 355   |
+| `apps/admin/`                                                        | 214   |
+| `apps/admin/app/`                                                    | 66    |
+| `apps/admin/app/(shell)/`                                            | 50    |
+| `apps/admin/app/(shell)/@rail/`                                      | 21    |
+| `apps/admin/app/(shell)/@rail/forms/`                                | 12    |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 10    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`               | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/`             | 2     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/versions/`              | 2     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/`    | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/`              | 1     |
@@ -118,14 +119,15 @@ alone. Regenerate, format, then verify.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 15    |
-| `apps/admin/app/(shell)/forms/[formId]/`                             | 10    |
+| `apps/admin/app/(shell)/forms/`                                      | 16    |
+| `apps/admin/app/(shell)/forms/[formId]/`                             | 11    |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/`                   | 2     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/`       | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/rules/`                       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/versions/`                    | 2     |
 | `apps/admin/app/(shell)/forms/[formId]/versions/[version]/`          | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/webhooks/`                    | 1     |
@@ -152,17 +154,17 @@ alone. Regenerate, format, then verify.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 62    |
-| `apps/admin/components/forms/`                                       | 25    |
+| `apps/admin/components/`                                             | 66    |
+| `apps/admin/components/forms/`                                       | 29    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
 | `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 73    |
-| `apps/admin/lib/forms/`                                              | 19    |
+| `apps/admin/lib/`                                                    | 75    |
+| `apps/admin/lib/forms/`                                              | 20    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 6     |
-| `apps/admin/lib/server/`                                             | 22    |
+| `apps/admin/lib/server/`                                             | 23    |
 | `apps/api/`                                                          | 80    |
 | `apps/api/src/`                                                      | 77    |
 | `apps/api/src/features/`                                             | 49    |
@@ -222,7 +224,7 @@ alone. Regenerate, format, then verify.
 
 ### QCMS-internal references in the scaffolded source
 
-`1703` lines across `310` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1769` lines across `319` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -237,7 +239,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (358)</summary>
+<summary>Every scaffolded file (366)</summary>
 
 ```
 .dockerignore
@@ -252,6 +254,7 @@ apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/page.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/webhooks/page.tsx
@@ -272,6 +275,7 @@ apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/page.tsx
+apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/[version]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/versions/page.tsx
 apps/admin/app/(shell)/forms/[formId]/webhooks/page.tsx
@@ -334,7 +338,11 @@ apps/admin/components/forms/rail-steps.tsx
 apps/admin/components/forms/rule-targets.tsx
 apps/admin/components/forms/rule-test-bench.tsx
 apps/admin/components/forms/rule-wizard.tsx
+apps/admin/components/forms/rules-editor.tsx
+apps/admin/components/forms/rules-lens.tsx
+apps/admin/components/forms/rules-screen.tsx
 apps/admin/components/forms/rules-table.tsx
+apps/admin/components/forms/save-notices.tsx
 apps/admin/components/forms/secure-links.tsx
 apps/admin/components/forms/step-editor.tsx
 apps/admin/components/forms/validation-panel.tsx
@@ -378,6 +386,7 @@ apps/admin/lib/auth-failure-message.ts
 apps/admin/lib/builder-notice.ts
 apps/admin/lib/forms/assist-diff.ts
 apps/admin/lib/forms/assist-stream.ts
+apps/admin/lib/forms/autosave.ts
 apps/admin/lib/forms/builder-bridge.ts
 apps/admin/lib/forms/builder-state.ts
 apps/admin/lib/forms/condition.ts
@@ -430,6 +439,7 @@ apps/admin/lib/server/config.ts
 apps/admin/lib/server/csp.ts
 apps/admin/lib/server/enrollment.ts
 apps/admin/lib/server/form-rail.ts
+apps/admin/lib/server/form-verdict.ts
 apps/admin/lib/server/forms.ts
 apps/admin/lib/server/links.ts
 apps/admin/lib/server/logger.ts

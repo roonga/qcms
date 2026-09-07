@@ -634,9 +634,27 @@ test("the form builder and the condition editor have zero violations", async ({ 
   // 2026-08-30 (Code Owner) the ineligible group cannot be chosen from. The rule shows the
   // text question, which sits in the second step; putting that step in front of the one
   // holding the question the condition reads makes the target backward without the rule
-  // changing. The rail is behind the modal, so the dialog closes for the move and reopens.
+  // changing. The rail is behind the modal, so the dialog closes for the move and reopens -
+  // and since issue #669 the move is on the BUILDER, because the rules route's rail is the
+  // navigation rail every non-builder form screen carries. `openRuleEditor` walks back.
   await closeRuleEditor(page);
+
+  // THE RULES SCREEN ITSELF, with no dialog over it (issue #669). Every sweep above is of
+  // the WIZARD; this is the route it opens from - the page heading, the table of sentences,
+  // and the screen's own bench under it. It is the newest screen in the app and the only
+  // one whose `<h1>` comes from `FormPageHeader` while its body is a client component, so
+  // it is exactly where a heading order arrives unchecked.
+  await expectNoViolations(page, "the rules screen");
+
+  await openFormDetails(page);
+  const beforeMoveUp = await savedStamp(page);
   await moveStep(page, "Details", "up");
+  // WAIT BEFORE CROSSING THE ROUTE BOUNDARY (issue #669). The move is a builder edit on a
+  // 600ms debounce and the rules screen reads the draft the SERVER holds, so navigating
+  // inside that window would open the editor on the draft as it was before the move - and
+  // the backward flag this is here to see would not be there. Nothing waited before,
+  // because it was one mount holding one draft.
+  await waitForSaveAfter(page, beforeMoveUp);
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "then");
   await expect(page.getByTestId("qcms-backward-flag")).toBeVisible();
@@ -657,9 +675,15 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await closeRuleEditor(page);
 
   // The engine's finding, now that the rule is in the draft, rendered at the rule. It sits
-  // outside the phase panels, so it is on screen whichever phase is selected. No explicit
-  // wait for the save: the assertion below carries the debounce, the round trip and the
-  // validate call in its own 30s budget, and nothing here reloads.
+  // outside the phase panels, so it is on screen whichever phase is selected. The 30s
+  // budget on the assertion carries the debounce, the round trip and the validate call,
+  // and nothing here navigates in between - the editor reopens on the screen it closed on.
+  // Since issue #669 the rules route also opens with the SERVER's verdict, so a walk back
+  // from the builder arrives already showing it rather than waiting for an edit.
+  // Taken with no dialog on screen, because the strip sits behind the modal overlay once
+  // one is open. Nothing saves between here and the Save below, so it is still the right
+  // baseline for it.
+  const beforeLeaving = await savedStamp(page);
   await openRuleEditor(page, ruleId);
   await expect(scope.locator('[data-issue-code="RULE_BACKWARD_TARGET"]')).toBeVisible({
     timeout: 30_000,
@@ -667,12 +691,20 @@ test("the form builder and the condition editor have zero violations", async ({ 
   await expectNoViolations(page, "rule wizard showing the engine's verdict on the rule");
   // Put the step back rather than unticking a target: the rule has one, and a rule that
   // shows nothing is an unsaveable draft rather than a repaired one.
+  //
+  // SAVE, THEN LEAVE, in this direction too: the builder reads the server's draft, so
+  // walking off this route inside the debounce would take the reader to a screen that has
+  // never seen the rule.
   await closeRuleEditor(page);
+  await waitForSaveAfter(page, beforeLeaving);
+  await openFormDetails(page);
+  const beforeMoveDown = await savedStamp(page);
   await moveStep(page, "Details", "down");
+  await waitForSaveAfter(page, beforeMoveDown);
 
   // Back to the form's own screen: the settings stayed there when the rules moved out, so
-  // the panel below is not on the screen the rule work happened on. Three screens, and
-  // each axe sweep says which one it swept.
+  // the panel below is not even on the ROUTE the rule work happened on since issue #669.
+  // The rail's own row is the way back, and each axe sweep says which screen it swept.
   await openFormDetails(page);
 
   // The settings, on the form's screen: no longer a disclosure, and no longer pressed to
@@ -735,7 +767,11 @@ test("publish, preview, history and secure links have zero violations", async ({
   // dialog; this one is on the same route and needs the same gesture.
   await closeRuleEditor(page);
   await waitForSaveAfter(page, beforeRule);
-  await page.reload();
+  // BACK TO THE BUILDER, because the rule work happened on `/forms/{formId}/rules` since
+  // issue #669 and Publish belongs to the FORM. This used to be a reload, which was enough
+  // while the rules were a selection on this same route; it is a navigation now, and the
+  // reload it replaces did the same job of proving the draft reached the server.
+  await page.goto(`/forms/${formId}`);
 
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();

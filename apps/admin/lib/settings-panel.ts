@@ -14,7 +14,7 @@ import type { SettingsSectionId } from "./settings-sections.ts";
  * column rather than inside it, and the panels are in the page itself. Nothing renders both,
  * so there is no component that could hold the state and hand it down, and the shell layout
  * that renders both slots is shared by every other screen in the app - putting a Settings
- * provider there would make sixteen screens carry a context one of them uses.
+ * provider there would make eighteen screens carry a context one of them uses.
  *
  * A module is what the two trees genuinely share: they are client components on one page, so
  * they import one instance of this file out of one bundle. `useSyncExternalStore` is React's

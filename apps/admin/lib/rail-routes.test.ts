@@ -14,10 +14,10 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
  * ## The property this file pins gained a second half, and it is the load-bearing one
  *
  * Issue 561 asserted that the eight form-scoped screens have a slot page and that no fourth
- * rail root appears. Ten screens have a rail and seven do not, and that has not changed.
- * What changed is that all seventeen now have a PAGE under `app/(shell)/@rail`: the seven
- * without a rail have one that returns `null`, which is a different thing from having no
- * page at all.
+ * rail root appears. Eleven screens have a rail and seven do not - the eleventh is the rules
+ * route issue #669 added, which is a ninth form-scoped screen. What has not changed is that
+ * EVERY screen has a PAGE under `app/(shell)/@rail`: the seven without a rail have one that
+ * returns `null`, which is a different thing from having no page at all.
  *
  * **That is a correctness requirement, not tidiness.** On a soft navigation Next keeps the
  * previously active state of any slot the new URL does not match, and consults `default.tsx`
@@ -27,7 +27,7 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
  * the defect this coverage removes. A screen added without a slot page fails here rather
  * than being found months later as a rail that will not go away.
  *
- * ## All eight form screens carry the same tree, and the builder's alone is interactive
+ * ## All nine form screens carry the same tree, and the builder's alone is interactive
  *
  * REVERSED 2026-08-25 (Code Owner). The builder used to carry the sibling rows and no steps,
  * because a rail step item is `/forms/{formId}#step-{stepId}` - a cross-route link on the
@@ -54,6 +54,7 @@ const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
  */
 const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]": "builder",
+  "/forms/[formId]/rules": "rules",
   "/forms/[formId]/preview": "preview",
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
@@ -152,16 +153,20 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 });
 
 describe("which screens carry the form-subtree section", () => {
-  it("counts the eight form-scoped screens the audit counts", () => {
+  it("counts the nine form-scoped screens, which is the audit's eight plus the rules route", () => {
     // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
-    // form-scoped and would get a populated rail". A ninth appearing is the moment the
-    // question of what its section carries has to be asked, so it fails here.
+    // form-scoped and would get a populated rail". A NINTH arrived on 2026-09-05, and it
+    // arrived the way this test asks a screen to: the Code Owner ruled on issue #669 that
+    // `plan/admin-shell-poc/rules-screen-poc.html` is built as drawn, so rule editing left
+    // the builder for `/forms/[formId]/rules` and its rail row is `rules`. A tenth is the
+    // moment the same question has to be asked again, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
       "/forms/[formId]/links",
       "/forms/[formId]/preview",
       "/forms/[formId]/responses",
       "/forms/[formId]/responses/[sessionId]",
+      "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
       "/forms/[formId]/webhooks",

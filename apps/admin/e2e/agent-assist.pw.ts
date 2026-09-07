@@ -135,7 +135,7 @@ test("proposes a form, accepts it into the draft, and publishes it (exit criteri
   await expect(panel.getByRole("button", { name: /erase|webhook|link/iu })).toHaveCount(0);
 
   // THROUGH THE HARNESS HELPERS, not by reading the strip's testid directly. The
-  // builder is three screens behind one route now, and only the FORM screen carries
+  // builder is two screens behind one route now, and only the FORM screen carries
   // the ambient save strip - this spec is standing on a STEP, having just pinned a
   // question into it, so `getByTestId("qcms-save-state")` finds nothing here.
   // `savedStamp` and `waitForSaveAfter` know that: they step to the form's own screen,

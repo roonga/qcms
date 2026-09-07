@@ -14,7 +14,7 @@ import {
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * Each of the seventeen screens takes the cap its own POC draws, and the acceptance asks
+ * Each of the eighteen screens takes the cap its own POC draws, and the acceptance asks
  * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
  * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
  * only earns
@@ -73,27 +73,30 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: seven at 1600, three narrow, three at 40rem, two at 1080", () => {
+  it("counts the drawings: eight at 1600, three narrow, three at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
-    expect(count("wide")).toBe(7);
+    expect(count("wide")).toBe(8);
     expect(count("narrow")).toBe(3);
     expect(count("prose")).toBe(3);
     expect(count("list")).toBe(2);
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(1);
-    expect(measures).toHaveLength(17);
+    expect(measures).toHaveLength(18);
   });
 
-  it("puts the six screens whose POC `.main` is 1600 on that cap", () => {
-    // `admin-shell-poc.html`, `links-webhooks-poc.html` (both screens), `responses-poc.html`
-    // (both screens) and the version-history screen of `preview-versions-poc.html`. The
-    // last of those is the case that shows a shared `.main` is NOT ignored in a
-    // multi-screen file: two of that file's three screens draw an inner cap and this one
-    // does not, so this one takes the shared number.
+  it("puts the seven screens whose POC `.main` is 1600 on that cap", () => {
+    // `admin-shell-poc.html`, `rules-screen-poc.html`, `links-webhooks-poc.html` (both
+    // screens), `responses-poc.html` (both screens) and the version-history screen of
+    // `preview-versions-poc.html`. The last of those is the case that shows a shared
+    // `.main` is NOT ignored in a multi-screen file: two of that file's three screens draw
+    // an inner cap and this one does not, so this one takes the shared number.
     expect(MEASURE_BY_ROUTE["/forms/[formId]"]).toBe("wide");
+    // The rules screen (issue #669). Its own file caps `.main` at 1600 and draws nothing
+    // narrower inside, which is the honest reading for the widest surface the app builds.
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/rules"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/links"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/webhooks"]).toBe("wide");
     expect(MEASURE_BY_ROUTE["/forms/[formId]/responses"]).toBe("wide");

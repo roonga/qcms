@@ -16,7 +16,6 @@ import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import {
-  previewConditionAction,
   publishFormAction,
   saveDraftAction,
   setFormStatusAction,
@@ -180,7 +179,6 @@ export default async function FormBuilderPage({
         saveDraft={saveDraftAction.bind(null, form.formId)}
         validateDraft={validateDraftAction.bind(null, form.formId)}
         updateSettings={updateSettingsAction.bind(null, form.formId)}
-        previewCondition={previewConditionAction.bind(null, form.formId)}
         {...(agentAuthoringEnabled()
           ? { assist: { endpoint: `/forms/${encodeURIComponent(form.formId)}/assist` } }
           : {})}

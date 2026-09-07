@@ -28,7 +28,7 @@ import { formSectionName, pageMetadata } from "./page-title.ts";
  *
  * ## Slot pages are not routes
  *
- * `app/(shell)/@rail/**` has a page for all seventeen screens (that is the property
+ * `app/(shell)/@rail/**` has a page for all eighteen screens (that is the property
  * `rail-routes.test.ts` pins) and none of them is a document. Next resolves metadata from
  * the matched segment's own `page.tsx`, so a `generateMetadata` in a parallel-route slot
  * would be dead code claiming to be a title. Skipped by the same `@` rule the sibling
@@ -106,6 +106,7 @@ describe("every route titles its own browser tab", () => {
       "/forms/[formId]/preview",
       "/forms/[formId]/responses",
       "/forms/[formId]/responses/[sessionId]",
+      "/forms/[formId]/rules",
       "/forms/[formId]/versions",
       "/forms/[formId]/versions/[version]",
       "/forms/[formId]/webhooks",

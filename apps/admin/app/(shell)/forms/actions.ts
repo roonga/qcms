@@ -206,7 +206,12 @@ export async function saveDraftAction(
     };
   }
   revalidatePath("/forms");
-  revalidatePath(`/forms/${formId}`);
+  // "layout", NOT the default "page" (issue #669). A form's draft is rendered by TWO routes
+  // now - the builder and `/forms/{formId}/rules` - and the default type invalidates the
+  // exact page only, so a save made on one of them left the other's cached render standing.
+  // "layout" invalidates this segment and everything nested under it, which is exactly the
+  // set of screens that render this form.
+  revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "saved",
     issues: result.data.issues,
@@ -358,7 +363,9 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
     return { status: "error", message: result.message };
   }
   revalidatePath("/forms");
-  revalidatePath(`/forms/${formId}`);
+  // "layout": the form's status is in the header of every screen under it, including the
+  // rules route (issue #669). See the note on `saveDraftAction`.
+  revalidatePath(`/forms/${formId}`, "layout");
   return {
     status: "published",
     version: result.data.version,
@@ -421,7 +428,9 @@ export async function setFormStatusAction(
   const result = await setFormStatus(session, formId, action);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
-  revalidatePath(`/forms/${formId}`);
+  // "layout", for the reason `saveDraftAction` records: closing a form changes the header
+  // of every screen under it, and the rules route is one of them (issue #669).
+  revalidatePath(`/forms/${formId}`, "layout");
   return { status: "changed", formStatus: result.data.status };
 }
 

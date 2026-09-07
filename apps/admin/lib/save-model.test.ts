@@ -128,19 +128,29 @@ const SCREENS: readonly ScreenRow[] = [
     why: "The one autosaving screen in the app: a 600ms debounce over the whole draft, and since 2026-08-29 the same debounce over the form's settings. Carries the ambient strip (design-language element 7), which is now the only save statement on it.",
   },
   {
+    route: "app/(shell)/forms/[formId]/rules/page.tsx",
+    model: "autosave",
+    why: "The rules editor, on its own route since issue #669. It holds the same working draft the builder holds and stores it through the same 600ms loop (`lib/forms/autosave.ts`), so it carries an ambient strip of its own - a screen holding accumulated authored state owes a statement of when that state was stored, and the builder's strip is one route away describing a different copy.",
+  },
+  {
     route: "app/(shell)/forms/[formId]/preview/page.tsx",
     model: "readonly",
     why: "Renders the draft for inspection; its own copy already says nothing here is saved.",
   },
-  // The eight `@rail` entries below are parallel-route slots rather than screens (issue
-  // 559 wired the first, issue 561 the rest): each renders one form's section of the rail
+  // The nine `@rail` entries below are parallel-route slots rather than screens (issue
+  // 559 wired the first, issue 561 the rest, issue #669 the rules screen's): each renders one form's section of the rail
   // beside `<main>` on a route some form page already owns. They are listed rather than filtered out because
   // the value of this inventory is that a new `page.tsx` forces someone to write down how
   // it saves, and a slot that grew a control would need that question asked of it exactly
-  // as a screen would. All eight answer the same way, and that is the contract rather than
+  // as a screen would. All nine answer the same way, and that is the contract rather than
   // a coincidence: §7 gives the rail no actions at all.
   {
     route: "app/(shell)/@rail/forms/[formId]/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/forms/[formId]/rules/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
@@ -401,10 +411,17 @@ describe("the admin's save models are inventoried", () => {
     }
   });
 
-  it("has exactly one autosaving screen, which is the one that carries the ambient strip", () => {
+  it("names the two autosaving screens, which are the two that edit the working draft", () => {
+    // ONE UNTIL ISSUE #669, and the second is not a second save MODEL. Rule editing moved
+    // from a selection on the builder to `/forms/{formId}/rules` (Code Owner, 2026-09-05),
+    // and that screen holds the same document: it stores through `lib/forms/autosave.ts`,
+    // on that module's one debounce, and states it through the same ambient strip. Listing
+    // both by name rather than counting them is what makes a THIRD autosaving screen a
+    // decision someone writes down instead of a number someone increments.
     const autosaving = SCREENS.filter((screen) => screen.model === "autosave");
     expect(autosaving.map((screen) => screen.route)).toStrictEqual([
       "app/(shell)/forms/[formId]/page.tsx",
+      "app/(shell)/forms/[formId]/rules/page.tsx",
     ]);
   });
 });
@@ -445,25 +462,57 @@ describe("no screen shows two different save-state statements", () => {
     expect(panel).toContain('data-testid="qcms-form-settings-status"');
   });
 
-  it("saves the settings on the builder's own debounce rather than a second one", () => {
-    // One save model on the screen means one timing on the screen. A settings autosave
-    // with a debounce of its own would be a second model wearing the first one's clothes:
-    // the strip would report two loops settling at different moments as one save state.
-    const builder = source("components/forms/form-builder.tsx");
+  it("declares the debounce once in the app, and saves the settings on it", () => {
+    // One save model means one timing, and since issue #669 that is a claim about two
+    // screens rather than one. A second `const AUTOSAVE_DEBOUNCE_MS` anywhere - the rules
+    // screen's own, a settings loop's own - would be a second model wearing the first
+    // one's clothes: one strip reporting two loops that settle at different moments as one
+    // save state.
+    // Swept over `lib/` as well as the UI tree, because the loop itself lives in `lib/`
+    // and a second one would most naturally be written beside it rather than in a
+    // component.
+    const tsx = (name: string): boolean => /\.tsx?$/u.test(name) && !/\.test\.tsx?$/u.test(name);
+    const declarations = [...uiSources(), ...filesUnder("lib", tsx)].filter((file) =>
+      /const AUTOSAVE_DEBOUNCE_MS/u.test(source(file)),
+    );
+    expect(
+      declarations,
+      "the debounce is declared in the shared loop and nowhere else",
+    ).toStrictEqual(["lib/forms/autosave.ts"]);
 
-    expect(builder.match(/const AUTOSAVE_DEBOUNCE_MS/g)?.length ?? 0).toBe(1);
-    expect(builder.match(/AUTOSAVE_DEBOUNCE_MS\)/g)?.length ?? 0).toBe(2);
-    // The settings action is bound to this route and revalidates it, so it is read
-    // through the same ref as the other two. Depending on the prop re-arms the effect on
-    // every revalidation, which is a save loop that never settles.
-    expect(builder).toContain("actions.current.updateSettings");
+    // The settings are not part of the draft and have a route of their own, so they are a
+    // second loop by construction - what they may not have is a second TIMING, so they
+    // import the constant rather than restating it.
+    const builder = source("components/forms/form-builder.tsx");
+    expect(builder).toContain("AUTOSAVE_DEBOUNCE_MS");
+    // The settings action is bound to this route and revalidates it, so it is read through
+    // a ref. Depending on the prop re-arms the effect on every revalidation, which is a
+    // save loop that never settles.
+    expect(builder).toContain("settingsAction.current");
   });
 
-  it("renders the ambient strip from exactly one component, the form builder", () => {
+  it("routes both drafting screens through the one save loop", () => {
+    // The property behind the row above, read off the files rather than trusted. A screen
+    // inventoried `autosave` that did not reach `useDraftAutosave` would be a second
+    // implementation of the loop, which is the thing this file exists to prevent.
+    for (const file of ["components/forms/form-builder.tsx", "components/forms/rules-screen.tsx"]) {
+      expect(source(file), `${file} stores through the shared loop`).toContain("useDraftAutosave");
+    }
+  });
+
+  it("renders the ambient strip from the two components that own a draft, and no others", () => {
+    // One renderer until issue #669. The rules screen is the second and it is the same
+    // statement about a different route: §6 gives a screen exactly one save statement, and
+    // a screen that stores has to have one. What this still forbids is a THIRD - a panel
+    // growing its own strip beside one of these, which is how the settings' second save
+    // model got here in the first place.
     const renderers = uiSources().filter(
       (file) => file !== "components/save-model.tsx" && source(file).includes("<AmbientSaveStatus"),
     );
-    expect(renderers).toStrictEqual(["components/forms/form-builder.tsx"]);
+    expect(renderers).toStrictEqual([
+      "components/forms/form-builder.tsx",
+      "components/forms/rules-screen.tsx",
+    ]);
   });
 
   it("never puts the ambient strip and a manual-model statement in one component", () => {

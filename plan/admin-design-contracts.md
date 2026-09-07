@@ -759,9 +759,14 @@ closes with it.
 
 - The rail carries **navigation within one form's subtree**: the form's children
   (its steps, with per-step issue badges) and the form's sibling screens
-  (Builder, Preview, Versions, Links, Responses, Webhooks). A question's version
-  list counts as children on the question detail screen. ~~That is the whole
+  (Builder, **Rules**, Preview, Versions, Links, Responses, Webhooks). A question's
+  version list counts as children on the question detail screen. ~~That is the whole
   contract: two groups, in that order, with one divider.~~
+
+  **Rules is the seventh, added 2026-09-06 with the build below (issue #669).** It
+  sits directly after the Builder row and the steps nested under it, which is where
+  `rules-screen-poc.html` draws it: the rules are form-level WORK, so they sit beside
+  the work rather than among the screens that report on a published form.
 
   **Amended 2026-08-25 (Code Owner): one tree, not two groups.** The steps are
   nested inside the Form row rather than stacked above the sections, so there is
@@ -826,9 +831,45 @@ closes with it.
   resolves to nothing off-page; and re-confirm the refused-publish path that reuses
   the validation list is not collaterally broken by the new route (it should be
   unaffected, since Validation stays a builder selection). Nothing may disappear
-  silently in the move, which was the audit's whole objection. The build is an
-  admin-wave item and is tracked on issue #669, which stays open for it; this
-  document records only the ruling.
+  silently in the move, which was the audit's whole objection.
+
+  **Built, 2026-09-06.** `/forms/[formId]/rules` exists and carries the editing
+  surface `rules-screen-poc.html` draws; the builder's Rules card is
+  `apps/admin/components/forms/rules-lens.tsx`, the compact read-only list
+  `admin-shell-poc.html` draws in its place. Three consequences of the constraint
+  are worth reading here rather than only in the code, because each is the kind of
+  thing a later pass would "tidy" without knowing what it was for.
+
+  - **Every rule address is a route plus a fragment**, minted in one place
+    (`ruleHref`, `apps/admin/lib/forms/issues.ts`). The lens's rule lines, its
+    "Edit rules" and "Add rule" footer, the validation panel's rule entries and the
+    refused publish's work list all read it, so a bare `#rule-...` cannot be
+    reintroduced one caller at a time. The fragment is deliberately left unescaped
+    while the form id is escaped: a fragment's only job is to equal the DOM id at
+    the far end, and escaping one side of that equality is how a link stops
+    matching its own destination.
+  - **The focus half happens at the far end.**
+    `apps/admin/components/forms/rules-screen.tsx` reads the fragment on arrival
+    and focuses the row. That is the behaviour §5.5 said a route split would lose,
+    so it is what the browser coverage asserts across the boundary
+    (`apps/admin/e2e/forms-publish.pw.ts` checks the href, the navigation and the
+    focused element in one pass).
+  - **Two pre-split addresses are forwarded rather than dropped.**
+    `/forms/:formId#rules` and `/forms/:formId#rule-...` were how the rail row and
+    the publish rejection reached the selection. Nothing emits either now, but a
+    bookmark can still carry one, so the builder redirects it onto the route with
+    its fragment intact. "No behaviour disappears silently" reaches a saved URL too.
+
+  The refused-publish path was re-checked and is unaffected, as the ruling
+  expected: it renders the same `IssueEntry` component, whose step and
+  pinned-question entries keep their bare fragments because those controls are
+  still on the builder page. Validation itself did not move.
+
+  One simplification the split paid for, recorded because it removes a defect
+  class: the Rules row is an ordinary member of the rail's sibling list now rather
+  than a row the builder drew for itself. The two-branch row it replaced - a button
+  on the builder, an anchor on the other seven screens - is what produced the
+  geometry defects `apps/admin/e2e/rail-screens.pw.ts` exists for.
 
 - Collapsed (below `--bp-sidebar`), the summary names the ~~active item~~ **form**
   and the **form's** issue total (`plan/admin-mobile-stance.md`, amended

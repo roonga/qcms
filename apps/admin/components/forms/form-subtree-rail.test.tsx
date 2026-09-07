@@ -84,14 +84,15 @@ describe("the rail's markup", () => {
     const html = await render(LINKS);
     // The steps are inside the Form row rather than above the sections (Code Owner,
     // 2026-08-25), so the anchor order is the tree read depth-first: Form, then its
-    // steps, then the five remaining sections. Before the nesting the two step anchors
-    // came first, which said they were peers of the six routes rather than children of
-    // one of them.
+    // steps, then the six remaining sections. Before the nesting the two step anchors
+    // came first, which said they were peers of the routes rather than children of one of
+    // them. Rules is the first of those six since issue #669 gave it a route of its own.
     const anchors = [...html.matchAll(/<a href="([^"]+)"/gu)].map((match) => match[1]);
     expect(anchors).toStrictEqual([
       "/forms/frm_life",
       "/forms/frm_life#step-stp_about",
       "/forms/frm_life#step-stp_health",
+      "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
       "/forms/frm_life/links",

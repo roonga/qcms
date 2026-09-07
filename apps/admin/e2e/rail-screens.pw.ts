@@ -310,7 +310,9 @@ test("561 puts every shared rail row in the same box on all three builder-family
   //   - a row with a `⋮` trigger gave up 30px to it, so the form row and every step row
   //     was a 193px box on the builder and a 223px box everywhere else;
   //   - the 8px under Rules came from a wrapper that only the builder renders, so all six
-  //     route rows below it sat 8px lower there than on the other screens.
+  //     route rows below it sat 8px lower there than on the other screens. (That row is
+  //     drawn by one component on every screen since issue #669 made Rules a route, so the
+  //     second defect can no longer be built the way it was built.)
   //
   // Neither was visible from inside one screen, which is why nothing caught them. What
   // catches them is comparing the SAME row across a navigation, so that is what this does:
@@ -368,9 +370,14 @@ test("561 puts every shared rail row in the same box on all three builder-family
   await expect(page.locator("[data-rail-step-select]").first()).toBeVisible();
   const onBuilder = await boxes();
 
-  await page.locator('[data-rail-item="rules"]').click();
+  // THE RULES SCREEN IS A ROUTE since issue #669, so its rail is the SERVER-rendered one,
+  // like Preview's. That is what this comparison is for: the row that leads to it is drawn
+  // by one component on all nine screens now, and the two-branch row it replaced is exactly
+  // the shape that produced the 8px defect recorded above.
+  await page.locator('[data-rail-item="section:rules"]').click();
+  await expect(page).toHaveURL(/\/rules$/u);
   await expect(page.locator("#qcms-rules-heading")).toBeAttached();
-  await expect(page.locator("[data-rail-step-select]").first()).toBeVisible();
+  await expect(page.locator('[data-rail-item^="step:"]').first()).toBeVisible();
   const onRules = await boxes();
 
   // Only the rows all three screens have. The builder's step rows are chosen rather than
@@ -380,17 +387,16 @@ test("561 puts every shared rail row in the same box on all three builder-family
   expect(shared.length, "the three screens share rows to compare").toBeGreaterThan(4);
 
   for (const key of shared) {
-    // The rules screen renders the same rail as the builder, so it is compared whole.
-    expect
-      .soft(onRules[key], `${key} is the same row on the builder and the rules screen`)
-      .toBe(onBuilder[key]);
-    // Preview's step rows can differ in NUMBER (it lists them as `data-rail-item`, the
-    // builder as `data-rail-step-select`) and in height (its badges arrive earlier), so the
-    // row whose gap spans the step cluster is compared without that gap. Every other row's
-    // gap is between two rows both screens have, and is compared.
-    const spansTheSteps = key === "rules";
+    // Preview and the rules screen both render the SERVER rail, so their step rows are
+    // `data-rail-item="step:*"` while the builder's are `data-rail-step-select`. The rows
+    // whose gap spans the step cluster are therefore compared without that gap against the
+    // builder; every other row's gap is between two rows all three screens have.
+    const spansTheSteps = key === "section:rules";
     const strip = (value: string): string =>
       spansTheSteps ? value.replace(/ gapAbove=\S+$/u, "") : value;
+    expect
+      .soft(strip(onRules[key] ?? ""), `${key} is the same row on the builder and the rules screen`)
+      .toBe(strip(onBuilder[key] ?? ""));
     expect
       .soft(strip(onPreview[key] ?? ""), `${key} is the same row on the builder and preview`)
       .toBe(strip(onBuilder[key] ?? ""));

@@ -56,8 +56,9 @@ import { formatDateTime } from "@/lib/i18n/format";
  */
 
 /**
- * The persistent save-status chrome for an autosaving screen. Exactly one screen in this
- * app autosaves (the form builder), and this is the only save statement it carries.
+ * The persistent save-status chrome for an autosaving screen. Two screens in this app
+ * autosave - the form builder and, since issue #669, the rules route beside it - and each
+ * carries exactly one of these and no other save statement.
  *
  * The props are deliberately not the builder's own status union. An ambient strip needs
  * three facts - is a save in flight, did the last save fail, when did the last one land -

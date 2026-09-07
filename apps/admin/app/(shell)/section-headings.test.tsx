@@ -5,7 +5,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 /**
- * Issue 679: the five section routes of one form name their section in the `<h1>`.
+ * Issue 679: the section routes of one form name their section in the `<h1>`.
+ *
+ * SIX SINCE ISSUE #669, which gave rule editing a route (`/forms/[formId]/rules`) and
+ * therefore a sixth screen headed by this component. It arrived after the 2026-08-26
+ * amendment below, so it never carried the composed form-plus-section heading and takes the
+ * section's name alone like the five it joined.
  *
  * `/forms/[formId]/preview`, `/versions`, `/links`, `/responses` and `/webhooks` all
  * rendered the same heading - the form's slug - so five sibling screens of one form were
@@ -75,6 +80,7 @@ const SLUG = "Life insurance";
  * insurance".
  */
 const SECTIONS = [
+  ["rules", "Rules"],
   ["preview", "Preview"],
   ["versions", "Version history"],
   ["links", "Links"],
@@ -84,6 +90,7 @@ const SECTIONS = [
 
 /** The route file each section is served from, relative to this directory. */
 const ROUTE_FILES: Readonly<Record<(typeof SECTIONS)[number][0], string>> = {
+  rules: "forms/[formId]/rules/page.tsx",
   preview: "forms/[formId]/preview/page.tsx",
   versions: "forms/[formId]/versions/page.tsx",
   links: "forms/[formId]/links/page.tsx",
@@ -117,7 +124,7 @@ describe("the section routes name their section in the h1 (issue 679)", () => {
     expect(headingText(markup), "the form's name is the breadcrumb's job").not.toContain(SLUG);
   });
 
-  it("gives the five sections five different headings, which was the defect", () => {
+  it("gives the sections a different heading each, which was the defect", () => {
     const headings = SECTIONS.map(([section]) =>
       headingText(
         renderToStaticMarkup(
@@ -189,7 +196,7 @@ describe("the builder route names its screen, not its form (reversal of issue 67
     const source = routeSource("forms/[formId]/page.tsx");
 
     // The heading and the breadcrumb moved into `builder-breadcrumb.tsx` on 2026-08-26,
-    // because this route is three screens and only the browser knows which one is showing:
+    // because this route is two screens and only the browser knows which one is showing:
     // the crumb said "Form details" while the reader was looking at a step's questions.
     // What is asserted here is what still belongs to the route file - that it composes its
     // own header rather than routing through the shared one, which would take the publish
@@ -206,6 +213,9 @@ describe("the builder route names its screen, not its form (reversal of issue 67
     // because the defect this replaced was two lookups disagreeing: the rail read "Form
     // details" while the last crumb read "Builder".
     expect(messages["forms.tab.builder"]).toBe("Form details");
-    expect(messages["forms.rail.rules"]).toBe("Rules");
+    // "Rules" comes from `forms.tab.rules` since issue #669, not from a rail-only key. One
+    // name for one screen: the rail row, the breadcrumb crumb, the `<h1>` and the browser
+    // tab all read it, so the rail cannot give the screen a second name.
+    expect(messages["forms.tab.rules"]).toBe("Rules");
   });
 });
