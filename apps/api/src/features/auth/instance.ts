@@ -73,11 +73,20 @@ import type { Logger } from "../../logger.js";
  * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
  *
+ * **better-auth 1.7.3 refuses a second enrollment over a verified factor** rather than
+ * re-provisioning one: `enableTwoFactor` throws `TOTP_ALREADY_ENABLED` when a
+ * `twoFactor` row exists whose `verified` is not false, and the `verified` it writes is
+ * `skipVerificationOnEnable` alone rather than inheriting an existing `true`
+ * (`dist/plugins/two-factor/index.mjs`, the enable route). Read while taking the 1.7.3
+ * upgrade for issue #849 and recorded rather than acted on: it is stricter in the
+ * direction SEC-1 wants, no QCMS path calls enable on an enrolled account, and the
+ * break-glass gap it narrows is issue #432's, which has no reset command either way.
+ *
  * Both stored factors are **ciphertext under the admin auth secret**: the TOTP secret
- * (`dist/plugins/two-factor/index.mjs:135`) and the recovery codes
+ * (`dist/plugins/two-factor/index.mjs:135-138`) and the recovery codes
  * (`.../backup-codes/index.mjs:19-22`). That used to make `QCMS_ADMIN_AUTH_SECRET` a
  * key nobody could change without destroying every enrolment, which task 056 recorded
- * as permanent. It is not permanent any more: better-auth 1.7.2 carries a versioned
+ * as permanent. It is not permanent any more: better-auth 1.7.3 carries a versioned
  * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
  * version, keeps the old one for reading, and stored material re-encodes under the
  * current version as it is used. Recovery-code blobs re-encode on **every redemption**
@@ -86,7 +95,7 @@ import type { Logger } from "../../logger.js";
  *
  * Rotation is still not free of consequence, and the runbook says so: better-auth
  * derives its cookie-signing secret from the *current* version
- * (`dist/context/create-context.mjs:75`), so promoting a new version signs every live
+ * (`dist/context/create-context.mjs:76`), so promoting a new version signs every live
  * admin out. That is the correct trade for a key change and is a world away from what
  * it replaced, which was every authenticator dying with no way back in.
  */
@@ -156,8 +165,8 @@ export function warnIfBreachCheckDisabled(
  * ## Why this exists
  *
  * The throttle is better-auth's. Until issue #390 whether it ran was decided by
- * `NODE_ENV`: read against better-auth 1.7.2, the pinned version,
- * `dist/context/create-context.mjs:171` resolves it as
+ * `NODE_ENV`: read against better-auth 1.7.3, the pinned version,
+ * `dist/context/create-context.mjs:172` resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
  * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` (`nodeENV === "production"`,
  * over a `nodeENV` captured at `:30` on that module's first import). So the state of a security
@@ -175,9 +184,9 @@ export function warnIfBreachCheckDisabled(
  * ## Read back, never echoed
  *
  * Every field comes from `await auth.$context`, which is the object the limiter itself
- * consults: in better-auth 1.7.2, `dist/api/rate-limiter/index.mjs:290` gates on
+ * consults: in better-auth 1.7.3, `dist/api/rate-limiter/index.mjs:290` gates on
  * `ctx.rateLimit.enabled`, and
- * `getIP` (`@better-auth/core/dist/utils/ip.mjs:204`) reads the header list off
+ * `getIP` (`@better-auth/core/dist/utils/ip.mjs:205`) reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
  * would report what was asked for, which is exactly the thing already known and exactly
  * the thing that can be wrong.
@@ -192,11 +201,11 @@ export function warnIfBreachCheckDisabled(
  *
  * ## What is deliberately not in here
  *
- * The **numbers**. In better-auth 1.7.2 the sign-in rule is three attempts per ten
+ * The **numbers**. In better-auth 1.7.3 the sign-in rule is three attempts per ten
  * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:302-308`, matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
- * (`dist/plugins/two-factor/index.mjs:337-343`). Neither is reachable from the resolved
+ * (`dist/plugins/two-factor/index.mjs:338-344`). Neither is reachable from the resolved
  * context: both are module-private to the vendor. Restating them here would be an
  * inference printed as an observation, which is the failure mode this whole function
  * exists to avoid, so they stay in this comment where a reader can see them sourced.
@@ -210,8 +219,8 @@ export interface SignInThrottleState {
   readonly enabled: boolean;
   /**
    * The headers the limiter resolves a caller's address from, in order, as
-   * `getIP` reads them (better-auth 1.7.2, the pinned version:
-   * `@better-auth/core/dist/utils/ip.mjs:204`). Header
+   * `getIP` reads them (better-auth 1.7.3, the pinned version:
+   * `@better-auth/core/dist/utils/ip.mjs:205`). Header
    * **names**, never a value: an address identifies a person and SEC-8 and
    * SEC-13 keep it out of a log line, which is why this reports where the
    * limiter looks rather than what it found.
@@ -526,8 +535,8 @@ export function createAdminAuth(input: AdminAuthInput) {
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
-    // (issue #319). better-auth 1.7.2 resolves these together in
-    // `dist/context/create-context.mjs:69-81`: with `secrets` present it builds a
+    // (issue #319). better-auth 1.7.3 resolves these together in
+    // `dist/context/create-context.mjs:70-82`: with `secrets` present it builds a
     // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
     // whose `legacySecret` is `secret` - used only for ciphertext that predates the
     // `$ba$<version>$` envelope. That is what makes rotating this key a rotation
@@ -554,9 +563,9 @@ export function createAdminAuth(input: AdminAuthInput) {
     // SEC-1's brute-force throttle on sign-in, change-password and two-factor, stated
     // rather than inferred (issue #390).
     //
-    // better-auth 1.7.2, the pinned version, resolves this as
+    // better-auth 1.7.3, the pinned version, resolves this as
     // `options.rateLimit?.enabled ?? isProduction`
-    // (`dist/context/create-context.mjs:171`), and `isProduction` is
+    // (`dist/context/create-context.mjs:172`), and `isProduction` is
     // `nodeENV === "production"` over a `NODE_ENV` captured once when
     // `@better-auth/core/dist/env/env-impl.mjs` is first imported (`:30-32`). Passing a
     // value here takes the `??` branch away, so the state of a security control is no
@@ -643,7 +652,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           // Recovery codes are ciphertext at rest, under the versioned key set above
           // (issue #319, SEC-7).
           //
-          // This restates better-auth 1.7.2's own default rather than changing it:
+          // This restates better-auth 1.7.3's own default rather than changing it:
           // `dist/plugins/two-factor/index.mjs:25-27` builds `backupCodeOptions` as
           // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
           // an instance that passes nothing already encrypts. Verified against the

@@ -1,0 +1,43 @@
+-- better-auth 1.7.3 reverses the account identity change that 1.7.0 through 1.7.2
+-- introduced and `0017_account_issuer` implemented here. Accounts are recognized by
+-- `(providerId, accountId)` again, as in 1.6; nothing writes `issuer`, and 1.7.3's
+-- startup check refuses to boot against a `NOT NULL` column it never fills:
+--
+--   SchemaMismatchError [BetterAuthError]: Drizzle schema mismatch
+--     Required columns Better Auth never writes
+--       account.issuer
+--
+-- Source: the official upgrade guide, "Account identity keeps the provider key"
+-- (https://www.better-auth.com/docs/guides/1-7-upgrade-guide, read 2026-09-08). Its
+-- Postgres tab offers the reversible relaxation (`DROP NOT NULL` plus dropping the
+-- index) and its Prisma-and-Drizzle tab says to regenerate instead, because "the
+-- generated `account` model drops both the field and the compound unique index, and
+-- your own tooling produces the migration". This file is that output: the mirror in
+-- `src/schema/auth.ts` was reconciled against 1.7.3's own `getAuthTables`, which
+-- declares neither the field nor any index on `account`, and `drizzle-kit generate`
+-- emitted the two statements below.
+--
+-- Dropping rather than relaxing is the deliberate half, and it is the call 0017 already
+-- recorded: QCMS is pre-launch and no deployment's account rows have to survive (Code
+-- Owner, 2026-08-25). A nullable column left behind would be drift the mirror no longer
+-- describes, so the next `generate` would keep proposing this same drop.
+--
+-- There is nothing to back up and nothing to backfill. `issuer` held the one value QCMS
+-- could ever produce, `local:credential`, because `createInitialAdmin` mints an
+-- email-and-password account and SEC-1's endpoint allowlist is what keeps a social
+-- provider out. So the guide's duplicate-key check has nothing to find: one provider ID
+-- means `(providerId, accountId)` is as unique as `(issuer, accountId)` was, and the
+-- guide's warning about providers that shared an issuer collapsing into one row
+-- describes a configuration this deployment cannot hold.
+--
+-- Index before column, which the guide is explicit about. It matters on MySQL, which
+-- keeps an index whose column disappears and rebuilds it on the remaining ones; Postgres
+-- drops a dependent index with its column, so here the order is fidelity to the recipe
+-- rather than a correctness requirement.
+--
+-- SEC-10: this runs as `qcms_migrate`, the only role holding DDL, and it needs no grant
+-- change. The grants in the operator recipe (`docs/operations.md`) are table-level, so
+-- removing a column neither adds nor revokes anything `qcms_app` holds on `account`, and
+-- an index is not a privilege-bearing object.
+DROP INDEX "account_issuer_accountId_key";--> statement-breakpoint
+ALTER TABLE "account" DROP COLUMN "issuer";

@@ -41,6 +41,33 @@ async function triggerExists(testDb: TestDb, name: string): Promise<boolean> {
   return res.rowCount === 1;
 }
 
+/**
+ * `true` for `NOT NULL`, `false` for nullable, `undefined` for "no such column" - three
+ * answers rather than two, because the assertions below turn on the difference between a
+ * column that was relaxed and a column that is gone.
+ */
+async function columnIsNotNull(
+  testDb: TestDb,
+  table: string,
+  column: string,
+): Promise<boolean | undefined> {
+  const res = await testDb.client.query<{ is_nullable: string }>(
+    `select is_nullable from information_schema.columns
+       where table_schema = 'public' and table_name = $1 and column_name = $2`,
+    [table, column],
+  );
+  const row = res.rows[0];
+  return row === undefined ? undefined : row.is_nullable === "NO";
+}
+
+async function indexExists(testDb: TestDb, name: string): Promise<boolean> {
+  const res = await testDb.client.query(
+    `select 1 from pg_indexes where schemaname = 'public' and indexname = $1`,
+    [name],
+  );
+  return res.rowCount === 1;
+}
+
 describe("@roonga/qcms-db migrations", () => {
   describe("migrate from zero", () => {
     let testDb: TestDb;
@@ -60,6 +87,22 @@ describe("@roonga/qcms-db migrations", () => {
       for (const expected of EXPECTED_TABLES) {
         expect(tables, `missing table ${expected}`).toContain(expected);
       }
+    });
+
+    it("leaves account keyed on the provider pair, with no issuer column or index", async () => {
+      // better-auth 1.7.3 recognizes an account by `(providerId, accountId)`, as 1.6 did,
+      // and never writes `issuer` (issue #849, migration 0020). A `NOT NULL` column the
+      // library does not write is not dead weight: 1.7.3 refuses to boot against one, so
+      // the shape of this table at the end of the chain is a startup precondition rather
+      // than tidiness. Asserted against a real Postgres because that is what the running
+      // API meets; the Drizzle mirror it is checked against is source, not evidence.
+      expect(await columnIsNotNull(testDb, "account", "issuer")).toBeUndefined();
+      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(false);
+
+      // The floor under the two lines above: a query that found no `account` table at all
+      // would make both of them pass while asserting nothing.
+      expect(await columnIsNotNull(testDb, "account", "accountId")).toBe(true);
+      expect(await columnIsNotNull(testDb, "account", "providerId")).toBe(true);
     });
 
     it("installs the append-only and immutability triggers", async () => {
@@ -94,6 +137,39 @@ describe("@roonga/qcms-db migrations", () => {
       await applyMigrations(testDb.client, { from: 1, to: 1 });
       expect(await triggerExists(testDb, "answers_reject_update")).toBe(true);
       expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
+    });
+
+    it("applies 0020 over a database that 0017 left carrying account.issuer", async () => {
+      // The upgrade path a developer's own stack takes, which is the only one that can
+      // fail: a database created after 0020 never has the column, so migrating from zero
+      // proves nothing about the drop. Everything through 0019 first, so the starting
+      // state is the one 0017 built.
+      //
+      // The two indices are literals rather than a derivation because migration history
+      // is append-only and immutable once released (ADR-18): 0020 is index 20 for good,
+      // and a later migration lands at 21 without moving this boundary.
+      await applyMigrations(testDb.client, { to: 19 });
+      expect(await columnIsNotNull(testDb, "account", "issuer")).toBe(true);
+      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(true);
+
+      // 0020 alone, and the column is gone rather than relaxed. The upgrade guide's
+      // Postgres tab would have left it nullable; its Drizzle tab regenerates, and the
+      // regenerated model has no field to leave behind.
+      await applyMigrations(testDb.client, { from: 20, to: 20 });
+      expect(await columnIsNotNull(testDb, "account", "issuer")).toBeUndefined();
+      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(false);
+
+      // And an insert better-auth's shape can satisfy now succeeds, which is the thing
+      // the `NOT NULL` column actually broke: a sign-up naming no `issuer`.
+      await testDb.client.query(
+        `insert into "user" ("id", "name", "email") values ('u-849', 'Upgrade Probe', 'upgrade-probe@qcms.test')`,
+      );
+      await testDb.client.query(
+        `insert into "account" ("id", "accountId", "providerId", "userId")
+           values ('a-849', 'upgrade-probe@qcms.test', 'credential', 'u-849')`,
+      );
+      const accounts = await testDb.client.query(`select "providerId" from "account"`);
+      expect(accounts.rows).toEqual([{ providerId: "credential" }]);
     });
   });
 });
