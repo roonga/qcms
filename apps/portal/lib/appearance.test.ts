@@ -103,13 +103,13 @@ describe("the appearance cookie", () => {
  */
 describe("the cookies one submission writes", () => {
   it("writes exactly the axes that were chosen, in axis order", () => {
-    expect(appearanceCookiesFor({ mode: "hc", font: "atkinson", density: "compact" }, false)).toEqual(
-      [
-        appearanceCookie("qcms-theme", "hc", false),
-        appearanceCookie("qcms-font", "atkinson", false),
-        appearanceCookie("qcms-density", "compact", false),
-      ],
-    );
+    expect(
+      appearanceCookiesFor({ mode: "hc", font: "atkinson", density: "compact" }, false),
+    ).toEqual([
+      appearanceCookie("qcms-theme", "hc", false),
+      appearanceCookie("qcms-font", "atkinson", false),
+      appearanceCookie("qcms-density", "compact", false),
+    ]);
   });
 
   // An absent axis means "not chosen in this submission", never "reset to the
@@ -124,7 +124,10 @@ describe("the cookies one submission writes", () => {
   // The attributes are not restated here, deliberately: they come from
   // `appearanceCookie` and are pinned above, once, for both paths.
   it("carries Secure through to every cookie it writes", () => {
-    const written = appearanceCookiesFor({ mode: "dark", font: "system", density: "spacious" }, true);
+    const written = appearanceCookiesFor(
+      { mode: "dark", font: "system", density: "spacious" },
+      true,
+    );
     expect(written).toHaveLength(3);
     for (const cookie of written) expect(cookie).toMatch(/; Secure$/u);
   });

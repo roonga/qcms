@@ -100,10 +100,7 @@ export type BeltRoute =
  * this line is the only place that fact exists.
  */
 export type BeltOutcome =
-  | "redirect-to-entry"
-  | "redirect-to-page"
-  | "redirect-to-step"
-  | "forbidden";
+  "redirect-to-entry" | "redirect-to-page" | "redirect-to-step" | "forbidden";
 
 /**
  * How the request's `Sec-Fetch-Site` header reads.

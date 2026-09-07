@@ -385,7 +385,8 @@ body {
    exactly the mode where the colour half of the selected treatment carries the
    least: the check glyph and the 600 weight are the signals that always hold, and
    this keeps the border a third one instead of collapsing it. */
-:root.hc :is(
+:root.hc
+  :is(
     .qcms-appearance__summary,
     .qcms-appearance__select,
     .qcms-appearance__apply,

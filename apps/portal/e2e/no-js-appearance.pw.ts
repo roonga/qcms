@@ -48,9 +48,17 @@ function chip(page: Page, group: "mode" | "density", value: string) {
   return page.locator(`[data-testid="appearance-${group}"] label[data-value="${value}"]`);
 }
 
-/** The `<noscript>`-revealed submit button, which is the whole no-JS seam. */
+/**
+ * The `<noscript>`-revealed submit button, which is the whole no-JS seam.
+ *
+ * Located by class rather than by role, deliberately: a role query does not match an
+ * element that is out of the accessibility tree, so it would report "hidden" and
+ * "absent" identically - and the difference is the entire design here (rendered
+ * always, revealed by CSS). The accessible name is asserted separately, once, where
+ * the button is meant to be reachable.
+ */
 function applyButton(page: Page) {
-  return page.getByRole("button", { name: "Apply appearance" });
+  return page.locator("button.qcms-appearance__apply");
 }
 
 /**
@@ -63,19 +71,23 @@ function applyButton(page: Page) {
  * it paints.
  */
 async function applyAppearance(page: Page): Promise<string> {
-  const posted = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" && new URL(response.url()).pathname === APPEARANCE_ROUTE,
-  );
   const served = page.waitForResponse(
     (response) => response.request().isNavigationRequest() && response.status() === 200,
   );
   await applyButton(page).click();
+  const response = await served;
 
-  // The route answers 303, which is what makes this post/redirect/get rather than a
-  // resubmit-on-reload. A 200 here would mean the route rendered something itself.
-  expect((await posted).status()).toBe(303);
-  return await (await served).text();
+  // Walk back up the redirect chain rather than watching for the POST separately: this
+  // proves the page in hand IS the one the POST redirected to, which two independent
+  // waits could not. The 303 is what makes this post/redirect/get rather than a
+  // resubmit-on-reload, and a 200 there would mean the route rendered a page itself.
+  const posted = response.request().redirectedFrom();
+  expect(posted, "the served page did not come from a redirect").not.toBeNull();
+  expect(posted?.method()).toBe("POST");
+  expect(new URL(posted?.url() ?? "http://absent.invalid").pathname).toBe(APPEARANCE_ROUTE);
+  expect((await posted?.response())?.status()).toBe(303);
+
+  return await response.text();
 }
 
 /** The `qcms-` cookies currently in the jar, as a name -> value map. */
@@ -104,8 +116,11 @@ test("the appearance control is reachable and operable with JavaScript disabled"
   await openAppearance(page);
 
   // The scripted path's only difference is this button, which is why it is the one
-  // element the `<noscript>` rule reveals.
+  // element the `<noscript>` rule reveals. Here it must be operable, so it is asserted
+  // through the accessibility tree as well: a visible button with no accessible name
+  // would satisfy the CSS locator and fail the respondent using it.
   await expect(applyButton(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Apply appearance" })).toBeVisible();
 
   // The form posts to the portal's own route, which `form-action 'self'` allows and
   // which carries the page to come back to.
@@ -141,7 +156,9 @@ test("FONT: a legibility face survives the redirect, with no script in play", as
   await page.goto(`/f/${slug}`);
   await openAppearance(page);
 
-  await expect(page.locator("html")).toHaveClass(new RegExp(`\\b${fontClass(HARNESS_FONT)}\\b`, "u"));
+  await expect(page.locator("html")).toHaveClass(
+    new RegExp(`\\b${fontClass(HARNESS_FONT)}\\b`, "u"),
+  );
 
   // Atkinson Hyperlegible is in the registry's Accessibility group and is one of the
   // two reasons this issue was raised rather than shrugged at.
@@ -197,7 +214,9 @@ test.describe("with scripting on, the enhanced path is unchanged", () => {
     await openAppearance(page);
 
     // Rendered, so the document is the same either way, and hidden, so a scripted
-    // respondent is never offered a button whose only effect would be a reload.
+    // respondent is never offered a button whose only effect would be a reload. The
+    // count assertion is what separates "hidden" from "not there".
+    await expect(applyButton(page)).toHaveCount(1);
     await expect(applyButton(page)).toBeHidden();
 
     // A marker that only survives if the page is never reloaded. Asserting the class

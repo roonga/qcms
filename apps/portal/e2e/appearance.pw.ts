@@ -643,10 +643,10 @@ test("the appearance panel is axe-clean in every mode x density", async ({ page 
 });
 
 /* ==========================================================================
-   The no-JS posture: a control that cannot work is not shown.
+   The no-JS posture: a control that works without scripting is shown (issue #195).
    ========================================================================== */
 
-test("without JavaScript the controls are hidden and the configured default still applies", async ({
+test("without JavaScript the controls are shown, because they now work (issue #195)", async ({
   browser,
 }) => {
   const context = await browser.newContext({ javaScriptEnabled: false });
@@ -655,14 +655,18 @@ test("without JavaScript the controls are hidden and the configured default stil
     const { slug } = readFixtures();
     await page.goto(`${ORIGIN}/f/${slug}`);
 
-    // The brand mark is server-rendered, so a no-JS respondent still gets a branded,
-    // themed, readable page...
+    // The brand mark is server-rendered, so a no-JS respondent gets a branded, themed,
+    // readable page from the configured defaults...
     await expect(page.getByTestId("brand-mark")).toHaveText(HARNESS_BRAND_NAME);
     await expect(page.locator("html")).toHaveClass(/\blight\b/u);
 
-    // ...but not a radio they can move that changes nothing. The `<noscript>` rule in
-    // `app/layout.tsx` hides the disclosure entirely.
-    await expect(page.getByTestId("appearance")).toBeHidden();
+    // ...and, since issue #195, a switchable one. This assertion was `toBeHidden` for
+    // as long as the controls were a scripted enhancement: 053 hid the disclosure with
+    // a `<noscript>` rule because a radio a respondent can move that changes nothing is
+    // worse than no control. The answer was to make it change something. What each axis
+    // then does without scripting is `no-js-appearance.pw.ts`; this file keeps the one
+    // assertion that says which posture the portal is in.
+    await expect(page.getByTestId("appearance")).toBeVisible();
   } finally {
     await context.close();
   }

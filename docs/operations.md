@@ -791,11 +791,11 @@ added later is covered without anyone remembering to instrument it.
 }
 ```
 
-| Field           | What it holds                                                                                                                                                                           |
-| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `beltRoute`     | Which route refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                               |
-| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                               |
-| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                        |
+| Field           | What it holds                                                                                                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `beltRoute`     | Which route refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                                                                                                                       |
+| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                                                                                                                       |
+| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                                                                                                                |
 | `beltOutcome`   | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step), `redirect-to-page` (returned to the page they were on with their appearance unchanged) or `forbidden` (a 403 to a hydrated `fetch()`) |
 
 **Reading the two signals together is the point.** They separate the old browser from the

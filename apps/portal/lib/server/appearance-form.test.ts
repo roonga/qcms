@@ -72,7 +72,9 @@ describe("the posted values are the enumerated ones or nothing", () => {
   // switch back from it - the same reasoning `resolveAppearance` applies on the way in.
   it("refuses a real registry key the deployment does not offer", () => {
     expect(parseAppearanceChoice(submission({ font: "opendyslexic" }), OFFERED)).toEqual({});
-    expect(parseAppearanceChoice(submission({ font: "opendyslexic" }), OFFERED).font).toBeUndefined();
+    expect(
+      parseAppearanceChoice(submission({ font: "opendyslexic" }), OFFERED).font,
+    ).toBeUndefined();
   });
 
   it("refuses every font when the deployment offers none, rather than accepting any", () => {
@@ -118,7 +120,10 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   // nothing about which rule refused them.
   it.each([
     ["an absolute URL on another origin", "https://evil.example/x"],
-    ["an absolute URL on our own origin, which is still not a relative reference", `${PORTAL_BASE}/s/ses_1`],
+    [
+      "an absolute URL on our own origin, which is still not a relative reference",
+      `${PORTAL_BASE}/s/ses_1`,
+    ],
     ["a protocol-relative reference", "//evil.example/x"],
     // The URL parser treats a backslash as a slash for special schemes, so this is the
     // line above wearing a disguise. It is the case a `startsWith("//")` check misses.
@@ -145,7 +150,9 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
     // The candidate leg resolves against a synthetic origin on purpose: an unset or
     // mis-set `QCMS_PORTAL_BASE_URL` must not be able to turn this check off.
     for (const base of [undefined, "", "not a url", "https://other.example"]) {
-      expect(safeReturnPath("//evil.example/x", undefined, base), String(base)).toBe(DEFAULT_RETURN);
+      expect(safeReturnPath("//evil.example/x", undefined, base), String(base)).toBe(
+        DEFAULT_RETURN,
+      );
       expect(safeReturnPath("/s/ses_1", undefined, base), String(base)).toBe("/s/ses_1");
     }
   });
