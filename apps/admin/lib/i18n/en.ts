@@ -11,7 +11,11 @@
  *   sign-in and 2FA screens can render. They say nothing about which factor was
  *   wrong or whether the account exists, because SEC-1 requires an unknown email
  *   and a wrong password to be indistinguishable. Making them one string each is
- *   what stops a future edit from adding a helpful, enumerating variant.
+ *   what stops a future edit from adding a helpful, enumerating variant. The `signIn.`
+ *   prefix is now load-bearing rather than historical: `lib/auth-failure-message.ts` is
+ *   the single mapping every one of those screens reads, which is what makes the claim
+ *   above true (it was not, until issue #805 - the 2FA screens could render only the
+ *   first of the two, and reported a throttled `429` as a wrong code).
  * - **`recovery.*`** never promises the codes can be seen again, because they
  *   cannot: they are ciphertext at rest and no route decrypts them for a reader
  *   (issue #319 removed the one that did), so this is their one display.
