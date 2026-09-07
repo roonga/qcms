@@ -64,6 +64,25 @@ describe("env reference matches the code that reads the variables", () => {
     expect(documented(process)).toEqual(scanned(process));
   });
 
+  it.each(APPLICATION_PROCESSES.filter((name) => name !== "api"))(
+    "keeps the framework-set NEXT_RUNTIME out of %s's operator table",
+    (process) => {
+      const source = readFileSync(
+        join(REPOSITORY_ROOT, `apps/${process}/instrumentation.ts`),
+        "utf8",
+      );
+
+      // The read is real: `instrumentation.ts` branches on it so the boot-refusal write
+      // to `process.stderr` compiles away on the edge target (issue #829).
+      expect(scanSourceText(source).names).toContain("NEXT_RUNTIME");
+
+      // And it is still not an operator's to set, which is the whole reason the scan
+      // drops it. If the read ever goes, this fails and the exclusion should go with it.
+      expect(scanned(process)).not.toContain("NEXT_RUNTIME");
+      expect(documented(process)).not.toContain("NEXT_RUNTIME");
+    },
+  );
+
   it("agrees with the API parsers about which variables are required", () => {
     // The API's composition root is the only process whose requirement is machine
     // readable: every variable arrives through a `parseX(env, "NAME", ...)` helper,

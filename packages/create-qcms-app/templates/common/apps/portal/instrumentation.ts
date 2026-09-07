@@ -75,9 +75,17 @@ function apiOrigin(): string | undefined {
  * The guard on `process.exit` is for Next's edge runtime, which loads this hook too
  * and has no such function. Neither app runs anything on the edge runtime today; if
  * one ever does, it re-throws and gets the 500-on-everything behaviour instead of a
- * `TypeError` that hides the real message. `process.stderr` can be absent in that
- * sandbox for the same reason, so the write is optional-called: a missing stream must
- * not become the exception that swallows a refusal an operator needs to read.
+ * `TypeError` that hides the real message. `process.stderr` is absent in that sandbox
+ * for the same reason, and the write stays optional-called because a missing stream
+ * must not become the exception that swallows a refusal an operator needs to read.
+ *
+ * The `NEXT_RUNTIME` gate around that write is about **compilation**, not the call
+ * (issue #829). Turbopack compiles this file for the edge target as well as the Node
+ * one, and a bare `process.stderr` there is a Node API the edge runtime does not have,
+ * so every dev boot and every build reported `Ecmascript file had an error` against
+ * this line. Next substitutes a literal for `process.env.NEXT_RUNTIME` at build time,
+ * so the edge bundle compiles to `if ("edge" === "nodejs")` and drops the branch,
+ * reference and all, while the Node bundle keeps the write unchanged.
  *
  * The twin is `apps/admin/instrumentation.ts`. **Change one, change the other.**
  */
@@ -90,7 +98,9 @@ function refuseUnsafeConfiguration(): void {
     // first, fixes it, and is told about the second on the next start.
     assertNoPlaceholderSecrets();
   } catch (error) {
-    process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    if (process.env.NEXT_RUNTIME === "nodejs") {
+      process.stderr?.write(`${error instanceof Error ? error.message : String(error)}\n`);
+    }
     if (typeof process.exit === "function") process.exit(1);
     throw error;
   }
