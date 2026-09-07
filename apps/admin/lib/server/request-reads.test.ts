@@ -414,9 +414,11 @@ describe("the server reads one render of the form library list makes (issue 686)
     });
   });
 
-  it("sends no query string at all when nothing is filtered", async () => {
+  it("sends no query string at all when it is asked for no filters", async () => {
     // Not `?search=&status=&sort=`: an empty parameter is a value the API would have to
-    // decide about, and the unfiltered library should ask the plain route.
+    // decide about. The library screen always names a sort, so this is the shape the
+    // OTHER two callers get - `/responses` and `/webhooks` each read the form list with
+    // no filters for their form pickers, and they must keep asking the plain route.
     expect((await renderFormsListScreen()).listPaths).toEqual(["/forms"]);
   });
 

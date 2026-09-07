@@ -41,16 +41,22 @@ const FORM_ROW = {
   publishedAt: "2026-02-01T00:00:00.000Z",
 };
 
-/**
- * What the stubbed `listForms` answers next, and what it was last asked for.
- *
- * The parameters are declared even though neither is read: the filter argument is the
- * subject of the first describe below, and an undeclared parameter list types
- * `mock.calls` as the empty tuple, where reading index 1 is a type error rather than the
- * assertion it looks like.
- */
+/** What the stubbed `listForms` answers next. */
 let formsResult: unknown = { ok: true, data: [FORM_ROW] };
-const listForms = vi.fn((_session: unknown, _filters?: unknown) => Promise.resolve(formsResult));
+
+/**
+ * The filter argument of the most recent call, which the first describe below is about.
+ *
+ * Recorded by the stub rather than read off `mock.calls`: a `vi.fn` whose parameters are
+ * only declared to be ignored types its call tuple as empty, so the index that would
+ * carry the filters is a type error rather than the assertion it looks like.
+ */
+let askedFilters: unknown;
+
+const listForms = vi.fn((_session: unknown, filters?: unknown) => {
+  askedFilters = filters;
+  return Promise.resolve(formsResult);
+});
 
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
@@ -77,11 +83,12 @@ async function renderForms(searchParams: Record<string, string | string[]> = {})
 
 /** What the page asked the API for on its most recent render. */
 function askedFor(): unknown {
-  return listForms.mock.calls.at(-1)?.[1];
+  return askedFilters;
 }
 
 beforeEach(() => {
   formsResult = { ok: true, data: [FORM_ROW] };
+  askedFilters = undefined;
   listForms.mockClear();
 });
 
