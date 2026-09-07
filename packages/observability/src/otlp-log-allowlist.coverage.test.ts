@@ -43,6 +43,17 @@
  *   in the workspace contains one.
  * - **A template literal is not matched**, which is deliberate: an interpolated message
  *   cannot be an allowlist member anyway, and would arrive blanked.
+ *
+ * ## Where the rest of this claim lives
+ *
+ * A scan is only as good as the run that executes it, and this one reads the whole
+ * workspace while turbo caches it as one package's test task. That mismatch made the
+ * gate replay a stale green for exactly the change it exists to catch: a new log literal
+ * in an app changed nothing the task hashed (issue #825). The cache key is widened to
+ * match this walk by the `@roonga/qcms-observability#test` entry in `turbo.json`, and
+ * `scripts/turbo-scan-inputs.test.ts` derives {@link SOURCE_ROOTS} and
+ * {@link SOURCE_DIRS} from this file to hold the two together. So widening the walk
+ * below is a complete change only once that entry follows it, and that gate says so.
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";

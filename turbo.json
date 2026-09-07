@@ -133,6 +133,43 @@
     "test": {
       "dependsOn": ["build"]
     },
+    // The one test task in this repository whose real inputs are the whole workspace
+    // (issue #825). `packages/observability/src/otlp-log-allowlist.coverage.test.ts`
+    // resolves the repository root from its own module URL and walks every workspace
+    // member's `src` and `lib`, so that a new log message literal anywhere is either
+    // admitted to the OTLP export vocabulary or written down as deliberately opaque.
+    //
+    // Its CACHE KEY, though, was this package plus its dependencies, and the dependency
+    // arrow points the wrong way: `@roonga/qcms-observability` is imported BY the apps it
+    // scans, so no amount of `dependsOn` reaches them. A lane adding a log call in
+    // `apps/api/src` therefore changed nothing this task hashed, turbo replayed
+    // "cache hit, replaying logs", and `pnpm verify` was green locally on a warm cache
+    // while CI failed cold on the same commit. Confirmed live during PR #824, with both
+    // green local verifies logging a replay for this exact task while the new literals
+    // were unclassified.
+    //
+    // That is the #560 shape one level up: there a task read `dist` directories its graph
+    // did not order, here a task reads source files its cache key does not cover. A gate
+    // whose real inputs exceed its cache key does not fail late, it passes wrongly.
+    //
+    // The four globs mirror the scan's own reach (`SOURCE_ROOTS` x `SOURCE_DIRS` in that
+    // file), and `scripts/turbo-scan-inputs.test.ts` derives both sides and fails if they
+    // drift apart, so widening the walk cannot silently outrun the cache key again.
+    // `$TURBO_DEFAULT$` keeps the package's own files, which the globs do not name.
+    //
+    // The cost is real and is the point: this task now misses the cache whenever any app
+    // or package source changes, which is most commits. It is a sub-second Vitest project,
+    // and the alternative is a gate that reports on a tree it did not read.
+    "@roonga/qcms-observability#test": {
+      "dependsOn": ["build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/apps/*/src/**",
+        "$TURBO_ROOT$/apps/*/lib/**",
+        "$TURBO_ROOT$/packages/*/src/**",
+        "$TURBO_ROOT$/packages/*/lib/**"
+      ]
+    },
     "typecheck": {
       "dependsOn": ["^build"]
     },
