@@ -58,7 +58,7 @@
  *     does not match it: the digits are forty characters from the name. Adjacency is
  *     what keeps the false-positive rate at zero, and a gate people disable is worth
  *     less than a gate with a documented gap. Write "better-auth 1.7.3" rather than
- *     "the pinned 1.7.2" and the claim is covered.
+ *     "the pinned 1.7.3" and the claim is covered.
  *   - **Whether the cited line is still the right line.** This gate checks the digit.
  *     It cannot check that `dist/cookies/index.mjs:23` still points at the branch the
  *     prose says it does, and that is the more common failure: of the twenty-one
