@@ -38,6 +38,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * The `memo` switch is what makes this a measurement rather than an assertion: the same
  * render is counted with the memo inert (which is exactly the shipped behaviour before
  * this change) and with it live.
+ *
+ * ## The same arithmetic one screen over (issue #808)
+ *
+ * The question detail screen is the same three trees around a different resource: the
+ * layout reads the session, `questions/[questionId]/page.tsx` reads the session, the
+ * question and the selected version's preview, and `@rail/questions/[questionId]/page.tsx`
+ * reads the session and, through `loadQuestionRail`, the question again. Six round trips
+ * for three distinct answers. #626 fixed the form side and stopped there because its issue
+ * covered form-scoped screens; `getQuestion` now memoizes at its own definition the way
+ * `getForm` does, and the second describe below counts it the same way.
+ *
+ * The preview is this screen's `validateDraft`: a different resource rather than a
+ * duplicate, asked for once per render, and left alone.
  */
 
 /** Whether the stand-in memo is live for the next module import. */
@@ -101,16 +114,47 @@ const FORM_BODY = {
   challengeEnforceable: true,
 };
 
+const QUESTION_ID = "qst_email";
+
+const QUESTION_BODY = {
+  questionId: QUESTION_ID,
+  slug: "email",
+  createdAt: "2026-01-01T00:00:00.000Z",
+  versions: [
+    {
+      questionId: QUESTION_ID,
+      version: 1,
+      status: "published",
+      definition: { type: "shortText", label: { en: "Email" } },
+      publishedAt: "2026-01-02T00:00:00.000Z",
+    },
+  ],
+};
+
+/**
+ * The preview body is never read here, only counted: `getPreview` casts what it receives
+ * and this file's subject is which paths left the app, not what came back on them.
+ */
+const PREVIEW_BODY = {};
+
+/** Which fixture a path gets back, so one mock serves both screens. */
+function bodyFor(path: string): unknown {
+  if (path.endsWith("/draft/validate")) return { valid: true, issues: [] };
+  if (path.endsWith("/preview")) return PREVIEW_BODY;
+  if (path.startsWith("/questions/")) return QUESTION_BODY;
+  return FORM_BODY;
+}
+
 /** The session read, counted where it leaves this app: one call, one round trip. */
 const proxiedSession = vi.fn(() => Promise.resolve(SESSION_BODY));
 
 /** Every credentialed API call, so a path can be attributed to the screen that made it. */
 const adminApiFetch = vi.fn((_session: unknown, path: string) =>
   Promise.resolve(
-    new Response(
-      JSON.stringify(path.endsWith("/draft/validate") ? { valid: true, issues: [] } : FORM_BODY),
-      { status: 200, headers: { "content-type": "application/json" } },
-    ),
+    new Response(JSON.stringify(bodyFor(path)), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }),
   ),
 );
 
@@ -167,6 +211,51 @@ async function renderFormScreen(): Promise<RenderReads> {
   };
 }
 
+/** What one render of the question detail screen asked the server for. */
+interface QuestionRenderReads {
+  readonly sessionReads: number;
+  readonly questionReads: number;
+  readonly previews: number;
+}
+
+/**
+ * Render the question detail screen's three server trees and count what left the app.
+ *
+ * The page's preview read is deliberately driven by the question it just read, the way
+ * `selectVersion` drives it on the real screen: the second read of the question is the
+ * thing under measurement, so the sequence has to be the one the screen actually runs
+ * rather than two independent calls that happen to use the same id.
+ */
+async function renderQuestionScreen(): Promise<QuestionRenderReads> {
+  vi.resetModules();
+  proxiedSession.mockClear();
+  adminApiFetch.mockClear();
+
+  const { requireAdminSession } = await import("./session.ts");
+  const { getPreview, getQuestion } = await import("./questions.ts");
+  const { loadQuestionRail } = await import("./question-rail.ts");
+
+  // app/(shell)/layout.tsx
+  await requireAdminSession();
+
+  // app/(shell)/questions/[questionId]/page.tsx
+  const pageSession = await requireAdminSession();
+  const detail = await getQuestion(pageSession, QUESTION_ID);
+  const selected = detail.ok ? (detail.data.versions.at(-1)?.version ?? 1) : 1;
+  await getPreview(pageSession, QUESTION_ID, selected);
+
+  // app/(shell)/@rail/questions/[questionId]/page.tsx
+  const railSession = await requireAdminSession();
+  await loadQuestionRail(railSession, QUESTION_ID);
+
+  const paths = adminApiFetch.mock.calls.map(([, path]) => path);
+  return {
+    sessionReads: proxiedSession.mock.calls.length,
+    questionReads: paths.filter((path) => path === `/questions/${QUESTION_ID}`).length,
+    previews: paths.filter((path) => path.endsWith("/preview")).length,
+  };
+}
+
 describe("the server reads one render of a form-scoped screen makes", () => {
   beforeEach(() => {
     memo.enabled = true;
@@ -192,5 +281,33 @@ describe("the server reads one render of a form-scoped screen makes", () => {
   it("still runs the draft validation per render, which is not a duplicate", async () => {
     const { validations } = await renderFormScreen();
     expect(validations).toBe(1);
+  });
+});
+
+describe("the server reads one render of the question detail screen makes", () => {
+  beforeEach(() => {
+    memo.enabled = true;
+  });
+
+  it("asks for the session once and the question once", async () => {
+    expect(await renderQuestionScreen()).toEqual({
+      sessionReads: 1,
+      questionReads: 1,
+      previews: 1,
+    });
+  });
+
+  it("made six calls for the same three answers before the request memo", async () => {
+    memo.enabled = false;
+    expect(await renderQuestionScreen()).toEqual({
+      sessionReads: 3,
+      questionReads: 2,
+      previews: 1,
+    });
+  });
+
+  it("still compiles the selected version's preview per render, which is not a duplicate", async () => {
+    const { previews } = await renderQuestionScreen();
+    expect(previews).toBe(1);
   });
 });
