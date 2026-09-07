@@ -106,6 +106,10 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 | `drizzle-orm`                      | Young, VC-funded                                             | No magic used - migrations are plain SQL files, helpers are thin; exit to Kysely/raw SQL is bounded                     |
 | `ai` (Vercel AI SDK) + `@ai-sdk/*` | Vercel-owned - same steering/churn profile as Next/Turborepo | Vendor-agnostic LLM layer for 041 only; confined behind the `DraftAssistant` seam, so a swap touches one adapter file   |
 
+### Schema-coupled packages are exact-pinned in the apps
+
+**A package whose startup behaviour is a function of the database schema carries an exact version in `apps/*/package.json`, not a caret range** (issue #849; the caret-range concern issue #125 raised about framework packages). `better-auth` is the one that qualifies today, pinned at `1.7.2`: it validates the generated Drizzle schema when the server boots and refuses to start on a mismatch, so a patch release that changes which columns it writes is a breaking change for this repository whatever its version number says. The pin lives in the app rather than the template because `packages/create-qcms-app/templates/**` is generated from `apps/**` and the seam gate demands byte fidelity, so run `pnpm qcms:sync-templates` after moving it. The reason it has to be a pin at all is that the monorepo and a scaffolded project are protected differently: `pnpm-lock.yaml` holds this repository to a resolved version, while a scaffolded project has no workspace lockfile and resolves the template's ranges fresh from the registry, so a caret range lets the scaffold drift ahead of the monorepo and go red on whichever pull request happens to be in flight. Moving the pin is a deliberate upgrade with the schema work and the `packages/db` migration in the same change, never a range widening.
+
 ### The release-age hold (`minimumReleaseAge`), and what a refusal means
 
 **pnpm 11 holds newly published versions back, and this repository now sets that hold explicitly and strictly** (issue #455; Code Owner ruling of 2026-09-04).
