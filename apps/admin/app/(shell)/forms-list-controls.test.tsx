@@ -41,9 +41,16 @@ const FORM_ROW = {
   publishedAt: "2026-02-01T00:00:00.000Z",
 };
 
-/** What the stubbed `listForms` answers next, and what it was last asked for. */
+/**
+ * What the stubbed `listForms` answers next, and what it was last asked for.
+ *
+ * The parameters are declared even though neither is read: the filter argument is the
+ * subject of the first describe below, and an undeclared parameter list types
+ * `mock.calls` as the empty tuple, where reading index 1 is a type error rather than the
+ * assertion it looks like.
+ */
 let formsResult: unknown = { ok: true, data: [FORM_ROW] };
-const listForms = vi.fn(() => Promise.resolve(formsResult));
+const listForms = vi.fn((_session: unknown, _filters?: unknown) => Promise.resolve(formsResult));
 
 vi.mock("@/lib/server/session", () => ({
   requireAdminSession: () => Promise.resolve(SESSION),
