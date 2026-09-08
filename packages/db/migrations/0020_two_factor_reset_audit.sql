@@ -33,10 +33,25 @@ CREATE TABLE "two_factor_resets" (
 -- own guarded revoke as well, for the separate reason that db-roles re-runs on every
 -- `up` and would otherwise re-grant this on the next boot.
 --
--- Guarded on the role existing, because most databases this runs against have no
--- qcms_app: the Testcontainers harness migrates as the container's superuser, and so
--- does a single-credential development database. An unguarded REVOKE would fail with
--- "role qcms_app does not exist" and take every one of those with it.
+-- Guarded on the role existing, because an unguarded REVOKE would fail with "role
+-- qcms_app does not exist" and take every database that has no such role with it.
+-- That set is larger than it first looks, and the last member of it is the one worth
+-- stating plainly:
+--
+--   * the Testcontainers harness, which migrates as the container's superuser;
+--   * a single-credential development database, same;
+--   * and a deployment that followed the recipe but RENAMED the application role.
+--
+-- On that third one the guard is false, the revoke does not run, and the renamed role
+-- keeps all four privileges on this table. The name is a literal because a migration
+-- cannot know a name an operator chose - it runs before anything could ask - and a
+-- blanket revoke from every non-owner role would strip qcms_reporting of the SELECT
+-- the reporting recipe grants it. So this control reaches the shipped role names and
+-- not an arbitrary one, which is deliberately WEAKER than the reset command's own
+-- SEC-10 guard: that one tests schema ownership precisely so it survives a rename.
+-- An operator who renames the application role carries this revoke into their own
+-- recipe; docs/operations.md says so beside the SQL, and docs/SECURITY_DESIGN.md
+-- section 2.1 records the limit rather than claiming the stronger property.
 DO $$
 BEGIN
 	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app') THEN

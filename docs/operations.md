@@ -497,9 +497,24 @@ you run it, and on Compose the `db-roles` one-shot runs on every `up`, so withou
 line the audit table would quietly regain the DML pass on the next boot after it was
 created. Both copies are idempotent.
 
+**If you renamed the application role, this revoke is yours to carry.**
+All three copies name `qcms_app` as a literal, so on a deployment that calls it something
+else the migration's guard is false, the revoke never runs, and your application role
+keeps all four privileges on the audit table.
+That is a real limit and not an oversight: a migration cannot know a name you chose, and
+revoking from every non-owner role instead would strip `qcms_reporting` of the `SELECT`
+the reporting recipe grants it.
+So if you renamed it, add the line to your own recipe with your name in place of
+`qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
+Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
+the application credential by testing **schema ownership** rather than a role name, so
+that guard survives a rename and this one does not.
+
 `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the outcome from both
 sides against a real Postgres: `qcms_app` holds none of the four on `two_factor_resets`,
 and `qcms_migrate` holds the `INSERT` and `SELECT` the command needs.
+Those assertions cover the shipped names, because those are the names the shipped recipe
+uses.
 
 `qcms_app` deliberately gets no `TRUNCATE`, no `REFERENCES` and no `TRIGGER`. The two
 sanctioned whole-session delete paths (erasure and the retention purge) are ordinary

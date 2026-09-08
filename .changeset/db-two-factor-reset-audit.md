@@ -10,6 +10,22 @@ database role, how many factor rows went, and whether the account was enrolled. 
 foreign key to `user`, on the `erasure_tombstones` precedent - an audit record that
 cascades away with the thing it describes is not an audit record.
 
+**The migration also revokes, and that is the part an upgrade changes for you.** The
+audit table is migrate-only, so `0020` takes `SELECT`, `INSERT`, `UPDATE` and `DELETE`
+on it back from `qcms_app` after creating it - an audit row the credential serving
+traffic can rewrite or delete records nothing against the attacker the SEC-10 role split
+is drawn against. It has to be a revoke because neither `GRANT ... ON ALL TABLES` nor
+`ALTER DEFAULT PRIVILEGES` can name an exception, so the blanket grant lands and is
+taken back. Nothing on the request path reads or writes this table, so no application
+code is affected; only the privilege changes.
+
+Two consequences worth knowing before you upgrade. The revoke is guarded on the role
+existing, so a database migrated as a single superuser (a Testcontainers harness, a
+development database) is unaffected. And it names `qcms_app` as a literal, because a
+migration cannot know a name you chose: **if you renamed your application role, this
+revoke does not reach it** and you carry the line into your own role recipe.
+`docs/operations.md` has the SQL and the reasoning.
+
 Four helpers come with it. `findAdminsByEmail` resolves an account case-insensitively,
 which is what makes a two-account address an ambiguity a caller can refuse rather than
 guess at. `clearAdminTwoFactor` deletes the `twoFactor` row and clears
