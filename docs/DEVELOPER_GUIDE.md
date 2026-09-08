@@ -315,6 +315,53 @@ The admin has the same marker and the same wait (`apps/admin/e2e/support/hydrati
 
 **When a red browser run might not be yours.** `verify:browser` prints a cross-lane contention report whenever the run has failures (issue #395): the host load and Docker census at both ends of the run, which **other** seats' harness ports were live, and which failures carry a resource-contention shape (connection refused, boot timeout, container startup). If another lane's stack is already up when a run starts, it says so before the first test too. It annotates and never suppresses, so a red is still a red and the exit code is untouched; what it removes is the case where a lane spends a bisect discovering that a neighbour caused its failures. Seats partition ports, not the Docker daemon and not the CPU.
 
+## Looking at a committed PNG before writing prose about it
+
+**Gate prose describing a rendering is written from the rendering, not from the intent.**
+Task 057 is why the rule exists.
+The word "ellipsizing" travelled from a PR body into a gate README, a review comment and a relay to the Code Owner while the column in the captured screenshot was actually hard-clipping mid-glyph.
+Four hands, and nobody had opened the file.
+Re-rendering the page is not the same check either: the evidence is the committed PNG, and a fresh render can differ from the captured frame for any number of reasons.
+
+**Open it with the Read tool.**
+An agent session's Read tool renders a PNG directly, so `Read` on the file path is the first move and the better look every time: it shows the actual glyphs, the actual colours, and the region a claim is about.
+Nothing below replaces it.
+
+**`pnpm png:preview` is the fallback for a terminal-only lane.**
+A shell-only session, a hook, or a log where an image cannot be attached still needs some answer to "what does that file show", and the alternative to a rough answer here is no answer, which is what put the wrong word in four places.
+It prints the dimensions and a downscaled ASCII preview using nothing but Node built-ins - `node:zlib` inflates the image data and the script does the rest - so it adds no dependency and works from any checkout:
+
+```sh
+# Any PNG path. A failing Playwright run leaves its captures under the config's
+# `outputDir`, `apps/portal/.playwright/output/<test-name>/test-failed-1.png`.
+pnpm png:preview apps/portal/.playwright/output/summary-a11y/test-failed-1.png
+pnpm png:preview <file.png> --width 100   # 8 to 200 columns, default 72
+```
+
+```text
+test-failed-1.png: 640x360 px, 8-bit colour type 2 (truecolour), non-interlaced
+preview 78x22 chars, 1 char = 8.2x16.4 px, ramp '@%#*+=-:. ' dark to light
+@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+##############################################################################
+
+  =*=:++:+ --.:: + -:  ==.-- ::.#: .#:*-: :-.#:  * -:  :---.:.: :-.#-.
+  +#=:++-#:#+++*:%:**  =+-#*-**.%:  %:*.%:#%:#:  %:**  *:%:*++#-#-.#-=-.=:.
+================----------------:::::::::::::::................
+@@@@@@@@%%%%%%%%########*******++++++++========--------::::::::........
+```
+
+That block is abridged: the run it came from printed all 22 rows, a black header bar, a line of text, and a left-to-right gradient.
+
+Read it for shape, not for glyphs.
+It answers "is this capture blank", "is the dark bar where I said it was", "does this half of the frame have content in it at all", and "is this a light theme or a dark one".
+It will not tell you an ellipsis from a clipped glyph, which is the 057 question, so a claim that fine still needs the Read tool or a human.
+
+Scope, and the refusals.
+It decodes non-interlaced 8-bit PNGs in colour types 0, 2, 4 and 6, which is everything Playwright and Chrome emit.
+Indexed colour, other bit depths and Adam7 interlacing are refused by name with exit 1 rather than half-decoded, because a preview that quietly renders the wrong pixels would reproduce the confident-and-wrong prose the tool exists to prevent.
+Alpha is composited over white, so a transparent capture reads as blank.
+`scripts/png-preview.mjs` carries the rest, and `scripts/png-preview.test.ts` builds its fixture PNGs in the test rather than committing binaries.
+
 ## Running work
 
 | You type             | What happens                                                                                                                              |
