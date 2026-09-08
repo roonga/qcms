@@ -457,7 +457,49 @@ ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
   GRANT USAGE ON SEQUENCES TO qcms_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
   GRANT USAGE ON SCHEMAS TO qcms_app;
+
+-- And the one table taken back out of that pass: the break-glass audit trail is
+-- MIGRATE-ONLY (issue #432). Guarded on the table existing, so this line is correct
+-- both here, before the first migration, where it does nothing, and on the re-run
+-- after an upgrade, where it does the work. See the note below the recipe.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'two_factor_resets') THEN
+    REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE two_factor_resets FROM qcms_app;
+  END IF;
+END $$;
 ```
+
+**`two_factor_resets` is migrate-only, and the revoke is in two places on purpose**
+(issue #432, Code Owner decision 2026-09-09).
+That table records that somebody cleared an administrator's second factor out of band
+with `qcms:reset-2fa`.
+The credential that performs a reset is the migration role, and the whole point of the
+split is that the credential serving traffic is not that one, so an audit row the API's
+own credential can `UPDATE` or `DELETE` proves nothing against the attacker this section
+is drawn against.
+
+It has to be a revoke rather than a narrower grant.
+Neither form above can name an exception: `ALTER DEFAULT PRIVILEGES` is keyed on
+(role, schema, object type) and has no per-table filter, so "every table this role
+creates except that one" is not expressible in Postgres.
+The grant lands and is taken back.
+
+The copy that matters on a **new** database is in migration 0020 itself, which runs as
+the table's owner in the same step that creates it, so a fresh deployment (or a fresh
+`create-qcms-app` scaffold) is correct with no post-migrate step for anyone to forget.
+That copy is guarded on the role existing, because most databases it runs against have
+no `qcms_app` at all: a Testcontainers harness and a single-credential development
+database both migrate as one superuser, and an unguarded revoke would fail on them.
+
+The copy in this recipe exists for the **re-run**.
+`GRANT ... ON ALL TABLES IN SCHEMA public` re-applies to every table that exists when
+you run it, and on Compose the `db-roles` one-shot runs on every `up`, so without this
+line the audit table would quietly regain the DML pass on the next boot after it was
+created. Both copies are idempotent.
+
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the outcome from both
+sides against a real Postgres: `qcms_app` holds none of the four on `two_factor_resets`,
+and `qcms_migrate` holds the `INSERT` and `SELECT` the command needs.
 
 `qcms_app` deliberately gets no `TRUNCATE`, no `REFERENCES` and no `TRIGGER`. The two
 sanctioned whole-session delete paths (erasure and the retention purge) are ordinary

@@ -118,6 +118,12 @@ What is left is SEC-10: the command runs as `qcms_migrate` and **refuses `qcms_a
 The check is ownership of the schema rather than the role's name, so it holds for an adopter who names their roles differently, and it means that reaching the credential that is on a running box serving traffic does not thereby reach this.
 Two more refusals bound the blast radius: an address matching zero or more than one account is refused rather than guessed at (the match is case-insensitive, and `user.email` is compared case-sensitively by Postgres, so two accounts can share one address as an operator reads it), and nothing is written at all without an explicit `--yes`.
 
+**The audit rows are writable only by the migration role (Code Owner decision, 2026-09-09).**
+`two_factor_resets` would otherwise have inherited `SELECT`, `INSERT`, `UPDATE` and `DELETE` from the blanket pass the role recipe hands `qcms_app`, and an audit row the credential serving traffic can rewrite or delete records nothing against the one attacker this split is drawn against.
+It is a revoke rather than a narrower grant because neither `GRANT ... ON ALL TABLES` nor `ALTER DEFAULT PRIVILEGES` can name an exception: default privileges are keyed on (role, schema, object type) with no per-table filter, so "every table this role creates except that one" is not expressible.
+The revoke is in migration 0020, which runs as the table's owner in the same step that creates it, so a fresh deployment and a fresh scaffold are correct with no post-migrate step; and again in the role recipe, because `db-roles` re-runs on every `up` and would otherwise re-grant the pass on the boot after the table appears.
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts both halves against a real Postgres.
+
 What this accepts, explicitly: **anyone holding the migration credential can remove any administrator's second factor.**
 That is the same person who can already `DROP TABLE`, so it grants no capability the credential did not carry, and the audit row is what makes the exercise visible afterwards.
 The row is appended even when there was nothing to clear, so a mistargeted run is visible rather than silent.
