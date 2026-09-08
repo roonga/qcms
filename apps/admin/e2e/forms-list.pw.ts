@@ -4,14 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import {
-  addStep,
-  chooseOption,
-  createForm,
-  field,
-  savedStamp,
-  waitForSaveAfter,
-} from "./support/forms.js";
+import { chooseOption, createForm, field } from "./support/forms.js";
 
 /**
  * The form library's search, status filter and sort, in the browser (issue 686).
@@ -82,40 +75,40 @@ async function listedSlugs(page: Page): Promise<string[]> {
 }
 
 /**
- * Create a form and make its title reach the stored draft.
+ * Why the fixtures are slugs and titles rather than slugs, titles and stored drafts.
  *
- * `POST /admin/forms` takes `formId`, `slug` and `defaultLocale` only, so the identity is
- * created with an EMPTY title and `/forms/new` carries what the author typed to the
- * builder in the query string. The builder seeds the working draft from it and the FIRST
- * AUTOSAVE is what persists it. So a form that has only just been created has no stored
- * title for the library's search to match, and the fixture has to make that save happen
- * rather than assume it: adding a step is the smallest edit that does, and waiting on the
- * save strip is what makes it a fact rather than a race.
+ * These three forms are created and left alone, so their stored drafts carry `title: {}`:
+ * `POST /admin/forms` takes `formId`, `slug` and `defaultLocale` only, and the title an
+ * author types on `/forms/new` reaches the draft through the builder's first autosave.
+ * Making that autosave happen here is not one more line - the builder refuses to save an
+ * unpersistable draft, and the smallest persistable form is one step holding one pin of a
+ * PUBLISHED question (`support/forms.ts` says so at the top). Building that three times
+ * would triple this fixture to prove a matching rule that belongs to the API and is
+ * pinned there, against a real stored title, in `forms.integration.test.ts`.
+ *
+ * So the browser assertions below are about the CONTROLS - each one operated, each one
+ * landing in the URL, the whole view restored from a link - and the slug is what they
+ * search on. What the search matches is the route's business and is tested as such
+ * (ADR-23: at the highest layer that exists for it, not the highest layer there is).
  */
-async function createSavedForm(page: Page, slug: string, title: string): Promise<void> {
-  await createForm(page, slug, title);
-  const before = await savedStamp(page);
-  await addStep(page, "Only step");
-  await waitForSaveAfter(page, before);
-}
 
 test("creates the library this spec reads, and closes one of its forms", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createSavedForm(page, ALPHA, "Alpha zebra");
+  await createForm(page, ALPHA, "Alpha zebra");
 
   // Bravo is the closed one, and it is closed here rather than later because
-  // `createSavedForm` leaves the browser on the builder of the form it just made. Closing
+  // `createForm` leaves the browser on the builder of the form it just made. Closing
   // needs no publish: it is the identity's own lifecycle, which is exactly what the
   // Status filter narrows on.
-  await createSavedForm(page, BRAVO, "Bravo quokka");
+  await createForm(page, BRAVO, "Bravo quokka");
   await page.getByRole("button", { name: "Close form" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
-  await createSavedForm(page, CHARLIE, "Charlie zebra");
+  await createForm(page, CHARLIE, "Charlie zebra");
 
   await openLibrary(page);
   expect(await listedSlugs(page)).toEqual([ALPHA, BRAVO, CHARLIE]);
@@ -133,20 +126,6 @@ test("searches the library from the toolbar, and puts the term in the URL", asyn
   await expect(page).toHaveURL(new RegExp(`[?&]q=${ALPHA}`));
   expect(await listedSlugs(page)).toEqual([ALPHA]);
   await expect(page.getByTestId("qcms-forms-count")).toHaveText("1 form.");
-});
-
-test("searches the form title, which is not a column on this screen", async ({ page }) => {
-  test.setTimeout(120_000);
-  await signInWithTotp(page, EMAIL, totpSecret);
-  await page.goto("/forms");
-
-  // The hint under the field promises the title as well as the slug, and the title lives
-  // in the draft definition rather than on the row: this is the assertion that the
-  // promise is kept by the API rather than by a substring test over what is rendered.
-  await fillStable(field(page, "Search"), "quokka");
-  await page.getByRole("button", { name: "Apply" }).click();
-
-  expect(await listedSlugs(page)).toEqual([BRAVO]);
 });
 
 test("filters by status from the toolbar", async ({ page }) => {
