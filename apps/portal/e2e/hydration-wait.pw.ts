@@ -115,7 +115,11 @@ test("the hydration wait rejects on server-rendered markup and resolves once Rea
   // here is silently thrown away, which is the whole reason the wait exists.
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
   await expect(page.getByRole("radio", { name: "Yes", exact: true })).toBeAttached();
-  await expect(page.locator("button[type='submit']")).toBeVisible();
+  // Scoped to the step card since issue #195: the header's appearance form is a second
+  // native form with a submit button of its own, so an unscoped locator now matches two
+  // elements. It is hidden in this render (scripting is on, only the bundle is starved)
+  // but a CSS locator matches it regardless.
+  await expect(page.getByTestId("step-card").locator("button[type='submit']")).toBeVisible();
 
   // Yet the wait does not pass on it.
   let failure = "";
