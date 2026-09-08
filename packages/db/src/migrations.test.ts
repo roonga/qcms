@@ -152,12 +152,39 @@ describe("@roonga/qcms-db migrations", () => {
       expect(await columnIsNotNull(testDb, "account", "issuer")).toBe(true);
       expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(true);
 
+      // A row of the shape 0017 made possible, written BEFORE the drop and carrying the
+      // one issuer QCMS could produce. The changeset tells adopters that a database
+      // created by 0017 needs nothing beyond applying 0020; that is a claim about what
+      // `DROP COLUMN` does to existing rows, and this row is what makes it an asserted
+      // fact here rather than an appeal to Postgres semantics.
+      await testDb.client.query(
+        `insert into "user" ("id", "name", "email") values ('u-0017', 'Pre-drop Admin', 'pre-drop@qcms.test')`,
+      );
+      await testDb.client.query(
+        `insert into "account" ("id", "issuer", "accountId", "providerId", "userId")
+           values ('a-0017', 'local:credential', 'pre-drop@qcms.test', 'credential', 'u-0017')`,
+      );
+
       // 0020 alone, and the column is gone rather than relaxed. The upgrade guide's
       // Postgres tab would have left it nullable; its Drizzle tab regenerates, and the
       // regenerated model has no field to leave behind.
       await applyMigrations(testDb.client, { from: 20, to: 20 });
       expect(await columnIsNotNull(testDb, "account", "issuer")).toBeUndefined();
       expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(false);
+
+      // The pre-drop account is still there, still linked to its user, and still keyed
+      // on the pair better-auth now looks it up by. Only the column went.
+      const survivor = await testDb.client.query(
+        `select "id", "accountId", "providerId", "userId" from "account" where "id" = 'a-0017'`,
+      );
+      expect(survivor.rows).toEqual([
+        {
+          id: "a-0017",
+          accountId: "pre-drop@qcms.test",
+          providerId: "credential",
+          userId: "u-0017",
+        },
+      ]);
 
       // And an insert better-auth's shape can satisfy now succeeds, which is the thing
       // the `NOT NULL` column actually broke: a sign-up naming no `issuer`.
@@ -168,8 +195,8 @@ describe("@roonga/qcms-db migrations", () => {
         `insert into "account" ("id", "accountId", "providerId", "userId")
            values ('a-849', 'upgrade-probe@qcms.test', 'credential', 'u-849')`,
       );
-      const accounts = await testDb.client.query(`select "providerId" from "account"`);
-      expect(accounts.rows).toEqual([{ providerId: "credential" }]);
+      const accounts = await testDb.client.query(`select "id" from "account" order by "id"`);
+      expect(accounts.rows).toEqual([{ id: "a-0017" }, { id: "a-849" }]);
     });
   });
 });

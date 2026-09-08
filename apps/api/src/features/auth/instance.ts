@@ -186,7 +186,7 @@ export function warnIfBreachCheckDisabled(
  * Every field comes from `await auth.$context`, which is the object the limiter itself
  * consults: in better-auth 1.7.3, `dist/api/rate-limiter/index.mjs:290` gates on
  * `ctx.rateLimit.enabled`, and
- * `getIP` (`@better-auth/core/dist/utils/ip.mjs:205`) reads the header list off
+ * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
  * would report what was asked for, which is exactly the thing already known and exactly
  * the thing that can be wrong.
@@ -220,7 +220,7 @@ export interface SignInThrottleState {
   /**
    * The headers the limiter resolves a caller's address from, in order, as
    * `getIP` reads them (better-auth 1.7.3, the pinned version:
-   * `@better-auth/core/dist/utils/ip.mjs:205`). Header
+   * `@better-auth/core/dist/utils/ip.mjs:206`). Header
    * **names**, never a value: an address identifies a person and SEC-8 and
    * SEC-13 keep it out of a log line, which is why this reports where the
    * limiter looks rather than what it found.
