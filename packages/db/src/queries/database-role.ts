@@ -22,7 +22,7 @@ import type { Executor } from "./executor.js";
  *
  * Ownership is the property the role split is actually made of, and it is asserted
  * from the other side already: `apps/api/e2e/security/03-db-least-privilege.e2e.ts`
- * requires `qcms_app` to own nothing. So "the connected role owns the auth tables"
+ * requires `qcms_app` to own nothing. So "the connected role owns the tables the reset writes"
  * is false for the application credential by construction, true for the migration
  * role, and true for the single-role development database, where one role created
  * everything. `pg_has_role(..., 'USAGE')` rather than an equality on the owner oid,
@@ -34,8 +34,16 @@ import type { Executor } from "./executor.js";
  * refusal, never a permission error the operator has to decode.
  */
 
-/** The two auth tables the reset writes. Both must exist and both must be owned. */
-const AUTH_TABLES = ["user", "twoFactor", "two_factor_resets"] as const;
+/**
+ * The three tables the reset touches. Every one must exist and every one must be
+ * owned by the connected role.
+ *
+ * Two are better-auth's (`user`, `twoFactor`) and the third is this package's own
+ * break-glass audit table, which is why they are not called "the auth tables":
+ * `two_factor_resets` is written by the same operation and a role that owns the
+ * first two but not the third could clear a factor and fail to record it.
+ */
+const RESET_TABLES = ["user", "twoFactor", "two_factor_resets"] as const;
 
 export interface ConnectedRole {
   /** `current_user`, for the refusal message and the audit row. */
@@ -45,7 +53,7 @@ export interface ConnectedRole {
   /** How many of those the connected role owns (or is a member of the owner of). */
   readonly tablesOwned: number;
   /** Every table present and every one of them owned. */
-  readonly ownsAuthTables: boolean;
+  readonly ownsResetTables: boolean;
 }
 
 /** Read `current_user` and its ownership of the tables the reset writes. */
@@ -54,7 +62,7 @@ export async function readConnectedRole(exec: Executor): Promise<ConnectedRole> 
   // bind parameter per element, so the `any()` form reaches Postgres as
   // `any(($1, $2, $3))` and is rejected with "requires array on right side".
   const names = sql.join(
-    AUTH_TABLES.map((name) => sql`${name}`),
+    RESET_TABLES.map((name) => sql`${name}`),
     sql`, `,
   );
   const result = await exec.execute<{
@@ -79,9 +87,12 @@ export async function readConnectedRole(exec: Executor): Promise<ConnectedRole> 
     role: row?.role ?? "unknown",
     tablesPresent,
     tablesOwned,
-    ownsAuthTables: tablesPresent === AUTH_TABLES.length && tablesOwned === tablesPresent,
+    ownsResetTables: tablesPresent === RESET_TABLES.length && tablesOwned === tablesPresent,
   };
 }
 
-/** How many tables {@link readConnectedRole} expects to find. Exported for messages. */
-export const RESET_TABLE_COUNT = AUTH_TABLES.length;
+/**
+ * How many tables {@link readConnectedRole} expects to find, so a caller's
+ * "only N of the M tables exist" message names the same M this module checks.
+ */
+export const RESET_TABLE_COUNT = RESET_TABLES.length;

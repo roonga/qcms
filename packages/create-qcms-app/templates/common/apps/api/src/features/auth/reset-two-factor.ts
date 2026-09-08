@@ -141,7 +141,7 @@ export async function resetAdminTwoFactor(
       refusal: { kind: "schema-missing", role: role.role, tablesPresent: role.tablesPresent },
     };
   }
-  if (!role.ownsAuthTables) {
+  if (!role.ownsResetTables) {
     return { ok: false, refusal: { kind: "insufficient-database-role", role: role.role } };
   }
 
