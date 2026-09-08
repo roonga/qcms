@@ -117,12 +117,30 @@ export interface FormSettings {
   readonly minSubmitMs: number | null;
 }
 
+/**
+ * Whether a form accepts new sessions. The library list filters on it (issue 686), so
+ * it is a named type rather than an inline union repeated at every use.
+ */
+export type FormStatus = "open" | "closed";
+
+/**
+ * The orders `GET /admin/forms` guarantees (issue 686), in the order the Sort control
+ * offers them. The API owns the ordering; this list is what the screen may ask for.
+ */
+export const FORM_SORTS = ["slug-asc", "slug-desc", "published-desc", "published-asc"] as const;
+
+/** One of {@link FORM_SORTS}. */
+export type FormSort = (typeof FORM_SORTS)[number];
+
+/** The order the list uses when the URL names none. */
+export const DEFAULT_FORM_SORT: FormSort = "slug-asc";
+
 /** One row of `GET /admin/forms`. */
 export interface FormListItem {
   readonly formId: string;
   readonly slug: string;
   readonly defaultLocale: string;
-  readonly status: "open" | "closed";
+  readonly status: FormStatus;
   readonly hasDraft: boolean;
   readonly latestVersion: number | null;
   readonly publishedAt: string | null;

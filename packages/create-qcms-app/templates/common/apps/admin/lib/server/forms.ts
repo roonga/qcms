@@ -10,6 +10,8 @@ import type {
   FormIssue,
   FormListItem,
   FormSettings,
+  FormSort,
+  FormStatus,
   FormVersionSnapshot,
   FormVersionSummary,
   PinnableQuestion,
@@ -46,11 +48,37 @@ export type { ApiResult };
 
 // --- the form library -------------------------------------------------------
 
-/** `GET /admin/forms` - every form, with its draft and published state. */
+/**
+ * `GET /admin/forms` - every form, with its draft and published state.
+ *
+ * The search term, the status filter and the sort key are the **API's**, passed straight
+ * through (issue 686). None of the three is applied here, and that is the point: a second
+ * ordering or a client-side narrowing in this app would be the BFF deciding something it
+ * has no authority over (R2), and it would also be wrong the moment the list is longer
+ * than one response. The screen puts them in the URL, this function puts them on the
+ * wire, and the API answers.
+ *
+ * One request, whatever the filters say: the query string grows, the round-trip count
+ * does not (`lib/server/request-reads.test.ts`).
+ */
 export async function listForms(
   session: AdminSession,
+  filters: {
+    readonly status?: FormStatus;
+    readonly search?: string;
+    readonly sort?: FormSort;
+  } = {},
 ): Promise<ApiResult<readonly FormListItem[]>> {
-  const result = await read<{ forms: FormListItem[] }>(await adminApiFetch(session, "/forms"));
+  const query = new URLSearchParams();
+  if (filters.status !== undefined) query.set("status", filters.status);
+  if (filters.search !== undefined && filters.search.trim() !== "") {
+    query.set("search", filters.search.trim());
+  }
+  if (filters.sort !== undefined) query.set("sort", filters.sort);
+  const suffix = query.size === 0 ? "" : `?${query.toString()}`;
+  const result = await read<{ forms: FormListItem[] }>(
+    await adminApiFetch(session, `/forms${suffix}`),
+  );
   return result.ok ? { ok: true, data: result.data.forms } : result;
 }
 

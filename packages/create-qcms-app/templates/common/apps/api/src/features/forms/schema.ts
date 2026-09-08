@@ -18,6 +18,12 @@
 
 import { z } from "@hono/zod-openapi";
 
+/**
+ * Whether a form accepts new sessions. Declared here rather than beside the response
+ * schemas because the list route's `status` filter needs it before them (issue 686).
+ */
+const FormLifecycle = z.enum(["open", "closed"]);
+
 // --- params -----------------------------------------------------------------
 
 /** `:id` path param - a `frm_…` form id (validated as a FormId in-handler). */
@@ -29,6 +35,44 @@ export const FormIdParam = z.object({
 export const FormVersionParam = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "frm_signup" }),
   v: z.string().openapi({ param: { name: "v", in: "path" }, example: "1" }),
+});
+
+// --- query -------------------------------------------------------------------
+
+/**
+ * `GET /admin/forms` - the library list's search, status filter and sort (issue 686).
+ *
+ * The shape is `ListQuestionsQuery`'s, one route over, because the two library screens
+ * are the same screen twice and the admin sends the same GET form to both: the filters
+ * live in the URL, the API owns them, and the BFF only proxies them (R2).
+ *
+ * `sort` is an enum rather than a free `field:direction` pair so the set of orders the
+ * API is willing to guarantee is written down in one place, and so a caller cannot ask
+ * for an order over a column that is not indexed or not stable.
+ */
+export const ListFormsQuery = z.object({
+  status: FormLifecycle.optional().openapi({
+    param: { name: "status", in: "query" },
+    example: "open",
+  }),
+  /**
+   * Bounded, unlike the question library's equivalent: a search term is a substring
+   * matched per row in the handler, so an unbounded one is unbounded work. 200
+   * characters is far past any slug or form title an author writes, and past it the
+   * route answers 400 rather than doing the work.
+   */
+  search: z
+    .string()
+    .max(200)
+    .optional()
+    .openapi({
+      param: { name: "search", in: "query" },
+      example: "vehicle",
+    }),
+  sort: z
+    .enum(["slug-asc", "slug-desc", "published-desc", "published-asc"])
+    .optional()
+    .openapi({ param: { name: "sort", in: "query" }, example: "slug-asc" }),
 });
 
 // --- request bodies ---------------------------------------------------------
@@ -216,7 +260,8 @@ export const PreviewConditionResponse = z
 
 // --- responses --------------------------------------------------------------
 
-const FormStatus = z.enum(["open", "closed"]);
+/** The form lifecycle status, in responses and as the list route's filter. */
+const FormStatus = FormLifecycle;
 
 /** A publish issue: the kernel's `PublishError` union, plus `DEPRECATED_PIN`. */
 const PublishIssue = z.unknown();

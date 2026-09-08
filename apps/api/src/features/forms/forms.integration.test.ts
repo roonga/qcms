@@ -1085,3 +1085,159 @@ describe("admin schema refusals and out-of-range versions", () => {
     expect(((await inRange.json()) as ErrBody).error.code).toBe("VERSION_NOT_FOUND");
   });
 });
+
+// --- the library list: search, status filter and sort (issue 686) -----------
+
+describe("GET /admin/forms - search, status filter and sort", () => {
+  /**
+   * Every assertion here is scoped by a slug prefix this block owns, because the suite
+   * shares one database with every other describe in this file: an unscoped assertion
+   * about the whole library would pass or fail on which sibling ran first.
+   */
+  const SCOPE = "search=lst-";
+
+  /**
+   * This block's own app, on a clock that moves.
+   *
+   * `publishFormVersion` stamps `published_at` from `deps.clock`, and the suite's
+   * default clock is FIXED - right for every other block here, and wrong for this one:
+   * two publishes seconds apart would carry the identical stamp, so a date sort over
+   * them would prove only the slug tie-break and would pass just as happily against a
+   * handler that ignored dates altogether. A second per read is what makes the publish
+   * order below a fact about the data - a second rather than a minute because the clock
+   * also decides whether the seeded admin session is still live, and a block of forty-odd
+   * requests at a minute a read walks past its expiry and 401s.
+   *
+   * Same database and same seeded admin session as the file-level app; only the clock
+   * differs, and it starts at the fixed instant so the session it authenticates with is
+   * live under it too.
+   */
+  let listApp: ReturnType<typeof createApp>;
+
+  async function listGet(path: string): Promise<Response> {
+    return listApp.request(`/admin${path}`, { headers: authHeaders() });
+  }
+
+  async function listPost(path: string, body?: unknown): Promise<Response> {
+    return listApp.request(`/admin${path}`, {
+      method: "POST",
+      headers: authHeaders(),
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  }
+
+  beforeAll(async () => {
+    let ms = new Date("2026-07-20T00:00:00.000Z").getTime();
+    listApp = createApp(
+      makeDeps({
+        db: testDb.db,
+        // The file-level app's own config, not a fresh `validEnv()`: the secrets in
+        // that helper are generated per call, so a second composition built from a
+        // second call would carry a different internal token and a different
+        // better-auth secret, and every request here would 401 rather than run.
+        config: deps.config,
+        clock: {
+          now: () => {
+            ms += 1_000;
+            return new Date(ms);
+          },
+        },
+      }),
+      ADMIN_ONLY,
+      { groups: { admin: [registerAdminAuth, registerForms] } },
+    );
+
+    await seedPublishedQuestion("q_lst_one", "One");
+
+    for (const [id, slug, title] of [
+      ["frm_lst_alpha", "lst-alpha", "Alpha zebra"],
+      ["frm_lst_bravo", "lst-bravo", "Bravo quokka"],
+      ["frm_lst_charlie", "lst-charlie", "Charlie zebra"],
+    ] as const) {
+      expect((await listPost("/forms", { formId: id, slug, defaultLocale: "en" })).status).toBe(
+        201,
+      );
+      const definition = formDefinition(id, [["stp_one", ["q_lst_one"]]], [], title);
+      expect((await put(`/forms/${id}/draft`, { definition })).status).toBe(200);
+    }
+
+    // Alpha publishes before bravo, so the publish-date order is a fact rather than
+    // whatever order the rows come back in. Charlie keeps its draft and is never
+    // published: it is the row the date sorts have no date for.
+    expect((await listPost("/forms/frm_lst_alpha/publish")).status).toBe(200);
+    expect((await listPost("/forms/frm_lst_bravo/publish")).status).toBe(200);
+    expect((await listPost("/forms/frm_lst_bravo/close")).status).toBe(200);
+  }, 60_000);
+
+  /** The listed slugs, in the order the route returned them. */
+  async function slugs(query: string): Promise<string[]> {
+    const res = await listGet(`/forms?${query}`);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as { forms: { slug: string }[] }).forms.map((form) => form.slug);
+  }
+
+  it("searches the slug", async () => {
+    expect(await slugs("search=lst-alpha")).toEqual(["lst-alpha"]);
+  });
+
+  it("searches any locale of the form title, case-insensitively", async () => {
+    // The title lives in the definition rather than on the identity row, and the list
+    // response does not carry it: the search reads it from the draft or the latest
+    // published version, whichever the row has.
+    expect(await slugs("search=QUOKKA")).toEqual(["lst-bravo"]);
+  });
+
+  it("answers an empty library rather than an error when nothing matches", async () => {
+    expect(await slugs("search=lst-nothing-matches-this")).toEqual([]);
+  });
+
+  it("filters by lifecycle status", async () => {
+    expect(await slugs(`${SCOPE}&status=closed`)).toEqual(["lst-bravo"]);
+    expect(await slugs(`${SCOPE}&status=open`)).toEqual(["lst-alpha", "lst-charlie"]);
+  });
+
+  it("orders by slug in both directions, and slug ascending is the default", async () => {
+    expect(await slugs(SCOPE)).toEqual(["lst-alpha", "lst-bravo", "lst-charlie"]);
+    expect(await slugs(`${SCOPE}&sort=slug-asc`)).toEqual([
+      "lst-alpha",
+      "lst-bravo",
+      "lst-charlie",
+    ]);
+    expect(await slugs(`${SCOPE}&sort=slug-desc`)).toEqual([
+      "lst-charlie",
+      "lst-bravo",
+      "lst-alpha",
+    ]);
+  });
+
+  it("orders by publish date, with a never-published form last in both directions", async () => {
+    // Last in both directions on purpose: a form with no publish date cannot take a
+    // position on a publish-date axis, and treating its absent date as the epoch would
+    // put every unpublished form at the top of "oldest published".
+    expect(await slugs(`${SCOPE}&sort=published-desc`)).toEqual([
+      "lst-bravo",
+      "lst-alpha",
+      "lst-charlie",
+    ]);
+    expect(await slugs(`${SCOPE}&sort=published-asc`)).toEqual([
+      "lst-alpha",
+      "lst-bravo",
+      "lst-charlie",
+    ]);
+  });
+
+  it("applies the three together", async () => {
+    expect(await slugs(`search=zebra&status=open&sort=slug-desc`)).toEqual([
+      "lst-charlie",
+      "lst-alpha",
+    ]);
+  });
+
+  it.each([
+    ["an unknown status", "status=archived"],
+    ["an unknown sort key", "sort=oldest"],
+    ["a search term past the length bound", `search=${"x".repeat(201)}`],
+  ])("400s %s before the handler runs", async (_name, query) => {
+    expect((await listGet(`/forms?${query}`)).status).toBe(400);
+  });
+});

@@ -131,3 +131,47 @@ describe("route partition - every mounted route in exactly one document", () => 
     expect([...union].sort()).toEqual([...full].sort());
   });
 });
+
+describe("the form library list declares its filters in the contract (issue 686)", () => {
+  /** The query parameters an operation declares, by name. */
+  function queryParams(doc: OpenApiDocument, method: string, path: string): Map<string, unknown> {
+    const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
+      { parameters?: Array<{ name?: string; in?: string; schema?: unknown }> } | undefined;
+    const found = new Map<string, unknown>();
+    for (const param of op?.parameters ?? []) {
+      if (param.in === "query" && typeof param.name === "string")
+        found.set(param.name, param.schema);
+    }
+    return found;
+  }
+
+  // The committed document rather than the generated one: the drift guard above
+  // already ties the two together, so asserting here on what is on disk is what
+  // makes this a contract test rather than a second reading of the same object.
+  const committed = readCommitted("admin");
+
+  it.each(["status", "search", "sort"])(
+    "GET /admin/forms accepts ?%s, so a filtered library is a URL a client can build",
+    (name) => {
+      expect([...queryParams(committed, "get", "/admin/forms").keys()]).toContain(name);
+    },
+  );
+
+  it("pins the values the filters accept, so a client cannot guess a fifth sort key", () => {
+    const params = queryParams(committed, "get", "/admin/forms");
+    expect(params.get("status")).toMatchObject({ enum: ["open", "closed"] });
+    expect(params.get("sort")).toMatchObject({
+      enum: ["slug-asc", "slug-desc", "published-desc", "published-asc"],
+    });
+    // Bounded, so an unbounded search term is refused by the contract and not only
+    // by the handler that would otherwise scan every row with it.
+    expect(params.get("search")).toMatchObject({ maxLength: 200 });
+  });
+
+  it("answers 400 for a refused filter, which is the shape the BFF renders", () => {
+    const op = (committed.paths?.["/admin/forms"] as Record<string, unknown> | undefined)?.[
+      "get"
+    ] as { responses?: Record<string, unknown> } | undefined;
+    expect(Object.keys(op?.responses ?? {})).toContain("400");
+  });
+});

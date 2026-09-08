@@ -145,9 +145,9 @@ vi.mock("./forms/actions", () => ({
   createFormAction: () => Promise.resolve({ status: "idle" }),
 }));
 
-async function renderForms(): Promise<string> {
+async function renderForms(searchParams: Record<string, string> = {}): Promise<string> {
   const { default: Page } = await import("./forms/page.tsx");
-  return renderToStaticMarkup(await Page());
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(searchParams) }));
 }
 
 async function renderNewForm(): Promise<string> {
@@ -178,10 +178,19 @@ describe("the forms list stops creating inline (issue 685)", () => {
     const empty = await renderForms();
 
     for (const markup of [populated, empty]) {
-      // The card as a whole: no `<form>` element, and no field of the one that was there.
-      expect(markup).not.toMatch(/<form[\s>]/u);
+      // No field of the creating form that was there, and no submitting form either.
+      //
+      // This was "no `<form>` element at all" until issue 686 put the library's search,
+      // status and sort controls on this screen as a native GET form. The blanket claim
+      // and the real one had been the same sentence only because the screen had exactly
+      // one form; they are different claims, and the one #685 is about is that nothing
+      // here CREATES. A GET form navigates - it mints nothing, posts nothing, and its
+      // fields are named `q`, `status` and `sort`. So the assertion is now the creating
+      // form's own signature: its fields, and any form that submits rather than reads.
       expect(markup).not.toContain('data-field="slug"');
       expect(markup).not.toContain('data-field="defaultLocale"');
+      expect(markup).not.toMatch(/<form[^>]*method="post"/iu);
+      expect(markup).not.toMatch(/<form[^>]*\baction=/iu);
     }
   });
 
