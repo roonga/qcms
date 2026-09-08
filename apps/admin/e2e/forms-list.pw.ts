@@ -43,13 +43,20 @@ let totpSecret = "";
 /** Ids are never reused (R6) and the harness database survives a local rerun. */
 const RUN = Date.now().toString(36);
 
-/** The three fixture forms, in slug order. Titles differ so the search can find them. */
-const ALPHA = `e2e-list-a-${RUN}`;
-const BRAVO = `e2e-list-b-${RUN}`;
-const CHARLIE = `e2e-list-c-${RUN}`;
+/**
+ * A search term that selects this run's three forms and nothing else in a database every
+ * other admin spec has also written to.
+ *
+ * The run id goes BEFORE the distinguishing letter, so this string is a real prefix of
+ * all three slugs. With the letter in the middle the scope matched nothing and the
+ * library came back empty, which is a false red that looks exactly like a broken filter.
+ */
+const SCOPE = `e2e-list-${RUN}`;
 
-/** Search terms that select this run's forms and nothing else in a shared database. */
-const SCOPE = `e2e-list-`;
+/** The three fixture forms, in slug order. Titles differ so the search can find them. */
+const ALPHA = `${SCOPE}-a`;
+const BRAVO = `${SCOPE}-b`;
+const CHARLIE = `${SCOPE}-c`;
 
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
@@ -57,7 +64,7 @@ test.beforeAll(async () => {
 
 /** Open the library filtered to this run's forms, with any extra parameters appended. */
 async function openLibrary(page: Page, extra = ""): Promise<void> {
-  await page.goto(`/forms?q=${SCOPE}${RUN}${extra}`);
+  await page.goto(`/forms?q=${SCOPE}${extra}`);
   await expect(page.getByRole("heading", { name: "Forms", level: 1 })).toBeVisible();
 }
 
@@ -157,7 +164,7 @@ test("reopens a filtered library from its URL alone, controls and all", async ({
   await expect(page.getByTestId("qcms-forms-count")).toHaveText("2 forms.");
 
   const toolbar = page.locator("form.qcms-filters");
-  await expect(field(page, "Search")).toHaveValue(`${SCOPE}${RUN}`);
+  await expect(field(page, "Search")).toHaveValue(SCOPE);
   // A `Select` trigger announces its current value followed by its label, so the value
   // is what the button reads out - which is what an author navigating by name hears.
   await expect(toolbar.getByRole("button", { name: /Status$/ })).toContainText("Open");
@@ -204,6 +211,6 @@ test("the toolbar is reachable and operable from the keyboard alone", async ({ p
   // the search field is enough and no handler has to be attached for it to work.
   await field(page, "Search").focus();
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(new RegExp(`[?&]q=${SCOPE}${RUN}`));
+  await expect(page).toHaveURL(new RegExp(`[?&]q=${SCOPE}`));
   expect(await listedSlugs(page)).toEqual([ALPHA, BRAVO, CHARLIE]);
 });
