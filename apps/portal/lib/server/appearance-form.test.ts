@@ -128,6 +128,22 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
     // The URL parser treats a backslash as a slash for special schemes, so this is the
     // line above wearing a disguise. It is the case a `startsWith("//")` check misses.
     ["the backslash spelling of a protocol-relative reference", "/\\evil.example/x"],
+    // PR #859's review. Each of these is a SINGLE leading slash that URL parsing rewrites
+    // into a protocol-relative reference: dot-segment normalisation resolves `/..` at the
+    // root to nothing and leaves the `//` behind, and `%2e` is decoded as a dot segment on
+    // the way. Checking the candidate rather than the parser's output passes all of them,
+    // and the route then emitted the result as a relative `Location`, which a browser
+    // resolves as `https://evil.example/`. Reproduced against the real POST handler.
+    ["a dot segment that normalises to protocol-relative", "/..//evil.example"],
+    ["the same, with a real segment to pop first", "/x/..//evil.example"],
+    ["the same, with the dot segment percent-encoded", "/%2e%2e//evil.example"],
+    ["the same, spelled with a backslash", "/..\\evil.example"],
+    ["two encoded dot segments", "/%2e%2e/%2e%2e//evil.example"],
+    // Percent-encoded separators survive parsing intact, so what they mean depends on
+    // whatever decodes them next. No portal path contains one; they are refused rather
+    // than reasoned about.
+    ["an encoded double slash", "/%2F%2Fevil.example"],
+    ["an encoded backslash", "/%5Cevil.example"],
     ["a scheme-relative reference with a userinfo trick", "//forms.qcms.test@evil.example/x"],
     ["a javascript: URL", "javascript:alert(1)"],
     ["a data: URL", "data:text/html,<script>alert(1)</script>"],
@@ -144,6 +160,43 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   it("refuses the appearance route itself as a target", () => {
     expect(safeReturnPath(APPEARANCE_ROUTE, undefined, PORTAL_BASE)).toBe(DEFAULT_RETURN);
     expect(safeReturnPath(`${APPEARANCE_ROUTE}?x=1`, undefined, PORTAL_BASE)).toBe(DEFAULT_RETURN);
+  });
+
+  it("refuses every dot-segment spelling whatever base URL it is given", () => {
+    // The rewrite happens inside the URL parser, so the refusal cannot be
+    // configuration-dependent. This is the assertion that says the fix lives in the
+    // parser's OUTPUT rather than in a base-URL comparison that happened to catch these
+    // too, which is what the original check believed it was doing.
+    for (const base of [undefined, "", "not a url", PORTAL_BASE]) {
+      for (const payload of ["/..//evil.example", "/x/..//evil.example", "/%2e%2e//evil.example"]) {
+        expect(safeReturnPath(payload, undefined, base), `${payload} @ ${String(base)}`).toBe(
+          DEFAULT_RETURN,
+        );
+      }
+    }
+  });
+
+  it("never returns a reference a browser could read as protocol-relative", () => {
+    // The property, over the payloads at once rather than one case at a time: whatever
+    // comes back has a single leading slash, carries no separator in disguise, and
+    // resolves inside this origin. A future rule that admits a new shape has to keep
+    // this true, which a list of individual expectations would not force.
+    for (const candidate of [
+      "/s/ses_1",
+      "/f/road-cover?state=error",
+      "/..//evil.example",
+      "/x/..//evil.example",
+      "/%2e%2e//evil.example",
+      "/..\\evil.example",
+      "/%2F%2Fevil.example",
+      "//evil.example",
+    ]) {
+      const answer = safeReturnPath(candidate, undefined, PORTAL_BASE);
+      expect(answer.startsWith("/"), candidate).toBe(true);
+      expect(answer.startsWith("//"), candidate).toBe(false);
+      expect(answer.includes("\\"), candidate).toBe(false);
+      expect(new URL(answer, PORTAL_BASE).origin, candidate).toBe(PORTAL_BASE);
+    }
   });
 
   it("does not depend on the configured base URL to refuse a foreign target", () => {

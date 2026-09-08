@@ -17,3 +17,9 @@ Nothing an adopter configures changes. `QCMS_PORTAL_MODE`, `QCMS_PORTAL_FONT`,
 `QCMS_PORTAL_FONTS` and `QCMS_PORTAL_DENSITY` still decide the defaults; this only gives
 a respondent with scripting off a way to override them, which previously did not exist
 at all because the whole disclosure was hidden.
+
+The scaffolded route validates the return path against the URL parser's normalised output,
+not the string it was handed, and emits its `Location` absolutely on the adopter's own
+configured base. A candidate like `/..//evil.example` has one leading slash and normalises
+to the pathname `//evil.example`, which a browser reads as protocol-relative; that was a
+real open redirect in the first cut of this work and is closed here twice over.

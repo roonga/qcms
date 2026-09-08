@@ -37,6 +37,10 @@ import { HARNESS_FONT } from "./support/harness-config.js";
 
 test.use({ javaScriptEnabled: false });
 
+/** The two link-error headings the `?kind=` parameter chooses between (`lib/i18n/en.ts`). */
+const EXPIRED_TITLE = "This link has expired";
+const INVALID_TITLE = "This link is not valid";
+
 /** The disclosure, opened. Native `<details>`, so this needs no scripting. */
 async function openAppearance(page: Page): Promise<void> {
   await page.locator('[data-testid="appearance"] > summary').click();
@@ -85,7 +89,15 @@ async function applyAppearance(page: Page): Promise<string> {
   expect(posted, "the served page did not come from a redirect").not.toBeNull();
   expect(posted?.method()).toBe("POST");
   expect(new URL(posted?.url() ?? "http://absent.invalid").pathname).toBe(APPEARANCE_ROUTE);
-  expect((await posted?.response())?.status()).toBe(303);
+
+  const redirect = await posted?.response();
+  expect(redirect?.status()).toBe(303);
+
+  // The `Location` names this deployment, absolutely (PR #859 review). A relative header
+  // is what let a normalised `//evil.example` leave the handler, so the shape is asserted
+  // on the wire rather than trusted to the validator that produced the path.
+  const location = (await redirect?.headerValue("location")) ?? "";
+  expect(new URL(location).origin).toBe(new URL(page.url()).origin);
 
   return await response.text();
 }
@@ -187,6 +199,13 @@ test("DENSITY: Compact survives the redirect, with no script in play", async ({ 
 });
 
 test("the redirect returns the respondent to the page they were on, mid-flow", async ({ page }) => {
+  // An explicit budget with its reason (PR #859 review measured 19.7s of a 30s default on
+  // a cold seat). This is the only case here that starts a session, so on a run where this
+  // spec goes first it pays the dev server's first compile of `/f/[formSlug]/start` and
+  // `/s/[sessionId]` as well as of `/appearance`. That cost is the harness's, not this
+  // feature's, and a case sitting two thirds of the way to its timeout is the shape issue
+  // #604 asks to be reported rather than left to flake.
+  test.setTimeout(90_000);
   const { slug } = readFixtures();
 
   // Start a real session, so the return target is a step path rather than the entry
@@ -202,6 +221,35 @@ test("the redirect returns the respondent to the page they were on, mid-flow", a
 
   expect(new URL(page.url()).pathname).toBe(stepUrl.pathname);
   expect(rootClass(served)).toMatch(/\bdark\b/u);
+});
+
+test("the query string survives, so a page whose copy depends on it comes back the same", async ({
+  page,
+}) => {
+  // `app/link-error/page.tsx` selects its entire copy from `?kind=`, so a return target of
+  // the path alone sent a respondent who applied High contrast on the expired-link page
+  // back to the generic "this link is not valid" screen (PR #859 review, Copilot). The
+  // hidden field carries path AND query, and both go through the same origin check.
+  const heading = page.getByRole("heading", { level: 1 });
+
+  await page.goto("/link-error?kind=expired");
+  await expect(heading).toHaveText(EXPIRED_TITLE);
+  await openAppearance(page);
+  await expect(page.locator('form.qcms-appearance__panel input[name="returnTo"]')).toHaveAttribute(
+    "value",
+    "/link-error?kind=expired",
+  );
+
+  await chip(page, "mode", "hc").click();
+  const served = await applyAppearance(page);
+
+  expect(new URL(page.url()).search).toBe("?kind=expired");
+  // Named literally rather than captured before the submit: the defect was a redirect to a
+  // page that renders the FALLBACK copy, so a comparison against "whatever it said before"
+  // would still have to know which of the two strings is the right one.
+  await expect(heading).toHaveText(EXPIRED_TITLE);
+  await expect(heading).not.toHaveText(INVALID_TITLE);
+  expect(rootClass(served)).toMatch(/\bhc\b/u);
 });
 
 test.describe("with scripting on, the enhanced path is unchanged", () => {

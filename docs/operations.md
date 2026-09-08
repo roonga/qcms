@@ -657,13 +657,15 @@ submitting an HTML form:
 | -------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `POST /f/{formSlug}/start` | the Begin button on the entry page, **with or without JavaScript** | 303 back to `/f/{formSlug}?state=error`, which renders "This form is not available" |
 | `POST /s/{sessionId}/step` | the no-JS whole-step form (Continue / Back / Submit)               | 303 back to the same step, no message, answers not re-populated                     |
-| `POST /appearance`         | the no-JS appearance form's Apply button (issue #195)              | 303 back to the same page, appearance unchanged, no message                         |
+| `POST /appearance`         | the no-JS appearance form's Apply button (issue #195)              | 303 to the site root, appearance unchanged, no message                              |
 
-The appearance row is the one refusal a respondent may never report, because nothing they
-can see says it happened: the page comes back looking exactly as it did. It costs no
-answer and no session, but it costs the colour mode or legibility face they were reaching
-for, so a burst of `beltOutcome: "redirect-to-page"` beside `beltFetchSite: "absent"` is
-worth reading as the same old-browser population as the rows above it.
+The appearance row is the one refusal that moves a respondent off the page they were
+reading. A refused request cannot be sent back to the page it named, because a request
+that could not prove its origin does not get to choose the redirect, so the browser lands
+at the site root with no message and the respondent has to navigate back. It costs no
+answer and no session, but it costs their place as well as the colour mode or legibility
+face they were reaching for, so a burst of `beltOutcome: "redirect-to-root"` beside
+`beltFetchSite: "absent"` is the same old-browser population as the rows above it.
 
 The other two state-changing routes, `POST /s/{sessionId}/answers` and
 `POST /s/{sessionId}/submit`, are called only by the hydrated page through `fetch()`. That
@@ -791,12 +793,12 @@ added later is covered without anyone remembering to instrument it.
 }
 ```
 
-| Field           | What it holds                                                                                                                                                                                                                                                                   |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `beltRoute`     | Which route refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                                                                                                                       |
-| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                                                                                                                       |
-| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                                                                                                                |
-| `beltOutcome`   | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step), `redirect-to-page` (returned to the page they were on with their appearance unchanged) or `forbidden` (a 403 to a hydrated `fetch()`) |
+| Field           | What it holds                                                                                                                                                                                                                                                          |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `beltRoute`     | Which route refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                                                                                                              |
+| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                                                                                                              |
+| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                                                                                                       |
+| `beltOutcome`   | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step), `redirect-to-root` (dropped at the site root with their appearance unchanged) or `forbidden` (a 403 to a hydrated `fetch()`) |
 
 **Reading the two signals together is the point.** They separate the old browser from the
 forged request, which is the distinction the absence of a log line could never make:

@@ -1,5 +1,9 @@
 import { RETURN_FIELD, appearanceCookiesFor } from "@/lib/appearance";
-import { parseAppearanceChoice, safeReturnPath } from "@/lib/server/appearance-form";
+import {
+  DEFAULT_RETURN,
+  parseAppearanceChoice,
+  safeReturnPath,
+} from "@/lib/server/appearance-form";
 import { portalBaseUrl, secureCookies } from "@/lib/server/config";
 import { isSameOriginPost } from "@/lib/server/route-helpers";
 import { portalFontChoices } from "@/lib/server/theme";
@@ -31,16 +35,24 @@ import { portalFontChoices } from "@/lib/server/theme";
  * in `lib/server/appearance-form.ts` as pure functions, so what is left here is the
  * request/response shell.
  *
- * ## The redirect target is attacker-controllable, and is treated that way
+ * ## The redirect target is attacker-controllable, and is treated that way, twice
  *
- * `returnTo` arrives in the request body, so it is respondent input in the same sense
- * a form answer is. {@link safeReturnPath} resolves it against a synthetic origin and
- * refuses anything that lands outside it, which rejects `//evil.example`, its
- * backslash spelling, an absolute URL and a `javascript:` string alike; the fallbacks
- * are the `Referer` when it names this portal's own origin, then `/`. The `Location`
- * this handler emits is therefore always a path, never a value copied from the
- * request, and it is emitted **relative** so it can only ever resolve against the
- * origin the browser already had.
+ * `returnTo` arrives in the request body, so it is respondent input in the same sense a
+ * form answer is. {@link safeReturnPath} is the first control: it resolves the candidate
+ * against a synthetic origin and refuses anything that lands outside it, refuses a
+ * backslash or an encoded separator, and refuses a pathname that is protocol-relative
+ * AFTER normalisation - which is the case PR #859's review found, where `/..//evil.example`
+ * parses to the pathname `//evil.example` and a single leading slash goes in while a
+ * protocol-relative reference comes out.
+ *
+ * The second control is here, and it is what makes that class of defect unreachable rather
+ * than merely fixed: the `Location` is built as an ABSOLUTE URL on this portal's own
+ * configured base, so whatever path reaches {@link seeOther}, the header names this
+ * deployment. Emitting the validated path relatively was the mistake that made the first
+ * control load-bearing on its own.
+ *
+ * A belt-refused request gets `/`, never the target it supplied: a request that could not
+ * prove it came from this origin has no say in where the browser goes next.
  *
  * ## Why a cookie is still worth a CSRF belt
  *
@@ -49,19 +61,39 @@ import { portalFontChoices } from "@/lib/server/theme";
  * list, so this route carries it the day it lands. The stake is genuinely small - the
  * worst a forged POST achieves is changing a respondent's own font - but "small" is a
  * judgement that would have to be re-made every time someone reads this file, and the
- * belt costs one call. The belt runs FIRST and its answer gates the cookies: a refused
- * request still gets its page back (see `beltOutcome: "redirect-to-page"` in
- * `lib/server/origin-belt-log.ts`), with its appearance unchanged.
+ * belt costs one call. The belt runs FIRST and nothing below it reads the request: a
+ * refused request is sent to the site root with no cookie written (see
+ * `beltOutcome: "redirect-to-root"` in `lib/server/origin-belt-log.ts`).
  */
 
 /** A 303 to a validated same-origin path, optionally writing the appearance cookies. */
 function seeOther(path: string, setCookies: readonly string[] = []): Response {
-  // A relative `Location`, which RFC 7231 allows and every browser resolves against
-  // the request URL. It is the one form that cannot be pointed at another origin by a
-  // forged `Host` header, which an absolute URL built from `request.url` can be.
-  const headers = new Headers({ Location: path });
+  const headers = new Headers({ Location: absoluteOnThisPortal(path) });
   for (const cookie of setCookies) headers.append("Set-Cookie", cookie);
   return new Response(null, { status: 303, headers });
+}
+
+/**
+ * The path as an absolute URL on this portal's CONFIGURED base.
+ *
+ * Configured rather than `request.url`, which carries an attacker-chosen `Host` on a
+ * forged request; the belt already compares `Origin` against the same configured value,
+ * so this reuses the deployment's own statement of where it lives rather than inventing
+ * a second source of truth.
+ *
+ * When the base cannot be read the path is emitted as-is, which is still safe: every
+ * path reaching here has been through {@link safeReturnPath}, which refuses a pathname
+ * that is protocol-relative after normalisation, so a relative `Location` can only
+ * resolve against the origin the browser already had.
+ */
+function absoluteOnThisPortal(path: string): string {
+  const base = configuredBaseUrl();
+  if (base === undefined) return path;
+  try {
+    return new URL(path, base).toString();
+  } catch {
+    return path;
+  }
 }
 
 /** The submitted fields, or an empty set when the body is not a readable form. */
@@ -83,19 +115,20 @@ function configuredBaseUrl(): string | undefined {
 }
 
 export async function POST(request: Request): Promise<Response> {
-  // The belt's answer is taken before anything else and gates every write below. The
-  // body is still read on a refusal, because parsing form fields changes nothing and
-  // it is what lets a refused respondent land back on their own page rather than at
-  // the site root.
-  const admitted = isSameOriginPost(request);
+  // The belt first, and a refusal reads nothing the request carried. An earlier version
+  // parsed the body on the refusal path so a refused respondent could land back on their
+  // own page; PR #859's review was right that a request which cannot prove its origin
+  // should not choose the redirect either. The cost is that the small population of
+  // browsers sending no Fetch Metadata is dropped at the site root rather than left where
+  // they were, which `docs/operations.md` records as the symptom to expect.
+  if (!isSameOriginPost(request)) return seeOther(DEFAULT_RETURN);
+
   const form = await readForm(request);
   const target = safeReturnPath(
     formField(form, RETURN_FIELD),
     request.headers.get("referer") ?? undefined,
     configuredBaseUrl(),
   );
-  if (!admitted) return seeOther(target);
-
   const offered = portalFontChoices().map((entry) => entry.key);
   const choice = parseAppearanceChoice(form, offered);
   return seeOther(target, appearanceCookiesFor(choice, secureCookies()));

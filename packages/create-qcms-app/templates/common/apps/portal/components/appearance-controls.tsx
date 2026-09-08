@@ -53,7 +53,7 @@
  */
 
 import { fontClass } from "@roonga/qcms-ui/fonts";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useAppearance, type FontChoice } from "@/components/appearance-context";
@@ -185,12 +185,22 @@ function fontGroups(fonts: readonly FontChoice[]): readonly [string, readonly Fo
 
 export function AppearanceControls() {
   const state = useAppearance();
-  // The page to come back to after the no-JS POST. `usePathname` renders on the
-  // server too, so the hidden field is correct in the served HTML - which is the only
-  // render a no-JS respondent ever gets. The search string is deliberately not
-  // carried: the one parameter the portal reads is `?state=error` on the entry page,
-  // and re-showing a stale error after an appearance change would be wrong.
+  // The page to come back to after the no-JS POST, PATH AND QUERY. Both hooks render on
+  // the server too, so the hidden field is correct in the served HTML, which is the only
+  // render a no-JS respondent ever gets.
+  //
+  // The query is carried rather than dropped (PR #859 review). An earlier version kept
+  // the path alone on the claim that `?state=error` on the entry page was the only
+  // parameter the portal read, and that was simply false: `app/link-error/page.tsx`
+  // selects its whole copy from `?kind=`, so applying an appearance choice from
+  // `/link-error?kind=expired` returned the respondent to `/link-error` reading "this
+  // link is not valid" instead of "this link has expired". Carrying the query costs
+  // nothing in safety: `lib/server/appearance-form.ts` validates the whole reference,
+  // query included, against this origin before it can become a `Location`.
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const search = searchParams.toString();
+  const returnTo = search === "" ? pathname : `${pathname}?${search}`;
   const [mode, setMode] = useState<AppearanceMode>(state?.mode ?? "light");
   const [font, setFont] = useState<string>(state?.font ?? "");
   const [density, setDensity] = useState<Density>(state?.density ?? "comfortable");
@@ -280,7 +290,7 @@ export function AppearanceControls() {
         action={APPEARANCE_ROUTE}
         onSubmit={keepOnPage}
       >
-        <input type="hidden" name={RETURN_FIELD} value={pathname ?? "/"} />
+        <input type="hidden" name={RETURN_FIELD} value={returnTo} />
         <Segmented
           name="mode"
           legend={t("appearance.mode.legend")}

@@ -47,12 +47,40 @@ export const DEFAULT_RETURN = "/";
 const PROBE_ORIGIN = "https://portal.invalid";
 
 /**
+ * An encoded slash or backslash anywhere in the candidate.
+ *
+ * No path this portal serves contains one, and both are separator characters wearing a
+ * disguise: `%2F%2Fevil.example` survives URL parsing intact (percent-encoded slashes are
+ * deliberately NOT decoded during path normalisation) and would be handed on as a path
+ * whose meaning depends on what decodes it next. Refused rather than reasoned about.
+ */
+const ENCODED_SEPARATOR = /%2f|%5c/iu;
+
+/**
  * A validated same-origin path to redirect a respondent back to, or `undefined`.
  *
  * Accepts a relative reference only, and then only one that resolves inside this
  * origin. Every rejection lands on the same answer, so an attacker learns nothing by
  * probing: an absolute URL, a protocol-relative `//host`, its backslash spelling, a
  * `javascript:` string and a fragment-only reference are all simply "no target".
+ *
+ * ## The check that is easy to get wrong, and was (PR #859 review)
+ *
+ * Checking the CANDIDATE for a leading `//` is not enough, because URL parsing rewrites
+ * the string before anyone reads it. Dot-segment normalisation resolves `/..//evil.example`
+ * to the pathname `//evil.example`: a single leading slash goes in and a protocol-relative
+ * reference comes out. It has three spellings that all land there - `/..//host`,
+ * `/x/..//host`, and `/%2e%2e//host`, because the parser decodes `%2e` as a dot segment -
+ * and a backslash is a slash to the parser for a special scheme, so `/..\host` is a fourth.
+ * The origin check passes on every one of them, since the resolution happened inside the
+ * probe origin; what escapes is the RESULT, once a browser resolves it as a `Location`.
+ *
+ * So the leading-`//` test is applied to the parser's own output, after normalisation, and
+ * a backslash or an encoded separator anywhere in the candidate is refused outright. The
+ * route then emits the target as an ABSOLUTE URL on the portal's own origin, so even a
+ * bypass of everything above could not produce a Location that leaves this deployment.
+ * Two independent controls, because this one is a string check and string checks are where
+ * this class of defect lives.
  *
  * The route itself is refused as a target too. It is same-origin and would pass every
  * other rule, but it exports `POST` only, so redirecting there hands the respondent a
@@ -63,6 +91,7 @@ const PROBE_ORIGIN = "https://portal.invalid";
  */
 function internalPath(candidate: string | undefined): string | undefined {
   if (candidate === undefined || !candidate.startsWith("/")) return undefined;
+  if (candidate.includes("\\") || ENCODED_SEPARATOR.test(candidate)) return undefined;
   let resolved: URL;
   try {
     resolved = new URL(candidate, PROBE_ORIGIN);
@@ -70,6 +99,8 @@ function internalPath(candidate: string | undefined): string | undefined {
     return undefined;
   }
   if (resolved.origin !== PROBE_ORIGIN) return undefined;
+  // After normalisation, not before: this is the dot-segment escape above.
+  if (resolved.pathname.startsWith("//")) return undefined;
   if (resolved.pathname === APPEARANCE_ROUTE) return undefined;
   return `${resolved.pathname}${resolved.search}`;
 }
@@ -116,12 +147,17 @@ export function safeReturnPath(
 /**
  * The posted appearance values, or `{}` when they are not exactly what the form emits.
  *
- * All-or-nothing rather than per-axis, because the only thing that produces this form
- * is the portal's own markup and it always posts all three axes: a radio group always
- * has a checked member and a `<select>` always has a value. So a submission that fails
- * this schema was hand-built, and applying the half of it that happened to parse would
- * be honouring a request nobody made. The respondent still gets their page back (the
- * route redirects either way); they just get it unchanged.
+ * Precisely: an ABSENT axis is simply not written (each member is `.optional()`, and a
+ * submission that omits one is asking for nothing on that axis, not for a reset). A
+ * PRESENT axis carrying anything outside its enumeration fails the whole object, so no
+ * axis is written at all.
+ *
+ * Rejecting whole rather than dropping the offending axis, because the only thing that
+ * produces this form is the portal's own markup and it always posts all three: a radio
+ * group always has a checked member and a `<select>` always has a value. So a submission
+ * with a bad value in it was hand-built, and applying the half of it that happened to
+ * parse would be honouring a request nobody made. The respondent still gets their page
+ * back (the route redirects either way); they just get it unchanged.
  *
  * Mode and density are closed enumerations from `lib/appearance.ts`. **Font is not**:
  * which faces exist is the `@roonga/qcms-ui` registry and which of them a deployment

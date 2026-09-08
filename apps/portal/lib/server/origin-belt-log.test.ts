@@ -83,7 +83,7 @@ const APP_DIR = fileURLToPath(new URL("../../app", import.meta.url));
  */
 const OUTCOME_VOCABULARY = [
   "redirect-to-entry",
-  "redirect-to-page",
+  "redirect-to-root",
   "redirect-to-step",
   "forbidden",
 ];

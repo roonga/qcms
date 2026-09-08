@@ -89,18 +89,20 @@ export type BeltRoute =
  * It is the field that tells an operator taking a support call which of the runbook's
  * symptoms they are looking at: `redirect-to-entry` is "This form is not
  * available" on the entry page, `redirect-to-step` is the no-JS respondent bounced
- * back to the same step with their answers gone, `redirect-to-page` is the no-JS
- * appearance form (issue #195) returning the respondent to the page they submitted it
- * from with their appearance unchanged, and `forbidden` is a hydrated `fetch()`
- * refused with a 403 - a shape no ordinary respondent produces.
+ * back to the same step with their answers gone, `redirect-to-root` is the no-JS
+ * appearance form (issue #195) dropping the respondent at the site root with their
+ * appearance unchanged, and `forbidden` is a hydrated `fetch()` refused with a 403 - a
+ * shape no ordinary respondent produces.
  *
- * `redirect-to-page` is the one refusal a respondent may not notice at all, which is
- * why it is its own member rather than folded into `redirect-to-step`: the page comes
- * back looking exactly as it did, so nothing on it says the choice was refused, and
- * this line is the only place that fact exists.
+ * `redirect-to-root` is its own member rather than folded into `redirect-to-step`
+ * because it is the only refusal that moves a respondent OFF the page they were reading.
+ * A refused appearance submission cannot be sent back to the page it named, since a
+ * request that could not prove its origin does not get to choose the redirect (PR #859
+ * review), so the respondent loses their place and nothing on the page they land on says
+ * why. This line is the only place that fact exists.
  */
 export type BeltOutcome =
-  "redirect-to-entry" | "redirect-to-page" | "redirect-to-step" | "forbidden";
+  "redirect-to-entry" | "redirect-to-root" | "redirect-to-step" | "forbidden";
 
 /**
  * How the request's `Sec-Fetch-Site` header reads.
@@ -158,7 +160,7 @@ interface BeltedRoute {
  * `"unrecognized"`.
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
-  { route: "/appearance", pattern: /^\/appearance\/?$/, outcome: "redirect-to-page" },
+  { route: "/appearance", pattern: /^\/appearance\/?$/, outcome: "redirect-to-root" },
   {
     route: "/f/{formSlug}/start",
     pattern: /^\/f\/[^/]+\/start\/?$/,

@@ -625,17 +625,22 @@ Two limits are worth stating rather than discovering:
   still gets the configured default and must pick High contrast themselves. Issue #28
   (`forced-colors` / Windows High Contrast Mode) is the separate CSS-level answer to
   part of that, and is deliberately not folded in here.
-- **The redirect target is validated, never reflected.** The return path arrives in a
-  hidden field, so it is respondent-controllable: it is accepted only when it resolves
-  inside this origin, and falls back to the `Referer` (when that names the portal's own
-  origin) and then to `/`. The portal sends `Referrer-Policy: no-referrer`, so in
-  practice the hidden field is what carries it. See
-  `apps/portal/lib/server/appearance-form.ts`.
+- **The redirect target is validated, never reflected, and never emitted relatively.** The
+  return path (path and query) arrives in a hidden field, so it is respondent-controllable.
+  It is accepted only when it resolves inside this origin, with the `Referer` (when that
+  names the portal's own origin) and then `/` as fallbacks; the portal sends
+  `Referrer-Policy: no-referrer`, so in practice the hidden field is what carries it. The
+  check runs on the URL parser's OUTPUT, because normalisation rewrites `/..//host` into
+  the pathname `//host` - a single leading slash in, a protocol-relative reference out. The
+  `Location` is then built absolutely on the deployment's own base, so a path that somehow
+  got past the first control still cannot name another origin. See
+  `apps/portal/lib/server/appearance-form.ts` and `apps/portal/app/appearance/route.ts`.
 
 The route carries SEC-9's CSRF belt like every other state-changing portal handler, so
 the small population of browsers that send no `Sec-Fetch-Site` cannot use this form
-either; they get their page back unchanged, and the refusal is visible only in the
-`origin.belt.refused` line (`beltOutcome: "redirect-to-page"`, `docs/operations.md`).
+either; a refused request is sent to the site root with nothing written, and the refusal
+is visible only in the `origin.belt.refused` line (`beltOutcome: "redirect-to-root"`,
+`docs/operations.md`).
 
 ### Measured: target sizes per density
 

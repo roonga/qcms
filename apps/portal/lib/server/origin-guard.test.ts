@@ -142,18 +142,15 @@ beforeEach(() => {
  * the log line uses. Derived from the wire rather than from the route table, so that
  * comparing the two says something.
  *
- * `/appearance` is the one route whose refusal cannot be told apart by its `Location`,
- * and that is a property of the feature rather than a gap here: the no-JS appearance
- * form sends the respondent back to whatever page they submitted it from (issue #195),
- * so its refusal target is a step path, an entry path or the root depending only on
- * where they were standing. It is therefore recognised by route, and what pins the
- * response for that entry is its `assertRefusal`, which asserts the exact `Location`
- * and that no cookie was written.
+ * `/appearance` is read off the wire like the rest. Its refusal used to be the page the
+ * request named, which no path shape could distinguish; since PR #859's review a request
+ * that cannot prove its origin does not get to choose the redirect, so the refusal is the
+ * site root and says so.
  */
-function outcomeOnTheWire(route: GuardedRoute, response: Response): string {
+function outcomeOnTheWire(response: Response): string {
   if (response.status === 403) return "forbidden";
-  if (route.logged.beltRoute === "/appearance") return "redirect-to-page";
   const location = new URL(response.headers.get("location") ?? "", PORTAL_BASE);
+  if (location.pathname === "/") return "redirect-to-root";
   return location.pathname.startsWith("/f/") ? "redirect-to-entry" : "redirect-to-step";
 }
 
@@ -312,13 +309,14 @@ const ROUTES: readonly GuardedRoute[] = [
     acted: (response) => response.headers.getSetCookie().length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
-      // Back to the page the form was submitted from, and nothing written. The
-      // respondent sees their own page, unchanged: the refusal is invisible to them,
-      // which is why the log line for it exists.
-      expect(response.headers.get("location")).toBe("/s/ses_1");
+      // The site root, NOT the `/s/ses_1` the request asked for: a request that cannot
+      // prove its origin does not choose where the browser goes next (PR #859 review).
+      // Absolute, on the configured base, so no `Location` this handler emits can be
+      // read as protocol-relative whatever the path validator let through.
+      expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/`);
       expect(response.headers.getSetCookie()).toEqual([]);
     },
-    logged: { beltRoute: "/appearance", beltOutcome: "redirect-to-page" },
+    logged: { beltRoute: "/appearance", beltOutcome: "redirect-to-root" },
   },
   {
     path: "app/f/[formSlug]/start/route.ts",
@@ -416,6 +414,58 @@ describe("isSameOriginPost", () => {
   });
 });
 
+/**
+ * The open redirect PR #859's review found, closed at the handler rather than only at the
+ * pure function (`appearance-form.test.ts` covers that half).
+ *
+ * Here because this file is where the real `POST` is driven with a real `Request`, which
+ * is what the reviewer reproduced against: a 303 whose `Location` was `//evil.example`,
+ * emitted relatively, which a browser resolves as `https://evil.example/`. Two things had
+ * to be true for that to escape, so both are asserted - the path validator refuses the
+ * payload, AND the header is absolute on this deployment's own base, so no path reaching
+ * the response builder can name another origin.
+ */
+describe("app/appearance/route.ts does not emit a Location off this origin", () => {
+  const ADMITTED = { "sec-fetch-site": "same-origin" };
+
+  /** One appearance POST from our own page, carrying `returnTo`. */
+  function apply(returnTo: string): Promise<Response> {
+    const form = new FormData();
+    form.set("mode", "dark");
+    form.set("returnTo", returnTo);
+    return appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, ADMITTED, form));
+  }
+
+  it.each([
+    "/..//evil.example",
+    "/x/..//evil.example",
+    "/%2e%2e//evil.example",
+    "/..\\evil.example",
+    "/%2F%2Fevil.example",
+    "//evil.example",
+    "https://evil.example/x",
+  ])("sends %s to the site root instead", async (payload) => {
+    const response = await apply(payload);
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/`);
+  });
+
+  it("still returns a legitimate page, absolutely, with the cookies written", async () => {
+    // The negative cases above are only meaningful while the positive one still works:
+    // a validator that refused everything would pass all of them.
+    const response = await apply("/s/ses_1?step=2");
+    expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/s/ses_1?step=2`);
+    expect(response.headers.getSetCookie()).toHaveLength(1);
+  });
+
+  it("names this origin on every answer it can give", async () => {
+    for (const candidate of ["/s/ses_1", "/..//evil.example", "", "//evil.example@x"]) {
+      const location = (await apply(candidate)).headers.get("location") ?? "";
+      expect(new URL(location).origin, candidate).toBe(PORTAL_BASE);
+    }
+  });
+});
+
 describe.each(ROUTES)("$path", (route) => {
   beforeEach(() => {
     api.startSession.mockReset().mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
@@ -477,6 +527,6 @@ describe.each(ROUTES)("$path", (route) => {
     const refused = ORIGIN_CASES.find((probe) => !probe.allowed);
     const response = await route.post(refused?.headers ?? {});
     await route.assertRefusal(response);
-    expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(route, response));
+    expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(response));
   });
 });
