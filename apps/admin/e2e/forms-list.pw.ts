@@ -4,7 +4,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import { chooseOption, createForm, field } from "./support/forms.js";
+import {
+  addStep,
+  chooseOption,
+  createForm,
+  field,
+  savedStamp,
+  waitForSaveAfter,
+} from "./support/forms.js";
 
 /**
  * The form library's search, status filter and sort, in the browser (issue 686).
@@ -74,23 +81,41 @@ async function listedSlugs(page: Page): Promise<string[]> {
   return (await cells.allInnerTexts()).map((text) => text.trim());
 }
 
+/**
+ * Create a form and make its title reach the stored draft.
+ *
+ * `POST /admin/forms` takes `formId`, `slug` and `defaultLocale` only, so the identity is
+ * created with an EMPTY title and `/forms/new` carries what the author typed to the
+ * builder in the query string. The builder seeds the working draft from it and the FIRST
+ * AUTOSAVE is what persists it. So a form that has only just been created has no stored
+ * title for the library's search to match, and the fixture has to make that save happen
+ * rather than assume it: adding a step is the smallest edit that does, and waiting on the
+ * save strip is what makes it a fact rather than a race.
+ */
+async function createSavedForm(page: Page, slug: string, title: string): Promise<void> {
+  await createForm(page, slug, title);
+  const before = await savedStamp(page);
+  await addStep(page, "Only step");
+  await waitForSaveAfter(page, before);
+}
+
 test("creates the library this spec reads, and closes one of its forms", async ({ page }) => {
   test.setTimeout(300_000);
   totpSecret = await enrollNewAdmin(page, EMAIL);
 
-  await createForm(page, ALPHA, "Alpha zebra");
+  await createSavedForm(page, ALPHA, "Alpha zebra");
 
   // Bravo is the closed one, and it is closed here rather than later because
-  // `createForm` leaves the browser on the builder of the form it just made. Closing
+  // `createSavedForm` leaves the browser on the builder of the form it just made. Closing
   // needs no publish: it is the identity's own lifecycle, which is exactly what the
   // Status filter narrows on.
-  await createForm(page, BRAVO, "Bravo quokka");
+  await createSavedForm(page, BRAVO, "Bravo quokka");
   await page.getByRole("button", { name: "Close form" }).click();
   const dialog = page.getByRole("alertdialog");
   await dialog.getByRole("button", { name: "Close it" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
-  await createForm(page, CHARLIE, "Charlie zebra");
+  await createSavedForm(page, CHARLIE, "Charlie zebra");
 
   await openLibrary(page);
   expect(await listedSlugs(page)).toEqual([ALPHA, BRAVO, CHARLIE]);
