@@ -308,7 +308,7 @@ export interface Config {
     /**
      * better-auth signing secret (`QCMS_ADMIN_AUTH_SECRET`, >= 32 chars, SEC-7).
      *
-     * Passed to better-auth as `secret`, which in the pinned better-auth 1.7.2 means
+     * Passed to better-auth as `secret`, which in the pinned better-auth 1.7.3 means
      * **the legacy fallback**: the key used to read ciphertext written before the
      * versioned envelope existed. It is also the value {@link secrets} defaults to, so a
      * deployment that never rotates sees exactly the behaviour it always had.
@@ -368,9 +368,9 @@ export interface Config {
      * (`QCMS_ADMIN_SIGNIN_THROTTLE`, default **true**, SEC-1, issue #390).
      *
      * The limiter is better-auth's, and until this knob existed nothing here stated
-     * whether it ran: better-auth 1.7.2 resolves `enabled` as
+     * whether it ran: better-auth 1.7.3 resolves `enabled` as
      * `options.rateLimit?.enabled ?? isProduction`
-     * (`dist/context/create-context.mjs:171`) over an `isProduction` captured once at
+     * (`dist/context/create-context.mjs:172`) over an `isProduction` captured once at
      * module load from `NODE_ENV` (`@better-auth/core/dist/env/env-impl.mjs:30-32`).
      * So a general-purpose variable, set for a dozen unrelated reasons and easy to
      * leave unset outside the shipped images, decided a security control. This field

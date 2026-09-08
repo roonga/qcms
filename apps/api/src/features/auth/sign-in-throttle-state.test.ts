@@ -9,9 +9,9 @@ import type { AdminAuth } from "./instance.js";
  *
  * ## What this pins, and why it is the case that closes the finding
  *
- * The finding was that a security control was switched by `NODE_ENV`: better-auth 1.7.2
+ * The finding was that a security control was switched by `NODE_ENV`: better-auth 1.7.3
  * resolves `rateLimit.enabled` as `options.rateLimit?.enabled ?? isProduction`
- * (`dist/context/create-context.mjs:171`), so a process started outside the shipped
+ * (`dist/context/create-context.mjs:172`), so a process started outside the shipped
  * images served an unlimited admin sign-in surface. `createAdminAuth` now passes the
  * value from `QCMS_ADMIN_SIGNIN_THROTTLE`, default on.
  *

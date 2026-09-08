@@ -1,4 +1,4 @@
-import { boolean, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
 /**
  * better-auth tables (`ARCHITECTURE.md` §7, admin identity with TOTP 2FA at
@@ -16,6 +16,20 @@ import { boolean, integer, pgTable, text, timestamp, uniqueIndex } from "drizzle
  * optional and not deferrable**: any change to the configured plugin set means
  * re-reconciling this file and appending a migration, or the first request after the
  * upgrade throws.
+ *
+ * "At startup" is shorthand for the first request through `auth.handler`, where
+ * better-auth 1.7.3 runs `ctx.checkSchema()` from the router's `onRequest` hook and
+ * caches the verdict; nothing is checked at import.
+ *
+ * The check runs in **both directions** as of 1.7.3, which is the property that made
+ * issue #849 (`SchemaMismatchError: Drizzle schema mismatch`). A field the library
+ * declares and this file lacks was always fatal; now a `NOT NULL` column with no
+ * default that the library never writes is fatal too, because the insert it would
+ * make cannot satisfy it. So the mirror is reconciled by removal as well as by
+ * addition, and a column of ours that outlives its purpose fails the deployment
+ * rather than sitting there as dead weight. `user.role` below is ours and stays legal
+ * on the same rule: it carries a default, so better-auth's insert succeeds without
+ * naming it.
  *
  * These tables are deliberately isolated from the domain schema: no foreign keys
  * cross between auth and the questionnaire tables.
@@ -55,49 +69,42 @@ export const authSession = pgTable("session", {
     .references(() => authUser.id, { onDelete: "cascade" }),
 });
 
-export const authAccount = pgTable(
-  "account",
-  {
-    id: text("id").primaryKey(),
-    /**
-     * Which identity provider issued {@link accountId}, and the half that makes an account
-     * identifiable (better-auth 1.7).
-     *
-     * Until 1.7 an account was keyed on `accountId` alone. 1.7 keys it on the pair, so this
-     * column is required and the library refuses to start without it - the error names the
-     * field: "The field \"issuer\" does not exist in the \"account\" Drizzle schema".
-     *
-     * QCMS issues one kind: `local:credential`, the email-and-password account
-     * `createInitialAdmin` mints. There is no social provider and SEC-1's endpoint allowlist
-     * is what keeps it that way, so the values in this column are not open-ended.
-     */
-    issuer: text("issuer").notNull(),
-    accountId: text("accountId").notNull(),
-    providerId: text("providerId").notNull(),
-    userId: text("userId")
-      .notNull()
-      .references(() => authUser.id, { onDelete: "cascade" }),
-    accessToken: text("accessToken"),
-    refreshToken: text("refreshToken"),
-    idToken: text("idToken"),
-    accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
-    refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
-    scope: text("scope"),
-    password: text("password"),
-    createdAt: timestamp("createdAt").notNull().defaultNow(),
-    updatedAt: timestamp("updatedAt").notNull().defaultNow(),
-  },
-  (table) => [
-    /**
-     * better-auth 1.7 declares this index itself (`getAuthTables(...).account.indexes`), so
-     * it is part of the mirror rather than a performance choice of ours. It is also the
-     * constraint that makes the new identity real: without it two rows could claim the same
-     * `(issuer, accountId)` and the lookup that replaced `findAccountById` would be
-     * ambiguous.
-     */
-    uniqueIndex("account_issuer_accountId_key").on(table.issuer, table.accountId),
-  ],
-);
+/**
+ * An account is keyed on `(providerId, accountId)`, as it was before better-auth 1.7 and
+ * is again from 1.7.3.
+ *
+ * 1.7.0 through 1.7.2 keyed it on `(issuer, accountId)` instead, so this table carried a
+ * required `issuer` column and the unique index better-auth declared for the pair
+ * (migration `0017_account_issuer`). 1.7.3 reverses that: the account schema is the 1.6
+ * one again, `issuer` is never written, and a `NOT NULL` column the library does not
+ * write refuses every sign-up. The official upgrade guide's Drizzle instruction is to
+ * regenerate rather than hand-write the relaxation, and the regenerated model drops both
+ * the field and the compound unique index; migration `0020_account_drops_issuer` is what
+ * `drizzle-kit generate` produced from that.
+ *
+ * Nothing declares an index on this table now: `getAuthTables(...).account.indexes` is
+ * empty on 1.7.3, and the identity constraint the removed index enforced was a property
+ * of the 1.7.0 keying, not of ours to keep. `(providerId, accountId)` uniqueness is
+ * better-auth's own lookup invariant and it is not expressed as a database constraint in
+ * 1.6 or 1.7.3.
+ */
+export const authAccount = pgTable("account", {
+  id: text("id").primaryKey(),
+  accountId: text("accountId").notNull(),
+  providerId: text("providerId").notNull(),
+  userId: text("userId")
+    .notNull()
+    .references(() => authUser.id, { onDelete: "cascade" }),
+  accessToken: text("accessToken"),
+  refreshToken: text("refreshToken"),
+  idToken: text("idToken"),
+  accessTokenExpiresAt: timestamp("accessTokenExpiresAt"),
+  refreshTokenExpiresAt: timestamp("refreshTokenExpiresAt"),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("createdAt").notNull().defaultNow(),
+  updatedAt: timestamp("updatedAt").notNull().defaultNow(),
+});
 
 export const authVerification = pgTable("verification", {
   id: text("id").primaryKey(),

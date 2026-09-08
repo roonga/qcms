@@ -141,6 +141,13 @@
       "when": 1788466530661,
       "tag": "0019_draft_agent_provenance",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788812659443,
+      "tag": "0020_account_drops_issuer",
+      "breakpoints": true
     }
   ]
 }
