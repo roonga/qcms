@@ -36,9 +36,9 @@ const SAFE_EVENTS = new Set([
   // both are safe for the same reason `origin.belt.refused` is: the body is a constant
   // declared at the call site, and every attribute either of them sets (`provider`,
   // `promptVersion`, `steps`, `inputTokens`, `outputTokens`, `finishReason`,
-  // `toolRejected`, `tool`, `allowlisted`) is absent from SAFE_ATTRIBUTES and is
-  // therefore deleted below. So what leaves the process is the event name and its count,
-  // never a value.
+  // `toolRejected`, `toolErrors`, `tool`, `allowlisted`) is absent from SAFE_ATTRIBUTES
+  // and is therefore deleted below. So what leaves the process is the event name and its
+  // count, never a value.
   //
   // That last point is load-bearing for the second one rather than incidental. `tool` on
   // a rejected call is a name a hostile MODEL chose, which is the one string in this
