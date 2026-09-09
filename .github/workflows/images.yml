@@ -178,8 +178,9 @@ jobs:
       # and nothing could read them afterwards, which is the one question an SBOM is
       # for. `--attestations` above writes the in-toto documents out as plain JSON,
       # one file per predicate per image, and this uploads them. The documents rather
-      # than the OCI directories they came from: those are gigabytes and these are
-      # kilobytes, and nobody re-pulls an image out of a workflow artifact.
+      # than the OCI directories they came from: measured on the three images at the
+      # time this landed, 9 MB against 376 MB, and nobody re-pulls an image out of a
+      # workflow artifact.
       #
       # `!cancelled()` rather than `always()`, so a cancelled run does not spend a
       # minute uploading a half-written directory, and `warn` rather than `error` on

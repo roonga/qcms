@@ -58,12 +58,14 @@
  * one file per predicate, under `<dir>/<image>/`. The `Images` workflow passes it and
  * uploads the result, because until then the SBOM was generated, asserted and then
  * discarded with the runner: the question it exists to answer stopped being answerable
- * the moment the job finished. The blobs are kilobytes; the OCI directories they come
- * out of are gigabytes, which is why this exports the documents rather than the tree.
+ * the moment the job finished. The documents rather than the OCI directories they come
+ * out of, because the size difference is what makes keeping them free: measured on the
+ * three images at the time this landed, 9 MB of attestations against 376 MB of OCI
+ * layers, and nobody re-pulls an image out of a workflow artifact.
  */
 
 import { execFileSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -264,8 +266,14 @@ export function attestationFileName(predicate) {
  * The SBOM and the provenance were generated, asserted and then thrown away with the
  * runner: nothing uploaded them, so "what was in that build" - the question an SBOM
  * exists to answer - stopped being answerable the moment the job finished. This is
- * the cheapest thing that fixes it. The whole OCI directory would be gigabytes; the
- * in-toto documents are the part anyone reads, and they are kilobytes.
+ * the cheapest thing that fixes it: the in-toto documents are the part anyone reads,
+ * and on the three images at the time this landed they were 9 MB against the OCI
+ * directories' 376 MB.
+ *
+ * The destination is removed before each copy. A blob in an OCI layout is written
+ * read-only (0444), and `copyFileSync` inherits that mode, so a second run into the
+ * same directory would fail with EACCES on a file this function itself wrote - which
+ * is exactly what a local `pnpm qcms:build-images --attestations` twice in a row is.
  *
  * @param {string} directory the OCI directory this image was exported to.
  * @param {string} name the image name, which becomes the subdirectory.
@@ -277,6 +285,7 @@ export function saveAttestations(directory, name, outputRoot) {
   mkdirSync(target, { recursive: true });
   return attestationBlobs(directory).map(({ predicate, path }) => {
     const file = join(target, attestationFileName(predicate));
+    rmSync(file, { force: true });
     copyFileSync(path, file);
     return file;
   });

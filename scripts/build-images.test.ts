@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -62,7 +70,12 @@ function ociArtifact(predicates: string[], labels: Record<string, string>): stri
   const put = (value: unknown): string => {
     // Digests are opaque to the traversal: it follows them, it does not verify them.
     const digest = `${String(next++).padStart(64, "0")}`;
-    writeFileSync(join(blobs, digest), JSON.stringify(value));
+    const file = join(blobs, digest);
+    writeFileSync(file, JSON.stringify(value));
+    // Read-only, as buildx writes a real blob. The mode is load-bearing for the
+    // export path: `copyFileSync` inherits it, so a second run into one directory
+    // fails with EACCES unless the destination is removed first.
+    chmodSync(file, 0o444);
     return `sha256:${digest}`;
   };
 
@@ -365,6 +378,19 @@ describe("keeping the attestations (issue #342)", () => {
       readFileSync(join(destination, "qcms-api", "spdx.dev-Document.json"), "utf8"),
     );
     expect(spdx).toMatchObject({ predicateType: SPDX_PREDICATE });
+  });
+
+  it("can be run twice into the same directory", () => {
+    // An OCI blob is written read-only, and copyFileSync inherits the mode, so a
+    // second run used to fail with EACCES on a file this code had itself written.
+    // Two `pnpm qcms:build-images --attestations` in a row is an ordinary local loop.
+    const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" });
+    const destination = mkdtempSync(join(tmpdir(), "qcms-attestations-"));
+    workspaces.push(destination);
+
+    saveAttestations(artifact, "qcms-api", destination);
+    expect(() => saveAttestations(artifact, "qcms-api", destination)).not.toThrow();
+    expect(readdirSync(join(destination, "qcms-api"))).toHaveLength(2);
   });
 
   it("stays off unless --attestations is passed, and refuses a bare flag", () => {
