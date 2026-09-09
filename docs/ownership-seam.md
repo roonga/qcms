@@ -91,12 +91,12 @@ alone. Regenerate, format, then verify.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (367 files common to both shapes)
+### Scaffolded paths (369 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 356   |
+| `apps/`                                                              | 358   |
 | `apps/admin/`                                                        | 215   |
 | `apps/admin/app/`                                                    | 66    |
 | `apps/admin/app/(shell)/`                                            | 50    |
@@ -183,8 +183,9 @@ alone. Regenerate, format, then verify.
 | `apps/api/src/middleware/`                                           | 6     |
 | `apps/api/src/routes/`                                               | 1     |
 | `apps/api/src/schedulers/`                                           | 4     |
-| `apps/portal/`                                                       | 61    |
-| `apps/portal/app/`                                                   | 15    |
+| `apps/portal/`                                                       | 63    |
+| `apps/portal/app/`                                                   | 16    |
+| `apps/portal/app/appearance/`                                        | 1     |
 | `apps/portal/app/done/`                                              | 1     |
 | `apps/portal/app/expired/`                                           | 1     |
 | `apps/portal/app/f/`                                                 | 2     |
@@ -199,9 +200,9 @@ alone. Regenerate, format, then verify.
 | `apps/portal/app/s/[sessionId]/step/`                                | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                              | 1     |
 | `apps/portal/components/`                                            | 13    |
-| `apps/portal/lib/`                                                   | 26    |
+| `apps/portal/lib/`                                                   | 27    |
 | `apps/portal/lib/i18n/`                                              | 1     |
-| `apps/portal/lib/server/`                                            | 15    |
+| `apps/portal/lib/server/`                                            | 16    |
 | `docker/`                                                            | 3     |
 
 ### What each deployment shape adds
@@ -224,7 +225,7 @@ alone. Regenerate, format, then verify.
 
 ### QCMS-internal references in the scaffolded source
 
-`1776` lines across `320` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1791` lines across `321` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -239,7 +240,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (367)</summary>
+<summary>Every scaffolded file (369)</summary>
 
 ```
 .dockerignore
@@ -543,6 +544,7 @@ apps/api/tsconfig.build.json
 apps/api/tsconfig.json
 apps/portal/.gitignore
 apps/portal/app/adopter-theme.css
+apps/portal/app/appearance/route.ts
 apps/portal/app/done/page.tsx
 apps/portal/app/expired/page.tsx
 apps/portal/app/f/[formSlug]/page.tsx
@@ -578,6 +580,7 @@ apps/portal/lib/error-summary.ts
 apps/portal/lib/hydration.ts
 apps/portal/lib/i18n/en.ts
 apps/portal/lib/server/api.ts
+apps/portal/lib/server/appearance-form.ts
 apps/portal/lib/server/challenge.ts
 apps/portal/lib/server/client-address.ts
 apps/portal/lib/server/config.ts
