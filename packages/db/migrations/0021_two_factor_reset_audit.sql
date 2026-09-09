@@ -44,11 +44,10 @@ CREATE TABLE "two_factor_resets" (
 --
 -- On that third one the guard is false, the revoke does not run, and the renamed role
 -- keeps all four privileges on this table. The name is a literal because a migration
--- cannot know a name an operator chose - it runs before anything could ask - and a
--- blanket revoke from every non-owner role would strip qcms_reporting of the SELECT
--- the reporting recipe grants it. So this control reaches the shipped role names and
--- not an arbitrary one, which is deliberately WEAKER than the reset command's own
--- SEC-10 guard: that one tests schema ownership precisely so it survives a rename.
+-- cannot know a name an operator chose - it runs before anything could ask. So this
+-- control reaches the shipped role names and not an arbitrary one, which is
+-- deliberately WEAKER than the reset command's own SEC-10 guard: that one tests
+-- schema ownership precisely so it survives a rename.
 -- An operator who renames the application role carries this revoke into their own
 -- recipe; docs/operations.md says so beside the SQL, and docs/SECURITY_DESIGN.md
 -- section 2.1 records the limit rather than claiming the stronger property.
