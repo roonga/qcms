@@ -17,8 +17,8 @@ COPY scripts ./scripts
 # `pnpm install --frozen-lockfile` refuses the workspace outright: a package that
 # declares a `workspace:*` dependency on something the image never copied is not a
 # missing file, it is an unresolvable graph. Nothing from here reaches the runtime
-# stage - `pnpm deploy --prod` prunes it - so this is the build stage paying for a
-# complete workspace, exactly as `scripts` above does.
+# stage - Next's file tracing copies only what the server actually loads - so this is
+# the build stage paying for a complete workspace, exactly as `scripts` above does.
 COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
@@ -29,7 +29,6 @@ RUN pnpm install --frozen-lockfile
 # and `**/*.test.*` from the build context instead (.dockerignore), so those files
 # are not in the image to type-check and the workaround has nothing left to fix.
 RUN pnpm --filter qcms-portal... build
-RUN pnpm --filter qcms-portal deploy --legacy --prod /opt/qcms
 
 FROM node:24-bookworm-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS runtime
 
@@ -40,11 +39,31 @@ LABEL org.opencontainers.image.title="qcms-portal" \
 
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build --chown=node:node /opt/qcms ./
-# pnpm deploy honours .gitignore, so Next's ignored production artifact must be
-# copied explicitly after the pruned runtime tree.
-COPY --from=build --chown=node:node /workspace/apps/portal/.next ./.next
+# Next's standalone `server.js` reads its bind address and port from the environment
+# and defaults to `0.0.0.0:3000`; both are written here rather than left implicit so
+# `docker inspect` answers what the process binds without anyone reading Next's source.
+# This is the same contract the previous `next start --hostname 0.0.0.0 --port 3000`
+# command line expressed, moved from argv to the environment because the minimal
+# server takes no flags.
+ENV HOSTNAME=0.0.0.0 \
+    PORT=3000
+# Next's own deployment output (`output: "standalone"`, apps/portal/next.config.ts).
+# `next build` traces the modules the server actually loads and writes them, with a
+# minimal `server.js`, under `<distDir>/standalone`. With `outputFileTracingRoot` at
+# the workspace root that tree mirrors the monorepo layout, so the app lands at
+# `apps/portal/` with one shared `node_modules` beside it, and nothing that only the
+# build needed - the toolchain, the other workspace packages' sources, the whole
+# `.next/cache` - comes with it. That is what replaced `pnpm deploy --prod` plus a
+# copy of the entire `.next` directory here.
+COPY --from=build --chown=node:node /workspace/apps/portal/.next/standalone ./
+# The one thing tracing deliberately leaves behind. Next's documentation is explicit
+# that the minimal server does not copy `.next/static` (or `public/`) into the
+# standalone tree, because a CDN is expected to serve them, and that copying them in
+# is how you serve them from the server itself - which is this deployment, since QCMS
+# ships no CDN assumption. There is no `public/` directory in either front end, so
+# this is the whole of it.
+COPY --from=build --chown=node:node /workspace/apps/portal/.next/static ./apps/portal/.next/static
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=6 CMD node -e "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
-CMD ["node", "node_modules/next/dist/bin/next", "start", "--hostname", "0.0.0.0", "--port", "3000"]
+CMD ["node", "apps/portal/server.js"]

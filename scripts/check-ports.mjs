@@ -222,12 +222,12 @@ export const ALLOWED = [
   {
     file: "docker/admin.Dockerfile",
     value: 3000,
-    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK. Compose maps 7S40 onto it.",
+    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK and, since the move to Next standalone output (issue #291), also written as the image's `PORT` because the minimal server takes no command-line flags. Compose maps 7S40 onto it.",
   },
   {
     file: "docker/portal.Dockerfile",
     value: 3000,
-    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK. Compose maps 7S00 onto it.",
+    why: "same: the Next.js server's own in-container port, dialled by the HEALTHCHECK and, since the move to Next standalone output (issue #291), also written as the image's `PORT` because the minimal server takes no command-line flags. Compose maps 7S00 onto it.",
   },
   {
     file: "apps/api/src/openapi-document.ts",
@@ -299,12 +299,12 @@ export const ALLOWED = [
   {
     file: "packages/create-qcms-app/templates/common/docker/admin.Dockerfile.tmpl",
     value: 3000,
-    why: "the generated copy of docker/admin.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
+    why: "the generated copy of docker/admin.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK and written as the image's `PORT`.",
   },
   {
     file: "packages/create-qcms-app/templates/common/docker/portal.Dockerfile.tmpl",
     value: 3000,
-    why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK.",
+    why: "the generated copy of docker/portal.Dockerfile: the Next.js server's own in-container port, dialled by the HEALTHCHECK and written as the image's `PORT`.",
   },
   {
     file: ".github/actions/assert-no-docker-hub-pulls/action.yml",

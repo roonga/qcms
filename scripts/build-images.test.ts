@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -6,6 +6,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   assertArtifact,
+  attestationFileName,
   attestationManifestCount,
   buildArgv,
   IMAGES,
@@ -16,6 +17,7 @@ import {
   parseArgv,
   PROVENANCE_PREDICATE,
   REGISTRY,
+  saveAttestations,
   SPDX_PREDICATE,
   VERSION_LABEL,
 } from "./build-images.mjs";
@@ -69,6 +71,11 @@ function ociArtifact(predicates: string[], labels: Record<string, string>): stri
   const attestationDigest = put({
     layers: predicates.map((predicate) => ({
       mediaType: "application/vnd.in-toto+json",
+      // A real in-toto layer points at a blob holding the statement. The traversal
+      // used only to read the annotation; `saveAttestations` copies the blob, so the
+      // fixture has to carry one or the export path would be tested against a shape
+      // buildx does not produce.
+      digest: put({ _type: "https://in-toto.io/Statement/v1", predicateType: predicate }),
       annotations: { "in-toto.io/predicate-type": predicate },
     })),
   });
@@ -100,8 +107,19 @@ describe("version derivation", () => {
   it("makes the version legal as a Docker tag without losing the commit", () => {
     // `+` is valid SemVer build metadata and illegal in an image reference. This
     // caught a real failure: the first build died on `invalid reference format`.
-    expect(imageTag("0.0.1-alpha.0+83fa947")).toBe("0.0.1-alpha.0-83fa947");
+    expect(imageTag("0.0.1-alpha.0+83fa947")).toBe("0.0.1-alpha.0_83fa947");
     expect(imageTag("0.0.1-alpha.0+83fa947")).toMatch(/^\w[\w.-]{0,127}$/);
+  });
+
+  it("gives two different versions two different tags", () => {
+    // Issue #342. `+` used to become `-`, and `-` is legal in a SemVer version, so
+    // `1.0.0+build.5` and `1.0.0-build.5` collided on one tag and the second build
+    // silently moved the first one's. `_` cannot appear in a version at all.
+    expect(imageTag("1.0.0+build.5")).not.toBe(imageTag("1.0.0-build.5"));
+    expect(imageTag("1.0.0-build.5")).toBe("1.0.0-build.5");
+    for (const version of ["1.0.0+build.5", "1.0.0-build.5", "0.0.1-alpha.0+83fa947.dirty"]) {
+      expect(imageTag(version)).toMatch(/^\w[\w.-]{0,127}$/);
+    }
   });
 });
 
@@ -320,5 +338,40 @@ describe("argument parsing", () => {
   it("refuses a valueless --tag rather than pushing a tag named undefined", () => {
     expect(() => parseArgv(["--push", "roonga", "--tag"])).toThrow(/--tag needs a value/);
     expect(() => parseArgv(["--tag", "--output", "/tmp/i"])).toThrow(/--tag needs a value/);
+  });
+});
+
+describe("keeping the attestations (issue #342)", () => {
+  it("names each document after the predicate it carries", () => {
+    expect(attestationFileName(SPDX_PREDICATE)).toBe("spdx.dev-Document.json");
+    expect(attestationFileName(PROVENANCE_PREDICATE)).toBe("slsa.dev-provenance-v1.json");
+  });
+
+  it("writes one document per predicate under the image's own directory", () => {
+    const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" });
+    const destination = mkdtempSync(join(tmpdir(), "qcms-attestations-"));
+    workspaces.push(destination);
+
+    const written = saveAttestations(artifact, "qcms-api", destination);
+
+    expect(written).toHaveLength(2);
+    expect(readdirSync(join(destination, "qcms-api")).sort()).toEqual([
+      "slsa.dev-provenance-v1.json",
+      "spdx.dev-Document.json",
+    ]);
+    // The document itself, not a stub naming it: the point of uploading these is that
+    // someone can read what was in the build months later.
+    const spdx: unknown = JSON.parse(
+      readFileSync(join(destination, "qcms-api", "spdx.dev-Document.json"), "utf8"),
+    );
+    expect(spdx).toMatchObject({ predicateType: SPDX_PREDICATE });
+  });
+
+  it("stays off unless --attestations is passed, and refuses a bare flag", () => {
+    expect(parseArgv([]).attestationRoot).toBeUndefined();
+    expect(parseArgv(["--attestations", "/tmp/attestations"]).attestationRoot).toBe(
+      "/tmp/attestations",
+    );
+    expect(() => parseArgv(["--attestations"])).toThrow(/needs a value/);
   });
 });

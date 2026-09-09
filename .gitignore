@@ -4,6 +4,11 @@ node_modules/
 # the dev container (bind-mounted workspace vs container home, task 046).
 .pnpm-store/
 dist/
+# `scripts/build-images.mjs`'s default output directory (issue #342). A bare
+# `pnpm qcms:build-images` writes three OCI directories here, so without this line the
+# first local image build leaves gigabytes of untracked tree in the working copy - and
+# work selection stops when the checkout is dirty, so it is not merely untidy.
+dist-images/
 .turbo/
 coverage/
 .claude/worktrees/

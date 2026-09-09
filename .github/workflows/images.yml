@@ -110,12 +110,6 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # `--sbom` needs the docker-container driver: the default `docker` driver cannot
-      # attach attestations. buildx itself is already on the runner with no setup
-      # action, as mirror-test-images.yml also relies on.
-      - name: Create a buildx builder that can attest
-        run: docker buildx create --name qcms-sbom --driver docker-container
-
       # Publishing is gated on the REF, not on the event. A branch push builds and
       # pushes nothing, which is what a pull request wants: the image build stays the
       # cheap early warning it has always been, and no branch can mint a tag anyone
@@ -143,13 +137,24 @@ jobs:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
+      # `--sbom` needs the docker-container driver, because the default `docker` driver
+      # cannot attach attestations. The builder is created by `ensureBuilder()` inside
+      # the script rather than by a step here (issue #342): there used to be one of
+      # each, and the script's is the one that has to exist anyway, because it is what
+      # makes a local `pnpm qcms:build-images` work on a machine that has never run
+      # this workflow. buildx itself is already on the runner with no setup action, as
+      # mirror-test-images.yml also relies on.
+      #
       # Deliberately NOT guarded by .github/actions/assert-no-docker-hub-pulls: the
       # SBOM step pulls docker/buildkit-syft-scanner, and the images build FROM
       # node:24-bookworm-slim. Both are build-time pulls, which is the same exception
       # the full-stack-e2e job already documents for the base image.
       - name: Build the three images with SBOM, provenance and a version stamp
         if: github.ref != 'refs/heads/main'
-        run: pnpm qcms:build-images -- --output "${RUNNER_TEMP}/images"
+        run: |
+          pnpm qcms:build-images -- \
+            --output "${RUNNER_TEMP}/images" \
+            --attestations "${RUNNER_TEMP}/attestations"
 
       # Two tags per image. The full commit SHA is the immutable one and the identity
       # a deploy should pin; `latest` is the moving convenience. Both are pushed from
@@ -163,9 +168,30 @@ jobs:
         run: |
           pnpm qcms:build-images -- \
             --output "${RUNNER_TEMP}/images" \
+            --attestations "${RUNNER_TEMP}/attestations" \
             --push "${NAMESPACE}" \
             --tag "${GITHUB_SHA}" \
             --tag latest
+
+      # The SBOM and the provenance, kept (issue #342). They used to be generated,
+      # asserted and then thrown away with the runner: the build proved they existed
+      # and nothing could read them afterwards, which is the one question an SBOM is
+      # for. `--attestations` above writes the in-toto documents out as plain JSON,
+      # one file per predicate per image, and this uploads them. The documents rather
+      # than the OCI directories they came from: those are gigabytes and these are
+      # kilobytes, and nobody re-pulls an image out of a workflow artifact.
+      #
+      # `!cancelled()` rather than `always()`, so a cancelled run does not spend a
+      # minute uploading a half-written directory, and `warn` rather than `error` on
+      # an empty one, because the build step failing is already the red that matters.
+      - name: Upload the SBOM and provenance
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-attestations
+          path: ${{ runner.temp }}/attestations/
+          if-no-files-found: warn
+          retention-days: 90
 
       # The build asserts as it goes and fails the step on a missing attestation.
       # This prints what landed, so the log answers "what was in that build" without

@@ -37,6 +37,28 @@ export default function adminNextConfig(phase: string): NextConfig {
     turbopack: {
       root: WORKTREE_ROOT,
     },
+    // Next's documented deployment output, and what docker/admin.Dockerfile ships
+    // (issue #291). `next build` traces the modules the server actually loads and
+    // writes them, with a minimal `server.js`, under `<distDir>/standalone`; the image
+    // copies that tree instead of running `pnpm deploy --prod` and then copying the
+    // whole `.next` directory over the top of it. The repository's standing preference
+    // is the vendor's documented setup path over a hand-rolled equivalent, and this is
+    // that path: https://nextjs.org/docs/app/api-reference/config/next-config-js/output
+    // (read 2026-09-10, page versioned 16.3.4).
+    //
+    // `outputFileTracingRoot` is not optional here, and the reason is the monorepo.
+    // Next traces from the PROJECT directory by default, so everything outside
+    // `apps/admin` - React, Next itself, every `@roonga/qcms-*` dist, all of which pnpm
+    // keeps in the workspace root's `node_modules` - would be left out of the copy and
+    // the container would die on its first require. It takes the same worktree root
+    // `turbopack.root` takes, and for the same reason: the root has to be pinned
+    // rather than inferred from a lockfile search that would find the shared main
+    // checkout. With it set, the standalone tree mirrors the workspace layout, so the
+    // server lands at `apps/admin/server.js` with one `node_modules` beside it.
+    //
+    // `next dev` ignores this; the standalone tree is produced by `next build` only.
+    output: "standalone",
+    outputFileTracingRoot: WORKTREE_ROOT,
     // The admin never sends CORS headers (SEC-9): it is same-origin with its own
     // BFF route handlers, and no cross-origin API exists. No `headers()` CORS
     // entries here by design; the security headers are set in `proxy.ts`.
