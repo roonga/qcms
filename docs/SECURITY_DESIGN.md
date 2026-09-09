@@ -100,6 +100,43 @@ The residual risk is explicit: an attacker who holds **both** a database read **
 A database read alone does not, which is the property §4's "encrypted at rest" row asserts and which `apps/api/src/features/auth/backup-code-storage.integration.test.ts` asserts against the column.
 040 should see this reasoning rather than inherit a quietly relaxed promise.
 
+**The recorded break-glass: `qcms:reset-2fa` (issue #432, Code Owner decision 2026-09-07).**
+The paragraph above closes a door, and for a while nothing took its place.
+While the recovery codes were stored as plain JSON, an operator who had lost access could read them out of the database - not a designed recovery path, a consequence of the defect #319 fixed.
+With them encrypted under the same key as the TOTP secret, a lost or changed `QCMS_ADMIN_AUTH_SECRET` or a lost device left an administrator locked out with **no documented way back**, which is a real state and not a hypothetical: task 056 hit it in development.
+So the reset is recorded here as the recovery path, and the next person does not have to rediscover that plaintext codes were load-bearing.
+
+It is a command in the same family as the seed and migration commands, run against the database and never over HTTP.
+It takes the administrator's email, clears that account's `twoFactor` row (the stored secret and the recovery codes, which live in the same row) and its `twoFactorEnabled` flag, appends a `two_factor_resets` audit row, and emits one allowlisted log event (§8a) carrying no attributes at all.
+The account then signs in on its password and the SEC-1 default forces a fresh enrolment before it reaches anything else.
+Live sessions are deliberately not revoked: any session that exists passed the second factor when it was issued.
+
+**Possession of migrate-role credentials is the whole guard, and that is stated rather than dressed up.**
+There is no HTTP route, because the authentication a recovery route would need is the thing that is broken.
+There is no environment flag, because a flag that enables the command is a second thing to get wrong and a deployment that leaves it on has moved the guard onto the flag.
+What is left is SEC-10: the command runs as `qcms_migrate` and **refuses `qcms_app`**, the credential every API process holds.
+The check is ownership of the schema rather than the role's name, so it holds for an adopter who names their roles differently, and it means that reaching the credential that is on a running box serving traffic does not thereby reach this.
+Two more refusals bound the blast radius: an address matching zero or more than one account is refused rather than guessed at (the match is case-insensitive, and `user.email` is compared case-sensitively by Postgres, so two accounts can share one address as an operator reads it), and nothing is written at all without an explicit `--yes`.
+
+**The audit rows are writable only by the migration role, under the recipe's role names (Code Owner decision, 2026-09-09).**
+`two_factor_resets` would otherwise have inherited `SELECT`, `INSERT`, `UPDATE` and `DELETE` from the blanket pass the role recipe hands `qcms_app`, and an audit row the credential serving traffic can rewrite or delete records nothing against the one attacker this split is drawn against.
+It is a revoke rather than a narrower grant because neither `GRANT ... ON ALL TABLES` nor `ALTER DEFAULT PRIVILEGES` can name an exception: default privileges are keyed on (role, schema, object type) with no per-table filter, so "every table this role creates except that one" is not expressible.
+The revoke is in migration 0021, which runs as the table's owner in the same step that creates it, so a fresh deployment and a fresh scaffold are correct with no post-migrate step; and again in the role recipe, because `db-roles` re-runs on every `up` and would otherwise re-grant the pass on the boot after the table appears.
+
+**The qualifier in that heading is load-bearing, and it is the one place this control is weaker than the guard beside it.**
+All three revokes name `qcms_app` as a literal, because a migration cannot know a name an operator chose: it runs before anything in this repository could ask.
+So on a deployment that renames the application role, migration 0021's guard is false, the revoke never runs, and that role keeps all four privileges on the audit table.
+That is reachable rather than hypothetical: renaming the roles is supported, and the `qcms:reset-2fa` guard one paragraph up is deliberately built on schema ownership rather than a name **so that it survives the rename**.
+The two controls therefore do not have the same reach, and saying so is the point of this paragraph.
+**An operator who renames the application role carries the revoke into their own recipe**, which `docs/operations.md` states beside the SQL; the assertions in `apps/api/e2e/security/03-db-least-privilege.e2e.ts` pin the shipped names only, because those are the names the shipped recipe uses.
+Widening the code was considered and rejected here rather than left unsaid: an `ALTER DEFAULT PRIVILEGES` exclusion does not exist in Postgres, and the alternatives (a configured role name threaded into a migration, or a revoke from `PUBLIC` plus re-grants) each buy this one property by making the migration set carry deployment configuration.
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts both halves against a real Postgres.
+
+What this accepts, explicitly: **anyone holding the migration credential can remove any administrator's second factor.**
+That is the same person who can already `DROP TABLE`, so it grants no capability the credential did not carry, and the audit row is what makes the exercise visible afterwards.
+The row is appended even when there was nothing to clear, so a mistargeted run is visible rather than silent.
+It is `apps/api/src/features/auth/reset-two-factor.integration.test.ts` that holds this to the real role split: the container builds `qcms_migrate` and `qcms_app` from the `docs/operations.md` recipe, better-auth runs on the application credential exactly as a deployment does, and the refusal is asserted against a role that has just been shown to hold `DELETE` on the row it is refused permission to clear.
+
 **The proxied hop.**
 The browser talks only to the admin origin.
 The admin's named BFF route handlers forward one operation each over the SEC-4 internal channel and re-emit better-auth's `Set-Cookie` headers verbatim on their own 303, so the session and two-factor cookies land first-party to the admin with their `HttpOnly`, `SameSite=Lax` and `Secure` attributes unchanged, and no CORS header is ever needed.
@@ -458,7 +495,7 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 
 | Control                                          | Designed | Delivered / verified                                                                                                                |
 | ------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| Admin authn + 2FA (SEC-1)                        | §2.1     | 031 · #178 · #390 · 040                                                                                                             |
+| Admin authn + 2FA (SEC-1)                        | §2.1     | 031 · #178 · #390 · 040 · **#432 (recorded break-glass: `qcms:reset-2fa`)**                                                         |
 | Respondent tokens + secure links (SEC-2)         | §2.2     | 010, 018, 024 · 027                                                                                                                 |
 | Authorization matrix (SEC-3)                     | §3       | 017, 021–023 · **040 matrix tests (`apps/api/e2e/security/`)**                                                                      |
 | Service channel auth (SEC-4)                     | §2.3     | 017, 029, 031 · 040                                                                                                                 |
@@ -467,7 +504,7 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 | Key inventory + rotation (SEC-7)                 | §4       | 010, 017, 024, 036 runbooks · 040                                                                                                   |
 | Secrets handling + redaction (SEC-8)             | §6       | 017, 037 · **040 (placeholder boot refusal + `check:security-hygiene`)** · #491 (both BFFs) · #489 (stdout exception text recorded) |
 | Transport/browser hardening (SEC-9)              | §5       | 029, 031, 036 · **040 (API headers, #471)**                                                                                         |
-| Least-privilege DB roles (SEC-10)                | §7       | 013, 015 · 040 (reporting role asserted) · **#492 (app/migration split shipped and asserted)**                                      |
+| Least-privilege DB roles (SEC-10)                | §7       | 013, 015 · 040 (reporting role asserted) · **#492 (app/migration split shipped and asserted)** · #432 (the split guards a command)  |
 | Supply chain (SEC-11)                            | §9       | 001 (CI), 036, 037 · #372 (base digests + Dependabot containers) · **image scan still not run**                                     |
 | Review + disclosure (SEC-12)                     | §10      | **040 (`docs/security-review-2026-08-14.md`, `SECURITY.md`)**, 038 gate                                                             |
 | Telemetry privacy / redaction allowlist (SEC-13) | §8a      | 054, 062 · **not re-verified by 040**                                                                                               |

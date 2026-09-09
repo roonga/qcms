@@ -203,6 +203,20 @@ describe("the migration role is the only role that owns the schema", () => {
     expect(views.rows.map((row) => row.viewname)).toEqual(["answers_flat", "responses"]);
   });
 
+  it("holds the INSERT and SELECT qcms:reset-2fa needs on two_factor_resets", async () => {
+    // The other half of the #432 ruling. Revoking the audit table from the runtime
+    // role is only correct if the role that actually performs a reset can still write
+    // the row and read it back, and ownership implies neither: an owner's privileges
+    // are an ordinary ACL entry that a REVOKE can remove, so a revoke aimed at
+    // qcms_app but written without a FROM clause would take these with it.
+    const result = await migrator.query<{ select: boolean; insert: boolean }>(
+      `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
+              has_table_privilege(current_user, $1::text, 'INSERT') AS insert`,
+      ["public.two_factor_resets"],
+    );
+    expect(result.rows[0]).toEqual({ select: true, insert: true });
+  });
+
   it("owns the public schema", async () => {
     const result = await owner.query<{ owner: string }>(
       `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'public'`,
@@ -247,6 +261,50 @@ describe("the runtime role reads and writes rows, and nothing else", () => {
     // `answers_reject_delete` trigger (migration 0004) is the control on that path,
     // and a per-table grant list is one an operator can get wrong at runtime.
     expect(result.rows[0]).toEqual({ select: true, insert: true, update: true, delete: true });
+  });
+
+  it("holds NONE of the four on two_factor_resets: the break-glass audit trail", async () => {
+    // Issue #432, Code Owner decision 2026-09-09. `two_factor_resets` records that
+    // somebody removed an administrator's second factor out of band, and the whole
+    // value of that record is that the credential serving traffic cannot rewrite it.
+    // It is the one table in `public` this role holds nothing on, which is why it is
+    // asserted here rather than left to the OPERATIONAL_TABLES sweep above.
+    //
+    // The path this covers is a REVOKE undoing a GRANT, not a grant that was never
+    // made: the recipe hands out the DML pass over all tables and cannot name an
+    // exception (default privileges have no per-table filter), so all four bits are
+    // granted and then taken back. The revoke that does it on a fresh database is in
+    // migration 0021 itself, which is what this scenario ran.
+    const result = await app.query<{
+      select: boolean;
+      insert: boolean;
+      update: boolean;
+      delete: boolean;
+    }>(
+      `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
+              has_table_privilege(current_user, $1::text, 'INSERT') AS insert,
+              has_table_privilege(current_user, $1::text, 'UPDATE') AS update,
+              has_table_privilege(current_user, $1::text, 'DELETE') AS delete`,
+      ["public.two_factor_resets"],
+    );
+    expect(result.rows[0]).toEqual({
+      select: false,
+      insert: false,
+      update: false,
+      delete: false,
+    });
+  });
+
+  it("is actually refused a read and a write of an audit row, not merely missing the bit", async () => {
+    // The bits above are the ACL; these are the answers Postgres gives. Both
+    // directions, because a revoke that left SELECT would leak who has been reset and
+    // one that left DELETE would let the row be removed after the fact.
+    await expect(app.query("SELECT * FROM public.two_factor_resets LIMIT 1")).rejects.toThrow(
+      /permission denied/i,
+    );
+    await expect(app.query("DELETE FROM public.two_factor_resets")).rejects.toThrow(
+      /permission denied/i,
+    );
   });
 
   it("can actually read an operational table, not merely hold the bit", async () => {

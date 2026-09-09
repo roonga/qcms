@@ -18,3 +18,4 @@ export * from "./erasure.js";
 export * from "./outbox.js";
 export * from "./deliveries.js";
 export * from "./auth.js";
+export * from "./two-factor-resets.js";

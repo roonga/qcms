@@ -56,6 +56,27 @@ Admin two-factor authentication is **{{adminTwoFactor}}** in this deployment
 (`QCMS_ADMIN_2FA` in `.env`). `optional` is a development escape hatch; keep it
 `required` anywhere real.
 
+### When an administrator is locked out of two-factor
+
+There is one way back and it is not a screen: an authenticator that is gone, or a
+changed `QCMS_ADMIN_AUTH_SECRET`, leaves an enrolment nothing can verify, because
+the stored secret and the recovery codes are encrypted under that key.
+
+```sh
+# Report only. Writes nothing, so a mistyped address costs a line of output.
+docker compose run --rm migrate node dist/reset-2fa.js --email you@example.com
+
+# Apply. Clears that account's second factor and recovery codes.
+docker compose run --rm migrate node dist/reset-2fa.js --email you@example.com --yes
+```
+
+The `migrate` service, not `api`, and that is the guard rather than a detail: it is
+the one service holding the migration role's credential, and the command refuses the
+application credential the API runs as. So whoever can run this is whoever holds the
+credential that owns your schema. Every applied run appends a row to
+`two_factor_resets`. The account then signs in on its password and is asked to enrol
+again on the next sign-in.
+
 ## The mount split
 
 `QCMS_MOUNT` decides which route groups a process serves. An unmounted route does not

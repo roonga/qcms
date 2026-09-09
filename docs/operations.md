@@ -457,7 +457,62 @@ ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
   GRANT USAGE ON SEQUENCES TO qcms_app;
 ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
   GRANT USAGE ON SCHEMAS TO qcms_app;
+
+-- And the one table taken back out of that pass: the break-glass audit trail is
+-- MIGRATE-ONLY (issue #432). Guarded on the table existing, so this line is correct
+-- both here, before the first migration, where it does nothing, and on the re-run
+-- after an upgrade, where it does the work. See the note below the recipe.
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'two_factor_resets') THEN
+    REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE two_factor_resets FROM qcms_app;
+  END IF;
+END $$;
 ```
+
+**`two_factor_resets` is migrate-only, and the revoke is in two places on purpose**
+(issue #432, Code Owner decision 2026-09-09).
+That table records that somebody cleared an administrator's second factor out of band
+with `qcms:reset-2fa`.
+The credential that performs a reset is the migration role, and the whole point of the
+split is that the credential serving traffic is not that one, so an audit row the API's
+own credential can `UPDATE` or `DELETE` proves nothing against the attacker this section
+is drawn against.
+
+It has to be a revoke rather than a narrower grant.
+Neither form above can name an exception: `ALTER DEFAULT PRIVILEGES` is keyed on
+(role, schema, object type) and has no per-table filter, so "every table this role
+creates except that one" is not expressible in Postgres.
+The grant lands and is taken back.
+
+The copy that matters on a **new** database is in migration 0021 itself, which runs as
+the table's owner in the same step that creates it, so a fresh deployment (or a fresh
+`create-qcms-app` scaffold) is correct with no post-migrate step for anyone to forget.
+That copy is guarded on the role existing, because most databases it runs against have
+no `qcms_app` at all: a Testcontainers harness and a single-credential development
+database both migrate as one superuser, and an unguarded revoke would fail on them.
+
+The copy in this recipe exists for the **re-run**.
+`GRANT ... ON ALL TABLES IN SCHEMA public` re-applies to every table that exists when
+you run it, and on Compose the `db-roles` one-shot runs on every `up`, so without this
+line the audit table would quietly regain the DML pass on the next boot after it was
+created. Both copies are idempotent.
+
+**If you renamed the application role, this revoke is yours to carry.**
+All three copies name `qcms_app` as a literal, so on a deployment that calls it something
+else the migration's guard is false, the revoke never runs, and your application role
+keeps all four privileges on the audit table.
+That is a real limit and not an oversight: a migration cannot know a name you chose.
+So if you renamed it, add the line to your own recipe with your name in place of
+`qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
+Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
+the application credential by testing **schema ownership** rather than a role name, so
+that guard survives a rename and this one does not.
+
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the outcome from both
+sides against a real Postgres: `qcms_app` holds none of the four on `two_factor_resets`,
+and `qcms_migrate` holds the `INSERT` and `SELECT` the command needs.
+Those assertions cover the shipped names, because those are the names the shipped recipe
+uses.
 
 `qcms_app` deliberately gets no `TRUNCATE`, no `REFERENCES` and no `TRIGGER`. The two
 sanctioned whole-session delete paths (erasure and the retention purge) are ordinary
@@ -1068,12 +1123,17 @@ carries the version that wrote it, and moves forward as it is used.
    under the current version. TOTP secrets do **not** - they are written once at
    enrolment and only read afterwards.
 4. Because of step 3, **keep the old version in the list**. A TOTP secret written
-   under version 1 stays readable only while version 1 is listed, and the launch admin
-   surface exposes no way to re-enrol an account that already has a live factor
-   (`two-factor/disable` is deliberately unmounted). So at launch a retired version is
-   retired for good and there is no supported path to drop the trailing entry: add
-   versions, do not remove them. Pruning becomes possible when a 2FA reset exists
-   (issue #432).
+   under version 1 stays readable only while version 1 is listed, and the admin surface
+   exposes no way to re-enrol an account that already has a live factor
+   (`two-factor/disable` is deliberately unmounted). So the default answer is still
+   "add versions, do not remove them". What has changed is that dropping a trailing
+   entry is now _possible_ rather than impossible (issue #432): `qcms:reset-2fa` clears
+   an account's factor, so an administrator still holding a version-1 enrolment can be
+   reset and re-enrol under the current version, after which that entry reads nothing.
+   That is a deliberate operation with a cost - every such administrator re-enrols, and
+   each reset is a break-glass with an audit row - so it is a planned key retirement,
+   not a tidy-up. Confirm no `two_factor` row predates the version you intend to drop
+   before you drop it.
 
 A fourth limit is not conditional on rotating at all: **the deploy that introduced this
 list is a one-way door.** From that release onward every piece of stored two-factor
@@ -1092,10 +1152,57 @@ Numbering: versions are integers, unique, and are **not** positional - they iden
 the key inside the stored ciphertext, so never renumber an existing key. Add a higher
 number at the head of the list and leave the older ones alone.
 
-If the secret is lost outright there is currently no break-glass: nothing resets an
-account's 2FA state, so both factors are gone with the key. That gap is tracked
-separately (issue #432); until it closes, treat this secret with the same care as the
-database it protects, and back the two up together.
+If the secret is lost outright, both stored factors are gone with it: nothing can decrypt
+a TOTP secret or a recovery code without the key that wrote them. The break-glass is
+"Recovering an administrator locked out of two-factor" below, which clears the unreadable
+enrolment rather than recovering it. That is a recovery of _access_, not of the material,
+so it still costs every enrolled administrator a fresh enrolment: treat this secret with
+the same care as the database it protects, and back the two up together.
+
+### Recovering an administrator locked out of two-factor
+
+Two ways in, and neither has a screen: an authenticator that is gone, and a
+`QCMS_ADMIN_AUTH_SECRET` that changed or was lost, which leaves an enrolment nothing can
+verify because the stored secret and the recovery codes are ciphertext under that key.
+`qcms:reset-2fa` clears that account's second factor and recovery codes so it can sign in
+on its password and enrol again (issue #432, `docs/SECURITY_DESIGN.md` §2.1).
+
+On the Compose stack, run it on the **`migrate`** service:
+
+```sh
+# Report only. Writes nothing, so a mistyped address costs a line of output.
+docker compose run --rm migrate node dist/reset-2fa.js --email locked.out@example.com
+
+# Apply.
+docker compose run --rm migrate node dist/reset-2fa.js --email locked.out@example.com --yes
+```
+
+`migrate` rather than `api`, and that is the control rather than a detail. That service is
+the one place in `docker-compose.yml` holding the migration credential, and the command
+**refuses `qcms_app`**, which is what `api` connects as (SEC-10). It tests ownership of the
+schema rather than the role's name, so it holds if you have renamed the roles. Nothing else
+guards it: whoever holds the credential that owns your schema can clear any administrator's
+second factor, which is the same person who can already `DROP TABLE`.
+
+Four things to expect:
+
+- **Nothing happens without `--yes`.** A bare run resolves the account and reports what it
+  would clear.
+- **An address matching zero or more than one account is refused**, not guessed at. The
+  match ignores case, and Postgres compares `user.email` case-sensitively, so two accounts
+  can share one address as you read it.
+- **Every applied run appends a `two_factor_resets` row** naming the account, the time and
+  the database role, and logs one `admin two-factor reset` event. The row is written even
+  when there was nothing to clear, so a mistargeted run is visible. Read it back with
+  `select email, performed_at, database_role, cleared_factors from two_factor_resets order
+by performed_at desc;`.
+- **Existing sessions are not revoked.** Any session that exists passed the second factor
+  when it was issued. If you are resetting because you suspect a compromise rather than a
+  lockout, change the password too: better-auth invalidates sessions on that.
+
+It reads only `DATABASE_URL` - deliberately not `QCMS_ADMIN_AUTH_SECRET`, because a lost
+auth secret is one of the two cases it exists for, and requiring that variable would gate
+the recovery on the thing that broke.
 
 ### App encryption key: there is no in-place rotation
 

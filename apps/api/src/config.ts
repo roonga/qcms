@@ -1122,6 +1122,26 @@ export function parseAdminAuth(env: Env, issues: string[]): Config["adminAuth"] 
 }
 
 /**
+ * The database URL alone, validated and thrown for. The `qcms:reset-2fa` CLI's
+ * whole configuration surface (issue #432).
+ *
+ * Narrower than {@link loadAdminAuthConfig} on purpose, and the narrowing is the
+ * point rather than tidiness. The break-glass exists for a deployment that has
+ * **lost** `QCMS_ADMIN_AUTH_SECRET`, or changed it, so requiring that variable to
+ * be supplied before an operator may clear a factor would gate the recovery on
+ * the thing that broke. It reads no better-auth configuration because it builds
+ * no better-auth instance: the stored TOTP secret and the recovery codes are
+ * ciphertext under that key, so the only operation still meaningful without it is
+ * deleting the row, which is plain SQL.
+ */
+export function loadResetTwoFactorConfig(env: Env): { readonly databaseUrl: string } {
+  const issues: string[] = [];
+  const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
+  if (issues.length > 0) throw new ConfigError(issues);
+  return { databaseUrl };
+}
+
+/**
  * The admin-auth configuration and the database URL, validated on their own and
  * thrown for. The bootstrap CLI's whole configuration surface.
  */

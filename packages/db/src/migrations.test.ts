@@ -7,7 +7,14 @@ import {
   type TestDb,
 } from "./testing/harness.js";
 
-/** Every table the schema declares (13 domain + 5 better-auth). */
+/**
+ * Every table the schema declares (13 domain + 1 break-glass audit + 5 better-auth).
+ *
+ * The assertion below is a subset check (`toContain` per entry), so a table added
+ * by a later migration is covered only once it is listed here. `two_factor_resets`
+ * (migration 0021) was added to this list for that reason and not because the
+ * assertion complained: it would not have.
+ */
 const EXPECTED_TABLES = [
   "questions",
   "question_versions",
@@ -22,6 +29,7 @@ const EXPECTED_TABLES = [
   "erasure_tombstones",
   "outbox",
   "webhook_deliveries",
+  "two_factor_resets",
   "user",
   "session",
   "account",

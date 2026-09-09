@@ -30,6 +30,7 @@
     "qcms:build-images": "node scripts/build-images.mjs",
     "qcms:drill-restore": "node scripts/drill-restore.mjs",
     "qcms:create-admin": "pnpm --filter qcms-api... build && pnpm --filter qcms-api create-admin",
+    "qcms:reset-2fa": "pnpm --filter qcms-api... build && pnpm --filter qcms-api reset-2fa --",
     "qcms:seed-fixtures": "pnpm --filter qcms-api seed-fixtures",
     "devcontainer": "bash scripts/devcontainer.sh",
     "claude": "bash scripts/claude-session.sh",

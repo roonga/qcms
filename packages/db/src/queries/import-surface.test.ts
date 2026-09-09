@@ -133,12 +133,25 @@ describe("query helper import surface", () => {
     // inside `eraseSession`, so it has no separate entry here.
     "redactAgedResponseSnippets",
     "resetDeliveryForRedelivery",
-    // admin identity reads (task 031) - reads only. better-auth owns every write
-    // to the auth tables, so no helper here creates, refreshes or deletes a
-    // session, and none returns a credential (no password hash, no TOTP secret,
-    // no backup codes).
+    // admin identity reads (task 031) - these two are reads. No helper in this
+    // package creates, refreshes or deletes a SESSION, and none returns a
+    // credential (no password hash, no TOTP secret, no backup codes); better-auth
+    // owns every write to the auth tables except the break-glass deletion listed
+    // immediately below, which is the sole exception and is recorded as one.
     "getAdminSessionByToken",
     "countAdminUsers",
+    // The `qcms:reset-2fa` break-glass (issue #432). `clearAdminTwoFactor` is the
+    // one write to the auth tables in this package, and it is a deletion: the
+    // stored TOTP secret and the recovery codes are ciphertext under a key the
+    // command's whole reason for existing is the loss of, so better-auth cannot
+    // disable the factor and nothing here can read it. `readConnectedRole` is the
+    // SEC-10 guard in front of it, and it returns no credential either - a role
+    // name and two counts off the system catalog. Neither breaks the "no session
+    // writes, no credential reads" property above.
+    "findAdminsByEmail",
+    "clearAdminTwoFactor",
+    "recordTwoFactorReset",
+    "readConnectedRole",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

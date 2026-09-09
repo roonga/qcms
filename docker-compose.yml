@@ -214,6 +214,28 @@ services:
           GRANT USAGE ON SEQUENCES TO qcms_app;
         ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
           GRANT USAGE ON SCHEMAS TO qcms_app;
+
+        -- And the one table taken back out of that pass: the break-glass audit trail
+        -- is MIGRATE-ONLY (issue #432, Code Owner decision 2026-09-09).
+        -- `two_factor_resets` records that somebody removed an administrator's second
+        -- factor out of band, so a row the API's own credential can UPDATE or DELETE
+        -- proves nothing against the attacker SEC-10's split is drawn against.
+        --
+        -- A REVOKE rather than a narrower grant, because neither form above can name
+        -- an exception: ALTER DEFAULT PRIVILEGES is keyed on (role, schema, object
+        -- type) with no per-table filter, so "every table except that one" is not
+        -- expressible. The grant lands and is taken back.
+        --
+        -- Migration 0021 carries the same revoke, and that copy is the one a FRESH
+        -- deployment relies on: this one-shot runs BEFORE `migrate`, so on a new
+        -- database the table does not exist yet and the branch below is skipped. This
+        -- copy exists for the boot after that one. db-roles re-runs on every `up`
+        -- (see the header), so the blanket GRANT above re-applies to a table that now
+        -- exists, and without this the audit table would quietly regain the DML pass
+        -- on the second `docker compose up`. Idempotent either way, and guarded on
+        -- the table existing so a fresh stack is not an error.
+        SELECT format('REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE %I FROM qcms_app', tablename)
+        FROM pg_tables WHERE schemaname = 'public' AND tablename = 'two_factor_resets'\gexec
         SQL
     depends_on:
       postgres:

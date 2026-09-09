@@ -23,6 +23,7 @@
     "lint": "eslint src e2e scripts",
     "start": "node dist/serve.js",
     "create-admin": "node dist/create-admin.js",
+    "reset-2fa": "node dist/reset-2fa.js",
     "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
