@@ -163,8 +163,14 @@ interface FormSettingsPanelProps {
 ## Kit reality (no `Switch`, `Tag`, `Accordion`, `TextArea`)
 
 `components/kit.tsx` exports: `Alert, Breadcrumb, Button, Card, Checkbox, DatePicker,
-Dialog, Form, MenuItem, MenuList, MenuPopover, MenuSeparator, MenuTrigger,
-MenuTriggerButton, NumberField, Select, Table, Text, TextField`.
+Dialog, Form, Menu, NumberField, Select, Table, Text, TextField`.
+
+**The menu line changed on 2026-09-10 (issue #234)** and is corrected here rather than
+left standing: it read `MenuItem, MenuList, MenuPopover, MenuSeparator, MenuTrigger,
+MenuTriggerButton` where `Menu` now stands. Those were `react-aria-components` primitives
+re-exported because the vendored `Menu`'s props could not express an icon trigger, a rich
+row, a header or a separator. Upstream ships those slots now, so the primitives are gone
+and `Menu` is the one door to a menu. The substitution rule below is unaffected.
 
 Use `Checkbox` for the switch, a styled `<span>` for a tag, `<details>/<summary>` for an
 accordion. ADR-22 forbids another component library and adding a control to `@roonga/qcms-ui` is a
