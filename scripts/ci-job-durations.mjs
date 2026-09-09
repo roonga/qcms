@@ -32,7 +32,12 @@
  * Usage:
  *   pnpm ci:durations browser-e2e
  *   pnpm ci:durations browser-e2e --runs 20
- *   pnpm ci:durations verify --branch main --workflow ci.yml --json
+ *   pnpm ci:durations "verify (node-24)" --branch main --workflow ci.yml --json
+ *
+ * The job name is matched exactly, and a matrix job's real name carries its suffix
+ * (`verify (node-24)`, not `verify`), so quote anything with a space in it. Guessing
+ * wrong is cheap rather than confusing: a run that carries no such job contributes no
+ * sample, and a search that finds none reports the names it did see.
  *
  * Requires an authenticated `gh`. Exit code: 0 when samples were found, 1 when none were,
  * 2 on a usage error or a failed `gh` call.
@@ -79,6 +84,7 @@ export const SCAN_FACTOR = 2;
  * @property {number} p90
  * @property {number} max
  * @property {number} min
+ * @property {string[]} namesSeen
  * @property {Sample[]} samples
  */
 
@@ -127,9 +133,11 @@ export function minutes(seconds) {
  * @param {string} job
  * @param {Sample[]} samples
  * @param {number} scanned successful workflow runs inspected
+ * @param {Iterable<string>} [namesSeen] every job name met while scanning, for the
+ *   empty-result message
  * @returns {Summary}
  */
-export function summarize(job, samples, scanned) {
+export function summarize(job, samples, scanned, namesSeen = []) {
   const ascending = samples.map((sample) => sample.seconds).sort((a, b) => a - b);
   const dates = samples.map((sample) => sample.startedAt.slice(0, 10)).sort();
   return {
@@ -142,6 +150,7 @@ export function summarize(job, samples, scanned) {
     p90: ascending.length === 0 ? 0 : nearestRank(ascending, 90),
     max: ascending.length === 0 ? 0 : nearestRank(ascending, 100),
     min: ascending[0] ?? 0,
+    namesSeen: [...new Set(namesSeen)].sort(),
     samples,
   };
 }
@@ -152,7 +161,11 @@ export function summarize(job, samples, scanned) {
  */
 export function render(summary) {
   if (summary.count === 0) {
-    return `ci-job-durations: no '${summary.job}' job in the last ${String(summary.scanned)} successful runs`;
+    const head = `ci-job-durations: no '${summary.job}' job in the last ${String(summary.scanned)} successful runs`;
+    if (summary.namesSeen.length === 0) return head;
+    // The likeliest cause is a name that is nearly right - a matrix suffix dropped, or a
+    // job renamed - and the answer to that is a list, not another guess.
+    return [`${head}. Job names seen:`, ...summary.namesSeen.map((name) => `  ${name}`)].join("\n");
   }
   const lines = [
     `${summary.job}: p50 ${minutes(summary.p50)} / p90 ${minutes(summary.p90)} / max ${minutes(summary.max)} minutes`,
@@ -197,7 +210,9 @@ export function parseArgs(args) {
     else parsed.job = arg;
   }
   if (parsed.job === "") {
-    throw new Error("usage: pnpm ci:durations <job-name> [--runs N] [--branch B] [--json]");
+    throw new Error(
+      "usage: pnpm ci:durations <job-name> [--runs N] [--branch B] [--workflow W] [--json]",
+    );
   }
   return parsed;
 }
@@ -238,17 +253,36 @@ export function listSuccessfulRuns({ workflow, branch, limit }) {
 }
 
 /**
- * The named job's completed timings within one run, or undefined when the run has no such
- * job or it did not complete successfully.
+ * @typedef {object} Job
+ * @property {string} name
+ * @property {string | null} conclusion
+ * @property {string} started_at
+ * @property {string | null} completed_at
+ */
+
+/**
+ * Every job in one run, in the API's order.
  *
+ * @param {number} runId
+ * @returns {Job[]}
+ */
+export function runJobs(runId) {
+  /** @type {{ jobs: Job[] }} */
+  const payload = JSON.parse(gh(["api", `repos/${REPOSITORY}/actions/runs/${String(runId)}/jobs`]));
+  return payload.jobs;
+}
+
+/**
+ * The named job's completed timings within one run's jobs, or undefined when there is no
+ * such job or it did not complete successfully.
+ *
+ * @param {Job[]} jobs
  * @param {number} runId
  * @param {string} job
  * @returns {Sample | undefined}
  */
-export function jobSample(runId, job) {
-  /** @type {{ jobs: { name: string; conclusion: string | null; started_at: string; completed_at: string | null }[] }} */
-  const payload = JSON.parse(gh(["api", `repos/${REPOSITORY}/actions/runs/${String(runId)}/jobs`]));
-  const match = payload.jobs.find(
+export function sampleFrom(jobs, runId, job) {
+  const match = jobs.find(
     (candidate) =>
       candidate.name === job && candidate.conclusion === "success" && candidate.completed_at,
   );
@@ -277,6 +311,8 @@ export function main(args) {
 
   /** @type {Sample[]} */
   const samples = [];
+  /** @type {Set<string>} */
+  const namesSeen = new Set();
   let scanned = 0;
   try {
     const runs = listSuccessfulRuns({
@@ -287,7 +323,9 @@ export function main(args) {
     for (const run of runs) {
       if (samples.length >= options.runs) break;
       scanned += 1;
-      const sample = jobSample(run.databaseId, options.job);
+      const jobs = runJobs(run.databaseId);
+      for (const candidate of jobs) namesSeen.add(candidate.name);
+      const sample = sampleFrom(jobs, run.databaseId, options.job);
       if (sample !== undefined) samples.push(sample);
     }
   } catch (error) {
@@ -295,7 +333,7 @@ export function main(args) {
     return 2;
   }
 
-  const summary = summarize(options.job, samples, scanned);
+  const summary = summarize(options.job, samples, scanned, namesSeen);
   console.log(options.json ? JSON.stringify(summary, null, 2) : render(summary));
   return summary.count === 0 ? 1 : 0;
 }

@@ -380,6 +380,16 @@ The admin has the same marker and the same wait (`apps/admin/e2e/support/hydrati
 
 **When a red browser run might not be yours.** `verify:browser` prints a cross-lane contention report whenever the run has failures (issue #395): the host load and Docker census at both ends of the run, which **other** seats' harness ports were live, and which failures carry a resource-contention shape (connection refused, boot timeout, container startup). If another lane's stack is already up when a run starts, it says so before the first test too. It annotates and never suppresses, so a red is still a red and the exit code is untouched; what it removes is the case where a lane spends a bisect discovering that a neighbour caused its failures. Seats partition ports, not the Docker daemon and not the CPU.
 
+**`pnpm ci:durations browser-e2e` answers "is this run slow, or is it normal?"** (issue #858). `CONTRIBUTING.md` quotes a p50 and a max for the job so a half-hour wait can be told from a hang, and that sentence has gone stale three times, always because re-measuring meant a run list, a jobs call per run and a pile of date arithmetic. The script does that in one command, dependency-free over `gh`:
+
+```sh
+pnpm ci:durations browser-e2e            # p50, p90, max and every sample
+pnpm ci:durations browser-e2e --runs 30  # a wider window
+pnpm ci:durations "verify (node-24)"     # any job, matched exactly
+```
+
+Two things to know before reading its output. It measures the **job**, `started_at` to `completed_at`, not the workflow run, which on a single runner includes queue time behind other jobs and answers a different question. And the name is matched exactly, so a matrix job needs its suffix (`verify (node-24)`, not `verify`) and a rename produces an empty result rather than figures quietly blended across two differently-scoped jobs - which is why an empty result prints the job names it did see. **Refreshing the number in `CONTRIBUTING.md` means running this and pasting what it prints**, sample count and dates included.
+
 ## Looking at a committed PNG before writing prose about it
 
 **Gate prose describing a rendering is written from the rendering, not from the intent.**

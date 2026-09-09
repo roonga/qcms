@@ -7,6 +7,7 @@ import {
   nearestRank,
   parseArgs,
   render,
+  sampleFrom,
   summarize,
 } from "./ci-job-durations.mjs";
 
@@ -98,7 +99,31 @@ describe("summarize", () => {
 
     expect(summary.count).toBe(0);
     expect(summary.p50).toBe(0);
-    expect(render(summary)).toMatch(/no 'portal-e2e' job in the last 40 successful runs/);
+    expect(render(summary)).toBe(
+      "ci-job-durations: no 'portal-e2e' job in the last 40 successful runs",
+    );
+  });
+
+  it("names the jobs it did see, deduplicated and sorted, when it found none", () => {
+    // The likeliest reason for an empty result is a name that is nearly right: a matrix
+    // job's real name carries its suffix, so 'verify' matches nothing while
+    // 'verify (node-24)' matches every run. A list answers that; a bare refusal does not.
+    const summary = summarize("verify", [], 3, [
+      "verify (node-26)",
+      "browser-e2e",
+      "verify (node-24)",
+      "browser-e2e",
+    ]);
+
+    expect(summary.namesSeen).toEqual(["browser-e2e", "verify (node-24)", "verify (node-26)"]);
+    expect(render(summary)).toBe(
+      [
+        "ci-job-durations: no 'verify' job in the last 3 successful runs. Job names seen:",
+        "  browser-e2e",
+        "  verify (node-24)",
+        "  verify (node-26)",
+      ].join("\n"),
+    );
   });
 
   it("renders minutes to one decimal place", () => {
@@ -106,6 +131,44 @@ describe("summarize", () => {
     expect(render(summarize("browser-e2e", samples, 40))).toContain(
       "browser-e2e: p50 29.4 / p90 31.4 / max 31.4 minutes",
     );
+  });
+});
+
+describe("sampleFrom", () => {
+  const jobs = [
+    {
+      name: "verify (node-24)",
+      conclusion: "success",
+      started_at: "2026-09-08T21:30:47Z",
+      completed_at: "2026-09-08T22:01:28Z",
+    },
+    {
+      name: "browser-e2e",
+      conclusion: "failure",
+      started_at: "2026-09-08T21:30:47Z",
+      completed_at: "2026-09-08T21:40:47Z",
+    },
+    {
+      name: "api-e2e",
+      conclusion: "success",
+      started_at: "2026-09-08T21:30:47Z",
+      completed_at: null,
+    },
+  ];
+
+  it("matches the job name exactly, suffix and all", () => {
+    expect(sampleFrom(jobs, 7, "verify (node-24)")).toEqual({
+      runId: 7,
+      startedAt: "2026-09-08T21:30:47Z",
+      completedAt: "2026-09-08T22:01:28Z",
+      seconds: 1841,
+    });
+    expect(sampleFrom(jobs, 7, "verify")).toBeUndefined();
+  });
+
+  it("ignores a job that did not succeed or has not finished", () => {
+    expect(sampleFrom(jobs, 7, "browser-e2e")).toBeUndefined();
+    expect(sampleFrom(jobs, 7, "api-e2e")).toBeUndefined();
   });
 });
 
@@ -126,6 +189,9 @@ describe("parseArgs", () => {
 
   it("refuses a missing job, a second job, an unknown flag and a non-positive count", () => {
     expect(() => parseArgs([])).toThrow(/usage: pnpm ci:durations/);
+    // The usage line has to name every option the header documents, or it sends the
+    // next person looking for a flag that is right there.
+    expect(() => parseArgs([])).toThrow(/--workflow W/);
     expect(() => parseArgs(["a", "b"])).toThrow(/only one job name/);
     expect(() => parseArgs(["a", "--nope"])).toThrow(/unknown option/);
     expect(() => parseArgs(["a", "--runs", "0"])).toThrow(/positive integer/);
