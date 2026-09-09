@@ -18,6 +18,7 @@ import {
   DENSITY_CLASSES,
   DENSITY_LEVELS,
   appearanceCookie,
+  appearanceCookiesFor,
   densityClass,
   parseDensity,
   parseMode,
@@ -91,5 +92,47 @@ describe("the appearance cookie", () => {
     for (const value of ["hc; Domain=evil.test", "a\nSet-Cookie: x=y", "Compact", ""]) {
       expect(() => appearanceCookie("qcms-theme", value, false), value).toThrow();
     }
+  });
+});
+
+/**
+ * The server half of the same seam (issue #195). The no-JS form's route writes these
+ * strings into `Set-Cookie` while the browser controls assign them to
+ * `document.cookie`, so what is asserted here is that the two paths cannot disagree
+ * about an attribute: there is one writer, and this only decides which axes it runs on.
+ */
+describe("the cookies one submission writes", () => {
+  it("writes exactly the axes that were chosen, in axis order", () => {
+    expect(
+      appearanceCookiesFor({ mode: "hc", font: "atkinson", density: "compact" }, false),
+    ).toEqual([
+      appearanceCookie("qcms-theme", "hc", false),
+      appearanceCookie("qcms-font", "atkinson", false),
+      appearanceCookie("qcms-density", "compact", false),
+    ]);
+  });
+
+  // An absent axis means "not chosen in this submission", never "reset to the
+  // default": clearing it would silently undo a choice the respondent did not touch.
+  it("writes nothing for an axis that was not chosen", () => {
+    expect(appearanceCookiesFor({ font: "lexend" }, false)).toEqual([
+      appearanceCookie("qcms-font", "lexend", false),
+    ]);
+    expect(appearanceCookiesFor({}, false)).toEqual([]);
+  });
+
+  // The attributes are not restated here, deliberately: they come from
+  // `appearanceCookie` and are pinned above, once, for both paths.
+  it("carries Secure through to every cookie it writes", () => {
+    const written = appearanceCookiesFor(
+      { mode: "dark", font: "system", density: "spacious" },
+      true,
+    );
+    expect(written).toHaveLength(3);
+    for (const cookie of written) expect(cookie).toMatch(/; Secure$/u);
+  });
+
+  it("refuses a value that could smuggle an attribute, at the axis it was passed on", () => {
+    expect(() => appearanceCookiesFor({ font: "atkinson; Domain=evil.test" }, false)).toThrow();
   });
 });

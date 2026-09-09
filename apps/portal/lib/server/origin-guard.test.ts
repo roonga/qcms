@@ -141,10 +141,16 @@ beforeEach(() => {
  * The refusal outcome read back off a real refusal response, in the same vocabulary
  * the log line uses. Derived from the wire rather than from the route table, so that
  * comparing the two says something.
+ *
+ * `/appearance` is read off the wire like the rest. Its refusal used to be the page the
+ * request named, which no path shape could distinguish; since PR #859's review a request
+ * that cannot prove its origin does not get to choose the redirect, so the refusal is the
+ * site root and says so.
  */
 function outcomeOnTheWire(response: Response): string {
   if (response.status === 403) return "forbidden";
   const location = new URL(response.headers.get("location") ?? "", PORTAL_BASE);
+  if (location.pathname === "/") return "redirect-to-root";
   return location.pathname.startsWith("/f/") ? "redirect-to-entry" : "redirect-to-step";
 }
 
@@ -169,10 +175,14 @@ function refusalLines(): Record<string, unknown>[] {
 vi.mock("@/lib/server/config", async () => await import("./config"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
+vi.mock("@/lib/server/appearance-form", async () => await import("./appearance-form"));
+vi.mock("@/lib/server/theme", async () => await import("./theme"));
+vi.mock("@/lib/appearance", async () => await import("../appearance"));
 vi.mock("@/lib/i18n/en", async () => await import("../i18n/en"));
 vi.mock("@/lib/validation-message", async () => await import("../validation-message"));
 
 const { isSameOriginPost } = await import("./route-helpers");
+const appearanceRoute = await import("../../app/appearance/route");
 const startRoute = await import("../../app/f/[formSlug]/start/route");
 const answersRoute = await import("../../app/s/[sessionId]/answers/route");
 const stepRoute = await import("../../app/s/[sessionId]/step/route");
@@ -247,8 +257,18 @@ interface GuardedRoute {
   readonly path: string;
   /** Invoke `POST` with these request headers. */
   readonly post: (headers: Record<string, string>) => Promise<Response>;
-  /** The API call this route makes once it is past the belt. */
-  readonly reached: () => (typeof api)[keyof typeof api];
+  /**
+   * Whether this route ACTED: the thing that would have changed had the belt let a
+   * forged request through.
+   *
+   * A predicate rather than "the API spy this route calls", because since issue #195
+   * one belted route changes state without calling the internal API at all: the no-JS
+   * appearance form writes presentation cookies. Asserting only on the API client
+   * would have declared that route guarded while never looking at what it does, which
+   * is the shape of miss this whole file exists to refuse. The four proxying routes
+   * still answer this by reading their own API spy.
+   */
+  readonly acted: (response: Response) => boolean;
   /** What the refusal looks like on the wire, beyond having changed nothing. */
   readonly assertRefusal: (response: Response) => void | Promise<void>;
   /**
@@ -276,6 +296,29 @@ function jsonPost(url: string, headers: Record<string, string>, body: unknown): 
 
 const ROUTES: readonly GuardedRoute[] = [
   {
+    path: "app/appearance/route.ts",
+    post: (headers) => {
+      const form = new FormData();
+      form.set("mode", "hc");
+      form.set("returnTo", "/s/ses_1");
+      return appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, headers, form));
+    },
+    // The no-JS appearance form (issue #195) calls no internal API: what it changes is
+    // three presentation cookies, so that is what "acted" has to mean here. A refused
+    // request must leave the respondent's appearance exactly as it was.
+    acted: (response) => response.headers.getSetCookie().length > 0,
+    assertRefusal: (response) => {
+      expect(response.status).toBe(303);
+      // The site root, NOT the `/s/ses_1` the request asked for: a request that cannot
+      // prove its origin does not choose where the browser goes next (PR #859 review).
+      // Absolute, on the configured base, so no `Location` this handler emits can be
+      // read as protocol-relative whatever the path validator let through.
+      expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/`);
+      expect(response.headers.getSetCookie()).toEqual([]);
+    },
+    logged: { beltRoute: "/appearance", beltOutcome: "redirect-to-root" },
+  },
+  {
     path: "app/f/[formSlug]/start/route.ts",
     post: (headers) => {
       const form = new FormData();
@@ -284,7 +327,7 @@ const ROUTES: readonly GuardedRoute[] = [
         params: Promise.resolve({ formSlug: "survey" }),
       });
     },
-    reached: () => api.startSession,
+    acted: () => api.startSession.mock.calls.length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/f/survey?state=error`);
@@ -298,7 +341,7 @@ const ROUTES: readonly GuardedRoute[] = [
         jsonPost(`${PORTAL_BASE}/s/ses_1/answers`, headers, { questionId: "q_1", value: "x" }),
         { params: Promise.resolve({ sessionId: "ses_1" }) },
       ),
-    reached: () => api.submitAnswer,
+    acted: () => api.submitAnswer.mock.calls.length > 0,
     assertRefusal: async (response) => {
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
@@ -311,7 +354,7 @@ const ROUTES: readonly GuardedRoute[] = [
       stepRoute.POST(formPost(`${PORTAL_BASE}/s/ses_1/step`, headers, new FormData()), {
         params: Promise.resolve({ sessionId: "ses_1" }),
       }),
-    reached: () => api.getStep,
+    acted: () => api.getStep.mock.calls.length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/s/ses_1`);
@@ -324,7 +367,7 @@ const ROUTES: readonly GuardedRoute[] = [
       submitRoute.POST(jsonPost(`${PORTAL_BASE}/s/ses_1/submit`, headers, {}), {
         params: Promise.resolve({ sessionId: "ses_1" }),
       }),
-    reached: () => api.submitSession,
+    acted: () => api.submitSession.mock.calls.length > 0,
     assertRefusal: async (response) => {
       expect(response.status).toBe(403);
       await expect(response.json()).resolves.toEqual({ error: { code: "forbidden" } });
@@ -371,6 +414,58 @@ describe("isSameOriginPost", () => {
   });
 });
 
+/**
+ * The open redirect PR #859's review found, closed at the handler rather than only at the
+ * pure function (`appearance-form.test.ts` covers that half).
+ *
+ * Here because this file is where the real `POST` is driven with a real `Request`, which
+ * is what the reviewer reproduced against: a 303 whose `Location` was `//evil.example`,
+ * emitted relatively, which a browser resolves as `https://evil.example/`. Two things had
+ * to be true for that to escape, so both are asserted - the path validator refuses the
+ * payload, AND the header is absolute on this deployment's own base, so no path reaching
+ * the response builder can name another origin.
+ */
+describe("app/appearance/route.ts does not emit a Location off this origin", () => {
+  const ADMITTED = { "sec-fetch-site": "same-origin" };
+
+  /** One appearance POST from our own page, carrying `returnTo`. */
+  function apply(returnTo: string): Promise<Response> {
+    const form = new FormData();
+    form.set("mode", "dark");
+    form.set("returnTo", returnTo);
+    return appearanceRoute.POST(formPost(`${PORTAL_BASE}/appearance`, ADMITTED, form));
+  }
+
+  it.each([
+    "/..//evil.example",
+    "/x/..//evil.example",
+    "/%2e%2e//evil.example",
+    "/..\\evil.example",
+    "/%2F%2Fevil.example",
+    "//evil.example",
+    "https://evil.example/x",
+  ])("sends %s to the site root instead", async (payload) => {
+    const response = await apply(payload);
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/`);
+  });
+
+  it("still returns a legitimate page, absolutely, with the cookies written", async () => {
+    // The negative cases above are only meaningful while the positive one still works:
+    // a validator that refused everything would pass all of them.
+    const response = await apply("/s/ses_1?step=2");
+    expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/s/ses_1?step=2`);
+    expect(response.headers.getSetCookie()).toHaveLength(1);
+  });
+
+  it("names this origin on every answer it can give", async () => {
+    for (const candidate of ["/s/ses_1", "/..//evil.example", "", "//evil.example@x"]) {
+      const location = (await apply(candidate)).headers.get("location") ?? "";
+      expect(new URL(location).origin, candidate).toBe(PORTAL_BASE);
+    }
+  });
+});
+
 describe.each(ROUTES)("$path", (route) => {
   beforeEach(() => {
     api.startSession.mockReset().mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
@@ -382,10 +477,10 @@ describe.each(ROUTES)("$path", (route) => {
   });
 
   it.each(ORIGIN_CASES.filter((probe) => probe.allowed))(
-    "proceeds to the internal API with $name",
+    "acts on the request with $name",
     async ({ headers }) => {
-      await route.post(headers);
-      expect(route.reached()).toHaveBeenCalled();
+      const response = await route.post(headers);
+      expect(route.acted(response)).toBe(true);
       // An admitted request writes no refusal line. Without this, a belt that logged
       // unconditionally would pass every "exactly one" assertion below while making
       // the count useless.
@@ -397,7 +492,7 @@ describe.each(ROUTES)("$path", (route) => {
     "changes nothing and refuses with $name",
     async ({ headers }) => {
       const response = await route.post(headers);
-      expect(route.reached()).not.toHaveBeenCalled();
+      expect(route.acted(response)).toBe(false);
       // Nothing else on the client may have been reached either: a route that
       // refused one call but made another has still let a cross-site caller act.
       for (const call of Object.values(api)) expect(call).not.toHaveBeenCalled();

@@ -253,6 +253,38 @@ body {
   font-size: var(--type-body);
 }
 
+/*
+ * The no-JS Apply button (issue #195).
+ *
+ * `display: none` by default and revealed by the `<noscript>` rule in
+ * `app/layout.tsx`, which is the whole progressive-enhancement seam for the appearance
+ * form: with scripting on the choices apply on click and a submit button would only
+ * offer a reload, and with scripting off it is the only way they reach the server.
+ * Hiding it here rather than rendering it conditionally keeps the served HTML one
+ * document, so a scripted respondent meets no hydration boundary and no layout shift.
+ *
+ * Everything below `display` is what it looks like once it IS shown: the same control
+ * height, corner and padding tokens as the chips above it, so it clears WCAG 2.5.8's
+ * 24px target floor at every density by construction rather than by measurement, and
+ * the primary fill because it is the panel's one action.
+ */
+.qcms-appearance__apply {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  align-self: flex-start;
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-control);
+  background-color: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-family: inherit;
+  font-size: var(--type-hint);
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .qcms-seg {
   /* A fieldset for the group semantics, with none of its default chrome. */
   margin: 0;
@@ -353,7 +385,13 @@ body {
    exactly the mode where the colour half of the selected treatment carries the
    least: the check glyph and the 600 weight are the signals that always hold, and
    this keeps the border a third one instead of collapsing it. */
-:root.hc :is(.qcms-appearance__summary, .qcms-appearance__select, .qcms-seg__chip) {
+:root.hc
+  :is(
+    .qcms-appearance__summary,
+    .qcms-appearance__select,
+    .qcms-appearance__apply,
+    .qcms-seg__chip
+  ) {
   border-width: 2px;
   border-color: var(--color-border-strong);
 }

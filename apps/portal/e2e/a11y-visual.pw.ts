@@ -154,7 +154,10 @@ test("200% zoom: the no-JS FALLBACK flow render reflows without horizontal scrol
   expect(reflow.overflow).toBeLessThanOrEqual(OVERFLOW_SLACK_PX);
 
   // The fallback's own controls: a native submit button rather than the React
-  // primary action, and the question itself.
-  await expect(page.locator("button[type='submit']")).toBeVisible();
+  // primary action, and the question itself. Scoped to the step card since issue #195,
+  // because the header's appearance form contributes a second `button[type=submit]` to
+  // the document (hidden here, since this render has scripting on and only the bundle
+  // starved, but still matched by an unscoped locator).
+  await expect(page.getByTestId("step-card").locator("button[type='submit']")).toBeVisible();
   await expect(page.getByText(ACCIDENT_LABEL)).toBeVisible();
 });

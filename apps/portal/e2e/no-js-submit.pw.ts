@@ -41,7 +41,10 @@ test("a JS-disabled respondent completes and submits the fixture via native form
   // Submit the whole step: a native <button type=submit> POSTs the form to the
   // BFF /step route, which forwards the answer, sees the flow is ready, submits
   // the session, and 303-redirects to the receipt. A full page reload, no JS.
-  await page.locator('form button[type="submit"]').click();
+  // Scoped to the step card: since issue #195 the header's appearance controls are a
+  // second native form on this page, with a `<noscript>`-revealed submit button of
+  // their own, so an unscoped `form button[type="submit"]` now matches two elements.
+  await page.getByTestId("step-card").locator('form button[type="submit"]').click();
 
   await page.waitForURL(/\/done/);
   await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/);

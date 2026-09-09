@@ -143,6 +143,10 @@ export const messages = {
   "appearance.density.compact": "Compact",
   "appearance.density.comfortable": "Comfortable",
   "appearance.density.spacious": "Spacious",
+  // The no-JS submit button (issue #195). Visible only when scripting is off, where
+  // it is the only way the three choices above reach the server, so it names the
+  // action rather than the control: "Apply appearance", not "Submit".
+  "appearance.apply": "Apply appearance",
 } as const;
 
 export type MessageKey = keyof typeof messages;

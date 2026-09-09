@@ -76,6 +76,18 @@ afterEach(() => {
 
 const APP_DIR = fileURLToPath(new URL("../../app", import.meta.url));
 
+/**
+ * Every outcome a refusal may name. One constant rather than the same literal list at
+ * each assertion below: a member added to `BeltOutcome` without a home in the runbook
+ * should fail in one obvious place, not in three that happen to agree.
+ */
+const OUTCOME_VOCABULARY = [
+  "redirect-to-entry",
+  "redirect-to-root",
+  "redirect-to-step",
+  "forbidden",
+];
+
 /** Verbs whose handlers change state, so the belt applies to them. */
 const MUTATING_VERBS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -141,9 +153,7 @@ describe("the belted route set is the one on disk", () => {
   });
 
   it.each(MUTATING_ROUTE_TEMPLATES)("names an outcome for %s", (template) => {
-    expect(["redirect-to-entry", "redirect-to-step", "forbidden"]).toContain(
-      routeOutcome(concreteUrl(template)),
-    );
+    expect(OUTCOME_VOCABULARY).toContain(routeOutcome(concreteUrl(template)));
   });
 
   it("does not stretch a template over a path that is merely similar", () => {
@@ -152,6 +162,10 @@ describe("the belted route set is the one on disk", () => {
     expect(classifyRoute(`${PORTAL_BASE}/s/ses_1/step/extra`)).toBe("unrecognized");
     expect(classifyRoute(`${PORTAL_BASE}/s/ses_1`)).toBe("unrecognized");
     expect(classifyRoute(`${PORTAL_BASE}/l/lnk_1`)).toBe("unrecognized");
+    // `/appearance` is the one belted route with no dynamic segment, so its pattern is
+    // the one most likely to be written as a prefix by accident.
+    expect(classifyRoute(`${PORTAL_BASE}/appearance/extra`)).toBe("unrecognized");
+    expect(classifyRoute(`${PORTAL_BASE}/appearances`)).toBe("unrecognized");
   });
 
   it("survives a URL it cannot parse rather than throwing inside the belt", () => {
@@ -228,7 +242,7 @@ describe("classifying, never copying", () => {
       expect(FETCH_SITE_VOCABULARY).toContain(fields.beltFetchSite);
       expect(ORIGIN_VOCABULARY).toContain(fields.beltOrigin);
       expect(BELTED_ROUTE_TEMPLATES).toContain(fields.beltRoute);
-      expect(["redirect-to-entry", "redirect-to-step", "forbidden"]).toContain(fields.beltOutcome);
+      expect(OUTCOME_VOCABULARY).toContain(fields.beltOutcome);
     }
   });
 });

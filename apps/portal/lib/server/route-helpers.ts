@@ -59,11 +59,17 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  *
  * ## Exactly what the belt covers, and what it does not
  *
- * Four POST route handlers call this function and nothing else does:
- * `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
+ * Five POST route handlers call this function and nothing else does:
+ * `POST /appearance`, `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
  * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`.
  * `scripts/check-origin-guards.test.ts` derives that set from disk, so it is a
  * checked statement rather than a count someone kept up to date by hand.
+ *
+ * `/appearance` is the no-JS appearance form (issue #195), and it is the one belted
+ * route where a refusal costs a respondent nothing they can see: no answer is lost,
+ * the page returns unchanged, and only their colour mode, font or spacing choice fails
+ * to take. It is belted anyway, because the gate above derives the set from disk and
+ * an exemption would have to be argued afresh by every reader.
  *
  * **Secure-link entry is outside the belt entirely.** `app/l/[token]/route.ts`
  * exports only `GET`, and every call site above is a POST, so `/l/{token}` is never
@@ -88,7 +94,9 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * real `Origin`; a client with neither signal is refused there too.
  *
  * So the locked-out population is anonymous-entry respondents plus no-JS secure-link
- * respondents, not every affected browser. The browser-share numbers are deliberately
+ * respondents, not every affected browser. The same browsers cannot work the no-JS
+ * appearance form either, which is a real cost on a control that exists for
+ * accessibility; it is the same trade, made once, not a second decision. The browser-share numbers are deliberately
  * not repeated here, because they age: `docs/SECURITY_DESIGN.md` §5 carries them and
  * `docs/operations.md` carries the operator runbook.
  *

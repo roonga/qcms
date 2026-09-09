@@ -136,3 +136,56 @@ function assertCookieSafe(value: string): void {
     throw new Error("appearance cookie values are bare keywords");
   }
 }
+
+/**
+ * Where the no-JS appearance form posts, and the field that carries the page to
+ * come back to (issue #195).
+ *
+ * Here rather than in the route or the control because BOTH ends need it and one of
+ * them is a client component: `components/appearance-controls.tsx` stamps the
+ * `action` and the hidden field, `app/appearance/route.ts` reads the field back, and
+ * `lib/server/appearance-form.ts` refuses a return target that points at this route
+ * (a redirect to a POST-only path is a 405, not a page). A literal repeated at those
+ * three sites is a rename away from a form that posts into nothing.
+ */
+export const APPEARANCE_ROUTE = "/appearance";
+
+/** The hidden field naming the page the form was submitted from. */
+export const RETURN_FIELD = "returnTo";
+
+/**
+ * One respondent's appearance choice, per axis, with an absent axis meaning "not
+ * chosen in this submission" rather than "reset to the default".
+ *
+ * The form always posts all three (a radio group always has a checked member and a
+ * `<select>` always has a value), so in practice every axis is present; the shape is
+ * partial because {@link appearanceCookiesFor} is also the honest answer for a
+ * submission whose values did not survive validation.
+ */
+export interface AppearanceChoice {
+  readonly mode?: AppearanceMode | undefined;
+  readonly font?: string | undefined;
+  readonly density?: Density | undefined;
+}
+
+/**
+ * The `Set-Cookie` strings for a choice, in axis order: the SERVER half of the no-JS
+ * appearance form (issue #195).
+ *
+ * The shared writer the Code Owner's ruling asks for is {@link appearanceCookie}, and
+ * it is shared in the literal sense - the browser controls assign its return value to
+ * `document.cookie` and the route handler appends the same string to `Set-Cookie`, so
+ * the name, `Path`, `Max-Age`, `SameSite` and `Secure` of a cookie written without
+ * scripting are the same bytes as one written with it, by construction rather than by
+ * two lists agreeing. This function only decides WHICH cookies a choice writes; it
+ * adds no attribute of its own.
+ */
+export function appearanceCookiesFor(choice: AppearanceChoice, secure: boolean): string[] {
+  const written: string[] = [];
+  if (choice.mode !== undefined) written.push(appearanceCookie(MODE_COOKIE, choice.mode, secure));
+  if (choice.font !== undefined) written.push(appearanceCookie(FONT_COOKIE, choice.font, secure));
+  if (choice.density !== undefined) {
+    written.push(appearanceCookie(DENSITY_COOKIE, choice.density, secure));
+  }
+  return written;
+}

@@ -34,7 +34,7 @@ import { serverLogger } from "./logger";
  * `Origin` in particular is attacker-controlled. It is classified into four outcomes
  * and never copied, which is why {@link classifyOrigin} returns a union rather than a
  * string. The route is reduced to a **path template** for the same reason: the raw
- * pathname carries a session id on three of the four belted routes.
+ * pathname carries a session id on three of the five belted routes.
  *
  * `packages/observability/src/otlp-log-allowlist.ts` carries the export-side half:
  * {@link ORIGIN_BELT_REFUSED} is in its event vocabulary and the four field names are
@@ -71,6 +71,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
  * an operator does not need in order to count refusals.
  */
 export type BeltRoute =
+  | "/appearance"
   | "/f/{formSlug}/start"
   | "/s/{sessionId}/answers"
   | "/s/{sessionId}/step"
@@ -86,12 +87,22 @@ export type BeltRoute =
  * here, so the two cannot drift apart in silence.
  *
  * It is the field that tells an operator taking a support call which of the runbook's
- * two symptoms they are looking at: `redirect-to-entry` is "This form is not
+ * symptoms they are looking at: `redirect-to-entry` is "This form is not
  * available" on the entry page, `redirect-to-step` is the no-JS respondent bounced
- * back to the same step with their answers gone, and `forbidden` is a hydrated
- * `fetch()` refused with a 403 - a shape no ordinary respondent produces.
+ * back to the same step with their answers gone, `redirect-to-root` is the no-JS
+ * appearance form (issue #195) dropping the respondent at the site root with their
+ * appearance unchanged, and `forbidden` is a hydrated `fetch()` refused with a 403 - a
+ * shape no ordinary respondent produces.
+ *
+ * `redirect-to-root` is its own member rather than folded into `redirect-to-step`
+ * because it is the only refusal that moves a respondent OFF the page they were reading.
+ * A refused appearance submission cannot be sent back to the page it named, since a
+ * request that could not prove its origin does not get to choose the redirect (PR #859
+ * review), so the respondent loses their place and nothing on the page they land on says
+ * why. This line is the only place that fact exists.
  */
-export type BeltOutcome = "redirect-to-entry" | "redirect-to-step" | "forbidden";
+export type BeltOutcome =
+  "redirect-to-entry" | "redirect-to-root" | "redirect-to-step" | "forbidden";
 
 /**
  * How the request's `Sec-Fetch-Site` header reads.
@@ -149,6 +160,7 @@ interface BeltedRoute {
  * `"unrecognized"`.
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
+  { route: "/appearance", pattern: /^\/appearance\/?$/, outcome: "redirect-to-root" },
   {
     route: "/f/{formSlug}/start",
     pattern: /^\/f\/[^/]+\/start\/?$/,

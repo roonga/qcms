@@ -604,24 +604,35 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
  *
  * `.last()` rather than `.first()`: before hydration the page carries the no-JS fallback
  * form (task 044), which React replaces rather than adopts, so the first match can be the
- * pre-hydration document. The renderer's own form is the last one in the flow page.
+ * pre-hydration document. The renderer's own form is the last one in the step card.
+ *
+ * Scoped to the step card since issue #195: the portal's header now carries a second
+ * native form of its own (the no-JS appearance controls), so "every form on the page" is
+ * no longer "the step".
  */
 function rendererRoot(page: Page): Locator {
-  return page.locator("form").last();
+  return page.getByTestId("step-card").locator("form").last();
 }
 
 /**
- * Wait until React owns the rendered tree, so the shape read is the hydrated one.
+ * Wait until React owns the RENDERED STEP, so the shape read is the hydrated one.
  *
  * React tags every host node it owns with a `__reactFiber$...` property, which is the
  * attachment signal itself rather than a proxy for it (the same probe the gate captures
  * use). Comparing a server-rendered tree against a hydrated one would be comparing two
  * different things and would fail for a reason that is not fidelity.
+ *
+ * The probe must look at the same element {@link rendererRoot} reads, and since issue
+ * #195 that is no longer "the first form on the page": the portal's header carries the
+ * no-JS appearance form, which is part of the shell and is React-attached the moment the
+ * shell hydrates. Probing that one answers yes while the step below is still the
+ * pre-hydration fallback, which is exactly the mismatch this wait exists to prevent.
  */
 async function waitForReactAttached(page: Page): Promise<void> {
   await page.waitForFunction(() => {
-    const form = document.querySelector("form");
-    if (form === null) return false;
+    const forms = document.querySelectorAll('[data-testid="step-card"] form');
+    const form = forms[forms.length - 1];
+    if (form === undefined) return false;
     return Object.keys(form).some((key) => key.startsWith("__reactFiber$"));
   });
 }
