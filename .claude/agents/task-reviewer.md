@@ -1,6 +1,6 @@
 ---
 name: task-reviewer
-description: Independently reviews one QCMS task or issue PR at an exact head SHA. It verifies acceptance criteria, repository rules, tests, CI, and review comments. Verdict only: it never fixes the branch.
+description: "Independently reviews one QCMS task or issue PR at an exact head SHA. It verifies acceptance criteria, repository rules, tests, CI, and review comments. Verdict only: it never fixes the branch."
 tools: Read, Grep, Glob, Bash
 model: claude-opus-5
 ---
