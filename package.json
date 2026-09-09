@@ -37,6 +37,7 @@
     "agent-loop:status": "node scripts/agent-loop-status.mjs",
     "worktrees:prune": "node scripts/prune-worktrees.mjs",
     "png:preview": "node scripts/png-preview.mjs",
+    "ci:durations": "node scripts/ci-job-durations.mjs",
     "test": "turbo run test && pnpm test:tooling",
     "test:tooling": "vitest run --project tooling",
     "env-arrival": "node scripts/print-passthrough-env.mjs",
