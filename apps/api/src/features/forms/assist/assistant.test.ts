@@ -267,6 +267,26 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(JSON.stringify(record)).not.toContain("formId");
   });
 
+  /**
+   * A refused turn is not a turn with a tool error in it (issue #840).
+   *
+   * The SDK reports an unallowlisted verb twice: once as the parsed `tool-call`
+   * part, `toolName` intact and `invalid: true`, which is where the refusal is
+   * recorded, and once again as the paired `tool-error` part carrying the same
+   * call. Counting the second one made the record say a tool had failed on a
+   * turn where none had run, and `toolErrors` is the field an operator reads to
+   * tell a model correcting itself from a model that cannot call this API at
+   * all. A refusal is neither, so it counts as neither.
+   */
+  it("logs a refused turn with no tool errors counted", async () => {
+    const { logger, lines } = recordingLogger();
+    const { ctx } = contextFor("#qcms-fake:rogue-publish do it");
+    await collect(ctx, logger);
+
+    const record = lines.find((line) => line["msg"] === "draft assistant turn");
+    expect(record).toMatchObject({ toolRejected: true, toolErrors: 0 });
+  });
+
   it("still stops the turn when the failed call was a refused verb", async () => {
     // The one tool failure that must remain terminal: an unallowlisted verb
     // arrives the same way, and 041's control is that a model which reached for

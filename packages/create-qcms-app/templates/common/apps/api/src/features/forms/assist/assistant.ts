@@ -12,7 +12,6 @@
 
 import {
   APICallError,
-  NoSuchToolError,
   stepCountIs,
   streamText,
   type JSONValue,
@@ -82,12 +81,6 @@ function toModelMessages(ctx: AssistContext): { role: "user" | "assistant"; cont
     { role: "user" as const, content: draftPreamble(ctx.draft) },
     ...ctx.conversation.map((turn) => ({ role: turn.role, content: turn.content })),
   ];
-}
-
-/** Extract the attempted tool name from whatever shape the SDK reports it in. */
-function refusedToolName(error: unknown): string | undefined {
-  if (NoSuchToolError.isInstance(error)) return error.toolName;
-  return undefined;
 }
 
 function errorMessage(error: unknown): string {
@@ -167,16 +160,23 @@ export function aiSdkDraftAssistant(options: {
   };
 }
 
-/** Record a stream failure: a refused tool if that is what it is, else a provider error. */
+/**
+ * Record a stream failure as a provider error.
+ *
+ * It used to ask first whether the failure was a refused tool, on a
+ * `NoSuchToolError.isInstance` guard it shared with {@link noteToolFailure}
+ * (issue #840). The guard matched in neither place. The SDK settles an
+ * unallowlisted verb entirely inside `parseToolCall`, which catches its own
+ * `NoSuchToolError` and returns an `invalid: true` tool-call part rather than
+ * throwing, so no refusal is thrown past the stream or enqueued as an `error`
+ * part for this function to see (read against ai 7.0.92,
+ * `src/generate-text/parse-tool-call.ts`). The refusal has exactly one route,
+ * and it is {@link handlePart}'s `tool-call` case.
+ */
 function noteFailure(outcome: RunOutcome, raw: unknown): void {
-  const refused = refusedToolName(raw);
-  if (refused === undefined) {
-    outcome.providerError = errorMessage(raw);
-    outcome.providerRetryable = providerRetryAdvice(raw);
-    outcome.providerStatus = providerStatusCode(raw);
-  } else {
-    outcome.rejectedTool = refused;
-  }
+  outcome.providerError = errorMessage(raw);
+  outcome.providerRetryable = providerRetryAdvice(raw);
+  outcome.providerStatus = providerStatusCode(raw);
 }
 
 /**
@@ -197,19 +197,29 @@ function noteFailure(outcome: RunOutcome, raw: unknown): void {
  * proposal thrown away. The narration had already streamed, so the panel showed
  * a described proposal and then an unavailable provider.
  *
- * A refusal is the one exception and still travels: an unallowlisted verb
- * arrives as a `tool-error` too, and that one **must** stop the turn (041's
- * allowlist control - a model that reached for `publish` gets none of its other
- * work accepted). Since issue #814 it stops the loop as well, at the refusing
- * step: see {@link stopOnRejectedTool}.
+ * A refused verb arrives here too, and is deliberately **not counted** (issue
+ * #840). The SDK reports an unallowlisted call twice - as the parsed `tool-call`
+ * part, `toolName` intact and `invalid: true`, and then as the paired
+ * `tool-error` part for the same call - and {@link handlePart} has already
+ * recorded the refusal off the first of them. Counting the second made every
+ * refused turn log `toolErrors: 1` for a call no executor ever ran, which is the
+ * opposite of what the field is read for: a non-zero count means a model
+ * correcting itself, and a refusal is not that. This function used to try to
+ * recognise the refusal instead of skipping it, on a guard that never matched -
+ * see {@link noteFailure} for why. Teaching that guard the stringified shape the
+ * SDK does deliver was the alternative and was rejected: it would mean reading a
+ * tool name back out of prose the SDK formats (a format 7.0.0 itself changed,
+ * "preserve error type prefix in getErrorMessage"), to recover something the
+ * part beside it already carries structurally. The membership test is
+ * {@link isAllowedToolName}, the same one everything else in the slice uses.
+ *
+ * Nothing about the refusal depends on this: `outcome.rejectedTool` is what ends
+ * the turn refused, and {@link stopOnRejectedTool} is what ends the loop at the
+ * refusing step (issue #814). Neither reads this counter.
  */
-function noteToolFailure(outcome: RunOutcome, raw: unknown): void {
-  const refused = refusedToolName(raw);
-  if (refused === undefined) {
-    outcome.toolErrors += 1;
-  } else {
-    outcome.rejectedTool = refused;
-  }
+function noteToolFailure(outcome: RunOutcome, toolName: string): void {
+  if (!isAllowedToolName(toolName)) return;
+  outcome.toolErrors += 1;
 }
 
 /**
@@ -230,14 +240,17 @@ function handlePart(part: TextStreamPart<ToolSet>, outcome: RunOutcome): AssistE
       // allowlist and `runAssistTool` would refuse it, but the refusal is
       // *observed* here so the turn ends refused rather than half-done. What
       // ends the loop is `stopOnRejectedTool`, which reads the same allowlist
-      // off the SDK's step record; this line is what makes the outcome refused.
+      // off the SDK's step record; this line is what makes the outcome refused,
+      // and it is the only place that does. The paired `tool-error` part the SDK
+      // emits next is the same refused call arriving a second time, and
+      // `noteToolFailure` skips it rather than counting it (issue #840).
       if (isAllowedToolName(part.toolName)) {
         return { type: "status", phase: "tool", tool: part.toolName };
       }
       outcome.rejectedTool = part.toolName;
       return undefined;
     case "tool-error":
-      noteToolFailure(outcome, part.error);
+      noteToolFailure(outcome, part.toolName);
       return undefined;
     case "error":
       noteFailure(outcome, part.error);
