@@ -128,7 +128,7 @@ import {
  *   cwd?: string,
  *   templates?: Map<string, string>,
  *   current?: Map<string, string>,
- *   syncTemplates?: () => void,
+ *   syncTemplates?: () => unknown,
  * }} Options
  */
 
@@ -583,11 +583,15 @@ export function plan(mergeBase, options = {}) {
 }
 
 /**
+ * Async because the regeneration it delegates to is: `sync-templates.mjs`'s `--write`
+ * hands the finished `docs/ownership-seam.md` to Prettier before writing it, so that a
+ * regeneration needs no separate `pnpm format` (issue #866).
+ *
  * @param {string[]} args
  * @param {Options} options
- * @returns {number} process exit code
+ * @returns {Promise<number>} process exit code
  */
-export function main(args = process.argv.slice(2), options = {}) {
+export async function main(args = process.argv.slice(2), options = {}) {
   const write = args.includes("--write");
   const cwd = options.cwd;
   const baseRef = resolveBaseRef(cwd);
@@ -611,7 +615,7 @@ export function main(args = process.argv.slice(2), options = {}) {
   // The templates are regenerated on every `--write`, drift or none: the generator is
   // idempotent, and asking it unconditionally is what makes this one command rather than
   // one command plus a judgement about whether the other one is needed (issue #834).
-  if (write) (options.syncTemplates ?? (() => syncTemplates(["--write"])))();
+  if (write) await (options.syncTemplates ?? (() => syncTemplates(["--write"])))();
   else if (templateDrift.length > 0) {
     console.log(
       `dependabot-changeset: ${templateDrift.length} scaffolding template file(s) would be ` +
@@ -648,5 +652,5 @@ export function main(args = process.argv.slice(2), options = {}) {
 
 // Run as a script; stay silent when imported by the self-test.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(main());
+  process.exit(await main());
 }

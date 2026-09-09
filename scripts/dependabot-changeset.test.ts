@@ -317,7 +317,7 @@ function makeBumpedRepo(): string {
 }
 
 describe("the one command a Dependabot bump needs (issue #834)", () => {
-  it("regenerates the templates and names both packages in one changeset", () => {
+  it("regenerates the templates and names both packages in one changeset", async () => {
     const root = makeBumpedRepo();
     // What the generator would produce from the bumped app, and what is on disk beside
     // it: the stale template nobody re-synced. Injected rather than generated, because
@@ -332,7 +332,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     // with the name of whatever branch the suite happens to be running on.
     vi.stubEnv("GITHUB_HEAD_REF", undefined);
 
-    const status = main(["--write"], {
+    const status = await main(["--write"], {
       cwd: root,
       templates: generated,
       current: onDisk,
@@ -370,7 +370,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     expect(diffTrees(generated, readBack)).toStrictEqual([]);
   });
 
-  it("names the changeset after GITHUB_HEAD_REF when a workflow checkout is detached", () => {
+  it("names the changeset after GITHUB_HEAD_REF when a workflow checkout is detached", async () => {
     // The reason that preference exists: a workflow checkout has no branch name to read,
     // so every bot pull request would otherwise claim the same file name.
     const root = makeBumpedRepo();
@@ -379,7 +379,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
     vi.stubEnv("GITHUB_HEAD_REF", "dependabot/npm_and_yarn/grouped-99");
 
-    const status = main(["--write"], {
+    const status = await main(["--write"], {
       cwd: root,
       templates: generated,
       current: generated,
@@ -394,7 +394,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     ).toStrictEqual(["dependabot-npm-and-yarn-grouped-99.md"]);
   });
 
-  it("refuses when re-syncing would carry more than a dependency range into the scaffold", () => {
+  it("refuses when re-syncing would carry more than a dependency range into the scaffold", async () => {
     const root = makeBumpedRepo();
     const generated = new Map([
       ["common/apps/portal/package.json", TEMPLATE_AFTER],
@@ -403,7 +403,7 @@ describe("the one command a Dependabot bump needs (issue #834)", () => {
     const onDisk = new Map([["common/apps/portal/package.json", TEMPLATE_BEFORE]]);
     const error = vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const status = main([], { cwd: root, templates: generated, current: onDisk });
+    const status = await main([], { cwd: root, templates: generated, current: onDisk });
     const said = error.mock.calls.flat().join("\n");
     error.mockRestore();
 

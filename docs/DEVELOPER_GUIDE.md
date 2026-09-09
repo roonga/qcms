@@ -461,11 +461,10 @@ A bump arrives red, and none of the red is about the bump: the bot edits manifes
 ```sh
 gh pr checkout <number>
 pnpm changeset:dependabot -- --write   # regenerates the templates, writes one changeset
-pnpm format                            # the generated inventory in docs/ownership-seam.md, issue #811
 pnpm verify
 ```
 
-Run it without `--write` first if you want to read what it would say. It refuses, naming the file, when the branch carries anything it cannot honestly call dependency maintenance - a source file, an `exports` edit, an app change that would ride into the scaffold - and that refusal is the point: a bot pull request should be red for a reason specific to it. Whatever `verify` reports after those two commands is about the dependencies.
+Run it without `--write` first if you want to read what it would say. It refuses, naming the file, when the branch carries anything it cannot honestly call dependency maintenance - a source file, an `exports` edit, an app change that would ride into the scaffold - and that refusal is the point: a bot pull request should be red for a reason specific to it. Whatever `verify` reports after that one command is about the dependencies.
 
 ## Human gates
 

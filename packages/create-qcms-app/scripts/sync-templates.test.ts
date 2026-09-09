@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import * as prettier from "prettier";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -19,6 +20,11 @@ import {
   outputName,
   publishedVersions,
   renderEnvExample,
+  renderSeamBlock,
+  replaceSeamBlock,
+  REPOSITORY_ROOT,
+  SEAM_DOC,
+  seamDocumentText,
   templateName,
   transformDockerfile,
   walk,
@@ -485,5 +491,28 @@ describe("the release-age hold the scaffold inherits (SEC-11)", () => {
       (tree.get("common/pnpm-workspace.yaml") ?? "").replace(/^minimumReleaseAgeStrict:.*$/m, ""),
     );
     expect(() => assertReleaseAgeHoldIsStamped(without)).toThrow(/minimumReleaseAgeStrict/);
+  });
+});
+
+describe("the seam document the generator writes (issue #866)", () => {
+  const path = join(REPOSITORY_ROOT, SEAM_DOC);
+
+  /** Prettier's own answer for this file, under this repository's own configuration. */
+  async function isPrettierClean(text: string): Promise<boolean> {
+    const options = await prettier.resolveConfig(path);
+    return prettier.check(text, { ...options, filepath: path });
+  }
+
+  // Proved red as well as green, the way the #456 guards are. The green case alone
+  // would still pass if someone deleted the formatting step and Prettier happened to
+  // like the compact form; this pair says the step is doing work.
+  it("needs formatting when the block goes in as rendered", async () => {
+    const compact = replaceSeamBlock(readFileSync(path, "utf8"), renderSeamBlock());
+
+    expect(await isPrettierClean(compact)).toBe(false);
+  });
+
+  it("is Prettier-clean as written, so a regeneration needs no `pnpm format`", async () => {
+    expect(await isPrettierClean(await seamDocumentText())).toBe(true);
   });
 });

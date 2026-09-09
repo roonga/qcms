@@ -3,3 +3,16 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# `docs/ownership-seam.md` carries a generated inventory of the scaffolded tree, so
+# every branch that touches an app rewrites the same counts and every rebase collided
+# there (issue #866). Unsetting `merge` tells git not to attempt a content merge: the
+# base's version is left in the working tree, marked conflicted, with no markers to
+# unpick. The resolution is then always the same one command, and CONTRIBUTING.md
+# spells it out: re-run `pnpm qcms:sync-templates`, then `git add`.
+#
+# Unset rather than a `merge=ours` driver, deliberately. A named driver has to be
+# defined in `.git/config` in every clone and every worktree, so it is silently absent
+# for whoever did not run the setup step, and a merge rule that works for some clones
+# is worse than none. This attribute needs no local configuration at all.
+docs/ownership-seam.md -merge

@@ -55,4 +55,8 @@ export declare function diffTrees(
   expected: Map<string, string>,
   actual: Map<string, string>,
 ): string[];
-export declare function main(args?: string[]): number;
+export declare const SEAM_DOC: string;
+export declare function renderSeamBlock(tree?: Map<string, string>): string;
+export declare function replaceSeamBlock(text: string, block: string): string;
+export declare function seamDocumentText(block?: string, current?: string): Promise<string>;
+export declare function main(args?: string[]): Promise<number>;
