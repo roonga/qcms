@@ -226,7 +226,7 @@ services:
         -- type) with no per-table filter, so "every table except that one" is not
         -- expressible. The grant lands and is taken back.
         --
-        -- Migration 0020 carries the same revoke, and that copy is the one a FRESH
+        -- Migration 0021 carries the same revoke, and that copy is the one a FRESH
         -- deployment relies on: this one-shot runs BEFORE `migrate`, so on a new
         -- database the table does not exist yet and the branch below is skipped. This
         -- copy exists for the boot after that one. db-roles re-runs on every `up`

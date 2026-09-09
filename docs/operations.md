@@ -484,7 +484,7 @@ Neither form above can name an exception: `ALTER DEFAULT PRIVILEGES` is keyed on
 creates except that one" is not expressible in Postgres.
 The grant lands and is taken back.
 
-The copy that matters on a **new** database is in migration 0020 itself, which runs as
+The copy that matters on a **new** database is in migration 0021 itself, which runs as
 the table's owner in the same step that creates it, so a fresh deployment (or a fresh
 `create-qcms-app` scaffold) is correct with no post-migrate step for anyone to forget.
 That copy is guarded on the role existing, because most databases it runs against have
@@ -501,9 +501,7 @@ created. Both copies are idempotent.
 All three copies name `qcms_app` as a literal, so on a deployment that calls it something
 else the migration's guard is false, the revoke never runs, and your application role
 keeps all four privileges on the audit table.
-That is a real limit and not an oversight: a migration cannot know a name you chose, and
-revoking from every non-owner role instead would strip `qcms_reporting` of the `SELECT`
-the reporting recipe grants it.
+That is a real limit and not an oversight: a migration cannot know a name you chose.
 So if you renamed it, add the line to your own recipe with your name in place of
 `qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
 Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses

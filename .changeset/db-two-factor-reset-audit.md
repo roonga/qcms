@@ -5,13 +5,13 @@
 Add the `two_factor_resets` audit table and the storage half of the `qcms:reset-2fa`
 break-glass (issue #432).
 
-Migration `0020` appends one table: who had their second factor cleared, when, by which
+Migration `0021` appends one table: who had their second factor cleared, when, by which
 database role, how many factor rows went, and whether the account was enrolled. No
 foreign key to `user`, on the `erasure_tombstones` precedent - an audit record that
 cascades away with the thing it describes is not an audit record.
 
 **The migration also revokes, and that is the part an upgrade changes for you.** The
-audit table is migrate-only, so `0020` takes `SELECT`, `INSERT`, `UPDATE` and `DELETE`
+audit table is migrate-only, so `0021` takes `SELECT`, `INSERT`, `UPDATE` and `DELETE`
 on it back from `qcms_app` after creating it - an audit row the credential serving
 traffic can rewrite or delete records nothing against the attacker the SEC-10 role split
 is drawn against. It has to be a revoke because neither `GRANT ... ON ALL TABLES` nor

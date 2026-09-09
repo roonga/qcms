@@ -121,11 +121,11 @@ Two more refusals bound the blast radius: an address matching zero or more than 
 **The audit rows are writable only by the migration role, under the recipe's role names (Code Owner decision, 2026-09-09).**
 `two_factor_resets` would otherwise have inherited `SELECT`, `INSERT`, `UPDATE` and `DELETE` from the blanket pass the role recipe hands `qcms_app`, and an audit row the credential serving traffic can rewrite or delete records nothing against the one attacker this split is drawn against.
 It is a revoke rather than a narrower grant because neither `GRANT ... ON ALL TABLES` nor `ALTER DEFAULT PRIVILEGES` can name an exception: default privileges are keyed on (role, schema, object type) with no per-table filter, so "every table this role creates except that one" is not expressible.
-The revoke is in migration 0020, which runs as the table's owner in the same step that creates it, so a fresh deployment and a fresh scaffold are correct with no post-migrate step; and again in the role recipe, because `db-roles` re-runs on every `up` and would otherwise re-grant the pass on the boot after the table appears.
+The revoke is in migration 0021, which runs as the table's owner in the same step that creates it, so a fresh deployment and a fresh scaffold are correct with no post-migrate step; and again in the role recipe, because `db-roles` re-runs on every `up` and would otherwise re-grant the pass on the boot after the table appears.
 
 **The qualifier in that heading is load-bearing, and it is the one place this control is weaker than the guard beside it.**
-All three revokes name `qcms_app` as a literal, because a migration cannot know a name an operator chose: it runs before anything in this repository could ask, and a blanket revoke from every non-owner role would strip `qcms_reporting` of the `SELECT` §7 grants it.
-So on a deployment that renames the application role, migration 0020's guard is false, the revoke never runs, and that role keeps all four privileges on the audit table.
+All three revokes name `qcms_app` as a literal, because a migration cannot know a name an operator chose: it runs before anything in this repository could ask.
+So on a deployment that renames the application role, migration 0021's guard is false, the revoke never runs, and that role keeps all four privileges on the audit table.
 That is reachable rather than hypothetical: renaming the roles is supported, and the `qcms:reset-2fa` guard one paragraph up is deliberately built on schema ownership rather than a name **so that it survives the rename**.
 The two controls therefore do not have the same reach, and saying so is the point of this paragraph.
 **An operator who renames the application role carries the revoke into their own recipe**, which `docs/operations.md` states beside the SQL; the assertions in `apps/api/e2e/security/03-db-least-privilege.e2e.ts` pin the shipped names only, because those are the names the shipped recipe uses.

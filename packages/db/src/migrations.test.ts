@@ -12,7 +12,7 @@ import {
  *
  * The assertion below is a subset check (`toContain` per entry), so a table added
  * by a later migration is covered only once it is listed here. `two_factor_resets`
- * (migration 0020) was added to this list for that reason and not because the
+ * (migration 0021) was added to this list for that reason and not because the
  * assertion complained: it would not have.
  */
 const EXPECTED_TABLES = [

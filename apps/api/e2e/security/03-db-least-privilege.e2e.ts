@@ -274,7 +274,7 @@ describe("the runtime role reads and writes rows, and nothing else", () => {
     // made: the recipe hands out the DML pass over all tables and cannot name an
     // exception (default privileges have no per-table filter), so all four bits are
     // granted and then taken back. The revoke that does it on a fresh database is in
-    // migration 0020 itself, which is what this scenario ran.
+    // migration 0021 itself, which is what this scenario ran.
     const result = await app.query<{
       select: boolean;
       insert: boolean;
