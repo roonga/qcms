@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 
-import { MenuItem, MenuList, MenuPopover, MenuTrigger, MenuTriggerButton } from "@/components/kit";
+import { Menu } from "@/components/kit";
+import { menuClasses } from "@/components/menu-slots";
 import { ModeGlyph } from "@/components/mode-glyph";
 import { MODES, modeCookie, type Mode } from "@/lib/appearance";
 import { t } from "@/lib/i18n/en";
@@ -55,6 +56,16 @@ import { t } from "@/lib/i18n/en";
  * `selectionMode`/`selectedKeys` stay, because they are what give each row
  * `role="menuitemradio"` and `aria-checked` - the semantics, not the wiring.
  *
+ * IT IS THE VENDORED `Menu`, SINCE ISSUE #234
+ * It was composed from react-aria-components' popup primitives until then, because
+ * the registry component's props could not express an icon trigger or a checked row
+ * carrying a glyph. Upstream now ships those slots, so this is the registry
+ * component again: `trigger` takes the glyph, `triggerLabel` becomes the button's
+ * accessible name, `classNames` puts this app's shapes on the same elements, and an
+ * item's `label` carries the check mark beside its text with `textValue` as the name
+ * a screen reader reads. Nothing about the keyboard contract changed - it was always
+ * `MenuTrigger`'s, one layer down.
+ *
  * WITHOUT JAVASCRIPT the whole control is hidden (the `<noscript>` rule in
  * `app/layout.tsx`), because a menu an operator can focus but not open is worse than
  * no control at all. The OS-following default still applies, and it is a server
@@ -90,46 +101,36 @@ export function AppearanceMenu({
 
   return (
     <div className="qcms-appearance" data-testid="appearance-menu">
-      <MenuTrigger>
-        <MenuTriggerButton
-          className="qcms-modetrigger"
-          aria-label={t("appearance.trigger", { mode: t(`appearance.mode.${selected}`) })}
-        >
-          <ModeGlyph mode={selected} />
-        </MenuTriggerButton>
-        <MenuPopover className="qcms-menu">
-          <MenuList
-            className="qcms-menu__list"
-            aria-label={t("appearance.mode.legend")}
-            selectionMode="single"
-            disallowEmptySelection
-            selectedKeys={[selected]}
-            onAction={(key) => {
-              const next = MODES.find((candidate) => candidate === key);
-              if (next !== undefined) choose(next);
-            }}
-          >
-            {MODES.map((value) => (
-              <MenuItem
-                key={value}
-                id={value}
-                className="qcms-menu__item"
-                textValue={t(`appearance.mode.${value}`)}
-              >
-                {/* Never colour alone (WCAG 1.4.1): the glyph, the weight and the
-                    inset accent edge in the stylesheet each carry the checked state
-                    on their own. The mark is decorative - `aria-checked` is what a
-                    screen reader hears - and the span keeps its width either way, so
-                    choosing a row moves no text. */}
-                <span className="qcms-menu__check" aria-hidden="true">
-                  {value === selected ? SELECTED_MARK : ""}
-                </span>
-                {t(`appearance.mode.${value}`)}
-              </MenuItem>
-            ))}
-          </MenuList>
-        </MenuPopover>
-      </MenuTrigger>
+      <Menu
+        triggerLabel={t("appearance.trigger", { mode: t(`appearance.mode.${selected}`) })}
+        trigger={<ModeGlyph mode={selected} />}
+        menuLabel={t("appearance.mode.legend")}
+        classNames={menuClasses("qcms-modetrigger")}
+        selectionMode="single"
+        disallowEmptySelection
+        selectedKeys={[selected]}
+        onAction={(key) => {
+          const next = MODES.find((candidate) => candidate === key);
+          if (next !== undefined) choose(next);
+        }}
+        items={MODES.map((value) => ({
+          id: value,
+          textValue: t(`appearance.mode.${value}`),
+          label: (
+            <>
+              {/* Never colour alone (WCAG 1.4.1): the glyph, the weight and the
+                  inset accent edge in the stylesheet each carry the checked state
+                  on their own. The mark is decorative - `aria-checked` is what a
+                  screen reader hears - and the span keeps its width either way, so
+                  choosing a row moves no text. */}
+              <span className="qcms-menu__check" aria-hidden="true">
+                {value === selected ? SELECTED_MARK : ""}
+              </span>
+              {t(`appearance.mode.${value}`)}
+            </>
+          ),
+        }))}
+      />
     </div>
   );
 }

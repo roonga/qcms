@@ -105,9 +105,9 @@ bug turns identical into drifted and never the other way round.
 
 The one that drifted matches the upstream change exactly, and nothing else:
 
-| Component | Files                                                              | Change                                                  | Issue           |
-| --------- | ------------------------------------------------------------------ | ------------------------------------------------------- | --------------- |
-| `menu`    | `Menu.tsx`, `index.ts`, `menu.schema.ts`, `menu.styles.ts`         | trigger, menu-label, header, class-name and item slots  | #234 / upstream #75 |
+| Component | Files                                                      | Change                                                 | Issue               |
+| --------- | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------- |
+| `menu`    | `Menu.tsx`, `index.ts`, `menu.schema.ts`, `menu.styles.ts` | trigger, menu-label, header, class-name and item slots | #234 / upstream #75 |
 
 The second upstream commit in this pin (`fix(cli)`, above) touches `packages/cli` only,
 which the registry does not ship, so it moves no vendored byte.
@@ -219,7 +219,7 @@ $ node <cli> diff menu
   		</MenuTrigger>
   	)
   }
-  
+
 -
 
 Run `a2ra add <name> --overwrite` to update.

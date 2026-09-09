@@ -349,14 +349,34 @@ test("the account menu names the operator and routes to the password screen", as
   const trigger = accountTrigger(page);
   await expect(trigger).toHaveAccessibleName(`Account menu for ${EMAIL}`);
 
+  // The trigger's own content is the monogram, hidden from the accessibility tree: the
+  // sentence above is the accessible name, not visible text (WCAG 2.5.3). This is the
+  // vendored `Menu`'s `trigger` slot since issue #234, and the node below is the host's
+  // own - the component's default trigger would paint `triggerLabel` as plain text with
+  // nothing `aria-hidden` inside it, so this is what proves the slot rendered.
+  const monogram = trigger.locator("span[aria-hidden='true']");
+  await expect(monogram).toHaveCount(1);
+  expect((await monogram.innerText()).trim(), "the disc paints two letters").toHaveLength(2);
+
   await openMenu(trigger);
   const menu = page.getByRole("menu");
   // The full email lives here, which is what lets the trigger be a circle. It sits in
   // the popover BESIDE the menu rather than inside it, on purpose: it labels the menu
   // and is not a stop in it, so it is located from the popover and not from the menu.
   await expect(page.locator(".qcms-menu .qcms-menu__email")).toHaveText(EMAIL);
+  // And "beside" is asserted rather than assumed, because that placement is the whole
+  // point of the `header` slot: the same element must NOT be reachable from the menu.
+  await expect(menu.locator(".qcms-menu__email")).toHaveCount(0);
+  // The rule the slot brings with it, between the header and the first action.
+  await expect(page.locator(".qcms-menu .qcms-menu__sep")).toHaveCount(1);
   // The header is a label, not a stop: exactly two items are reachable.
   await expect(menu.getByRole("menuitem")).toHaveText(["Change password", "Sign out"]);
+  // A real anchor, from the item's `href` slot, so it middle-clicks and copies like a
+  // link. A row that only ran an action would look identical until someone tried that.
+  await expect(menu.getByRole("menuitem", { name: "Change password" })).toHaveAttribute(
+    "href",
+    "/settings#change-password",
+  );
 
   await menu.getByRole("menuitem", { name: "Change password" }).click();
   await expect(page).toHaveURL(/\/settings#change-password$/);

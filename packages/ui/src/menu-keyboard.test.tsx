@@ -3,25 +3,20 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { useState } from "react";
 
-import {
-  Menu,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuSeparator,
-  MenuTrigger,
-  MenuTriggerButton,
-} from "./kit.ts";
+import { Menu } from "./kit.ts";
 
 /**
  * The menu's keyboard walkthrough (task 032, `docs/COMPONENT_GUIDELINES.md` step 6).
  *
- * Two shapes are covered because the kit ships two doors onto the same machinery:
- * the vendored `Menu` from the pinned registry, and the primitives the admin topbar
- * composes when it needs a trigger the vendored component's props cannot express
- * (an icon glyph, an initials disc). Both go through react-aria's `MenuTrigger`, so
- * a regression in one is a regression in the other - which is exactly why the
- * contract is asserted at this layer rather than trusted per host.
+ * Three shapes are covered, and since issue #234 all three are the SAME component:
+ * the vendored `Menu` from the pinned registry, wearing the trigger, header and item
+ * slots upstream added for exactly these hosts. Until then the topbar composed
+ * react-aria's popup primitives directly, because the registry component's props
+ * could not express an icon glyph, an initials disc, a checked row carrying a mark or
+ * a "Signed in as" header, and this file asserted the contract for both doors. There
+ * is one door now, and the contract is asserted at this layer rather than trusted per
+ * host because four admin surfaces open menus and none of them should own a key
+ * handler.
  *
  * The contract the frozen design card documents, and the reason this file exists:
  * Enter, Space or Arrow Down opens; arrows navigate; Escape closes and returns
@@ -50,50 +45,74 @@ import {
 function AppearanceHarness() {
   const [mode, setMode] = useState("Dark");
   return (
-    <MenuTrigger>
-      <MenuTriggerButton aria-label={`Appearance: ${mode}`}>
-        <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" />
-      </MenuTriggerButton>
-      <MenuPopover>
-        <MenuList
-          aria-label="Appearance"
-          selectionMode="single"
-          selectedKeys={[mode]}
-          onSelectionChange={(keys) => {
-            if (keys !== "all") setMode([...keys].map(String)[0] ?? mode);
-          }}
-        >
-          <MenuItem id="Light">Light</MenuItem>
-          <MenuItem id="Dark">Dark</MenuItem>
-          <MenuItem id="High contrast">High contrast</MenuItem>
-        </MenuList>
-      </MenuPopover>
-    </MenuTrigger>
+    <Menu
+      triggerLabel={`Appearance: ${mode}`}
+      trigger={<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" />}
+      menuLabel="Appearance"
+      selectionMode="single"
+      selectedKeys={[mode]}
+      onSelectionChange={(keys) => {
+        setMode(keys.map(String)[0] ?? mode);
+      }}
+      items={[
+        // A rich label with its own `textValue`, which is the shape the appearance
+        // control actually ships: a decorative check glyph beside the mode's name.
+        {
+          id: "Light",
+          textValue: "Light",
+          label: (
+            <>
+              <span aria-hidden="true">{mode === "Light" ? MARK : ""}</span>Light
+            </>
+          ),
+        },
+        {
+          id: "Dark",
+          textValue: "Dark",
+          label: (
+            <>
+              <span aria-hidden="true">{mode === "Dark" ? MARK : ""}</span>Dark
+            </>
+          ),
+        },
+        {
+          id: "High contrast",
+          textValue: "High contrast",
+          label: (
+            <>
+              <span aria-hidden="true">{mode === "High contrast" ? MARK : ""}</span>High contrast
+            </>
+          ),
+        },
+      ]}
+    />
   );
 }
 
-/** The account shape: a header outside the menu, a separator, two plain actions. */
+/** The check glyph the appearance rows carry. U+2713. */
+const MARK = "\u2713";
+
+/** The account shape: a header outside the menu, a rule, a link row and an action row. */
 function AccountHarness({ onAction }: { readonly onAction: (key: string) => void }) {
   return (
-    <MenuTrigger>
-      <MenuTriggerButton aria-label="Account menu for op@example.test">OP</MenuTriggerButton>
-      <MenuPopover>
-        <div role="presentation">
+    <Menu
+      triggerLabel="Account menu for op@example.test"
+      trigger={<span aria-hidden="true">OP</span>}
+      menuLabel="Account"
+      header={
+        <>
           <span>Signed in as</span>
           <span>op@example.test</span>
-        </div>
-        <MenuSeparator />
-        <MenuList
-          aria-label="Account"
-          onAction={(key) => {
-            onAction(String(key));
-          }}
-        >
-          <MenuItem id="password">Change password</MenuItem>
-          <MenuItem id="sign-out">Sign out</MenuItem>
-        </MenuList>
-      </MenuPopover>
-    </MenuTrigger>
+        </>
+      }
+      onAction={(key) => {
+        onAction(key);
+      }}
+      items={[
+        { id: "password", label: "Change password", href: "/settings#change-password" },
+        { id: "sign-out", label: "Sign out" },
+      ]}
+    />
   );
 }
 
@@ -117,12 +136,26 @@ describe("menu keyboard contract", { timeout: 30_000 }, () => {
     // Single selection is what makes these radios rather than plain items, and the
     // checked one is what the card's check glyph and inset edge have to agree with.
     const items = screen.getAllByRole("menuitemradio");
-    expect(items.map((item) => item.textContent)).toEqual(["Light", "Dark", "High contrast"]);
     expect(items.map((item) => item.getAttribute("aria-checked"))).toEqual([
       "false",
       "true",
       "false",
     ]);
+    // The glyph is decorative and the row's NAME is its `textValue`, which is the whole
+    // reason a rich label needs one: the visible text carries the mark, the accessible
+    // name does not, and choosing a row must not rename it.
+    expect(items.map((item) => item.textContent)).toEqual([
+      "Light",
+      `${MARK}Dark`,
+      "High contrast",
+    ]);
+    // The mark is `aria-hidden`, so the computed name excludes it: choosing a row moves
+    // the glyph without renaming the row.
+    expect(screen.getByRole("menuitemradio", { name: "Dark" }).getAttribute("aria-checked")).toBe(
+      "true",
+    );
+    expect(screen.getByRole("menuitemradio", { name: "Light" })).toBeTruthy();
+    expect(screen.getByRole("menuitemradio", { name: "High contrast" })).toBeTruthy();
 
     await user.keyboard("{ArrowDown}");
     await user.keyboard("{Escape}");
