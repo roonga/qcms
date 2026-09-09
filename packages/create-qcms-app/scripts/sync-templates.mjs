@@ -1823,6 +1823,13 @@ export function countInternalReferences(tree) {
  * and the file manifest included, is compared byte for byte. A cell whose text changed
  * is still drift; a cell that was merely repadded is not.
  *
+ * This is still the right comparison now that `--write` hands the finished document to
+ * Prettier itself ({@link seamDocumentText}, issue #866). The committed file is padded
+ * and {@link renderSeamBlock} still emits compact rows, so `--check` is comparing a
+ * compact render against a padded document and this is what bridges the two. What
+ * changed is that the padded form is now what the generator WRITES, rather than what a
+ * separate `pnpm format` had to be remembered for.
+ *
  * @param {string} block
  * @returns {string}
  */
@@ -1916,19 +1923,68 @@ function writeTemplates(tree) {
   }
 }
 
-export function main(args = argv.slice(2)) {
+/**
+ * Prettier, loaded only by `--write`.
+ *
+ * A dynamic import rather than a top-level one, because `--check` has to run under
+ * plain `node` in a tree that was never installed or built (the property the PO review
+ * of #451 proved, and the same reason this file may not import TypeScript). `--check`
+ * never reaches this function; `--write` is a developer command in an installed tree,
+ * and says so if it is not.
+ */
+async function loadPrettier() {
+  try {
+    return await import("prettier");
+  } catch (cause) {
+    throw new Error(
+      `sync-templates: --write leaves ${SEAM_DOC} formatted and could not load Prettier to do ` +
+        `it. Run pnpm install first. --check needs no dependencies and is unaffected.`,
+      { cause },
+    );
+  }
+}
+
+/**
+ * The seam document exactly as `--write` will leave it (issue #866).
+ *
+ * The generated block goes in compact, and then the WHOLE document goes through
+ * Prettier with this repository's own configuration, which is what `pnpm format` would
+ * have done to it a step later. That step is the thing being removed: a lane that
+ * regenerated and went straight to `pnpm verify` used to land a `prettier --check` red
+ * on one file, minutes after the regeneration and saying nothing about it, and every
+ * lane through waves 11 and 12 reported the same tax (issues #811, #866).
+ *
+ * Formatting the whole file rather than the block is deliberate. A block formatted in
+ * isolation is only accidentally what Prettier would print in place, and the hand-written
+ * prose around it is the generator's neighbour rather than its business: running the same
+ * formatter over the same file that `pnpm format` runs over cannot disagree with it.
+ *
+ * @param {string} block the rendered generated block
+ * @param {string} current the document as it stands
+ * @returns {Promise<string>}
+ */
+export async function seamDocumentText(block = renderSeamBlock(), current = read(SEAM_DOC)) {
+  const path = join(REPOSITORY_ROOT, SEAM_DOC);
+  const prettier = await loadPrettier();
+  const options = await prettier.resolveConfig(path);
+  return prettier.format(replaceSeamBlock(current, block), { ...options, filepath: path });
+}
+
+export async function main(args = argv.slice(2)) {
   const tree = buildTemplates();
   const block = renderSeamBlock(tree);
   if (args.includes("--write")) {
     writeTemplates(tree);
     const path = join(REPOSITORY_ROOT, SEAM_DOC);
     const text = readFileSync(path, "utf8");
-    // Rewritten only when the CONTENT changed. Otherwise a run of this script would
-    // strip Prettier's table padding out of a document nothing had changed, and the
-    // next `pnpm lint` would put it back: a two-command loop that never settles.
-    if (normalizeSeamBlock(currentSeamBlock()) !== normalizeSeamBlock(block)) {
-      writeFileSync(path, replaceSeamBlock(text, block));
-    }
+    // Compared as finished text rather than as normalised content, which is what the
+    // formatting step buys. The old comparison had to ask whether the CONTENT changed,
+    // because writing unconditionally would have stripped Prettier's table padding out
+    // of a document nothing had changed and the next `pnpm lint` would have put it
+    // back: a two-command loop that never settled. Formatted output has no such loop,
+    // so the honest question is simply whether the file is about to change.
+    const next = await seamDocumentText(block, text);
+    if (next !== text) writeFileSync(path, next);
     process.stdout.write(
       `sync-templates: wrote ${tree.size} files to ${TEMPLATE_DIR} and the generated block in ${SEAM_DOC}\n`,
     );
@@ -1941,9 +1997,13 @@ export function main(args = argv.slice(2)) {
   if (problems.length > 0) {
     process.stderr.write(
       `The scaffolding templates have drifted from the canonical apps:\n\n  ${problems.join("\n  ")}\n\n` +
-        "Regenerate them with `pnpm qcms:sync-templates`, run `pnpm format` (issue #811),\n" +
-        "and commit the result. On a Dependabot bump, `pnpm changeset:dependabot -- --write`\n" +
-        "does the regeneration and writes the changeset it also needs (issue #834).\n",
+        "Regenerate them with `pnpm qcms:sync-templates` and commit the result. It leaves\n" +
+        `${SEAM_DOC} formatted, so no separate \`pnpm format\` step is needed (issue #866).\n` +
+        "On a Dependabot bump, `pnpm changeset:dependabot -- --write` does the regeneration\n" +
+        "and writes the changeset it also needs (issue #834).\n\n" +
+        `After a rebase conflict in ${SEAM_DOC}, the resolution is always the\n` +
+        "same: take the base's side, re-run the regeneration, `git add` the result. Never\n" +
+        "hand-merge the counts (issue #866).\n",
     );
     return 1;
   }
@@ -1954,5 +2014,5 @@ export function main(args = argv.slice(2)) {
 }
 
 if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
-  process.exitCode = main();
+  process.exitCode = await main();
 }

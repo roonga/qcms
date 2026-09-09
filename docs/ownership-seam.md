@@ -84,10 +84,12 @@ inside `pnpm verify`) fails when it drifts. Two views of one set: the directory 
 is for reading, the collapsed manifest is the literal answer to "every scaffolded
 path", so the completeness claim is checkable rather than asserted.
 
-**Run `pnpm format` straight after regenerating** (issue #811). The generator writes the
-tables below compactly and Prettier repads them, so a fresh `pnpm qcms:sync-templates`
-always leaves this one file unformatted and `pnpm verify` fails on `prettier --check`
-alone. Regenerate, format, then verify.
+**Regenerate it; never hand-edit it and never hand-merge it** (issues #811, #866). The
+generator writes the tables below compactly and then runs Prettier over this whole
+document, so a fresh `pnpm qcms:sync-templates` is already formatted and needs no
+`pnpm format` after it. If a rebase leaves this file conflicted, `.gitattributes` has
+already put the base's version back with no conflict markers in it: re-run the
+regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
