@@ -19,4 +19,6 @@ export const getMenuStyles = () => ({
 		"data-[focused]:bg-(--color-background-muted)",
 		"data-[selected]:font-medium data-[selected]:text-(--color-primary)",
 	].join(" "),
+	header: "px-3 py-1.5 text-sm text-(--color-text-muted)",
+	separator: "my-1 h-px border-0 bg-(--color-border)",
 })
