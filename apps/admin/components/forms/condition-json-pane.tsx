@@ -39,6 +39,25 @@ import type { ReadState } from "@/lib/read-state";
  * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
  * plain text, so the condition is readable before hydration.
  *
+ * ## All six `@codemirror/*` packages move as one set
+ *
+ * `apps/admin/package.json` pins all six exactly, and `.github/dependabot.yml` puts them
+ * in their own `codemirror` group so a bump can never carry a subset (issue #712). They
+ * depend on each other through `^6` ranges, so moving some and not others lets pnpm keep
+ * two copies of a shared package, and two copies of `@codemirror/view` declare two
+ * structurally identical but separately-declared `KeyBinding` types that do not unify -
+ * which surfaces here, on the `keymap.of(...)` call below, as `TS2345: Argument of type
+ * '(KeyBinding | KeyBinding)[]' is not assignable to parameter of type 'readonly
+ * KeyBinding[]'`. Reverting only `@codemirror/view` re-splits it the other way with
+ * `@codemirror/lint` as the odd one out and a `LintSource` message instead.
+ *
+ * The reason this is written down rather than left to be rediscovered: the message names
+ * types and not versions, and `pnpm exec turbo run typecheck --filter=qcms-admin` passes
+ * with the split tree while `next build` fails. So it reaches CI as a build failure and is
+ * invisible to the package-scoped typecheck a contributor reaches for first. If it ever
+ * fires, the fix is `pnpm update -r --depth Infinity @codemirror/view` to converge the
+ * lockfile, then moving all six pins together.
+ *
  * ## Accessibility, which is load-bearing for the axe gate
  *
  * CodeMirror's content DOM carries `role="textbox"` and `aria-multiline="true"` but
