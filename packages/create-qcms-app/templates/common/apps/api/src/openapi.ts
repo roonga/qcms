@@ -56,6 +56,30 @@ export const ErrorEnvelopeSchema = z
   .openapi("ErrorEnvelope");
 
 /**
+ * The longest search term either library list accepts, in characters (issues #686,
+ * #862).
+ *
+ * Shared rather than written twice because the question library and the form library
+ * are the same screen twice: a term one of them refuses is a term the other refuses,
+ * and issue #862 exists because the two had drifted - the form list was capped at 200
+ * and the question list had no bound at all, so an arbitrarily long pattern reached the
+ * per-row match. Two literals in two slices is how that drift happened, and one
+ * constant is what stops it happening again.
+ *
+ * It lives here, with the other pieces both slices' route contracts reuse, rather than
+ * in either slice: importing one feature's schema module into the other's would couple
+ * two slices to say something neither of them owns. A search term is matched per row in
+ * the handler, so an unbounded one is unbounded work; 200 characters is far past any
+ * slug, question label or form title an author writes, and past it a route answers 400
+ * through the envelope below rather than doing the work.
+ *
+ * The admin has its own copy for the input's `maxLength` (`apps/admin/lib/library-search.ts`),
+ * which is a courtesy to the author and not a guard. That one cannot import this one:
+ * the admin never imports from the API, it proxies to it (R2).
+ */
+export const LIBRARY_SEARCH_MAX_LENGTH = 200;
+
+/**
  * Standard error responses for a route. Pass the status codes a route can
  * return; each maps to the shared envelope schema so the generated OpenAPI
  * documents describe errors uniformly.

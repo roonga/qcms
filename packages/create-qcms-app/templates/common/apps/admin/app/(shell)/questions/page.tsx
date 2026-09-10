@@ -5,6 +5,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Alert, Button, Card, Select, TextField } from "@/components/kit";
 import { QuestionsTable } from "@/components/questions/questions-table";
 import { t } from "@/lib/i18n/en";
+import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { QUESTION_TYPES, type QuestionStatus, type QuestionType } from "@/lib/questions/types";
@@ -114,6 +115,9 @@ export default async function QuestionsPage({
                   label={t("questions.filter.search")}
                   description={t("questions.filter.searchHint")}
                   defaultValue={search}
+                  // The API caps the term at the same number and answers 400 past it
+                  // (issues #686, #862); this stops the author there instead.
+                  maxLength={LIBRARY_SEARCH_MAX_LENGTH}
                 />
                 <Select
                   name="status"

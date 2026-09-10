@@ -6,6 +6,7 @@ import { Alert, Button, Card, Select, TextField } from "@/components/kit";
 import { readFormListFilters } from "@/lib/forms/list-filters";
 import { FORM_SORTS } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
+import { LIBRARY_SEARCH_MAX_LENGTH } from "@/lib/library-search";
 import { pageMetadata } from "@/lib/page-title";
 import { optionalProp } from "@/lib/questions/errors";
 import { listForms } from "@/lib/server/forms";
@@ -128,6 +129,9 @@ export default async function FormsPage({
                   label={t("forms.filter.search")}
                   description={t("forms.filter.searchHint")}
                   defaultValue={search}
+                  // The API caps the term at the same number and answers 400 past it
+                  // (issues #686, #862); this stops the author there instead.
+                  maxLength={LIBRARY_SEARCH_MAX_LENGTH}
                 />
                 <Select
                   name="status"

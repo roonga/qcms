@@ -99,7 +99,7 @@ interface VersionBody {
   publishedAt: string | null;
 }
 interface ErrBody {
-  error: { code: string; message: string; details?: { issues?: unknown[] } };
+  error: { code: string; message: string; details?: { issues?: unknown[]; target?: string } };
 }
 
 // --- exit criterion 1: the lifecycle walk -----------------------------------
@@ -422,6 +422,32 @@ describe("GET /admin/questions - summary, status filter, search", () => {
       questions: Array<{ questionId: string }>;
     };
     expect(byLabel.questions.map((q) => q.questionId)).toContain("q_list_apple");
+  });
+
+  /**
+   * The search bound (issue #862), the pair of the one the form library list already
+   * carried. A term is matched per row, so an unbounded term is unbounded work; the
+   * schema refuses it before the handler runs, which is what makes the refusal cheap.
+   */
+  it("accepts a search term at the 200-character bound", async () => {
+    const res = await get(`/questions?search=${"a".repeat(200)}`);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { questions: unknown[] }).questions).toEqual([]);
+  });
+
+  it("refuses a longer one with a 400 in the standard envelope, before the handler", async () => {
+    const res = await get(`/questions?search=${"a".repeat(201)}`);
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.details).toMatchObject({ target: "query" });
+  });
+
+  it("keeps the refused term itself out of the response (SEC-8)", async () => {
+    const res = await get(`/questions?search=${"SENTINELsearchvalue".repeat(20)}`);
+    expect(res.status).toBe(400);
+    expect(await res.text()).not.toContain("SENTINEL");
   });
 
   /**
