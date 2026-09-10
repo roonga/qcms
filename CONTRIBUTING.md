@@ -118,7 +118,7 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 
 ### Dependabot grouping: what arrives together, and why
 
-**`.github/dependabot.yml` decides the shape of a bump, and three of its npm entries are deliberate rather than default.** The default is the weekly `minor-and-patch` group: routine bumps arrive as one reviewable pull request instead of a stream, and majors arrive individually because each needs the risk assessment above.
+**`.github/dependabot.yml` decides the shape of a bump, and its npm entry carries two deliberate departures from that shape.** The default is the weekly `minor-and-patch` group: routine bumps arrive as one reviewable pull request instead of a stream, and majors arrive individually because each needs the risk assessment above.
 
 **`better-auth` and `@better-auth/*` are excluded from that group so they arrive alone** (issue #606). A minor by semver, it is not an ordinary dependency here because parts of the tree cite its compiled source at `file:line`, so an unnoticed bump leaves a security document describing a version the repo no longer ships. `pnpm check:vendor-pin` is the downstream half.
 
