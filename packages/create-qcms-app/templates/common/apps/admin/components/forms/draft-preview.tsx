@@ -168,7 +168,13 @@ export function DraftPreview({
         <p className="qcms-preview-banner" data-testid="qcms-preview-banner">
           {t("forms.preview.banner")}
         </p>
-        <p className="text-sm text-(--color-text-muted)">{t("forms.preview.explain")}</p>
+        {/* Capped at the frame's own width, which is what the POC does with it
+            (`preview-versions-poc.html:622-624`): this screen's `<main>` is 1600 since
+            issue 668 and prose running the full 1600 above a 640px inset reads as two
+            unrelated columns rather than as one screen. */}
+        <p className="qcms-respondent-note text-sm text-(--color-text-muted)">
+          {t("forms.preview.explain")}
+        </p>
       </div>
 
       {draft === null && (
@@ -234,7 +240,11 @@ export function DraftPreview({
             })}
           </p>
 
-          <PreviewThemeIsland defaultTheme={defaultTheme}>
+          {/* The drawn frame (issue 668): everything outside it on this screen is authoring
+              chrome and everything inside it is what a respondent would see, which is the
+              distinction `preview-versions-poc.html` makes with a border rather than with a
+              narrower column. */}
+          <PreviewThemeIsland defaultTheme={defaultTheme} frameLabel={t("forms.preview.frame")}>
             <A2UIStepRenderer
               document={documentForVisible(
                 { stepId: step.stepId, root: step.root as A2UIStepDocument["root"] },

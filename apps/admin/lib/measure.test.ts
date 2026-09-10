@@ -73,13 +73,12 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: eight at 1600, three narrow, three at 40rem, two at 1080", () => {
+  it("counts the drawings: eleven at 1600, three at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
-    expect(count("wide")).toBe(8);
-    expect(count("narrow")).toBe(3);
+    expect(count("wide")).toBe(11);
     expect(count("prose")).toBe(3);
     expect(count("list")).toBe(2);
     expect(count("ops")).toBe(1);
@@ -87,12 +86,28 @@ describe("the route-to-cap table", () => {
     expect(measures).toHaveLength(18);
   });
 
-  it("puts the seven screens whose POC `.main` is 1600 on that cap", () => {
+  it("offers no cap that no route can take, which is what issue 668 left behind", () => {
+    // `narrow` (45rem) was the one-layer compromise for the three screens whose POC draws
+    // an inner element: it was neither drawn number, and the closest single value to both.
+    // Issue 668 built the second layer, so those three take their POC's outer 1600 and
+    // nothing is left on 45rem. The member went with the assignments rather than staying as
+    // a vocabulary entry no route can reach; `default` is the one deliberate exception,
+    // because it is `measureFor`'s fallback rather than a cap anyone assigns.
+    expect(Object.keys(MEASURE_CLASS)).not.toContain("narrow");
+    const assigned = new Set<string>(Object.values(MEASURE_BY_ROUTE));
+    for (const name of Object.keys(MEASURE_CLASS)) {
+      if (name === "default") continue;
+      expect(assigned.has(name), `${name} is a cap some route takes`).toBe(true);
+    }
+  });
+
+  it("puts every screen whose POC `.main` is 1600 on that cap", () => {
     // `admin-shell-poc.html`, `rules-screen-poc.html`, `links-webhooks-poc.html` (both
     // screens), `responses-poc.html` (both screens) and the version-history screen of
     // `preview-versions-poc.html`. The last of those is the case that shows a shared
     // `.main` is NOT ignored in a multi-screen file: two of that file's three screens draw
-    // an inner cap and this one does not, so this one takes the shared number.
+    // an inner cap as well and this one does not, so this one takes the shared number
+    // alone.
     expect(MEASURE_BY_ROUTE["/forms/[formId]"]).toBe("wide");
     // The rules screen (issue #669). Its own file caps `.main` at 1600 and draws nothing
     // narrower inside, which is the honest reading for the widest surface the app builds.
@@ -104,17 +119,27 @@ describe("the route-to-cap table", () => {
     expect(MEASURE_BY_ROUTE["/forms/[formId]/versions"]).toBe("wide");
   });
 
-  it("takes the inner cap wherever a POC draws one inside its `.main`", () => {
-    // The two-layer reading, stated as its consequences. Each of these routes' POC caps
-    // `.main` at 1600 or leaves it uncapped, and then caps the screen's own content
-    // narrower; the inner number is what a reader sees, so it is what the route takes.
-    // The two respondent-facing screens land on `narrow` rather than on the 640 they draw
-    // because the drawn 640 is a frame inside `.main`'s padding while this cap sits on a
-    // `<main>` that pads by 24 a side: 45rem renders 672, 40rem would render 592, and 672
-    // is the closer of the two to 640. It is also the value they already had.
-    expect(MEASURE_BY_ROUTE["/questions/[questionId]"]).toBe("narrow"); // .editor-column 720
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("narrow"); // .respondent-frame 640
-    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("narrow"); // same frame
+  it("takes a POC's OUTER cap on the three screens that draw an inner element", () => {
+    // Issue 668's half of the two-layer reading. Each of these three POCs caps `.main` at
+    // 1600 and then draws one element narrower inside it - a 720px `.editor-column`, a
+    // 640px `.respondent-frame` on two screens - and until 668 this table carried the inner
+    // number instead, which rendered it minus the column's own padding on both sides. The
+    // inner layer is now the element's own (`.qcms-editor-column`,
+    // `.qcms-respondent-frame` in `app/globals.css`), so what belongs here is the outer
+    // number. A row that drifts back to a narrow cap is a screen whose drawn inset has
+    // silently become "the page just got narrower here" again.
+    expect(MEASURE_BY_ROUTE["/questions/[questionId]"]).toBe("wide"); // .editor-column 720 inside
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/preview"]).toBe("wide"); // .respondent-frame 640
+    expect(MEASURE_BY_ROUTE["/forms/[formId]/versions/[version]"]).toBe("wide"); // same frame
+  });
+
+  it("keeps the inner cap where the POC's outer layer is `none`", () => {
+    // `deployment-ops-poc.html` caps `.main` at nothing at all (`:229`) and states each of
+    // its three screens separately, so there is no outer number for `<main>` to take and
+    // the per-screen cap issue 657 assigned is the only layer that exists. That is why
+    // issue 668's own closing list names three screens rather than six, and it is asserted
+    // beside the three that moved so the difference reads as a rule rather than an
+    // inconsistency.
     expect(MEASURE_BY_ROUTE["/responses"]).toBe("ops"); // .ops-inner--responses 900
     expect(MEASURE_BY_ROUTE["/responses/erasures"]).toBe("log"); // .ops-inner--erasures 1180
   });
@@ -157,16 +182,18 @@ describe("resolving a live pathname to a cap", () => {
   it("fills a dynamic segment with whatever id is in the path", () => {
     expect(measureFor("/forms/frm_auto_quote")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/versions")).toBe("wide");
-    expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("narrow");
+    expect(measureFor("/forms/frm_auto_quote/versions/3")).toBe("wide");
     expect(measureFor("/forms/frm_auto_quote/responses/ses_abc")).toBe("wide");
   });
 
   it("prefers a literal segment over a dynamic one, the way Next resolves them", () => {
     // `/questions/new` matches `/questions/[questionId]` as well and the static route wins.
-    // Since issue 657 the two take DIFFERENT caps - a 40rem form and a 720px editor - so
-    // this is now a resolution the rendered width depends on rather than a tie.
+    // Since issue 657 the two take DIFFERENT caps, and issue 668 widened the gap rather than
+    // closing it: the creation form is a 40rem column and the editor is a 1600px `<main>`
+    // holding a 720px one, so the resolution decides both what `<main>` measures and which
+    // of two layers the reading width comes from.
     expect(measureFor("/questions/new")).toBe("prose");
-    expect(measureFor("/questions/q_full_name")).toBe("narrow");
+    expect(measureFor("/questions/q_full_name")).toBe("wide");
     expect(measureFor("/responses/erasures")).toBe("log");
     expect(measureFor("/responses")).toBe("ops");
   });
@@ -183,7 +210,7 @@ describe("resolving a live pathname to a cap", () => {
   it("hands back the class the shell puts on its content column", () => {
     expect(measureClassFor("/settings")).toBe(MEASURE_CLASS.prose);
     expect(measureClassFor("/webhooks")).toBe(MEASURE_CLASS.wide);
-    expect(measureClassFor("/forms/frm_auto_quote/preview")).toBe(MEASURE_CLASS.narrow);
+    expect(measureClassFor("/forms/frm_auto_quote/preview")).toBe(MEASURE_CLASS.wide);
     expect(measureClassFor("/forms")).toBe(MEASURE_CLASS.list);
   });
 
@@ -203,21 +230,25 @@ describe("resolving a live pathname to a cap", () => {
   });
 
   it("composes the cap and the alignment into one attribute per route", () => {
-    expect(mainClassFor("/settings")).toBe("w-full max-w-measure-prose flex-1 p-6");
-    expect(mainClassFor("/webhooks")).toBe("w-full max-w-measure-wide flex-1 p-6");
+    expect(mainClassFor("/settings")).toBe(
+      "w-full max-w-measure-prose flex-1 p-(--admin-section-pad)",
+    );
+    expect(mainClassFor("/webhooks")).toBe(
+      "w-full max-w-measure-wide flex-1 p-(--admin-section-pad)",
+    );
     for (const route of Object.keys(MEASURE_BY_ROUTE)) {
       const live = route
         .split("/")
         .map((segment) => (segment.startsWith("[") ? "x" : segment))
         .join("/");
       expect(mainClassFor(live), `${route} composes its row`).toBe(
-        `w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-6`,
+        `w-full ${MEASURE_CLASS[MEASURE_BY_ROUTE[route as keyof typeof MEASURE_BY_ROUTE]]} flex-1 p-(--admin-section-pad)`,
       );
     }
   });
 
   it("keeps the untraced fallback on Tailwind's own readable measure", () => {
     expect(MEASURE_CLASS.default).toBe("max-w-5xl");
-    expect(mainClassFor("/nothing/here")).toBe("w-full max-w-5xl flex-1 p-6");
+    expect(mainClassFor("/nothing/here")).toBe("w-full max-w-5xl flex-1 p-(--admin-section-pad)");
   });
 });

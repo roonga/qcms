@@ -1102,6 +1102,10 @@ export const messages = {
 
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",
+  // The respondent frame's bar (issue 668), drawn in
+  // `plan/admin-shell-poc/preview-versions-poc.html:627`. It names the boundary the frame
+  // draws: outside it is authoring chrome, inside it is what a respondent would see.
+  "forms.preview.frame": "Respondent view",
   "forms.preview.explain":
     "This is your draft compiled and rendered through the same renderer a respondent uses. Answer the questions to walk your own branches. Nothing here is saved.",
   "forms.preview.stepOf": "Step {index} of {total}: {title}",
@@ -1137,6 +1141,10 @@ export const messages = {
   "forms.history.stored":
     "Rendered from the compiled documents stored with v{version}. Nothing was recompiled.",
   "forms.history.readOnly": "Read only: a published version is never edited (R1).",
+  // The same frame, with the sentence the drawing gives it on this screen
+  // (`preview-versions-poc.html:830`). The tense is the whole difference: what is inside is
+  // what a respondent SAW on this version, not what one would see now.
+  "forms.history.frame": "Respondent view, as stored at publish",
   "forms.history.backToHistory": "Back to version history",
   "forms.history.stepOf": "Step {index} of {total}: {title}",
   "forms.history.failed": "That version could not be loaded. {message}",

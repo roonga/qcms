@@ -166,29 +166,32 @@
  * value here is the cap the POC puts on the content of the screen it draws, and
  * `lib/measure.ts` names the POC beside every route it assigns.
  *
- * THE POCs SPECIFY WIDTH IN TWO LAYERS AND THIS APP HAS ONE. A POC caps an outer
- * `.main` and then, on some screens, caps the content inside it again: the question
- * editor's `.editor-column` is 720px inside a 1600px `.main`, the preview and version
- * screens put a 640px `.respondent-frame` inside the same 1600px `.main`, and the
- * deployment-ops file gives `.main` no cap at all and caps each of its three screens
- * separately. What a reader of the running app sees is the INNER number wherever there
- * is one, so that is the number a route takes here. Reproducing the outer layer alone
- * would spread a 720px editor across 1600px, which no POC draws.
+ * THE POCs SPECIFY WIDTH IN TWO LAYERS AND SO, SINCE ISSUE 668, DOES THIS APP. A POC
+ * caps an outer `.main` and then, on some screens, caps the content inside it again: the
+ * question editor's `.editor-column` is 720px inside a 1600px `.main`, and the preview
+ * and stored-version screens put a 640px `.respondent-frame` inside the same 1600px
+ * `.main`. Until 668 the app had one layer, so those three screens took the INNER number
+ * on `<main>` itself: right for what a reader sees and wrong by the column's own padding,
+ * because a cap on `<main>` is outside the padding while the drawn element sits inside it.
+ * Now the outer cap is `<main>`'s and the inner cap is the element's, which is the only
+ * arrangement in which both drawn numbers render at the size they are drawn.
+ *
+ * THE ONE POC WHOSE OUTER LAYER IS "NONE" KEEPS ONE LAYER HERE.
+ * `deployment-ops-poc.html` gives `.main` no cap at all (`:229`) and caps each of its
+ * three screens separately, so there is no outer number for `<main>` to take and the
+ * per-screen cap stays where issue 657 put it. Issue 668's own closing list names three
+ * screens for that reason and those three are what moved.
  *
  *   prose   40rem / 640px. `settings-newquestion-poc.html`'s `.page-main`, and it is
  *           that value on BOTH of that file's screens: Account and New question have a
  *           `<main class="page-main">` each, so 40rem is stated twice, per screen.
- *   narrow  45rem / 720px. Two screens' drawn inner cap, and neither lands on 45rem
- *           exactly, which is the point of writing this down. `question-editor-poc.html`
- *           draws a 720px `.editor-column`; `preview-versions-poc.html` draws a 640px
- *           `.respondent-frame` on the preview and the stored version. Both sit INSIDE
- *           their POC's `.main` padding, while this app's cap sits on a `<main>` that
- *           carries `p-6`, so the token that renders a drawn number is that number plus
- *           3rem. 45rem delivers a 42rem column: 48px under the drawn editor and 32px
- *           over the drawn frame, and the closest available token to both. It is also
- *           unchanged from issue 558, which derived the same 45rem from the portal's own
- *           measure - `apps/portal/components/portal-shell.tsx`'s `max-w-2xl` plus the
- *           same 3rem. A derivation and two drawings arriving together is why it stays.
+ *   narrow  45rem / 720px. NO LONGER A ROUTE CAP. It was the compromise the one-layer
+ *           app had to make for the three screens above - 45rem renders a 42rem column,
+ *           48px under the drawn editor and 32px over the drawn frame - and issue 668
+ *           removed the compromise by building the layer the drawings actually use, so
+ *           `lib/measure.ts` no longer offers it. The token stays because it still has a
+ *           consumer: `components/save-model.tsx` caps its unsaved-changes tooltip at
+ *           `max-w-measure-narrow`.
  *   ops     56.25rem / 900px. `deployment-ops-poc.html`'s `.ops-inner--responses`.
  *           Its comment: the site-wide responses screen "gets neither a rail nor
  *           extra width".
@@ -196,10 +199,27 @@
  *           file's Questions screen and its Forms screen.
  *   log     73.75rem / 1180px. `deployment-ops-poc.html`'s `.ops-inner--erasures`:
  *           "the erasure log gets a modest increase".
- *   wide    100rem / 1600px. The `.main` cap of every POC that caps `.main` and puts
- *           nothing narrower inside it (`admin-shell-poc.html`,
- *           `links-webhooks-poc.html`, `responses-poc.html`, and the version-history
- *           screen of `preview-versions-poc.html`).
+ *   wide    100rem / 1600px. The `.main` cap of every POC that caps `.main`
+ *           (`admin-shell-poc.html`, `links-webhooks-poc.html`, `responses-poc.html`,
+ *           `rules-screen-poc.html`, `question-editor-poc.html` and all three screens
+ *           of `preview-versions-poc.html`). Since issue 668 that includes the three
+ *           screens that draw something narrower INSIDE it: the outer number is the
+ *           outer element's, and the inner element carries its own.
+ *
+ * THE SECOND LAYER, which is the half issue 668 added. These two are not route caps and
+ * `lib/measure.ts` never emits them; they are the caps the two drawn inner elements carry
+ * in `app/globals.css` itself, on `.qcms-editor-column` and `.qcms-respondent-frame`.
+ * Each is the drawn number exactly, with no padding arithmetic in it, because an inner
+ * element sits inside `<main>`'s padding in this app exactly as it does in its POC:
+ *
+ *   editor-column     45rem / 720px. `question-editor-poc.html:313` `.editor-column`.
+ *   respondent-frame  40rem / 640px. `preview-versions-poc.html:446`
+ *                     `.respondent-frame`, shared unmodified by the draft preview and
+ *                     the stored version, which is what makes an author judging either
+ *                     screen look at one measure. Numerically equal to `prose` and
+ *                     deliberately not spelled as it: one is a screen's cap and the
+ *                     other is a device-like inset, and a later change to either has no
+ *                     business moving the other.
  *
  * ONE DRAWN NUMBER HAS NO TOKEN AND IS LEFT OPEN. `deployment-ops-poc.html`'s
  * `.ops-inner--webhooks` is 1820px, wider than `wide`. `/webhooks` therefore stays on
@@ -231,6 +251,10 @@
   --container-measure-list: 67.5rem;
   --container-measure-log: 73.75rem;
   --container-measure-wide: 100rem;
+
+  /* The second layer (issue 668). See the block above. */
+  --container-editor-column: 45rem;
+  --container-respondent-frame: 40rem;
 }
 
 /*
@@ -1101,12 +1125,16 @@ button {
      14rem / 224px is the room the editor's own content column leaves at the 1280px gate
      frame, and it is a measurement rather than a taste. The narrower of the two screens
      carrying this grid is `/questions/new`, which takes the `prose` measure (40rem) on a
-     `<main>` with `p-6`: 640 - 48 = a 592px content column, and the grid's own 1px
-     border leaves 590px for grip + label + id. Off that, 36px is the grip and 224px is
-     here, which leaves the label textarea 330px - still the widest of the three, which
-     is right, because the label is the field being typed into.
-     `/questions/[questionId]` takes `narrow` (45rem) and is 80px wider again, so the
-     column that has to fit is the one measured here.
+     `<main>` padded by `--admin-section-pad`: 640 - 40 = a 600px content column, and the
+     grid's own 1px border leaves 598px for grip + label + id. Off that, 36px is the grip
+     and 224px is here, which leaves the label textarea 338px - still the widest of the
+     three, which is right, because the label is the field being typed into.
+     `/questions/[questionId]` renders inside a 720px `.qcms-editor-column` and is 120px
+     wider again, so the column that has to fit is the one measured here. (The two numbers
+     each moved 8px when issue 675 took the column's padding to the POC's 1.25rem, and the
+     editor's moved again when issue 668 gave it the drawn 720 rather than 720-minus-two-
+     paddings. Neither change reaches the conclusion: this cell fits on the narrower
+     screen, so it fits on both.)
 
      What 224px buys: 200px of text after the cell's 0.75rem padding either side, which
      is 25 characters of the 0.82rem (13.12px) mono face at the ~0.6em advance every
@@ -2498,6 +2526,102 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
  */
 .qcms-preview-surface[data-qcms-theme-scope].dark {
   color-scheme: dark;
+}
+
+/* ==========================================================================
+   THE SECOND WIDTH LAYER (issue 668): the two elements a POC draws INSIDE the
+   content column, rather than as the content column.
+
+   Issue 657 gave each of these three screens its drawn inner number as a cap on
+   `<main>`, which is where the app's one layer was. That reads correctly - the
+   number a reader sees is the inner one - and renders wrong by two paddings: the
+   drawn element sits inside `.main`'s own `--admin-section-pad`, while a cap on
+   `<main>` sits outside it, so a 640 frame rendered 600 and a 720 column 680. The
+   layer below is the drawn element itself, so each number renders at the size it
+   is drawn and `lib/measure.ts` goes back to carrying the outer cap.
+
+   NEITHER OF THESE IS A ROUTE DECISION and neither belongs in the measure table.
+   A route cap answers "how wide is this screen's content column"; these answer
+   "how wide is this thing on it", which is a question about one element on one
+   screen. Putting them here keeps the table's promise that a new screen's cap is
+   one row rather than a row plus a page override.
+   ========================================================================== */
+
+/* `question-editor-poc.html:313`. The editor is a 720px column inside a 1600px
+   `.main`, and the POC says why in as many words: this screen is "prose-and-form
+   shaped, so the improvement here is a comfortable reading measure, not more
+   width". A screen states that by being a narrow column in a wide one, which is
+   what it could not state while the 720 was the whole column's cap. */
+.qcms-editor-column {
+  max-inline-size: var(--container-editor-column);
+}
+
+/*
+ * `preview-versions-poc.html:446`. THE FRAME IS A DRAWN ELEMENT, NOT A WIDTH, and
+ * that is the half issue 668 exists for: a bordered, rounded, shadowed inset with
+ * its own bar above it, whose POC comment says the 640 is chosen so the frame
+ * reads "as a device-like inset rather than as 'the page just got narrower here'".
+ * Carried as a cap on `<main>` it was precisely the second of those.
+ *
+ * It wraps the theme island's carrier rather than replacing it: the carrier is
+ * ADR-38's styling boundary and owns the respondent token set, the frame is
+ * authoring chrome that says where that boundary is. So the bar is OUTSIDE the
+ * scope attribute and reads this app's tokens, which is right - it is the admin
+ * labelling the inset, not something a respondent ever sees.
+ *
+ * `overflow: hidden` is the POC's, and it is what makes the bar's square top
+ * corners sit inside the frame's rounded ones. It clips nothing that matters: the
+ * body inside has a full `--admin-section-pad` of its own, so no focus ring lands
+ * on the boundary, and the renderer's popovers are portalled to the body (see
+ * `components/preview-theme-island.tsx`) rather than nested here.
+ */
+.qcms-respondent-frame {
+  max-inline-size: var(--container-respondent-frame);
+  inline-size: 100%;
+  overflow: hidden;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+  box-shadow:
+    0 1px 2px hsl(var(--shadow-color) / 0.12),
+    0 12px 28px -12px hsl(var(--shadow-color) / 0.22);
+}
+.qcms-respondent-frame__bar {
+  padding: 0.5rem 1rem;
+  border-block-end: 1px solid var(--color-border);
+  background-color: var(--color-background-muted);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+:root.hc .qcms-respondent-frame {
+  box-shadow: none;
+  border-width: 2px;
+}
+:root.hc .qcms-respondent-frame__bar {
+  border-block-end-width: 2px;
+  border-block-end-color: var(--color-border-strong);
+}
+
+/* Inside the frame the carrier stops drawing its own box. `.qcms-preview`'s dashed
+   border is how a preview says "this is not this screen's surface" when it stands
+   on its own - which it still does on the question editor, where the POC draws the
+   preview as an ordinary card and no frame at all. Framed, the frame says it, and
+   two nested boxes would say it twice. The padding is untouched: it is the same
+   `--admin-section-pad` the POC's `.respondent-frame__body` carries. */
+.qcms-respondent-frame > .qcms-preview {
+  border: 0;
+  border-radius: 0;
+}
+
+/* The two lines the POC caps at the frame's own width (`:621-624`, `:821-825`), so
+   the screen reads as one measure rather than as a 640px inset under prose running
+   the full 1600. The banner beside them is `align-self: flex-start` already and
+   shrinks to its own text. */
+.qcms-respondent-note {
+  max-inline-size: var(--container-respondent-frame);
 }
 
 /* ===========================================================================

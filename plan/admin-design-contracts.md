@@ -555,6 +555,40 @@ flex-wrap: wrap; align-items: center; gap: 1.25rem; padding: 0 1.25rem; min-heig
   1820 match none of the app's caps, which reads as three screens drawn before the token
   scheme existed rather than against it.
 
+**Follow-on, 2026-09-11 (#675 and #668): the app now has both of the layers the drawings
+have, and one padding token instead of a repeated step.** Both were raised by the #648 /
+#657 lane against its own work rather than found later, and both were released from the
+admin-redesign tier by the ruling of 2026-09-03.
+
+- **The section padding is one token spent twice, and it is the POC's 1.25rem.** Every POC
+  that draws the shell declares `--admin-section-pad: 1.25rem` and spends it on
+  `.topbar__inner` and on `.main` alike, and that single value is _how_ the drawings get the
+  shared left edge the bullet above is about. #648 landed the shared edge at 24px on both,
+  matching this app's own `p-6` column rather than the drawing, and recorded the 4px as a
+  deviation. #675 is that 4px: the bar and the column both spend
+  `var(--admin-section-pad)` now, so the edge is still one edge and it is the drawn one.
+  There is no third call site - the footer that carried one went on 2026-08-23.
+- **Width has two layers here because it has two layers in the drawings.** #657 collapsed
+  them into the route table, giving each screen the number a reader sees, which is the inner
+  one where there is one. That is right about what is on screen and wrong by the column's own
+  padding: a cap on `<main>` sits outside a padding the drawn element sits inside, so a
+  drawn 640 frame rendered 592 and a drawn 720 editor column rendered 672. Three screens now
+  take their POC's **outer** number in `apps/admin/lib/measure.ts` and carry the inner one on
+  the element itself - `.qcms-editor-column` and `.qcms-respondent-frame` in
+  `apps/admin/app/globals.css`. Each drawn number renders at the size it is drawn.
+- **The respondent frame is a drawn element, not a width.**
+  `preview-versions-poc.html:446` gives the draft preview and the stored version a bordered,
+  rounded, shadowed inset with a bar above it, and says the 640 is chosen so the boundary
+  reads "as a device-like inset rather than as 'the page just got narrower here'". Carried as
+  a cap it was exactly the second of those. It wraps the theme island's carrier rather than
+  replacing it, so the bar sits outside `data-qcms-theme-scope` and is painted in this app's
+  own tokens: the admin labels the inset, and a respondent is never shown that label.
+- **Where a POC's outer layer is `none`, one layer is still the whole answer.**
+  `deployment-ops-poc.html` caps `.main` at nothing, so `/responses` and `/responses/erasures`
+  have no outer number to take and keep the per-screen cap #657 gave them. #668's own closing
+  list names three screens for that reason, and `/webhooks` stays the open row the bullet
+  above describes.
+
 ## 6. Save model
 
 Every screen states its model exactly once:

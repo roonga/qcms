@@ -70,9 +70,26 @@ import {
  * version view - mount the same island by rendering their step inside it, with no
  * restructuring of any of the three. Phase 4 custom themes can extend
  * `PREVIEW_THEMES` without changing this component's shape.
+ *
+ * ## The respondent frame, on the two screens whose POC draws one (issue 668)
+ *
+ * `plan/admin-shell-poc/preview-versions-poc.html` renders the draft preview and the
+ * stored version inside a `.respondent-frame`: a 640px bordered, rounded, shadowed inset
+ * with a bar above it reading "Respondent view". Its comment is explicit that the width is
+ * chosen so the boundary reads "as a device-like inset rather than as 'the page just got
+ * narrower here'", which is what the app had after issue 657 gave the screens the width
+ * and not the element.
+ *
+ * It is optional and opt-in because it is drawn on two of the three surfaces and not the
+ * third: `question-editor-poc.html` draws its preview as an ordinary card, so
+ * `components/questions/question-preview.tsx` passes no label and gets the unframed island
+ * it has always had. The frame goes AROUND the carrier rather than inside it, so its bar
+ * sits outside `data-qcms-theme-scope` and is painted in this app's own tokens - it is the
+ * admin labelling the inset, not something a respondent is ever shown.
  */
 export function PreviewThemeIsland({
   defaultTheme,
+  frameLabel,
   children,
 }: {
   /**
@@ -84,6 +101,16 @@ export function PreviewThemeIsland({
    * default and not while something loads.
    */
   readonly defaultTheme: PreviewTheme;
+  /**
+   * The frame's bar text, and the switch that draws the frame at all.
+   *
+   * A localized string from the caller rather than a boolean, because the two framed
+   * screens say different things on it - "Respondent view" on the draft preview,
+   * "Respondent view, as stored at publish" on the version - and the difference is the
+   * point: the second promises that what is inside is what a respondent SAW, not what one
+   * would see now. Absent, no frame is drawn.
+   */
+  readonly frameLabel?: string;
   readonly children: ReactNode;
 }) {
   const [theme, setTheme] = useState<PreviewTheme>(defaultTheme);
@@ -118,20 +145,53 @@ export function PreviewThemeIsland({
           }}
         />
       </div>
-      {/*
-        The carrier. `qcms-preview-surface` is 034's styling boundary and the class list
-        is unchanged from what that task landed; the three attributes are what 058 adds.
-        `data-qcms-theme-scope` is written as an empty-string attribute because that is
-        what the sheets match on - `[data-qcms-theme-scope]`, presence, never a value.
-      */}
-      <div
-        className={`qcms-preview qcms-preview-surface ${mode}`}
-        data-testid="qcms-preview-surface"
-        data-qcms-theme-scope=""
-        data-theme={theme}
-      >
-        {children}
-      </div>
+      <Frame label={frameLabel}>
+        {/*
+          The carrier. `qcms-preview-surface` is 034's styling boundary and the class list
+          is unchanged from what that task landed; the three attributes are what 058 adds.
+          `data-qcms-theme-scope` is written as an empty-string attribute because that is
+          what the sheets match on - `[data-qcms-theme-scope]`, presence, never a value.
+        */}
+        <div
+          className={`qcms-preview qcms-preview-surface ${mode}`}
+          data-testid="qcms-preview-surface"
+          data-qcms-theme-scope=""
+          data-theme={theme}
+        >
+          {children}
+        </div>
+      </Frame>
+    </div>
+  );
+}
+
+/**
+ * The drawn inset around the carrier, or nothing at all.
+ *
+ * A fragment rather than an unstyled wrapper when there is no label: an extra `<div>` in
+ * the unframed case would be a box between the island's flex column and the carrier, and
+ * the carrier's own `container-type: inline-size` makes any such box a layout context the
+ * preview would then be sized against.
+ *
+ * The bar is a `<p>` rather than a heading: it labels the box it sits on and is not a
+ * section of the page's outline. Both framed screens already have their own heading above
+ * it, and `headingLevelOffset` exists on both renderers precisely because a second outline
+ * inside the frame was a real defect once (issue #537).
+ */
+function Frame({
+  label,
+  children,
+}: {
+  // `string | undefined` rather than an optional key: `exactOptionalPropertyTypes` makes
+  // those two different types, and what this receives is a prop that may be absent.
+  readonly label: string | undefined;
+  readonly children: ReactNode;
+}) {
+  if (label === undefined) return <>{children}</>;
+  return (
+    <div className="qcms-respondent-frame" data-testid="qcms-respondent-frame">
+      <p className="qcms-respondent-frame__bar">{label}</p>
+      {children}
     </div>
   );
 }

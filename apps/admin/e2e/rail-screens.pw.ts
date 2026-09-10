@@ -281,31 +281,48 @@ test("561 gives every screen the form's steps as its children, never the list it
   ).toHaveCount(1);
 });
 
-test("561 keeps the two respondent-facing screens on the narrower cap the rail sits beside", async ({
+test("561 keeps the two respondent-facing renders on the narrow measure the rail sits beside", async ({
   page,
 }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });
 
-  // The preview and the version detail get LESS than any other screen, because both render
-  // what a respondent sees and a wider container makes the preview lie
-  // (`plan/admin-ux-audit.md` §3.4). Issue 558 spelled that as 720, derived from the
-  // portal's own measure; issue 657 re-read it off the drawing and it stays 720, because
-  // `plan/admin-shell-poc/preview-versions-poc.html` draws a 640px `.respondent-frame`
-  // inside its `.main` padding while this cap sits on a `<main>` that carries `p-6` - so
-  // 45rem renders the 672px column closest to the drawn 640. Two independent routes to the
-  // same number. The rail is a sibling of `<main>` rather than a child of it, so it takes
-  // nothing off that measure and is no excuse to widen it either.
+  // The preview and the version detail render what a respondent sees, and a wider container
+  // makes the preview lie (`plan/admin-ux-audit.md` §3.4). Issue 558 spelled that as a 720px
+  // cap on `<main>`, derived from the portal's own measure; issue 657 re-read it off the
+  // drawing and kept 720 as the closest one-layer answer to a drawn 640.
+  //
+  // ISSUE 668 MOVED WHICH ELEMENT CARRIES IT, not whether it holds.
+  // `plan/admin-shell-poc/preview-versions-poc.html` draws the 640 on a `.respondent-frame`
+  // INSIDE a 1600px `.main`, and a cap on `<main>` sits outside a padding the frame sits
+  // inside, so the shipped render was 592 against a drawn 640. `<main>` now takes the POC's
+  // outer 1600 and the frame takes the 640, which is why this measures the frame and checks
+  // `<main>` only for the thing this spec is actually about: the rail is a sibling of
+  // `<main>` rather than a child of it, so it takes nothing off the measure and is no
+  // excuse to widen it either.
   for (const path of [`/forms/${FORM_ID}/preview`, `/forms/${FORM_ID}/versions/1`]) {
     await page.goto(path);
     await expect(page.getByTestId("qcms-rail")).toBeVisible();
-    const measured = await page.locator("main#main-content").evaluate((element) => ({
-      cap: Number.parseFloat(getComputedStyle(element).maxWidth),
-      width: element.getBoundingClientRect().width,
-    }));
-    expect.soft(measured.cap, `${path} caps at the narrow measure`).toBe(720);
-    expect.soft(measured.width, `${path} is not widened by having a rail`).toBe(720);
+    const frame = page.getByTestId("qcms-respondent-frame");
+    await expect(frame, `${path} renders the drawn frame`).toBeVisible({ timeout: 60_000 });
+    const measured = await frame.evaluate((element) => element.getBoundingClientRect().width);
+    expect.soft(measured, `${path} renders a respondent at a respondent's width`).toBe(640);
+    const column = await page.locator("main#main-content").evaluate((element) => {
+      const rail = document.querySelector(".qcms-rail")?.getBoundingClientRect();
+      return {
+        cap: Number.parseFloat(getComputedStyle(element).maxWidth),
+        width: element.getBoundingClientRect().width,
+        // The room the column has: the viewport less the rail's track. Measured off the
+        // rail's own box rather than off the 15rem in the stylesheet, and read here rather
+        // than hard-coded so a scrollbar does not turn this into an arithmetic puzzle.
+        available: document.documentElement.clientWidth - (rail?.width ?? 0),
+      };
+    });
+    expect.soft(column.cap, `${path} caps its column at the POC's outer number`).toBe(1600);
+    expect
+      .soft(column.width, `${path} still fills the space the rail leaves it`)
+      .toBe(column.available);
   }
 });
 

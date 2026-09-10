@@ -7,8 +7,9 @@ import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
 import { submitResponse } from "./support/ops.js";
 
 /**
- * The width cap is set by the route, and every route's column is left-anchored.
- * Issues 558, 648 and 657.
+ * The width cap is set by the route, every route's column is left-anchored, and the three
+ * screens whose POC draws something narrower inside the column carry that as a second layer.
+ * Issues 558, 648, 657, 668 and 675.
  *
  * Each of the eighteen authenticated screens takes the cap its own POC draws.
  * `lib/measure.ts` holds that as one table and `measure.test.ts` proves the table covers
@@ -22,7 +23,7 @@ import { submitResponse } from "./support/ops.js";
  *   check that the utility class actually compiled: `max-w-measure-*` classes come from
  *   theme tokens in `app/globals.css`, and a token Tailwind never emitted produces a
  *   `max-width: none` that looks like "wide" on a narrow viewport and is nothing of the
- *   kind. Seven of the eight names are tokens, so this is seven separate chances to ship
+ *   kind. Five of the six names are tokens, so this is five separate chances to ship
  *   a cap that silently does not exist.
  * - At **1280** the measured box is the cap or the room available, whichever is smaller.
  *   That is issue 657's acceptance in the only terms a reviewer can check.
@@ -33,6 +34,13 @@ import { submitResponse } from "./support/ops.js";
  * - At **390** every one of the eighteen measures the SAME width. It is a property of the
  *   mechanism rather than of the values: a cap is fluid below itself, so no breakpoint is
  *   involved at any width, and a phone sees none of this change.
+ *
+ * Two further tests carry issues 668 and 675, which are about what the sweep above cannot
+ * see. The sweep measures `<main>`, so it is blind to a second cap inside `<main>` and to
+ * the padding between the two: the drawn 720px editor column and the drawn 640px respondent
+ * frame are elements on the page rather than caps on the column, and the shell's inline
+ * padding is one token spent by the bar and the column alike. Both are measured in the
+ * browser because both are properties of the composed page rather than of a table.
  *
  * The expected assignment below is restated from the POCs rather than imported from
  * `lib/measure.ts`. Importing it would make this spec agree with the table by
@@ -61,13 +69,6 @@ const COUNT_ID = "q_accident_count";
 const CAP_PX = {
   /** `settings-newquestion-poc.html` `.page-main`, on both of that file's screens. */
   prose: 640,
-  /**
-   * The narrow measure. `question-editor-poc.html` draws a 720px `.editor-column` and
-   * `preview-versions-poc.html` a 640px `.respondent-frame`, both INSIDE their POC's
-   * `.main` padding; this cap sits on a `<main>` that carries `p-6`, so 45rem renders a
-   * 672px column, which is the closest available token to both.
-   */
-  narrow: 720,
   /** `deployment-ops-poc.html` `.ops-inner--responses`. */
   ops: 900,
   /** `library-lists-poc.html` `.main`. */
@@ -75,9 +76,12 @@ const CAP_PX = {
   /** `deployment-ops-poc.html` `.ops-inner--erasures`. */
   log: 1180,
   /**
-   * The `.main` of every POC that caps it and draws nothing narrower inside - and, for
-   * `/webhooks`, the cap that route keeps because its drawing (1820,
-   * `deployment-ops-poc.html` `.ops-inner--webhooks`) is wider than any token here.
+   * The `.main` of every POC that caps it, INCLUDING the three whose POC draws something
+   * narrower inside that `.main` - since issue 668 the inner element carries its own cap
+   * and this one is the outer layer, so `/questions/{id}`, `/forms/{id}/preview` and
+   * `/forms/{id}/versions/{n}` are on 1600 here and measured again below at their drawn
+   * inner width. Also, for `/webhooks`, the cap that route keeps because its drawing
+   * (1820, `deployment-ops-poc.html` `.ops-inner--webhooks`) is wider than any token here.
    */
   wide: 1600,
 } as const;
@@ -101,7 +105,7 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/forms/new", cap: "prose" },
     { path: `/forms/${FORM_ID}`, cap: "wide" },
     { path: `/forms/${FORM_ID}/links`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/preview`, cap: "narrow" },
+    { path: `/forms/${FORM_ID}/preview`, cap: "wide" },
     { path: `/forms/${FORM_ID}/responses`, cap: "wide" },
     { path: `/forms/${FORM_ID}/responses/${sessionId}`, cap: "wide" },
     // The rules screen (issue #669). Listed in route order beside its siblings, which is
@@ -109,10 +113,10 @@ function screens(sessionId: string): readonly Screen[] {
     // 1600 and draws nothing narrower inside it.
     { path: `/forms/${FORM_ID}/rules`, cap: "wide" },
     { path: `/forms/${FORM_ID}/versions`, cap: "wide" },
-    { path: `/forms/${FORM_ID}/versions/1`, cap: "narrow" },
+    { path: `/forms/${FORM_ID}/versions/1`, cap: "wide" },
     { path: `/forms/${FORM_ID}/webhooks`, cap: "wide" },
     { path: "/questions", cap: "list" },
-    { path: `/questions/${QUESTION_ID}`, cap: "narrow" },
+    { path: `/questions/${QUESTION_ID}`, cap: "wide" },
     { path: "/questions/new", cap: "prose" },
     { path: "/responses", cap: "ops" },
     { path: "/responses/erasures", cap: "log" },
@@ -224,6 +228,116 @@ test("657 caps each screen at the width its own POC draws, at 1280", async ({ pa
       .soft(measured.className, `${screen.path} carries no centring utility`)
       .not.toContain("mx-auto");
   }
+});
+
+test("668 renders the three drawn inner elements at their drawn width, at 1280", async ({
+  page,
+}) => {
+  // THE HALF THE SWEEP ABOVE CANNOT SEE. Three POCs cap `.main` at 1600 and then draw one
+  // element narrower inside it, and until issue 668 the app carried the inner number as the
+  // route's cap on `<main>` instead. That is off by the column's own padding on both sides,
+  // in the direction of narrower than drawn: a `<main>` capped at 640 renders 600 of
+  // content, and one capped at 720 renders 680. Nothing in the sweep notices, because the
+  // sweep measures `<main>` and `<main>` was exactly the number asked of it.
+  //
+  // Measured as the ELEMENT's box rather than as its computed `max-width`, which is the
+  // whole point: `max-inline-size` on an element nobody renders is a number that passes a
+  // stylesheet assertion and shows nothing. Each of these testids belongs to an element the
+  // screen actually mounts.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+
+  const inner = [
+    {
+      path: `/questions/${QUESTION_ID}`,
+      selector: ".qcms-editor-column",
+      // `question-editor-poc.html:313`.
+      width: 720,
+    },
+    {
+      path: `/forms/${FORM_ID}/versions/1`,
+      selector: ".qcms-respondent-frame",
+      // `preview-versions-poc.html:446`, shared unmodified by both framed screens.
+      width: 640,
+    },
+    {
+      path: `/forms/${FORM_ID}/preview`,
+      selector: ".qcms-respondent-frame",
+      width: 640,
+    },
+  ] as const;
+
+  for (const target of inner) {
+    await page.goto(target.path);
+    const element = page.locator(target.selector);
+    // Generous, because two of the three appear only once the API has answered: the draft
+    // preview compiles the working draft on the server and the version view reads the
+    // stored documents, so both mount after a round trip rather than in the first paint.
+    await expect(element, `${target.path} renders its drawn inner element`).toBeVisible({
+      timeout: 60_000,
+    });
+    const box = await element.evaluate((node) => node.getBoundingClientRect().width);
+    expect
+      .soft(box, `${target.path} renders ${target.selector} at its drawn width`)
+      .toBe(target.width);
+  }
+
+  // AND THE FRAME IS A FRAME, not merely a width (issue 668's first complaint). The bar
+  // above it is what makes the boundary legible as a device-like inset rather than as "the
+  // page just got narrower here", and the two screens say different things on it: the
+  // stored render promises what a respondent SAW, which is a different claim from what one
+  // would see now.
+  await page.goto(`/forms/${FORM_ID}/versions/1`);
+  await expect(page.getByText("Respondent view, as stored at publish")).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.goto(`/forms/${FORM_ID}/preview`);
+  await expect(page.getByText("Respondent view", { exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+});
+
+test("675 spends one section-padding token on the bar and the column alike, at 1280", async ({
+  page,
+}) => {
+  // Every POC declares `--admin-section-pad: 1.25rem` and pads BOTH `.topbar__inner` and
+  // `.main` with it, and that single value is how the drawings get the shared left edge
+  // issue 648 is about. Issue 648 landed the shared edge at 24px instead, matching this
+  // app's own `p-6` column rather than the drawing, and said so.
+  //
+  // Read as computed pixels rather than as a class name: what is under test is the value
+  // the browser resolves, and a `p-(--admin-section-pad)` utility Tailwind failed to emit
+  // would leave the class in the attribute and the padding at zero.
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/webhooks");
+  await expect(page.locator(".qcms-rail"), "a screen with no rail").toHaveCount(0);
+
+  const pads = await page.evaluate(() => {
+    const bar = document.querySelector("header > div");
+    const main = document.querySelector("main#main-content");
+    const pad = (element: Element | null, side: "Start" | "End") =>
+      element === null
+        ? Number.NaN
+        : Number.parseFloat(getComputedStyle(element)[`paddingInline${side}`]);
+    return {
+      // The token itself, resolved off the root, so a failure says whether the value moved
+      // or only one of its two spenders did.
+      token: getComputedStyle(document.documentElement).getPropertyValue("--admin-section-pad"),
+      barStart: pad(bar, "Start"),
+      barEnd: pad(bar, "End"),
+      mainStart: pad(main, "Start"),
+      mainEnd: pad(main, "End"),
+    };
+  });
+
+  expect(pads.token.trim(), "the POC's token is the one declared").toBe("1.25rem");
+  expect(pads.barStart, "the bar's inline padding is the token").toBe(20);
+  expect(pads.mainStart, "and so is the column's").toBe(20);
+  expect(pads.barEnd, "on both sides of the bar").toBe(20);
+  expect(pads.mainEnd, "and both sides of the column").toBe(20);
 });
 
 test("648 puts the wordmark, the nav and the content column on one left edge, at 1280", async ({
