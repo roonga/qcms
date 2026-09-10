@@ -33,6 +33,16 @@ import {
 
 /** Assembled, so no literal citation appears in this file. */
 const DIST = "dist";
+/** Likewise the abbreviation prefix, which would otherwise resolve against nothing. */
+const ABBREV = `${"."}..`;
+/**
+ * And the expectation marker, in halves, for the reason `check-harness-tags.mjs`
+ * assembles its needles: a marker written out here would bind to a citation this file
+ * only ever interpolates, and the gate beside it would report an expectation that
+ * follows nothing. A fixture is data, and data that a scanner reads as a claim is the
+ * one thing a self-scanning gate cannot have.
+ */
+const mark = (phrase: string): string => `${"<!"}-- expect: ${phrase} --${">"}`;
 /** Likewise: a literal `name@version` here would read as an assertion about the pin. */
 const AT = "@";
 const VERSION = "9.9.9";
@@ -41,11 +51,13 @@ const OLDER = "9.9.8";
 const CORE = "@better-auth/core";
 const MAIN = "better-auth";
 
-/** `dist/context/create-context.mjs`, in `better-auth` and nowhere else. */
+/** The context module, shipped by `better-auth` and by nothing else. */
 const CONTEXT_PATH = `${DIST}/context/create-context.mjs`;
-/** `dist/env/env-impl.mjs`, in `@better-auth/core` and nowhere else. This is the pair
- * issue #857 got wrong: the path is bare in the prose, and reading it under
- * `better-auth` because of that is the defect. */
+/**
+ * The env module, shipped by `@better-auth/core` and by nothing else. This is the pair
+ * issue #857 got wrong: prose writes the path without its scope, and reading it under
+ * `better-auth` because of that is the defect.
+ */
 const ENV_PATH = `${DIST}/env/env-impl.mjs`;
 
 const CONTEXT_SOURCE = [
@@ -138,7 +150,7 @@ describe("finding the installed package", () => {
 
 describe("which package owns a cited path", () => {
   it("reads a scoped citation under its own package, not under better-auth", () => {
-    // The whole of issue #857 in one assertion. `dist/env/env-impl.mjs` exists in
+    // The whole of issue #857 in one assertion. The env module exists in
     // @better-auth/core and in no other package, and the citation says so.
     const [citation] = citationsIn(`\`${CORE}/${ENV_PATH}:2\``).citations;
     expect(citation?.pkg).toBe(CORE);
@@ -209,7 +221,7 @@ describe("--expect", () => {
   const cited = `\`${CONTEXT_PATH}:3\``;
 
   it("passes when the cited line contains the phrase", () => {
-    const [citation] = citationsIn(`${cited} <!-- expect: ?? isProduction -->`).citations;
+    const [citation] = citationsIn(`${cited} ${mark("?? isProduction")}`).citations;
     expect(citation?.expect).toBe("?? isProduction");
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBeNull();
   });
@@ -217,19 +229,19 @@ describe("--expect", () => {
   it("fails when it does not", () => {
     // A citation that still opens at a line that still exists, saying something else:
     // the failure `check:vendor-pin` is blind to and the reason this mode exists.
-    const [citation] = citationsIn(`${cited} <!-- expect: ?? isDevelopment -->`).citations;
+    const [citation] = citationsIn(`${cited} ${mark("?? isDevelopment")}`).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(
       'does not contain "?? isDevelopment"',
     );
   });
 
   it("is inert without the flag, so a stale phrase never fails the plain read", () => {
-    const [citation] = citationsIn(`${cited} <!-- expect: not in this file -->`).citations;
+    const [citation] = citationsIn(`${cited} ${mark("not in this file")}`).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), false).failure).toBeNull();
   });
 
   it("checks only the cited lines, not the rest of the file", () => {
-    const [citation] = citationsIn(`\`${CONTEXT_PATH}:1\` <!-- expect: rateLimit -->`).citations;
+    const [citation] = citationsIn(`\`${CONTEXT_PATH}:1\` ${mark("rateLimit")}`).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(
       'does not contain "rateLimit"',
     );
@@ -237,29 +249,27 @@ describe("--expect", () => {
 
   it("matches a phrase across a line the vendor's formatter wrapped", () => {
     expect(collapse("  a\n  b  c ")).toBe("a b c");
-    const [citation] = citationsIn(`\`${CONTEXT_PATH}:2-3\` <!-- expect: { enabled: -->`).citations;
+    const [citation] = citationsIn(`\`${CONTEXT_PATH}:2-3\` ${mark("{ enabled:")}`).citations;
     expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBeNull();
   });
 
   it("binds to the citation on its own line or the line above", () => {
-    const same = citationsIn(`${cited} <!-- expect: enabled -->`);
+    const same = citationsIn(`${cited} ${mark("enabled")}`);
     expect(same.citations[0]?.expect).toBe("enabled");
-    const below = citationsIn(`${cited}\n<!-- expect: enabled -->`);
+    const below = citationsIn(`${cited}\n${mark("enabled")}`);
     expect(below.citations[0]?.expect).toBe("enabled");
   });
 
   it("reports an expectation that binds to nothing rather than ignoring it", () => {
     // An expectation nothing checks is worse than none, because it reads like one that
     // is checked. Two lines below its citation is out of reach and says so.
-    const far = citationsIn(`${cited}\n\n<!-- expect: enabled -->`);
+    const far = citationsIn(`${cited}\n\n${mark("enabled")}`);
     expect(far.citations[0]?.expect).toBeNull();
     expect(far.problems).toEqual([expect.stringContaining("follows no citation")]);
   });
 
   it("counts coverage, which is how a half-covered file stays visible", () => {
-    const { citations } = citationsIn(
-      `${cited} <!-- expect: enabled -->\nand \`${CONTEXT_PATH}:1\` too`,
-    );
+    const { citations } = citationsIn(`${cited} ${mark("enabled")}\nand \`${CONTEXT_PATH}:1\` too`);
     expect(citations).toHaveLength(2);
     expect(citations.filter((citation) => citation.expect !== null)).toHaveLength(1);
   });
@@ -270,17 +280,19 @@ describe("the abbreviated and line-only shapes", () => {
   const twoFactor = `${DIST}/plugins/two-factor/index.mjs`;
 
   it("resolves `...` against a path the same file already cited in full", () => {
-    const { citations } = citationsIn(`\`${backupCodes}:1\` and \`.../backup-codes/index.mjs:2\``);
+    const { citations } = citationsIn(
+      `\`${backupCodes}:1\` and \`${ABBREV}/backup-codes/index.mjs:2\``,
+    );
     expect(citations.map((citation) => citation.path)).toEqual([backupCodes, backupCodes]);
   });
 
   it("resolves `...` against a sibling's directory when nothing cited it in full", () => {
-    // How `.../backup-codes/index.mjs` reads in a document that only ever wrote out
-    // `dist/plugins/two-factor/index.mjs`. The filesystem breaks the tie, so the rule
-    // is checked against a tree rather than guessed from the text.
+    // How the abbreviation reads in a document that only ever wrote out the
+    // two-factor plugin's own index. The filesystem breaks the tie, so the rule is
+    // checked against a tree rather than guessed from the text.
     const owns = (_pkg: string | null, path: string): boolean => path === backupCodes;
     const { citations, problems } = citationsIn(
-      `\`${twoFactor}:1\` and \`.../backup-codes/index.mjs:2\``,
+      `\`${twoFactor}:1\` and \`${ABBREV}/backup-codes/index.mjs:2\``,
       owns,
     );
     expect(problems).toEqual([]);
@@ -288,7 +300,7 @@ describe("the abbreviated and line-only shapes", () => {
   });
 
   it("reports an abbreviation nothing in the file can resolve", () => {
-    const { citations, problems } = citationsIn(`\`.../backup-codes/index.mjs:2\``);
+    const { citations, problems } = citationsIn(`\`${ABBREV}/backup-codes/index.mjs:2\``);
     expect(citations).toEqual([]);
     expect(problems).toEqual([expect.stringContaining("abbreviates a path no earlier citation")]);
   });
@@ -310,8 +322,8 @@ describe("the abbreviated and line-only shapes", () => {
 
   it("ignores both shorthands outside backticks, where they are ordinary prose", () => {
     // A URL template and a shell path, both real lines in this repository.
-    expect(citationsIn("POST .../draft/validate").citations).toEqual([]);
-    expect(citationsIn("node .../dist/migrate.js").citations).toEqual([]);
+    expect(citationsIn(`POST ${ABBREV}/draft/validate`).citations).toEqual([]);
+    expect(citationsIn(`node ${ABBREV}/dist/migrate.js`).citations).toEqual([]);
     expect(citationsIn("see :3 of that file").citations).toEqual([]);
   });
 

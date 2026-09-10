@@ -192,14 +192,15 @@ export function parseSpans(text) {
  *
  * Two rules, in order, and the order is what makes it deterministic rather than a
  * guess. **First**, the most recent earlier citation whose path ends with the
- * abbreviation: `.../backup-codes/index.mjs` after
- * `dist/plugins/two-factor/backup-codes/index.mjs:45` is that same file, and no
- * filesystem is consulted to say so. **Second**, and only when nothing matches by
- * suffix, the most recent earlier citation is treated as naming a directory the
- * abbreviation hangs off: each of its ancestor directories is tried, longest first,
- * and the first that yields a file that exists wins. That second rule is what reads
- * `.../backup-codes/index.mjs:19-22` correctly when the file it abbreviates was never
- * written out in that document, only its sibling `dist/plugins/two-factor/index.mjs`.
+ * abbreviation: once a document has written out
+ * `dist/plugins/two-factor/backup-codes/index.mjs`, a later
+ * `.../backup-codes/index.mjs` is that same file, and no filesystem is consulted to
+ * say so. **Second**, and only when nothing matches by suffix, the most recent earlier
+ * citation is treated as naming a directory the abbreviation hangs off: each of its
+ * ancestor directories is tried, longest first, and the first that yields a file that
+ * exists wins. That second rule is what reads `.../backup-codes/index.mjs` correctly in
+ * a document that never wrote it out at all, only its sibling
+ * `dist/plugins/two-factor/index.mjs`.
  *
  * @param {string} tail the path after `.../`
  * @param {Citation[]} earlier citations already read in this file, in order
