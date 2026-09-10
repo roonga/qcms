@@ -474,6 +474,8 @@ pnpm changeset:dependabot -- --write   # regenerates the templates, writes one c
 pnpm verify
 ```
 
+**One thing to check by eye before the gates: a `codemirror` group pull request must carry all six `@codemirror/*` packages** (issue #712, `CONTRIBUTING.md`, "Dependabot grouping"). They are exact-pinned and depend on each other through `^6` ranges, so a subset resolves two copies of a shared package and `next build` fails on a `TS2345` that names `KeyBinding` rather than any version. `pnpm exec turbo run typecheck --filter=qcms-admin` passes with that tree, so the package-scoped typecheck will not tell you.
+
 Run it without `--write` first if you want to read what it would say. It refuses, naming the file, when the branch carries anything it cannot honestly call dependency maintenance - a source file, an `exports` edit, an app change that would ride into the scaffold - and that refusal is the point: a bot pull request should be red for a reason specific to it. Whatever `verify` reports after that one command is about the dependencies.
 
 ## Human gates
