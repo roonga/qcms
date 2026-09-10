@@ -39,6 +39,29 @@ import type { ReadState } from "@/lib/read-state";
  * is no `document` for it to attach to. Until it arrives the pane renders the same JSON as
  * plain text, so the condition is readable before hydration.
  *
+ * ## All six `@codemirror/*` packages move as one set
+ *
+ * `apps/admin/package.json` pins all six exactly, and they depend on each other through
+ * `^6` ranges (issue #712), so moving some and not others lets pnpm keep two copies of a
+ * shared package - and two copies of `@codemirror/view` declare two
+ * structurally identical but separately-declared `KeyBinding` types that do not unify -
+ * which surfaces here, on the `keymap.of(...)` call below, as `TS2345: Argument of type
+ * '(KeyBinding | KeyBinding)[]' is not assignable to parameter of type 'readonly
+ * KeyBinding[]'`. Reverting only `@codemirror/view` re-splits it the other way with
+ * `@codemirror/lint` as the odd one out and a `LintSource` message instead.
+ *
+ * `.github/dependabot.yml` puts the six in their own `codemirror` group, so a scheduled
+ * VERSION update cannot carry a subset. A Dependabot SECURITY update still can, and that
+ * is the one case to complete by hand: `applies-to` defaults to `version-updates`, so the
+ * group does not claim an advisory fix and a single-package one arrives on its own.
+ *
+ * The reason this is written down rather than left to be rediscovered: the message names
+ * types and not versions, and `pnpm exec turbo run typecheck --filter=qcms-admin` passes
+ * with the split tree while `next build` fails. So it reaches CI as a build failure and is
+ * invisible to the package-scoped typecheck a contributor reaches for first. If it ever
+ * fires, the fix is `pnpm update -r --depth Infinity @codemirror/view` to converge the
+ * lockfile, then moving all six pins together.
+ *
  * ## Accessibility, which is load-bearing for the axe gate
  *
  * CodeMirror's content DOM carries `role="textbox"` and `aria-multiline="true"` but

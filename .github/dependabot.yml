@@ -37,13 +37,43 @@ updates:
         patterns: ["*"]
   # npm version updates: weekly, small budget, minor+patch grouped so routine
   # bumps arrive as one reviewable PR instead of a stream. Majors stay individual
-  # (they need the CONTRIBUTING risk assessment).
+  # (they need the CONTRIBUTING risk assessment), with the codemirror set below the
+  # one deliberate exception.
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
     groups:
+      # The six @codemirror/* packages `apps/admin` depends on move as ONE set, at
+      # every update level (issue #712). They are exact-pinned in the manifest, but
+      # they depend on EACH OTHER through `^6` ranges, so a bump that moves a subset
+      # lets pnpm resolve two copies of a shared package - and two copies of
+      # `@codemirror/view` mean two structurally identical but separately-declared
+      # `KeyBinding` types, which do not unify:
+      #
+      #   condition-json-pane.tsx(117,34): error TS2345:
+      #     Argument of type '(KeyBinding | KeyBinding)[]' is not assignable to
+      #     parameter of type 'readonly KeyBinding[]'.
+      #
+      # PR #852 is the near miss that motivated this: it carried @codemirror/state
+      # and @codemirror/view alone, as two lines of a ten-package table.
+      #
+      # `update-types` is deliberately unset, so a MAJOR groups here too. That is the
+      # one place this file departs from "majors stay individual", and it is the case
+      # the split hurts most: a codemirror 7 arriving one package at a time is the
+      # broken tree by construction. The risk assessment still applies; it applies to
+      # the set.
+      #
+      # The failure does not point at its cause twice over. The message names types,
+      # not versions, and `pnpm exec turbo run typecheck --filter=qcms-admin` PASSES
+      # with the split tree while `next build` fails - so this class reaches CI as a
+      # build failure and is invisible to the package-scoped typecheck a contributor
+      # reaches for first. `apps/admin/components/forms/condition-json-pane.tsx`
+      # carries the same note beside the code.
+      codemirror:
+        patterns:
+          - "@codemirror/*"
       minor-and-patch:
         update-types: ["minor", "patch"]
         # better-auth arrives ALONE, never inside the group (issue #606). It is a
@@ -64,9 +94,16 @@ updates:
         # policy can be applied and the reviewer is looking at one thing.
         # `pnpm check:vendor-pin` is the downstream half, catching the prose drift
         # if a solo bump still lands without the sweep.
+        #
+        # The @codemirror/* exclusion is the other half of the `codemirror` group
+        # above: a group with no `patterns` matches everything, so without it the six
+        # would be claimed here by update level and the set would split again on any
+        # minor or patch. The exclusion is per-group, so they still arrive - as their
+        # own pull request, all six together.
         exclude-patterns:
           - "better-auth"
           - "@better-auth/*"
+          - "@codemirror/*"
     ignore:
       # Types track the RUNTIME major: the engine floor is Node 24 and the
       # node-26 CI leg is an early warning, not the target. Re-enable (or bump
