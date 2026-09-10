@@ -427,6 +427,23 @@ describe("CSV golden export + JSON round-trip (exit criterion 2)", () => {
 // --- exit criterion 3: streaming a large export -----------------------------
 
 describe("large export streams without buffering the whole table (exit criterion 3)", () => {
+  /**
+   * 60 s explicitly, rather than Vitest's inherited 5 s default (issue #871).
+   *
+   * Standalone this case takes about 0.6 s (616 ms measured 2026-09-10). What it
+   * spends that on is two 10,000-row inserts into a containerised Postgres and a full
+   * streamed read back, so the cost scales with whatever else the machine is doing
+   * rather than with the behaviour under test: under a fully parallel `pnpm verify`
+   * on a loaded host it failed on the 5 s default while this file took about 24 s,
+   * then passed in isolation and in a forced cache-bypassed re-run. Seeding fewer
+   * rows is not available as the fix - the assertions below want many chunks and a
+   * largest chunk under a quarter of the document, which is exactly what a table
+   * small enough to buffer would stop proving - so the budget moves instead. 60 s is
+   * about a hundred times the standalone measurement, which is the margin
+   * CONTRIBUTING asks for (issues #603, #604): far enough from the work that host
+   * load cannot reach it, and still short enough that an export which never streams
+   * fails.
+   */
   it("exports 10k responses in bounded chunks, no chunk near the document size", async () => {
     const formId = FormId.parse("frm_bulk");
     await seedForm("frm_bulk", [["stp_a", ["q_t"]]]);
@@ -479,7 +496,7 @@ describe("large export streams without buffering the whole table (exit criterion
     // chunk is a small fraction of the whole document (bounded working set).
     expect(chunks).toBeGreaterThan(1);
     expect(maxChunkBytes * 4).toBeLessThan(totalBytes);
-  });
+  }, 60_000);
 });
 
 // --- exit criterion 4: erase excludes everywhere; unflag releases event -----

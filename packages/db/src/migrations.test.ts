@@ -10,10 +10,14 @@ import {
 /**
  * Every table the schema declares (13 domain + 1 break-glass audit + 5 better-auth).
  *
- * The assertion below is a subset check (`toContain` per entry), so a table added
- * by a later migration is covered only once it is listed here. `two_factor_resets`
- * (migration 0021) was added to this list for that reason and not because the
- * assertion complained: it would not have.
+ * A new migration that creates a table must add the table to this list, or
+ * "creates every table on an empty database" fails naming it.
+ *
+ * That is true because the assertion below compares the created set to this one
+ * exactly (issue #861). It was a subset check (`toContain` per entry) until then, so
+ * a table a later migration created passed while unlisted: `two_factor_resets`
+ * (migration 0021) reached this list because a reviewer noticed it was missing, not
+ * because the assertion complained, and it would not have.
  */
 const EXPECTED_TABLES = [
   "questions",
@@ -37,11 +41,22 @@ const EXPECTED_TABLES = [
   "twoFactor",
 ] as const;
 
+/**
+ * Drizzle's own migration journal: bookkeeping the migrator writes about itself,
+ * not schema this package declares. The node-postgres migrator keeps it in the
+ * `drizzle` schema, so it does not reach the query below at all; excluded by name so
+ * that a migrator default which moved it into `public` could not be mistaken for an
+ * unlisted new table by the exact-set assertion.
+ */
+const DRIZZLE_JOURNAL_TABLE = "__drizzle_migrations";
+
 async function publicTables(testDb: TestDb): Promise<Set<string>> {
   const res = await testDb.client.query<{ table_name: string }>(
     `select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'`,
   );
-  return new Set(res.rows.map((r) => r.table_name));
+  return new Set(
+    res.rows.map((r) => r.table_name).filter((name) => name !== DRIZZLE_JOURNAL_TABLE),
+  );
 }
 
 async function triggerExists(testDb: TestDb, name: string): Promise<boolean> {
@@ -90,11 +105,14 @@ describe("@roonga/qcms-db migrations", () => {
       await testDb?.teardown();
     }, CONTAINER_BOOT_TIMEOUT_MS);
 
-    it("creates every table on an empty database", async () => {
+    it("creates every table on an empty database, and only those", async () => {
+      // Exact equality, sorted, rather than a `toContain` per entry (issue #861): a
+      // subset check passes a table nobody listed, which is how `two_factor_resets`
+      // went unlisted. Compared as sorted arrays because the diff Vitest prints for
+      // two arrays names the table that appeared or vanished, which is the whole
+      // message this assertion has to carry.
       const tables = await publicTables(testDb);
-      for (const expected of EXPECTED_TABLES) {
-        expect(tables, `missing table ${expected}`).toContain(expected);
-      }
+      expect([...tables].sort()).toEqual([...EXPECTED_TABLES].sort());
     });
 
     it("leaves account keyed on the provider pair, with no issuer column or index", async () => {

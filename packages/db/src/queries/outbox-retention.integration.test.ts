@@ -388,6 +388,21 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
     return res.rows.map((row) => row.id);
   }
 
+  /**
+   * 60 s explicitly, rather than Vitest's inherited 5 s default (issue #855).
+   *
+   * Standalone this case takes about 0.2 s (190 ms measured 2026-09-10; 586 ms on the
+   * host that filed the issue). What it spends that on is a 10,002-row insert into a
+   * containerised Postgres, so the cost scales with whatever else the machine is
+   * doing rather than with the branch under test: under a fully parallel `pnpm verify`
+   * on a loaded host it reached 6019 ms and failed on the 5 s default, then passed in
+   * isolation. Seeding fewer rows is not available as the fix - `SEEDED_ROWS` is
+   * derived from the budget this test exists to exceed, and one row fewer stops
+   * telling the two strategies apart - so the budget moves instead. 60 s is about a
+   * hundred times the slowest standalone measurement, which is the margin
+   * CONTRIBUTING asks for (issues #603, #604): far enough from the work that host
+   * load cannot reach it, and still short enough that a genuinely hung sweep fails.
+   */
   it("redacts the whole backlog, not the subset the probe could name", async () => {
     const ids = await seedBacklog();
     expect(ids).toHaveLength(SEEDED_ROWS);
@@ -407,7 +422,7 @@ describe("redactAgedOutboxPayloads above its candidate budget (issue #781)", () 
     );
     expect(leftBehind.rows.map((row) => row.id)).toEqual([]);
     expect(result.redactedCount).toBeGreaterThanOrEqual(SEEDED_ROWS);
-  });
+  }, 60_000);
 });
 
 /**
