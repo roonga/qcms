@@ -208,6 +208,11 @@ enrollment for development; the API reads the same variable, so relaxing it in o
 only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`
 split described next, from day one.
 
+**Adding a screen to the admin?** `apps/admin/app/(shell)/AGENTS.md` names the six places
+a route is registered in and the conventions that go with them, and
+`apps/admin/lib/route-registration.test.ts` fails naming every one a new route has missed
+(issue #700).
+
 **Where the portal's build output lands:** the production build (`pnpm build`, served by `next start`) writes `apps/portal/.next`; every dev server (`pnpm dev:portal`, and the one the Playwright suite boots) writes `apps/portal/.next-dev`. Two directories, deliberately (issue #54): `turbo.json` declares the portal build's outputs as `.next/**`, so while dev output lived under `.next` it was tarred into the build cache and a later `pnpm build` cache hit restored that stale snapshot, from any worktree, over the live dev directory. The dev server then died on a corrupt or stale Turbopack cache and the only visible symptom was a bare 180s Playwright `webServer` timeout. Split, `pnpm build` and `pnpm exec playwright test` work in either order with no manual clean. Both directories are gitignored, and `rm -rf apps/portal/.next-dev` is always safe: it discards no production build. That glob now also excludes `.next/dev` and `.next/cache` (issue #57), so the artifact holds only what `next build` produced.
 
 **A turbo `outputs` glob must match only files the build itself writes.** turbo tars whatever matches when a task ends, so anything else that lives in those paths (a dev server's directory, a runtime cache, a log) is captured and restored over the live copy on the next cache hit, in any worktree.

@@ -278,6 +278,24 @@ const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 const TEST_RUNNER_CONFIG = /(^|\/)(vitest|playwright)\.[\w.-]*\.[cm]?[jt]s$/;
 
 /**
+ * An agent instruction file, at any depth in an app: `AGENTS.md` and its `CLAUDE.md` alias.
+ *
+ * Transform 1 by another route. These address a contributor to THIS repository and say so
+ * in every line: `apps/admin/app/(shell)/AGENTS.md` names the Vitest tables and the
+ * Playwright walk a new screen registers itself in, all of which the strip rules above
+ * drop, plus repository scripts an adopter's project does not define. Scaffolding one
+ * would hand an adopter instructions about files their tree does not contain, which is a
+ * worse outcome than shipping none: a reader has no way to tell a stale instruction from
+ * one they have broken.
+ *
+ * Matched by shape rather than listed, for the reason {@link TEST_RUNNER_CONFIG} is: the
+ * generated pair `next dev` writes at an app root is git-ignored here (issue #431) while a
+ * hand-written one deeper in the tree is not, and a list would only ever be as complete as
+ * the last person to add one.
+ */
+const AGENT_INSTRUCTIONS = /(^|\/)(AGENTS|CLAUDE)\.md$/;
+
+/**
  * True when an app-relative path is this repository's tooling rather than shell source.
  *
  * Every rule here is about a file that IS part of the repository and still must not be
@@ -288,6 +306,7 @@ export function isExcludedAppPath(path) {
   if (APP_EXCLUDED_PATHS.has(path)) return true;
   if (/\.test\.[cm]?[jt]sx?$/.test(path)) return true;
   if (TEST_RUNNER_CONFIG.test(path)) return true;
+  if (AGENT_INSTRUCTIONS.test(path)) return true;
   if (path.split("/").some((segment) => EXCLUDED_APP_DIRECTORIES.has(segment))) return true;
   return path.endsWith("/README.md");
 }

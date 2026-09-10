@@ -14,7 +14,7 @@ import { submitResponse } from "./support/ops.js";
  * disclosure, the wrap, the badge, N2's viewport fill. None of that is repeated here. What
  * this spec is for is the thing that only exists once the rail is on more than one screen:
  * that every form-scoped screen has one, that each marks the row it actually is, that no
- * screen ends up with two navigations to the same six places, and that the children group
+ * screen ends up with two navigations to the same seven places, and that the children group
  * is the form's STEPS on every one of them rather than whatever list the screen happens to
  * be showing in its own column.
  *
@@ -31,7 +31,7 @@ import { submitResponse } from "./support/ops.js";
  * ## The builder's rail carries one group, and that is §7 rather than an exception to it
  *
  * A rail step item is `/forms/{formId}#step-{stepId}`, which is a cross-route link on
- * seven screens and a bare same-page fragment on the builder, and §7 says the rail "never
+ * eight screens and a bare same-page fragment on the builder, and §7 says the rail "never
  * carries same-page section switches". So the builder gets the sibling group and no
  * children, and with one group there is no divider. Asserted here because it looks like an
  * inconsistency and is not one, and because the builder's own step editor has to be left
@@ -68,18 +68,18 @@ interface Screen {
   /**
    * The browser-tab title (issue #536).
    *
-   * These eight screens are the sharp end of that issue: six sections and two detail
+   * These nine screens are the sharp end of that issue: seven sections and two detail
    * routes of ONE form, which all produced the tab text "QCMS" until every route gained a
    * `generateMetadata`. `lib/page-title.test.ts` pins that each route has one and builds
    * it through the one helper, which is a fact about the source; that the browser then
-   * puts it in the document is the fact only a browser can report, and eight identical
+   * puts it in the document is the fact only a browser can report, and nine identical
    * titles here is exactly the defect.
    */
   readonly title: string;
 }
 
 /**
- * All eight form-scoped screens, in route order.
+ * All nine form-scoped screens, in the order the rail draws their rows.
  *
  * The two detail routes expect their SECTION rather than themselves, and that is the same
  * answer the app has given on those URLs since task 034: neither a stored version nor one
@@ -93,6 +93,16 @@ function screens(): readonly Screen[] {
       current: "section:builder",
       children: true,
       title: `Form details: ${FORM_ID} - QCMS`,
+    },
+    {
+      // The rules screen (issue #669), which this list did not have until issue #700 read
+      // it against `lib/rail-routes.test.ts` and found the two disagreeing. Placed after
+      // the builder because this list is in RAIL_SECTIONS order, which is where the rail
+      // draws the row. Its rail is the SERVER-rendered one, like Preview's.
+      path: `/forms/${FORM_ID}/rules`,
+      current: "section:rules",
+      children: true,
+      title: `Rules: ${FORM_ID} - QCMS`,
     },
     {
       path: `/forms/${FORM_ID}/preview`,
@@ -152,7 +162,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("561 puts the rail on all eight form-scoped screens, marking the row the screen is", async ({
+test("561 puts the rail on all nine form-scoped screens, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);
@@ -164,12 +174,12 @@ test("561 puts the rail on all eight form-scoped screens, marking the row the sc
     await page.goto(screen.path);
     await expect(page.locator("main#main-content"), `${screen.path} is the shell`).toHaveCount(1);
 
-    // Soft throughout, so one sweep reports all eight verdicts rather than stopping at the
+    // Soft throughout, so one sweep reports all nine verdicts rather than stopping at the
     // first screen that disagrees.
     await expect
       .soft(page.getByTestId("qcms-rail"), `${screen.path} carries the rail`)
       .toBeVisible();
-    // Eight sibling screens of one form, eight different tabs (issue #536). Asserted as
+    // Nine sibling screens of one form, nine different tabs (issue #536). Asserted as
     // the whole string rather than "not QCMS": the pattern is the decision, and a title
     // that lost its page name or its app name would still pass a difference test.
     await expect.soft(page, `${screen.path} names its own browser tab`).toHaveTitle(screen.title);
@@ -185,9 +195,9 @@ test("561 puts the rail on all eight form-scoped screens, marking the row the sc
         `${screen.path} marks exactly one row`,
       )
       .toHaveCount(1);
-    // The six sections are one navigation on every screen, never two: the strip that used
+    // The seven sections are one navigation on every screen, never two: the strip that used
     // to render under the heading retired with `form-tabs.tsx` (issue 561), so a second
-    // nav to the same six places cannot come back unnoticed.
+    // nav to the same seven places cannot come back unnoticed.
     await expect
       .soft(page.locator('[data-rail-group="sections"]'), `${screen.path} has the sibling group`)
       .toHaveCount(1);
@@ -230,7 +240,7 @@ test("561 gives every screen the form's steps as its children, never the list it
   // The seeded form has one step, so the whole children group is one known href: the
   // builder's URL with that step's anchor. `lib/forms/issues.ts` mints the same id the
   // validation panel's focus links use, which is the property issue 559 chose deliberately
-  // and this keeps true across seven screens.
+  // and this keeps true across every screen in the list above.
   const expected = [`/forms/${FORM_ID}#step-${STEP_ID}`];
 
   for (const screen of screens()) {
@@ -260,14 +270,14 @@ test("561 gives every screen the form's steps as its children, never the list it
     "and the page carries no second step list",
   ).toHaveCount(0);
 
-  // AND THE LIST IS STILL THE PLACE THOSE SEVEN HREFS LAND. Every step row above points at
+  // AND THE LIST IS STILL THE PLACE THOSE HREFS LAND. Every step row above points at
   // `#step-{stepId}`, and so does the validation panel's link to an offending step; the
   // element answering to that id lived in the in-page list, so deleting that list took the
   // destination with it and left both sets of links pointing at nothing. No assertion in
   // this suite noticed, because a fragment that matches nothing fails silently.
   await expect(
     page.locator(`#step-${STEP_ID}`),
-    "the step the seven rails link to is present to be linked to",
+    "the step every screen's rail links to is present to be linked to",
   ).toHaveCount(1);
 });
 

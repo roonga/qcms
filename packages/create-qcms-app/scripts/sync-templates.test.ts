@@ -42,6 +42,9 @@ describe("the strip rules", () => {
     "CONTRIBUTING.md",
     "README.md",
     "src/features/forms/README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "app/(shell)/AGENTS.md",
     ".env.example",
     "scripts/seed-fixtures.ts",
   ])("drops %j", (path) => {
