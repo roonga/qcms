@@ -395,6 +395,16 @@ pnpm ci:durations "verify (node-24)"     # any job, matched exactly
 
 Two things to know before reading its output. It measures the **job**, `started_at` to `completed_at`, not the workflow run, which on a single runner includes queue time behind other jobs and answers a different question. And the name is matched exactly, so a matrix job needs its suffix (`verify (node-24)`, not `verify`) and a rename produces an empty result rather than figures quietly blended across two differently-scoped jobs - which is why an empty result prints the job names it did see. **Refreshing the number in `CONTRIBUTING.md` means running this and pasting what it prints**, sample count and dates included.
 
+**`pnpm vendor:cite` reprints every better-auth citation against the installed package** (issue #864). This repository justifies security properties by citing better-auth's compiled source at a `file:line`, and `check:vendor-pin` can only check the version digit beside the package name - not that the line is still the line. This prints each cited line with two lines of context either side, resolved against the package that ships the path (`@better-auth/core` ships about a third of what is cited here, and reading those under `better-auth` is how issue #857 landed a citation a line out):
+
+```sh
+pnpm vendor:cite            # every citation, cited line plus two lines of context
+pnpm vendor:cite --expect   # also enforce the expectation markers, and report coverage
+pnpm vendor:cite --quiet    # failures and the summary only, as check:vendor-pin runs it
+```
+
+It exits non-zero on any path or line it cannot open, and `--expect` additionally fails a citation whose adjacent marker names a phrase the cited lines do not contain. **Run it as the first step of a better-auth bump**, before any number is rewritten: the re-read is the work, and this is what makes it a minute rather than an afternoon. `CONTRIBUTING.md` carries the marker convention and the rest of the rules.
+
 ## Looking at a committed PNG before writing prose about it
 
 **Gate prose describing a rendering is written from the rendering, not from the intent.**
