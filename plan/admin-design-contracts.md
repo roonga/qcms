@@ -572,7 +572,8 @@ admin-redesign tier by the ruling of 2026-09-03.
   them into the route table, giving each screen the number a reader sees, which is the inner
   one where there is one. That is right about what is on screen and wrong by the column's own
   padding: a cap on `<main>` sits outside a padding the drawn element sits inside, so a
-  drawn 640 frame rendered 592 and a drawn 720 editor column rendered 672. Three screens now
+  drawn 640 frame and a drawn 720 editor column both rendered the same 672px column, 32px
+  over one and 48px under the other. Three screens now
   take their POC's **outer** number in `apps/admin/lib/measure.ts` and carry the inner one on
   the element itself - `.qcms-editor-column` and `.qcms-respondent-frame` in
   `apps/admin/app/globals.css`. Each drawn number renders at the size it is drawn.

@@ -106,7 +106,7 @@ export function VersionView({
       data-testid="qcms-version-view"
     >
       {/* The two lines above the frame are capped at the frame's own width, which is where
-          `preview-versions-poc.html:821-825` puts them: this screen's `<main>` is 1600 since
+          `preview-versions-poc.html:821-824` puts them: this screen's `<main>` is 1600 since
           issue 668, and prose running the full 1600 above a 640px inset reads as two columns
           rather than as one screen. The stamps line below is deliberately not capped, for
           the same reason the POC leaves it uncapped: it is a short metadata line rather than

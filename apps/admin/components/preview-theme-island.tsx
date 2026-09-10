@@ -173,6 +173,14 @@ export function PreviewThemeIsland({
  * the carrier's own `container-type: inline-size` makes any such box a layout context the
  * preview would then be sized against.
  *
+ * WHAT CANNOT APPEAR INSIDE THE FRAME, since the frame clips (`overflow: hidden`) and the
+ * question is otherwise fair: an inline validation message. `A2UIStepRenderer` renders one
+ * only from its `errors` prop, which its own doc calls "parent-owned server-validation
+ * errors", and no preview surface passes it - none of the three posts an answer, so there
+ * is no rejection to source one from, and none passes `nativeSubmit` either, so there is no
+ * submit control to provoke one. The case is unreachable here rather than merely untested;
+ * a surface that later feeds `errors` in should re-ask the clipping question.
+ *
  * The bar is a `<p>` rather than a heading: it labels the box it sits on and is not a
  * section of the page's outline. Both framed screens already have their own heading above
  * it, and `headingLevelOffset` exists on both renderers precisely because a second outline

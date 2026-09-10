@@ -2534,11 +2534,13 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
    Issue 657 gave each of these three screens its drawn inner number as a cap on
    `<main>`, which is where the app's one layer was. That reads correctly - the
-   number a reader sees is the inner one - and renders wrong by two paddings: the
-   drawn element sits inside `.main`'s own `--admin-section-pad`, while a cap on
-   `<main>` sits outside it, so a 640 frame rendered 600 and a 720 column 680. The
-   layer below is the drawn element itself, so each number renders at the size it
-   is drawn and `lib/measure.ts` goes back to carrying the outer cap.
+   number a reader sees is the inner one - and renders wrong by two paddings,
+   because the drawn element sits inside `.main`'s own padding while a cap on
+   `<main>` sits outside it. All three screens took `narrow` (45rem) and so all
+   three rendered ONE column, 672px at the 24px padding of the day: 32px over the
+   drawn 640 frame and 48px under the drawn 720 editor column. The layer below is
+   the drawn element itself, so each number renders at the size it is drawn and
+   `lib/measure.ts` goes back to carrying the outer cap.
 
    NEITHER OF THESE IS A ROUTE DECISION and neither belongs in the measure table.
    A route cap answers "how wide is this screen's content column"; these answer
@@ -2616,7 +2618,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-radius: 0;
 }
 
-/* The two lines the POC caps at the frame's own width (`:621-624`, `:821-825`), so
+/* The two lines the POC caps at the frame's own width (`:616-619`, `:821-824`), so
    the screen reads as one measure rather than as a 640px inset under prose running
    the full 1600. The banner beside them is `align-self: flex-start` already and
    shrinks to its own text. */

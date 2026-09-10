@@ -296,7 +296,7 @@ test("561 keeps the two respondent-facing renders on the narrow measure the rail
   // ISSUE 668 MOVED WHICH ELEMENT CARRIES IT, not whether it holds.
   // `plan/admin-shell-poc/preview-versions-poc.html` draws the 640 on a `.respondent-frame`
   // INSIDE a 1600px `.main`, and a cap on `<main>` sits outside a padding the frame sits
-  // inside, so the shipped render was 592 against a drawn 640. `<main>` now takes the POC's
+  // inside, so the shipped render was a 672px column against a drawn 640. `<main>` now takes the POC's
   // outer 1600 and the frame takes the 640, which is why this measures the frame and checks
   // `<main>` only for the thing this spec is actually about: the rail is a sibling of
   // `<main>` rather than a child of it, so it takes nothing off the measure and is no

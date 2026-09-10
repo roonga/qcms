@@ -169,7 +169,7 @@ export function DraftPreview({
           {t("forms.preview.banner")}
         </p>
         {/* Capped at the frame's own width, which is what the POC does with it
-            (`preview-versions-poc.html:622-624`): this screen's `<main>` is 1600 since
+            (`preview-versions-poc.html:616-619`): this screen's `<main>` is 1600 since
             issue 668 and prose running the full 1600 above a 640px inset reads as two
             unrelated columns rather than as one screen. */}
         <p className="qcms-respondent-note text-sm text-(--color-text-muted)">

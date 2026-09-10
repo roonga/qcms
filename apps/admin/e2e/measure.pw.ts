@@ -236,9 +236,11 @@ test("668 renders the three drawn inner elements at their drawn width, at 1280",
   // THE HALF THE SWEEP ABOVE CANNOT SEE. Three POCs cap `.main` at 1600 and then draw one
   // element narrower inside it, and until issue 668 the app carried the inner number as the
   // route's cap on `<main>` instead. That is off by the column's own padding on both sides,
-  // in the direction of narrower than drawn: a `<main>` capped at 640 renders 600 of
-  // content, and one capped at 720 renders 680. Nothing in the sweep notices, because the
-  // sweep measures `<main>` and `<main>` was exactly the number asked of it.
+  // because a cap on `<main>` sits outside a padding the drawn element sits inside - and it
+  // is off in BOTH directions at once, since all three screens took one cap: `narrow`
+  // (45rem) on a `p-6` `<main>` rendered a 672px column on all three, 32px over the drawn
+  // 640 frame and 48px under the drawn 720 editor column. Nothing in the sweep notices,
+  // because the sweep measures `<main>` and `<main>` was exactly the number asked of it.
   //
   // Measured as the ELEMENT's box rather than as its computed `max-width`, which is the
   // whole point: `max-inline-size` on an element nobody renders is a number that passes a

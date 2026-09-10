@@ -153,8 +153,9 @@ export const MEASURE_BY_ROUTE = {
    * than a width - a bordered, rounded, shadowed inset with a "Respondent view" bar above
    * it, whose own comment says the 640 is chosen so the frame reads "as a device-like
    * inset rather than as 'the page just got narrower here'". Carried here as a cap on
-   * `<main>` it was the second of those and rendered 592 rather than 640, because the cap
-   * sat outside a padding the drawn frame sits inside. It is now `.qcms-respondent-frame`
+   * `<main>` it was the second of those, and it was not even the drawn WIDTH: the cap sat
+   * outside a padding the drawn frame sits inside, so a `narrow` (45rem) `<main>` with
+   * `p-6` rendered a 672px column against a drawn 640. It is now `.qcms-respondent-frame`
    * on the element the app already had for it (`components/preview-theme-island.tsx`), so
    * this row is the outer number and the frame is the inner one, at 640 exactly.
    *
@@ -187,7 +188,10 @@ export const MEASURE_BY_ROUTE = {
    *
    * The 720 is the page's own now (`.qcms-editor-column` on the column this screen
    * already renders), not a cap on `<main>`: carried here it rendered 672 against a drawn
-   * 720, for the same reason the frame rendered 592 against a drawn 640. The POC's own
+   * 720. That is the same 672 the preview row above rendered against its drawn 640, which
+   * is what one cap for two drawn numbers costs - 48px under one and 32px over the other,
+   * because a cap on `<main>` sits outside the padding both drawn elements sit inside. The
+   * POC's own
    * comment is why the outer 1600 matters as well as the inner 720 - "this screen is
    * prose-and-form shaped, so the improvement here is a comfortable reading measure, not
    * more width" - and a screen says that by being a narrow column inside a wide one.

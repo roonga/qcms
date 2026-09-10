@@ -23,8 +23,9 @@ then, on some screens, caps the content inside it again - a 720px `.editor-colum
 1600px `.main`, a 640px `.respondent-frame` inside another. #657 collapsed the two into the
 route table by giving each screen the number a reader actually sees, which is the inner one
 wherever there is one. That reads correctly and renders wrong by two paddings, because a cap
-on `<main>` sits outside a padding the drawn element sits inside: a drawn 640 rendered 592
-and a drawn 720 rendered 672. So `/questions/{id}`, `/forms/{id}/preview` and
+on `<main>` sits outside a padding the drawn element sits inside. All three took one cap,
+so all three rendered one column: 672px, which is 32px over the drawn 640 frame and 48px
+under the drawn 720 editor column. So `/questions/{id}`, `/forms/{id}/preview` and
 `/forms/{id}/versions/{n}` take their POC's outer 1600 in `apps/admin/lib/measure.ts`, and
 the inner number is carried by the element itself. Each drawn number now renders at the size
 it is drawn.
