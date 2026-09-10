@@ -52,7 +52,7 @@ function AppearanceHarness() {
       selectionMode="single"
       selectedKeys={[mode]}
       onSelectionChange={(keys) => {
-        setMode(keys.map(String)[0] ?? mode);
+        setMode(keys[0] ?? mode);
       }}
       items={[
         // A rich label with its own `textValue`, which is the shape the appearance

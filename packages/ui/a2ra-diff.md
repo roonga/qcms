@@ -18,7 +18,7 @@ answers "do the bytes still match" on every run, and this file answers "what mov
 pin, and what did a human check" once per pin move.
 
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
-  `389d02ce0629a3459b85596e244adf9c44ce5d32`
+  `a571e83d574fa1559307c86b85db9716acb1b5df`
 - **Previous pin**: `7347b3b9c8067869f5a0407ab490ef1c83814d53`
 - **Captured**: 2026-09-10, the upstream pass carrying the `Menu` trigger and item slots
   (issue #234, upstream `roonga/a2-react-aria#75`)
@@ -36,6 +36,17 @@ will be byte-identical over the vendored tree, so the re-pin rewrites no vendore
 the regenerated `a2ra-manifest.json` reproduces byte-for-byte apart from the recorded sha.
 This is the same shape the previous two pin moves took, where `d34c9505` became `7347b3b9`
 and `e4f8b36` became `075c3a9`.
+
+**This pin already moved once within the same review round, and this file was re-taken
+rather than patched.** The first capture named `389d02ce0629a3459b85596e244adf9c44ce5d32`.
+Copilot then flagged a real defect on upstream `#79`: `triggerLabel` defaulted to
+`"Options"` and was applied as `aria-label` whenever `trigger` was given, so a caller
+passing a visible-text trigger with no `triggerLabel` got an accessible name that disagreed
+with the screen (WCAG 2.5.3). The fix landed upstream as two more commits on the same
+branch (`b387496`, `a571e83`, the second only regenerating `registry/menu.json` from the
+first), so the pin moved again before this PR's own review closed rather than after - the
+whole point of naming a branch head is that it can still move. Everything below is taken
+fresh at `a571e83`, not patched over the first capture.
 
 A manifest generated at another commit is a hard failure of `check:a2ra-fidelity` rather
 than a silent pass, so the pin, the manifest and the tree cannot drift apart quietly: the
@@ -66,16 +77,17 @@ goes back to being the command.
 
 A pin move re-vendors **every** component at once, so "only the intended fix changed" is
 a claim about the whole tree rather than about the files that happen to be in the diff.
-The new pin is two commits on top of the previous one, and the tree was diffed component
-by component before the overwrite: `menu` drifted, and the other sixteen reported clean.
+Between the two provisional pins this file has now named (`389d02c` and `a571e83`), the
+tree was diffed component by component with the still-vendored `389d02c` bytes left in
+place: `menu` drifted, and the other sixteen reported clean.
 
 ```console
-$ pnpm dlx @a2ra/cli --version
+$ node <cli> --version
 1.0.0-preview.4
 
 $ for c in alert breadcrumb button card checkbox date-picker dialog form layout \
->          number-field radio select table text text-area text-field; do
->   printf "%-14s " "$c"; pnpm dlx @a2ra/cli diff $c; done
+>          menu number-field radio select table text text-area text-field; do
+>   printf "%-14s " "$c"; node <cli> diff "$c"; done
 
 alert          ✓ All installed components are up to date.
 breadcrumb     ✓ All installed components are up to date.
@@ -86,6 +98,9 @@ date-picker    ✓ All installed components are up to date.
 dialog         ✓ All installed components are up to date.
 form           ✓ All installed components are up to date.
 layout         ✓ All installed components are up to date.
+menu           [Menu.tsx's diff: the two doc paragraphs Copilot's fix rewrote, the
+               dropped `= "Options"` destructuring default, and the widened aria-label
+               guard - elided here, shown in full under "The negative control" below]
 number-field   ✓ All installed components are up to date.
 radio          ✓ All installed components are up to date.
 select         ✓ All installed components are up to date.
@@ -99,41 +114,38 @@ Run `a2ra diff` with **one component named**, not bare: the bare form stops afte
 first drifting file it finds, so it is a "something moved" signal rather than an
 enumeration. That is why the sweep above is a loop.
 
-This sweep predates the overwrite, so it ran against the OLD vendored bytes with the
-published CLI. A clean verdict from it is trustworthy even with the bug above, because the
-bug turns identical into drifted and never the other way round.
+The one that drifted matches the upstream fix exactly, and nothing else:
 
-The one that drifted matches the upstream change exactly, and nothing else:
+| Component | File       | Change                                                                   | Issue                      |
+| --------- | ---------- | ------------------------------------------------------------------------ | -------------------------- |
+| `menu`    | `Menu.tsx` | `triggerLabel` no longer defaults to `"Options"` in the `trigger` branch | #234 / upstream #79 review |
 
-| Component | Files                                                      | Change                                                 | Issue               |
-| --------- | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------- |
-| `menu`    | `Menu.tsx`, `index.ts`, `menu.schema.ts`, `menu.styles.ts` | trigger, menu-label, header, class-name and item slots | #234 / upstream #75 |
-
-The second upstream commit in this pin (`fix(cli)`, above) touches `packages/cli` only,
-which the registry does not ship, so it moves no vendored byte.
+`index.ts`, `menu.schema.ts` and `menu.styles.ts` are unchanged from the first capture:
+Copilot's fix touched only the trigger-naming logic and its doc comment in `Menu.tsx`. The
+second upstream commit at this pin (`chore(registry)`, regenerating `registry/menu.json`
+from the fixed source) ships no vendored byte of its own; it is the registry catching up
+to the file above.
 
 ## The whole-tree overwrite
 
 Every component was re-vendored from the new registry, not only the one that drifted, so
-the tree is a copy of the pinned registry rather than the previous tree with four files
+the tree is a copy of the pinned registry rather than the previous tree with one file
 replaced.
 
 ```console
-$ pnpm dlx @a2ra/cli add alert breadcrumb button card checkbox date-picker dialog form \
->   layout menu number-field radio select table text text-area text-field --overwrite
+$ node <cli> add alert breadcrumb button card checkbox date-picker dialog form layout \
+>   menu number-field radio select table text text-area text-field --overwrite
 
 ✓ Added 75 file(s) for alert, breadcrumb, button, card, checkbox, date-picker, dialog,
   form, layout, menu, number-field, radio, select, table, text, text-area, text-field.
 
 $ git status --porcelain packages/ui/src
  M packages/ui/src/components/a2ui/menu/Menu.tsx
- M packages/ui/src/components/a2ui/menu/index.ts
- M packages/ui/src/components/a2ui/menu/menu.schema.ts
- M packages/ui/src/components/a2ui/menu/menu.styles.ts
 ```
 
-Seventy-five files written, four changed. The count is one above the tree's 74 files
-because `group-schema-fields.ts` is shipped by two items and written twice.
+Seventy-five files written, one changed. The count is one above the tree's 74 files
+because `group-schema-fields.ts` is shipped by two items and written twice; every other
+file rewrote itself to the bytes it already had.
 
 ## The verdict
 
@@ -146,7 +158,7 @@ $ node <cli> diff
 ✓ All installed components are up to date.
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 389d02ce0629 (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ a571e83d574f (ADR-22).
 ```
 
 ### And independently of the CLI, by git tree hash
@@ -160,7 +172,7 @@ directory at the pin.
 ```console
 $ for c in alert breadcrumb button card checkbox date-picker dialog form layout menu \
 >          number-field radio select table text text-area text-field; do
->   up=$(git -C <sibling a2-react-aria checkout> rev-parse 389d02ce:packages/core/src/components/$c)
+>   up=$(git -C <sibling a2-react-aria checkout> rev-parse a571e83:packages/core/src/components/$c)
 >   here=$(git write-tree --prefix=packages/ui/src/components/a2ui/$c)
 >   [ "$up" = "$here" ] && printf "%-14s identical %s\n" "$c" "$up" || printf "%-14s DIFFERENT\n" "$c"
 > done
@@ -174,7 +186,7 @@ date-picker    identical e639576c1dfe3c7e8abf68b7e8c4c20c5d38abeb
 dialog         identical 12e4e6a9250154369232a82dc20576bb7ab6f5d3
 form           identical eb4702ca0210fbd058a11d4ddcd230aee46a85f6
 layout         identical 0e60e409782f2dc7059a48a9d2e3437486a3dd26
-menu           identical 91e19a062e319aa712d5c4f0ac0e26c5d3a64a43
+menu           identical e4853c2bd65a8dd55ca173e763c760d049e3e033
 number-field   identical e06ada48523542ad405cb6d94d079f9d48f3dc49
 radio          identical 55c60e97c67c855c553d64e423d544b87840ccb7
 select         identical 838f3108d76d86ecce9ec1f3e5219db7d6847a91
@@ -186,6 +198,11 @@ text-field     identical b3dd2e05fd3ac7f44f0a4e2f9ee7ae2f647b25d2
 # and the one file that belongs to no component directory
 group-schema-fields.ts identical 4308f0ed403e53879b312013b8534ddcba54ecc1
 ```
+
+`menu`'s tree sha changed from `91e19a06...` (the `389d02c` capture) to `e4853c2b...`
+above, which is the trigger-label fix and nothing else; every other directory's sha is
+unchanged from the first capture, confirming the rest of the tree did not move a second
+time.
 
 A tree object hashes the names, modes and blob contents of everything under it, so an
 identical tree sha means an identical set of files with identical bytes. Nothing about the
@@ -213,7 +230,7 @@ $ node <cli> diff menu
 
 ── menu/Menu.tsx ──
 
-[... 240 unchanged context lines elided ...]
+[... 178 unchanged context lines elided ...]
 
   			</Popover>
   		</MenuTrigger>
@@ -228,7 +245,7 @@ $ node scripts/check-a2ra-fidelity.mjs
 check-a2ra-fidelity: the vendored tree is not the pinned upstream tree (ADR-22):
 
   changed (content differs from upstream at the pin):
-    menu/Menu.tsx  (upstream 675e8457c374, here f3f0b5793fb1)
+    menu/Menu.tsx  (upstream 538da066a0ac, here 6e9010672da7)
 exit=1
 
 $ node <cli> add menu --overwrite   # restore from the registry
@@ -240,7 +257,7 @@ $ node <cli> diff
 ✓ All installed components are up to date.
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 389d02ce0629 (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ a571e83d574f (ADR-22).
 exit=0
 ```
 

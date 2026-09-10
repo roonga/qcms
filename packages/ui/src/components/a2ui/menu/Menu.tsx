@@ -53,8 +53,17 @@ interface MenuProps {
 	/**
 	 * Content for the trigger button, in place of the plain `triggerLabel` text: a glyph,
 	 * an icon, an avatar. The button itself is still this component's, so the keyboard
-	 * contract is unchanged. Pass `triggerLabel` alongside it - it becomes the button's
-	 * `aria-label`, which is the only name an icon-only trigger has.
+	 * contract is unchanged.
+	 *
+	 * `triggerLabel` becomes the button's `aria-label` only when it is given alongside
+	 * `trigger` - it is never defaulted in that branch. A `trigger` with its own visible,
+	 * readable text needs no `triggerLabel` at all: the button's accessible name then
+	 * comes from that content, which is the correct name and avoids a computed name that
+	 * disagrees with what is on screen (WCAG 2.5.3). An icon-only or `aria-hidden`
+	 * trigger has no readable content of its own, so it MUST get an explicit
+	 * `triggerLabel` or the button ends up with no accessible name at all - a gap an
+	 * accessibility scan catches, which is safer than the generic "Options" this used to
+	 * fall back to silently.
 	 */
 	readonly trigger?: ReactNode
 	/**
@@ -93,7 +102,7 @@ interface MenuProps {
 }
 
 export function Menu({
-	triggerLabel = "Options",
+	triggerLabel,
 	trigger,
 	menuLabel,
 	header,
@@ -118,9 +127,9 @@ export function Menu({
 		<MenuTrigger isOpen={isOpen} onOpenChange={onOpenChange}>
 			<Button
 				className={classNames?.trigger ?? styles.trigger}
-				{...(trigger !== undefined && { "aria-label": triggerLabel })}
+				{...(trigger !== undefined && triggerLabel !== undefined && { "aria-label": triggerLabel })}
 			>
-				{trigger ?? triggerLabel}
+				{trigger ?? triggerLabel ?? "Options"}
 			</Button>
 			<Popover placement={placement} className={classNames?.popover ?? styles.popover}>
 				{header !== undefined && (
