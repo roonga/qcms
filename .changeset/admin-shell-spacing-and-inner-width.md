@@ -1,6 +1,5 @@
 ---
 "qcms-admin": patch
-"create-qcms-app": patch
 ---
 
 Give the admin shell the section-padding token its POCs draw, and the inner width layer they
