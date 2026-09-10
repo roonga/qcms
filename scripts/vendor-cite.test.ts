@@ -8,6 +8,7 @@ import {
   checkCitation,
   citationsIn,
   collapse,
+  describeCitation,
   findPackageRoot,
   parseArgs,
   parseSpans,
@@ -260,6 +261,36 @@ describe("--expect", () => {
     expect(below.citations[0]?.expect).toBe("enabled");
   });
 
+  it("refuses an empty phrase instead of passing vacuously", () => {
+    // `"".includes` is true of every line there is, so an empty marker passed whatever
+    // the vendor did AND counted towards coverage - a marker that reads as checked and
+    // is not, which is worse than no marker at all.
+    const empty = citationsIn(`${cited} ${mark("")}`);
+    expect(empty.citations[0]?.expect).toBeNull();
+    expect(empty.problems).toEqual([expect.stringContaining("empty or too short")]);
+  });
+
+  it("refuses a phrase too short to assert anything, and takes the shortest that is", () => {
+    expect(citationsIn(`${cited} ${mark("{")}`).problems).toEqual([
+      expect.stringContaining("empty or too short"),
+    ]);
+    const enough = citationsIn(`${cited} ${mark("??\u0020isProduction")}`);
+    expect(enough.problems).toEqual([]);
+    expect(enough.citations[0]?.expect).toBe("?? isProduction");
+  });
+
+  it("refuses an expectation on a citation that names a path only", () => {
+    // There are no cited lines to check it against, and falling back to the whole file
+    // is a far weaker assertion wearing the same words.
+    const [citation] = citationsIn(`\`${CONTEXT_PATH}\` ${mark("isProduction")}`).citations;
+    expect(citation?.spans).toEqual([]);
+    expect(checkCitation(citation!, sourceOf(null, citation!.path), true).failure).toBe(
+      "an expectation needs a cited line; this citation names a path only",
+    );
+    // ... and the same citation without the flag is a perfectly good path check.
+    expect(checkCitation(citation!, sourceOf(null, citation!.path), false).failure).toBeNull();
+  });
+
   it("reports an expectation that binds to nothing rather than ignoring it", () => {
     // An expectation nothing checks is worse than none, because it reads like one that
     // is checked. Two lines below its citation is out of reach and says so.
@@ -335,6 +366,35 @@ describe("the abbreviated and line-only shapes", () => {
       path: backupCodes,
     });
     expect(resolveShorthand("nothing/like-it.mjs", earlier, () => false)).toBeNull();
+  });
+});
+
+describe("naming a citation in output", () => {
+  it("prints a scoped citation's owner once, not twice", () => {
+    // Echoing the written text produced the scope twice over, once as the owner and
+    // once inside the path it was resolved from.
+    const [citation] = citationsIn(`\`${CORE}/${ENV_PATH}:32\``).citations;
+    expect(describeCitation(citation!, CORE)).toBe(`${CORE} ${ENV_PATH}:32`);
+  });
+
+  it("names the resolved path of an abbreviation, and what the file actually wrote", () => {
+    const backupCodes = `${DIST}/plugins/two-factor/backup-codes/index.mjs`;
+    const { citations } = citationsIn(
+      `\`${backupCodes}:1\` and \`${ABBREV}/backup-codes/index.mjs:215\``,
+    );
+    expect(describeCitation(citations[1]!, MAIN)).toBe(
+      `${MAIN} ${backupCodes}:215 (written \`${ABBREV}/backup-codes/index.mjs:215\`)`,
+    );
+  });
+
+  it("says when a citation names a path and no line", () => {
+    const [citation] = citationsIn(`\`${CONTEXT_PATH}\``).citations;
+    expect(describeCitation(citation!, MAIN)).toBe(`${MAIN} ${CONTEXT_PATH} (path only)`);
+  });
+
+  it("renders a comma list and a range the way they were written", () => {
+    const [citation] = citationsIn(`\`${CONTEXT_PATH}:1,3-4\``).citations;
+    expect(describeCitation(citation!, MAIN)).toBe(`${MAIN} ${CONTEXT_PATH}:1,3-4`);
   });
 });
 

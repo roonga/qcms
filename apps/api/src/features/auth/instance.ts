@@ -83,19 +83,19 @@ import type { Logger } from "../../logger.js";
  * break-glass gap it narrows is issue #432's, which has no reset command either way.
  *
  * Both stored factors are **ciphertext under the admin auth secret**: the TOTP secret
- * (`dist/plugins/two-factor/index.mjs:135-138` <!-- expect: const encryptedSecret = await symmetricEncrypt( -->) and the recovery codes
- * (`.../backup-codes/index.mjs:19-22` <!-- expect: storeBackupCodes === "encrypted" -->). That used to make `QCMS_ADMIN_AUTH_SECRET` a
+ * (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes
+ * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> That used to make `QCMS_ADMIN_AUTH_SECRET` a
  * key nobody could change without destroying every enrolment, which task 056 recorded
  * as permanent. It is not permanent any more: better-auth 1.7.3 carries a versioned
  * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
  * version, keeps the old one for reading, and stored material re-encodes under the
  * current version as it is used. Recovery-code blobs re-encode on **every redemption**
- * (`.../backup-codes/index.mjs:215` <!-- expect: encodeBackupCodes(validate.updated -->). `docs/operations.md` carries the runbook, and
+ * (`.../backup-codes/index.mjs:215`). <!-- expect: encodeBackupCodes(validate.updated --> `docs/operations.md` carries the runbook, and
  * §4 of `docs/SECURITY_DESIGN.md` carries what it does and does not reach.
  *
  * Rotation is still not free of consequence, and the runbook says so: better-auth
  * derives its cookie-signing secret from the *current* version
- * (`dist/context/create-context.mjs:76` <!-- expect: secret = secretsArray[0].value -->), so promoting a new version signs every live
+ * (`dist/context/create-context.mjs:76`), <!-- expect: secret = secretsArray[0].value --> so promoting a new version signs every live
  * admin out. That is the correct trade for a key change and is a world away from what
  * it replaced, which was every authenticator dying with no way back in.
  */
@@ -186,7 +186,7 @@ export function warnIfBreachCheckDisabled(
  * Every field comes from `await auth.$context`, which is the object the limiter itself
  * consults: in better-auth 1.7.3, `dist/api/rate-limiter/index.mjs:290` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
  * `ctx.rateLimit.enabled`, and
- * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206` <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS -->) reads the header list off
+ * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS --> reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
  * would report what was asked for, which is exactly the thing already known and exactly
  * the thing that can be wrong.
@@ -202,10 +202,10 @@ export function warnIfBreachCheckDisabled(
  * ## What is deliberately not in here
  *
  * The **numbers**. In better-auth 1.7.3 the sign-in rule is three attempts per ten
- * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:302-308` <!-- expect: window: 10, max: 3 -->, matching
+ * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:302-308`, <!-- expect: window: 10, max: 3 --> matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
- * (`dist/plugins/two-factor/index.mjs:338-344` <!-- expect: path.startsWith("/two-factor/") -->). Neither is reachable from the resolved
+ * (`dist/plugins/two-factor/index.mjs:338-344`). <!-- expect: path.startsWith("/two-factor/") --> Neither is reachable from the resolved
  * context: both are module-private to the vendor. Restating them here would be an
  * inference printed as an observation, which is the failure mode this whole function
  * exists to avoid, so they stay in this comment where a reader can see them sourced.

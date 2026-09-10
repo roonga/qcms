@@ -72,6 +72,15 @@
  * A whole sentence of vendor source is a phrase that will churn for reasons that do not
  * matter.
  *
+ * Three ways an expectation is refused rather than believed, all of them fail-closed
+ * because a marker that reads as checked and is not is worse than no marker. One that
+ * **binds to no citation** is a failure, not a shrug. One whose **phrase is empty or
+ * under {@link MIN_PHRASE} characters** is a failure: the empty string is contained by
+ * every line there is, so such a marker passes whatever the vendor did while still
+ * counting towards coverage. And one on a **path-only citation** is a failure, because
+ * the phrase is checked against the cited lines and there are none; searching the whole
+ * file instead would be a far weaker check wearing the same words.
+ *
  * ## What it cannot see
  *
  *   - **Whether the sentence is true.** It checks that a path opens, a line exists, and
@@ -154,8 +163,28 @@ const SHORTHAND = new RegExp(String.raw`\`\.\.\.\/(${PATH_CHARS}+\.${EXT})(?::($
 /** A line-only citation, which must likewise be the whole of a backticked span. */
 const LINE_ONLY = new RegExp(String.raw`\`:(${LINES})\``, "g");
 
-/** An expectation marker, in the one comment syntax Markdown and JSDoc share. */
-const EXPECT = /<!--\s*expect:\s*(.+?)\s*-->/g;
+/**
+ * An expectation marker, in the one comment syntax Markdown and JSDoc share.
+ *
+ * The phrase is `.*?` rather than `.+?` on purpose. With `.+?` an empty marker still
+ * matched, the lazy group taking the separating space, and a phrase that collapses to
+ * the empty string passes `includes` against anything at all: a vacuous expectation
+ * that counted towards coverage and would have gone on reading as a checked one. It has
+ * to be matched to be reported, so it is matched and then refused.
+ */
+const EXPECT = /<!--\s*expect:\s*(.*?)\s*-->/g;
+
+/**
+ * The shortest phrase worth asserting, in characters, after {@link collapse}.
+ *
+ * Three, which refuses the empty marker and the one-or-two-character phrase that is
+ * vacuous for the same reason an empty one is: `{` occurs in every vendor file here.
+ * Nothing above that is judged, and deliberately not. "Is `better-auth` a weak phrase
+ * for this citation?" is a real question and a regex cannot answer it honestly; a
+ * length floor that pretended to would just move the vacuous case up by a few
+ * characters. That judgement belongs to whoever reviews the marker.
+ */
+export const MIN_PHRASE = 3;
 
 /**
  * @typedef {object} Span
@@ -306,6 +335,15 @@ export function citationsIn(text, exists = () => false) {
       bound = line - lineOf(end) <= 1 ? i : -1;
       break;
     }
+    const phrase = collapse(/** @type {string} */ (m[1]));
+    if (phrase.length < MIN_PHRASE) {
+      problems.push(
+        `${String(line)}: expectation "${String(m[1])}" is empty or too short to assert ` +
+          `anything (${String(MIN_PHRASE)} characters minimum). An empty phrase is contained ` +
+          `by every line there is, so it would pass whatever the vendor did.`,
+      );
+      continue;
+    }
     if (bound === -1) {
       problems.push(
         `${String(line)}: expectation "${String(m[1])}" follows no citation. An expectation ` +
@@ -446,13 +484,53 @@ export function checkCitation(citation, source, enforceExpect) {
     }
   }
   if (enforceExpect && citation.expect !== null) {
+    if (citation.spans.length === 0) {
+      // The phrase is checked against the CITED LINES, which is what makes it an
+      // assertion about a line rather than about a file. Falling back to the whole file
+      // for a path-only citation would be a much weaker check wearing the same words:
+      // a phrase occurring anywhere in a two-hundred-line module says almost nothing
+      // about the sentence the citation supports. Cite the line instead.
+      return {
+        failure: "an expectation needs a cited line; this citation names a path only",
+        shown,
+      };
+    }
     const cited = citation.spans.flatMap((span) => source.slice(span.from - 1, span.to));
-    const haystack = collapse(cited.length > 0 ? cited.join("\n") : source.join("\n"));
+    const haystack = collapse(cited.join("\n"));
     if (!haystack.includes(collapse(citation.expect))) {
       return { failure: `does not contain "${citation.expect}"`, shown };
     }
   }
   return { failure: null, shown };
+}
+
+/**
+ * How a citation is named in output: its owning package once, then the path that
+ * package was asked for, then the lines.
+ *
+ * It is built from the RESOLVED path rather than echoed from the text. Echoing the text
+ * printed a scoped citation's owner twice (`@better-auth/core @better-auth/core/dist/...`)
+ * and told a reader nothing at all about an abbreviated one, which is written `.../tail`
+ * and resolved elsewhere. Where the two differ, the text is shown after the resolution
+ * so the line can still be found in the citing file.
+ *
+ * @param {Citation} citation
+ * @param {string} owner package the citation was read against
+ * @returns {string}
+ */
+export function describeCitation(citation, owner) {
+  const spans = citation.spans
+    .map((span) =>
+      span.from === span.to ? String(span.from) : `${String(span.from)}-${String(span.to)}`,
+    )
+    .join(",");
+  const at = spans === "" ? " (path only)" : `:${spans}`;
+  const canonical = `${citation.pkg === null ? "" : `${citation.pkg}/`}${citation.path}${spans === "" ? "" : `:${spans}`}`;
+  // The abbreviated and line-only shapes are matched with their delimiting backticks;
+  // stripping them keeps exactly one pair around the quoted text.
+  const raw = citation.raw.replaceAll("`", "");
+  const written = raw === canonical ? "" : ` (written \`${raw}\`)`;
+  return `${owner} ${citation.path}${at}${written}`;
 }
 
 /**
@@ -591,16 +669,17 @@ export function main(args) {
       const owner = citation.pkg ?? options.pkg;
       const source = sourceOf(citation.pkg, citation.path);
       const { failure, shown } = checkCitation(citation, source, options.expect);
-      const heading = `  ${owner} ${citation.path}${citation.spans.length === 0 ? " (path only)" : ""}`;
+      const described = describeCitation(citation, owner);
       if (failure !== null) {
         const elsewhere = otherOwner(citation, owner, exists);
         failures.push(
           `  ${file}:${String(citation.line)}\n` +
-            `    ${owner} ${citation.raw}: ${failure}` +
+            `    ${described}: ${failure}` +
             (elsewhere === null ? "" : `\n    it does exist in ${elsewhere} - wrong package`),
         );
         continue;
       }
+      const heading = `  ${described}`;
       if (options.quiet) continue;
       console.log(`${file}:${String(citation.line)}`);
       console.log(citation.expect === null ? heading : `${heading}  expect: ${citation.expect}`);
