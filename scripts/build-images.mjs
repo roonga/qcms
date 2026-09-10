@@ -51,10 +51,21 @@
  * checked for an attestation manifest, because "the local copy had an SBOM" and "the
  * registry copy has one" are different claims and only the second one is what an
  * adopter pulls.
+ *
+ * ## Keeping the attestations (issue #342)
+ *
+ * `--attestations <dir>` writes each image's in-toto documents out as plain JSON,
+ * one file per predicate, under `<dir>/<image>/`. The `Images` workflow passes it and
+ * uploads the result, because until then the SBOM was generated, asserted and then
+ * discarded with the runner: the question it exists to answer stopped being answerable
+ * the moment the job finished. The documents rather than the OCI directories they come
+ * out of, because the size difference is what makes keeping them free: measured on the
+ * three images at the time this landed, 9 MB of attestations against 376 MB of OCI
+ * layers, and nobody re-pulls an image out of a workflow artifact.
  */
 
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
@@ -117,14 +128,26 @@ export function imageVersion(env = process.env) {
  * `0.0.1-alpha.0+83fa947` is correct SemVer (`+` introduces build metadata) and an
  * illegal image reference: a tag is `[A-Za-z0-9_][A-Za-z0-9._-]{0,127}`, with no `+`.
  * The label keeps the true version, because that is the field an adopter reads to
- * identify a build; only the tag is rewritten, and `+` becomes `-` rather than being
- * dropped so the SHA stays visible in `docker images`.
+ * identify a build; only the tag is rewritten.
+ *
+ * `+` becomes `_`, and the choice is injectivity rather than taste (issue #342). `-`
+ * is legal in a SemVer version, so `1.0.0+build.5` and `1.0.0-build.5` are two
+ * different releases that both used to produce the tag `1.0.0-build.5`: the second
+ * build silently moved the first one's tag. `_` cannot appear in a SemVer version at
+ * all and is a legal tag character, so the rewrite is one-to-one for every version
+ * this can be handed.
+ *
+ * The previous comment here justified `-` by saying the SHA "stays visible in
+ * `docker images`". That was never true of this script: {@link buildImage} exports
+ * with `--output type=oci,dest=...`, so the image never enters the local daemon store
+ * and `docker images` never lists it. The tag is read off the OCI descriptor, or off
+ * the registry after {@link pushImage}.
  *
  * @param {string} version
  * @returns {string}
  */
 export function imageTag(version) {
-  return version.replaceAll("+", "-");
+  return version.replaceAll("+", "_");
 }
 
 /** Create the docker-container builder if it is not already there. */
@@ -135,39 +158,137 @@ export function ensureBuilder() {
 }
 
 /**
+ * Where one blob of an OCI directory layout lives on disk.
+ *
+ * @param {string} directory
+ * @param {string} digest
+ * @returns {string}
+ */
+function ociBlobPath(directory, digest) {
+  return join(directory, "blobs", "sha256", digest.replace("sha256:", ""));
+}
+
+/**
+ * @param {string} directory
+ * @param {string} digest
+ * @returns {any}
+ */
+function readOciBlob(directory, digest) {
+  return JSON.parse(readFileSync(ociBlobPath(directory, digest), "utf8"));
+}
+
+/**
+ * Every manifest the artifact's index points at, paired with its descriptor.
+ *
+ * One walk, two readers: {@link inspectOciArtifact} wants the labels and the predicate
+ * types, {@link attestationBlobs} wants the blobs themselves. Writing the traversal
+ * twice is how the two would come to disagree about which entry is the attestation.
+ *
+ * @param {string} directory
+ * @returns {{ entry: any, manifest: any }[]}
+ */
+function ociManifests(directory) {
+  const index = JSON.parse(readFileSync(join(directory, "index.json"), "utf8"));
+  const manifestList = readOciBlob(directory, index.manifests[0].digest);
+  return manifestList.manifests.map((/** @type {any} */ entry) => ({
+    entry,
+    manifest: readOciBlob(directory, entry.digest),
+  }));
+}
+
+/** The annotation buildx puts on each in-toto layer, naming what that layer asserts. */
+const PREDICATE_ANNOTATION = "in-toto.io/predicate-type";
+
+/**
  * Read an OCI directory layout and return the descriptors that matter.
  *
  * @param {string} directory
  * @returns {{ labels: Record<string, string>, predicates: string[] }}
  */
 export function inspectOciArtifact(directory) {
-  /** @param {string} digest */
-  const blob = (digest) =>
-    JSON.parse(
-      readFileSync(join(directory, "blobs", "sha256", digest.replace("sha256:", "")), "utf8"),
-    );
-
-  const index = JSON.parse(readFileSync(join(directory, "index.json"), "utf8"));
-  const manifestList = blob(index.manifests[0].digest);
-
   /** @type {string[]} */
   const predicates = [];
   /** @type {Record<string, string>} */
   let labels = {};
 
-  for (const entry of manifestList.manifests) {
-    const manifest = blob(entry.digest);
+  for (const { entry, manifest } of ociManifests(directory)) {
     if (entry.platform?.architecture === "unknown") {
       // The attestation manifest: one in-toto layer per predicate.
       for (const layer of manifest.layers ?? []) {
-        const predicate = layer.annotations?.["in-toto.io/predicate-type"];
+        const predicate = layer.annotations?.[PREDICATE_ANNOTATION];
         if (predicate !== undefined) predicates.push(predicate);
       }
       continue;
     }
-    labels = blob(manifest.config.digest).config?.Labels ?? {};
+    labels = readOciBlob(directory, manifest.config.digest).config?.Labels ?? {};
   }
   return { labels, predicates };
+}
+
+/**
+ * The in-toto attestation blobs in an artifact, each with the predicate it asserts.
+ *
+ * @param {string} directory
+ * @returns {{ predicate: string, path: string }[]}
+ */
+export function attestationBlobs(directory) {
+  /** @type {{ predicate: string, path: string }[]} */
+  const found = [];
+  for (const { entry, manifest } of ociManifests(directory)) {
+    if (entry.platform?.architecture !== "unknown") continue;
+    for (const layer of manifest.layers ?? []) {
+      const predicate = layer.annotations?.[PREDICATE_ANNOTATION];
+      if (predicate !== undefined) {
+        found.push({ predicate, path: ociBlobPath(directory, layer.digest) });
+      }
+    }
+  }
+  return found;
+}
+
+/**
+ * A predicate type as a file name: `https://spdx.dev/Document` becomes
+ * `spdx.dev-Document.json`.
+ *
+ * The scheme goes and the path separators become hyphens, so the name is legal on
+ * every filesystem a CI artifact is unpacked on and still says which predicate it is.
+ *
+ * @param {string} predicate
+ * @returns {string}
+ */
+export function attestationFileName(predicate) {
+  return `${predicate.replace(/^https?:\/\//, "").replaceAll("/", "-")}.json`;
+}
+
+/**
+ * Write one image's attestation blobs out as plain JSON files (issue #342).
+ *
+ * The SBOM and the provenance were generated, asserted and then thrown away with the
+ * runner: nothing uploaded them, so "what was in that build" - the question an SBOM
+ * exists to answer - stopped being answerable the moment the job finished. This is
+ * the cheapest thing that fixes it: the in-toto documents are the part anyone reads,
+ * and on the three images at the time this landed they were 9 MB against the OCI
+ * directories' 376 MB.
+ *
+ * The destination is removed before each copy. A blob in an OCI layout is written
+ * read-only (0444), and `copyFileSync` inherits that mode, so a second run into the
+ * same directory would fail with EACCES on a file this function itself wrote - which
+ * is exactly what a local `pnpm qcms:build-images --attestations` twice in a row is.
+ *
+ * @param {string} directory the OCI directory this image was exported to.
+ * @param {string} name the image name, which becomes the subdirectory.
+ * @param {string} outputRoot where to write.
+ * @returns {string[]} the files written.
+ */
+export function saveAttestations(directory, name, outputRoot) {
+  const target = join(outputRoot, name);
+  mkdirSync(target, { recursive: true });
+  return attestationBlobs(directory).map(({ predicate, path }) => {
+    const file = join(target, attestationFileName(predicate));
+    rmSync(file, { force: true });
+    copyFileSync(path, file);
+    return file;
+  });
 }
 
 /**
@@ -321,8 +442,11 @@ export function attestationManifestCount(rawManifestList) {
  * @param {{ name: string, dockerfile: string }} image
  * @param {string} version
  * @param {string} outputRoot
+ * @param {string | undefined} attestationRoot where to copy the in-toto documents, if
+ *   anywhere. Written only after {@link assertArtifact} has passed, so a saved
+ *   attestation is always one this run also verified.
  */
-export function buildImage(image, version, outputRoot) {
+export function buildImage(image, version, outputRoot, attestationRoot) {
   const destination = join(outputRoot, image.name);
   runProcess(
     DOCKER,
@@ -335,6 +459,10 @@ export function buildImage(image, version, outputRoot) {
   process.stdout.write(
     `build-images: ${image.name} ${version} - SBOM, provenance and stamp present\n`,
   );
+  if (attestationRoot === undefined) return;
+  for (const file of saveAttestations(destination, image.name, attestationRoot)) {
+    process.stdout.write(`build-images: wrote ${file}\n`);
+  }
 }
 
 /**
@@ -386,14 +514,17 @@ function valueAfter(argv, flagIndex, flag, example) {
 }
 
 /**
- * Read `--output`, `--push` and the repeatable `--tag` out of the argument vector.
+ * Read `--output`, `--push`, `--attestations` and the repeatable `--tag` out of the
+ * argument vector.
  *
  * @param {string[]} argv
- * @returns {{ outputRoot: string, namespace: string | undefined, tags: string[] }}
+ * @returns {{ outputRoot: string, namespace: string | undefined, tags: string[],
+ *   attestationRoot: string | undefined }}
  */
 export function parseArgv(argv) {
   const outputIndex = argv.indexOf("--output");
   const pushIndex = argv.indexOf("--push");
+  const attestationsIndex = argv.indexOf("--attestations");
   /** @type {string[]} */
   const tags = [];
   for (let index = 0; index < argv.length; index += 1) {
@@ -409,11 +540,15 @@ export function parseArgv(argv) {
     outputIndex === -1
       ? join(REPOSITORY_ROOT, "dist-images")
       : valueAfter(argv, outputIndex, "--output", "--output ./dist-images");
-  return { outputRoot, namespace, tags };
+  const attestationRoot =
+    attestationsIndex === -1
+      ? undefined
+      : valueAfter(argv, attestationsIndex, "--attestations", "--attestations ./dist-attestations");
+  return { outputRoot, namespace, tags, attestationRoot };
 }
 
 export function main(argv = process.argv.slice(2)) {
-  const { outputRoot, namespace, tags } = parseArgv(argv);
+  const { outputRoot, namespace, tags, attestationRoot } = parseArgv(argv);
   const version = imageVersion();
   process.stdout.write(`build-images: version ${version}\n`);
   ensureBuilder();
@@ -421,7 +556,7 @@ export function main(argv = process.argv.slice(2)) {
     if (!existsSync(join(REPOSITORY_ROOT, image.dockerfile))) {
       throw new Error(`build-images: ${image.dockerfile} is missing`);
     }
-    buildImage(image, version, outputRoot);
+    buildImage(image, version, outputRoot, attestationRoot);
     if (namespace !== undefined) pushImage(image, version, namespace, tags);
   }
   process.stdout.write(

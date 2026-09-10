@@ -24,6 +24,38 @@ credential of their own. That is a control, not an accident: after task 056 the 
 is the sole domain-data client, so a compromised BFF cannot read the database
 directly. The admin's import-surface test refuses a database import outright.
 
+### What is in the images
+
+All three are two-stage builds on one digest-pinned `node:24-bookworm-slim` base. The
+build stage installs the whole workspace and compiles it; the runtime stage receives
+only what the process needs, runs as the unprivileged `node` user, and listens on 3000
+inside the container. Every image carries `org.opencontainers.image.title`, `.version`
+and `.source`; `pnpm qcms:build-images` stamps a real version (the workspace version
+plus the short commit, marked when the tree was dirty) and attaches an SBOM and SLSA
+provenance attestation, which is what the `Images` workflow runs before it publishes
+`ghcr.io/<owner>/qcms-<app>` under the full commit SHA and `latest` from `main`.
+
+The two Next front ends ship **Next's standalone output** (issue #291,
+[`output: "standalone"`](https://nextjs.org/docs/app/api-reference/config/next-config-js/output)).
+`next build` traces the modules the server actually loads and writes them, with a
+minimal `server.js`, under `apps/<app>/.next/standalone`; the runtime stage copies that
+tree and the `.next/static` directory Next deliberately leaves out of it, and nothing
+else. There is no dependency install in the runtime stage, no second copy of the
+workspace, and no copy of the build's `.next/cache`. Two things follow that an operator
+can see from outside:
+
+- **The command is `node apps/portal/server.js`** (or `apps/admin/server.js`), not
+  `next start`. The minimal server takes no flags, so the bind address and the port
+  are read from `HOSTNAME` and `PORT`, which the images set to `0.0.0.0` and `3000`.
+  Overriding `PORT` moves the listener, and the image's own `HEALTHCHECK` still dials
+  3000, so move the published port instead (`QCMS_PORTAL_PORT`, `QCMS_ADMIN_PORT`).
+- **The front-end images are roughly a quarter of their previous size**, because what
+  used to reach the runtime stage was a pruned production install of the whole app
+  plus every byte of `.next`, cache included.
+
+Nothing else about the contract moved: the same variables, the same port, the same
+non-root user, the same healthcheck paths in the table below.
+
 ### Outbound network the API needs
 
 Two destinations, both from `qcms-api` only, and both worth knowing before you write
