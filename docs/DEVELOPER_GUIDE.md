@@ -208,7 +208,7 @@ enrollment for development; the API reads the same variable, so relaxing it in o
 only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`
 split described next, from day one.
 
-**Adding a screen to the admin?** `apps/admin/app/(shell)/AGENTS.md` names the five places
+**Adding a screen to the admin?** `apps/admin/app/(shell)/AGENTS.md` names the six places
 a route is registered in and the conventions that go with them, and
 `apps/admin/lib/route-registration.test.ts` fails naming every one a new route has missed
 (issue #700).
