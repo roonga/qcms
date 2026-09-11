@@ -48,6 +48,8 @@ import {
   withoutTrailingSlash,
 } from "../../../../scripts/ports.mjs";
 
+import { hostLineOnce } from "./host-pressure.js";
+
 export {
   DEFAULT_PORT_SEAT,
   HARNESS_SERVICES,
@@ -349,6 +351,7 @@ export function assertSeatPortsUsable(
   repoRoot: string = HARNESS_REPO_ROOT,
   occupants: readonly SeatPortOccupant[] = seatOccupants(seat),
   probe: ReadinessProbe = probeServiceReady,
+  hostLine: () => string = hostLineOnce,
 ): void {
   const refused = occupants
     .map((occupant) => ({ occupant, refusal: adoptionRefusal(occupant, repoRoot, probe) }))
@@ -359,6 +362,11 @@ export function assertSeatPortsUsable(
     [
       `Port seat ${String(seat)} is not usable from ${repoRoot}:`,
       ...refused.map((entry) => describeOccupant(entry.occupant, entry.refusal)),
+      // What the machine looked like when the seat was refused (issue #395). The refusal
+      // above says the seat is taken; this says whether the machine is also full, which is
+      // what decides between "move to a free seat and go" and "another lane is mid-run and
+      // a free seat buys a slower suite rather than a green one".
+      `  ${hostLine()}`,
       "",
       `Pick a free seat with ${PORT_SEAT_ENV_VAR}=<${String(MIN_PORT_SEAT)}-${String(MAX_PORT_SEAT)}>`,
       "(seat S owns 7S00-7S99 and 17S00-17S99), or stop whatever is holding these",

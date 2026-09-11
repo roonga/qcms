@@ -36,6 +36,7 @@ import {
   TEST_POSTGRES_IMAGE,
   type TestDb,
 } from "./harness.js";
+import { HOST_SNAPSHOT_PREFIX } from "./host-snapshot.js";
 
 /** How many transactions to run at once. Below the node-postgres default pool size. */
 const CONCURRENCY = 4;
@@ -319,6 +320,65 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
           Promise.reject(new Error("connect ECONNREFUSED /var/run/docker.sock")),
       });
       expect(second?.message).not.toContain("not retried");
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
+
+/**
+ * Issue #812. A boot that fails under host contention fails on a message about a port:
+ * `not bound after 210000ms`, naming the ephemeral port Docker had just mapped and
+ * nothing about the eleven other `postgres:16-alpine` boots that were queued on the same
+ * daemon. During waves 11 to 13 a forced Docker-backed run went red roughly one time in
+ * three that way, always in a file the branch did not touch and always green in
+ * isolation, and the only way to tell contention from a defect was to re-run the suite.
+ *
+ * So every container-start failure now carries one line saying what the machine looked
+ * like. This is the Docker-backed half of the proof: the unit tests pin the formatter
+ * against a fake `docker ps`, and this asserts that the real probe reaches the real error
+ * path and reads the real daemon. The failure is simulated with an unservable registry
+ * rather than by loading the machine, because a test that produced contention would be a
+ * test that caused it.
+ */
+describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
+  /** Its own image reference, so this test exercises the fresh path, not the cache. */
+  const SNAPSHOT_PROBE_IMAGE = "localhost:1/qcms-host-snapshot-probe:16-alpine";
+
+  it(
+    "says what the host was doing beside the failure it is already reporting",
+    async () => {
+      const failure = await captureStartFailure({ image: SNAPSHOT_PROBE_IMAGE });
+
+      expect(failure?.message).toContain(HOST_SNAPSHOT_PREFIX);
+      // The daemon was really asked: these numbers come from a `docker ps` on the machine
+      // running this test, not from a placeholder.
+      expect(failure?.message).toMatch(/docker \d+ running, \d+ Testcontainers across \d+ session/);
+      // And the kernel was really read, or said so plainly when it could not be.
+      expect(failure?.message).toMatch(/load (?:\d+\.\d\d\/|unknown)/);
+      // The snapshot is additive: the diagnosis it hangs off is untouched, and the
+      // snapshot is one line rather than a block that pushes it off the screen.
+      expect(failure?.message).toContain("Could not PULL the test Postgres image");
+      expect(failure?.message).toContain(SNAPSHOT_PROBE_IMAGE);
+      const snapshot = failure?.message.split("\n").filter((line) => line.startsWith("  host:"));
+      expect(snapshot).toHaveLength(1);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "takes a fresh reading on the fail-fast replay rather than repeating a stale one",
+    async () => {
+      // The cached message is the diagnosis (issue #74's fail-fast), and the machine has
+      // moved on since it was written. A snapshot frozen into that cache would report the
+      // host as it stood at some earlier file's failure, which is the exact failure mode
+      // CONTRIBUTING warns about for gate logs: a stale reading is indistinguishable from
+      // a current one.
+      const failure = await captureStartFailure({ image: SNAPSHOT_PROBE_IMAGE });
+
+      expect(failure?.message).toContain("not retried");
+      expect(failure?.message).toContain(HOST_SNAPSHOT_PREFIX);
+      const snapshot = failure?.message.split("\n").filter((line) => line.startsWith("  host:"));
+      expect(snapshot).toHaveLength(1);
     },
     CONTAINER_BOOT_TIMEOUT_MS,
   );

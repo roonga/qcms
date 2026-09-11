@@ -359,6 +359,24 @@ describe("assertSeatPortsUsable", () => {
     ).toThrow("unidentified process");
   });
 
+  it("says what the machine was doing when it refused (issue #395)", () => {
+    // The refusal already says the seat is taken. What a reader cannot tell from that is
+    // whether moving to a free seat will get them a green run or a slower one: a machine
+    // carrying four other lanes' containers is a machine where the next seat is no
+    // quieter. The probe is injected here so the unit suite spawns no `docker ps`.
+    const call = () =>
+      assertSeatPortsUsable(
+        0,
+        "/repo/qcms",
+        [occupant({ pid: 4242, cwd: "/repo/qcms-other-worktree" })],
+        neverReady,
+        () => "host: load 18.42 over 8 cpus; containers 14 running, 11 Testcontainers",
+      );
+
+    expect(call).toThrow("pid 4242");
+    expect(call).toThrow("11 Testcontainers");
+  });
+
   it("never adopts the API or the OTLP receiver, even from this worktree", () => {
     // Both are bound by the Playwright runner process itself, once per run. A live
     // listener on either is a leak or a concurrent run, never something to join.
