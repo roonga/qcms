@@ -192,6 +192,36 @@ describe("ContentionReporter", () => {
     expect(printed.join("")).not.toContain("cross-lane contention report");
   });
 
+  it("says at the start when the machine is busy and no other seat is taken", () => {
+    // Issue #395's second occurrence. The competing lanes were running `turbo run test`,
+    // so no seat port was held and the first version of this reporter printed nothing at
+    // all - over the most contended machine of the night.
+    const printed: string[] = [];
+    const crowded: HostSnapshot = {
+      ...QUIET,
+      load: { oneMinute: 18.42, fiveMinute: 12.1, fifteenMinute: 9.03, cpus: 8 },
+      containers: { running: 14, testcontainers: 11, sessions: 4, qcmsStacks: 1 },
+    };
+    const reporter = new ContentionReporter({
+      seat: 4,
+      write: (text) => printed.push(text),
+      snapshotHost: () => crowded,
+    });
+
+    reporter.onBegin();
+    reporter.onTestEnd(testCase("signs in", "unexpected"), failedResult());
+    reporter.onEnd();
+
+    const output = printed.join("");
+    expect(output).toContain("seat 4 holds its own ports, but this machine is NOT quiet");
+    expect(output).toContain("THE MACHINE WAS NOT QUIET");
+    expect(output).toContain("Testcontainers sessions on the shared daemon");
+    // The failure carries no contention signature at all, so before this branch existed
+    // the end-of-run report read "nothing here argues against reading these failures as
+    // this branch's own" over eleven foreign containers.
+    expect(output).toContain("This run was not alone");
+  });
+
   it("degrades to an unknown snapshot rather than throwing out of a Playwright hook", () => {
     const printed: string[] = [];
     const reporter = new ContentionReporter({

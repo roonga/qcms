@@ -7,13 +7,12 @@ import {
   mergeNeighbours,
   neighbourStacks,
   otherSeats,
-  parseContainerCensus,
-  parseLoadAverage,
   renderContentionReport,
   renderStartNotice,
   type HostSnapshot,
   type NeighbourStack,
 } from "./contention.js";
+import { hostPressure, type ContainerCensus } from "./host-pressure.js";
 
 /**
  * What the contention report is allowed to claim (issue #395).
@@ -42,53 +41,24 @@ const EMPTY: HostSnapshot = {
   containers: undefined,
 };
 
-describe("parseLoadAverage", () => {
-  it("reads the three averages the kernel writes", () => {
-    expect(parseLoadAverage("6.65 8.19 5.60 1/1847 165281\n", 24)).toEqual({
-      oneMinute: 6.65,
-      fiveMinute: 8.19,
-      fifteenMinute: 5.6,
-      cpus: 24,
-    });
-  });
+/**
+ * Waves 11 to 13, as the daemon and the kernel saw them: eleven Testcontainers across four
+ * sessions and a run queue at more than twice the CPU count, with not one seat port taken
+ * because the other lanes were running `turbo run test` rather than a browser suite.
+ */
+const CROWDED_DAEMON: ContainerCensus = {
+  running: 14,
+  testcontainers: 11,
+  sessions: 4,
+  qcmsStacks: 1,
+};
 
-  it("reports unknown rather than zero when the file is not what it expects", () => {
-    // Zero is a real load figure. A parse failure rendered as one would read as "the
-    // machine was idle" in the very report someone is using to decide whether it was.
-    expect(parseLoadAverage("", 8)).toBeUndefined();
-    expect(parseLoadAverage("not a load average at all", 8)).toBeUndefined();
-    expect(parseLoadAverage("1.0 2.0", 8)).toBeUndefined();
-  });
-});
-
-describe("parseContainerCensus", () => {
-  it("counts running containers, Testcontainers among them, and QCMS stacks", () => {
-    const census = parseContainerCensus(
-      [
-        "qcms-local-stack-api-1\t",
-        "qcms-dev-s1-postgres-1\t",
-        "relaxed_bell\t9f2c1c4e-0000-4000-8000-000000000001",
-        "sig-pilot-db-1\t",
-      ].join("\n"),
-    );
-    expect(census).toEqual({ running: 4, testcontainers: 1, qcmsStacks: 2 });
-  });
-
-  it("treats Docker's empty-label placeholder as no label", () => {
-    // `docker ps` prints `<no value>` for a label a container does not carry, and a
-    // census that counted that string would report every container as Testcontainers.
-    expect(parseContainerCensus("some_container\t<no value>\n")).toEqual({
-      running: 1,
-      testcontainers: 0,
-      qcmsStacks: 0,
-    });
-  });
-
-  it("reads an empty daemon as empty rather than as one blank container", () => {
-    expect(parseContainerCensus("")).toEqual({ running: 0, testcontainers: 0, qcmsStacks: 0 });
-    expect(parseContainerCensus("\n\n")).toEqual({ running: 0, testcontainers: 0, qcmsStacks: 0 });
-  });
-});
+const CROWDED: HostSnapshot = {
+  at: "1970-01-01T00:00:00.000Z",
+  load: { oneMinute: 18.42, fiveMinute: 12.1, fifteenMinute: 9.03, cpus: 8 },
+  neighbours: [],
+  containers: CROWDED_DAEMON,
+};
 
 describe("otherSeats", () => {
   it("covers every seat except this run's own", () => {
@@ -218,6 +188,15 @@ describe("renderStartNotice", () => {
     expect(notice).toContain("seats 3, 7");
     expect(notice).toContain("Docker daemon and the CPU are not");
   });
+
+  it("still warns when the machine is busy and no other seat is taken", () => {
+    // The warning is worth more at the start than at the end: fifteen minutes before the
+    // red, waiting is still a choice the reader can make.
+    const notice = renderStartNotice(1, [], hostPressure(CROWDED.load, CROWDED.containers).reasons);
+
+    expect(notice).toContain("seat 1 holds its own ports, but this machine is NOT quiet");
+    expect(notice).toContain("Testcontainers sessions on the shared daemon");
+  });
 });
 
 describe("renderContentionReport", () => {
@@ -290,7 +269,7 @@ describe("renderContentionReport", () => {
       at: "1970-01-01T00:00:00.000Z",
       load: { oneMinute: 12, fiveMinute: 8, fifteenMinute: 4, cpus: 24 },
       neighbours: [],
-      containers: { running: 9, testcontainers: 2, qcmsStacks: 6 },
+      containers: { running: 9, testcontainers: 2, sessions: 1, qcmsStacks: 6 },
     };
     const report = renderContentionReport({
       seat: 1,
@@ -299,8 +278,88 @@ describe("renderContentionReport", () => {
       failures: failing,
     });
     expect(report).toContain("12.00 / 8.00 / 4.00 over 24 cpus (1m load is 0.50 per cpu)");
-    expect(report).toContain("9 running, of which 2 Testcontainers and 6 QCMS Compose");
+    expect(report).toContain(
+      "9 running, of which 2 Testcontainers across 1 session and 6 QCMS Compose",
+    );
     expect(report).toContain("unknown (no /proc/loadavg)");
     expect(report).toContain("unknown (docker could not be asked)");
+  });
+
+  it("says the machine was busy even when no neighbour held a seat port", () => {
+    // Issue #395's second occurrence, which the first version of this report got wrong.
+    // The competing lanes were running `turbo run test`: no browser harness, no seat
+    // ports, nothing for `neighbourStacks` to find, and eleven Postgres containers from
+    // other sessions on the one daemon. The report used to answer that with "nothing here
+    // argues against reading these failures as this branch's own".
+    const report = renderContentionReport({
+      seat: 1,
+      start: CROWDED,
+      end: CROWDED,
+      failures: failing,
+    });
+
+    expect(report).toContain("none occupied");
+    expect(report).toContain("THE MACHINE WAS NOT QUIET");
+    expect(report).toContain(
+      "  - throughout: 4 Testcontainers sessions on the shared daemon (3 of them not this run's)",
+    );
+    expect(report).toContain("1m load 18.42 over 8 cpus (2.30 per cpu");
+    expect(report).toContain("This run was not alone");
+    // And the sentence that was wrong here is gone from this branch.
+    expect(report).not.toContain("nothing here argues against");
+    expect(report).not.toContain("Treat these failures as this branch's own");
+  });
+
+  it("still says a quiet machine is quiet, which is the only time that was ever true", () => {
+    const quiet: HostSnapshot = {
+      ...EMPTY,
+      load: { oneMinute: 1.5, fiveMinute: 1, fifteenMinute: 1, cpus: 8 },
+      containers: { running: 3, testcontainers: 2, sessions: 1, qcmsStacks: 1 },
+    };
+
+    const report = renderContentionReport({ seat: 1, start: quiet, end: quiet, failures: failing });
+
+    // One session is this run's own and 1.5 over 8 cpus is a working machine, not a
+    // crowded one. A threshold that fired here would fire on every healthy run.
+    expect(report).not.toContain("NOT QUIET");
+    expect(report).toContain("the host looked quiet");
+  });
+
+  it("adds the host pressure underneath a neighbour it already named", () => {
+    const report = renderContentionReport({
+      seat: 1,
+      start: { ...CROWDED, neighbours: [stack(3, 17340, 9)] },
+      end: { ...CROWDED, neighbours: [stack(3, 17340, 9)] },
+      failures: failing,
+    });
+
+    expect(report).toContain("OCCUPIED on seat 3");
+    expect(report).toContain("and the host itself was under pressure:");
+    expect(report).toContain("Testcontainers sessions on the shared daemon");
+  });
+
+  it("does not print the same unchanged reading twice, and does print a changed one", () => {
+    const busier: HostSnapshot = {
+      ...CROWDED,
+      containers: { ...CROWDED_DAEMON, sessions: 6 },
+    };
+
+    const unchanged = renderContentionReport({
+      seat: 1,
+      start: CROWDED,
+      end: CROWDED,
+      failures: failing,
+    });
+    const changed = renderContentionReport({
+      seat: 1,
+      start: CROWDED,
+      end: busier,
+      failures: failing,
+    });
+
+    expect(unchanged.split("Testcontainers sessions on the shared daemon")).toHaveLength(2);
+    expect(unchanged).toContain("throughout: 4 Testcontainers sessions");
+    expect(changed).toContain("at start: 4 Testcontainers sessions");
+    expect(changed).toContain("at end: 6 Testcontainers sessions");
   });
 });

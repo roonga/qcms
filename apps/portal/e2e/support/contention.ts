@@ -29,11 +29,15 @@
  * of your failures are connection refusals" is a fact worth putting in front of someone;
  * "therefore this red is not yours" is a conclusion only they can draw, because a genuine
  * regression and a contention red can hold that shape at the same time.
+ *
+ * ## The machine probe lives next door
+ *
+ * `/proc/loadavg` and the `docker ps` census are in `host-pressure.ts`, not here. The seat
+ * refusal in `port-seat.ts` prints the same reading when it refuses a seat, and this module
+ * reads `/proc` through that same file, so leaving the probe here would make the pair
+ * circular. What stayed is everything specific to the REPORT: which failures are
+ * contention-shaped, which neighbouring seats were live, and the prose.
  */
-
-import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import { availableParallelism } from "node:os";
 
 import {
   HARNESS_SERVICES,
@@ -42,6 +46,15 @@ import {
   harnessPorts,
 } from "../../../../scripts/ports.mjs";
 
+import {
+  containerCensus,
+  describeContainers,
+  describeLoad,
+  hostLoad,
+  hostPressure,
+  type ContainerCensus,
+  type HostLoad,
+} from "./host-pressure.js";
 import { occupantOfPort } from "./port-seat.js";
 
 /** A harness service that takes a port from a seat's `17Sxx` block. */
@@ -58,56 +71,12 @@ export interface NeighbourStack {
   readonly cwd: string | undefined;
 }
 
-/** The host's run-queue pressure, as the kernel reports it. */
-export interface HostLoad {
-  readonly oneMinute: number;
-  readonly fiveMinute: number;
-  readonly fifteenMinute: number;
-  /** Logical CPUs, so a load figure can be read as a ratio rather than a magnitude. */
-  readonly cpus: number;
-}
-
-/** What the shared Docker daemon was carrying. */
-export interface ContainerCensus {
-  /** Every running container the daemon reports, this run's own included. */
-  readonly running: number;
-  /** Of those, how many carry a Testcontainers session label. */
-  readonly testcontainers: number;
-  /** Of those, how many belong to a QCMS Compose stack (`qcms-` prefixed). */
-  readonly qcmsStacks: number;
-}
-
 /** One sample of the machine around this run. */
 export interface HostSnapshot {
   readonly at: string;
   readonly load: HostLoad | undefined;
   readonly neighbours: readonly NeighbourStack[];
   readonly containers: ContainerCensus | undefined;
-}
-
-/**
- * Parse `/proc/loadavg`'s three averages.
- *
- * Split out from the read so the parse is testable without a kernel: the file's first
- * three fields are the one, five and fifteen minute averages, and anything that does not
- * produce three finite numbers is reported as "unknown" rather than as zero. Zero is a
- * real, meaningful load figure, and a parse failure that renders as one would read as
- * "the machine was idle" in exactly the report someone is using to decide whether it was.
- */
-export function parseLoadAverage(text: string, cpus: number): HostLoad | undefined {
-  const fields = text.trim().split(/\s+/).slice(0, 3).map(Number);
-  if (fields.length < 3 || fields.some((value) => !Number.isFinite(value))) return undefined;
-  const [oneMinute, fiveMinute, fifteenMinute] = fields as [number, number, number];
-  return { oneMinute, fiveMinute, fifteenMinute, cpus };
-}
-
-/** The host's load right now, or `undefined` where `/proc/loadavg` is not readable. */
-export function hostLoad(): HostLoad | undefined {
-  try {
-    return parseLoadAverage(readFileSync("/proc/loadavg", "utf8"), availableParallelism());
-  } catch {
-    return undefined;
-  }
 }
 
 /** Every seat except `selfSeat`, in order. Exported so the sweep is testable. */
@@ -146,73 +115,6 @@ export function neighbourStacks(
     }
   }
   return found;
-}
-
-/** How long the container census waits for the Docker CLI before giving up. */
-const DOCKER_CENSUS_TIMEOUT_MS = 5_000;
-
-/**
- * Where the Docker CLI may live, as absolute paths.
- *
- * Probed rather than resolved through `PATH`, the way `scripts/docker-host.mjs` probes for
- * `ip`: launching a subprocess by bare name is what `sonarjs/no-os-command-from-path`
- * exists to stop, and the rule is workspace-wide. Order is by likelihood on the platforms
- * this harness runs on - Debian and Ubuntu first, since that is the dev container, then
- * the two paths a macOS install uses.
- */
-const DOCKER_BINARY_CANDIDATES = [
-  "/usr/bin/docker",
-  "/usr/local/bin/docker",
-  "/bin/docker",
-  "/opt/homebrew/bin/docker",
-];
-
-/** The first candidate that exists, or `undefined` when Docker is not installed here. */
-function dockerBinary(): string | undefined {
-  return DOCKER_BINARY_CANDIDATES.find((candidate) => existsSync(candidate));
-}
-
-/**
- * Turn `docker ps` output into a census.
- *
- * One line per running container, tab-separated as `name<TAB>session-id`, where the
- * session id is Testcontainers' own label and is empty for everything else. Parsed
- * separately from the spawn so the shape can be tested without a daemon.
- */
-export function parseContainerCensus(stdout: string): ContainerCensus {
-  const lines = stdout.split("\n").filter((line) => line.trim() !== "");
-  let testcontainers = 0;
-  let qcmsStacks = 0;
-  for (const line of lines) {
-    const [name = "", sessionId = ""] = line.split("\t");
-    if (sessionId.trim() !== "" && sessionId.trim() !== "<no value>") testcontainers += 1;
-    if (name.startsWith("qcms-")) qcmsStacks += 1;
-  }
-  return { running: lines.length, testcontainers, qcmsStacks };
-}
-
-/**
- * What the Docker daemon is running, or `undefined` when it cannot be asked.
- *
- * The daemon is the resource the seat scheme does not partition, so its occupancy is the
- * number this report exists to carry. `spawnSync` with a hard timeout and every failure
- * swallowed: a census that hangs or throws would convert a diagnostic into a new way for
- * a run to fail, which is the opposite of the point.
- */
-export function containerCensus(): ContainerCensus | undefined {
-  const binary = dockerBinary();
-  if (binary === undefined) return undefined;
-  try {
-    const probed = spawnSync(
-      binary,
-      ["ps", "--format", '{{.Names}}\t{{.Label "org.testcontainers.session-id"}}'],
-      { encoding: "utf8", timeout: DOCKER_CENSUS_TIMEOUT_MS, stdio: ["ignore", "pipe", "ignore"] },
-    );
-    if (probed.status !== 0 || typeof probed.stdout !== "string") return undefined;
-    return parseContainerCensus(probed.stdout);
-  } catch {
-    return undefined;
-  }
 }
 
 /** One sample of the machine, taken now. */
@@ -300,23 +202,6 @@ export interface ContentionReport {
   readonly start: HostSnapshot;
   readonly end: HostSnapshot;
   readonly failures: readonly FailureNote[];
-}
-
-function describeLoad(load: HostLoad | undefined): string {
-  if (load === undefined) return "unknown (no /proc/loadavg)";
-  const ratio = (load.oneMinute / load.cpus).toFixed(2);
-  return (
-    `${load.oneMinute.toFixed(2)} / ${load.fiveMinute.toFixed(2)} / ` +
-    `${load.fifteenMinute.toFixed(2)} over ${String(load.cpus)} cpus (1m load is ${ratio} per cpu)`
-  );
-}
-
-function describeContainers(census: ContainerCensus | undefined): string {
-  if (census === undefined) return "unknown (docker could not be asked)";
-  return (
-    `${String(census.running)} running, of which ${String(census.testcontainers)} ` +
-    `Testcontainers and ${String(census.qcmsStacks)} QCMS Compose`
-  );
 }
 
 /** Which of the run's two samples saw a neighbour. */
@@ -407,16 +292,54 @@ export function describeNeighbours(
     });
 }
 
-/** The one-line notice printed at run start when another lane is already up. */
-export function renderStartNotice(seat: number, neighbours: readonly NeighbourStack[]): string {
+/**
+ * The notice printed at run start when this run does not have the machine to itself.
+ *
+ * Two ways not to have it, and the notice says which. A live harness port on another seat
+ * names a sibling browser lane; host pressure names a machine carrying other work that
+ * holds no seat port at all, which is the shape #395's second occurrence had. Printed at
+ * the START because it is the only point where the information can still save the run:
+ * fifteen minutes before the red, a reader can decide to wait.
+ */
+export function renderStartNotice(
+  seat: number,
+  neighbours: readonly NeighbourStack[],
+  pressure: readonly string[] = [],
+): string {
   const seats = [...new Set(neighbours.map((stack) => stack.seat))].sort((a, b) => a - b);
+  const plural = seats.length === 1 ? "" : "s";
   return [
-    `[contention] seat ${String(seat)} is NOT alone: harness ports are live on ` +
-      `seat${seats.length === 1 ? "" : "s"} ${seats.join(", ")}.`,
+    seats.length > 0
+      ? `[contention] seat ${String(seat)} is NOT alone: harness ports are live on ` +
+        `seat${plural} ${seats.join(", ")}.`
+      : `[contention] seat ${String(seat)} holds its own ports, but this machine is NOT quiet.`,
     "[contention] Ports are partitioned per seat, the Docker daemon and the CPU are not.",
     "[contention] A red run here may not be this branch's own; the end-of-run report says what was live.",
     ...describeNeighbours(neighbours).map((line) => `[contention]${line}`),
+    ...pressure.map((reason) => `[contention]  - ${reason}`),
   ].join("\n");
+}
+
+/**
+ * Everything about the machine, at either end of the run, that a red cannot be explained
+ * away without.
+ *
+ * The union of the two samples rather than either one, and for the same reason the
+ * neighbour list is a union: a lane that arrived mid-run is exactly the case this is
+ * supposed to catch, and a report that read only the start sample would miss it.
+ */
+function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
+  const atStart = hostPressure(start.load, start.containers).reasons;
+  const atEnd = hostPressure(end.load, end.containers).reasons;
+  const seen = new Set([...atStart, ...atEnd]);
+  // The same three labels the neighbour list uses, and for the same reason: a reading that
+  // held all the way through is a different story from one that only appeared while the
+  // suite was running, and a reader chasing a red wants to know which.
+  const when = (reason: string): string => {
+    if (atStart.includes(reason) && atEnd.includes(reason)) return "throughout";
+    return atStart.includes(reason) ? "at start" : "at end";
+  };
+  return [...seen].map((reason) => `  - ${when(reason)}: ${reason}`);
 }
 
 /**
@@ -425,6 +348,24 @@ export function renderStartNotice(seat: number, neighbours: readonly NeighbourSt
  * It states what was measured and stops there. The closing sentence is the whole point of
  * the issue: it tells the reader that a bisect is cheap and believing the red is not, and
  * it says so with the numbers attached rather than as generic advice.
+ *
+ * ## The second branch, and why the first one was not enough
+ *
+ * The original report had two outcomes: a neighbouring seat was named, or the reader was
+ * told that nothing argued against reading the failures as their own. The second outcome
+ * turned out to be wrong in exactly the case that cost the most. #395's follow-up
+ * occurrence was a forced unit run that failed two packages an admin-only diff cannot
+ * reach, and the lanes competing with it were running `turbo run test`: no browser
+ * harness, no seat ports, nothing for `neighbourStacks` to find, while eleven Postgres
+ * containers from other sessions were queued on the one daemon. The report would have
+ * printed "nothing here argues against reading these failures as this branch's own" over
+ * the most contended machine of the night.
+ *
+ * So a run is "not alone" when a neighbour is named OR when the host itself was under
+ * pressure, which is read from the daemon's Testcontainers sessions and the run queue -
+ * both facts about the machine that no diff can cause and that the seat scheme does not
+ * partition. The quiet-machine wording is now reached only when the machine really was
+ * quiet, which is the only condition under which it was ever true.
  */
 export function renderContentionReport(report: ContentionReport): string {
   const { seat, start, end, failures } = report;
@@ -433,6 +374,7 @@ export function renderContentionReport(report: ContentionReport): string {
   // detail lines under it can never disagree about who was there.
   const neighbours = mergeNeighbours(start.neighbours, end.neighbours);
   const neighbourSeats = [...new Set(neighbours.map((stack) => stack.seat))].sort((a, b) => a - b);
+  const pressure = pressureReasons(start, end);
 
   const lines = [
     "",
@@ -444,17 +386,26 @@ export function renderContentionReport(report: ContentionReport): string {
     `containers at end:   ${describeContainers(end.containers)}`,
   ];
 
-  if (neighbourSeats.length === 0) {
+  if (neighbourSeats.length === 0 && pressure.length > 0) {
     lines.push(
       "other seats' harness ports: none occupied at start or end.",
-      "No neighbouring browser harness was detected, so nothing here argues against",
-      "reading these failures as this branch's own.",
+      "No neighbouring browser harness held a seat port - AND THE MACHINE WAS NOT QUIET:",
+      ...pressure,
+      "A lane running unit or Docker-backed tests holds no seat port at all, so the absence",
+      "of a seat collision is not evidence that this run had the machine to itself.",
+    );
+  } else if (neighbourSeats.length === 0) {
+    lines.push(
+      "other seats' harness ports: none occupied at start or end.",
+      "No neighbouring browser harness was detected and the host looked quiet, so nothing",
+      "here argues against reading these failures as this branch's own.",
     );
   } else {
     lines.push(
       `other seats' harness ports: OCCUPIED on seat${neighbourSeats.length === 1 ? "" : "s"} ` +
         `${neighbourSeats.join(", ")}.`,
       ...describeNeighbours(neighbours),
+      ...(pressure.length === 0 ? [] : ["and the host itself was under pressure:", ...pressure]),
     );
   }
 
@@ -466,7 +417,7 @@ export function renderContentionReport(report: ContentionReport): string {
     );
   }
 
-  const suspect = neighbourSeats.length > 0 || annotated.length > 0;
+  const suspect = neighbourSeats.length > 0 || pressure.length > 0 || annotated.length > 0;
   lines.push(
     "",
     suspect

@@ -12,6 +12,13 @@ import pg from "pg";
 
 import * as schema from "../schema/index.js";
 
+import { hostSnapshotLine } from "./host-snapshot.js";
+import {
+  annotateWithHostSnapshot,
+  instrumentPool,
+  instrumentQueryable,
+} from "./pool-contention.js";
+
 const { Client, Pool } = pg;
 
 /**
@@ -473,7 +480,11 @@ async function startContainer(
 ): Promise<StartedTestPostgres> {
   const alreadyFailed = unpullableImages.get(image);
   if (alreadyFailed !== undefined) {
-    throw new Error(`${alreadyFailed}\n  note: not retried (this image already failed to pull)`);
+    // A fresh snapshot rather than the one the original failure carried: the cached text
+    // is the diagnosis, and the machine has moved on since it was written.
+    throw new Error(
+      `${alreadyFailed}\n  note: not retried (this image already failed to pull)\n${hostSnapshotLine()}`,
+    );
   }
 
   // Deliberately outside both try blocks: a missing optional peer is neither a
@@ -522,8 +533,13 @@ async function startContainer(
         : "  fix:    check that a Docker daemon is running and reachable.",
     ].join("\n");
 
+    // The snapshot is appended to what is thrown, never to what is cached (issue #812).
+    // A boot that reaches the Testcontainers port-bind ceiling under load fails with a
+    // message naming an ephemeral port and nothing else, which is precisely the failure
+    // this line exists to explain; a snapshot frozen into the cache above would instead
+    // report the machine as it stood at some earlier test's failure.
     if (isPullFailure) unpullableImages.set(image, message);
-    throw new Error(message, { cause });
+    throw new Error(`${message}\n${hostSnapshotLine()}`, { cause });
   }
 }
 
@@ -557,13 +573,31 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
 
   const connectionUri = container.getConnectionUri();
   const client = new Client({ connectionString: connectionUri });
-  await client.connect();
+  try {
+    await client.connect();
+  } catch (cause) {
+    // The first connection to a container that has just reported itself ready is where a
+    // host under load shows up next, and `timeout exceeded when trying to connect` names
+    // no more of the cause than the mid-suite drop does.
+    annotateWithHostSnapshot(cause);
+    throw cause;
+  }
 
   const pool = new Pool({ connectionString: connectionUri });
   // An idle pooled connection that dies (typically the container going away at
   // teardown) emits `error` on the pool; node-postgres rethrows it as an
   // unhandled error without a listener, which would red an unrelated test.
   pool.on("error", () => undefined);
+
+  // A connection that dies MID-suite is a different event from the one above: it rejects
+  // an in-flight query, reds the test that issued it, and says only `Connection
+  // terminated unexpectedly` - no Docker, no host, nothing about the ten other container
+  // boots that were queued on the same daemon (issue #812). These two calls append one
+  // line saying what the machine looked like. They rethrow the pg error untouched
+  // otherwise: no retry, no reconnect, and nothing added to a failure whose shape says
+  // the query itself was refused.
+  instrumentPool(pool);
+  instrumentQueryable(client);
 
   const db = drizzle(pool, { schema });
 

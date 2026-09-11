@@ -75,6 +75,7 @@ import {
   type FailureNote,
   type HostSnapshot,
 } from "./contention.js";
+import { hostPressure } from "./host-pressure.js";
 
 /** Everything a test result can carry that names what went wrong, as one string. */
 export function failureText(result: TestResult): string {
@@ -150,8 +151,14 @@ export default class ContentionReporter implements Reporter {
 
   onBegin(): void {
     this.start = sample(this.seat, this.snapshot);
-    if (this.start.neighbours.length === 0) return;
-    this.write(`${renderStartNotice(this.seat, this.start.neighbours)}\n`);
+    // A seat port on another seat is not the only way to be crowded (issue #395's second
+    // occurrence): a lane running `turbo run test` holds none, and shows up only as
+    // another Testcontainers session on the daemon and as run queue. Either is worth
+    // saying out loud fifteen minutes before the red, which is while waiting is still an
+    // option.
+    const pressure = hostPressure(this.start.load, this.start.containers).reasons;
+    if (this.start.neighbours.length === 0 && pressure.length === 0) return;
+    this.write(`${renderStartNotice(this.seat, this.start.neighbours, pressure)}\n`);
   }
 
   onTestEnd(test: TestCase, result: TestResult): void {
