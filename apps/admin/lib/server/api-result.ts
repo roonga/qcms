@@ -39,15 +39,24 @@ async function readFailure(response: Response): Promise<ApiResult<never>> {
   const body: unknown = await response.json().catch(() => undefined);
   const envelope = (body as { error?: { code?: unknown; details?: unknown } } | undefined)?.error;
   const code = typeof envelope?.code === "string" ? envelope.code : `http_${response.status}`;
-  const details = envelope?.details as { issues?: unknown; questionId?: unknown } | undefined;
+  const details = envelope?.details as
+    { issues?: unknown; questionId?: unknown; reason?: unknown } | undefined;
   return {
     ok: false,
     code,
     // `details.questionId` and the first issue's sentence are what let a refused
-    // accept say which question and why (issue #823). Every other code ignores them.
+    // accept say which question and why (issue #823). `details.reason` is the webhook
+    // SSRF guard's enum, which picks one of four sentences instead of one covering all
+    // four (issue #756). Every other code ignores all three.
+    //
+    // Only these named fields are read, and none of them is rendered as-is: each one
+    // either selects a catalog key or is substituted into one. The envelope's own
+    // `message` is deliberately never read here (SEC-8) - an API response body is not
+    // this app's copy, and a 500's opaque text least of all.
     message: messageForFormCode(code, {
       question: typeof details?.questionId === "string" ? details.questionId : undefined,
       reason: firstIssueMessage(details?.issues),
+      rejection: typeof details?.reason === "string" ? details.reason : undefined,
     }),
     issues: parseIssues(details?.issues),
   };
