@@ -103,12 +103,16 @@ describe("@roonga/qcms-ui/kit surface", () => {
     // Pinned rather than counted: a primitive silently disappearing from the barrel
     // would otherwise only show up as a build error in a later task.
     //
-    // Only the plain function exports are listed. The menu primitives task 032 added
-    // are re-exported react-aria-components, and most of them arrive as forwardRef or
-    // context objects rather than functions, so they never reach this filter -
-    // `MenuTrigger` and the vendored `Menu` are the two that do. That is a property of
-    // how react-aria packages them, not a statement about which of them matter; the
-    // whole set is exercised together in `menu-keyboard.test.tsx`.
+    // Only the plain function exports are listed. The tab and combobox primitives are
+    // re-exported react-aria-components and most of them arrive as forwardRef or
+    // context objects rather than functions, so they never reach this filter. That is a
+    // property of how react-aria packages them, not a statement about which of them
+    // matter.
+    //
+    // `MenuTrigger` used to appear here beside the vendored `Menu`, because the admin
+    // topbar composed the popup primitives directly. Issue #234 closed that: upstream
+    // ships the trigger, header, class-name and item slots the topbar needed, every
+    // admin menu is the vendored `Menu`, and the primitives left this barrel with them.
     const exported = Object.entries(kit).filter(([, value]) => typeof value === "function");
     expect(new Set(exported.map(([name]) => name))).toEqual(
       new Set([
@@ -121,7 +125,6 @@ describe("@roonga/qcms-ui/kit surface", () => {
         "Dialog",
         "Form",
         "Menu",
-        "MenuTrigger",
         "NumberField",
         "Select",
         "Table",

@@ -49,8 +49,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * press: the library picker's "no published version matches this search" panel is inside a
  * dialog opened from step state, and the move-pin menu's "No other published version" is
  * inside a popover. A static render of the page reaches neither. The menu is asserted
- * below by rendering `StepEditor` directly with a `MenuPopover` stand-in that renders its
- * children, which is what the real popover renders once opened. The picker's failure copy
+ * below by rendering `StepEditor` directly with a `Menu` stand-in that renders its `items`
+ * eagerly, which is what the real popover renders once opened. The picker's failure copy
  * is not asserted anywhere at this layer, and that is stated rather than hidden.
  */
 
@@ -253,7 +253,7 @@ vi.mock("@/lib/i18n/en", () => ({
 /**
  * Marked stand-ins, so the real controls' markup never confuses the assertions.
  *
- * `MenuPopover` renders its children, which the real one does only once opened. That is
+ * `Menu` renders its `items` eagerly, which the real one does only once opened. That is
  * the point for the move-pin block below: the popover's contents are what an operator
  * reads after pressing the trigger, and this is the only layer that can read them at all.
  *
@@ -281,15 +281,28 @@ vi.mock("@/components/kit", () => ({
     <div data-testid="qcms-dialog-stub">{children}</div>
   ),
   Form: ({ children }: { children?: ReactNode }) => <form>{children}</form>,
-  MenuItem: ({ children }: { children?: ReactNode }) => <li>{children}</li>,
-  MenuList: ({ children }: { children?: ReactNode }) => <ul>{children}</ul>,
-  MenuPopover: ({ children }: { children?: ReactNode }) => (
-    <div data-testid="qcms-menu-popover-stub">{children}</div>
-  ),
-  MenuSeparator: () => <hr />,
-  MenuTrigger: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  MenuTriggerButton: ({ children }: { children?: ReactNode }) => (
-    <button type="button">{children}</button>
+  Menu: ({
+    triggerLabel,
+    trigger,
+    header,
+    items = [],
+  }: {
+    triggerLabel?: string;
+    trigger?: ReactNode;
+    header?: ReactNode;
+    items?: readonly { id: string; label?: ReactNode; kind?: string }[];
+  }) => (
+    <div data-testid="qcms-menu-stub">
+      <button type="button" aria-label={triggerLabel}>
+        {trigger ?? triggerLabel}
+      </button>
+      {header}
+      <ul>
+        {items.map((item) =>
+          item.kind === "separator" ? <hr key={item.id} /> : <li key={item.id}>{item.label}</li>,
+        )}
+      </ul>
+    </div>
   ),
   NumberField: () => <input aria-label="stub" type="number" />,
   Select: () => <select aria-label="stub" />,

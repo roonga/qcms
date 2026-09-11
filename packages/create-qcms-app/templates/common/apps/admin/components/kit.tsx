@@ -46,12 +46,7 @@ export {
   DatePicker,
   Dialog,
   Form,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuSeparator,
-  MenuTrigger,
-  MenuTriggerButton,
+  Menu,
   NumberField,
   Select,
   Tab,
@@ -62,4 +57,12 @@ export {
   Text,
   TextField,
 } from "@roonga/qcms-ui/kit";
-export type { BreadcrumbItem, SelectItem, TableColumn, TableRow } from "@roonga/qcms-ui/kit";
+export type {
+  BreadcrumbItem,
+  MenuActionEntry,
+  MenuClassNames,
+  MenuItemEntry,
+  SelectItem,
+  TableColumn,
+  TableRow,
+} from "@roonga/qcms-ui/kit";

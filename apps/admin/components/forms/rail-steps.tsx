@@ -3,16 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import {
-  Button,
-  Dialog,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
-  MenuTriggerButton,
-  TextField,
-} from "@/components/kit";
+import { Button, Dialog, Menu, TextField } from "@/components/kit";
+import { menuClasses } from "@/components/menu-slots";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
 import { stepAnchorId } from "@/lib/forms/issues";
 import { issueCountLabel, type RailItem } from "@/lib/forms/subtree-rail";
@@ -175,27 +167,16 @@ export function RailSteps({
             the new step appears is the one that matches what pressing it does. This is the
             second way in, not the way in, and the menu is where the form's other row-level
             commands will go when there are some. */}
-        <MenuTrigger>
-          <MenuTriggerButton
-            className="qcms-rail-steps__menu"
-            aria-label={t("forms.rail.formMenu", { title: item.label })}
-          >
-            <span aria-hidden="true">{"⋮"}</span>
-          </MenuTriggerButton>
-          <MenuPopover className="qcms-menu">
-            <MenuList
-              className="qcms-menu__list"
-              aria-label={t("forms.rail.formMenu", { title: item.label })}
-              onAction={(key) => {
-                if (key === "add") openAdd();
-              }}
-            >
-              <MenuItem id="add" className="qcms-menu__item">
-                {t("forms.steps.add")}
-              </MenuItem>
-            </MenuList>
-          </MenuPopover>
-        </MenuTrigger>
+        <Menu
+          triggerLabel={t("forms.rail.formMenu", { title: item.label })}
+          trigger={<span aria-hidden="true">{"⋮"}</span>}
+          menuLabel={t("forms.rail.formMenu", { title: item.label })}
+          classNames={menuClasses("qcms-rail-steps__menu")}
+          onAction={(key) => {
+            if (key === "add") openAdd();
+          }}
+          items={[{ id: "add", label: t("forms.steps.add") }]}
+        />
       </div>
       <ol className="qcms-rail__group" aria-label={t("forms.rail.steps")} data-rail-group="steps">
         {builder.draft.steps.map((step, index) => (
@@ -364,47 +345,32 @@ function StepRow({
         )}
       </button>
 
-      <MenuTrigger>
-        <MenuTriggerButton
-          className="qcms-rail-steps__menu"
-          aria-label={t("forms.steps.menu", { title })}
-        >
-          <span aria-hidden="true">{"⋮"}</span>
-        </MenuTriggerButton>
-        <MenuPopover className="qcms-menu">
-          <MenuList
-            className="qcms-menu__list"
-            aria-label={t("forms.steps.menu", { title })}
-            // Greyed rather than silently inert. `moveStep` is a no-op out of range, so
-            // leaving them enabled corrupts nothing - but a menu that offers a command it
-            // will not perform tells an assistive technology the wrong thing about what is
-            // available, and tells everyone else nothing about why the list did not move.
-            // Same rule the retired in-page list applied at the same two positions.
-            disabledKeys={disabledCommands(position, total)}
-            onAction={(key) => {
-              if (key === "rename") {
-                setDraftTitle(title);
-                setRenaming(true);
-              } else if (key === "up") onMove(-1);
-              else if (key === "down") onMove(1);
-              else if (key === "remove") setRemoving(true);
-            }}
-          >
-            <MenuItem id="rename" className="qcms-menu__item">
-              {t("forms.steps.rename")}
-            </MenuItem>
-            <MenuItem id="up" className="qcms-menu__item">
-              {t("forms.steps.moveUp")}
-            </MenuItem>
-            <MenuItem id="down" className="qcms-menu__item">
-              {t("forms.steps.moveDown")}
-            </MenuItem>
-            <MenuItem id="remove" className="qcms-menu__item">
-              {t("forms.steps.remove")}
-            </MenuItem>
-          </MenuList>
-        </MenuPopover>
-      </MenuTrigger>
+      <Menu
+        triggerLabel={t("forms.steps.menu", { title })}
+        trigger={<span aria-hidden="true">{"⋮"}</span>}
+        menuLabel={t("forms.steps.menu", { title })}
+        classNames={menuClasses("qcms-rail-steps__menu")}
+        // Greyed rather than silently inert. `moveStep` is a no-op out of range, so
+        // leaving them enabled corrupts nothing - but a menu that offers a command it
+        // will not perform tells an assistive technology the wrong thing about what is
+        // available, and tells everyone else nothing about why the list did not move.
+        // Same rule the retired in-page list applied at the same two positions.
+        disabledKeys={disabledCommands(position, total)}
+        onAction={(key) => {
+          if (key === "rename") {
+            setDraftTitle(title);
+            setRenaming(true);
+          } else if (key === "up") onMove(-1);
+          else if (key === "down") onMove(1);
+          else if (key === "remove") setRemoving(true);
+        }}
+        items={[
+          { id: "rename", label: t("forms.steps.rename") },
+          { id: "up", label: t("forms.steps.moveUp") },
+          { id: "down", label: t("forms.steps.moveDown") },
+          { id: "remove", label: t("forms.steps.remove") },
+        ]}
+      />
 
       {/* THE FOCUS TARGET FOR A STEP-LEVEL ISSUE, and it has to live wherever the step
           list does. `lib/forms/issues.ts` mints this id for the validation panel's "jump

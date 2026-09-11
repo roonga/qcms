@@ -4,14 +4,8 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
-import {
-  Button,
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuTrigger,
-  MenuTriggerButton,
-} from "@/components/kit";
+import { Button, Menu, type MenuItemEntry } from "@/components/kit";
+import { menuClasses } from "@/components/menu-slots";
 import { RowMenu } from "@/components/row-menu";
 import { announce } from "@/lib/announce";
 import { messageForIssue, pinAnchorId } from "@/lib/forms/issues";
@@ -480,36 +474,31 @@ function PinRow({
 
       {/* FORM-OWNED: the one version change the builder has (R7). */}
       <td className="qcms-pincell--version qcms-cell--num" data-owner="form">
-        <MenuTrigger>
-          <MenuTriggerButton
-            aria-label={t("forms.step.movePin", { questionId: row.questionId })}
-            className="qcms-pinversion"
-          >
-            {t("forms.step.pinVersion", { version: row.version })}
-            <svg
-              className="qcms-pinversion__caret"
-              viewBox="0 0 10 6"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              aria-hidden="true"
-            >
-              <path d="M1 1l4 4 4-4" />
-            </svg>
-          </MenuTriggerButton>
-          <MenuPopover className="qcms-menu">
-            <MenuList
-              className="qcms-menu__list"
-              aria-label={t("forms.step.movePin", { questionId: row.questionId })}
-              onAction={(key) => {
-                const version = Number.parseInt(String(key), 10);
-                if (Number.isInteger(version)) onMovePin(row.questionId, version);
-              }}
-            >
-              {versionMenuItems(row.otherVersions)}
-            </MenuList>
-          </MenuPopover>
-        </MenuTrigger>
+        <Menu
+          triggerLabel={t("forms.step.movePin", { questionId: row.questionId })}
+          trigger={
+            <>
+              {t("forms.step.pinVersion", { version: row.version })}
+              <svg
+                className="qcms-pinversion__caret"
+                viewBox="0 0 10 6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                aria-hidden="true"
+              >
+                <path d="M1 1l4 4 4-4" />
+              </svg>
+            </>
+          }
+          menuLabel={t("forms.step.movePin", { questionId: row.questionId })}
+          classNames={menuClasses("qcms-pinversion")}
+          onAction={(key) => {
+            const version = Number.parseInt(String(key), 10);
+            if (Number.isInteger(version)) onMovePin(row.questionId, version);
+          }}
+          items={versionMenuItems(row.otherVersions)}
+        />
         {stateLabel !== undefined && (
           <span
             className="qcms-tag qcms-tag--deprecated"
@@ -559,24 +548,15 @@ function PinRow({
  * A function rather than a nested ternary in the cell because the third branch made it
  * one, and because the three answers are easier to read named than nested.
  */
-function versionMenuItems(otherVersions: readonly number[] | undefined): readonly ReactNode[] {
+function versionMenuItems(otherVersions: readonly number[] | undefined): MenuItemEntry[] {
   if (otherVersions === undefined) {
-    return [
-      <MenuItem key="unknown" id="unknown" className="qcms-menu__item" isDisabled>
-        {t("forms.step.movePinUnknown")}
-      </MenuItem>,
-    ];
+    return [{ id: "unknown", label: t("forms.step.movePinUnknown"), isDisabled: true }];
   }
   if (otherVersions.length === 0) {
-    return [
-      <MenuItem key="none" id="none" className="qcms-menu__item" isDisabled>
-        {t("forms.step.movePinNone")}
-      </MenuItem>,
-    ];
+    return [{ id: "none", label: t("forms.step.movePinNone"), isDisabled: true }];
   }
-  return otherVersions.map((version) => (
-    <MenuItem key={version} id={String(version)} className="qcms-menu__item">
-      {t("forms.step.movePinTo", { version })}
-    </MenuItem>
-  ));
+  return otherVersions.map((version) => ({
+    id: String(version),
+    label: t("forms.step.movePinTo", { version }),
+  }));
 }

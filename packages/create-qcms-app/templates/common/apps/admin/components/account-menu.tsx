@@ -2,14 +2,8 @@
 
 import { useRef } from "react";
 
-import {
-  MenuItem,
-  MenuList,
-  MenuPopover,
-  MenuSeparator,
-  MenuTrigger,
-  MenuTriggerButton,
-} from "@/components/kit";
+import { Menu } from "@/components/kit";
+import { menuClasses } from "@/components/menu-slots";
 import { t } from "@/lib/i18n/en";
 import { initialsFor } from "@/lib/initials";
 
@@ -30,6 +24,13 @@ import { initialsFor } from "@/lib/initials";
  * Into the menu's "Signed in as" row, which is why the trigger can be two letters.
  * The email is shell chrome, not a credential - it tells an operator which account
  * is acting when several people share a screen - and it stays in the footer too.
+ *
+ * IT IS THE VENDORED `Menu`, SINCE ISSUE #234
+ * It was composed from react-aria-components' popup primitives until then, because
+ * the registry component had no slot for a monogram trigger, a "Signed in as" header
+ * or a link row. Upstream now ships all three, so this is the registry component
+ * again: `header` renders outside `role="menu"` and brings its own rule with it, and
+ * an item with an `href` is a real anchor exactly as the hand-composed one was.
  *
  * SIGN-OUT SURVIVES WITHOUT JAVASCRIPT (Code Owner decision, 2026-07-31)
  * Sign-out was a plain `<form method="post">` before this task and worked with
@@ -57,44 +58,41 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
 
   return (
     <div className="qcms-account" data-testid="account-menu">
-      <MenuTrigger>
-        <MenuTriggerButton className="qcms-avatar" aria-label={t("account.trigger", { email })}>
-          {/* Decorative, and hidden from the accessibility tree on purpose: the
-              accessible name is the whole sentence above, and two letters sitting
-              beside it as visible text would be a WCAG 2.5.3 mismatch the moment a
-              display name's initials stop appearing in the address. */}
-          <span aria-hidden="true">{initialsFor(email, name)}</span>
-        </MenuTriggerButton>
-        <MenuPopover className="qcms-menu">
-          {/* Outside the menu rather than inside it: this is a label for the menu,
-              not a stop in it, and a menu whose first arrow-down landed on an inert
-              row would be a worse keyboard experience than one that starts on the
-              first real action. */}
-          <div className="qcms-menu__info" role="presentation">
+      <Menu
+        triggerLabel={t("account.trigger", { email })}
+        /* Decorative, and hidden from the accessibility tree on purpose: the
+           accessible name is `triggerLabel` above, and two letters sitting beside it
+           as visible text would be a WCAG 2.5.3 mismatch the moment a display name's
+           initials stop appearing in the address. */
+        trigger={<span aria-hidden="true">{initialsFor(email, name)}</span>}
+        menuLabel={t("account.menuLabel")}
+        /* Outside the menu rather than inside it, which the slot guarantees: this is
+           a label for the menu, not a stop in it, and a menu whose first arrow-down
+           landed on an inert row would be a worse keyboard experience than one that
+           starts on the first real action. The rule under it comes with the slot. */
+        header={
+          <>
             <span className="qcms-menu__who">{t("account.signedInAs")}</span>
             <span className="qcms-menu__email">{email}</span>
-          </div>
-          <MenuSeparator className="qcms-menu__sep" />
-          <MenuList
-            className="qcms-menu__list"
-            aria-label={t("account.menuLabel")}
-            onAction={(key) => {
-              if (key === "sign-out") signOutForm.current?.requestSubmit();
-            }}
-          >
-            {/* A real anchor, so it behaves like a link (middle-click, copy address)
-                and needs no router. The settings screen anchors the password card. */}
-            <MenuItem id="password" className="qcms-menu__item" href="/settings#change-password">
-              {t("action.changePassword")}
-            </MenuItem>
-            {/* Immediate, with no confirmation. Signing out is cheap to undo (sign
-                back in) and an operator who reached for it means it. */}
-            <MenuItem id="sign-out" className="qcms-menu__item">
-              {t("action.signOut")}
-            </MenuItem>
-          </MenuList>
-        </MenuPopover>
-      </MenuTrigger>
+          </>
+        }
+        classNames={menuClasses("qcms-avatar")}
+        onAction={(key) => {
+          if (key === "sign-out") signOutForm.current?.requestSubmit();
+        }}
+        items={[
+          // A real anchor, so it behaves like a link (middle-click, copy address) and
+          // needs no router. The settings screen anchors the password card.
+          {
+            id: "password",
+            label: t("action.changePassword"),
+            href: "/settings#change-password",
+          },
+          // Immediate, with no confirmation. Signing out is cheap to undo (sign back
+          // in) and an operator who reached for it means it.
+          { id: "sign-out", label: t("action.signOut") },
+        ]}
+      />
       <form ref={signOutForm} method="post" action="/sign-out" className="qcms-signout-fallback">
         <button type="submit" className="qcms-signout-fallback__button">
           {t("action.signOut")}

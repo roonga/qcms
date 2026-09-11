@@ -1,3 +1,4 @@
+export type { MenuActionEntry, MenuClassNames, MenuItemEntry, MenuSeparatorEntry } from "./Menu"
 export { Menu } from "./Menu"
-export type { MenuItemEntry, MenuNode } from "./menu.schema"
+export type { MenuItemNode, MenuNode } from "./menu.schema"
 export { MenuSchema } from "./menu.schema"
