@@ -56,9 +56,7 @@ describe("finding a catalog", () => {
 
   it("is not fooled by a module-private or differently named object", () => {
     expect(catalogIn(source(`const messages = { "a.one": "One" } as const;`))).toBeUndefined();
-    expect(
-      catalogIn(source(`export const labels = { "a.one": "One" } as const;`)),
-    ).toBeUndefined();
+    expect(catalogIn(source(`export const labels = { "a.one": "One" } as const;`))).toBeUndefined();
   });
 
   it("finds no catalog in an ordinary module", () => {
@@ -101,7 +99,10 @@ describe("collecting the literals a file states", () => {
   });
 
   it("does not read a key out of a comment", () => {
-    const found = literalsIn(source(`// a.one is gone\n/* a.two too */\nexport const x = 1;`), undefined);
+    const found = literalsIn(
+      source(`// a.one is gone\n/* a.two too */\nexport const x = 1;`),
+      undefined,
+    );
     expect(found.size).toBe(0);
   });
 
@@ -123,9 +124,9 @@ describe("deciding whether a key is referenced", () => {
 
   it("takes a prefix with no dot before the hole", () => {
     // `forms.history.compareRow${kindKey(row)}` is a real site in this repository.
-    expect(isReferenced("forms.history.compareRowAdded", new Set(["forms.history.compareRow"]))).toBe(
-      true,
-    );
+    expect(
+      isReferenced("forms.history.compareRowAdded", new Set(["forms.history.compareRow"])),
+    ).toBe(true);
   });
 
   it("refuses an empty or undotted literal as a wildcard", () => {
