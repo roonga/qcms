@@ -105,11 +105,22 @@ export function VersionView({
       className="flex flex-col gap-4"
       data-testid="qcms-version-view"
     >
+      {/* The two lines above the frame are capped at the frame's own width, which is where
+          `preview-versions-poc.html:821-824` puts them: this screen's `<main>` is 1600 since
+          issue 668, and prose running the full 1600 above a 640px inset reads as two columns
+          rather than as one screen. The stamps line below is deliberately not capped, for
+          the same reason the POC leaves it uncapped: it is a short metadata line rather than
+          a sentence to read. */}
       <div className="flex flex-col gap-1">
-        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-version-stored">
+        <p
+          className="qcms-respondent-note text-sm text-(--color-text-muted)"
+          data-testid="qcms-version-stored"
+        >
           {t("forms.history.stored", { version: snapshot.version })}
         </p>
-        <p className="text-sm text-(--color-text-muted)">{t("forms.history.readOnly")}</p>
+        <p className="qcms-respondent-note text-sm text-(--color-text-muted)">
+          {t("forms.history.readOnly")}
+        </p>
         <p className="text-xs text-(--color-text-muted)">
           {t("forms.preview.stamps", {
             compilerVersion: snapshot.compilerVersion,
@@ -130,7 +141,11 @@ export function VersionView({
             })}
           </p>
 
-          <PreviewThemeIsland defaultTheme={defaultTheme}>
+          {/* The same drawn frame the draft preview carries, with the sentence this screen's
+              drawing gives it (issue 668). The POC shares the element unmodified between
+              the two screens on purpose - one measure on both is what lets an author judge
+              a draft against what was published. */}
+          <PreviewThemeIsland defaultTheme={defaultTheme} frameLabel={t("forms.history.frame")}>
             <A2UIStepRenderer
               document={{ stepId: step.stepId, root: step.root as A2UIStepDocument["root"] }}
               values={answers.values}

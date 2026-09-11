@@ -83,7 +83,17 @@ export default async function QuestionDetailPage({
   const preview = await getPreview(session, questionId, selected.version);
 
   return (
-    <div className="flex flex-col gap-6">
+    // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single
+    // `.editor-column` (`:313`, 720px) inside a 1600px `.main` (`:312`), and its comment
+    // says why: this screen is "prose-and-form shaped ... so the improvement here is a
+    // comfortable reading measure, not more width". Until issue 668 the app carried the 720
+    // as this route's cap on `<main>` instead, which rendered 672 - the cap this route
+    // actually took (`narrow`, 45rem) less the column's own padding, which the drawn
+    // element sits INSIDE rather than outside.
+    // The route now takes the POC's outer 1600 (`lib/measure.ts`) and this is the layer
+    // that was missing. It is here rather than in the measure table because it is one
+    // element on one screen; see that table's doc for why the two layers live apart.
+    <div className="qcms-editor-column flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <Link href="/questions" className="qcms-text-link">
           {t("questions.backToList")}

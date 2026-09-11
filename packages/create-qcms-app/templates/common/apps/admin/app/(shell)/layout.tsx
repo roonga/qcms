@@ -108,16 +108,21 @@ export default async function ShellLayout({
             from the left edge at 1280 while the content column beside a rail started at
             24px: two unrelated layouts on one screen.
 
-            `px-6` rather than the POC's 1.25rem, and that 4px is a DEVIATION rather than
-            a reading of the drawing (issue 675). The POC pads the bar and the column by
-            one value and gets its shared edge that way; this app's column has carried
-            `p-6` since the shell was built, so the bar matches the column and the edge is
-            shared at 24px instead of 20px. Following the drawing on the bar alone would
-            put a 20px bar against a 24px column and break the very property issue 648 is
-            about; following it properly means moving `<main>` to `p-5`, a density change
-            on all eighteen screens that neither issue asks for and that wants its own
-            frames. Recorded as its own issue rather than settled here. */}
-        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-6 py-2">
+            THE INLINE PADDING IS THE TOKEN THE POC DRAWS, and it is one value spent in
+            two places (issue 675). Every POC declares `--admin-section-pad: 1.25rem` at
+            its `:45` and then spends it in both - `padding: 0 1.25rem` on this row,
+            `padding: var(--admin-section-pad)` on `.main` - and that single value is HOW
+            the drawings get the shared left edge 648 asks for: the bar's first item and
+            the column's content both start 20px from the page edge.
+
+            Issue 648 landed that shared edge at `px-6` on both instead, matching this
+            app's own `p-6` column rather than the drawing, and recorded the 4px as a
+            deviation rather than burying it. Issue 675 is that 4px. What moved is the
+            value, not the property: `lib/measure.ts`'s `mainClassFor` spends the same
+            token on `<main>`, so the edge is still one edge and it is now the drawn one.
+            The footer that used to carry the third copy of this number is gone (Code
+            Owner decision, 2026-08-23), so there are two call sites rather than three. */}
+        <div className="flex w-full flex-wrap items-center gap-x-5 gap-y-2 px-(--admin-section-pad) py-2">
           {/* "QCMS" and nothing else. No sub-label, and no word here names this app
               to an operator: the product is QCMS and the respondent app is the
               Portal (Code Owner naming call, 2026-07-30). */}
