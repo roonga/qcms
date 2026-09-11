@@ -42,7 +42,7 @@
  * and eleven inline disables are how a rule stops being read.
  *
  * `eslint-plugin-promise`'s `catch-or-return` is closer, and was not taken for two
- * reasons. It is a dependency for something the sixty lines below do, which
+ * reasons. It is a dependency for something the seventy lines below do, which
  * `CONTRIBUTING.md` calls a liability rather than a convenience. And its documented
  * default `allowThen: false` reports the two-argument `.then` that the step-editor site
  * uses correctly, so it would need configuration to stop making the same false report

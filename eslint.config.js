@@ -135,10 +135,10 @@ export default tseslint.config(
   },
   {
     // The repository's own rules, under the `qcms` namespace. A local rule rather than a
-    // plugin dependency: `no-unhandled-then` is sixty lines, and `CONTRIBUTING.md`'s
-    // minimal-dependency policy calls a package that saves fewer than a hundred a
-    // liability. The rule module carries the full argument, including what was measured
-    // about the three existing rules that nearly cover it.
+    // plugin dependency: `no-unhandled-then` is seventy lines of logic, and
+    // `CONTRIBUTING.md`'s minimal-dependency policy calls a package that saves fewer than
+    // a hundred a liability. The rule module carries the full argument, including what
+    // was measured about the three existing rules that nearly cover it.
     //
     // Applied with no `files` key, so it reaches every file ESLint is pointed at: app
     // source, test files, and the `.mjs` tooling under `scripts/`. It needs no type
