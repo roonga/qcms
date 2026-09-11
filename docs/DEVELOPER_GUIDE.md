@@ -422,7 +422,7 @@ It exits non-zero on any path or line it cannot open, and `--expect` additionall
 
 ### Running the gate detached, and clearing the seat afterwards
 
-**A half-hour gate run in the foreground of anything that can time out produces a verdict nobody can read** (issue #846). `verify:browser` is about half an hour (`pnpm ci:durations browser-e2e` for the current figure), which outlasts every per-command cap an agent harness or a script wrapper imposes. The lost time is not the problem: the problem is that a kill at the cap and a red suite look identical from outside, both a nonzero exit code over a log with no Playwright summary at the end of it. Three lanes hit exactly that on 2026-09-11, at 25, 30 and 33 minutes, with `EXIT=143` twice and `EXIT=137` once and no test failure in any of them, and each kill left the seat's two `next dev` servers orphaned so the preflight refused the next attempt.
+**A half-hour gate run in the foreground of anything that can time out produces a verdict nobody can read** (issue #846). `verify:browser` is about half an hour (`pnpm ci:durations browser-e2e` for the current figure), which outlasts every per-command cap an agent harness or a script wrapper imposes. The lost time is not the problem: the problem is that a kill at the cap and a red suite look identical from outside, both a nonzero exit code over a log with no Playwright summary at the end of it. Three lanes hit exactly that on 2026-09-06, at 25, 30 and 33 minutes, with `EXIT=143` twice and `EXIT=137` once and no test failure in any of them, and each kill left the seat's two `next dev` servers orphaned so the preflight refused the next attempt.
 
 So run it detached and wait for it in slices:
 
@@ -441,13 +441,13 @@ The suite runs under `setsid`, in a session of its own, so killing the shell tha
 
 `wait` exits with the suite's own code when the run finishes, and otherwise with a code that cannot be mistaken for one (Playwright uses 0 and 1; these are `sysexits.h` numbers it never returns):
 
-| Exit | Meaning                                                                             |
-| ---- | ----------------------------------------------------------------------------------- |
-| 0, 1 | the suite finished and this is its verdict                                          |
-| 64   | usage: no directory given, or no run recorded in it                                 |
-| 75   | the slice ended with the suite still running. Nothing failed: re-invoke             |
-| 76   | the runner is gone and recorded no rc, so it was SIGKILLed. Expect orphans          |
-| 77   | the runner was signalled; it stopped the suite and released the seat. Not a verdict |
+| Exit | Meaning                                                                            |
+| ---- | ---------------------------------------------------------------------------------- |
+| 0, 1 | the suite finished and this is its verdict                                         |
+| 64   | usage: no directory given, or no run recorded in it                                |
+| 75   | the slice ended with the suite still running. Nothing failed: re-invoke            |
+| 76   | the runner is gone and recorded no rc, so it was SIGKILLed. Expect orphans         |
+| 77   | the runner was signalled; it stopped the suite and cleared the seat. Not a verdict |
 
 **75 and 77 are the point of the whole thing.** A slice that ends early says so in a code of its own rather than resembling a failure, and a killed runner says it was killed rather than leaving a truncated log to be read as a red suite.
 
@@ -455,13 +455,13 @@ The suite runs under `setsid`, in a session of its own, so killing the shell tha
 
 **A fresh worktree needs `pnpm build` before any of this** (issue #890): with no `packages/*/dist` the portal dev server cannot come up inside the config's hard-coded 180 s `webServer` timeout, and the failure reads as a hung server rather than as a missing build.
 
-**Clearing orphan servers, when a run was killed hard enough to leave some.** The seat preflight names them: it refuses to start and prints each occupant's pid and `/proc/<pid>/cwd` (`docs/PORTS.md`). `ss -ltnp | grep 17S` lists them independently. Then:
+**Clearing orphan servers, when a run was killed hard enough to leave some.** The seat preflight names them: it refuses to start and prints each occupant's pid and `/proc/<pid>/cwd` (`docs/PORTS.md`). To list them independently, match the seat's real ports rather than the `17Sxx` shorthand, whose `S` is a placeholder that matches nothing: `ss -ltnp | grep -E ':17[0-9]{3}'` for every seat at once, or `ss -ltnp | grep -E ':172(00|10|30|40)'` for seat 2's four. Then:
 
 - **Kill the pids the preflight named, one pid per argument**: `kill -9 <pid> <pid>`. In zsh an unquoted parameter is not word-split, so `kill -9 $pids` built from a space-joined string sends nothing to anything and reports success.
-- **Kill from outside a sandbox.** Under the default agent sandbox `kill` fails silently, so a cleanup can report success while every orphan survives. Check with `ss -ltnp | grep 17S` afterwards rather than trusting the exit code.
+- **Kill from outside a sandbox.** Under the default agent sandbox `kill` fails silently, so a cleanup can report success while every orphan survives. Check with `ss -ltnp | grep -E ':17[0-9]{3}'` afterwards rather than trusting the exit code.
 - **Never `pkill -f` a gate command name.** Every lane on this host runs the same command names, so `pkill -f "pnpm verify"` is lane-agnostic: it can take out a neighbour's gate, and a second such pattern once killed the caller's own shell (issue #890). The recorded pid is the only safe target, which is why the detached runner writes one.
 
-A runner that is signalled rather than SIGKILLed cleans up after itself: it traps SIGTERM, SIGINT and SIGHUP, takes the suite's whole process group down with it so the dev servers go too, and records `killed=<signal>` beside the exit code. That is the case where nothing is left to clear.
+A runner that is signalled rather than SIGKILLed cleans up after itself, and it is worth knowing exactly how far that goes. It traps SIGTERM, SIGINT and SIGHUP, signals the suite's whole process group, and then **clears the seat by port rather than by ancestry**: it asks `/proc` who is listening on this seat's four harness ports, signals those pids one at a time, waits, and SIGKILLs whoever is left. The second half is not belt and braces. Playwright starts each `webServer` in a session of its own, so the two `next dev` servers are in process groups the suite's leader pid cannot address at all, and a group signal on its own leaves both of them bound to the seat 25 seconds later (measured twice while building this, which is why the rc file now reports what the port check found rather than what the cleanup intended). The rc file says `Seat released: nothing is listening on <ports>` only when that check came back empty; if anything survived even the SIGKILL it writes `seat_survivors=<port>:<pid>` instead, and those pids are yours to kill by the rules above.
 
 ## Waiting for a long gate, and whether the clock is telling the truth
 

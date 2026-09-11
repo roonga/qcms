@@ -42,7 +42,7 @@
  *   64  usage: no directory, or no run recorded there
  *   75  the slice ended with the suite still running - re-invoke, nothing is wrong
  *   76  the runner is gone and recorded no rc (SIGKILL): the seat may hold orphans
- *   77  the runner was signalled and released the seat: not a test verdict
+ *   77  the runner was signalled: it stopped the suite and cleared the seat's ports
  */
 
 import { spawn } from "node:child_process";
@@ -52,6 +52,8 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readdirSync,
+  readlinkSync,
   renameSync,
   statSync,
   writeFileSync,
@@ -61,7 +63,12 @@ import { argv, cwd, env, exit, hrtime } from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { scratchPath } from "./agent-scratch.mjs";
-import { PORT_SEAT_ENV_VAR, assertPortSeatChosen } from "./ports.mjs";
+import {
+  PORT_SEAT_ENV_VAR,
+  assertPortSeatChosen,
+  harnessPorts,
+  resolvePortSeat,
+} from "./ports.mjs";
 
 const REPO_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
@@ -128,7 +135,7 @@ export function validateShard(plan) {
 /**
  * @typedef {{ mode: "start"; projects: string[]; shard?: string; passthrough: string[] }} StartArgs
  * @typedef {{ mode: "wait"; directory: string; sliceSeconds: number; tailLines: number }} WaitArgs
- * @typedef {{ mode: "supervise"; heartbeat: string; log: string; pid: string; rc: string; command: string[] }} SuperviseArgs
+ * @typedef {{ mode: "supervise"; heartbeat: string; log: string; pid: string; rc: string; releasePorts: number[]; command: string[] }} SuperviseArgs
  * @typedef {StartArgs | WaitArgs | SuperviseArgs} Args
  */
 
@@ -223,6 +230,8 @@ export function parseArgs(args) {
   if (mode === "supervise") {
     /** @type {Record<string, string>} */
     const files = {};
+    /** @type {number[]} */
+    const releasePorts = [];
     /** @type {string[]} */
     let command = [];
     while (remaining.length > 0) {
@@ -231,6 +240,10 @@ export function parseArgs(args) {
         command = remaining.splice(0, remaining.length);
       } else if (arg === "--heartbeat" || arg === "--log" || arg === "--pid" || arg === "--rc") {
         files[arg.slice(2)] = takeValue(remaining, arg);
+      } else if (arg === "--release-port") {
+        releasePorts.push(
+          positiveInteger(takeValue(remaining, "--release-port"), "--release-port"),
+        );
       } else {
         throw new Error(`unknown option for supervise: ${arg}`);
       }
@@ -245,6 +258,7 @@ export function parseArgs(args) {
       log: /** @type {string} */ (files.log),
       pid: /** @type {string} */ (files.pid),
       rc: /** @type {string} */ (files.rc),
+      releasePorts,
       command,
     };
   }
@@ -296,7 +310,7 @@ export function isAlive(pid) {
  * missing or unparseable file therefore means "not finished yet" rather than "corrupt".
  *
  * @param {string} path
- * @returns {{ code: number; signalled: boolean } | undefined}
+ * @returns {{ code: number; signalled: boolean; survivors?: string } | undefined}
  */
 export function readRc(path) {
   let text;
@@ -307,7 +321,12 @@ export function readRc(path) {
   }
   const match = /^EXIT=(-?\d+)/m.exec(text);
   if (match?.[1] === undefined) return undefined;
-  return { code: Number(match[1]), signalled: /^killed=/m.test(text) };
+  const survivors = /^seat_survivors=(.+)$/m.exec(text)?.[1];
+  return {
+    code: Number(match[1]),
+    signalled: /^killed=/m.test(text),
+    ...(survivors === undefined ? {} : { survivors }),
+  };
 }
 
 /**
@@ -420,6 +439,13 @@ export async function startDetached({
 
   const suite = command ?? playwrightCommand();
   const self = fileURLToPath(import.meta.url);
+  // The ports this run owns, so a signalled runner can clear them by port rather than
+  // by ancestry. Playwright's dev servers are not in the suite's process group.
+  const seatNumber = resolvePortSeat(environment[PORT_SEAT_ENV_VAR]);
+  const releaseArgs = harnessPorts(seatNumber).flatMap(({ port }) => [
+    "--release-port",
+    String(port),
+  ]);
   const supervisor = spawn(
     "setsid",
     [
@@ -434,6 +460,7 @@ export async function startDetached({
       paths.rc,
       "--heartbeat",
       paths.heartbeat,
+      ...releaseArgs,
       "--",
       ...suite,
     ],
@@ -473,17 +500,28 @@ export async function startDetached({
  * The detached side: run the suite, keep a heartbeat, record the rc, and release the
  * seat if this process is itself signalled.
  *
- * The suite gets a process group of its own (`detached`), which is the whole mechanism
- * behind the cleanup: one `kill(-pgid)` reaches Playwright AND the two `next dev`
- * servers it started, so a signalled runner does not leave the seat's `17Sxx` ports held
- * by orphans reparented to pid 1 (issue #295). Never `pkill -f`: the gate command names
- * are identical across lanes on this host, so a pattern kill is lane-agnostic and has
+ * The suite gets a process group of its own (`detached`), so one `kill(-pgid)` reaches
+ * Playwright and everything Playwright kept in that group. **That is not enough on its
+ * own, measured rather than assumed**: Playwright starts each `webServer` in a session
+ * of ITS own, so the two `next dev` servers sit in process groups the suite's leader
+ * pid cannot address, and a run stopped that way left both of them bound to the seat's
+ * ports 25 seconds later. The group signal is therefore step one of {@link releaseSeat},
+ * which then goes by PORT: it asks `/proc` who is listening on this seat's harness ports
+ * and signals those pids one at a time. Never `pkill -f` - the gate command names are
+ * identical across every lane on this host, so a pattern kill is lane-agnostic and has
  * already taken out a neighbour's gate and the killer's own shell (issue #890).
  *
  * @param {SuperviseArgs} args
  * @returns {Promise<number>}
  */
-export async function supervise({ command, heartbeat, log, pid: pidPath, rc: rcPath }) {
+export async function supervise({
+  command,
+  heartbeat,
+  log,
+  pid: pidPath,
+  rc: rcPath,
+  releasePorts = [],
+}) {
   mkdirSync(dirname(log), { recursive: true });
   const handle = openSync(log, "a");
   const started = hrtime.bigint();
@@ -542,16 +580,27 @@ export async function supervise({ command, heartbeat, log, pid: pidPath, rc: rcP
 
   /** @type {NodeJS.Signals | undefined} */
   let signalled;
+  /** @type {Promise<PortListener[]> | undefined} */
+  let releasing;
   /** @param {NodeJS.Signals} signal */
   const onSignal = (signal) => {
     if (signalled !== undefined) return;
     signalled = signal;
     note(`runner received ${signal}: stopping the suite and releasing the seat`);
-    // The whole group, so the dev servers go with it rather than surviving as orphans.
-    killGroup(child.pid, "SIGTERM");
-    setTimeout(() => {
-      killGroup(child.pid, "SIGKILL");
-    }, GRACE_MS).unref();
+    releasing = (async () => {
+      // Step one: the suite's own group. Playwright and anything it left in that group
+      // go here; its separately-sessioned dev servers do not, which is step two.
+      killGroup(child.pid, "SIGTERM");
+      setTimeout(() => {
+        killGroup(child.pid, "SIGKILL");
+      }, GRACE_MS).unref();
+      return await releaseSeat({
+        ports: releasePorts,
+        graceMs: GRACE_MS,
+        note,
+        skipPids: new Set([process.pid, child.pid ?? -1]),
+      });
+    })();
   };
   for (const signal of /** @type {NodeJS.Signals[]} */ (["SIGTERM", "SIGINT", "SIGHUP"])) {
     process.on(signal, () => {
@@ -566,7 +615,9 @@ export async function supervise({ command, heartbeat, log, pid: pidPath, rc: rcP
   const lines = [`EXIT=${String(suiteCode)}`];
   if (signalled !== undefined) {
     lines.push(`killed=${signalled}`);
-    lines.push(`# The RUNNER was signalled; this is not a test verdict. Seat released.`);
+    // Only ever written from what the port check actually found, never from the
+    // intention to clean up: a release that failed is the case a report has to see.
+    lines.push(...releaseLines(releasePorts, await (releasing ?? Promise.resolve([]))));
   } else if (signal !== null) {
     lines.push(`killed=${signal}`);
     lines.push("# The SUITE died on a signal; this is not a test verdict.");
@@ -578,18 +629,246 @@ export async function supervise({ command, heartbeat, log, pid: pidPath, rc: rcP
 }
 
 /**
+ * The rc file's account of the seat, written from the port check rather than from the
+ * attempt. Three honest outcomes: nothing was asked for, the ports are clear, or named
+ * pids are still holding them and somebody has to deal with them by hand.
+ *
+ * @param {number[]} ports
+ * @param {PortListener[]} survivors
+ * @returns {string[]}
+ */
+export function releaseLines(ports, survivors) {
+  const preamble = "# The RUNNER was signalled; this is not a test verdict.";
+  if (ports.length === 0) {
+    return [`${preamble} No seat ports were given, so nothing was released.`];
+  }
+  if (survivors.length === 0) {
+    return [`${preamble} Seat released: nothing is listening on ${ports.join(", ")}.`];
+  }
+  return [
+    `seat_survivors=${survivors.map(({ port, pid }) => `${String(port)}:${String(pid ?? 0)}`).join(",")}`,
+    `${preamble} THE SEAT WAS NOT RELEASED: the pids above still hold those ports.`,
+    "# Kill them by hand, one pid per argument, from outside any sandbox.",
+  ];
+}
+
+/**
  * Signal a process GROUP by its leader's pid, tolerating a group that has already gone.
+ *
+ * The guard is not defensive tidiness. `process.kill(0, ...)` signals the CALLER'S OWN
+ * process group, and `process.kill(-1, ...)` signals every process this user owns, so a
+ * pid that arrived as `undefined` and was defaulted to 0 would turn a cleanup into
+ * suicide or a massacre. A leader below 2 is never a group worth addressing.
  *
  * @param {number | undefined} leader
  * @param {NodeJS.Signals} signal
  */
 function killGroup(leader, signal) {
-  if (leader === undefined || leader <= 0) return;
+  if (leader === undefined || !Number.isInteger(leader) || leader < 2) return;
   try {
     process.kill(-leader, signal);
   } catch {
     // Already gone, which is the outcome being asked for.
   }
+}
+
+/**
+ * @typedef {{ port: number; pid: number | undefined }} PortListener
+ */
+
+/** `st` value for `TCP_LISTEN` in `/proc/net/tcp`. */
+const TCP_LISTEN = "0A";
+
+/**
+ * Every process listening on any of `ports`, from `/proc`.
+ *
+ * This mirrors `seatOccupants` in `apps/portal/e2e/support/port-seat.ts`, which is the
+ * lookup the seat preflight already uses to name an occupant. It is mirrored rather
+ * than imported because that file is TypeScript nothing compiles and this is plain
+ * JavaScript bare `node` runs; `docs/PORTS.md` records that moving the `/proc` reader
+ * down beside `scripts/ports.mjs` so both callers can share one copy belongs with issue
+ * #318, and this copy is deliberately small enough to fold in when that happens.
+ *
+ * A pid can be `undefined` on a real listener (another user's process, or another PID
+ * namespace). That is reported as an occupied port with an unknown holder rather than
+ * as a free port, because the caller's question is "is the seat clear", not "is it
+ * mine".
+ *
+ * @param {number[]} ports
+ * @returns {PortListener[]}
+ */
+export function listenersOnPorts(ports) {
+  if (ports.length === 0 || !existsSync("/proc/net/tcp")) return [];
+  /** @type {PortListener[]} */
+  const found = [];
+  for (const port of ports) {
+    const inodes = listeningSocketInodes(port);
+    if (inodes.size === 0) continue;
+    found.push({ port, pid: pidHoldingSocket(inodes) });
+  }
+  return found;
+}
+
+/**
+ * Inode numbers of every listening TCP socket bound to `port`.
+ *
+ * @param {number} port
+ * @returns {Set<string>}
+ */
+function listeningSocketInodes(port) {
+  const inodes = new Set();
+  for (const table of ["/proc/net/tcp", "/proc/net/tcp6"]) {
+    let text;
+    try {
+      text = readFileSync(table, "utf8");
+    } catch {
+      continue;
+    }
+    for (const line of text.split("\n").slice(1)) {
+      const columns = line.trim().split(/\s+/);
+      const localAddress = columns[1];
+      const state = columns[3];
+      const inode = columns[9];
+      if (localAddress === undefined || state !== TCP_LISTEN || inode === undefined) continue;
+      const hexPort = localAddress.split(":")[1];
+      if (hexPort !== undefined && Number.parseInt(hexPort, 16) === port) inodes.add(inode);
+    }
+  }
+  return inodes;
+}
+
+/**
+ * The pid holding any of `inodes` open, by scanning `/proc/<pid>/fd`.
+ *
+ * @param {Set<string>} inodes
+ * @returns {number | undefined}
+ */
+function pidHoldingSocket(inodes) {
+  if (inodes.size === 0) return undefined;
+  let entries;
+  try {
+    entries = readdirSync("/proc");
+  } catch {
+    return undefined;
+  }
+  const targets = new Set([...inodes].map((inode) => `socket:[${inode}]`));
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    let descriptors;
+    try {
+      descriptors = readdirSync(`/proc/${entry}/fd`);
+    } catch {
+      continue;
+    }
+    for (const descriptor of descriptors) {
+      try {
+        if (targets.has(readlinkSync(`/proc/${entry}/fd/${descriptor}`))) return Number(entry);
+      } catch {
+        // The descriptor closed between the listing and the readlink.
+      }
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Signal one pid, refusing the values that mean something else entirely.
+ *
+ * @param {number | undefined} pid
+ * @param {NodeJS.Signals} signal
+ * @param {Set<number>} skipPids
+ * @param {(line: string) => void} note
+ * @returns {boolean} whether a signal was actually delivered
+ */
+function signalPid(pid, signal, skipPids, note) {
+  // 0 is this process's own group and 1 is init. Neither is ever the answer, and a
+  // `pid ?? 0` upstream is exactly how 0 gets here.
+  if (pid === undefined || !Number.isInteger(pid) || pid < 2) return false;
+  if (pid === process.pid || skipPids.has(pid)) return false;
+  try {
+    process.kill(pid, signal);
+    note(`sent ${signal} to pid ${String(pid)}`);
+    return true;
+  } catch (error) {
+    note(`could not signal pid ${String(pid)}: ${error instanceof Error ? error.message : "?"}`);
+    return false;
+  }
+}
+
+/**
+ * Clear every process listening on this seat's harness ports, and report what is left.
+ *
+ * Killing the suite's process group does NOT do this, which is the measurement that
+ * made this function necessary: Playwright starts each `webServer` in a session of its
+ * own, so the portal and admin dev servers sit in groups the suite's leader pid cannot
+ * address. Two SIGTERM runs on a real seat left both `next-server` processes bound to
+ * their ports 25 seconds later, while the rc file claimed the seat had been released.
+ *
+ * So the seat is cleared by PORT, not by ancestry: ask `/proc` who is listening, signal
+ * those pids one at a time, wait, then SIGKILL whoever is left. One pid per call and
+ * never a pattern match - `pkill -f "pnpm verify"` is lane-agnostic on this host and
+ * has already killed a neighbour's gate (issue #890). The ports are this seat's own
+ * allocation (`docs/PORTS.md`, R8) and the preflight refused to start if anything else
+ * held them, so the only thing that can be listening there is this run's own servers.
+ *
+ * Returns what is STILL listening, which is what the rc file reports. An empty array is
+ * the only thing that earns the words "seat released".
+ *
+ * @param {{ ports: number[]; graceMs?: number; note?: (line: string) => void; pollMs?: number; skipPids?: Set<number>; settleMs?: number }} options
+ * @returns {Promise<PortListener[]>}
+ */
+export async function releaseSeat({
+  ports,
+  graceMs = GRACE_MS,
+  note = () => {},
+  pollMs = 250,
+  skipPids = new Set(),
+  settleMs = 2_000,
+}) {
+  if (ports.length === 0) return [];
+  const signalled = new Set();
+
+  /** @param {NodeJS.Signals} signal */
+  const sweep = (signal) => {
+    const listeners = listenersOnPorts(ports);
+    for (const { port, pid } of listeners) {
+      const key = `${String(pid ?? 0)}:${signal}`;
+      if (signalled.has(key)) continue;
+      signalled.add(key);
+      note(`port ${String(port)} still held by pid ${String(pid ?? 0)}`);
+      signalPid(pid, signal, skipPids, note);
+    }
+    return listeners;
+  };
+
+  /**
+   * @param {number} budgetMs
+   * @param {NodeJS.Signals} signal
+   * @returns {Promise<PortListener[]>}
+   */
+  const drain = async (budgetMs, signal) => {
+    const deadline = Date.now() + budgetMs;
+    for (;;) {
+      const listeners = sweep(signal);
+      if (listeners.length === 0) return [];
+      if (Date.now() >= deadline) return listenersOnPorts(ports);
+      await sleep(Math.min(pollMs, Math.max(1, deadline - Date.now())));
+    }
+  };
+
+  if ((await drain(graceMs, "SIGTERM")).length === 0) {
+    note(`seat released: nothing is listening on ${ports.join(", ")}`);
+    return [];
+  }
+  const survivors = await drain(settleMs, "SIGKILL");
+  if (survivors.length === 0) {
+    note(`seat released after SIGKILL: nothing is listening on ${ports.join(", ")}`);
+    return [];
+  }
+  note(
+    `SEAT NOT RELEASED: ${survivors.map(({ port, pid }) => `${String(port)}:${String(pid ?? 0)}`).join(", ")}`,
+  );
+  return survivors;
 }
 
 /**
@@ -667,7 +946,11 @@ export async function waitForRun({
       if (rc.signalled) {
         withTail(
           `EXIT=${String(rc.code)} but the run was SIGNALLED, not judged: the suite never finished. ` +
-            "Re-run it; this is not a red suite.",
+            "Re-run it; this is not a red suite." +
+            (rc.survivors === undefined
+              ? ""
+              : ` The seat was NOT released: ${rc.survivors} (port:pid). Kill those pids by ` +
+                "hand, one pid per argument, from outside any sandbox, before the next run."),
         );
         return EXIT_RUNNER_KILLED;
       }
