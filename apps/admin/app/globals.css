@@ -2192,25 +2192,27 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* THE IDENTIFYING CELL OF EVERY ADMIN TABLE (issue #582, contract §2).
 
-   One treatment, wherever an id identifies a row: monospace and tabular-figure, which
-   is §2's wording, and the same `overflow-wrap: anywhere` the two derived-id columns
-   already chose (`.qcms-opt-cell--id`, and the pin row before it joined this family) -
-   a derived id is as
-   long as the text an author wrote, so no width can be a guarantee and a mid-token wrap
-   loses nothing. An OPAQUE id is abbreviated to its prefix plus eight characters in the
-   markup instead, so it never reaches a width that needs wrapping.
+   One treatment, wherever an id identifies a row: monospace and tabular-figure, which is
+   §2's wording, and the same `overflow-wrap: anywhere` the derived-id columns already
+   chose (`.qcms-opt-cell--id`, and the pin row before it joined this family). A derived
+   id is as long as the text an author wrote, so no width can be a guarantee and a
+   mid-token wrap loses nothing. An OPAQUE id is abbreviated to its prefix plus eight
+   characters in the markup instead, so it never reaches a width that needs wrapping.
 
    `tabular-nums` is the half `.qcms-link-id` never had. An id column is read DOWN, one
    row against the next, and proportional digits make two hex strings of equal length
    different widths; the figures line up now, which is what makes a scan of the column
    possible at all.
 
-   Inline-flex, because the copy control sits beside the value on the same baseline.
-   `align-items: start` rather than `center`: a wrapped derived id is taller than the
-   24px button, and centring it puts the button halfway down a two-line cell. */
+   Inline-flex, because the copy control sits beside the value rather than under it, and
+   `align-items: center` because the control is the taller item. The alternative reads
+   worse in both places it appears: top-aligning a 13px line against a 24px button lifts
+   the id above the text in every neighbouring cell of the same row, and it moves the pin
+   row's id up against the label it sits under. A wrapped derived id centres its control
+   against two lines, which is what the pin row already did before this family existed. */
 .qcms-entityid {
   display: inline-flex;
-  align-items: start;
+  align-items: center;
   gap: 2px;
 }
 .qcms-entityid__value {
