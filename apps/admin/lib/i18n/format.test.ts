@@ -7,6 +7,7 @@ import {
   formatDay,
   formatList,
   formatOperatorDateTime,
+  formatOperatorDay,
   isInstant,
 } from "./format.ts";
 
@@ -30,6 +31,22 @@ describe("date formatting", () => {
     const formatted = formatDateTime("2030-12-31T23:59:59.999Z");
     expect(formatted).toContain("UTC");
     expect(formatted).not.toContain("2030-12-31T23:59:59.999Z");
+  });
+
+  it("renders no seconds, which §2 spends no row width on (issue #582)", () => {
+    // `plan/admin-design-contracts.md` §2, amended 2026-08-20: a timestamp column renders
+    // date, HH:MM and the zone. Seconds cost width in every row of every table to answer a
+    // question the detail route already answers. The instant below has 59 seconds and 999
+    // milliseconds in it, so a formatter that leaked either would say so.
+    //
+    // The clock is the `en` locale's own, which is 12-hour: §2 writes the clause as
+    // "HH:MM" and ADR-27 puts every date through `Intl`, so the SHAPE follows the catalog
+    // locale and only the precision is the contract's to state. A 24-hour rendering here
+    // would be a hand-cut format, which is the thing ADR-27 exists to prevent.
+    const formatted = formatDateTime("2030-12-31T23:45:59.999Z");
+    expect(formatted).toContain("11:45");
+    expect(formatted).not.toMatch(/\d{1,2}:\d{2}:\d{2}/);
+    expect(formatted).not.toContain("999");
   });
 
   it("renders in UTC regardless of the machine's zone (no hydration mismatch)", () => {
@@ -143,6 +160,56 @@ describe("operator-local date formatting", () => {
     expect(isInstant(null)).toBe(false);
     expect(isInstant(undefined)).toBe(false);
     expect(isInstant("not a timestamp")).toBe(false);
+  });
+
+  /**
+   * The day-only half (Code Owner, 2026-09-11, issue #582).
+   *
+   * A day column used to stay UTC because it has no clock in its output to name a zone on.
+   * The instant below is the case that argument missed: **23:30 UTC on 2 August**, which is
+   * already 3 August in Sydney and still 2 August in Los Angeles. A table that named the
+   * UTC day told one of those two operators about a day their own clock never agreed with.
+   *
+   * The two zones are fixed-rule rather than convenient: Australia/Sydney is UTC+10 or +11
+   * and Los Angeles UTC-7 or -8, so the instant sits on different local days in the two of
+   * them in either half of the year, and this case cannot start passing or failing on a
+   * daylight-saving boundary.
+   */
+  const NEAR_MIDNIGHT_UTC = "2026-08-02T23:30:00.000Z";
+
+  it("names the operator's own calendar day, east and west of UTC", () => {
+    const east = inZone("Australia/Sydney", () => formatOperatorDay(NEAR_MIDNIGHT_UTC));
+    const west = inZone("America/Los_Angeles", () => formatOperatorDay(NEAR_MIDNIGHT_UTC));
+
+    expect(east).toContain("Aug 3");
+    expect(west).toContain("Aug 2");
+    expect(east).not.toBe(west);
+    // And the UTC answer is the western one here, which is what makes the eastern reader
+    // the one the old rule was wrong about.
+    expect(formatDay(NEAR_MIDNIGHT_UTC)).toBe(west);
+  });
+
+  it("carries no clock and no zone name, because a day column has neither", () => {
+    // The precision half of §2 survives the zone change: a day column gained the operator's
+    // zone, not a time of day, and certainly not seconds.
+    const day = inZone("Australia/Sydney", () => formatOperatorDay(NEAR_MIDNIGHT_UTC));
+    expect(day).not.toMatch(/\d{1,2}:\d{2}/);
+    expect(day).not.toMatch(/UTC|GMT|AE[SD]T/);
+  });
+
+  it("agrees with the pinned formatter when the operator is on UTC", () => {
+    // Which is what makes the swap after hydration a display change rather than a data one,
+    // and what the server render and the first client render both produce.
+    expect(inZone("UTC", () => formatOperatorDay(NEAR_MIDNIGHT_UTC))).toBe(
+      formatDay(NEAR_MIDNIGHT_UTC),
+    );
+  });
+
+  it("renders nothing readable as the caller's fallback, same as its pinned twin", () => {
+    expect(formatOperatorDay("")).toBe("");
+    expect(formatOperatorDay(null, "-")).toBe("-");
+    expect(formatOperatorDay(undefined, "-")).toBe("-");
+    expect(formatOperatorDay("not a timestamp", "-")).toBe("-");
   });
 });
 

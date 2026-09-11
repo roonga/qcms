@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { EntityId } from "@/components/entity-id";
 import { Button, DatePicker, Dialog, Select } from "@/components/kit";
 import { FlagTag } from "@/components/ops/ops-tags";
 import { answerPreviewText } from "@/lib/ops/answers";
@@ -280,13 +281,20 @@ export function ResponseBrowser({
                 {data.responses.map((row) => (
                   <tr key={row.sessionId} data-session-id={row.sessionId}>
                     <th scope="row">
-                      <Link
-                        className="qcms-text-link"
+                      {/* Prefix plus eight, with a copy control (issue #582). A session id
+                          is OPAQUE - 16 random hex bytes minted by the API - so §2's
+                          2026-08-20 rule applies unchanged: nobody reads 32 hex characters,
+                          and the column's two jobs are recognising a row against a ticket
+                          and getting the exact value into a search box. The whole value is
+                          still in this cell's markup and still in the detail route's
+                          heading, so neither the announcement nor the no-JS path loses it
+                          (`components/entity-id.tsx`). */}
+                      <EntityId
+                        kind="session"
+                        value={row.sessionId}
                         href={`${base}/${encodeURIComponent(row.sessionId)}`}
-                        aria-label={t("ops.responses.open", { sessionId: row.sessionId })}
-                      >
-                        <code className="qcms-link-id">{row.sessionId}</code>
-                      </Link>
+                        linkLabel={t("ops.responses.open", { sessionId: row.sessionId })}
+                      />
                     </th>
                     <td className="qcms-cell--num">v{row.formVersion}</td>
                     <td className="qcms-cell--num">

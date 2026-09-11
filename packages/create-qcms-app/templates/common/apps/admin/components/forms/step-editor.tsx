@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { EntityId } from "@/components/entity-id";
 import {
   Button,
   MenuItem,
@@ -462,10 +463,14 @@ function PinRow({
         >
           {row.label}
         </span>
-        <span className="qcms-pinrow__id">
-          <span className="qcms-pinrow__idvalue">{row.questionId}</span>
-          <CopyQuestionId questionId={row.questionId} />
-        </span>
+        {/* The id and its copy control, both through the one component every admin table
+            renders an identifying id with (issue #582). A question id is DERIVED from the
+            author's own text, so §2's 2026-08-21 amendment renders it whole and nothing
+            about this cell changes; what changed is that the rule now lives in one place
+            instead of here. The copy control is "welcome" rather than required once a
+            value is whole, and it stays, because this is the screen an author carries an
+            id off to a rule or a ticket from. */}
+        <EntityId kind="question" value={row.questionId} copy className="qcms-pinrow__id" />
       </th>
 
       {/* LIBRARY-OWNED, and one of the two columns that drop at compact width. */}
@@ -574,47 +579,4 @@ function versionMenuItems(otherVersions: readonly number[] | undefined): readonl
       {t("forms.step.movePinTo", { version })}
     </MenuItem>
   ));
-}
-
-/**
- * The copy control contract §2 requires of an identifying column.
- *
- * Its accessible name carries the entity and the value ("Copy question id
- * q_at_fault_accident") rather than a bare "Copy" repeated down the column, which is
- * the clause's own wording: a screen-reader user reading the column's controls in
- * sequence otherwise hears the same word five times.
- *
- * It is JS-only, and §2 accepts that **because** the full id is reachable without JS:
- * it is rendered whole in the cell right beside this button, and the question's own
- * detail route is headed with it. Nothing here is the sole route to the value.
- */
-function CopyQuestionId({ questionId }: { readonly questionId: string }) {
-  return (
-    <button
-      type="button"
-      className="qcms-copyid"
-      data-readonly-action="copy"
-      aria-label={t("forms.step.copyQuestionId", { questionId })}
-      onClick={() => {
-        // The `?.` guards the whole chain, not just the property after it: optional
-        // chaining short-circuits every call and member access to its right, so with no
-        // `navigator.clipboard` (an insecure context, or an older engine) this expression
-        // is `undefined` and `.then` is never evaluated. `void undefined` is fine.
-        void navigator.clipboard?.writeText(questionId).then(
-          () => {
-            announce(t("forms.step.copiedQuestionId", { questionId }));
-          },
-          () => {
-            // A refused clipboard is not worth an error state: the id is already on
-            // screen in full, so the operator can still select it by hand.
-          },
-        );
-      }}
-    >
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-        <rect x="9" y="9" width="11" height="11" rx="2" />
-        <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-      </svg>
-    </button>
-  );
 }

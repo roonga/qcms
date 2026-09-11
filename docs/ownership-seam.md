@@ -93,15 +93,15 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (373 files common to both shapes)
+### Scaffolded paths (378 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 362   |
-| `apps/admin/`                                                        | 216   |
-| `apps/admin/app/`                                                    | 66    |
-| `apps/admin/app/(shell)/`                                            | 50    |
+| `apps/`                                                              | 367   |
+| `apps/admin/`                                                        | 221   |
+| `apps/admin/app/`                                                    | 67    |
+| `apps/admin/app/(shell)/`                                            | 51    |
 | `apps/admin/app/(shell)/@rail/`                                      | 21    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 12    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 10    |
@@ -121,7 +121,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 16    |
+| `apps/admin/app/(shell)/forms/`                                      | 17    |
 | `apps/admin/app/(shell)/forms/[formId]/`                             | 11    |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
@@ -156,12 +156,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 66    |
+| `apps/admin/components/`                                             | 69    |
 | `apps/admin/components/forms/`                                       | 29    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 9     |
-| `apps/admin/components/test-support/`                                | 1     |
-| `apps/admin/lib/`                                                    | 77    |
+| `apps/admin/components/test-support/`                                | 2     |
+| `apps/admin/lib/`                                                    | 78    |
 | `apps/admin/lib/forms/`                                              | 21    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
@@ -227,7 +227,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`1831` lines across `325` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`1866` lines across `330` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -242,7 +242,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (373)</summary>
+<summary>Every scaffolded file (378)</summary>
 
 ```
 .dockerignore
@@ -287,6 +287,7 @@ apps/admin/app/(shell)/forms/forms-table.tsx
 apps/admin/app/(shell)/forms/new/create-form.tsx
 apps/admin/app/(shell)/forms/new/page.tsx
 apps/admin/app/(shell)/forms/page.tsx
+apps/admin/app/(shell)/forms/published-cell.tsx
 apps/admin/app/(shell)/layout.tsx
 apps/admin/app/(shell)/questions/[questionId]/page.tsx
 apps/admin/app/(shell)/questions/actions.ts
@@ -321,7 +322,9 @@ apps/admin/components/admin-nav.tsx
 apps/admin/components/announcer.tsx
 apps/admin/components/appearance-menu.tsx
 apps/admin/components/auth-screen.tsx
+apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
+apps/admin/components/entity-id.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/builder-breadcrumb.tsx
@@ -381,12 +384,14 @@ apps/admin/components/save-model.tsx
 apps/admin/components/searchable-select.tsx
 apps/admin/components/settings-panels.tsx
 apps/admin/components/settings-section-rail.tsx
+apps/admin/components/test-support/jsx-cells.ts
 apps/admin/components/test-support/markup.ts
 apps/admin/instrumentation.ts
 apps/admin/lib/announce.ts
 apps/admin/lib/appearance.ts
 apps/admin/lib/auth-failure-message.ts
 apps/admin/lib/builder-notice.ts
+apps/admin/lib/entity-id.ts
 apps/admin/lib/forms/assist-diff.ts
 apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/autosave.ts

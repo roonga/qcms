@@ -5,9 +5,9 @@ import { useMemo, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
 import { Button, Select } from "@/components/kit";
+import { OperatorDay } from "@/components/operator-time";
 import { diffDefinitions, type DiffRow } from "@/lib/forms/version-diff";
 import type { FormVersionSummary } from "@/lib/forms/types";
-import { formatDay } from "@/lib/i18n/format";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -137,7 +137,11 @@ export function VersionHistory({
                     {t("forms.version.value", { version: version.version })}
                   </Link>
                 </th>
-                <td className="qcms-cell--num">{formatDay(version.publishedAt)}</td>
+                {/* The operator's own calendar day (issue #582); see the note on the
+                    question library's Created column. */}
+                <td className="qcms-cell--num">
+                  <OperatorDay iso={version.publishedAt} />
+                </td>
                 <td className="qcms-cell--drop">{version.compilerVersion}</td>
                 <td className="qcms-cell--drop">{version.a2uiSpecVersion}</td>
                 <td className="qcms-cell--drop">{version.semanticsVersion}</td>

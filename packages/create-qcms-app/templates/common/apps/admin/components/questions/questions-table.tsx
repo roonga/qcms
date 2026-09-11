@@ -1,7 +1,6 @@
-import Link from "next/link";
-
+import { EntityId } from "@/components/entity-id";
+import { OperatorDay } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
 import { textOf } from "@/lib/questions/definition";
 import type { QuestionListItem } from "@/lib/questions/types";
 
@@ -89,13 +88,16 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
           {rows.map((question) => (
             <tr key={question.questionId} data-question-id={question.questionId}>
               <th scope="row">
-                <Link
-                  className="qcms-text-link"
+                {/* The row's anchor and its id are one component now (issue #582). A
+                    question id is DERIVED from the author's own text, so §2's 2026-08-21
+                    amendment renders it whole and nothing here moves; the anchor keeps the
+                    accessible name that says where the row goes. */}
+                <EntityId
+                  kind="question"
+                  value={question.questionId}
                   href={`/questions/${encodeURIComponent(question.questionId)}`}
-                  aria-label={t("questions.open", { questionId: question.questionId })}
-                >
-                  <code className="qcms-link-id">{question.questionId}</code>
-                </Link>
+                  linkLabel={t("questions.open", { questionId: question.questionId })}
+                />
               </th>
               <td>{textOf(question.label ?? undefined)}</td>
               {/* A row whose latest version has gone missing has no type to name; an em
@@ -108,7 +110,13 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
               </td>
               <td className="qcms-cell--num">v{question.latestVersion}</td>
               <td>{t(`questions.status.${question.latestStatus}`)}</td>
-              <td className="qcms-cell--num qcms-cell--drop">{formatDay(question.createdAt)}</td>
+              {/* The operator's own calendar day, not UTC (Code Owner, 2026-09-11, issue
+                  #582). A day column carries no clock and gains none; what it gains is
+                  agreement with the timestamp columns about which day an instant fell on.
+                  The component is what keeps that hydration-safe. */}
+              <td className="qcms-cell--num qcms-cell--drop">
+                <OperatorDay iso={question.createdAt} />
+              </td>
             </tr>
           ))}
         </tbody>

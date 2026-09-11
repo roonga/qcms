@@ -3,6 +3,7 @@
 import { useCallback, useState, useTransition } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { EntityId } from "@/components/entity-id";
 import { Alert, Button, Checkbox, Dialog, TextField } from "@/components/kit";
 import type { ReadState } from "@/lib/read-state";
 import type { RevealedWebhook, WebhookSummary } from "@/lib/ops/types";
@@ -275,7 +276,18 @@ export function WebhookConfig({
                 {rows.map((hook) => (
                   <tr key={hook.webhookId} data-webhook-id={hook.webhookId}>
                     <th scope="row">
-                      <code className="qcms-link-id">{hook.webhookId}</code>
+                      {/* Prefix plus eight, with a copy control (issue #582). A webhook id
+                          is 16 random hex bytes minted by the API
+                          (`apps/api/src/features/webhooks/handler.ts`), which is the opaque
+                          convention §2's 2026-08-20 rule is written for, even though the
+                          amendment's example list names only `ses_` and `lnk_`.
+
+                          This table has no detail route, so the clause "the full id goes
+                          somewhere reachable without JS" is answered by the cell itself
+                          rather than by a link: the remainder is rendered visually hidden,
+                          in the server HTML, where assistive technology reads it and a
+                          selection copies it. */}
+                      <EntityId kind="webhook" value={hook.webhookId} />
                     </th>
                     <td>
                       <span className="qcms-link-url">{hook.url}</span>

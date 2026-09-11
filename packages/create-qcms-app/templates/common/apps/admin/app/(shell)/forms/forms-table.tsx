@@ -1,8 +1,10 @@
 import Link from "next/link";
 
+import { EntityId } from "@/components/entity-id";
 import type { FormListItem } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
+
+import { PublishedCell } from "./published-cell";
 
 /**
  * The form library table (task 033).
@@ -81,27 +83,29 @@ export function FormsTable({ rows }: { readonly rows: readonly FormListItem[] })
                 </Link>
               </th>
               <td>
-                <code className="qcms-link-id">{form.formId}</code>
+                {/* Through `EntityId` rather than a `<code>` of its own (issue #582), and
+                    rendered WHOLE: a form id is minted from the slug the author typed
+                    (`lib/forms/draft.ts`'s `formIdFromSlug`), so it is a DERIVED id under
+                    §2's 2026-08-21 amendment and truncating it would manufacture a
+                    plausible other form. The divergence from the amendment's own example
+                    list, which puts `frm_` with the opaque ids, is argued at
+                    `lib/entity-id.ts`. */}
+                <EntityId kind="form" value={form.formId} />
               </td>
               <td className="qcms-cell--drop">{form.defaultLocale}</td>
               <td>{t(`forms.status.${form.status}`)}</td>
               <td>{form.hasDraft ? t("forms.draft.present") : t("forms.draft.none")}</td>
-              <td className="qcms-cell--num">{publishedCell(form)}</td>
+              {/* The day in this sentence is the operator's own now, not UTC (Code Owner,
+                  2026-09-11, issue #582), which is why the cell is a component rather than
+                  a string: the swap after hydration needs a client boundary, and
+                  `published-cell.tsx` is the smallest one that holds it. */}
+              <td className="qcms-cell--num">
+                <PublishedCell form={form} />
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
-}
-
-/** What version respondents are seeing, and when it was frozen. */
-function publishedCell(form: FormListItem): string {
-  if (form.latestVersion === null) return t("forms.version.none");
-  return form.publishedAt === null
-    ? t("forms.version.value", { version: form.latestVersion })
-    : t("forms.version.valueAt", {
-        version: form.latestVersion,
-        date: formatDay(form.publishedAt),
-      });
 }

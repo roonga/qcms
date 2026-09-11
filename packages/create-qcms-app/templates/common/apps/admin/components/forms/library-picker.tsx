@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { EntityId } from "@/components/entity-id";
 import { Alert, Button, Dialog, TextField } from "@/components/kit";
 import {
   choose,
@@ -316,7 +317,11 @@ export function LibraryPicker({
                         )}
                       </td>
                       <th scope="row">
-                        <code className="qcms-link-id">{row.questionId}</code>
+                        {/* Whole, through the shared component (issue #582): a question id
+                            is DERIVED, and this row has no anchor and no copy control -
+                            the choosing control is the checkbox beside it, which already
+                            names the id and the version. */}
+                        <EntityId kind="question" value={row.questionId} />
                       </th>
                       <td>{row.label}</td>
                       <td className="qcms-cell--drop">{row.type}</td>

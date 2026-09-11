@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { EmptyState } from "@/components/empty-state";
 import { Alert } from "@/components/kit";
 import { erasureReasonText } from "@/components/ops/ops-tags";
+import { EntityId } from "@/components/entity-id";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
@@ -94,11 +95,20 @@ export default async function ErasureLogPage() {
               <tbody>
                 {erasures.data.map((row) => (
                   <tr key={row.sessionId} data-session-id={row.sessionId}>
+                    {/* Two identifying columns, two rules (issue #582). The session id is
+                        OPAQUE - random bytes, uniformly long - so it renders prefix plus
+                        eight with a copy control; the form id is minted from the author's
+                        slug, so it is DERIVED and renders whole. `lib/entity-id.ts` carries
+                        the property that decides which, and why `frm_` sits where it does.
+
+                        A tombstone is evidence, and this screen has no detail route, so
+                        neither value may become unreachable: the session id's remainder is
+                        in the cell's own server-rendered markup. */}
                     <th scope="row">
-                      <code className="qcms-link-id">{row.sessionId}</code>
+                      <EntityId kind="session" value={row.sessionId} />
                     </th>
                     <td>
-                      <code className="qcms-link-id">{row.formId}</code>
+                      <EntityId kind="form" value={row.formId} />
                     </td>
                     <td className="qcms-cell--num">v{row.formVersion}</td>
                     <td className="qcms-cell--num">

@@ -292,18 +292,41 @@ and flagged. They are governed now.
     rule still holds and the full id goes somewhere reachable without JS.
   - This prevents long identifiers from breaking into one-character columns and
     clipping row actions on compact screens.
-- **A timestamp column renders date, `HH:MM`, and the zone. No seconds.** Seconds
+- **A timestamp column renders date, a clock without seconds, and the zone.** Seconds
   cost width in every row to answer a question the detail route already answers.
+
+  **The clause was written as `HH:MM` and the shape is the locale's, not the contract's**
+  (reconciled 2026-09-11, issue #582). ADR-27 puts every date through `Intl` against
+  `ADMIN_LOCALE`, and `en` renders a 12-hour clock, so what ships is `Aug 2, 2026, 11:45 PM
+UTC` rather than `23:45`. That is the rule being followed rather than bent: a 24-hour
+  string would be a hand-cut format, which is the thing ADR-27 exists to prevent, and a
+  second locale would render its own shape with no contract amendment. What this clause
+  actually governs is PRECISION, and that half is asserted rather than described -
+  `apps/admin/lib/i18n/format.test.ts` renders an instant at 23:45:59.999 and requires no
+  `hh:mm:ss` and no milliseconds in the output.
   Admin renders the operator's own zone with that zone named (issue #279,
   against the Code Owner's 2026-08-02 acceptance; task 034 shipped UTC and queued
   this). It goes through `components/operator-time.tsx` and nothing else, which
   is what keeps it from varying per table: that component renders the pinned UTC
   string for the server render and the first client render, then swaps after
   hydration, so there is no mismatch to report and no second formatting path to
-  drift. Two things stay UTC on purpose - a bare calendar-day column
-  (`formatDay`, which has no clock in its output to name a zone on) and the mint
-  dialog's expiry promise, which states what the API will enforce for a
-  respondent who may be anywhere.
+  drift. One thing stays UTC on purpose: the mint dialog's expiry promise, which
+  states what the API will enforce for a respondent who may be anywhere.
+
+  **Amendment, 2026-09-11 (Code Owner, issue #582): a day-only column takes the
+  operator's zone as well.** The 2026-08-20 text kept a bare calendar-day column in
+  UTC on the ground that it has no clock in its output to name a zone on. That is true
+  about the OUTPUT and beside the point about the VALUE: the three day-only columns
+  (the forms list's Published, the question library's Created, the version history's
+  Published) render an INSTANT, and naming its UTC day tells an operator east or west
+  of UTC that something happened on a day their own clock never agreed with. One zone
+  across every table is what the #794 zone-only ruling settled, and a column that
+  opts out of it is a second answer to the same question. So a day-only column derives
+  its day in the operator's zone, through the same hydration-safe path the timestamp
+  columns use (`components/operator-time.tsx`, pinned UTC for the server render and
+  the first client render, the operator's own zone after). What does not change: there
+  is still no clock in a day column, and no seconds anywhere.
+
 - **The table wrapper carries no border and no radius.** Six of the nine shipped
   tables had none, the frozen card's table takes its border from the surrounding
   card, and restoring it on the four kit tables would rebuild the two-treatment
@@ -317,12 +340,21 @@ The 2026-08-20 amendment was written against `ses_` and `lnk_` columns and reads
 as though every id were like them. They are not. #584 escalated the case rather
 than applying the clause to it, which was right.
 
-- **Opaque ids** (`ses_`, `lnk_` - minted as random bytes, uniformly long) keep
-  the 2026-08-20 rule exactly: prefix plus 8, monospace, tabular, a copy control,
-  no ellipsis.
-- **Derived ids** (`q_`, `opt_` - minted from author-written text) **render
-  whole.** Never truncated to a prefix, never ellipsized. A copy control is still
-  welcome; it is no longer the thing that makes the column usable.
+- **Opaque ids** (`ses_`, `lnk_`, `whk_` - minted as random bytes, uniformly long)
+  keep the 2026-08-20 rule exactly: prefix plus 8, monospace, tabular, a copy
+  control, no ellipsis.
+- **Derived ids** (`frm_`, `q_`, `opt_` - minted from author-written text)
+  **render whole.** Never truncated to a prefix, never ellipsized. A copy control
+  is still welcome; it is no longer the thing that makes the column usable.
+
+**The two sets are settled by the Code Owner, 2026-09-11 (issue #582):
+`ses_`, `lnk_` and `whk_` are opaque; `frm_` and `q_` are derived.**
+`whk_` was named in neither list before and is minted as 16 random hex bytes, which
+is the opaque convention exactly. `frm_` had been named as opaque and is not: it is
+minted from the slug the author typed. **A derived id is readable and stable, so
+truncating it hides information for no gain** - the reader loses the word that told
+them which form or question the row is, and gains eight characters of width they did
+not need.
 
 **The distinguishing property is minting convention, not type, and it matters
 that the type cannot carry it.** `packages/core/src/ids.ts:15` mints every brand
@@ -363,6 +395,40 @@ discover as a silent contradiction. It also moves the column width out of the
 card's hands and into this contract's: rendering a derived id whole is now what
 the width has to accommodate, and the frozen card's 140px is evidence of an intent
 formed before the rule existed, not an authority against it.
+
+**Applied, 2026-09-11 (issue #582): the evidence the two set memberships were settled on,
+and where the whole value lives when a column may not show it.**
+
+The migration that carried both rulings into the shipped tables had to place two prefixes
+the amendment's examples were silent or wrong about, and it placed them by the property the
+amendment states rather than by the list it illustrates it with. The Code Owner ruled the
+same way on the same day; this is the evidence, which is in the repository rather than in a
+recollection:
+
+- **`whk_` is opaque.** `apps/api/src/features/webhooks/handler.ts` mints it as 16 random
+  hex bytes, which is the `ses_`/`lnk_` convention exactly. It takes prefix plus 8.
+- **`frm_` is derived**, although issue #582's body and the 2026-08-20 amendment's own
+  example both placed it with the opaque ids. `apps/admin/lib/forms/draft.ts`'s
+  `formIdFromSlug` builds a form id out of the slug the author typed, exactly as a question
+  id is built out of a question's, and the API's OpenAPI examples are `frm_intake` and
+  `frm_signup`. So `frm_intake_2026` cut to prefix-plus-8 is `frm_inta`, a string that could
+  perfectly well be another form in the same deployment: the harm the anti-truncation clause
+  exists to prevent, reached from the other direction. The form library renders it whole.
+
+**Where an abbreviated id's remainder goes.** The clause "the full id goes somewhere
+reachable without JS" had no answer for the two tables with no detail route at all - secure
+links and webhooks. It has one now, and it is in the cell rather than beside it: the
+characters the column does not show are rendered inside `.qcms-visually-hidden`, in the
+server HTML. They cost no width, assistive technology reads the row by its whole id rather
+than by a prefix that identifies nothing, and a selection copies the value rather than the
+abbreviation. The copy control stays what §2 makes it - the convenience - instead of being
+the only route to the value.
+
+**The known deviation above is closed.** The option grid stopped ellipsizing `opt_` ids when
+issue #595 landed on `main` in `8bc48299`; `.qcms-opt-cell--id` wraps rather than truncating
+and the column is measured for a real label-derived id. The paragraph above is left as
+written, because it is the record of a rule that knowingly outran its code for three weeks,
+and that is worth keeping legible.
 
 **Amendment, 2026-08-22 (from PR #624): a row that acts rather than navigates
 takes a button, not an anchor.**

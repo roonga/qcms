@@ -422,6 +422,21 @@ table.ops-table { width: 100%; min-width: 700px; border-collapse: collapse; font
 .ops-table tbody tr:hover { background: var(--color-surface-hover); }
 .ops-table th[scope="row"] { text-align: left; font-weight: 400; }
 .ops-cell, .ops-table td, .ops-table th { padding: 0.55rem 0.6rem; vertical-align: middle; }
+/* THE DRAWN ID IS SUPERSEDED BY DESIGN CONTRACT 2 (Code Owner, 2026-08-20 and 2026-08-21;
+   applied by issue #582). Every identifying cell in this file draws a MIDDLE TRUNCATION -
+   `lnk_3d9b...771f`, `whk_2a91...44bd` and six more - and that shape is now forbidden
+   outright: a truncation that looks like data invites someone to copy a value that is not
+   one. What ships instead, for these two screens' opaque ids, is the type prefix plus eight
+   characters with no ellipsis at all, beside a copy control whose accessible name carries
+   the entity and the value, and with the remainder of the id in the cell's markup where a
+   screen reader and a selection both still reach it.
+
+   Annotated rather than redrawn, which is how PR #830 handled the zebra drawings: the
+   drawing is the record of an intent formed before the rule existed, and editing it would
+   erase the evidence that the rule was a decision rather than a description. The authority
+   for an identifying column is section 2 of plan/admin-design-contracts.md; read it before
+   carrying anything across from these cells. The event-type cells further down this file
+   are NOT ids and are unaffected. */
 .ops-id, .ops-url { font-family: var(--font-mono); font-size: 0.82rem; word-break: break-all; }
 .ops-muted { color: var(--color-text-muted); }
 
