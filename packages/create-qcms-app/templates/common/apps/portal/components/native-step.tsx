@@ -4,6 +4,7 @@ import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 import { PortalShell } from "@/components/portal-shell";
 import { errorSummaryEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
+import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { mergeStepValues } from "@/lib/step-values";
 import { buttonClass } from "@/lib/ui";
 import { authorMessageFor } from "@/lib/validation-message";
@@ -127,6 +128,9 @@ export function NativeStep({
             )}
             values={values}
             errors={errors}
+            // Same reason as the scripted view (issue #729): the portal names its own
+            // locale for react-aria instead of inheriting the renderer's `en-US` default.
+            locale={PORTAL_LOCALE}
             specVersion={initial.a2uiSpecVersion}
             nativeSubmit={{
               action,

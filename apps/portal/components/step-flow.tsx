@@ -33,6 +33,7 @@ import {
 } from "@/lib/answer-record";
 import { missingRequiredEntries } from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
+import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { buttonClass } from "@/lib/ui";
 import {
   authorMessageFor,
@@ -742,6 +743,12 @@ export function StepFlow({
               errors={errors}
               onChange={handleChange}
               onBlur={handleBlur}
+              // The respondent-facing controls run on the portal's own locale rather than
+              // on the renderer package's `en-US` default (ADR-27, issue #729): this prop
+              // feeds react-aria's `I18nProvider`, so it decides the date field's segment
+              // order, its calendar and its announcements. Passing nothing left that choice
+              // to a default no portal deployment could reach.
+              locale={PORTAL_LOCALE}
               specVersion={snapshot.a2uiSpecVersion}
             />
           </div>
