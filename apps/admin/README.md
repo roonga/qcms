@@ -268,7 +268,10 @@ mid-run. The worked examples are the `*-rejects.test.tsx` files beside each comp
 `components/forms/` and `components/ops/`; each fakes the action prop or the clipboard and
 nothing else, so the handler under test is the real one.
 `components/rejection-coverage.test.ts` asserts that every `.catch` site in those two trees
-is one a rendered test drives, so a new handler cannot arrive without its test.
+is one a rendered test drives, so a new handler cannot arrive without its test. The handler
+that is never written at all is the lint rule's half: `qcms/no-unhandled-then` (issue #809)
+reports `void action().then(...)` with no rejection handler, which is the shape the five
+sites PR #353 fixed had, so the tenth one is a red before it is a defect.
 
 Where both would work, prefer the lift: a rule written as a function can be read and named,
 and a render test asserts what that rule looks like from outside rather than replacing it.

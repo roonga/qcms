@@ -32,14 +32,19 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
  * This runs in the node project, not the jsdom one, because it reads source rather than
  * rendering it. That split is the same one `vitest.config.ts` describes.
  *
- * ## What it deliberately does not do
+ * ## What it deliberately does not do, and what now does it
  *
  * It cannot see a `void promise.then(...)` written with NO `.catch` at all, which is the
- * shape all nine original defects had. `@typescript-eslint/no-floating-promises` cannot
- * either, because `void` is that rule's sanctioned way of saying "deliberately not
- * awaited". Closing that at write time needs a lint rule, which issue #352's second
- * comment proposes and the ruling of 2026-09-04 did not cover; this file is scoped to
- * keeping the handlers that do exist covered.
+ * shape the five call sites PR #353 fixed had. `@typescript-eslint/no-floating-promises`
+ * cannot either, because `void` is that rule's sanctioned way of saying "deliberately not
+ * awaited". This file is scoped to keeping the handlers that DO exist covered.
+ *
+ * The other half is a lint rule now (issue #809, which issue #352's second comment
+ * proposed and the ruling of 2026-09-04 did not cover): `qcms/no-unhandled-then` in
+ * `scripts/eslint-rules/no-unhandled-then.mjs` reports a discarded chain that ends in
+ * `.then(...)` with no rejection handler, so the site that would otherwise be invisible
+ * here is a red at write time rather than a defect a human has to notice. The two run in
+ * sequence: the rule makes the handler exist, this file makes a test for it exist.
  */
 
 const COMPONENTS_ROOT = dirname(fileURLToPath(import.meta.url));

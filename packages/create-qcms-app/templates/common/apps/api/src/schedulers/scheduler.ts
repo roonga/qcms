@@ -67,6 +67,13 @@ export function createIntervalScheduler(options: IntervalSchedulerOptions): Sche
         options.logger.error("scheduler task failed", { scheduler: options.name, err });
       }
     })();
+    // No `.catch`, and the disable is the claim rather than a silence (issue #809). The
+    // promise this continues is the IIFE directly above, whose entire body is one
+    // `try`/`catch`: a task that rejects is logged there and the IIFE resolves, so
+    // `inFlight` cannot reject and a handler here would be one no test can reach. What the
+    // continuation does is release the handle `stop()` awaits and re-arm the timer, and
+    // `scheduleNext` returns immediately once `running` is false.
+    // eslint-disable-next-line qcms/no-unhandled-then -- the IIFE above catches everything; see above
     void inFlight.then(() => {
       inFlight = undefined;
       scheduleNext();
