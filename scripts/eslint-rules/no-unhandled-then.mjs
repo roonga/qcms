@@ -5,7 +5,7 @@
  *
  * ## The shape
  *
- * All nine handlers issue #352 counted shipped as the same three lines:
+ * The five call sites PR #353 fixed shipped as the same three lines:
  *
  * ```tsx
  * void publish().then((state) => {
@@ -17,10 +17,13 @@
  * The resolved path is written, the rejected one is not written at all, and a server
  * action that rejects instead of returning a failure state therefore sets no state,
  * renders no alert, and leaves the dialog sitting there looking like a slow network.
- * PR #353 added the `.catch` to five of them and PR #380 to the rest; PR #807 covered
- * every handler that now exists with a rendered test and asserted the enumeration, so a
- * tenth `.catch` cannot arrive without its test. What none of that reaches is the
- * TENTH site written the way the first nine were, with no `.catch` to enumerate:
+ * Those five are part of the nine handlers issue #352 counted as uncovered, and the other
+ * four are a different failure: `git log -S".catch(" --reverse` puts task 035's handlers
+ * in dc40a83c, the commit that introduced the components, so those four were missing a
+ * TEST rather than a handler. PR #807 closed that half - every handler that now exists has
+ * a rendered test and the enumeration is asserted, so a tenth `.catch` cannot arrive
+ * without its test. What none of it reaches is the next site written the way those five
+ * were, with no `.catch` to enumerate:
  * `apps/admin/components/rejection-coverage.test.ts` says so in its own prose. This rule
  * is that half, and it runs at write time rather than at review time.
  *
@@ -83,9 +86,16 @@
  */
 
 /**
- * Unwrap the type-only and chain wrappers that sit between a statement and the call it
- * actually makes, so `(await x)!.then(...)` and `a?.b().then(...)` are read as the calls
- * they are rather than skipped as an unfamiliar node type.
+ * Unwrap the chain and type-only wrappers that can sit around a call, so
+ * `void a?.b().then(cb)` and `void (p.then(cb) as Promise<void>).finally(f)` are read as
+ * the calls they are rather than skipped as an unfamiliar node type. It is applied at the
+ * three positions such a wrapper can occupy: the statement's expression, a callee, and the
+ * object a trailing `.finally` sits on.
+ *
+ * `await` is deliberately absent from the list, and nothing needs it to be there. An
+ * awaited chain is not this defect - the rejection reaches the enclosing `try` - and it
+ * never arrives here anyway: the expression of `await p.then(cb);` is an `AwaitExpression`
+ * rather than a `CallExpression`, so the statement is passed over before this is called.
  *
  * @param {any} node
  * @returns {any}
