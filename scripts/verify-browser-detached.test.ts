@@ -411,6 +411,8 @@ describe("startDetached", () => {
 
     process.kill(started.pid ?? 0, "SIGTERM");
     await until(() => readRc(join(started.directory, RUN_FILES.rc)) !== undefined);
+    // 128ms measured, but this spawns three node processes and waits on the filesystem
+    // for each, so the budget is set for a host already carrying three browser suites.
   }, 30_000);
 
   it("refuses a worktree run with no seat, before it spawns anything", async () => {
