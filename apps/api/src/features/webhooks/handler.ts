@@ -53,6 +53,23 @@ const fail = {
     new ApiError("WEBHOOK_URL_REJECTED", 422, urlRejectionMessage(reason), { reason }),
 } as const;
 
+/**
+ * The developer-facing sentence for one rejection reason.
+ *
+ * The machine-readable half is `details.reason`, and that is what a client renders
+ * from: the admin maps the four reasons onto its own catalog (ADR-27), so this text
+ * is for an API consumer reading the envelope directly and is never the operator's
+ * sentence.
+ *
+ * **It names no environment variable.** These two messages used to end "set
+ * QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets", which is a flag value in a
+ * response body, and ADR-24's "clients receive behavior, not flag values" has been
+ * absolute since the Code Owner removed its one standing exception on 2026-08-31
+ * (issue #725). A deployment's operator finds the override in `docs/operations.md`,
+ * where changing it is possible; a client reading this envelope cannot act on the
+ * name and should not be told it. The behaviour statement carries the same
+ * information a caller can use: this deployment refuses the target.
+ */
 function urlRejectionMessage(reason: WebhookUrlRejection): string {
   switch (reason) {
     case "not-a-url":
@@ -60,9 +77,9 @@ function urlRejectionMessage(reason: WebhookUrlRejection): string {
     case "unsupported-scheme":
       return "The webhook URL must use http or https";
     case "https-required":
-      return "The webhook URL must use https (set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem http targets)";
+      return "The webhook URL must use https, because this deployment does not allow private targets";
     case "private-host":
-      return "The webhook URL resolves to a private/reserved host (set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets)";
+      return "The webhook URL resolves to a private or reserved host, which this deployment does not allow";
   }
 }
 

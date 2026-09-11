@@ -215,6 +215,57 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     }
   });
 
+  /**
+   * One case per rejection reason, with the reason the envelope must carry (issue #756).
+   *
+   * The 422 has carried `details.reason` since task 024 and nothing asserted it, so
+   * nothing stopped the field from being dropped or renamed. It is now read: the admin
+   * picks one of four catalog sentences from it (`apps/admin/lib/forms/errors.ts`, the
+   * half of #312 that PR #755 deferred), so the field is contract rather than colour and
+   * this is the test that says so.
+   *
+   * `unsupported-scheme` has no `privateTargets` entry above because it is not an SSRF
+   * case at all: `ftp://` is refused whatever the override says.
+   */
+  const REJECTIONS: readonly (readonly [string, string])[] = [
+    ["not-a-url", "example.com/hook"],
+    ["unsupported-scheme", "ftp://consumer.example.com/hook"],
+    ["https-required", "http://consumer.example.com/hook"],
+    ["private-host", "https://169.254.169.254/latest/meta-data"],
+  ];
+
+  it("names which rule the target broke, in a closed enum", async () => {
+    for (const [reason, url] of REJECTIONS) {
+      const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url });
+      expect(res.status, `expected 422 for ${url}`).toBe(422);
+      const body = (await res.json()) as { error: { details?: Record<string, unknown> } };
+      expect(body.error.details, `expected reason ${reason} for ${url}`).toStrictEqual({ reason });
+    }
+  });
+
+  /**
+   * SEC-8 and ADR-24 on the refusal envelope, asserted on the serialized bytes.
+   *
+   * Two promises, and the reason both are checked here rather than trusted: this body is
+   * built from author input at a boundary that has just refused it, which is exactly the
+   * shape that grows an echo ("the URL you sent was ..."). It carries no secret and no
+   * echo of the request, and it names no environment variable - the two `allowPrivate`
+   * messages used to end "set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets", and ADR-24
+   * has been absolute since 2026-08-31.
+   */
+  it("echoes no secret, no request body and no flag name in the refusal (SEC-8, ADR-24)", async () => {
+    for (const [, url] of REJECTIONS) {
+      const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", { url });
+      const raw = await res.text();
+      expect(raw, `for ${url}`).not.toContain("whsec_");
+      expect(raw, `for ${url}`).not.toContain("QCMS_");
+      // The refused URL itself: harmless here, but an envelope that starts quoting the
+      // request is how a body comes to carry a credential in a query string.
+      expect(raw, `for ${url}`).not.toContain(url);
+      expect(Object.keys(JSON.parse(raw) as { error: object }).length).toBe(1);
+    }
+  });
+
   it("allows private/http targets when QCMS_WEBHOOK_ALLOW_PRIVATE is set (on-prem override)", async () => {
     const onPrem = buildApp({ ...baseEnv, QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
     const res = await req(onPrem.app, `/forms/${FORM_ID}/webhooks`, "POST", {

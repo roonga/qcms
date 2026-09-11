@@ -1751,6 +1751,31 @@ export const messages = {
   // configurations without saying which one is in force.
   "ops.error.webhookUrlRejected":
     "That URL was refused. A webhook target must be an absolute URL, and unless this deployment allows private targets it must also use https and must not point at a private or reserved address.",
+  // The four specific sentences, one per `details.reason` the API sends with a
+  // `WEBHOOK_URL_REJECTED` 422 (issue #756, the half of #312 that #755 deferred).
+  // `apps/api/src/features/webhooks/ssrf.ts` owns the reason enum; `lib/forms/errors.ts`
+  // maps it onto these keys and falls back to the general sentence above when the
+  // envelope carries no reason this build recognises, so a reason added on the API side
+  // degrades to a true sentence rather than to a blank.
+  //
+  // These are the admin's own prose, NOT the API's `error.message` echoed. That is the
+  // rule rather than a preference: the envelope's message is English developer text that
+  // never passes through the catalog (ADR-27), and an app that renders whatever the other
+  // side wrote has no way to keep either promise - localisation, or the SEC-8 one that a
+  // response body is not put in front of a human. The reason is a closed enum of four
+  // values and is the only part of the envelope read here.
+  //
+  // None of them names `QCMS_WEBHOOK_ALLOW_PRIVATE`, for the reason the general sentence
+  // above already states: ADR-24's "clients receive behavior, not flag values" is absolute
+  // since 2026-08-31. "This deployment" is the behaviour statement that stays true in both
+  // configurations without saying which is in force.
+  "ops.error.webhookUrlNotAbsolute":
+    "That URL was refused. A webhook target must be a complete, absolute URL with a scheme and a host.",
+  "ops.error.webhookUrlScheme": "That URL was refused. A webhook target must use http or https.",
+  "ops.error.webhookUrlHttpsRequired":
+    "That URL was refused. This deployment delivers to https targets only.",
+  "ops.error.webhookUrlPrivateHost":
+    "That URL was refused. It points at a private or reserved address, which this deployment does not deliver to.",
   "ops.error.deliveryNotFound": "That delivery no longer exists.",
   // A server action that REJECTED rather than returning a failure state - a transport
   // error, or a body that would not parse. Deliberately says nothing about the thrown
