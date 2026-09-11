@@ -14,6 +14,7 @@ import {
   EXIT_STILL_RUNNING,
   EXIT_USAGE,
   RUN_FILES,
+  describeListener,
   isAlive,
   listenersOnPorts,
   parseArgs,
@@ -136,7 +137,20 @@ function reserveFreePort(): Promise<number> {
   });
 }
 
-async function until(condition: () => boolean, timeoutMs = 15_000): Promise<void> {
+/**
+ * The per-test budget for anything that spawns a supervisor, far above the measured
+ * times (53-400 ms) on purpose.
+ *
+ * Vitest's 5 s default is tighter than `until`'s own bound below, and under host
+ * contention (three lanes, load average 40) a `node` spawn can take seconds: the test
+ * then dies on the runner's cap instead of on its own assertion, which reads as a broken
+ * test rather than a slow machine. It flaked exactly that way once in three runs. With
+ * this budget the inner `until` is always what fails first, and it says what it was
+ * waiting for.
+ */
+const SPAWN_BUDGET_MS = 30_000;
+
+async function until(condition: () => boolean, timeoutMs = 10_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (!condition()) {
     if (Date.now() > deadline) throw new Error("timed out waiting for a condition");
@@ -305,111 +319,141 @@ describe("the rc file protocol", () => {
 });
 
 describe("supervise", () => {
-  it("records a finished run's code and its own pid", async () => {
-    const directory = temporaryDirectory();
-    supervise(directory, exiter(3));
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
-    expect(readRc(join(directory, RUN_FILES.rc))).toEqual({ code: 3, signalled: false });
-    const pid = readPid(join(directory, RUN_FILES.pid));
-    expect(pid).toBeGreaterThan(0);
-    expect(readFileSync(join(directory, RUN_FILES.log), "utf8")).toContain("fake suite line 2");
-  });
+  it(
+    "records a finished run's code and its own pid",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, exiter(3));
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
+      expect(readRc(join(directory, RUN_FILES.rc))).toEqual({ code: 3, signalled: false });
+      const pid = readPid(join(directory, RUN_FILES.pid));
+      expect(pid).toBeGreaterThan(0);
+      expect(readFileSync(join(directory, RUN_FILES.log), "utf8")).toContain("fake suite line 2");
+    },
+    SPAWN_BUDGET_MS,
+  );
 
-  it("records a SIGTERM as a kill and not as a verdict, and stops the suite with it", async () => {
-    const directory = temporaryDirectory();
-    supervise(directory, SLEEPER);
-    await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
-    const runner = readPid(join(directory, RUN_FILES.pid));
-    await until(() => readFileSync(join(directory, RUN_FILES.log), "utf8").includes("fake suite"));
+  it(
+    "records a SIGTERM as a kill and not as a verdict, and stops the suite with it",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, SLEEPER);
+      await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
+      const runner = readPid(join(directory, RUN_FILES.pid));
+      await until(() =>
+        readFileSync(join(directory, RUN_FILES.log), "utf8").includes("fake suite"),
+      );
 
-    killPid(runner, "SIGTERM");
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
+      killPid(runner, "SIGTERM");
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
 
-    const rc = readRc(join(directory, RUN_FILES.rc));
-    expect(rc?.signalled).toBe(true);
-    const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
-    expect(recorded).toMatch(/killed=SIGTERM/);
-    expect(recorded).toMatch(/not a test verdict/);
-    // The seat release: the suite's process group goes down with the runner rather than
-    // surviving reparented to pid 1 and holding this seat's harness ports (issue #295).
-    await until(() => !isAlive(runner ?? 0));
-  });
+      const rc = readRc(join(directory, RUN_FILES.rc));
+      expect(rc?.signalled).toBe(true);
+      const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
+      expect(recorded).toMatch(/killed=SIGTERM/);
+      expect(recorded).toMatch(/not a test verdict/);
+      // The seat release: the suite's process group goes down with the runner rather than
+      // surviving reparented to pid 1 and holding this seat's harness ports (issue #295).
+      await until(() => !isAlive(runner ?? 0));
+    },
+    SPAWN_BUDGET_MS,
+  );
 });
 
 describe("releasing the seat", () => {
-  it("kills a separately-sessioned grandchild holding a port, which the group signal cannot reach", async () => {
-    // This is the defect the first head of this branch shipped. Playwright starts each
-    // `webServer` in a session of ITS own, so the two `next dev` servers are not in the
-    // suite's process group and `kill(-pgid)` structurally cannot reach them: measured
-    // twice on a real seat, both `next-server` processes were still bound to their ports
-    // 25 s after the runner was SIGTERMed, while the rc file claimed "Seat released".
-    // The fixture reproduces that shape exactly - a child that puts its listener in
-    // another session - and a fake child with no such grandchild is why the old test was
-    // green.
-    const directory = temporaryDirectory();
-    const port = await reserveFreePort();
-    writeFileSync(
-      join(directory, "server.mjs"),
-      [
-        'import { createServer } from "node:net";',
-        "createServer().listen(Number(process.argv[2]), '127.0.0.1', () => {",
-        "  process.stdout.write(`grandchild ${String(process.pid)} listening\\n`);",
-        "});",
-        "setInterval(() => {}, 1000);",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
-    writeFileSync(
-      join(directory, "suite.mjs"),
-      [
-        'import { spawn } from "node:child_process";',
-        // `setsid`, which is what Playwright's webServer does and what puts the listener
-        // outside this process's group.
-        'spawn("setsid", [process.execPath, process.argv[2], process.argv[3]], {',
-        '  stdio: "inherit",',
-        "});",
-        "process.stdout.write('fake suite running\\n');",
-        "setInterval(() => {}, 1000);",
-        "",
-      ].join("\n"),
-      "utf8",
-    );
+  it(
+    "kills a separately-sessioned grandchild holding a port, which the group signal cannot reach",
+    async () => {
+      // This is the defect the first head of this branch shipped. Playwright starts each
+      // `webServer` in a session of ITS own, so the two `next dev` servers are not in the
+      // suite's process group and `kill(-pgid)` structurally cannot reach them: measured
+      // twice on a real seat, both `next-server` processes were still bound to their ports
+      // 25 s after the runner was SIGTERMed, while the rc file claimed "Seat released".
+      // The fixture reproduces that shape exactly - a child that puts its listener in
+      // another session - and a fake child with no such grandchild is why the old test was
+      // green.
+      const directory = temporaryDirectory();
+      const port = await reserveFreePort();
+      writeFileSync(
+        join(directory, "server.mjs"),
+        [
+          'import { createServer } from "node:net";',
+          "createServer().listen(Number(process.argv[2]), '127.0.0.1', () => {",
+          "  process.stdout.write(`grandchild ${String(process.pid)} listening\\n`);",
+          "});",
+          "setInterval(() => {}, 1000);",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
+      writeFileSync(
+        join(directory, "suite.mjs"),
+        [
+          'import { spawn } from "node:child_process";',
+          // `setsid`, which is what Playwright's webServer does and what puts the listener
+          // outside this process's group.
+          'spawn("setsid", [process.execPath, process.argv[2], process.argv[3]], {',
+          '  stdio: "inherit",',
+          "});",
+          "process.stdout.write('fake suite running\\n');",
+          "setInterval(() => {}, 1000);",
+          "",
+        ].join("\n"),
+        "utf8",
+      );
 
-    const runnerPid = supervise(
-      directory,
-      [process.execPath, join(directory, "suite.mjs"), join(directory, "server.mjs"), String(port)],
-      ["--release-port", String(port)],
-    );
-    await until(() => listenersOnPorts([port]).length === 1, 20_000);
-    const grandchild = listenersOnPorts([port])[0]?.pid;
-    expect(grandchild).toBeGreaterThan(1);
-    // It really is in a session of its own, so the group kill below cannot reach it.
-    expect(readFileSync(`/proc/${String(grandchild ?? 0)}/stat`, "utf8").split(" ")[5]).toBe(
-      String(grandchild),
-    );
+      const runnerPid = supervise(
+        directory,
+        [
+          process.execPath,
+          join(directory, "suite.mjs"),
+          join(directory, "server.mjs"),
+          String(port),
+        ],
+        ["--release-port", String(port)],
+      );
+      await until(() => listenersOnPorts([port]).length === 1, 20_000);
+      const grandchild = listenersOnPorts([port])[0]?.pid;
+      expect(grandchild).toBeGreaterThan(1);
+      // It really is in a session of its own, so the group kill below cannot reach it.
+      expect(readFileSync(`/proc/${String(grandchild ?? 0)}/stat`, "utf8").split(" ")[5]).toBe(
+        String(grandchild),
+      );
 
-    killPid(runnerPid, "SIGTERM");
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined, 30_000);
+      killPid(runnerPid, "SIGTERM");
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined, 30_000);
 
-    expect(listenersOnPorts([port])).toEqual([]);
-    expect(isAlive(grandchild ?? 0)).toBe(false);
-    const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
-    expect(recorded).toMatch(/killed=SIGTERM/);
-    expect(recorded).toMatch(/Seat released/);
-    expect(recorded).not.toMatch(/seat_survivors=/);
-  }, 60_000);
+      expect(listenersOnPorts([port])).toEqual([]);
+      expect(isAlive(grandchild ?? 0)).toBe(false);
+      const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
+      expect(recorded).toMatch(/killed=SIGTERM/);
+      expect(recorded).toMatch(/Seat released/);
+      expect(recorded).not.toMatch(/seat_survivors=/);
+      // Twice SPAWN_BUDGET_MS: this one spawns a supervisor, a suite and a grandchild, and
+      // then waits out a SIGTERM and a port sweep.
+    },
+    2 * SPAWN_BUDGET_MS,
+  );
 
-  it("says nothing was released when it was given no ports to release", async () => {
-    const directory = temporaryDirectory();
-    const runnerPid = supervise(directory, SLEEPER);
-    await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
-    killPid(runnerPid, "SIGTERM");
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
-    const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
-    expect(recorded).toMatch(/No seat ports were given, so nothing was released/);
-    expect(recorded).not.toMatch(/Seat released/);
-  });
+  it(
+    "says nothing was released when it was given no ports to release",
+    async () => {
+      // This also pins the handler ordering inside `supervise`: it signals the instant
+      // the pid file appears, which is the narrowest window after the runner advertises
+      // the pid a caller may kill. While the handlers were installed after that file,
+      // this failed one run in three - the runner took Node's default action and wrote no
+      // rc at all, which is the unreadable outcome the whole script exists to prevent.
+      const directory = temporaryDirectory();
+      const runnerPid = supervise(directory, SLEEPER);
+      await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
+      killPid(runnerPid, "SIGTERM");
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
+      const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
+      expect(recorded).toMatch(/No seat ports were given, so nothing was released/);
+      expect(recorded).not.toMatch(/Seat released/);
+    },
+    SPAWN_BUDGET_MS,
+  );
 
   it("finds a listener by port, which is how the seat is cleared by port and not by ancestry", async () => {
     const port = await reserveFreePort();
@@ -431,64 +475,83 @@ describe("releasing the seat", () => {
     );
     const survived = releaseLines([17200, 17240], [{ port: 17200, pid: 4242 }]).join("\n");
     expect(survived).toMatch(/seat_survivors=17200:4242/);
+    // Never "17200:0": 0 is a real argument to `kill` meaning the caller's own process
+    // group, so an unattributable holder is spelled out instead of being printed as a
+    // pid somebody could copy into a kill command.
+    expect(describeListener({ port: 17230, pid: undefined })).toBe("17230:unknown");
+    expect(releaseLines([17230], [{ port: 17230, pid: undefined }]).join("\n")).toMatch(
+      /seat_survivors=17230:unknown/,
+    );
     expect(survived).toMatch(/THE SEAT WAS NOT RELEASED/);
     expect(survived).not.toMatch(/Seat released:/);
   });
 });
 
 describe("waitForRun", () => {
-  it("exits with the suite's own code when the run finishes", async () => {
-    const directory = temporaryDirectory();
-    supervise(directory, exiter(0));
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
-    const lines: string[] = [];
-    const code = await waitForRun({
-      directory,
-      sliceSeconds: 5,
-      pollMs: 25,
-      out: (line) => lines.push(line),
-    });
-    expect(code).toBe(0);
-    expect(lines.join("\n")).toContain("EXIT=0");
-    expect(lines.join("\n")).toContain("fake suite line 2");
-  });
+  it(
+    "exits with the suite's own code when the run finishes",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, exiter(0));
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
+      const lines: string[] = [];
+      const code = await waitForRun({
+        directory,
+        sliceSeconds: 5,
+        pollMs: 25,
+        out: (line) => lines.push(line),
+      });
+      expect(code).toBe(0);
+      expect(lines.join("\n")).toContain("EXIT=0");
+      expect(lines.join("\n")).toContain("fake suite line 2");
+    },
+    SPAWN_BUDGET_MS,
+  );
 
-  it("exits 75 with the tail when the slice ends and the suite is still running", async () => {
-    const directory = temporaryDirectory();
-    supervise(directory, SLEEPER);
-    await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
-    const lines: string[] = [];
-    const code = await waitForRun({
-      directory,
-      sliceSeconds: 1,
-      pollMs: 25,
-      out: (line) => lines.push(line),
-    });
-    expect(code).toBe(EXIT_STILL_RUNNING);
-    const printed = lines.join("\n");
-    expect(printed).toContain("still running after 1s");
-    expect(printed).toContain("re-invoke");
-    expect(printed).toContain("fake suite running");
-    // Still alive, which is the difference between this and every other exit here.
-    expect(isAlive(readPid(join(directory, RUN_FILES.pid)) ?? 0)).toBe(true);
-  });
+  it(
+    "exits 75 with the tail when the slice ends and the suite is still running",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, SLEEPER);
+      await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
+      const lines: string[] = [];
+      const code = await waitForRun({
+        directory,
+        sliceSeconds: 1,
+        pollMs: 25,
+        out: (line) => lines.push(line),
+      });
+      expect(code).toBe(EXIT_STILL_RUNNING);
+      const printed = lines.join("\n");
+      expect(printed).toContain("still running after 1s");
+      expect(printed).toContain("re-invoke");
+      expect(printed).toContain("fake suite running");
+      // Still alive, which is the difference between this and every other exit here.
+      expect(isAlive(readPid(join(directory, RUN_FILES.pid)) ?? 0)).toBe(true);
+    },
+    SPAWN_BUDGET_MS,
+  );
 
-  it("exits 77 for a killed runner, so a caller never reads it as a red suite", async () => {
-    const directory = temporaryDirectory();
-    supervise(directory, SLEEPER);
-    await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
-    killPid(readPid(join(directory, RUN_FILES.pid)), "SIGTERM");
-    await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
-    const lines: string[] = [];
-    const code = await waitForRun({
-      directory,
-      sliceSeconds: 5,
-      pollMs: 25,
-      out: (line) => lines.push(line),
-    });
-    expect(code).toBe(EXIT_RUNNER_KILLED);
-    expect(lines.join("\n")).toContain("SIGNALLED, not judged");
-  });
+  it(
+    "exits 77 for a killed runner, so a caller never reads it as a red suite",
+    async () => {
+      const directory = temporaryDirectory();
+      supervise(directory, SLEEPER);
+      await until(() => readPid(join(directory, RUN_FILES.pid)) !== undefined);
+      killPid(readPid(join(directory, RUN_FILES.pid)), "SIGTERM");
+      await until(() => readRc(join(directory, RUN_FILES.rc)) !== undefined);
+      const lines: string[] = [];
+      const code = await waitForRun({
+        directory,
+        sliceSeconds: 5,
+        pollMs: 25,
+        out: (line) => lines.push(line),
+      });
+      expect(code).toBe(EXIT_RUNNER_KILLED);
+      expect(lines.join("\n")).toContain("SIGNALLED, not judged");
+    },
+    SPAWN_BUDGET_MS,
+  );
 
   it("exits 76 when the runner is gone and recorded nothing", async () => {
     const directory = temporaryDirectory();
@@ -521,51 +584,54 @@ describe("waitForRun", () => {
 });
 
 describe("startDetached", () => {
-  it("returns immediately with the paths, leaving the run in a session of its own", async () => {
-    const root = temporaryDirectory();
-    const environment = {
-      ...process.env,
-      QCMS_AGENT_LANE: "fix-846-start-detached",
-      QCMS_AGENT_SCRATCH_ROOT: root,
-      QCMS_PORT_SEAT: "3",
-    };
-    const lines: string[] = [];
-    const started = await startDetached({
-      command: SLEEPER,
-      directory: REPO_ROOT,
-      environment,
-      out: (line) => lines.push(line),
-    });
+  it(
+    "returns immediately with the paths, leaving the run in a session of its own",
+    async () => {
+      const root = temporaryDirectory();
+      const environment = {
+        ...process.env,
+        QCMS_AGENT_LANE: "fix-846-start-detached",
+        QCMS_AGENT_SCRATCH_ROOT: root,
+        QCMS_PORT_SEAT: "3",
+      };
+      const lines: string[] = [];
+      const started = await startDetached({
+        command: SLEEPER,
+        directory: REPO_ROOT,
+        environment,
+        out: (line) => lines.push(line),
+      });
 
-    expect(started.code).toBe(0);
-    expect(started.pid).toBeGreaterThan(0);
-    if (started.pid !== undefined) spawnedPids.push(started.pid);
-    expect(started.directory).toBe(join(root, "fix-846-start-detached"));
-    expect(lines.join("\n")).toContain("pnpm verify:browser:wait");
-    expect(readPid(join(started.directory, RUN_FILES.pid))).toBe(started.pid);
+      expect(started.code).toBe(0);
+      expect(started.pid).toBeGreaterThan(0);
+      if (started.pid !== undefined) spawnedPids.push(started.pid);
+      expect(started.directory).toBe(join(root, "fix-846-start-detached"));
+      expect(lines.join("\n")).toContain("pnpm verify:browser:wait");
+      expect(readPid(join(started.directory, RUN_FILES.pid))).toBe(started.pid);
 
-    // The run is in its own session, which is what survives the harness killing the
-    // shell that asked for it.
-    const sid = readFileSync(`/proc/${String(started.pid)}/stat`, "utf8").split(" ")[5];
-    expect(sid).toBe(String(started.pid));
+      // The run is in its own session, which is what survives the harness killing the
+      // shell that asked for it.
+      const sid = readFileSync(`/proc/${String(started.pid)}/stat`, "utf8").split(" ")[5];
+      expect(sid).toBe(String(started.pid));
 
-    // A second start in the same lane is refused rather than clobbering the live run's
-    // log: two browser suites at one seat collide on every harness port.
-    const refusal: string[] = [];
-    const second = await startDetached({
-      command: SLEEPER,
-      directory: REPO_ROOT,
-      environment,
-      out: (line) => refusal.push(line),
-    });
-    expect(second.code).toBe(EXIT_USAGE);
-    expect(refusal.join("\n")).toContain("already live in this lane");
+      // A second start in the same lane is refused rather than clobbering the live run's
+      // log: two browser suites at one seat collide on every harness port.
+      const refusal: string[] = [];
+      const second = await startDetached({
+        command: SLEEPER,
+        directory: REPO_ROOT,
+        environment,
+        out: (line) => refusal.push(line),
+      });
+      expect(second.code).toBe(EXIT_USAGE);
+      expect(refusal.join("\n")).toContain("already live in this lane");
 
-    killPid(started.pid, "SIGTERM");
-    await until(() => readRc(join(started.directory, RUN_FILES.rc)) !== undefined);
-    // 128ms measured, but this spawns three node processes and waits on the filesystem
-    // for each, so the budget is set for a host already carrying three browser suites.
-  }, 30_000);
+      killPid(started.pid, "SIGTERM");
+      await until(() => readRc(join(started.directory, RUN_FILES.rc)) !== undefined);
+      // 128ms measured; the budget is set for a host already carrying three browser suites.
+    },
+    SPAWN_BUDGET_MS,
+  );
 
   it("refuses a worktree run with no seat, before it spawns anything", async () => {
     // A REAL linked worktree, because that is the condition the refusal tests: it is

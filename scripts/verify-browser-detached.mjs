@@ -536,6 +536,43 @@ export async function supervise({
     stdio: ["ignore", handle, handle],
   });
 
+  // Installed BEFORE the pid file exists, and that order is load-bearing rather than
+  // stylistic. The pid file is this runner's public invitation to signal it, so a
+  // handler registered after it leaves a window in which a kill arriving on the
+  // advertised pid takes Node's default action: the runner dies without stopping the
+  // suite, without clearing the seat and without writing an rc file, which is precisely
+  // the unreadable outcome this script exists to prevent. Caught as a one-in-three flake
+  // in the test that kills the moment the pid file appears.
+  /** @type {NodeJS.Signals | undefined} */
+  let signalled;
+  /** @type {Promise<PortListener[]> | undefined} */
+  let releasing;
+  /** @param {NodeJS.Signals} signal */
+  const onSignal = (signal) => {
+    if (signalled !== undefined) return;
+    signalled = signal;
+    note(`runner received ${signal}: stopping the suite and releasing the seat`);
+    releasing = (async () => {
+      // Step one: the suite's own group. Playwright and anything it left in that group
+      // go here; its separately-sessioned dev servers do not, which is step two.
+      killGroup(child.pid, "SIGTERM");
+      setTimeout(() => {
+        killGroup(child.pid, "SIGKILL");
+      }, GRACE_MS).unref();
+      return await releaseSeat({
+        ports: releasePorts,
+        graceMs: GRACE_MS,
+        note,
+        skipPids: new Set([process.pid, child.pid ?? -1]),
+      });
+    })();
+  };
+  for (const signal of /** @type {NodeJS.Signals[]} */ (["SIGTERM", "SIGINT", "SIGHUP"])) {
+    process.on(signal, () => {
+      onSignal(signal);
+    });
+  }
+
   writeAtomic(
     pidPath,
     [
@@ -578,36 +615,6 @@ export async function supervise({
     settle({ code: 127, signal: null });
   });
 
-  /** @type {NodeJS.Signals | undefined} */
-  let signalled;
-  /** @type {Promise<PortListener[]> | undefined} */
-  let releasing;
-  /** @param {NodeJS.Signals} signal */
-  const onSignal = (signal) => {
-    if (signalled !== undefined) return;
-    signalled = signal;
-    note(`runner received ${signal}: stopping the suite and releasing the seat`);
-    releasing = (async () => {
-      // Step one: the suite's own group. Playwright and anything it left in that group
-      // go here; its separately-sessioned dev servers do not, which is step two.
-      killGroup(child.pid, "SIGTERM");
-      setTimeout(() => {
-        killGroup(child.pid, "SIGKILL");
-      }, GRACE_MS).unref();
-      return await releaseSeat({
-        ports: releasePorts,
-        graceMs: GRACE_MS,
-        note,
-        skipPids: new Set([process.pid, child.pid ?? -1]),
-      });
-    })();
-  };
-  for (const signal of /** @type {NodeJS.Signals[]} */ (["SIGTERM", "SIGINT", "SIGHUP"])) {
-    process.on(signal, () => {
-      onSignal(signal);
-    });
-  }
-
   const { code, signal } = await exited;
   clearInterval(beat);
 
@@ -646,7 +653,7 @@ export function releaseLines(ports, survivors) {
     return [`${preamble} Seat released: nothing is listening on ${ports.join(", ")}.`];
   }
   return [
-    `seat_survivors=${survivors.map(({ port, pid }) => `${String(port)}:${String(pid ?? 0)}`).join(",")}`,
+    `seat_survivors=${survivors.map(describeListener).join(",")}`,
     `${preamble} THE SEAT WAS NOT RELEASED: the pids above still hold those ports.`,
     "# Kill them by hand, one pid per argument, from outside any sandbox.",
   ];
@@ -675,6 +682,22 @@ function killGroup(leader, signal) {
 /**
  * @typedef {{ port: number; pid: number | undefined }} PortListener
  */
+
+/**
+ * How a listener is named in a log line or the rc file.
+ *
+ * `/proc` cannot always attribute a live socket (another user's process, another PID
+ * namespace, or a socket already closing), and the holder is then genuinely unknown.
+ * It is spelled `unknown` rather than `0` because 0 is a real argument to `kill` with a
+ * disastrous meaning (the caller's own process group), so it must never appear anywhere
+ * a person might copy it into one.
+ *
+ * @param {PortListener} listener
+ * @returns {string}
+ */
+export function describeListener({ port, pid }) {
+  return `${String(port)}:${pid === undefined ? "unknown" : String(pid)}`;
+}
 
 /** `st` value for `TCP_LISTEN` in `/proc/net/tcp`. */
 const TCP_LISTEN = "0A";
@@ -832,10 +855,10 @@ export async function releaseSeat({
   const sweep = (signal) => {
     const listeners = listenersOnPorts(ports);
     for (const { port, pid } of listeners) {
-      const key = `${String(pid ?? 0)}:${signal}`;
+      const key = `${pid === undefined ? "unknown" : String(pid)}:${signal}`;
       if (signalled.has(key)) continue;
       signalled.add(key);
-      note(`port ${String(port)} still held by pid ${String(pid ?? 0)}`);
+      note(`port ${String(port)} still held by pid ${pid === undefined ? "unknown" : String(pid)}`);
       signalPid(pid, signal, skipPids, note);
     }
     return listeners;
@@ -865,9 +888,7 @@ export async function releaseSeat({
     note(`seat released after SIGKILL: nothing is listening on ${ports.join(", ")}`);
     return [];
   }
-  note(
-    `SEAT NOT RELEASED: ${survivors.map(({ port, pid }) => `${String(port)}:${String(pid ?? 0)}`).join(", ")}`,
-  );
+  note(`SEAT NOT RELEASED: ${survivors.map(describeListener).join(", ")}`);
   return survivors;
 }
 
