@@ -45,7 +45,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
-    "jsdom": "^26.1.0",
+    "jsdom": "^30.0.1",
     "otplib": "^13.5.0",
     "tailwindcss": "^4.3.3"
   }
