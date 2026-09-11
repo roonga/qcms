@@ -33,7 +33,7 @@ describe("isContentionShaped", () => {
       "terminating connection due to administrator command",
       "read ECONNRESET",
       "socket hang up",
-      "Port 49153 not bound after 210000ms",
+      "not bound after 210000ms",
     ]) {
       expect(isContentionShaped(text), text).toBe(true);
     }

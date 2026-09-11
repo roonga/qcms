@@ -242,7 +242,7 @@ If that **passes**, the variable is being stripped.
 ```text
 Could not START the test Postgres container.
   image:  postgres:16-alpine
-  cause:  Port 49153 not bound after 210000ms
+  cause:  Port <kernel-assigned> not bound after 210000ms
   host: load 18.42/12.10/9.03 over 8 cpus (2.30 per cpu); docker 14 running, 11 Testcontainers across 4 sessions; QCMS stacks seat 3 (qcms-dev-s3) (issue #812: what the host was doing, not a cause)
 ```
 
