@@ -166,7 +166,7 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 The rule reaches **any environment identifier in a response body**, not only the `QCMS_FLAG_` registry the paragraph above scopes unknown-key rejection to.
 The two are different questions and the note read as one: the registry decides which names are parsed and rejected at boot, while this decision is about what a client is told, and a variable a client cannot set is no more actionable for being outside the registry.
 PR #908 applied the widened reading to the webhook refusal prose, where the `https-required` and `private-host` messages ended "set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets" in a 422 body (issue #756, from #312).
-One other instance is known and is **not** fixed there: `apps/api/src/features/auth/instance.ts` ends an `APIError` body with "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false", filed as its own issue, so this note records a tree with one outstanding case rather than a clean one.
+One other instance is known and is **not** fixed there: `apps/api/src/features/auth/instance.ts` ends an `APIError` body with "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false", filed as issue #910, so this note records a tree with one outstanding case rather than a clean one.
 
 ### ADR-35 - API-only database access
 
