@@ -65,8 +65,14 @@ export function RecoveryCodes({ codes }: { readonly codes: readonly string[] }) 
     // happen (the same trap `document.body === null` sets, which `sonarjs` flags for the
     // identical reason).
     const clipboard: Clipboard | undefined = navigator.clipboard;
-    // No `.catch`: `copyRecoveryCodes` resolves on every path by construction, because the
-    // one outcome this screen must never produce is a press that says nothing.
+    // No `.catch`, and the disable is the claim rather than a silence (issue #809).
+    // `copyRecoveryCodes` is `async` with every path returning an outcome - an absent
+    // clipboard, a resolved write, and a `try`/`catch` around the write that covers both a
+    // rejection and an engine that throws synchronously - so it resolves on every path by
+    // construction, and `lib/recovery-copy.ts` states that where the function is defined.
+    // The one outcome this screen must never produce is a press that says nothing, so a
+    // `.catch` here could only ever be a handler no test can reach.
+    // eslint-disable-next-line qcms/no-unhandled-then -- copyRecoveryCodes never rejects; see above
     void copyRecoveryCodes(clipboard, codes).then((outcome) => {
       setNote(outcome === "copied" ? t("recovery.copied") : t("recovery.copyFailed"));
     });

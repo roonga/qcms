@@ -67,6 +67,15 @@ export function createIntervalScheduler(options: IntervalSchedulerOptions): Sche
         options.logger.error("scheduler task failed", { scheduler: options.name, err });
       }
     })();
+    // No `.catch`, and the disable is the claim rather than a silence (issue #809). The
+    // promise this continues is the IIFE directly above, whose entire body is one
+    // `try`/`catch`: a task that rejects is logged there and the IIFE resolves. The one
+    // way `inFlight` still rejects is the logger itself throwing from inside that `catch`
+    // (`JSON.stringify` on a field that cannot be serialised, `@roonga/qcms-observability`'s
+    // `logger.ts`), and a handler for that could only try to log again. What the
+    // continuation does is release the handle `stop()` awaits and re-arm the timer, and
+    // `scheduleNext` returns immediately once `running` is false.
+    // eslint-disable-next-line qcms/no-unhandled-then -- rejects only if the logger itself throws; see above
     void inFlight.then(() => {
       inFlight = undefined;
       scheduleNext();

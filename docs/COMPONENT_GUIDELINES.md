@@ -48,6 +48,7 @@ Four exemplars, and copying any of them gets the shape right by default:
 `apps/admin` has a jsdom project (`apps/admin/vitest.dom.config.ts`, issue #352) and so does `@roonga/qcms-ui` (`packages/ui/vitest.config.ts`): `.test.tsx` files run there with testing-library, real events and real effects.
 This is the layer for what a user sees after pressing something - a dialog that stays open and says why, a live region that fills, an error state that replaces a spinner - and it is the only layer below Playwright that can observe a rejected promise reaching a `.catch`.
 The `*-rejects.test.tsx` files under `apps/admin/components/` are the worked examples.
+Writing the handler is not left to memory either: `qcms/no-unhandled-then` (issue #809) reports a discarded promise chain that ends in `.then(...)` with no rejection handler, so `void action().then(...)` is a failing lint rather than a silent path.
 
 `apps/portal` has **no** jsdom project of its own and no `.test.tsx` files today, so the render layer is not available to it.
 That is stated rather than implied: the respondent-facing rendering lives in `@roonga/qcms-ui`, which has the layer, and whether the portal's own client components need one has not been established either way.

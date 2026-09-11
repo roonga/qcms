@@ -6,6 +6,8 @@ import eslint from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
 import tseslint from "typescript-eslint";
 
+import { noUnhandledThen } from "./scripts/eslint-rules/no-unhandled-then.mjs";
+
 /**
  * Node built-ins, in both spellings a bundler-free TypeScript import can take. Shared
  * by the three fetch-purity fences below (`@roonga/qcms-core`, `@roonga/qcms-a2ui-compiler`, and the
@@ -130,6 +132,19 @@ export default tseslint.config(
       // which is locale-DEPENDENT - the opposite of the guarantee we want.
       "sonarjs/no-alphabetical-sort": "off",
     },
+  },
+  {
+    // The repository's own rules, under the `qcms` namespace. A local rule rather than a
+    // plugin dependency: `no-unhandled-then` is seventy lines of logic, and
+    // `CONTRIBUTING.md`'s minimal-dependency policy calls a package that saves fewer than
+    // a hundred a liability. The rule module carries the full argument, including what
+    // was measured about the three existing rules that nearly cover it.
+    //
+    // Applied with no `files` key, so it reaches every file ESLint is pointed at: app
+    // source, test files, and the `.mjs` tooling under `scripts/`. It needs no type
+    // information, so nothing about the `disableTypeChecked` blocks below turns it off.
+    plugins: { qcms: { rules: { "no-unhandled-then": noUnhandledThen } } },
+    rules: { "qcms/no-unhandled-then": "error" },
   },
   {
     // Test files legitimately trip several sonarjs rules by design: fixture IPs
