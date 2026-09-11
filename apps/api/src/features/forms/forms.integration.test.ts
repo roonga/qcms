@@ -147,7 +147,7 @@ interface Issue {
   path?: Record<string, unknown>;
 }
 interface ErrBody {
-  error: { code: string; message: string; details?: { issues?: Issue[] } };
+  error: { code: string; message: string; details?: { issues?: Issue[]; target?: string } };
 }
 
 /** Count `form.published` outbox events for a given formId. */
@@ -728,6 +728,22 @@ describe("per-form settings (033 settings panel)", () => {
     // helper's `undefined` return meaning exactly "no such form" below.
     expect((await patchSettings(formId, {})).status).toBe(400);
     expect((await patchSettings("frm_no_such_form", { challengeRequired: true })).status).toBe(404);
+  });
+
+  /**
+   * The empty patch answers with the code the published document now names (issue
+   * #242). The schema carries `minProperties: 1` and a description quoting
+   * `INVALID_REQUEST`, and this is the half of that pair that checks the server
+   * actually says it - the contract test in `src/openapi-document.test.ts` checks
+   * the document, and neither alone would catch the two drifting apart.
+   */
+  it("answers the empty patch with the INVALID_REQUEST envelope the document names", async () => {
+    const res = await patchSettings(formId, {});
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(Object.keys(body)).toEqual(["error"]);
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.details).toMatchObject({ target: "json" });
   });
 });
 

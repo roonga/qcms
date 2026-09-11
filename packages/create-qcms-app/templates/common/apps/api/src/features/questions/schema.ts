@@ -13,6 +13,8 @@
 
 import { z } from "@hono/zod-openapi";
 
+import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
+
 // --- params -----------------------------------------------------------------
 
 /** `:id` path param - a `q_…` question id (validated as a QuestionId in-handler). */
@@ -70,8 +72,15 @@ export const ListQuestionsQuery = z.object({
     param: { name: "type", in: "query" },
     example: "number",
   }),
+  /**
+   * Bounded at {@link LIBRARY_SEARCH_MAX_LENGTH}, the cap both library lists share
+   * (issue #686 bounded the form list, issue #862 this one): a search term is matched
+   * per row in the handler, so an unbounded term is unbounded work, and past the cap
+   * the route answers 400 through the standard error envelope rather than doing it.
+   */
   search: z
     .string()
+    .max(LIBRARY_SEARCH_MAX_LENGTH)
     .optional()
     .openapi({ param: { name: "search", in: "query" }, example: "colour" }),
   /**

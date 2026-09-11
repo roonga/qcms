@@ -132,33 +132,39 @@ describe("route partition - every mounted route in exactly one document", () => 
   });
 });
 
-describe("the form library list declares its filters in the contract (issue 686)", () => {
-  /** The query parameters an operation declares, by name. */
-  function queryParams(doc: OpenApiDocument, method: string, path: string): Map<string, unknown> {
-    const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
-      { parameters?: Array<{ name?: string; in?: string; schema?: unknown }> } | undefined;
-    const found = new Map<string, unknown>();
-    for (const param of op?.parameters ?? []) {
-      if (param.in === "query" && typeof param.name === "string")
-        found.set(param.name, param.schema);
-    }
-    return found;
+/** The query parameters an operation declares, by name. */
+function queryParams(doc: OpenApiDocument, method: string, path: string): Map<string, unknown> {
+  const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
+    { parameters?: Array<{ name?: string; in?: string; schema?: unknown }> } | undefined;
+  const found = new Map<string, unknown>();
+  for (const param of op?.parameters ?? []) {
+    if (param.in === "query" && typeof param.name === "string") found.set(param.name, param.schema);
   }
+  return found;
+}
 
-  // The committed document rather than the generated one: the drift guard above
-  // already ties the two together, so asserting here on what is on disk is what
-  // makes this a contract test rather than a second reading of the same object.
-  const committed = readCommitted("admin");
+/** The status codes an operation documents, as strings. */
+function responseCodes(doc: OpenApiDocument, method: string, path: string): string[] {
+  const op = (doc.paths?.[path] as Record<string, unknown> | undefined)?.[method] as
+    { responses?: Record<string, unknown> } | undefined;
+  return Object.keys(op?.responses ?? {});
+}
 
+// The committed document rather than the generated one: the drift guard above
+// already ties the two together, so asserting here on what is on disk is what
+// makes this a contract test rather than a second reading of the same object.
+const committedAdmin = readCommitted("admin");
+
+describe("the form library list declares its filters in the contract (issue 686)", () => {
   it.each(["status", "search", "sort"])(
     "GET /admin/forms accepts ?%s, so a filtered library is a URL a client can build",
     (name) => {
-      expect([...queryParams(committed, "get", "/admin/forms").keys()]).toContain(name);
+      expect([...queryParams(committedAdmin, "get", "/admin/forms").keys()]).toContain(name);
     },
   );
 
   it("pins the values the filters accept, so a client cannot guess a fifth sort key", () => {
-    const params = queryParams(committed, "get", "/admin/forms");
+    const params = queryParams(committedAdmin, "get", "/admin/forms");
     expect(params.get("status")).toMatchObject({ enum: ["open", "closed"] });
     expect(params.get("sort")).toMatchObject({
       enum: ["slug-asc", "slug-desc", "published-desc", "published-asc"],
@@ -169,9 +175,82 @@ describe("the form library list declares its filters in the contract (issue 686)
   });
 
   it("answers 400 for a refused filter, which is the shape the BFF renders", () => {
-    const op = (committed.paths?.["/admin/forms"] as Record<string, unknown> | undefined)?.[
-      "get"
-    ] as { responses?: Record<string, unknown> } | undefined;
-    expect(Object.keys(op?.responses ?? {})).toContain("400");
+    expect(responseCodes(committedAdmin, "get", "/admin/forms")).toContain("400");
+  });
+});
+
+describe("the question library list bounds its search term too (issue #862)", () => {
+  // The question library was the unbounded half of the pair 686 left behind: the
+  // forms list capped its search at 200 and this one had no bound at all, so an
+  // arbitrarily long pattern reached the per-row match. The bound belongs in the
+  // published contract and not only in the handler, because a generated client is
+  // entitled to know what the route will refuse before it sends it.
+  it("publishes ?search with the same 200-character cap the form list carries", () => {
+    expect(queryParams(committedAdmin, "get", "/admin/questions").get("search")).toMatchObject({
+      type: "string",
+      maxLength: 200,
+    });
+  });
+
+  it("documents the 400 an over-long term gets, through the standard envelope", () => {
+    expect(responseCodes(committedAdmin, "get", "/admin/questions")).toContain("400");
+    const op = (
+      committedAdmin.paths?.["/admin/questions"] as Record<string, unknown> | undefined
+    )?.["get"] as {
+      responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
+    };
+    expect(op.responses?.["400"]?.content?.["application/json"]?.schema).toEqual({
+      $ref: "#/components/schemas/ErrorEnvelope",
+    });
+  });
+
+  it("keeps the two library searches bounded identically, since they are one screen twice", () => {
+    const questions = queryParams(committedAdmin, "get", "/admin/questions").get("search");
+    const forms = queryParams(committedAdmin, "get", "/admin/forms").get("search");
+    expect(questions).toMatchObject({ maxLength: 200 });
+    expect(forms).toMatchObject({ maxLength: 200 });
+  });
+});
+
+describe("the settings patch publishes its empty-patch rule (issue #242)", () => {
+  // `UpdateFormSettingsBody` rejects an all-absent body with a 400, and that rule
+  // was a Zod `.refine()` with no JSON Schema expression: the published schema
+  // showed two optional fields, no `required` array, and nothing at all about the
+  // rule. The server was right and the contract was wrong. `minProperties: 1` is
+  // the machine-readable form, so this asserts the machine-readable form.
+  const schema = (committedAdmin.components?.schemas?.["UpdateFormSettingsBody"] ?? {}) as {
+    minProperties?: number;
+    description?: string;
+    properties?: Record<string, unknown>;
+  };
+
+  it("carries minProperties: 1, so a generated client knows `{}` is refused", () => {
+    expect(schema.minProperties).toBe(1);
+  });
+
+  it("still declares both settings optional - the rule is at-least-one, not both", () => {
+    expect(Object.keys(schema.properties ?? {}).sort()).toEqual([
+      "challengeRequired",
+      "minSubmitMs",
+    ]);
+    expect(schema).not.toHaveProperty("required");
+  });
+
+  it("says the rule in prose as well, naming the code the refusal carries", () => {
+    expect(schema.description).toContain("challengeRequired");
+    expect(schema.description).toContain("minSubmitMs");
+    expect(schema.description).toContain("INVALID_REQUEST");
+  });
+
+  it("documents the 400 through the standard envelope, as the refusal renders it", () => {
+    expect(responseCodes(committedAdmin, "patch", "/admin/forms/{id}/settings")).toContain("400");
+    const op = (
+      committedAdmin.paths?.["/admin/forms/{id}/settings"] as Record<string, unknown> | undefined
+    )?.["patch"] as {
+      responses?: Record<string, { content?: Record<string, { schema?: unknown }> }>;
+    };
+    expect(op.responses?.["400"]?.content?.["application/json"]?.schema).toEqual({
+      $ref: "#/components/schemas/ErrorEnvelope",
+    });
   });
 });

@@ -824,7 +824,9 @@
             "maximum": 3600000,
             "example": 3000
           }
-        }
+        },
+        "minProperties": 1,
+        "description": "A partial patch. At least one of `challengeRequired` or `minSubmitMs` must be present: an all-absent body is refused at the schema with a 400 `INVALID_REQUEST` envelope."
       },
       "PublishedResponse": {
         "type": "object",
@@ -1919,6 +1921,7 @@
           {
             "schema": {
               "type": "string",
+              "maxLength": 200,
               "example": "colour"
             },
             "required": false,

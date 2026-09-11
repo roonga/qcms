@@ -18,6 +18,8 @@
 
 import { z } from "@hono/zod-openapi";
 
+import { LIBRARY_SEARCH_MAX_LENGTH } from "../../openapi.js";
+
 /**
  * Whether a form accepts new sessions. Declared here rather than beside the response
  * schemas because the list route's `status` filter needs it before them (issue 686).
@@ -56,14 +58,17 @@ export const ListFormsQuery = z.object({
     example: "open",
   }),
   /**
-   * Bounded, unlike the question library's equivalent: a search term is a substring
-   * matched per row in the handler, so an unbounded one is unbounded work. 200
-   * characters is far past any slug or form title an author writes, and past it the
-   * route answers 400 rather than doing the work.
+   * Bounded at {@link LIBRARY_SEARCH_MAX_LENGTH}, the cap both library lists share: a
+   * search term is a substring matched per row in the handler, so an unbounded one is
+   * unbounded work, and past the cap the route answers 400 rather than doing the work.
+   *
+   * This was the bounded half of a pair for a while - the question library's equivalent
+   * had no bound at all until issue #862 - which is why the constant is now shared
+   * rather than written out in each slice.
    */
   search: z
     .string()
-    .max(200)
+    .max(LIBRARY_SEARCH_MAX_LENGTH)
     .optional()
     .openapi({
       param: { name: "search", in: "query" },
@@ -195,7 +200,25 @@ export const UpdateFormSettingsBody = z
     (body) => body.challengeRequired !== undefined || body.minSubmitMs !== undefined,
     "Provide at least one of challengeRequired or minSubmitMs",
   )
-  .openapi("UpdateFormSettingsBody");
+  // `minProperties: 1` is the JSON Schema expression of the `.refine()` above
+  // (issue #242). A refinement is a predicate the generator cannot read, so
+  // without this the published schema showed two optional fields and no `required`
+  // array: nothing in `docs/openapi/admin.json` said an all-absent body is a 400,
+  // and a client generated from the document alone could not know it.
+  //
+  // Stated as metadata rather than by re-shaping the body into a union of the
+  // single-field variants. The union would also generate the constraint, as an
+  // `anyOf` branch per field, but "at least one of N" needs a branch per field and
+  // per-form settings are an ADR-24 tier-2 surface that gains fields over time, so
+  // that cost grows while this one does not. The `.refine()` stays the enforcement;
+  // this only makes it visible, and the two are pinned together by the contract
+  // test in `src/openapi-document.test.ts` and the integration test that sends `{}`.
+  .openapi("UpdateFormSettingsBody", {
+    minProperties: 1,
+    description:
+      "A partial patch. At least one of `challengeRequired` or `minSubmitMs` must be present: " +
+      "an all-absent body is refused at the schema with a 400 `INVALID_REQUEST` envelope.",
+  });
 
 /** The per-form abuse-control settings, as every read and the patch return them. */
 export const FormSettings = z
