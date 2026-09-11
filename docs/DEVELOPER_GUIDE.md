@@ -420,6 +420,49 @@ It exits non-zero on any path or line it cannot open, and `--expect` additionall
 
 **Never count page assets wholesale under `next dev`** (issue #193). The suite boots the portal with `next dev`, and a dev server serves its own chrome from your app's origin: the error overlay's typeface arrives as `/__nextjs_font/geist-latin.woff2`. It is same-origin, so it does not break the zero-external-request claim `fonts.pw.ts` makes; it makes any wholesale `woff2` count wrong by exactly one, and it reads as "a font we did not expect was downloaded". That cost task 052 a red run. Derive the expected set from its source of truth and match **positively** - `fonts.pw.ts` builds the filenames from `FONT_REGISTRY` - because a name-based exclusion list grows silently until the assertion stops meaning anything, while an inclusion filter derived from the manifest cannot drift. A positive filter alone cannot say what ELSE arrived, so `apps/portal/e2e/support/dev-server-assets.ts` supplies the other half: it recognises dev-server assets by path prefix (`/__nextjs`, `/_next/webpack-hmr`), never by subtracting one, and `partitionRequests` splits the observed requests into ours, the dev server's, and a third pile a spec can assert is empty. The order matters - the dev-server predicate is applied first, so an overlay asset can never satisfy "our file arrived" on a name collision, which the registry is one `geist` entry away from.
 
+### Running the gate detached, and clearing the seat afterwards
+
+**A half-hour gate run in the foreground of anything that can time out produces a verdict nobody can read** (issue #846). `verify:browser` is about half an hour (`pnpm ci:durations browser-e2e` for the current figure), which outlasts every per-command cap an agent harness or a script wrapper imposes. The lost time is not the problem: the problem is that a kill at the cap and a red suite look identical from outside, both a nonzero exit code over a log with no Playwright summary at the end of it. Three lanes hit exactly that on 2026-09-06, at 25, 30 and 33 minutes, with `EXIT=143` twice and `EXIT=137` once and no test failure in any of them, and each kill left the seat's two `next dev` servers orphaned so the preflight refused the next attempt.
+
+So run it detached and wait for it in slices:
+
+The section below, on waiting for a long gate, is the general case; this is the browser gate's own answer to it.
+
+```sh
+# Start it. Returns immediately, printing the run directory and the four files in it.
+QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached
+
+# Wait one bounded slice (default 540 s). Re-invoke while it exits 75.
+pnpm verify:browser:wait <dir>
+pnpm verify:browser:wait <dir> --slice 300 --tail 80
+```
+
+The suite runs under `setsid`, in a session of its own, so killing the shell that asked for it does not reach it. Its pid, its log, a heartbeat line every 30 seconds and its final exit code go to this lane's `node scripts/agent-scratch.mjs` directory, one file each; the log and the rc file are the same two artifacts a foreground run would have produced, except that they survive the caller. The rc file is written by an atomic rename, so a reader never catches half a verdict.
+
+`wait` exits with the suite's own code when the run finishes, and otherwise with a code that cannot be mistaken for one (Playwright uses 0 and 1; these are `sysexits.h` numbers it never returns):
+
+| Exit | Meaning                                                                            |
+| ---- | ---------------------------------------------------------------------------------- |
+| 0, 1 | the suite finished and this is its verdict                                         |
+| 64   | usage: no directory given, or no run recorded in it                                |
+| 75   | the slice ended with the suite still running. Nothing failed: re-invoke            |
+| 76   | the runner is gone and recorded no rc, so it was SIGKILLed. Expect orphans         |
+| 77   | the runner was signalled; it stopped the suite and cleared the seat. Not a verdict |
+
+**75 and 77 are the point of the whole thing.** A slice that ends early says so in a code of its own rather than resembling a failure, and a killed runner says it was killed rather than leaving a truncated log to be read as a red suite.
+
+`--shard 1/2` and `--project <name>` are passed through to Playwright, which is how the #808 lane finished under a cap before this existed (the portal projects plus two admin shards, 111 + 94 + 88 = 293). Anything after `--` is handed to Playwright verbatim. The `--project` value is forwarded in the `--project=<name>` form because Playwright's own flag is variadic and the space form swallows the next argument as a second project name.
+
+**A fresh worktree needs `pnpm build` before any of this** (issue #890): with no `packages/*/dist` the portal dev server cannot come up inside the config's hard-coded 180 s `webServer` timeout, and the failure reads as a hung server rather than as a missing build.
+
+**Clearing orphan servers, when a run was killed hard enough to leave some.** The seat preflight names them: it refuses to start and prints each occupant's pid and `/proc/<pid>/cwd` (`docs/PORTS.md`). To list them independently, match real port numbers rather than the `17Sxx` shorthand, whose `S` is a placeholder that matches nothing as written. Two forms, both copy-pastable: `ss -ltnp | grep -E ":17${QCMS_PORT_SEAT:-0}(00|10|30|40)"` for this seat's four ports (17200, 17210, 17230 and 17240 at seat 2), and `ss -ltnp | grep -E ':17[0-9]{3}'` for every seat at once, which is what you want when the question is whether a neighbour is running. Then:
+
+- **Kill the pids the preflight named, one pid per argument**: `kill -9 <pid> <pid>`. In zsh an unquoted parameter is not word-split, so `kill -9 $pids` built from a space-joined string sends nothing to anything and reports success.
+- **Do not trust `kill`'s exit code, and be ready to run it outside the sandbox.** A sandboxed `kill` has been seen to exit 0 while every orphan survived (issue #846, the #808 lane); it has also been seen to work. Both report success, so the exit code is not evidence either way. Check with one of the two commands above afterwards, and if the listener is still there, run the kill outside the sandbox.
+- **Never `pkill -f` a gate command name.** Every lane on this host runs the same command names, so `pkill -f "pnpm verify"` is lane-agnostic: it can take out a neighbour's gate, and a second such pattern once killed the caller's own shell (issue #890). The recorded pid is the only safe target, which is why the detached runner writes one.
+
+A runner that is signalled rather than SIGKILLed cleans up after itself, and it is worth knowing exactly how far that goes. It traps SIGTERM, SIGINT and SIGHUP, signals the suite's whole process group, and then **clears the seat by port rather than by ancestry**: it asks `/proc` who is listening on this seat's four harness ports, signals those pids one at a time, waits, and SIGKILLs whoever is left. The second half is not belt and braces. Playwright starts each `webServer` in a session of its own, so the two `next dev` servers are in process groups the suite's leader pid cannot address at all, and a group signal on its own leaves both of them bound to the seat 25 seconds later (measured twice while building this, which is why the rc file now reports what the port check found rather than what the cleanup intended). The rc file says `Seat released: nothing is listening on <ports>` only when that check came back empty; if anything survived even the SIGKILL it writes `seat_survivors=<port>:<pid>` instead, and those pids are yours to kill by the rules above.
+
 ## Waiting for a long gate, and whether the clock is telling the truth
 
 **A `sleep`-based wait that returns at once is not evidence of a frozen clock** (issue #590). The report was that the dev container's clock had stopped: across a session whose `sleep` calls totalled well over an hour, `date` advanced about a minute. Every sleep-based wait came straight back, so polling a half-hour browser gate cost dozens of turns, and the same shape had been filed repeatedly as separate ergonomics complaints.
