@@ -5,6 +5,13 @@ import { afterEach } from "vitest";
 // resize observation, scrolling into view). Stub them so the controls mount and
 // interact cleanly in the component layer; none affect the accessibility tree or
 // the axe checks.
+// Re-verified against jsdom 30.0.1 at the 26 -> 30 bump (issue #113). `matchMedia`,
+// `ResizeObserver` and `scrollIntoView` are still absent, so those three shims still
+// install. `CSS` is NOT: jsdom 30.0.0 added native `CSS.escape()` and `CSS.supports()`
+// (https://github.com/jsdom/jsdom/releases/tag/v30.0.0), so the `typeof` guard below
+// now skips the shim and react-aria reaches jsdom's own spec-correct `escape()`. The
+// guard is what keeps that a silent improvement rather than a double install, which is
+// why each shim is written as a conditional rather than an assignment.
 if (typeof window.matchMedia !== "function") {
   window.matchMedia = (query: string): MediaQueryList =>
     ({

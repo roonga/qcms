@@ -20,11 +20,31 @@
  *
  * A note on the environment. jsdom resolves the cascade for elements a rule matches
  * directly, which is exactly what is measured below (the carrier element itself, and
- * the controls the treatment rules name). It does NOT implement custom-property
- * inheritance, so nothing here reads a token off a descendant - and `border-width`
- * is unreliable in its shorthand handling, so the high-contrast half is measured on
- * `box-shadow`, which its flat-surfaces rule sets. The rendered-pixel half of the
- * contract lives in `apps/portal/e2e/theming.pw.ts`, in a real browser.
+ * the controls the treatment rules name). `border-width` is unreliable in its
+ * shorthand handling, so the high-contrast half is measured on `box-shadow`, which
+ * its flat-surfaces rule sets. The rendered-pixel half of the contract lives in
+ * `apps/portal/e2e/theming.pw.ts`, in a real browser.
+ *
+ * Two things this file used to lean on stopped being true at the jsdom 26 -> 30 bump
+ * (issue #113), and both were jsdom catching up to the browser rather than drifting
+ * from it, so the assertions moved instead of the expectations being relaxed:
+ *
+ *  - **Custom properties now inherit.** jsdom 26 resolved `--token` only on an
+ *    element a rule matched directly and gave a descendant `""`; 29.0.2 applied
+ *    computed-value rules "across a broader set of properties, and include fixes
+ *    related to inheritance, defaulting keywords, custom properties"
+ *    (https://github.com/jsdom/jsdom/releases/tag/v29.0.2). Custom properties are
+ *    inherited properties in CSS, so a descendant of a themed `:root` resolving the
+ *    root's value is correct. "Not scoped" therefore no longer reads as an empty
+ *    string; it reads as the HOST's value where the portal's would be wrong, which
+ *    is the sharper claim and the one asserted below.
+ *  - **Longhands now default to their initial value.** jsdom 26 returned `""` for a
+ *    longhand no rule set; jsdom 30 returns the initial value (`min-height: auto`),
+ *    the last step of the same broadening plus 30.0.0's "Fixed `getComputedStyle()`
+ *    to convert length values into pixels"
+ *    (https://github.com/jsdom/jsdom/releases/tag/v30.0.0). Shorthands such as
+ *    `border-radius` and `padding-inline` are still `""` when unset, so the two
+ *    spellings sit side by side below on purpose.
  */
 
 import { readFileSync } from "node:fs";
@@ -130,13 +150,23 @@ describe("a scoped container resolves the portal token set", () => {
     expect(token(document.documentElement, "--radius-control")).toBe("999px");
   });
 
-  it("gives a container without the carrier nothing at all", () => {
+  it("gives a container without the carrier the host's tokens, never the portal's", () => {
     loadSheets(THEME_CSS, HOST_ROOT_CSS);
     document.body.innerHTML = `<div id="plain" data-theme="harbor" class="dark"></div>`;
     const plain = document.querySelector("#plain");
     expect(plain).not.toBeNull();
-    expect(token(plain as HTMLElement, "--radius-control")).toBe("");
-    expect(token(plain as HTMLElement, "--color-primary")).toBe("");
+
+    // `data-theme` and `dark` without the carrier match nothing in the portal sheet,
+    // so what this container resolves is what any element of the host document
+    // resolves: the host's `:root` values, reaching it by ordinary custom-property
+    // inheritance. Naming those values is what makes the claim exact - an island
+    // that silently picked up the portal set would read 6px and #6fa8ff here, which
+    // the pair of negatives below pins directly so a future token change cannot make
+    // the two sets coincide without reddening this test.
+    expect(token(plain as HTMLElement, "--radius-control")).toBe("4px");
+    expect(token(plain as HTMLElement, "--color-primary")).toBe("#1e40d0");
+    expect(token(plain as HTMLElement, "--radius-control")).not.toBe("6px");
+    expect(token(plain as HTMLElement, "--color-primary")).not.toBe("#6fa8ff");
   });
 });
 
@@ -182,9 +212,13 @@ describe("the treatment layer is contained by the carrier", () => {
 
     // The half the whole approach exists for: a `[data-rac]` control outside a
     // carrier is untouched, so a host can import this sheet without restyling its
-    // own control layer.
+    // own control layer. "Untouched" has two spellings under jsdom 30 and both are
+    // asserted as-is rather than normalized away: an unset SHORTHAND still resolves
+    // to `""`, while an unset LONGHAND resolves to its initial value, which for
+    // `min-height` is `auto`. Either way the treatment rule's `var(...)` is absent,
+    // which is the property under test.
     expect(token(outside, "border-radius")).toBe("");
-    expect(token(outside, "min-height")).toBe("");
+    expect(token(outside, "min-height")).toBe("auto");
     expect(token(outside, "padding-inline")).toBe("");
   });
 
