@@ -418,6 +418,49 @@ pnpm vendor:cite --quiet    # failures and the summary only, as check:vendor-pin
 
 It exits non-zero on any path or line it cannot open, and `--expect` additionally fails a citation whose adjacent marker names a phrase the cited lines do not contain. **Run it as the first step of a better-auth bump**, before any number is rewritten: the re-read is the work, and this is what makes it a minute rather than an afternoon. `CONTRIBUTING.md` carries the marker convention and the rest of the rules.
 
+**Never count page assets wholesale under `next dev`** (issue #193). The suite boots the portal with `next dev`, and a dev server serves its own chrome from your app's origin: the error overlay's typeface arrives as `/__nextjs_font/geist-latin.woff2`. It is same-origin, so it does not break the zero-external-request claim `fonts.pw.ts` makes; it makes any wholesale `woff2` count wrong by exactly one, and it reads as "a font we did not expect was downloaded". That cost task 052 a red run. Derive the expected set from its source of truth and match **positively** - `fonts.pw.ts` builds the filenames from `FONT_REGISTRY` - because a name-based exclusion list grows silently until the assertion stops meaning anything, while an inclusion filter derived from the manifest cannot drift. A positive filter alone cannot say what ELSE arrived, so `apps/portal/e2e/support/dev-server-assets.ts` supplies the other half: it recognises dev-server assets by path prefix (`/__nextjs`, `/_next/webpack-hmr`), never by subtracting one, and `partitionRequests` splits the observed requests into ours, the dev server's, and a third pile a spec can assert is empty. The order matters - the dev-server predicate is applied first, so an overlay asset can never satisfy "our file arrived" on a name collision, which the registry is one `geist` entry away from.
+
+## Waiting for a long gate, and whether the clock is telling the truth
+
+**A `sleep`-based wait that returns at once is not evidence of a frozen clock** (issue #590). The report was that the dev container's clock had stopped: across a session whose `sleep` calls totalled well over an hour, `date` advanced about a minute. Every sleep-based wait came straight back, so polling a half-hour browser gate cost dozens of turns, and the same shape had been filed repeatedly as separate ergonomics complaints.
+
+It was diagnosed before it was fixed, because three faults look identical from a shell and need different fixes: a frozen or stepped wall clock, timers that do not wait, and a `sleep` that will not wait while the clocks are fine (which covers both a `sleep` that returns at once and one that is refused outright - whatever will not let a foreground wait run is as free to kill it as to short-circuit it). What the measurements found:
+
+```sh
+# 1. Nothing in the image fakes time. No faketime library, no LD_PRELOAD, and
+#    .devcontainer/devcontainer.json carries no time-related feature or runArg.
+env | grep -iE 'faketime|LD_PRELOAD'; ls /usr/lib/*/faketime* 2>/dev/null
+
+# 2. A container does not get its own wall clock. Docker gives it a separate time
+#    namespace (the inodes differ), but a time namespace can only offset
+#    CLOCK_MONOTONIC and CLOCK_BOOTTIME - CLOCK_REALTIME is shared with the host.
+readlink /proc/self/ns/time
+docker run --rm alpine readlink /proc/self/ns/time
+
+# 3. The epoch agrees across the boundary, and sleeping really sleeps on both sides.
+#    (The rendered dates differ only by TZ: the container is UTC.)
+date +%s.%N; docker run --rm alpine sh -c 'date +%s.%N; sleep 5; date +%s.%N'; date +%s.%N
+
+# 4. And on the host: 2.006s of wall clock across `sleep 2`.
+T0=$(date +%s.%N); sleep 2; T1=$(date +%s.%N); echo "$T0 $T1"
+```
+
+**So the clock is not frozen, and there is nothing in this repository's container to fix.** The reading that started it is self-refuting once you notice both numbers came off the same clock: if the wall clock had stopped, `date` would have advanced by **zero**, not by a minute. A minute of real advance across sleeps that were asked for an hour says the sleeps did not take an hour. The remaining cause is the agent harness running the command - some configurations refuse or short-circuit a foreground `sleep`, and from inside a shell that is indistinguishable from time standing still. It is a property of the harness rather than of the machine, so it does not reproduce everywhere: measurement 4 above was taken through a harness that honours `sleep` and got the full two seconds. That is exactly why the condition needs a command that reports it rather than a paragraph asserting it.
+
+**`pnpm check:clock` tells them apart in one command.** It times one two-second in-process wait and one `sleep 2` against both `Date.now()` and `process.hrtime.bigint()`, and names which fault it found rather than only failing. A `sleep` that ran and exited non-zero or was killed is a FAILURE naming the status or the signal; only a `sleep` that could not be spawned at all (no binary, no permission) is reported without failing, because that leaves the question unanswered. The monotonic clock is the control: a wait that is long on it and short on the wall clock isolates a stepped clock from a wait that never happened. It is deliberately **not** in `check:all` - it spends four seconds waiting and asserts a property of the machine rather than of the tree.
+
+**Wait on the process, not on elapsed time.** This is the idiom to reach for regardless of which fault a machine has, because it consults no clock at all:
+
+```sh
+pnpm verify > "$log" 2>&1 & pid=$!
+tail --pid="$pid" -f /dev/null     # blocks until that process exits
+wait "$pid"; rc=$?
+```
+
+For a job whose PID is not to hand, block on a marker the job appends itself; the block is on the file descriptor, not on the clock. `CONTRIBUTING.md` carries the paired rule that a gate outlasting a per-command cap is **launched** in the background from the start - this is how you then wait for it.
+
+**Time in this environment is unreliable in one more way, and it is a real one.** The Testcontainers Postgres runs ahead of the host, so a due-time assertion measured against a timestamp the database wrote needs a margin rather than an exact comparison - which is why `packages/db/src/queries/erasure.integration.test.ts` allows one and `apps/admin/e2e/support/ops.ts` starts an hour ahead of the host clock on purpose. That is a genuine clock disagreement between two machines; the frozen-clock report above was not.
+
 ## Looking at a committed PNG before writing prose about it
 
 **Gate prose describing a rendering is written from the rendering, not from the intent.**

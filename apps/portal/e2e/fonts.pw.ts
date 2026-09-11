@@ -38,6 +38,7 @@ import { writeFileSync } from "node:fs";
 import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts";
 import type { Locator, Page } from "@playwright/test";
 
+import { partitionRequests } from "./support/dev-server-assets.js";
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
@@ -275,18 +276,30 @@ test("every shipped font renders, from this origin only, with the 1.4.12 floors 
   //
   // The registry's own files have to be picked out of the woff2 requests rather
   // than counted wholesale, because the Next DEV server serves its error-overlay
-  // typeface (`/__nextjs_font/geist-latin.woff2`) from this origin too. That is
-  // dev-server chrome, not portal content, and it is same-origin, so it satisfies
-  // the zero-external-request claim while making a bare count wrong by one.
+  // typeface (`/__nextjs_font/geist-latin.woff2`) from this origin too (issue #193).
+  // That is dev-server chrome, not portal content, and it is same-origin, so it
+  // satisfies the zero-external-request claim while making a bare count wrong by one.
+  //
+  // Two filters, because each covers what the other cannot. The manifest-derived
+  // one answers "did every file we declared arrive"; the dev-server path predicate
+  // in `support/dev-server-assets.ts` accounts for the overlay by WHERE it is
+  // served from rather than by subtracting one, and leaves a third pile - neither
+  // ours nor the dev server's - that has to be empty. Wholesale counting could not
+  // make that last claim at all: an unexpected font would have kept the total right
+  // whenever a declared one went missing at the same time.
   const declared = [...new Set(FONT_REGISTRY.flatMap((e) => e.faces.map((f) => f.file)))];
   const stems = declared.map((file) => file.replace(/\.woff2$/u, ""));
-  const ours = fontRequests.filter((url) =>
+  const { ours, devServer, unexpected } = partitionRequests(fontRequests, (url) =>
     stems.some((stem) => url.includes(`/${stem}.`) || url.endsWith(`/${stem}.woff2`)),
   );
   expect(
     [...new Set(ours)].length,
     `expected all ${declared.length} registry files; requested:\n${[...new Set(fontRequests)].sort().join("\n")}`,
   ).toBe(declared.length);
+  expect(
+    [...new Set(unexpected)].sort(),
+    "woff2 requests that are neither a registry file nor a known dev-server asset",
+  ).toEqual([]);
   for (const url of fontRequests) {
     expect(url.startsWith(new URL(baseUrl).origin), `off-origin font: ${url}`).toBe(true);
   }
@@ -297,7 +310,8 @@ test("every shipped font renders, from this origin only, with the 1.4.12 floors 
       `entries swept: ${FONT_REGISTRY.length}\n` +
       `faces declared: ${FACE_SPECS.length}\n` +
       `registry woff2 files requested: ${new Set(ours).size} (declared ${declared.length})\n` +
-      `total woff2 resource entries incl. the Next dev overlay font: ${fontRequests.length}\n` +
+      `dev-server woff2 requests (Next overlay chrome, issue #193): ${devServer.length}\n` +
+      `total woff2 resource entries: ${fontRequests.length}\n` +
       `off-origin requests for the whole sweep: ${external.length}\n`,
     "utf8",
   );
