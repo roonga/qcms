@@ -102,6 +102,13 @@ export default async function QuestionDetailPage({
           <h1 className="qcms-question-id">{detail.data.questionId}</h1>
           <StatusTag status={selected.status} />
         </div>
+        {/* STILL UTC, and named rather than left to be discovered (issue #582). The Code
+            Owner's 2026-09-11 ruling moved day columns onto the operator's own zone, and it
+            was about TABLES: this line is a detail route's meta strip, and a server
+            component with no hydration swap to hang the operator zone on. The consequence
+            is visible and accepted for now: the library table can name 3 Aug where this
+            line names 2 Aug for an operator east of UTC, because they are the same instant
+            read on two clocks. Extending the ruling here is a decision, not a detail. */}
         <p className="text-sm text-(--color-text-muted)">
           {t("questions.detail.slug")}: {detail.data.slug} · {t("questions.detail.created")}:{" "}
           {formatDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}

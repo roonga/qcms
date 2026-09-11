@@ -2,8 +2,18 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { OperatorDateTime, useOperatorDateTimeFormat } from "./operator-time.tsx";
-import { formatDateTime, formatOperatorDateTime } from "../lib/i18n/format.ts";
+import {
+  OperatorDateTime,
+  OperatorDay,
+  useOperatorDateTimeFormat,
+  useOperatorDayFormat,
+} from "./operator-time.tsx";
+import {
+  formatDateTime,
+  formatDay,
+  formatOperatorDateTime,
+  formatOperatorDay,
+} from "../lib/i18n/format.ts";
 
 /**
  * The hydration gate (issue #279).
@@ -99,6 +109,67 @@ describe("the hook the catalog-sentence callers use", () => {
     function Probe() {
       const format = useOperatorDateTimeFormat();
       return <>{String(format === formatDateTime)}</>;
+    }
+
+    expect(markupInZone("Australia/Sydney", <Probe />)).toBe("true");
+  });
+});
+
+/**
+ * The day-only half, on the same gate (Code Owner, 2026-09-11, issue #582).
+ *
+ * A day column joined this module rather than getting a mechanism of its own, so the
+ * property to pin is the same one: what crosses the server/client boundary cannot depend on
+ * the runtime that produced it. The zone pair below is chosen so a mistake would actually
+ * show - the instant is 23:30 UTC, which is a different calendar day in the two zones.
+ */
+describe("the day column's server render", () => {
+  const NEAR_MIDNIGHT_UTC = "2026-08-02T23:30:00.000Z";
+
+  it("is byte-identical whatever zone the runtime is in", () => {
+    const east = markupInZone("Australia/Sydney", <OperatorDay iso={NEAR_MIDNIGHT_UTC} />);
+    const west = markupInZone("America/Los_Angeles", <OperatorDay iso={NEAR_MIDNIGHT_UTC} />);
+
+    expect(east).toBe(west);
+  });
+
+  it("is the pinned UTC day, not the operator's", () => {
+    const markup = markupInZone("Australia/Sydney", <OperatorDay iso={NEAR_MIDNIGHT_UTC} />);
+
+    expect(markup).toContain(formatDay(NEAR_MIDNIGHT_UTC));
+    // And the Sydney day is genuinely a different string, so the line above is not passing
+    // because the two agree. This is the case the old UTC-only rule got wrong.
+    //
+    // The operator string is produced INSIDE the zone, by a component that formats during
+    // its own render. Calling the formatter in the argument list instead would resolve it
+    // where this file is executing rather than where the render is, which is a weaker
+    // assertion than it looks: it would compare against whatever zone the test runner
+    // happens to sit in.
+    function LocalDay() {
+      return <>{formatOperatorDay(NEAR_MIDNIGHT_UTC)}</>;
+    }
+    const local = markupInZone("Australia/Sydney", <LocalDay />);
+    expect(local).not.toBe(formatDay(NEAR_MIDNIGHT_UTC));
+    expect(markup).not.toContain(local);
+  });
+
+  it("carries the instant in the markup, so the day is checkable after the swap", () => {
+    expect(markupInZone("Australia/Sydney", <OperatorDay iso={NEAR_MIDNIGHT_UTC} />)).toMatch(
+      new RegExp(`<time datetime="${NEAR_MIDNIGHT_UTC}">`, "iu"),
+    );
+  });
+
+  it("renders the caller's fallback with no <time> around it", () => {
+    expect(renderToStaticMarkup(<OperatorDay iso={null} fallback="None" />)).toBe("None");
+    expect(renderToStaticMarkup(<OperatorDay iso="not a day" />)).toBe("");
+  });
+
+  it("hands the sentence callers the pinned formatter before hydration finishes", () => {
+    // The forms list's Version cell puts its day inside a `t(...)` sentence and takes the
+    // formatter from here, so it is on this gate rather than beside it.
+    function Probe() {
+      const format = useOperatorDayFormat();
+      return <>{String(format === formatDay)}</>;
     }
 
     expect(markupInZone("Australia/Sydney", <Probe />)).toBe("true");

@@ -2,7 +2,13 @@
 
 import { useEffect, useState } from "react";
 
-import { formatDateTime, formatOperatorDateTime, isInstant } from "@/lib/i18n/format";
+import {
+  formatDateTime,
+  formatDay,
+  formatOperatorDateTime,
+  formatOperatorDay,
+  isInstant,
+} from "@/lib/i18n/format";
 
 /**
  * Operator-local timestamp display, without a hydration mismatch (issue #279).
@@ -42,6 +48,16 @@ import { formatDateTime, formatOperatorDateTime, isInstant } from "@/lib/i18n/fo
  * reverse-engineered out of prose. An unreadable value renders the caller's fallback with
  * no `<time>` around it, because `dateTime` with nothing valid in it would be a worse
  * answer than none.
+ *
+ * ## Day-only columns come through here too (issue #582)
+ *
+ * They did not, until the Code Owner's ruling of 2026-09-11: a bare calendar-day column
+ * stayed UTC on the ground that it has no clock in its output to name a zone on. The value
+ * is still an instant, so the UTC day could name a day the operator's own clock never
+ * agreed with, and one zone across every table is what the #794 ruling settled.
+ * {@link OperatorDay} and {@link useOperatorDayFormat} are that half, and they are the same
+ * mechanism rather than a parallel one: pinned UTC through hydration, the operator's zone
+ * after. What a day column does NOT gain is a clock or a zone name; it is still a day.
  *
  * ## Out of scope, deliberately
  *
@@ -83,6 +99,47 @@ export function OperatorDateTime({
   readonly fallback?: string;
 }) {
   const format = useOperatorDateTimeFormat();
+  const text = format(iso, fallback);
+  if (!isInstant(iso)) return <>{text}</>;
+  return <time dateTime={iso}>{text}</time>;
+}
+
+/**
+ * The day formatter this render should use: pinned UTC until hydration finishes, the
+ * operator's own zone afterwards.
+ *
+ * A hook as well as a component for the same reason its sibling is one: the forms list puts
+ * its day inside a catalog sentence ("v3, frozen {date}") rather than in an element of its
+ * own, and there is no place to hang a component there.
+ */
+export function useOperatorDayFormat(): (
+  iso: string | null | undefined,
+  fallback?: string,
+) => string {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
+  return hydrated ? formatOperatorDay : formatDay;
+}
+
+/**
+ * One operator-facing calendar day: UTC through hydration, then the operator's own clock.
+ *
+ * The `<time dateTime>` wrapper is the same bargain the timestamp makes: whatever the text
+ * says, the machine-readable instant stays in the DOM, so a reader never has to
+ * reverse-engineer a zone out of prose. The attribute carries the full instant rather than
+ * a `YYYY-MM-DD` slice, because the instant is what the row actually holds and slicing it
+ * would re-state the UTC day this component exists to stop being the only answer.
+ */
+export function OperatorDay({
+  iso,
+  fallback = "",
+}: {
+  readonly iso: string | null | undefined;
+  readonly fallback?: string;
+}) {
+  const format = useOperatorDayFormat();
   const text = format(iso, fallback);
   if (!isInstant(iso)) return <>{text}</>;
   return <time dateTime={iso}>{text}</time>;

@@ -42,10 +42,14 @@
  * the mint dialog's expiry promise (`forms.links.expiresAtHint`), which is a statement made
  * to a respondent in some other zone rather than a convenience for the operator reading it.
  *
- * {@link formatDay} also stays UTC. It renders a calendar day for a column where the time
- * of day carries no meaning, and moving a bare day across a zone boundary changes which day
- * is named without giving the reader anything to check it against - there is no clock in
- * the output to name the zone on. Issue #279 asks for the timestamps.
+ * {@link formatDay} is the pinned-UTC half of the same pair, and {@link formatOperatorDay}
+ * is its operator-zone twin (Code Owner, 2026-09-11, issue #582). The day columns used to
+ * stay UTC on the ground that a bare day has no clock in its output to name a zone on. That
+ * is true about the output and beside the point about the value: those columns render an
+ * INSTANT, so naming its UTC day tells an operator east or west of UTC that something
+ * happened on a day their own clock never agreed with. `plan/admin-design-contracts.md` §2
+ * carries the amendment; the hydration rule is unchanged, which is why there are two
+ * functions here rather than one that reads the ambient zone.
  */
 
 /**
@@ -89,7 +93,14 @@ function instant(iso: string | null | undefined): Date | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed;
 }
 
-/** A calendar day, for a column where the time of day carries no meaning. */
+/**
+ * A calendar day in UTC, for a column where the time of day carries no meaning.
+ *
+ * This is the pinned half: the server render and the first client render, and any caller
+ * outside a table that has no hydration swap to hang an operator zone on. A table's day
+ * column goes through `components/operator-time.tsx` instead, which starts here and swaps
+ * to {@link formatOperatorDay} afterwards.
+ */
 export function formatDay(iso: string | null | undefined, fallback = ""): string {
   const parsed = instant(iso);
   return parsed === undefined ? fallback : DAY.format(parsed);
@@ -151,15 +162,46 @@ export function formatOperatorDateTime(iso: string | null | undefined, fallback 
   return parsed === undefined ? fallback : operatorDayAndTime().format(parsed);
 }
 
+/**
+ * The same calendar day as {@link formatDay}, on the **operator's own clock**
+ * (Code Owner, 2026-09-11, issue #582).
+ *
+ * A day column carries no clock, so there is no zone name in the output and none is added:
+ * what changes is WHICH day is named. An instant at 23:30 UTC is already tomorrow in Sydney
+ * and still today in Los Angeles, and a table that answered with the UTC day was telling
+ * two thirds of its readers about a day their own clock never agreed with. One zone across
+ * every table is what the #794 ruling settled; this is the day-only half of it.
+ *
+ * The locale is still {@link ADMIN_LOCALE} and only the zone comes from the runtime, for
+ * the reasons written out at {@link formatOperatorDateTime}.
+ *
+ * **This must not run during a server render**, exactly as its sibling must not.
+ * `components/operator-time.tsx` owns that rule for both.
+ */
+export function formatOperatorDay(iso: string | null | undefined, fallback = ""): string {
+  const parsed = instant(iso);
+  return parsed === undefined ? fallback : operatorDay().format(parsed);
+}
+
+/**
+ * The operator's resolved zone, re-read on every call rather than captured at module load.
+ *
+ * One reader for both operator formatters, so a changed ambient zone invalidates both
+ * caches together and neither can be a version behind the other. It costs one
+ * `resolvedOptions()` call per formatted value, which is what makes the behaviour testable
+ * without a browser: a test that moves `TZ` sees the next call move with it.
+ */
+function operatorZone(): string {
+  // `timeZone: undefined` asks the runtime for its own zone rather than naming one. It is
+  // the single input these formatters take from the environment.
+  return new Intl.DateTimeFormat(ADMIN_LOCALE, { timeZone: undefined }).resolvedOptions().timeZone;
+}
+
 let cachedOperatorFormat: Intl.DateTimeFormat | undefined;
 let cachedOperatorZone: string | undefined;
 
 function operatorDayAndTime(): Intl.DateTimeFormat {
-  // `timeZone: undefined` asks the runtime for its own zone rather than naming one. It is
-  // the single input this formatter takes from the environment.
-  const { timeZone } = new Intl.DateTimeFormat(ADMIN_LOCALE, {
-    timeZone: undefined,
-  }).resolvedOptions();
+  const timeZone = operatorZone();
   if (cachedOperatorZone !== timeZone || cachedOperatorFormat === undefined) {
     cachedOperatorZone = timeZone;
     cachedOperatorFormat = new Intl.DateTimeFormat(ADMIN_LOCALE, {
@@ -173,6 +215,23 @@ function operatorDayAndTime(): Intl.DateTimeFormat {
     });
   }
   return cachedOperatorFormat;
+}
+
+let cachedOperatorDayFormat: Intl.DateTimeFormat | undefined;
+let cachedOperatorDayZone: string | undefined;
+
+function operatorDay(): Intl.DateTimeFormat {
+  const timeZone = operatorZone();
+  if (cachedOperatorDayZone !== timeZone || cachedOperatorDayFormat === undefined) {
+    cachedOperatorDayZone = timeZone;
+    cachedOperatorDayFormat = new Intl.DateTimeFormat(ADMIN_LOCALE, {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      timeZone,
+    });
+  }
+  return cachedOperatorDayFormat;
 }
 
 /**

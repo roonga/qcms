@@ -24,9 +24,15 @@ value rather than the abbreviation. That is what answers §2's "the full id goes
 reachable without JavaScript" for secure links and webhooks, which have no detail route to
 carry it. No ellipsis anywhere, which is the clause §2 states outright.
 
-Timestamps needed no format change: issue #279 landed the operator's own zone and the
-shared formatter already renders date, clock and zone with no seconds. What is new is that
-the rule is now checked rather than remembered. `app/(shell)/table-cell-rules.test.ts`
-enumerates every file in the app that renders a table cell and requires that no cell render
-an id-shaped or instant-shaped value as text, so a tenth table is covered the day it is
-written rather than the day someone remembers to add it to a list.
+Timestamps needed no format change: issue #279 (PR #794) already landed the operator's own
+zone through `components/operator-time.tsx`, and the shared formatter already renders date,
+clock and zone with no seconds.
+
+**Day-only columns did.** The Code Owner ruled on 2026-09-11 that one zone means every
+table, so the forms list's Published, the question library's Created and the version
+history's Published name the operator's own calendar day rather than the instant's UTC one.
+A row whose form was published at 23:30 UTC used to read as the previous day for every
+operator east of UTC; it reads as their own day now. `formatOperatorDay` is the new
+formatter and `OperatorDay` the component that keeps the swap hydration-safe, which is the
+same mechanism the timestamps use rather than a second one beside it. A day column still
+carries no clock, no zone name and no seconds.

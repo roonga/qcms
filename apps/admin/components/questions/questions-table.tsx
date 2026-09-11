@@ -1,6 +1,6 @@
 import { EntityId } from "@/components/entity-id";
+import { OperatorDay } from "@/components/operator-time";
 import { t } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
 import { textOf } from "@/lib/questions/definition";
 import type { QuestionListItem } from "@/lib/questions/types";
 
@@ -110,7 +110,13 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
               </td>
               <td className="qcms-cell--num">v{question.latestVersion}</td>
               <td>{t(`questions.status.${question.latestStatus}`)}</td>
-              <td className="qcms-cell--num qcms-cell--drop">{formatDay(question.createdAt)}</td>
+              {/* The operator's own calendar day, not UTC (Code Owner, 2026-09-11, issue
+                  #582). A day column carries no clock and gains none; what it gains is
+                  agreement with the timestamp columns about which day an instant fell on.
+                  The component is what keeps that hydration-safe. */}
+              <td className="qcms-cell--num qcms-cell--drop">
+                <OperatorDay iso={question.createdAt} />
+              </td>
             </tr>
           ))}
         </tbody>

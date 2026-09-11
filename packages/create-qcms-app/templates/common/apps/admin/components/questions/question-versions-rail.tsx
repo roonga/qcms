@@ -145,6 +145,11 @@ export function QuestionVersionsRail({
                       <span>{t("questions.detail.version", { version: item.version })}</span>
                       <StatusTag status={item.status} />
                     </span>
+                    {/* STILL UTC (issue #582): the 2026-09-11 ruling moved the day columns
+                        of TABLES onto the operator's zone, and this is a rail. The same
+                        note is on the question detail route's meta strip, which is the
+                        other surface that can now disagree with a table about which day an
+                        instant fell on. */}
                     <span className="qcms-question-rail__version-date">
                       {item.publishedAt === null
                         ? t("questions.detail.unpublished")

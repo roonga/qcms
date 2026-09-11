@@ -560,17 +560,19 @@ function LinksTable({
               <th scope="row">
                 {/* Prefix plus eight, with a copy control (issue #582). A link id is 16
                     random hex bytes (`apps/api/src/features/links/handler.ts`), so it is
-                    OPAQUE and takes §2's 2026-08-20 rule. This is the column the ruling was
-                    made about: `docs/gates/pr-514/links-table-light-390.png` shows the
-                    whole id shattering to about a character a line across a 180px row at
-                    390px, with Revoke clipped at the container edge.
+                    OPAQUE and takes §2's 2026-08-20 rule. This is the column that ruling
+                    was made about, and `plan/admin-design-contracts.md` §2 carries the
+                    evidence and the reasoning: at 390px the whole id shattered to about a
+                    character a line across a 180px row, with the Revoke control clipped at
+                    the container edge.
 
-                    NOT `lnk_3d9b…771f`, which is what `links-webhooks-poc.html:693` draws.
-                    §2 forbids an ellipsis in an id outright - a truncation that looks like
-                    data invites someone to copy a value that is not one - and that clause
-                    is a later Code Owner ruling made against this very drawing, so the
-                    contract wins the disagreement `docs/admin-constraints.md` normally
-                    settles the other way.
+                    NOT `lnk_3d9b…771f`, which is what
+                    `plan/admin-shell-poc/links-webhooks-poc.html:693` draws. §2 forbids an
+                    ellipsis in an id outright - a truncation that looks like data invites
+                    someone to copy a value that is not one - and that clause is a later
+                    Code Owner ruling made against this very drawing, so the contract wins
+                    the disagreement `docs/admin-constraints.md` normally settles the other
+                    way. The POC line is annotated as superseded rather than redrawn.
 
                     A link has no detail route, so the whole value stays reachable from the
                     cell itself; `components/entity-id.tsx` states how. */}

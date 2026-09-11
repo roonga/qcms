@@ -30,11 +30,13 @@ import {
  * - **Ids.** No table cell renders an id-shaped value as a CHILD. An id reaches the screen
  *   as a prop of `components/entity-id.tsx`, which is the one place that decides between
  *   §2's prefix-plus-8 for an opaque id and whole for a derived one.
- * - **Timestamps.** No table cell renders an instant-shaped value as a child either, except
- *   through `formatDay` - the bare calendar-day column §2 keeps in UTC, because it has no
- *   clock in its output to name a zone on. Everything else goes through
- *   `components/operator-time.tsx`, which renders the operator's own zone after hydration
- *   and the pinned UTC string before it.
+ * - **Timestamps and days.** No table cell renders an instant-shaped value as a child at
+ *   all, and no table file calls a date formatter directly. Both go through
+ *   `components/operator-time.tsx`, which renders the pinned UTC string for the server
+ *   render and the first client render and the operator's own zone after hydration. The
+ *   day-only columns came through here on 2026-09-11 (Code Owner, issue #582): they had
+ *   been the one exemption, rendering the UTC day of an instant, and one zone across every
+ *   table is what the #794 ruling settled.
  * - **No second formatting path.** A table file may not reach for a formatter of its own -
  *   `Intl.DateTimeFormat`, `toLocaleString`, or `formatDateTime` called directly - which is
  *   what "one shared formatter, no per-table variants" means when it is a check rather than
@@ -125,15 +127,6 @@ const ID_SHAPED = /\b[A-Za-z_$][\w$]*(?:Id|ID)\b/;
 /** A value named like an instant: `createdAt`, `row.lastAttemptAt`. */
 const INSTANT_SHAPED = /\b[A-Za-z_$][\w$]*At\b/;
 
-/**
- * The one instant rendering that is not a timestamp: §2's bare calendar-day column.
- *
- * `formatDay` stays UTC on purpose and is named in the amendment itself. The expression has
- * to BE the call rather than merely contain it, so a sentence that happens to mention a day
- * beside a raw instant is still a finding.
- */
-const DAY_COLUMN = /^\s*formatDay\(/;
-
 /** Every value a table's cells render as text, matched masked and reported verbatim. */
 function childExpressionsOf(table: TableSource): readonly { masked: string; text: string }[] {
   return tableCells(table.masked)
@@ -199,25 +192,27 @@ describe("every table's identifying cell", () => {
   });
 });
 
-describe("every table's timestamp cell", () => {
-  it("renders an instant through the shared component, or as §2's UTC day column", () => {
+describe("every table's timestamp and day cells", () => {
+  it("renders an instant through the shared components and never as cell text", () => {
     const offenders = TABLES.flatMap((table) =>
       childExpressionsOf(table)
-        .filter(
-          (expression) =>
-            INSTANT_SHAPED.test(expression.masked) && !DAY_COLUMN.test(expression.masked),
-        )
+        .filter((expression) => INSTANT_SHAPED.test(expression.masked))
         .map((expression) => `${table.path}: {${expression.text}}`),
     );
+    // There is no exemption left to write down. `formatDay` was the one, and the day
+    // columns joined `components/operator-time.tsx` on 2026-09-11, so an instant in a cell
+    // is now a finding whatever is wrapped around it.
     expect(offenders).toEqual([]);
   });
 
-  it("reaches for no formatter of its own", () => {
+  it("reaches for no formatter of its own, day formatters included", () => {
     // `formatDateTime` is still REFERENCED in one table file, as the default parameter of a
     // helper the §3.7 test calls with a row alone; what is forbidden is calling it, which
-    // is what would put a second, un-hydrated formatting path on the screen.
+    // is what would put a second, un-hydrated formatting path on the screen. `formatDay` is
+    // forbidden the same way and for the same reason since the day columns moved: calling
+    // it from a table is how a column would quietly go back to naming the UTC day.
     const forbidden =
-      /(?:new\s+Intl\.DateTimeFormat)|(?:\btoLocale(?:Date|Time)?String\s*\()|(?:\bformat(?:Operator)?DateTime\s*\()/;
+      /(?:new\s+Intl\.DateTimeFormat)|(?:\btoLocale(?:Date|Time)?String\s*\()|(?:\bformat(?:Operator)?(?:DateTime|Day)\s*\()/;
     const offenders = TABLES.filter((table) => forbidden.test(table.masked)).map(
       (table) => table.path,
     );
@@ -264,7 +259,7 @@ describe("the shared components", () => {
     const readers = adminSources().filter(
       (path) =>
         path !== "lib/i18n/format.ts" &&
-        readFileSync(join(ADMIN_ROOT, path), "utf8").includes("formatOperatorDateTime"),
+        /formatOperator(?:DateTime|Day)/.test(readFileSync(join(ADMIN_ROOT, path), "utf8")),
     );
     expect(readers).toEqual(["components/operator-time.tsx"]);
   });
