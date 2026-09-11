@@ -246,7 +246,7 @@ Could not START the test Postgres container.
   host: load 18.42/12.10/9.03 over 8 cpus (2.30 per cpu); docker 14 running, 11 Testcontainers across 4 sessions; QCMS stacks seat 3 (qcms-dev-s3) (issue #812: what the host was doing, not a cause)
 ```
 
-The session count is the number to read: one of them is this run's, so four sessions means three other lanes were booting databases while this one failed. It is one `docker ps` and one `/proc/loadavg` read, taken at most once every five seconds and only on a path that is already failing, and it changes nothing else - no retry, no raised timeout, no serialised boot. A query that the database *refused* (a constraint violation, a missing relation) gets no snapshot, deliberately: the note would be noise in the one case where the failure is unambiguously the code's.
+The session count is the number to read: one of them is this run's, so four sessions means three other lanes were booting databases while this one failed. It is one `docker ps` and one `/proc/loadavg` read, taken at most once every five seconds and only on a path that is already failing, and it changes nothing else - no retry, no raised timeout, no serialised boot. A query that the database _refused_ (a constraint violation, a missing relation) gets no snapshot, deliberately: the note would be noise in the one case where the failure is unambiguously the code's.
 
 **What the container takes over from your machine** (ports 7000/7010, `node_modules` and the pnpm store, the Docker daemon), how to run the app inside it, and the full troubleshooting table are in [`DEV_CONTAINER.md`](DEV_CONTAINER.md). The rule that bites first: **only one qcms dev container runs at a time**, machine-wide.
 
