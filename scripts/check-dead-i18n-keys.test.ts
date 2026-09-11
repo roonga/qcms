@@ -158,8 +158,19 @@ describe("what is not a reference", () => {
 
   it("reads an absence assertion as what it is, which is not a reference", () => {
     // The exact line in `app/(shell)/section-headings.test.tsx` that a text scan misreads.
-    const file = "apps/admin/app/(shell)/section-headings.test.tsx";
-    expect(isTestFile(file)).toBe(true);
+    const line = `expect(source).not.toContain("forms.section.heading");`;
+
+    // The literal IS collected: nothing about the syntax tree says this mention is a
+    // denial rather than a use, and pretending otherwise would mean reading the
+    // assertion's meaning. So the exclusion is what carries the claim, and asserting
+    // only `isTestFile` would leave the first half of that sentence untested.
+    expect(literalsIn(source(line), undefined).has("forms.section.heading")).toBe(true);
+    expect(isTestFile("apps/admin/app/(shell)/section-headings.test.tsx")).toBe(true);
+
+    // Together: the file is a test, so its literals never enter the reference set, so a
+    // key named only by an absence assertion still reports as dead.
+    const seen = new Set<string>();
+    expect(isReferenced("forms.section.heading", seen)).toBe(false);
   });
 
   it("does not mistake a POST helper for a dynamic key", () => {

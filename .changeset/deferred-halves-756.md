@@ -43,11 +43,12 @@ repository keep their keys alive. Catalogs are found by their shape rather than 
 path, so this is scoped once across apps rather than per app, and a third app's catalog is
 in scope on the day it lands.
 
-It found exactly the two keys #756 predicted and nothing else, across 1083 keys in two
-catalogs. Both are deleted: `recovery.action` was written for a screen that renders a
-title and a body and no action, and `completion.copy` for a copy control the completion
-screen has never had. Each deletion leaves a comment saying what would bring the string
-back.
+It found exactly the two keys #756 predicted and nothing else. The swept tree held 1085
+keys across the two catalogs; the admin's 1023 were all live, and the portal's 62 held
+the two. Both are deleted, leaving 1083 and a portal catalog of 60: `recovery.action` was
+written for a screen that renders a title and a body and no action, and `completion.copy`
+for a copy control the completion screen has never had. Each deletion leaves a comment
+saying what would bring the string back.
 
 Also folded in, because #756 named it: the docblock on the admin's form page header still
 described composing a `forms.section.heading` template that #538's sweep deleted.

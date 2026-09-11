@@ -162,6 +162,12 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Note.** "Clients receive behavior, not flag values" is absolute; the Code Owner removed the one standing exception on 2026-08-31 (issue #725). The admin form-settings response used to echo the raw `challengeProvider` flag value. It now carries a derived boolean, `challengeEnforceable`, true exactly when a real provider is configured, and the settings panel warns when a form sets `challengeRequired` while `challengeEnforceable` is false. The panel therefore reads a behavior statement and never a provider name, so adding or renaming a provider changes nothing the admin sees. The registry covers feature flags only; the rest of the environment is typed and fail-fast but hand-parsed, and unknown-key rejection fires only on the `QCMS_FLAG_` prefix.
 
+**Widened on 2026-09-12 (Code Owner).**
+The rule reaches **any environment identifier in a response body**, not only the `QCMS_FLAG_` registry the paragraph above scopes unknown-key rejection to.
+The two are different questions and the note read as one: the registry decides which names are parsed and rejected at boot, while this decision is about what a client is told, and a variable a client cannot set is no more actionable for being outside the registry.
+PR #908 applied the widened reading to the webhook refusal prose, where the `https-required` and `private-host` messages ended "set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets" in a 422 body (issue #756, from #312).
+One other instance is known and is **not** fixed there: `apps/api/src/features/auth/instance.ts` ends an `APIError` body with "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false", filed as its own issue, so this note records a tree with one outstanding case rather than a clean one.
+
 ### ADR-35 - API-only database access
 
 **Status:** implemented; amended 2026-07-31 (task 056).

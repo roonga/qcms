@@ -126,10 +126,15 @@ function parse(path, text) {
 /**
  * The keys a catalog module defines, or `undefined` when the file is not a catalog.
  *
- * A catalog is recognised structurally, by the shape ADR-11 prescribes and both apps
- * use - `export const messages = { ... } as const` - rather than by its path. A third
- * app's catalog is then in scope on the day it lands, wherever it is put, which is the
+ * A catalog is recognised structurally, by the shape both apps use -
+ * `export const messages = { ... } as const` - rather than by its path. A third app's
+ * catalog is then in scope on the day it lands, wherever it is put, which is the
  * "scope the check once rather than per-app" half of #538.
+ *
+ * ADR-11 is the reason the catalogs are flat maps of dotted keys to templates, which is
+ * what makes a key a string this scan can look for. It does not prescribe the export
+ * name or the `as const`, so the recogniser keys on the convention the two apps share
+ * rather than claiming ADR-11 requires it.
  *
  * @param {ts.SourceFile} source
  * @returns {{ keys: string[]; node: ts.ObjectLiteralExpression } | undefined}
@@ -277,10 +282,16 @@ export function survey(files) {
 /**
  * Every catalog key with no reference, as `{ owner, catalog, key }` records.
  *
+ * The survey is a parameter with a default rather than something this function always
+ * performs, so a caller that already holds one (`main`, which needs the catalog totals
+ * for its success line) passes it instead of parsing every file in the repository a
+ * second time. The default keeps the no-argument call the tests use.
+ *
+ * @param {ReturnType<typeof survey>} [surveyed]
  * @returns {{ owner: string; catalog: string; key: string }[]}
  */
-export function deadKeys() {
-  const { catalogs, literals } = survey(scanned());
+export function deadKeys(surveyed = survey(scanned())) {
+  const { catalogs, literals } = surveyed;
   const dead = [];
   for (const [owner, catalog] of catalogs) {
     const seen = literals.get(owner) ?? new Set();
@@ -299,8 +310,12 @@ export function deadKeys() {
  * @returns {number} 0 when every key is referenced, 1 otherwise.
  */
 export function main() {
-  const { catalogs } = survey(scanned());
-  const dead = deadKeys();
+  // One survey, read twice. It parses every tracked `.ts`/`.tsx` under `apps/` and
+  // `packages/`, so doing it once for the totals and again for the verdict would double
+  // the gate's whole cost for a number printed on the success line.
+  const surveyed = survey(scanned());
+  const { catalogs } = surveyed;
+  const dead = deadKeys(surveyed);
   const total = [...catalogs.values()].reduce((sum, entry) => sum + entry.keys.length, 0);
 
   if (catalogs.size === 0) {

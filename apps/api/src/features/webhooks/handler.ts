@@ -62,13 +62,23 @@ const fail = {
  * sentence.
  *
  * **It names no environment variable.** These two messages used to end "set
- * QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets", which is a flag value in a
- * response body, and ADR-24's "clients receive behavior, not flag values" has been
- * absolute since the Code Owner removed its one standing exception on 2026-08-31
- * (issue #725). A deployment's operator finds the override in `docs/operations.md`,
- * where changing it is possible; a client reading this envelope cannot act on the
- * name and should not be told it. The behaviour statement carries the same
- * information a caller can use: this deployment refuses the target.
+ * QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets", which is an environment
+ * identifier in a response body. ADR-24's "clients receive behavior, not flag
+ * values" has been absolute since the Code Owner removed its one standing exception
+ * on 2026-08-31 (issue #725), and the Code Owner widened it on 2026-09-12 to cover
+ * any environment identifier rather than only the `QCMS_FLAG_` registry. A
+ * deployment's operator finds the override in `docs/operations.md`, where changing
+ * it is possible; a client reading this envelope cannot act on the name and should
+ * not be told it.
+ *
+ * **Each message states only what the guard actually tested.** `https-required`
+ * briefly read "must use https, because this deployment does not allow private
+ * targets", which asserts something about the caller's URL that the check never
+ * established: a public host on plain http is refused here too, and a consumer
+ * reading that sentence would go looking for a private address it does not have.
+ * One flag lifts both rules (`ssrf.ts`), which is what made the phrasing tempting
+ * and does not make it true. The https rule is a delivery policy, so it is stated
+ * as one, in the same words the admin's own catalog uses for this reason.
  */
 function urlRejectionMessage(reason: WebhookUrlRejection): string {
   switch (reason) {
@@ -77,9 +87,9 @@ function urlRejectionMessage(reason: WebhookUrlRejection): string {
     case "unsupported-scheme":
       return "The webhook URL must use http or https";
     case "https-required":
-      return "The webhook URL must use https, because this deployment does not allow private targets";
+      return "This deployment delivers to https targets only";
     case "private-host":
-      return "The webhook URL resolves to a private or reserved host, which this deployment does not allow";
+      return "The webhook URL resolves to a private or reserved host, which this deployment does not deliver to";
   }
 }
 

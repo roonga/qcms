@@ -266,6 +266,32 @@ describe("SSRF guardrail (SEC-6): default-deny, override-allow", () => {
     }
   });
 
+  /**
+   * Each refusal sentence claims only what its own check established.
+   *
+   * `https-required` shipped for one review round reading "must use https, because this
+   * deployment does not allow private targets", which tells a consumer refused on a
+   * public host to go looking for a private address their URL does not have. One flag
+   * lifts both rules, so the sentence was reachable from the code and still wrong about
+   * the caller. Nothing pinned the prose, which is why it drifted; this is the pin.
+   *
+   * Asserted as "does not mention privacy" rather than by matching the whole sentence:
+   * the wording is allowed to improve, the false claim is not.
+   */
+  it("does not tell an https refusal it was refused for being private", async () => {
+    const res = await req(app, `/forms/${FORM_ID}/webhooks`, "POST", {
+      url: "http://consumer.example.com/hook",
+    });
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as {
+      error: { message: string; details?: { reason?: string } };
+    };
+    expect(body.error.details?.reason).toBe("https-required");
+    expect(body.error.message).toContain("https");
+    expect(body.error.message.toLowerCase()).not.toContain("private");
+    expect(body.error.message.toLowerCase()).not.toContain("reserved");
+  });
+
   it("allows private/http targets when QCMS_WEBHOOK_ALLOW_PRIVATE is set (on-prem override)", async () => {
     const onPrem = buildApp({ ...baseEnv, QCMS_WEBHOOK_ALLOW_PRIVATE: "true" });
     const res = await req(onPrem.app, `/forms/${FORM_ID}/webhooks`, "POST", {
