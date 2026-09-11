@@ -242,7 +242,7 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Decision.** User-facing chrome comes from app catalogs; authored content comes from `LocalizedText`. Dates, numbers, and currency use `Intl`. Additional translations and a runtime locale switcher are Phase 4, but the localization machinery is launch scope.
 
-**Note.** The admin has a locale constant and format module; the portal does not - its one formatted value inlines `en-US` while the admin uses `en`, so a second portal locale currently means editing a component. No currency value exists in the domain yet; that clause is forward-looking.
+**Note.** Both apps now carry a locale constant and a format module: `apps/admin/lib/i18n/format.ts` exports `ADMIN_LOCALE` and `apps/portal/lib/i18n/format.ts` exports `PORTAL_LOCALE`, and both are `en` (issue #729). The portal used to inline `toLocaleString("en-US", ...)` in `components/completion-view.tsx` and to let its A2UI step views inherit the renderer package's own `en-US` default for react-aria, so a second portal locale meant editing components; both resolve `PORTAL_LOCALE` now. The respondent-facing strings are unchanged: for every value the portal renders, `en` and `en-US` resolve to the same CLDR data, which `apps/portal/lib/i18n/format.test.ts` asserts. No currency value exists in the domain yet; that clause is forward-looking. A runtime locale switcher stays Phase 4 (issue #732).
 
 ### ADR-38 - Theme scope carrier
 
