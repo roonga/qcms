@@ -330,6 +330,29 @@ export function readRc(path) {
 }
 
 /**
+ * The suite's process group leader, recorded beside the runner pid.
+ *
+ * This is the pid to signal when the RUNNER is already gone: a SIGKILLed runner never
+ * ran its trap, so the suite and its dev servers outlive it with nothing left holding
+ * their pids. `kill -<this>` takes the group.
+ *
+ * @param {string} path
+ * @returns {number | undefined}
+ */
+export function readSuiteGroup(path) {
+  let text;
+  try {
+    text = readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+  const match = /^suite_group=(\d+)/m.exec(text);
+  if (match?.[1] === undefined) return undefined;
+  const pid = Number(match[1]);
+  return pid < 2 ? undefined : pid;
+}
+
+/**
  * The pid recorded for the run, or `undefined` when there is none.
  *
  * @param {string} path
@@ -577,7 +600,11 @@ export async function supervise({
     pidPath,
     [
       String(process.pid),
-      `# runner pid, in its own session. Suite process group: ${String(child.pid ?? 0)}.`,
+      // A field rather than prose, because it is what is left to kill when the runner
+      // itself is gone: SIGKILL leaves no chance to trap, so the suite and its dev
+      // servers survive their supervisor. `kill -<pid>` signals the whole group.
+      `suite_group=${String(child.pid ?? 0)}`,
+      "# The first line is the runner pid, in a session of its own.",
       `# Stop the run with: kill ${String(process.pid)}  (never pkill -f, see issue #890)`,
       "",
     ].join("\n"),
@@ -982,10 +1009,13 @@ export async function waitForRun({
       // No rc and no runner: SIGKILL, which leaves no chance to clean up. The seat's
       // dev servers are probably still holding their ports.
       drainHeartbeat();
+      const group = readSuiteGroup(paths.pid);
       withTail(
         "the runner is gone and recorded no rc, so it was SIGKILLed. The suite never " +
-          "finished, and the seat may hold orphan dev servers: clear them as " +
-          "docs/DEVELOPER_GUIDE.md describes before starting another run.",
+          "finished, and nothing ran the cleanup, so the seat may hold orphan dev " +
+          "servers" +
+          (group === undefined ? "" : ` (the suite's process group was ${String(group)})`) +
+          ": clear them as docs/DEVELOPER_GUIDE.md describes before starting another run.",
       );
       return EXIT_RUNNER_VANISHED;
     }

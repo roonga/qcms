@@ -21,6 +21,7 @@ import {
   playwrightCommand,
   readPid,
   readRc,
+  readSuiteGroup,
   releaseLines,
   startDetached,
   tailLines,
@@ -63,8 +64,38 @@ function killPid(pid: number | undefined, signal: NodeJS.Signals): void {
   }
 }
 
-afterAll(() => {
+/**
+ * Stop a process GROUP by its leader, which is how a supervisor's suite is reached.
+ *
+ * The guard is the same one `killPid` carries and for the same reason: a negative pid is
+ * a group, and `kill(-0)` is this process's own.
+ */
+function killGroup(leader: number | undefined, signal: NodeJS.Signals): void {
+  if (leader === undefined || !Number.isInteger(leader) || leader < 2) return;
+  try {
+    process.kill(-leader, signal);
+  } catch {
+    // Already gone, which is the point.
+  }
+}
+
+afterAll(async () => {
+  // SIGTERM first and SIGKILL only as a fallback, because SIGKILL cannot be trapped: a
+  // supervisor killed outright never runs its own cleanup, and its suite - which is in a
+  // process group of its own by design - is then orphaned. That leak is not theoretical.
+  // This teardown used to SIGKILL straight away, and one `ps` after a day of runs found
+  // 38 fake suites still running, from exactly the test that leaves its runner alive on
+  // purpose. Killing the recorded suite group as well covers the case where the
+  // supervisor has already exited and nothing is left to pass the signal on.
+  for (const pid of spawnedPids) killPid(pid, "SIGTERM");
+  for (const directory of temporaryDirectories) {
+    killGroup(readSuiteGroup(join(directory, RUN_FILES.pid)), "SIGTERM");
+  }
+  await new Promise((resolve) => setTimeout(resolve, 500));
   for (const pid of spawnedPids) killPid(pid, "SIGKILL");
+  for (const directory of temporaryDirectories) {
+    killGroup(readSuiteGroup(join(directory, RUN_FILES.pid)), "SIGKILL");
+  }
   for (const directory of temporaryDirectories) rmSync(directory, { recursive: true, force: true });
 });
 
@@ -304,6 +335,11 @@ describe("the rc file protocol", () => {
     const path = join(directory, RUN_FILES.pid);
     writeAtomic(path, "4321\n# runner pid\n# Stop the run with: kill 4321\n");
     expect(readPid(path)).toBe(4321);
+    expect(readSuiteGroup(path)).toBeUndefined();
+    writeAtomic(path, "4321\nsuite_group=4330\n# The first line is the runner pid\n");
+    expect(readPid(path)).toBe(4321);
+    // What is left to kill when the runner itself was SIGKILLed and ran no cleanup.
+    expect(readSuiteGroup(path)).toBe(4330);
     expect(readPid(join(directory, "absent"))).toBeUndefined();
     expect(isAlive(0)).toBe(false);
     expect(isAlive(process.pid)).toBe(true);
