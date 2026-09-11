@@ -307,10 +307,11 @@ export function renderStartNotice(
   pressure: readonly string[] = [],
 ): string {
   const seats = [...new Set(neighbours.map((stack) => stack.seat))].sort((a, b) => a - b);
+  const plural = seats.length === 1 ? "" : "s";
   return [
     seats.length > 0
       ? `[contention] seat ${String(seat)} is NOT alone: harness ports are live on ` +
-        `seat${seats.length === 1 ? "" : "s"} ${seats.join(", ")}.`
+        `seat${plural} ${seats.join(", ")}.`
       : `[contention] seat ${String(seat)} holds its own ports, but this machine is NOT quiet.`,
     "[contention] Ports are partitioned per seat, the Docker daemon and the CPU are not.",
     "[contention] A red run here may not be this branch's own; the end-of-run report says what was live.",
@@ -331,18 +332,14 @@ function pressureReasons(start: HostSnapshot, end: HostSnapshot): string[] {
   const atStart = hostPressure(start.load, start.containers).reasons;
   const atEnd = hostPressure(end.load, end.containers).reasons;
   const seen = new Set([...atStart, ...atEnd]);
-  return [...seen].map((reason) => {
-    // The same three labels the neighbour list uses, and for the same reason: a reading
-    // that held all the way through is a different story from one that only appeared while
-    // the suite was running, and a reader chasing a red wants to know which.
-    const when =
-      atStart.includes(reason) && atEnd.includes(reason)
-        ? "throughout"
-        : atStart.includes(reason)
-          ? "at start"
-          : "at end";
-    return `  - ${when}: ${reason}`;
-  });
+  // The same three labels the neighbour list uses, and for the same reason: a reading that
+  // held all the way through is a different story from one that only appeared while the
+  // suite was running, and a reader chasing a red wants to know which.
+  const when = (reason: string): string => {
+    if (atStart.includes(reason) && atEnd.includes(reason)) return "throughout";
+    return atStart.includes(reason) ? "at start" : "at end";
+  };
+  return [...seen].map((reason) => `  - ${when(reason)}: ${reason}`);
 }
 
 /**
