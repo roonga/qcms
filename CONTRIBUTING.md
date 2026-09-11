@@ -168,6 +168,18 @@ An exclusion carries its comment for the same reason every row in the overrides 
 **There is no `minimumReleaseAgeExclude` block in `pnpm-workspace.yaml` today**, so there is nothing to annotate inline; this section is what a reader meets instead.
 **`pnpm install --frozen-lockfile` is unaffected**, in CI or anywhere else: the hold applies at resolution and a frozen install resolves nothing, so what this gates is `pnpm add` and `pnpm update`, which is exactly where a new version enters.
 
+### A dev dependency can raise the Node floor, and `engine-strict` makes it bite
+
+**`.npmrc` sets `engine-strict=true`, so a package's `engines` field is enforced at install rather than warned about, and a DEV dependency reaches that check exactly as a runtime one does** (issue #113).
+The root `package.json` is private, so its `engines.node` is not a claim about what QCMS runs on - it is the floor for the development tree, and a bump can move it without anything in `apps/**` or `packages/**` changing.
+jsdom 30 is the case that made this concrete: it declares `^22.22.2 || ^24.15.0 || >=26.0.0`, which intersected with the repository's own `>=24` leaves `>=24.15.0`, so the root field was moved to match.
+
+The reason to move it rather than leave `>=24` standing is legibility, not policy.
+A checkout on Node 24.10 satisfied the field and failed the install anyway, with `ERR_PNPM_UNSUPPORTED_ENGINE` naming jsdom - a transitive-looking error for a constraint the repository had already accepted.
+Stating the real floor turns that into one line about the repository the reader is standing in.
+
+Nothing else moves with it. `.nvmrc` stays a bare `24` and the dev container's node feature stays `"version": "24"`, because both resolve the newest 24.x and so clear a patch floor by construction; `packages/create-qcms-app`'s own `engines` is a published claim about the CLI, which has no jsdom in its graph, and stays where it is. So the check before changing that field is which of the two questions a bump is answering: what QCMS supports, which is a Code Owner decision, or what this checkout needs in order to install, which the dependency has already decided.
+
 ### Security overrides (`overrides` in `pnpm-workspace.yaml`)
 
 Transitive advisories that a parent's pinned range blocks are patched with **targeted** overrides, not by waiting on Dependabot (its `npm_and_yarn` updater fails on multi-range advisories in a pnpm monorepo - issue #47). pnpm 11 reads `overrides` **only** from `pnpm-workspace.yaml`; a `pnpm.overrides` block in the root `package.json` is silently ignored (issue #383). Rules for adding one:
