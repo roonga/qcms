@@ -364,6 +364,40 @@ card's hands and into this contract's: rendering a derived id whole is now what
 the width has to accommodate, and the frozen card's 140px is evidence of an intent
 formed before the rule existed, not an authority against it.
 
+**Applied, 2026-09-11 (issue #582): the two prefixes the amendment does not name, and
+where the whole value lives when a column may not show it.**
+
+The migration that carried both rulings into the shipped tables had to place two prefixes
+the amendment's examples are silent about, and it placed them by the property the amendment
+states rather than by the list it illustrates it with.
+The property is minting convention, and the minting is in the repository:
+
+- **`whk_` is opaque.** `apps/api/src/features/webhooks/handler.ts` mints it as 16 random
+  hex bytes, which is the `ses_`/`lnk_` convention exactly. It takes prefix plus 8.
+- **`frm_` is derived**, and this is a divergence worth the Code Owner's eye rather than a
+  detail. Issue #582's body and the 2026-08-20 amendment's own example both put `frm_` with
+  the opaque ids. `apps/admin/lib/forms/draft.ts`'s `formIdFromSlug` builds a form id out of
+  the slug the author typed, exactly as a question id is built out of a question's, and the
+  API's OpenAPI examples are `frm_intake` and `frm_signup`. So `frm_intake_2026` cut to
+  prefix-plus-8 is `frm_inta`, a string that could perfectly well be another form in the
+  same deployment: the harm the anti-truncation clause exists to prevent. The form library
+  renders it whole.
+
+**Where an abbreviated id's remainder goes.** The clause "the full id goes somewhere
+reachable without JS" had no answer for the two tables with no detail route at all - secure
+links and webhooks. It has one now, and it is in the cell rather than beside it: the
+characters the column does not show are rendered inside `.qcms-visually-hidden`, in the
+server HTML. They cost no width, assistive technology reads the row by its whole id rather
+than by a prefix that identifies nothing, and a selection copies the value rather than the
+abbreviation. The copy control stays what §2 makes it - the convenience - instead of being
+the only route to the value.
+
+**The known deviation above is closed.** The option grid stopped ellipsizing `opt_` ids when
+issue #595 landed on `main` in `8bc48299`; `.qcms-opt-cell--id` wraps rather than truncating
+and the column is measured for a real label-derived id. The paragraph above is left as
+written, because it is the record of a rule that knowingly outran its code for three weeks,
+and that is worth keeping legible.
+
 **Amendment, 2026-08-22 (from PR #624): a row that acts rather than navigates
 takes a button, not an anchor.**
 

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { EntityId } from "@/components/entity-id";
 import type { FormListItem } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { formatDay } from "@/lib/i18n/format";
@@ -81,7 +82,14 @@ export function FormsTable({ rows }: { readonly rows: readonly FormListItem[] })
                 </Link>
               </th>
               <td>
-                <code className="qcms-link-id">{form.formId}</code>
+                {/* Through `EntityId` rather than a `<code>` of its own (issue #582), and
+                    rendered WHOLE: a form id is minted from the slug the author typed
+                    (`lib/forms/draft.ts`'s `formIdFromSlug`), so it is a DERIVED id under
+                    §2's 2026-08-21 amendment and truncating it would manufacture a
+                    plausible other form. The divergence from the amendment's own example
+                    list, which puts `frm_` with the opaque ids, is argued at
+                    `lib/entity-id.ts`. */}
+                <EntityId kind="form" value={form.formId} />
               </td>
               <td className="qcms-cell--drop">{form.defaultLocale}</td>
               <td>{t(`forms.status.${form.status}`)}</td>

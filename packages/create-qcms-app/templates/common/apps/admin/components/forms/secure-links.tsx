@@ -11,6 +11,7 @@ import { isRevocable, mintedLinksCsv, mintedLinksFilename } from "@/lib/forms/li
 import type { MintedLink, SecureLink } from "@/lib/forms/types";
 import type { ReadState } from "@/lib/read-state";
 import { focusPostAction } from "@/lib/ops/post-action-focus";
+import { EntityId } from "@/components/entity-id";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -557,7 +558,23 @@ function LinksTable({
           {rows.map((link) => (
             <tr key={link.linkId} data-link-id={link.linkId} data-state={link.state}>
               <th scope="row">
-                <code className="qcms-link-id">{link.linkId}</code>
+                {/* Prefix plus eight, with a copy control (issue #582). A link id is 16
+                    random hex bytes (`apps/api/src/features/links/handler.ts`), so it is
+                    OPAQUE and takes §2's 2026-08-20 rule. This is the column the ruling was
+                    made about: `docs/gates/pr-514/links-table-light-390.png` shows the
+                    whole id shattering to about a character a line across a 180px row at
+                    390px, with Revoke clipped at the container edge.
+
+                    NOT `lnk_3d9b…771f`, which is what `links-webhooks-poc.html:693` draws.
+                    §2 forbids an ellipsis in an id outright - a truncation that looks like
+                    data invites someone to copy a value that is not one - and that clause
+                    is a later Code Owner ruling made against this very drawing, so the
+                    contract wins the disagreement `docs/admin-constraints.md` normally
+                    settles the other way.
+
+                    A link has no detail route, so the whole value stays reachable from the
+                    cell itself; `components/entity-id.tsx` states how. */}
+                <EntityId kind="link" value={link.linkId} />
               </th>
               <td>
                 <LinkStateTag state={link.state} />
