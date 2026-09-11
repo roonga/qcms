@@ -69,6 +69,7 @@
     "check:tailwind-sources": "node scripts/check-tailwind-sources.mjs",
     "check:docker-job-guards": "node scripts/check-docker-job-guards.mjs",
     "check:ci-parity": "node scripts/check-ci-parity.mjs",
+    "check:clock": "node scripts/check-clock.mjs",
     "check:templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --check",
     "qcms:sync-templates": "node packages/create-qcms-app/scripts/sync-templates.mjs --write",
     "qcms:scaffold-e2e": "node packages/create-qcms-app/scripts/scaffold-e2e.mjs",
