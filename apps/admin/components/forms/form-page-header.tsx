@@ -20,16 +20,22 @@ import { sectionHeadingId } from "@/lib/page-headings";
  * flag while one screen had a rail and seven did not; with every screen wired the flag had
  * exactly one value, and `form-tabs.tsx` had no caller left, so both went.
  *
- * ## The heading names the page, so it names the section and the form (issue 679)
+ * ## The heading names the page, so it names the section (issue 679)
  *
- * The default `<h1>` composes both: `forms.section.heading` puts the section's name in
- * front of the form's slug, which is what the approved drawings for these screens do
- * (`plan/admin-shell-poc/preview-versions-poc.html` heads its two with "Draft preview:
- * Life insurance" and "Version history: Life insurance"). One template with two
- * placeholders rather than five written sentences, which is ADR-27's reason and not a
- * preference: the section names are already `forms.tab.*` keys, and a preposition form
- * ("Responses to X" but "Links for X") would hand-write English grammar into five strings
- * and make a locale that orders the parts differently rewrite all five.
+ * The default `<h1>` is the section's own name, `forms.tab.{section}` - the same key the
+ * tab strip reads, so the tab and the heading can never disagree. Five distinct headings
+ * is what 679 asked for, and "Links", "Preview", "Version history", "Responses" and
+ * "Webhooks" are five distinct headings.
+ *
+ * This paragraph used to say the heading composed the section's name with the form's slug
+ * through a `forms.section.heading` template, citing the drawings that head their screens
+ * "Draft preview: Life insurance". Both halves are gone: the Code Owner's amendment of
+ * 2026-08-26 heads all six screens with the section name alone, because the rail and the
+ * breadcrumb both carry the form and composing it here said the same word a third time,
+ * and the key itself was deleted by issue #538's dead-key sweep. The deviation from the
+ * drawing and the reasoning for it are recorded in `app/(shell)/section-headings.test.tsx`
+ * and in the comment beside the heading below. Corrected under issue #756,
+ * which found this docblock still describing the deleted key.
  *
  * This docblock used to say that most sections list or edit the form itself, so the form's
  * slug was the right `<h1>`. That was true of the builder and was over-generalised to the

@@ -117,9 +117,14 @@ export const messages = {
   "formSuperseded.body":
     "This questionnaire was published by an earlier version of the service and can no longer be filled in. Your answers so far are safe. Please contact whoever sent you this form.",
 
+  // `recovery.action` ("Start again") stood here until issue #756's sweep. The screen it
+  // was written for renders a `MessageScreen` with a title and a body and no action at
+  // all (`app/s/[sessionId]/page.tsx`), and it cannot grow one that says this: a session
+  // that could not be resumed has no link left to start from, which is exactly what
+  // `recovery.body` tells the respondent to go and find. If the screen ever gains a
+  // button, the key comes back beside it.
   "recovery.title": "We could not resume your session",
   "recovery.body": "Your session may have ended. You can start again from the form link.",
-  "recovery.action": "Start again",
 
   "expired.title": "Your session has expired",
   "expired.body": "For your privacy, sessions end after a period of inactivity.",
@@ -127,8 +132,12 @@ export const messages = {
   "completion.title": "Thank you, your responses were received",
   "completion.body": "You may now close this page.",
   "completion.submittedAt": "Submitted",
+  // `completion.copy` ("Copy reference") stood here until issue #756's sweep.
+  // `components/completion-view.tsx` renders the reference as selectable text with no
+  // copy control beside it, and has since task 030. Whether a respondent should get a
+  // copy button on the completion screen is a product question, not a catalog one; the
+  // string comes back with the button that needs it.
   "completion.reference": "Reference",
-  "completion.copy": "Copy reference",
 
   // The respondent appearance controls (task 053, ADR-30). "Spacing" rather than
   // "Density" for the visible label: density is the token contract's word for the
