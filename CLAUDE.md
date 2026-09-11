@@ -39,6 +39,7 @@ The Code Owner decides ADR changes, scope changes, explicit human gates, destruc
 
 - Run `pnpm verify` before landing a change.
 - Also run `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` when the change affects `apps/portal`, `apps/admin`, or `@roonga/qcms-ui`.
+- Run that gate detached, never in the foreground: `QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached`, then `pnpm verify:browser:wait <dir>` in slices until it stops exiting 75. The suite outlasts every harness cap, and a kill at the cap is indistinguishable from a red suite (issue #846, `docs/DEVELOPER_GUIDE.md`).
 - Run `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` for Docker, boot-environment, or cross-service changes. Do not run it concurrently with `verify:browser` on the same seat.
 - Force Docker-backed tests with `pnpm exec turbo run test --force` and confirm they executed rather than using cached output.
 - The forced run and `pnpm verify:browser` are mutually exclusive on one checkout, not only on one seat, because the forced build step rewrites `dist/` under the running harness; run them in sequence (issue #863).

@@ -13,6 +13,8 @@
     "build": "turbo run build",
     "verify": "pnpm check:all && pnpm build && pnpm typecheck && pnpm lint && pnpm test && pnpm test:golden-drift",
     "verify:browser": "playwright test",
+    "verify:browser:detached": "node scripts/verify-browser-detached.mjs start",
+    "verify:browser:wait": "node scripts/verify-browser-detached.mjs wait",
     "docker:up": "node scripts/compose-e2e.mjs up",
     "docker:down": "node scripts/compose-e2e.mjs down",
     "test:e2e": "node scripts/compose-e2e.mjs test",
