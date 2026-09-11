@@ -1,5 +1,4 @@
-import Link from "next/link";
-
+import { EntityId } from "@/components/entity-id";
 import { t } from "@/lib/i18n/en";
 import { formatDay } from "@/lib/i18n/format";
 import { textOf } from "@/lib/questions/definition";
@@ -89,13 +88,16 @@ export function QuestionsTable({ rows }: { readonly rows: readonly QuestionListI
           {rows.map((question) => (
             <tr key={question.questionId} data-question-id={question.questionId}>
               <th scope="row">
-                <Link
-                  className="qcms-text-link"
+                {/* The row's anchor and its id are one component now (issue #582). A
+                    question id is DERIVED from the author's own text, so §2's 2026-08-21
+                    amendment renders it whole and nothing here moves; the anchor keeps the
+                    accessible name that says where the row goes. */}
+                <EntityId
+                  kind="question"
+                  value={question.questionId}
                   href={`/questions/${encodeURIComponent(question.questionId)}`}
-                  aria-label={t("questions.open", { questionId: question.questionId })}
-                >
-                  <code className="qcms-link-id">{question.questionId}</code>
-                </Link>
+                  linkLabel={t("questions.open", { questionId: question.questionId })}
+                />
               </th>
               <td>{textOf(question.label ?? undefined)}</td>
               {/* A row whose latest version has gone missing has no type to name; an em

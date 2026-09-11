@@ -58,6 +58,26 @@ export const messages = {
   "action.savePassword": "Change password",
   "action.changePassword": "Change password",
 
+  // The copy control on an identifying column (issue #582), one pair of strings per
+  // entity. `plan/admin-design-contracts.md` §2 requires the accessible name to carry the
+  // entity AND the value rather than a bare "Copy" repeated down the column, and
+  // `components/copy-entity-id.tsx` composes the key from the entity kind - so a new kind
+  // of identifying column fails to typecheck until its two strings are written here.
+  //
+  // Written out per entity rather than assembled from "Copy {entity} id {id}" plus a noun,
+  // for the reason ADR-27 puts prose in a catalog at all: a locale that inflects the noun,
+  // or orders the sentence differently, cannot be served by concatenation.
+  "ids.copy.session": "Copy session id {id}",
+  "ids.copy.link": "Copy link id {id}",
+  "ids.copy.webhook": "Copy webhook id {id}",
+  "ids.copy.form": "Copy form id {id}",
+  "ids.copy.question": "Copy question id {id}",
+  "ids.copied.session": "Copied session id {id}",
+  "ids.copied.link": "Copied link id {id}",
+  "ids.copied.webhook": "Copied webhook id {id}",
+  "ids.copied.form": "Copied form id {id}",
+  "ids.copied.question": "Copied question id {id}",
+
   // The colour-mode control (task 055; a menu since 032). Every label an operator
   // reads goes through here, mode names included (ADR-27) - a control that exists to
   // make the app usable is the last one that should be hard-coded to English.
@@ -618,8 +638,6 @@ export const messages = {
   "forms.step.rowActions": "Row actions for {questionId}",
   "forms.step.insertAbove": "Insert a question above {questionId}",
   "forms.step.insertBelow": "Insert a question below {questionId}",
-  "forms.step.copyQuestionId": "Copy question id {questionId}",
-  "forms.step.copiedQuestionId": "Copied question id {questionId}",
   "forms.step.pinMoved": "{questionId} moved to position {position} of {total}",
   "forms.step.pinRemoved": "{questionId} removed from this step",
   "forms.step.emptyBody": "Pin a question from the library and it will appear here.",
