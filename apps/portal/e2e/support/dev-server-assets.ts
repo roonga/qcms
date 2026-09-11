@@ -56,9 +56,10 @@ export function isDevServerAsset(url: string): boolean {
  * Split observed request URLs into the ones a spec declared, the dev server's own, and
  * everything else.
  *
- * `isOurs` is the positive, manifest-derived filter. It is applied first and then
- * re-checked against the dev-server predicate, so a spec cannot satisfy "our file
- * arrived" with a dev-server asset that happens to share a name - the overlay ships
+ * `isOurs` is the positive, manifest-derived filter. The dev-server predicate is applied
+ * FIRST and wins, so `isOurs` is only ever asked about a URL that is not dev-server
+ * chrome: a spec cannot satisfy "our file arrived" with a dev-server asset that happens
+ * to share a name. That order is the load-bearing part - the overlay ships
  * `geist-latin.woff2`, and the font registry is one entry away from a stem that would
  * collide with it.
  */

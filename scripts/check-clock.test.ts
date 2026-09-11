@@ -1,7 +1,10 @@
 import { spawnSync } from "node:child_process";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 
 import { MIN_ADVANCE_MS, SLEEP_MS, main, timeBothClocks, verdict } from "./check-clock.mjs";
 
@@ -35,12 +38,40 @@ function readings(timer: [number, number], binary: [number, number]) {
   return [timer[0], timer[1], binary[0], binary[1]];
 }
 
-const ran = { ran: true, detail: "exit 0" };
+const ran = { spawned: true, completed: true, detail: "exit 0" };
 
 async function run(options: Parameters<typeof main>[0]) {
   const lines: string[] = [];
   const code = await main({ ...options, log: (line: string) => lines.push(line) });
   return { code, output: lines.join("\n") };
+}
+
+const stubDirectories: string[] = [];
+
+afterAll(() => {
+  for (const directory of stubDirectories) rmSync(directory, { recursive: true, force: true });
+});
+
+/**
+ * A directory holding a stub `sleep` on PATH, so the script's own classification of a
+ * real child process is exercised rather than a hand-written stand-in for it. This is
+ * where the defect the review found actually lived: a `sleep` that runs and fails is not
+ * a `sleep` that is missing.
+ */
+function stubSleep(body: string): string {
+  const directory = mkdtempSync(join(tmpdir(), "qcms-check-clock-stub-"));
+  stubDirectories.push(directory);
+  const path = join(directory, "sleep");
+  writeFileSync(path, `#!/bin/sh\n${body}\n`, "utf8");
+  chmodSync(path, 0o755);
+  return directory;
+}
+
+function runScriptWithStubSleep(body: string) {
+  return spawnSync(process.execPath, [SCRIPT], {
+    encoding: "utf8",
+    env: { ...process.env, PATH: `${stubSleep(body)}:${process.env.PATH ?? ""}` },
+  });
 }
 
 describe("timeBothClocks", () => {
@@ -120,6 +151,47 @@ describe("verdict", () => {
     expect(output).toContain("tail --pid=<pid> -f /dev/null");
   });
 
+  it("FAILS a sleep that ran and exited non-zero, naming the status", () => {
+    // The review's finding: this used to report "not measured" and exit 0. A harness
+    // that refuses a foreground sleep is as free to fail it as to short-circuit it, so
+    // it is the #590 condition, not a missing tool.
+    const result = verdict({
+      timer: { wall: 2002, monotonic: 2002 },
+      binary: { wall: 4, monotonic: 4 },
+      binaryDetail: "exit 1",
+      binaryFailure: "exit 1",
+    });
+    expect(result.ok).toBe(false);
+    const output = result.lines.join("\n");
+    expect(output).toContain("SLEEP BINARY did not complete");
+    expect(output).toContain("exit 1");
+    expect(output).toContain("tail --pid=<pid> -f /dev/null");
+  });
+
+  it("FAILS a sleep that was killed, naming the signal", () => {
+    const result = verdict({
+      timer: { wall: 2002, monotonic: 2002 },
+      binary: { wall: 6, monotonic: 6 },
+      binaryDetail: "killed by SIGTERM",
+      binaryFailure: "killed by SIGTERM",
+    });
+    expect(result.ok).toBe(false);
+    expect(result.lines.join("\n")).toContain("killed by SIGTERM");
+  });
+
+  it("reports a failed sleep once, not also as a sleep that returned early", () => {
+    // A sleep that failed almost always also came back instantly. Naming both would
+    // describe one event as two faults and obscure which one to act on.
+    const result = verdict({
+      timer: { wall: 2002, monotonic: 2002 },
+      binary: { wall: 2, monotonic: 2 },
+      binaryDetail: "exit 1",
+      binaryFailure: "exit 1",
+    });
+    expect(result.lines.filter((line) => line.startsWith("FAIL:"))).toHaveLength(1);
+    expect(result.lines.join("\n")).not.toContain("SLEEP BINARY returns early");
+  });
+
   it("reports an unavailable sleep binary without failing on it", () => {
     const result = verdict({
       timer: { wall: 2002, monotonic: 2002 },
@@ -190,6 +262,28 @@ describe("main", () => {
     expect(asked).toEqual([400, 0.4]);
   });
 
+  it("exits 1 when the sleep binary ran and failed", async () => {
+    const { code, output } = await run({
+      clocks: scriptedClocks(readings([0, 2002], [2002, 2004]), readings([0, 2002], [2002, 2004])),
+      wait: () => undefined,
+      sleepBinary: () => ({ spawned: true, completed: false, detail: "exit 1" }),
+    });
+    expect(code).toBe(1);
+    expect(output).toContain("SLEEP BINARY did not complete");
+    expect(output).toContain("exit 1");
+  });
+
+  it("exits 0 when the sleep binary could not be spawned at all", async () => {
+    const { code, output } = await run({
+      clocks: scriptedClocks(readings([0, 2002], [2002, 2002]), readings([0, 2002], [2002, 2002])),
+      wait: () => undefined,
+      sleepBinary: () => ({ spawned: false, completed: false, detail: "spawnSync sleep ENOENT" }),
+    });
+    expect(code).toBe(0);
+    expect(output).toContain("not measured");
+    expect(output).toContain("ENOENT");
+  });
+
   it("runs for real and reports a machine where waiting works", { timeout: 30_000 }, () => {
     const result = spawnSync(process.execPath, [SCRIPT], { encoding: "utf8" });
     expect(result.stdout).toContain("in-process timer:");
@@ -197,6 +291,20 @@ describe("main", () => {
     // Asserted rather than skipped: if waiting is broken on the machine running this
     // suite, that is exactly the finding issue #590 is about and it should be loud.
     expect(result.status, result.stdout + result.stderr).toBe(0);
+  });
+
+  it("exits 1 against a real sleep on PATH that exits 1", { timeout: 30_000 }, () => {
+    const result = runScriptWithStubSleep("exit 1");
+    expect(result.stdout).toContain("SLEEP BINARY did not complete");
+    expect(result.stdout).toContain("exit 1");
+    expect(result.status, result.stdout + result.stderr).toBe(1);
+  });
+
+  it("exits 1 against a real sleep on PATH killed by a signal", { timeout: 30_000 }, () => {
+    const result = runScriptWithStubSleep("kill -TERM $$");
+    expect(result.stdout).toContain("SLEEP BINARY did not complete");
+    expect(result.stdout).toContain("SIGTERM");
+    expect(result.status, result.stdout + result.stderr).toBe(1);
   });
 });
 

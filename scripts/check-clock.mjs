@@ -12,10 +12,14 @@
  *  1. **The wall clock is frozen or stepped.** `CLOCK_REALTIME` stands still (or jumps
  *     backwards) while real time passes. Sleeping still works; only the readings lie.
  *  2. **Timers do not wait.** The process asks for two seconds and is resumed at once.
- *  3. **The `sleep` binary returns early.** The clocks are fine and in-process timers
- *     are fine, but the thing a shell poll loop is built on comes straight back. An
- *     agent harness that refuses or short-circuits a foreground `sleep` lands here, and
- *     it is indistinguishable from a frozen clock if `date` is your only instrument.
+ *  3. **The `sleep` binary will not wait.** The clocks are fine and in-process timers
+ *     are fine, but the thing a shell poll loop is built on does not wait: it comes
+ *     straight back, or it is refused and exits non-zero, or it is killed. An agent
+ *     harness that will not run a foreground `sleep` lands here whichever way it says
+ *     no, and all three are indistinguishable from a frozen clock if `date` is your
+ *     only instrument. **A `sleep` that ran and failed is this fault, not a missing
+ *     tool**: only a `sleep` that could not be spawned at all leaves the question
+ *     unanswered, and that alone is reported rather than failed.
  *
  * So this check measures one two-second wait of each kind against BOTH clocks and names
  * which of the three it found. `CLOCK_MONOTONIC` (via `process.hrtime.bigint`) is the
@@ -62,15 +66,29 @@ const timerWait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * Wait by running the `sleep` binary, the way a shell poll loop waits.
  *
+ * Three outcomes, not two, and the distinction is the whole point. **Not spawned at
+ * all** (no binary, no permission) leaves the question unanswered: that is reported and
+ * not failed. **Spawned and did not complete** - a non-zero exit, or a signal - is a
+ * FAILURE, because a harness that will not let a foreground `sleep` run is as likely to
+ * kill or refuse it as to short-circuit it, and that is precisely the condition issue
+ * #590 is about. Reporting it as "not measured" would let the check pass on a machine
+ * where shell waiting is broken.
+ *
  * @param {number} seconds
- * @returns {{ ran: boolean; detail: string }}
+ * @returns {{ spawned: boolean; completed: boolean; detail: string }}
  */
 function runSleepBinary(seconds) {
   const result = spawnSync("sleep", [String(seconds)], { stdio: "ignore" });
-  if (result.error !== undefined) return { ran: false, detail: result.error.message };
-  if (result.signal !== null) return { ran: false, detail: `killed by ${result.signal}` };
-  if (result.status !== 0) return { ran: false, detail: `exit ${String(result.status)}` };
-  return { ran: true, detail: "exit 0" };
+  if (result.error !== undefined) {
+    return { spawned: false, completed: false, detail: result.error.message };
+  }
+  if (result.signal !== null) {
+    return { spawned: true, completed: false, detail: `killed by ${result.signal}` };
+  }
+  if (result.status !== 0) {
+    return { spawned: true, completed: false, detail: `exit ${String(result.status)}` };
+  }
+  return { spawned: true, completed: true, detail: "exit 0" };
 }
 
 /**
@@ -92,7 +110,16 @@ export async function timeBothClocks(wait, clocks) {
 
 /**
  * @typedef {{ wall: number; monotonic: number }} Elapsed
- * @typedef {{ timer: Elapsed; binary: Elapsed | null; binaryDetail: string }} Measurements
+ * @typedef {{
+ *   timer: Elapsed;
+ *   binary: Elapsed | null;
+ *   binaryDetail: string;
+ *   binaryFailure?: string | null;
+ * }} Measurements
+ *
+ * `binary` is null only when `sleep` could not be spawned at all, which is reported and
+ * not failed. `binaryFailure` carries the exit status or signal of a `sleep` that DID
+ * run and did not complete, which is a failure.
  */
 
 /**
@@ -121,13 +148,14 @@ export function verdict(measured, limits = {}) {
   } else {
     lines.push(
       `sleep binary: wall +${ms(measured.binary.wall)}, ` +
-        `monotonic +${ms(measured.binary.monotonic)}`,
+        `monotonic +${ms(measured.binary.monotonic)} (${measured.binaryDetail})`,
     );
   }
 
   /** @type {string[]} */
   const faults = [];
   const monotonicWaited = measured.timer.monotonic >= minAdvanceMs;
+  const binaryFailure = measured.binaryFailure ?? null;
 
   if (measured.timer.wall < minAdvanceMs && monotonicWaited) {
     faults.push(
@@ -144,7 +172,19 @@ export function verdict(measured, limits = {}) {
     );
   }
 
-  if (measured.binary !== null && measured.binary.monotonic < minAdvanceMs && monotonicWaited) {
+  if (binaryFailure !== null) {
+    faults.push(
+      `the SLEEP BINARY did not complete: 'sleep ${(sleepMs / 1000).toFixed(0)}' ran and then ` +
+        `${binaryFailure}. A shell poll loop cannot wait here at all, and this is the same ` +
+        `finding as a sleep that returns early rather than a missing tool: whatever refuses a ` +
+        `foreground wait is as free to kill it as to short-circuit it. Wait on the process ` +
+        `instead - 'tail --pid=<pid> -f /dev/null' blocks on the process, not on elapsed time.`,
+    );
+  } else if (
+    measured.binary !== null &&
+    measured.binary.monotonic < minAdvanceMs &&
+    monotonicWaited
+  ) {
     faults.push(
       `the SLEEP BINARY returns early: 'sleep ${(sleepMs / 1000).toFixed(0)}' took ` +
         `${ms(measured.binary.monotonic)}. In-process timers are fine, so this is something ` +
@@ -167,7 +207,7 @@ export function verdict(measured, limits = {}) {
  * @param {{
  *   clocks?: { wall: () => number; monotonic: () => number };
  *   wait?: (ms: number) => void | Promise<void>;
- *   sleepBinary?: (seconds: number) => { ran: boolean; detail: string };
+ *   sleepBinary?: (seconds: number) => { spawned: boolean; completed: boolean; detail: string };
  *   sleepMs?: number;
  *   minAdvanceMs?: number;
  *   log?: (line: string) => void;
@@ -184,18 +224,25 @@ export async function main(options = {}) {
 
   const timer = await timeBothClocks(() => wait(sleepMs), clocks);
 
-  // A `sleep` that could not run at all is reported, not failed: this check is about
-  // whether waiting works, and a platform without the binary has not answered that
-  // question either way.
-  /** @type {{ ran: boolean; detail: string }} */
-  let outcome = { ran: false, detail: "not attempted" };
+  // A `sleep` that could not be SPAWNED is reported, not failed: a platform without the
+  // binary has not answered the question either way. A `sleep` that ran and then exited
+  // non-zero or was killed is a different thing entirely and fails below - see
+  // `runSleepBinary`.
+  /** @type {{ spawned: boolean; completed: boolean; detail: string }} */
+  let outcome = { spawned: false, completed: false, detail: "not attempted" };
   const timed = await timeBothClocks(() => {
     outcome = sleepBinary(sleepMs / 1000);
   }, clocks);
-  const binary = outcome.ran ? timed : null;
-  const binaryDetail = outcome.ran ? outcome.detail : `could not run 'sleep': ${outcome.detail}`;
+  const binary = outcome.spawned ? timed : null;
+  const binaryDetail = outcome.spawned
+    ? outcome.detail
+    : `could not run 'sleep': ${outcome.detail}`;
+  const binaryFailure = outcome.spawned && !outcome.completed ? outcome.detail : null;
 
-  const { ok, lines } = verdict({ timer, binary, binaryDetail }, { sleepMs, minAdvanceMs });
+  const { ok, lines } = verdict(
+    { timer, binary, binaryDetail, binaryFailure },
+    { sleepMs, minAdvanceMs },
+  );
   for (const line of lines) log(line);
   return ok ? 0 : 1;
 }
