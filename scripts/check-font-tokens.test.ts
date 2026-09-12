@@ -18,13 +18,14 @@ import { VENDORED_SOURCE_PREFIX } from "./vendored-source.mjs";
  * Issue #27's gate, fed the declarations it exists to catch, VERBATIM.
  *
  * Ten declarations in this repository spelled a font-family list out, and between them
- * they said seven different things. Six of the ten are shapes this gate judges, and
- * `REAL_DECLARATIONS` below is those six copied byte for byte out of the merge base
- * (commit `a2602be8`), file and line recorded, so the fixtures cannot drift into
+ * they said seven different things. Seven of the ten are shapes this gate judges: the
+ * six stylesheet declarations in `REAL_DECLARATIONS` below, plus the one style object in
+ * `REAL_STYLE_OBJECT`. All seven are copied byte for byte out of the merge base (commit
+ * `a2602be8`), file and line recorded, so the fixtures cannot drift into
  * plausible-looking paraphrases of what was there. The gate must reject every one of
  * them, and the same file at the head must pass.
  *
- * The other four are the three tails in `packages/ui/src/font-registry.ts` (`SANS_TAIL`,
+ * The other three are the tails in `packages/ui/src/font-registry.ts` (`SANS_TAIL`,
  * `SERIF_TAIL`, `MONO_TAIL`) and are deliberately NOT this gate's business: they are TS
  * string constants, not a `font-family` declaration or a style object, and the manifest's
  * own suite polices them - `packages/ui/src/font-registry.test.ts` asserts that every

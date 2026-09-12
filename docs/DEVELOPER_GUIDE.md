@@ -432,10 +432,15 @@ The section below, on waiting for a long gate, is the general case; this is the 
 # Start it. Returns immediately, printing the run directory and the four files in it.
 QCMS_PORT_SEAT=<0-9> pnpm verify:browser:detached
 
-# Wait one bounded slice (default 540 s). Re-invoke while it exits 75.
-pnpm verify:browser:wait <dir>
-pnpm verify:browser:wait <dir> --slice 300 --tail 80
+# Wait one bounded slice (default 540 s). Re-invoke while it exits 75. Capture the
+# wait's OWN code and do not pipe it: in a pipeline `$?` is the last element's code,
+# so `pnpm verify:browser:wait <dir> | tail` prints 0 for a slice that exited 75.
+log=$(node scripts/agent-scratch.mjs browser-wait.log)
+pnpm verify:browser:wait <dir> > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
+pnpm verify:browser:wait <dir> --slice 300 --tail 80 > "$log" 2>&1; rc=$?; echo "EXIT=$rc"
 ```
+
+**One `wait` call is the entire wait for that slice** (issue #915). It blocks in the foreground for the whole slice, which is 540 seconds by default, so a single call fits inside a 10-minute command timeout; it prints each heartbeat line as that line arrives, so a blocked slice is not a silent one; and it returns 75 with the suite still running rather than a verdict. The loop is therefore: call it, read `rc`, call it again while `rc` is 75. Polling anything else between calls adds no information and costs a turn each: a lane on 2026-09-13 spent about 150 near-identical polls over an 18-minute run watching a background monitor instead of blocking here. If you do pipe it anyway, zsh spells the first element's code `$pipestatus[1]` (never the bash `${PIPESTATUS[0]}`, which is unset in zsh and falls through to a stale `$?`, issue #481).
 
 The suite runs under `setsid`, in a session of its own, so killing the shell that asked for it does not reach it. Its pid, its log, a heartbeat line every 30 seconds and its final exit code go to this lane's `node scripts/agent-scratch.mjs` directory, one file each; the log and the rc file are the same two artifacts a foreground run would have produced, except that they survive the caller. The rc file is written by an atomic rename, so a reader never catches half a verdict.
 
@@ -628,15 +633,32 @@ Every task and issue PR requires an independent reviewer subagent. Its PR commen
 
 **Never run two interactive sessions in one checkout.** If you want a second hands-on session, give it its own `git worktree add ../qcms-me main`.
 
-**Editing a PR body: `gh pr edit` fails silently here** (issue #813). On this repository `gh pr edit --body-file` hits a Projects-classic GraphQL deprecation, prints a URL-shaped success line, and leaves the body unchanged. The exit code is 0 and nothing is red, so only reading the body back catches it - the fourth instance of the signal-that-cannot-go-red pattern, and three separate agent lanes rediscovered the same workaround independently before it was written down. Edit through the REST endpoint instead, and read back rather than trusting the response:
+**Editing a PR body: `gh pr edit` fails silently here** (issue #813). On this repository `gh pr edit --body-file` hits a Projects-classic GraphQL deprecation, prints a URL-shaped success line, and leaves the body unchanged. The exit code is 0 and nothing is red, so only reading the body back catches it - the fourth instance of the signal-that-cannot-go-red pattern, and three separate agent lanes rediscovered the same workaround independently before it was written down. Edit through the REST endpoint instead, and read the body back through REST as well rather than trusting the response:
 
 ```sh
 # The braces are gh's own placeholders: it resolves them from the checkout's remote.
 gh api -X PATCH "repos/{owner}/{repo}/pulls/<number>" -F body=@<file>
-gh pr view <number> --json body -q .body    # read back and confirm the text landed
+gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body   # read back: did the text land?
 ```
 
-**Reading is hit by the same deprecation** (issue #813): the default `gh issue view <number>` and `gh pr view <number>` ask for `projectCards` and so error out where an explicit field selection like the `--json body -q .body` read-back above still works, which makes `gh api "repos/{owner}/{repo}/issues/<number>" --jq .body` and `gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body` the reads to reach for.
+**Read back through the endpoint you wrote to, not through `gh pr view`** (issue #915). The read-back line above used to be `gh pr view <number> --json body -q .body`. That form does still work here (measured at gh 2.46.0: byte-identical to the REST read on PR #922, exit 0), because an explicit field selection never asks for `projectCards` and so escapes the deprecation that kills a bare `gh pr view`. It is still the wrong tool for this one line. Its whole job is to catch a write that failed silently, so it must not itself depend on which fields gh's canned GraphQL query happens to ask for, on a repository where that query is already being deprecated out from under it. The REST read goes to the same resource the `PATCH` wrote, over no GraphQL at all, so a disagreement between the two is about the write rather than about the reader.
+
+**Posting a comment has the same rule and one trap of its own: `-f` is not `-F`** (issue #915). `-f/--raw-field` adds a literal string parameter; only `-F/--field` gives `@<file>` its read-from-file meaning. So this:
+
+```sh
+gh api -X POST "repos/{owner}/{repo}/issues/<number>/comments" -f body=@<file>   # WRONG
+```
+
+posts a comment whose entire text is the path you meant it to read, and succeeds, because a path is a perfectly valid comment body. On PR #914 that put a host filesystem path into a public repository; the reviewer caught it, no gate did. The right form reads the file, and prints what landed in the same command:
+
+```sh
+gh api -X POST "repos/{owner}/{repo}/issues/<number>/comments" -F body=@<file> --jq .body
+gh api "repos/{owner}/{repo}/issues/comments/<id>" --jq .body   # after the fact
+```
+
+The create response carries the comment it made, so `--jq .body` on the POST is the read-back and needs no second call; `.id` from that response is the `<id>` for reading it later. A PR comment is an issue comment: post to `/issues/<number>/comments` and read back at `/issues/comments/<id>`, with no `pulls` in either path.
+
+**Reading is hit by the same deprecation** (issue #813): a default `gh issue view <number>` or `gh pr view <number>` asks for `projectCards` and errors out, which makes `gh api "repos/{owner}/{repo}/issues/<number>" --jq .body` and `gh api "repos/{owner}/{repo}/pulls/<number>" --jq .body` the reads to reach for, plus `gh api "repos/{owner}/{repo}/issues/<number>/comments" --jq '.[].body'` for the thread, which on a long-lived issue is where most of the content is.
 
 **A body edit retriggers CI; a comment does not.** Editing the body fires the `pull_request` `edited` event, so the required checks run again on an unchanged head. A PR comment fires no such event. So put review verdicts, gate evidence and running notes in comments, and reserve body edits for text that has to be in the body (the `Fixes #NN` lines, the summary a merge commit inherits). Where a body edit is genuinely needed on an already-green PR, expect the re-run and wait for it before merging.
 
@@ -699,7 +721,7 @@ After changing `.claude/skills/` or `.claude/agents/`, restart running sessions.
 - **What is waiting on you:** `git ls-remote --heads origin 'feat/*'` lists live claims; for each, the branch tip's `HANDOFF.md` first line says which kind of park it is. `HANDOFF: AWAITING-HUMAN <what>` is one the loop deliberately stepped over and will not resume until you act - those are your queue, and the loop will keep working around them (up to three) rather than stopping. `INTERRUPTED` and `BLOCKED` are ones it will pick back up itself.
 - **Stale claim cleanup** (a session died mid-task): check the branch for a `HANDOFF.md`; either resume via `/task NNN`, or, if there is nothing worth keeping, **delete the remote branch** - that releases the claim, with no ledger edit needed (and none possible: `main` cannot be pushed directly). Then `git worktree remove` any leftover under `.claude/worktrees/`.
 - **Orphan worktree directories:** `pnpm worktrees:prune` reports every directory under `.claude/worktrees/` that `git worktree list` does not know about, and `pnpm worktrees:prune --apply` removes them. They accumulate silently - 51 orphans among 56 directories, 75 GB, when issue #735 was closed - because a lane whose registration is gone leaves a full checkout behind that no git command reports. The sweep keeps anything registered, anything carrying no `.git` file, anything with uncommitted work, and anything touched in the last 24 hours (`--min-age-hours` moves that window; `--size` adds per-directory sizes).
-- **Stale temporary directories:** `/tmp` is a tmpfs with a fixed inode table, not a disk, and it runs out of inodes long before it runs out of space. When it does, nothing says so: every write on the host fails with an ordinary error that never mentions `/tmp`, so it surfaces as a lane that cannot write its PR body, a checkout that dies mid-run, or a tool that fails for no visible reason. On 2026-09-12 the table filled twice in one afternoon (issue #918). `df -i /tmp` is the check; `pnpm tmp:prune` reports the repository-owned leftovers under it - the per-run workspaces named in `TEMP_PREFIXES` in `scripts/prune-tmp.mjs`, each listed there beside the script that creates it - and `pnpm tmp:prune --apply` removes them. It touches nothing younger than 60 minutes (`--min-age-minutes` moves that window), never follows a symbolic link, never leaves the resolved temporary root, and never touches a name no prefix in that list claims, so a Playwright browser profile or another tool's workspace is left where it is. `--count` adds the inode count per entry, which is the number that matters here.
+- **Stale temporary directories:** `/tmp` is a tmpfs with a fixed inode table, not a disk, and it runs out of inodes long before it runs out of space. When it does, nothing says so: every write on the host fails with an ordinary error that never mentions `/tmp`, so it surfaces as a lane that cannot write its PR body, a checkout that dies mid-run, or a tool that fails for no visible reason. On 2026-09-12 the table filled twice in one afternoon (issue #918). `df -i /tmp` is the check; `pnpm tmp:prune` reports the repository-owned leftovers under it - the per-run workspaces named in `TEMP_PREFIXES` in `scripts/prune-tmp.mjs`, each listed there beside the script that creates it - and `pnpm tmp:prune --apply` removes them. It touches nothing younger than 60 minutes (`--min-age-minutes` moves that window), never follows a symbolic link, never leaves the resolved temporary root, and never touches a name no prefix in that list claims, so a Playwright browser profile or another tool's workspace is left where it is. `--count` adds the inode count per entry, which is the number that matters here. `QCMS_TMP_ROOT` moves the root it sweeps (it defaults to `os.tmpdir()`), and it is the only knob that changes where `--apply` deletes, so it is worth knowing about in both directions: it is how `scripts/prune-tmp.test.ts` runs the real classifier against a fixture tree, and an exported value left in a shell would silently point a later `--apply` somewhere else. **Nothing schedules the sweep.** It is not in `verify`, not in any workflow, and not in the agent loop, so it only ever runs because someone runs it, and recurrence protection for the prefixes whose creators can miss their own cleanup is manual: 108 stale entries were sitting under the temporary root on the development host on 2026-09-13, the day after #918 closed. A report-only run is free and exits 0 whatever it finds (`--strict` is what makes leftovers a nonzero exit), so it costs nothing to run it at the start of a session.
 
 ## Permissions tuning
 
