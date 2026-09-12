@@ -41,6 +41,13 @@
  *   node scripts/prune-tmp.mjs --min-age-minutes 240
  *   node scripts/prune-tmp.mjs --count               # add per-entry inode counts (slow)
  *   node scripts/prune-tmp.mjs --strict              # exit 1 when stale entries remain
+ *
+ * `QCMS_TMP_ROOT` replaces the root that is swept (`os.tmpdir()` otherwise). It is read
+ * once, at the entry point below, and is the only knob that changes where `--apply`
+ * deletes; everything above that takes the root as a parameter, which is how
+ * `prune-tmp.test.ts` points the real classifier at a fixture tree. Nothing schedules
+ * this sweep: it runs when someone runs it (`docs/DEVELOPER_GUIDE.md`, "Monitoring and
+ * control").
  */
 
 import { lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
@@ -50,10 +57,20 @@ import { argv, env, exit } from "node:process";
 import { pathToFileURL } from "node:url";
 
 /**
- * Every temporary-entry prefix this repository's tooling creates, with the creator of
- * each. This list is the only thing that makes an entry under the temporary root
- * eligible for removal, so a new `mkdtemp` or `mktemp` prefix in the repository belongs
- * here beside its creator, and a prefix whose creator is gone belongs out of it.
+ * The temporary-entry prefixes whose entries OUTLIVE the process that made them, with
+ * the creator of each. This list is the only thing that makes an entry under the
+ * temporary root eligible for removal.
+ *
+ * "Every `mkdtemp` prefix in the repository" is the wrong rule and a far longer list:
+ * around thirty other prefixes are test fixtures and script workspaces that remove
+ * their own directory before they exit, so nothing of theirs is ever still here an hour
+ * later and an entry for them would only widen what `--apply` may delete while never
+ * removing anything. A prefix belongs here when its leftovers are actually observed to
+ * pile up: a workspace whose cleanup sits on the kill path of something run often by
+ * hand (a harness cap, a usage-limit stop, a SIGKILL, none of which reach a `finally`),
+ * or one with no owner to clean it up at all. A rarely run creator whose `finally` could
+ * in principle be skipped - the weekly restore drill, for one - is added when it is seen
+ * to leave something, not on principle. A prefix whose creator is gone belongs out.
  *
  * Prefixes may nest (`qcms-scaffold-e2e-` sits inside `qcms-scaffold-`); the longest
  * match wins, so each entry is reported once, under the creator that really made it.

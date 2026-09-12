@@ -10,11 +10,15 @@
  * wrong and never gets corrected. Ten declarations spelled a list out here before this
  * gate, and between them they said SEVEN different things.
  *
+ * Every file and line below is cited in the tree this gate landed on, the merge base
+ * `a2602be8`, because that is where those ten copies were; at the head the three
+ * `font-registry.ts` constants hold token references and sit 20 lines lower.
+ *
  * Two sans lists across five sites:
  *
  *   - `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` in
  *     `packages/ui/src/theme.css:69`, again as `SANS_TAIL` in
- *     `packages/ui/src/font-registry.ts:98`, and again as the tail of `--font-admin`
+ *     `packages/ui/src/font-registry.ts:96`, and again as the tail of `--font-admin`
  *     in `apps/admin/app/theme.css:57`;
  *   - `ui-sans-serif, system-ui, sans-serif`, shorter, in
  *     `apps/portal/app/globals.css:89` and `apps/admin/app/globals.css:2531`. Both were
@@ -26,7 +30,7 @@
  * Four mono lists, one per site, no two alike:
  *
  *   - `ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`
- *     (`MONO_TAIL`, `packages/ui/src/font-registry.ts:100`);
+ *     (`MONO_TAIL`, `packages/ui/src/font-registry.ts:98`);
  *   - `ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace`
  *     (`apps/admin/app/theme.css:58`);
  *   - `ui-monospace, monospace` (`apps/admin/app/globals.css:1678`);
@@ -35,11 +39,12 @@
  *     object, where no sweep of the stylesheets could have seen it.
  *
  * And one serif list, the only one that never had a second copy (`SERIF_TAIL`,
- * `packages/ui/src/font-registry.ts:99`).
+ * `packages/ui/src/font-registry.ts:97`).
  *
- * Six of the ten are shapes this gate judges; `scripts/check-font-tokens.test.ts` holds
- * all six verbatim as its fixtures. The three `font-registry.ts` tails are TS string
- * constants rather than declarations, so the manifest's own suite polices them instead.
+ * Seven of the ten are shapes this gate judges - the six stylesheet declarations plus
+ * the CodeMirror style object - and `scripts/check-font-tokens.test.ts` holds all seven
+ * verbatim as its fixtures. The remaining three are the `font-registry.ts` tails, TS
+ * string constants rather than declarations, so the manifest's own suite polices them.
  *
  * So the gate is deliberately not "the CSS looks tidy". It is the property that
  * makes the tail improvable at all: change `--font-fallback-sans` and every surface
@@ -264,9 +269,19 @@ export function checkSource(relative, source) {
  * That is the fail-open shape the rule exists to close, and it is the one a gate
  * cannot notice about itself.
  *
- * Set well under the live count (the scan reaches 299 files today) so ordinary
- * churn never touches it, and far enough above zero that losing any one SCAN_DIR is
- * a red. Raise it if it ever gets close; do not lower it to make a red go away.
+ * Set well under the live count (299 files today, across the seven roots) so ordinary
+ * churn never touches it. Be clear about what a single number can and cannot catch:
+ * no one root and no one extension crosses it. The largest root, `apps/admin/lib`, is
+ * 78 files, so dropping it leaves 221; dropping `.tsx` leaves 156; dropping `.ts`
+ * leaves exactly 150, which this floor still admits. What the floor catches is the
+ * collapse, a scan narrowed to one or two roots (the four smallest together are 84
+ * files) or to nothing at all, and `trackedFilesUnder` is the other half of that: it
+ * throws on an empty enumeration, and on a root that is not a directory, so a root
+ * renamed away without this list being edited is a red of its own. What has no red of
+ * its own is a deliberate narrowing of either list, and the loss of a root or an
+ * extension that held a real declaration is caught instead by the companion assertion
+ * in `check-font-tokens.test.ts`, which pins each of the seven cited files as in scope.
+ * Raise this if it ever gets close; do not lower it to make a red go away.
  */
 export const MINIMUM_SCANNED = 150;
 
