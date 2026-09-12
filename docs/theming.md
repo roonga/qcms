@@ -5,10 +5,11 @@ the scope carrier added by task 060 (ADR-38).
 **Owns:** the four-group token contract, the four predefined themes, the corner
 presets, the single High-contrast mode layer, the three density levels,
 per-deployment selection, the brand mark, the declarative self-hosted font registry
-with its curation config, and the respondent mode / font / density controls with
-their persistence.
+with its curation config, the shared font fallback tails (issue #27), and the
+respondent mode / font / density controls with their persistence.
 **Does not own:** the Phase 4 admin theme editor (task 049), the admin font-curation UI,
-per-form theming, multi-script font fallback (issue #27), and the
+per-form theming, self-hosted **multi-script** coverage (the open half of issue #27:
+which non-Latin scripts QCMS ships faces for is undecided), and the
 `forced-colors` / Windows High Contrast Mode baseline (issue #28). Note the split
 on that last one: defaulting the mode from **`prefers-contrast: more`** is here
 (it is one line of the pre-paint script), while `forced-colors` is a separate
@@ -34,7 +35,7 @@ them is a styling decision the portal is allowed to make.
 | Group         | Tokens                                                                                                | Varies with                   |
 | ------------- | ----------------------------------------------------------------------------------------------------- | ----------------------------- |
 | 1. Colour     | `--color-*` (36 tokens)                                                                               | theme x mode                  |
-| 2. Typography | `--font-portal`, `--type-*`                                                                           | font selection (the registry) |
+| 2. Typography | `--font-fallback-*`, `--font-portal`, `--font-mono`, `--type-*`                                       | font selection (the registry) |
 | 3. Spacing    | `--space-control-h` `--space-control-pad-x` `--space-field-gap` `--space-section-pad` `--space-stack` | density (three levels)        |
 | 4. Radius     | `--radius-control` `--radius-card` `--radius-sm`                                                      | corner preset                 |
 
@@ -137,6 +138,66 @@ tabular figures. No mode, theme, font or density level may lower a floor;
 `packages/ui/src/theme-tokens.test.ts` asserts each one and asserts that every
 theme x mode resolution leaves it unchanged, and `apps/portal/e2e/fonts.pw.ts`
 re-measures every floor on rendered text under every font the registry ships.
+
+### Group 2: the fallback tail is one token
+
+The rest of group 2 is what a respondent reads when the primary face is **not**
+there: missing from the device, refused by the browser, or still downloading. Three
+tokens carry it, and they are the only place in the product where a font-family list
+is written down.
+
+| Token                   | Value                                                                                                                                                                | Consumed by                                               |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `--font-fallback-sans`  | `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif,` then the four emoji/symbol faces | `--font-portal`, `--font-admin`, 19 registry entries      |
+| `--font-fallback-serif` | `ui-serif, Georgia, Cambria, "Times New Roman", Times, serif`                                                                                                        | the registry's Traditional & Corporate entries            |
+| `--font-fallback-mono`  | `ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", monospace`                                             | `--font-mono`, the registry's Monospace entries           |
+| `--font-portal`         | `var(--font-fallback-sans)`, or a family plus that token                                                                                                             | the portal `body`, the app's respondent preview island    |
+| `--font-mono`           | `var(--font-fallback-mono)`                                                                                                                                          | the submission reference, the app's ids, hashes and rules |
+
+Read the sans tail left to right: `ui-sans-serif` is the CSS Fonts 4 generic for the
+system's sans UI face and is honoured by Chromium and WebKit; `system-ui` is the
+same intent for Firefox, which has no `ui-sans-serif`. `system-ui` is deliberately
+**not** first and never alone, because it resolves from the OS/UI locale rather than
+the content language: on a CJK-locale machine it is a CJK UI face whose Latin glyphs
+are oversized, and as a generic it used to short-circuit the rest of the list for
+non-Latin text (Mozilla bug 1724907, `csswg-drafts` issue 3658). Then the named
+platform faces, then `sans-serif` - CSS Fonts 4 section 2.1 encourages a generic last
+for robustness, and it is the only entry a reader's own per-script font preference
+can answer. The four emoji and symbol faces sit **after** the generic on purpose, as
+Bootstrap 5's Reboot does: they are consulted per glyph, for codepoints nothing
+earlier carries, so without them a respondent whose UI font has no emoji reads a
+`.notdef` box in authored content.
+
+**How a theme, an entry or a deployment overrides it.** End the value in the tail
+token instead of restating a list:
+
+```css
+:root[data-theme="slate"] {
+  --font-portal: "Your Face", var(--font-fallback-sans);
+}
+```
+
+That is exactly what every registry entry emits, and what `--font-admin` in
+`apps/admin/app/theme.css` does. Overriding a **tail** is the deployment-level move
+and belongs in `apps/portal/app/adopter-theme.css`, the single documented override
+surface: a deployment whose audience reads one script can prepend a face for it
+there and every family token picks it up at once.
+
+`scripts/check-font-tokens.mjs` is what keeps the property true. It fails on a
+`font-family` that names anything but a token (an inline `var(--font-portal, ...)`
+fallback included - the token is always declared, so those arguments can never fire
+and only exist to drift), on a `--font-*` value outside `theme.css` that does not end
+in a tail, and on a Tailwind `font-sans` / `font-serif` / `font-[...]` utility, which
+would reach Tailwind's own stack. `font-mono` is fine, because `--font-mono` is a
+token and that utility reads it. `apps/portal/e2e/fonts.pw.ts` then measures the
+resolved result in a real browser: body text is the configured family followed by
+exactly `--font-fallback-sans`, and the submission reference is exactly
+`--font-mono`.
+
+**What this is not.** A fallback tail is not multi-script coverage. The shipped
+`woff2` files are Latin subsets, so non-Latin text still depends on what the reader's
+device already has. Deciding which scripts QCMS self-hosts faces for is the open half
+of issue #27.
 
 ### Group 3: the three density levels
 
@@ -311,7 +372,7 @@ A registry entry renders to exactly one selector block that sets exactly one tok
 
 ```css
 :is(:root, [data-qcms-theme-scope]).font-atkinson {
-  --font-portal: "Atkinson Hyperlegible", ui-sans-serif, system-ui, ...;
+  --font-portal: "Atkinson Hyperlegible", var(--font-fallback-sans);
 }
 ```
 
@@ -320,11 +381,21 @@ font selection is allowed to lower one. `font-registry.test.ts` asserts the
 one-declaration shape, and `fonts.pw.ts` re-measures every floor on rendered text
 under every entry (see the measured numbers below).
 
-Every stack ends in a CSS generic family (`sans-serif`, `serif`, `monospace`), so a
-browser that refuses the webfont still gets the right _kind_ of face. The shipped
-subsets are Latin, so text outside Latin falls back glyph-by-glyph through the
-stack: correct, but not a designed baseline. A deliberate multi-script fallback
-baseline is **issue #27** and is not owned here.
+An entry names its family and then **delegates its tail to one of the three
+`--font-fallback-*` tokens** rather than restating a list (issue #27). That is what
+makes the tail improvable: it is declared once, in `theme.css`, so a change to it
+reaches all 23 entries and both apps at the same time. It also fixes the import
+order the contract already required - a `.font-<key>` block has to come after
+`theme.css` to override the base `--font-portal` at all, and now an adopter who
+imports `fonts.css` alone gets a `font-family` that is invalid at computed-value
+time rather than a silently wrong face.
+
+Each tail ends in a CSS generic family, so a browser that refuses the webfont still
+gets the right _kind_ of face. The shipped subsets are Latin, so text outside Latin
+falls back glyph-by-glyph through the tail: it now names the broad-coverage and
+emoji faces a device is likely to have, but it is still not self-hosted multi-script
+coverage. Deciding which scripts QCMS ships faces for is the open half of
+**issue #27**.
 
 ### Licensing
 
@@ -687,43 +758,48 @@ gate, so a deployment that changes colours checks its own pairs.
 
 ## Verification map
 
-| Claim                                                                                                | Test                                                               |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Every pair meets its WCAG target, in every theme x mode                                              | `packages/ui/src/theme-tokens.test.ts` (computed from `theme.css`) |
-| Each 1.4.12 floor is a token and no mode lowers it                                                   | same file                                                          |
-| HC is one layer plus a per-theme accent                                                              | same file                                                          |
-| Selection resolves from config, including the typo path                                              | `apps/portal/lib/server/theme.test.ts`                             |
-| Config reaches `<html>` and the computed style                                                       | `apps/portal/e2e/theming.pw.ts`                                    |
-| The corner presets change controls, card and banner                                                  | same spec                                                          |
-| The vendored controls really consume the spacing tokens                                              | same spec (moves each token and re-measures)                       |
-| The floors hold on rendered text                                                                     | same spec                                                          |
-| Every theme is axe-clean in Light, Dark and HC                                                       | same spec                                                          |
-| HC really is heavy borders, flat surfaces, heavy focus                                               | same spec                                                          |
-| The rewrite moved no selector: each anchored form scores what its `:root` form scored                | `packages/ui/src/theme-tokens.test.ts`                             |
-| The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file                                                          |
-| A scoped container resolves the portal colour AND geometry inside a differently-themed document      | `packages/ui/src/theme-scope.test.ts`                              |
-| The treatment layer reaches controls inside a carrier and no `[data-rac]` control outside one        | same file                                                          |
-| A density level sets only spacing tokens, never a type or colour value                               | `packages/ui/src/theme-tokens.test.ts`                             |
-| `--space-control-h` clears 24px at every density, and the levels are monotonic                       | same file                                                          |
-| The class names, cookie attributes and parsers the SSR path and the browser share                    | `apps/portal/lib/appearance.test.ts`                               |
-| Density and brand resolve from config, including every typo path                                     | `apps/portal/lib/server/theme.test.ts`                             |
-| A respondent cookie beats config, and a curated-away font cookie does not                            | same file                                                          |
-| A logo the CSP could not load is dropped rather than rendered broken                                 | same file                                                          |
-| Each control switches its axis, and the choice survives a reload via SSR                             | `apps/portal/e2e/appearance.pw.ts`                                 |
-| A first visit defaults from `prefers-color-scheme` and `prefers-contrast: more`                      | same spec                                                          |
-| The first PAINTED frame already carries the final appearance (no flash)                              | same spec                                                          |
-| The selected chip differs by glyph, weight and border, checked in HC                                 | same spec                                                          |
-| Every control target clears WCAG 2.5.8's 24px minimum at Compact                                     | same spec                                                          |
-| The 1.4.12 floors hold at every density x every font (69 combinations)                               | same spec                                                          |
-| The brand mark and `<title>` come from config, with no `QCMS` literal rendered                       | same spec                                                          |
-| The panel is axe-clean in every mode x density, with the panel open                                  | same spec                                                          |
-| Without scripting the controls are hidden, and the config default still applies                      | same spec                                                          |
-| Every declared face is a real committed `woff2`, with no duplicate bytes                             | `packages/ui/src/font-registry.test.ts`                            |
-| `fonts.css` is exactly what the manifest renders (add/remove is one entry)                           | same file                                                          |
-| Every family is permissively licensed and its notice ships                                           | same file                                                          |
-| A font entry sets `--font-portal` and nothing else                                                   | same file                                                          |
-| Font curation resolves from config, System included, typos tolerated                                 | `apps/portal/lib/server/theme.test.ts`                             |
-| Every shipped font actually renders, and zero requests leave the origin                              | `apps/portal/e2e/fonts.pw.ts`                                      |
-| The 1.4.12 floors hold on rendered text under EVERY shipped font                                     | same spec                                                          |
-| The Accessibility bolds are real faces, not synthesised                                              | same spec                                                          |
-| Numeric controls take tabular figures from `--type-numeric`                                          | same spec                                                          |
+| Claim                                                                                                | Test                                                                |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Every pair meets its WCAG target, in every theme x mode                                              | `packages/ui/src/theme-tokens.test.ts` (computed from `theme.css`)  |
+| Each 1.4.12 floor is a token and no mode lowers it                                                   | same file                                                           |
+| HC is one layer plus a per-theme accent                                                              | same file                                                           |
+| Selection resolves from config, including the typo path                                              | `apps/portal/lib/server/theme.test.ts`                              |
+| Config reaches `<html>` and the computed style                                                       | `apps/portal/e2e/theming.pw.ts`                                     |
+| The corner presets change controls, card and banner                                                  | same spec                                                           |
+| The vendored controls really consume the spacing tokens                                              | same spec (moves each token and re-measures)                        |
+| The floors hold on rendered text                                                                     | same spec                                                           |
+| Every theme is axe-clean in Light, Dark and HC                                                       | same spec                                                           |
+| HC really is heavy borders, flat surfaces, heavy focus                                               | same spec                                                           |
+| The rewrite moved no selector: each anchored form scores what its `:root` form scored                | `packages/ui/src/theme-tokens.test.ts`                              |
+| The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file                                                           |
+| A scoped container resolves the portal colour AND geometry inside a differently-themed document      | `packages/ui/src/theme-scope.test.ts`                               |
+| The treatment layer reaches controls inside a carrier and no `[data-rac]` control outside one        | same file                                                           |
+| A density level sets only spacing tokens, never a type or colour value                               | `packages/ui/src/theme-tokens.test.ts`                              |
+| `--space-control-h` clears 24px at every density, and the levels are monotonic                       | same file                                                           |
+| The class names, cookie attributes and parsers the SSR path and the browser share                    | `apps/portal/lib/appearance.test.ts`                                |
+| Density and brand resolve from config, including every typo path                                     | `apps/portal/lib/server/theme.test.ts`                              |
+| A respondent cookie beats config, and a curated-away font cookie does not                            | same file                                                           |
+| A logo the CSP could not load is dropped rather than rendered broken                                 | same file                                                           |
+| Each control switches its axis, and the choice survives a reload via SSR                             | `apps/portal/e2e/appearance.pw.ts`                                  |
+| A first visit defaults from `prefers-color-scheme` and `prefers-contrast: more`                      | same spec                                                           |
+| The first PAINTED frame already carries the final appearance (no flash)                              | same spec                                                           |
+| The selected chip differs by glyph, weight and border, checked in HC                                 | same spec                                                           |
+| Every control target clears WCAG 2.5.8's 24px minimum at Compact                                     | same spec                                                           |
+| The 1.4.12 floors hold at every density x every font (69 combinations)                               | same spec                                                           |
+| The brand mark and `<title>` come from config, with no `QCMS` literal rendered                       | same spec                                                           |
+| A font-family list exists in exactly one place, on either surface                                    | `scripts/check-font-tokens.test.ts` (the gate, on the shipped tree) |
+| Each tail names a CSS generic, with only symbol faces after it                                       | `packages/ui/src/theme-tokens.test.ts`                              |
+| Every registry entry delegates its tail to a token rather than restating it                          | `packages/ui/src/font-registry.test.ts`                             |
+| Body text resolves to the configured family plus exactly that tail, in a browser                     | `apps/portal/e2e/fonts.pw.ts`                                       |
+| The submission reference resolves to `--font-mono`, not Tailwind's built-in stack                    | same spec                                                           |
+| The panel is axe-clean in every mode x density, with the panel open                                  | same spec                                                           |
+| Without scripting the controls are hidden, and the config default still applies                      | same spec                                                           |
+| Every declared face is a real committed `woff2`, with no duplicate bytes                             | `packages/ui/src/font-registry.test.ts`                             |
+| `fonts.css` is exactly what the manifest renders (add/remove is one entry)                           | same file                                                           |
+| Every family is permissively licensed and its notice ships                                           | same file                                                           |
+| A font entry sets `--font-portal` and nothing else                                                   | same file                                                           |
+| Font curation resolves from config, System included, typos tolerated                                 | `apps/portal/lib/server/theme.test.ts`                              |
+| Every shipped font actually renders, and zero requests leave the origin                              | `apps/portal/e2e/fonts.pw.ts`                                       |
+| The 1.4.12 floors hold on rendered text under EVERY shipped font                                     | same spec                                                           |
+| The Accessibility bolds are real faces, not synthesised                                              | same spec                                                           |
+| Numeric controls take tabular figures from `--type-numeric`                                          | same spec                                                           |

@@ -54,8 +54,7 @@
   --radius-control: 4px;
   --radius-card: 8px;
   --radius-sm: 2px;
-  --font-admin: "Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace;
+  --font-admin: "Lexend", var(--font-fallback-sans);
 }
 
 :root.dark {

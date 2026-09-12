@@ -1675,7 +1675,7 @@ button {
   border-radius: var(--radius-sm);
   background-color: var(--color-background-muted);
   color: var(--color-text);
-  font-family: var(--font-mono, ui-monospace, monospace);
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 
@@ -2515,10 +2515,12 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
  *
  * `--font-portal` is the sixth: the portal's default is the brand-neutral system
  * stack, this app's face is Lexend, and text inherits, so without this the preview
- * would be the right size in the wrong typeface. The fallback matches the portal's own
- * `body` rule byte for byte, and it is load-bearing here rather than defensive - this
- * app deliberately does not import `fonts.css`, so `--font-portal` comes only from the
- * token sheet's anchor block.
+ * would be the right size in the wrong typeface. It is named with no inline fallback
+ * (issue #27): this app imports the token sheet, so the token always resolves, and the
+ * inline list that used to sit here was a third copy of the portal's fallback tail
+ * that nothing kept in step with it. The tail is `--font-fallback-sans`, declared
+ * once in `packages/ui/src/theme.css`. This app deliberately does not import
+ * `fonts.css`, so `--font-portal` comes only from the token sheet's anchor block.
  *
  * The specificity is (0,2,0) against `.qcms-preview`'s (0,1,0), which is what lets the
  * background and colour below win over the dashed-box rule that both classes share.
@@ -2528,7 +2530,7 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color-scheme: light;
   background-color: var(--color-background);
   color: var(--color-text);
-  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-portal);
   font-size: var(--type-body);
   line-height: var(--type-line-height);
   letter-spacing: var(--type-letter-spacing);

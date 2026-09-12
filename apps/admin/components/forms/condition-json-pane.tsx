@@ -219,7 +219,10 @@ const PANE_THEME = {
     outlineOffset: "2px",
   },
   ".cm-content": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
+    // The token, not a list of its own (issue #27). This editor's own fallback
+    // stack was the sixth one written down in this repository and the only one
+    // outside a stylesheet, so nothing that swept the CSS could have seen it.
+    fontFamily: "var(--font-mono)",
     caretColor: "var(--color-text)",
     padding: "0.5rem",
   },

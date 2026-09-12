@@ -1,0 +1,279 @@
+#!/usr/bin/env node
+// @ts-check
+/**
+ * One font fallback stack, written down once (issue #27).
+ *
+ * A fallback stack is the whole answer to a question nobody sees until it goes
+ * wrong: what does a respondent read when the primary face is missing, refused, or
+ * still downloading? It is invisible on every machine that HAS the face, which is
+ * every machine the author is testing on, so a second copy of the list never looks
+ * wrong and never gets corrected. This repository had six copies before this gate:
+ *
+ *   - `packages/ui/src/theme.css` declared the portal's sans tail;
+ *   - `apps/portal/app/globals.css` wrote a SHORTER one inline as
+ *     `var(--font-portal, ui-sans-serif, system-ui, sans-serif)` - a fallback that
+ *     could never fire, because the token it guards is always declared;
+ *   - `apps/admin/app/globals.css` wrote that same short list a third time for the
+ *     preview island, with a comment claiming it matched the portal "byte for byte";
+ *   - `apps/admin/app/theme.css` carried its own mono tail with `"SF Mono"` and
+ *     `"Cascadia Code"`, which the portal's did not have;
+ *   - `apps/admin/app/globals.css` wrote `var(--font-mono, ui-monospace, monospace)`,
+ *     a fifth list;
+ *   - `apps/admin/components/forms/condition-json-pane.tsx` held a sixth in a
+ *     CodeMirror inline style object, where no sweep of the stylesheets could see it.
+ *
+ * So the gate is deliberately not "the CSS looks tidy". It is the property that
+ * makes the tail improvable at all: change `--font-fallback-sans` and every surface
+ * moves, because there is nowhere else for a stack to hide.
+ *
+ * THREE RULES.
+ *
+ * 1. **A `font-family` declaration names a token and nothing else.** `inherit` or a
+ *    bare `var(--font-...)`. Not `var(--font-x, a, b)`: an inline fallback on a token
+ *    the sheet always declares is unreachable code that reads as a stack. The one
+ *    exception is inside `@font-face`, where `font-family` BINDS a name to a file
+ *    rather than selecting one.
+ * 2. **Only the token sheet writes a family list.** Any other `--font-*` declaration
+ *    must END in one of the three tail tokens, so it contributes a family and
+ *    inherits the tail: `--font-admin: "Lexend", var(--font-fallback-sans)`. Inside
+ *    the token sheet, the three `--font-fallback-*` values are the lists, and every
+ *    other `--font-*` there ends in one of them too.
+ * 3. **No Tailwind font-family utility that resolves outside the contract.**
+ *    `font-sans`, `font-serif`, `font-[...]` and `font-(family-name:...)` reach
+ *    Tailwind's own defaults, which is a stack this repository does not own.
+ *    `font-mono` is FINE and is used: the token sheet repoints `--font-mono`, which
+ *    is the variable that utility reads, so the utility and the token agree by
+ *    construction. Inline `fontFamily` in a style object is held to rule 1.
+ *
+ * WHAT IS NOT SCANNED, AND WHY.
+ *   - `packages/ui/src/components/a2ui/` is the byte-for-byte upstream vendor drop
+ *     (ADR-22). A gate cannot ask it to change.
+ *   - Test files. A string in a test is an assertion about the shipped value, not a
+ *     style a browser paints; `theme-tokens.test.ts` and `font-registry.test.ts` are
+ *     where the token VALUES are checked.
+ *   - `apps/portal/app/adopter-theme.css`, the single documented adopter override
+ *     surface (it ships empty). Overriding a tail there is the supported way for a
+ *     deployment to add a face for its own audience, so this is the one place a
+ *     `--font-fallback-*` declaration is not a second copy but the intended edit.
+ *   - `packages/create-qcms-app/templates/`, a byte-for-byte copy of the two apps
+ *     that `check:templates` keeps in sync with the originals scanned here.
+ *
+ * Usage:  node scripts/check-font-tokens.mjs
+ */
+
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+
+import { stripComments } from "./check-admin-theme.mjs";
+import { isVendoredSource } from "./vendored-source.mjs";
+
+const ROOT = fileURLToPath(new URL("../", import.meta.url));
+
+/** The one sheet allowed to write a font-family list down. */
+export const TOKEN_SHEET = "packages/ui/src/theme.css";
+
+/** The tails it declares. Everything else ends in one of these. */
+export const TAIL_TOKENS = [
+  "--font-fallback-sans",
+  "--font-fallback-serif",
+  "--font-fallback-mono",
+];
+
+/** The documented adopter override surface; see the header. */
+const OVERRIDE_SHEET = "apps/portal/app/adopter-theme.css";
+
+/** Everything a browser paints on either surface. */
+const SCAN_DIRS = [
+  "apps/portal/app",
+  "apps/portal/components",
+  "apps/portal/lib",
+  "apps/admin/app",
+  "apps/admin/components",
+  "apps/admin/lib",
+  "packages/ui/src",
+];
+
+const SCAN_EXTENSIONS = [".css", ".ts", ".tsx"];
+
+/** A `font-family` value that selects rather than declares: a token, or inherit. */
+const TOKEN_VALUE = /^var\(--font-[a-z0-9-]+\)$/iu;
+
+/**
+ * Tailwind's font-family utilities that do NOT resolve to a QCMS token.
+ * `font-mono` is absent on purpose: `--font-mono` is a token, so that utility is
+ * inside the contract. Weight utilities (`font-medium`) are a different namespace
+ * and are never matched.
+ */
+const LOOSE_UTILITY = /\bfont-(?:sans|serif)\b|\bfont-\[|\bfont-\(family-name:/gu;
+
+/** `fontFamily: "..."` in a style object, with its value. */
+const INLINE_FAMILY = /\bfontFamily\s*:\s*(?<quote>["'`])(?<value>[^"'`]*)\k<quote>/gu;
+
+/** The 1-based line number of an offset in a source string. */
+function lineAt(text, offset) {
+  return text.slice(0, offset).split("\n").length;
+}
+
+/**
+ * The ranges of every `@font-face` block, as `[open, close]` offsets into the
+ * already-comment-stripped CSS. A `font-family` inside one binds a name to a file
+ * and is the only literal family name a stylesheet may carry.
+ */
+export function fontFaceRanges(css) {
+  const ranges = [];
+  for (let from = 0; ;) {
+    const at = css.indexOf("@font-face", from);
+    if (at === -1) break;
+    const open = css.indexOf("{", at);
+    if (open === -1) break;
+    const close = css.indexOf("}", open);
+    ranges.push([open, close === -1 ? css.length : close]);
+    from = close === -1 ? css.length : close + 1;
+  }
+  return ranges;
+}
+
+/**
+ * Every declaration of `property` in a stylesheet, as
+ * `{ line, value, inFontFace }`. Values are whitespace-normalized, because
+ * Prettier reflows a long one onto continuation lines and the content is what is
+ * being judged.
+ *
+ * @param {string} css already comment-stripped
+ * @param {(name: string) => boolean} matches which property names to collect
+ */
+export function declarations(css, matches) {
+  const faces = fontFaceRanges(css);
+  const found = [];
+  for (const match of css.matchAll(/(?<name>[\w-]+)\s*:(?<value>[^;{}]*);/gu)) {
+    const name = match.groups?.name ?? "";
+    if (!matches(name)) continue;
+    const at = match.index;
+    found.push({
+      name,
+      line: lineAt(css, at),
+      value: (match.groups?.value ?? "").replaceAll(/\s+/gu, " ").trim(),
+      inFontFace: faces.some(([open, close]) => at > open && at < close),
+    });
+  }
+  return found;
+}
+
+/** Whether a custom-property value delegates its tail to one of the tail tokens. */
+export function endsInTail(value) {
+  return TAIL_TOKENS.some(
+    (token) => value === `var(${token})` || value.endsWith(`, var(${token})`),
+  );
+}
+
+/** Rules 1 and 2, against one stylesheet's source. */
+export function checkStylesheet(relative, source) {
+  const css = stripComments(source, false);
+  const problems = [];
+
+  for (const { line, value, inFontFace } of declarations(css, (name) => name === "font-family")) {
+    if (inFontFace || value === "inherit" || TOKEN_VALUE.test(value)) continue;
+    problems.push(
+      `${relative}:${line}  font-family: ${value}` +
+        `  - name a token with no inline fallback, e.g. var(--font-portal) or var(--font-mono)`,
+    );
+  }
+
+  if (relative === OVERRIDE_SHEET) return problems;
+
+  for (const { name, line, value } of declarations(css, (n) => n.startsWith("--font-"))) {
+    const isTail = TAIL_TOKENS.includes(name);
+    if (relative === TOKEN_SHEET && isTail) continue;
+    if (isTail) {
+      problems.push(
+        `${relative}:${line}  ${name} is declared outside ${TOKEN_SHEET}` +
+          `  - the fallback lists live in that sheet and nowhere else`,
+      );
+      continue;
+    }
+    if (endsInTail(value)) continue;
+    problems.push(
+      `${relative}:${line}  ${name}: ${value}` +
+        `  - end the value in var(--font-fallback-sans|serif|mono) instead of restating a stack`,
+    );
+  }
+
+  return problems;
+}
+
+/** Rules 3 and 1, against one TypeScript source. */
+export function checkSource(relative, source) {
+  const text = stripComments(source, true);
+  const problems = [];
+
+  for (const match of text.matchAll(LOOSE_UTILITY)) {
+    problems.push(
+      `${relative}:${lineAt(text, match.index)}  Tailwind font utility "${match[0]}"` +
+        `  - it resolves to Tailwind's own stack; use font-mono or a var(--font-...) token`,
+    );
+  }
+
+  for (const match of text.matchAll(INLINE_FAMILY)) {
+    const value = (match.groups?.value ?? "").trim();
+    if (value === "inherit" || TOKEN_VALUE.test(value)) continue;
+    problems.push(
+      `${relative}:${lineAt(text, match.index)}  fontFamily: "${value}"` +
+        `  - name a token, e.g. "var(--font-mono)"`,
+    );
+  }
+
+  return problems;
+}
+
+/** Every scannable file under one repo-relative directory. */
+function walk(dir) {
+  const out = [];
+  for (const entry of readdirSync(`${ROOT}${dir}`)) {
+    const relative = `${dir}/${entry}`;
+    if (statSync(`${ROOT}${relative}`).isDirectory()) {
+      out.push(...walk(relative));
+      continue;
+    }
+    if (!SCAN_EXTENSIONS.some((extension) => entry.endsWith(extension))) continue;
+    if (/\.(?:test|spec|pw)\.tsx?$/u.test(entry)) continue;
+    if (isVendoredSource(relative)) continue;
+    out.push(relative);
+  }
+  return out;
+}
+
+/** Run the three rules across the repository, returning a list of problems. */
+export function checkFontTokens() {
+  const problems = [];
+  for (const relative of SCAN_DIRS.flatMap(walk)) {
+    const source = readFileSync(`${ROOT}${relative}`, "utf8");
+    problems.push(
+      ...(relative.endsWith(".css")
+        ? checkStylesheet(relative, source)
+        : checkSource(relative, source)),
+    );
+  }
+
+  // The sheet has to actually declare what everything else points at, or every
+  // rule above passes while the pages render with no family at all.
+  const sheet = stripComments(readFileSync(`${ROOT}${TOKEN_SHEET}`, "utf8"), false);
+  const declared = declarations(sheet, (name) => name.startsWith("--font-")).map(
+    (entry) => entry.name,
+  );
+  for (const token of [...TAIL_TOKENS, "--font-portal", "--font-mono"]) {
+    if (!declared.includes(token)) problems.push(`${TOKEN_SHEET} declares no ${token}`);
+  }
+
+  return problems;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const problems = checkFontTokens();
+  if (problems.length > 0) {
+    console.error("QCMS font token check failed:\n");
+    for (const problem of problems) console.error(`  ${problem}`);
+    console.error(`\n${problems.length} problem(s).`);
+    process.exit(1);
+  }
+  console.log(`QCMS font tokens: every stack ends in a tail declared once in ${TOKEN_SHEET}.`);
+}
