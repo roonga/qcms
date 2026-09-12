@@ -33,8 +33,8 @@ const SETTINGS_PATH = "/settings";
  * attempts per ten seconds, and issue #482 records that on the default Compose shape
  * better-auth cannot resolve a client address and keys the bucket on a constant shared
  * by every operator - so an admin can meet this refusal on their first, correct attempt
- * because of somebody else's retries. Reported as the generic sentence it reads as
- * "those details did not match", whose advice is to type it again, and typing it again
+ * because of somebody else's retries. Reported as the generic sentence, it reads as
+ * "those details did not match", whose advice is to type it again - and typing it again
  * is the one action that keeps the window shut. The marker and the sentence are
  * sign-in's, not new ones: `lib/auth-failure-message.ts` is the single mapping, and a
  * "too many attempts" string written for this screen would be a fourth distinguishable
