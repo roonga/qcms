@@ -1,6 +1,15 @@
 {
   "$schema": "https://turbo.build/schema.json",
-  "globalDependencies": ["eslint.config.js", ".prettierrc*", "tsconfig.base.json"],
+  // `scripts/eslint-workspace.mjs` belongs here for the same reason `eslint.config.js`
+  // does: every package's `lint` task now runs through it, and it lives outside every
+  // package, so without this entry editing it would leave `turbo run lint` replaying a
+  // cached verdict from the previous behaviour (issue #899).
+  "globalDependencies": [
+    "eslint.config.js",
+    "scripts/eslint-workspace.mjs",
+    ".prettierrc*",
+    "tsconfig.base.json"
+  ],
   // Bound how many package tasks run at once. turbo's default of 10 multiplies
   // with each test task's own Vitest worker pool. Paired with `maxWorkers` in
   // vitest.config.ts, which explains the measurements and the tradeoff: this cuts
