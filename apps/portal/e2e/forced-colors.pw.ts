@@ -305,10 +305,14 @@ test("forced colours: every control type in the kitchen-sink walk keeps a drawn 
     page.locator('[data-qcms-field] label[data-rac]:has(input[type="checkbox"]) > div').first(),
     "checkbox indicator",
   );
-  await expectDrawnBoundary(
-    page.locator('[data-qcms-field] [role="group"]:has(> input)').first(),
-    "number field box",
-  );
+  // The number field is behind the boolean's branch, so it has to be revealed
+  // before it can be measured: walking to step 2 without answering "Yes" leaves
+  // the locator resolving to nothing, which is a timeout rather than a verdict.
+  await chooseRadio(page, "Yes");
+  const numberBox = page.locator('[data-qcms-field] [role="group"]:has(> input)').first();
+  await expect(numberBox, "the branch did not reveal the number follow-up").toBeVisible();
+  await expectDrawnBoundary(numberBox, "number field box");
+
   await expectDrawnBoundary(page.getByTestId("back-action"), "secondary action (Back)");
 });
 
