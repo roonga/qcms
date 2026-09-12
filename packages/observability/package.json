@@ -38,7 +38,7 @@
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-observability",
-    "lint": "eslint src"
+    "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.1",

@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
+  hasUnpinnedEslint,
   isGeneratedCopy,
   isVendoredSource,
   lintScope,
@@ -79,6 +80,48 @@ describe("reading lint scope out of a lint script", () => {
     // silently widen apparent coverage by one path, and nothing would ever say so.
     expect(lintTargets("eslint --config custom.config.js src")).toEqual(["src"]);
     expect(lintTargets("eslint -f json src")).toEqual(["src"]);
+  });
+
+  it("reads through the workspace runner, whatever its relative spelling", () => {
+    // Issue #899: every lint script now reaches ESLint through
+    // `scripts/eslint-workspace.mjs`. Failing to recognise it would report zero
+    // targets for every package, i.e. claim the whole tree is unlinted.
+    expect(lintTargets("node ../../scripts/eslint-workspace.mjs src e2e")).toEqual(["src", "e2e"]);
+    expect(lintTargets("node scripts/eslint-workspace.mjs .")).toEqual(["."]);
+    expect(lintTargets("node ../../scripts/eslint-workspace.mjs -f json src")).toEqual(["src"]);
+  });
+
+  it("does not read a different node script as a lint run", () => {
+    expect(lintTargets("node ../../scripts/check-ports.mjs src")).toEqual([]);
+  });
+});
+
+describe("requiring a pinned working directory", () => {
+  it("accepts a script that runs ESLint through the workspace runner", () => {
+    expect(hasUnpinnedEslint("node ../../scripts/eslint-workspace.mjs src")).toBe(false);
+  });
+
+  it("rejects a bare eslint, which is the cwd-dependent verdict of issue #899", () => {
+    expect(hasUnpinnedEslint("eslint src")).toBe(true);
+    expect(hasUnpinnedEslint("pnpm exec eslint .")).toBe(true);
+  });
+
+  it("rejects a compound script where only one segment is pinned", () => {
+    expect(hasUnpinnedEslint("node ../../scripts/eslint-workspace.mjs src && eslint e2e")).toBe(
+      true,
+    );
+  });
+
+  it("says nothing about a script that does not run ESLint at all", () => {
+    expect(hasUnpinnedEslint("turbo run lint && prettier --check .")).toBe(false);
+  });
+
+  it("holds for every lint script in this repository", () => {
+    // The wiring half of the #899 fix, asserted against the real manifests: the
+    // runner is worthless if a package quietly goes back to a bare `eslint`.
+    const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+    const scope = lintScope(trackedManifests(), repoRoot);
+    expect(scope.unpinned).toEqual([]);
   });
 });
 

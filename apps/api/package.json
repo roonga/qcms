@@ -20,7 +20,7 @@
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-api --project qcms-api-e2e",
-    "lint": "eslint src e2e scripts",
+    "lint": "node ../../scripts/eslint-workspace.mjs src e2e scripts",
     "start": "node dist/serve.js",
     "create-admin": "node dist/create-admin.js",
     "reset-2fa": "node dist/reset-2fa.js",

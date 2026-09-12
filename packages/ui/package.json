@@ -44,7 +44,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-ui",
     "fonts:generate": "node tools/generate-fonts.ts && prettier --write src/fonts.css src/fonts/NOTICE.md",
-    "lint": "eslint src tools"
+    "lint": "node ../../scripts/eslint-workspace.mjs src tools"
   },
   "dependencies": {
     "@a2ra/core": "1.0.0-preview.7",

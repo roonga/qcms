@@ -11,7 +11,7 @@
     "start": "next start",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project qcms-admin --project qcms-admin-dom",
-    "lint": "eslint ."
+    "lint": "node ../../scripts/eslint-workspace.mjs ."
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

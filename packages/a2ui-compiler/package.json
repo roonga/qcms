@@ -27,7 +27,7 @@
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-a2ui-compiler",
-    "lint": "eslint src"
+    "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "dependencies": {
     "@roonga/qcms-core": "workspace:*"

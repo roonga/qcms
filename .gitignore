@@ -60,3 +60,10 @@ apps/*/CLAUDE.md
 # which is exactly what happened once. The backslashes are escaped rather than
 # quoted: gitignore has no quoting, and `\\` is how a literal one is written.
 C:\\Users\\*
+
+# Throwaway ESLint fixture trees `scripts/eslint-workspace.test.ts` writes at the
+# repository root (issue #899). The test needs a file the root flat config reaches and
+# whose nearest `package.json` is the root one, so the fixture cannot live in a system
+# temp directory; it is removed after each run, and this entry only covers a run that
+# died before its cleanup.
+/.lint-cwd-fixture-*/
