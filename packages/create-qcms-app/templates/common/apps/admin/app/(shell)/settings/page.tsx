@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { Alert, Button, Card, TextField } from "@/components/kit";
 import { SettingsPanels } from "@/components/settings-panels";
+import { authFailureMessage } from "@/lib/auth-failure-message";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { MIN_PASSWORD_LENGTH } from "@/lib/server/config";
@@ -61,6 +62,17 @@ export function generateMetadata(): Metadata {
  * panel: a screen that always opened on Account would hide the confirmation that a password
  * change happened.
  *
+ * ## Each form owns a marker pair, and both pairs render the shared sentences (issue #845)
+ *
+ * A refused POST arrives as `error`/`throttled` from the password form and as
+ * `codesError`/`codesThrottled` from the recovery-codes form, because both forms land back
+ * on this one screen and a single pair would print one form's refusal under the other. The
+ * marker-to-sentence mapping is `lib/auth-failure-message.ts`, the same one every auth
+ * screen reads, so the throttled state says "too many attempts" here exactly as it does at
+ * sign-in. No sentence on this screen is new: the two pairs name two states between them,
+ * which is what keeps SEC-1's three-message discipline true while the `429` stops being
+ * reported as a wrong password.
+ *
  * Every panel is named by the one `<h1>` through `aria-labelledby`, so the region a screen
  * reader lands in carries the section's name. That is also why no panel repeats its own name
  * as an `<h2>` any more: the heading above it already says it, which is the POC's own
@@ -73,6 +85,14 @@ export default async function SettingsPage({
 }) {
   const session = await requireAdminSession();
   const params = await searchParams;
+  // The markers are read per panel rather than by handing `params` to the mapping whole,
+  // so that each form's refusal can only be rendered beside that form. The mapping is the
+  // shared one; only the addresses differ (issue #845).
+  const passwordFailure = authFailureMessage({ throttled: params.throttled, error: params.error });
+  const codesFailure = authFailureMessage({
+    throttled: params.codesThrottled,
+    error: params.codesError,
+  });
 
   return (
     <SettingsPanels
@@ -100,9 +120,11 @@ export default async function SettingsPage({
                 {params.changed !== undefined && (
                   <Alert variant="success">{t("settings.passwordChanged")}</Alert>
                 )}
-                {/* The same generic sentence as every other auth failure: a wrong current
-                  password must not be distinguishable from a rejected new one (SEC-1). */}
-                {params.error !== undefined && <Alert variant="error">{t("signIn.error")}</Alert>}
+                {/* The same sentences as every other auth failure: a wrong current password
+                  must not be distinguishable from a rejected new one (SEC-1), and a refusal
+                  the API declined to judge at all says so rather than blaming the password
+                  (issue #845). */}
+                {passwordFailure !== undefined && <Alert variant="error">{passwordFailure}</Alert>}
                 {/* The one refusal that says what it is (issue #437, Code Owner ruling
                   2026-09-03): the new password is in the public breach corpus, which is a
                   fact about a password the reader just typed rather than about the account.
@@ -170,11 +192,10 @@ export default async function SettingsPage({
                     <h2 className="text-sm font-semibold text-(--color-text)">
                       {t("settings.recoveryCodesTitle")}
                     </h2>
-                    {/* The same generic sentence the password form uses: a wrong password
-                      here must not be distinguishable from any other refusal (SEC-1). */}
-                    {params.codesError !== undefined && (
-                      <Alert variant="error">{t("signIn.error")}</Alert>
-                    )}
+                    {/* The same sentences the password form uses: a wrong password here must
+                      not be distinguishable from any other refusal (SEC-1), and a throttled
+                      attempt is told to wait rather than to retype (issue #845). */}
+                    {codesFailure !== undefined && <Alert variant="error">{codesFailure}</Alert>}
                     <p className="text-sm text-(--color-text-muted)">
                       {t("settings.recoveryCodesIntro")}
                     </p>

@@ -139,27 +139,55 @@ export function settingsSectionFromHash(hash: string): SettingsSectionId | undef
 }
 
 /**
+ * The query markers `/settings/password` lands its reader with, all of which render inside
+ * the change-password panel.
+ *
+ * `changed` is the success confirmation; `error` and `throttled` are the shared auth-failure
+ * pair (`lib/auth-failure-message.ts`), separated since issue #845 so a `429` on the
+ * `/change-password` limiter stops being reported as a wrong password; `compromised` is the
+ * breached-password refusal, the one refusal allowed to say what it is (issue #437).
+ */
+export const PASSWORD_PANEL_MARKERS: readonly string[] = [
+  "changed",
+  "error",
+  "throttled",
+  "compromised",
+];
+
+/**
+ * The same for `/settings/recovery-codes`, whose messages render inside the two-factor
+ * panel.
+ *
+ * Its own pair rather than the one above, because both forms land back on `/settings` and a
+ * shared pair would print this form's refusal under the password form. They name the same
+ * two states and render the same two sentences (issue #845).
+ */
+export const TWO_FACTOR_PANEL_MARKERS: readonly string[] = ["codesError", "codesThrottled"];
+
+/** Whether the query carries any of the markers one panel owns. */
+function carriesAnyOf(
+  params: Readonly<Record<string, string | readonly string[] | undefined>>,
+  markers: readonly string[],
+): boolean {
+  return markers.some((marker) => params[marker] !== undefined);
+}
+
+/**
  * The section a Settings URL's query names, which is where a POST lands its reader.
  *
- * Four of this screen's messages arrive as redirect markers rather than as renders:
- * `?changed=1`, `?error=1` and `?compromised=1` from `/settings/password`, and
- * `?codesError=1` from `/settings/recovery-codes`. Each one belongs to a panel, and a panel
- * screen that opened on Account after a password change would hide the confirmation that the
- * change happened. So the marker chooses the panel, on the server, in the same render that
- * draws the message. `?compromised=1` is the breached-password refusal (issue #437) and
- * belongs to the same panel as the other two: a message an operator cannot see is the defect
- * that issue exists to close, so it must not be one redirect away from being invisible again.
+ * This screen's messages arrive as redirect markers rather than as renders, and the two
+ * lists above are the whole set. Each one belongs to a panel, and a panel screen that
+ * opened on Account after a password change would hide the confirmation that the change
+ * happened. So the marker chooses the panel, on the server, in the same render that draws
+ * the message. That is why `?compromised=1` is routed too (issue #437): a message an
+ * operator cannot see is the defect that issue exists to close, so it must not be one
+ * redirect away from being invisible again - and the same holds for the throttled pair
+ * issue #845 added, whose whole point is that the operator reads it instead of retrying.
  */
 export function settingsSectionFromParams(
   params: Readonly<Record<string, string | readonly string[] | undefined>>,
 ): SettingsSectionId {
-  if (
-    params.changed !== undefined ||
-    params.error !== undefined ||
-    params.compromised !== undefined
-  ) {
-    return SETTINGS_SECTION_IDS.changePassword;
-  }
-  if (params.codesError !== undefined) return SETTINGS_SECTION_IDS.twoFactor;
+  if (carriesAnyOf(params, PASSWORD_PANEL_MARKERS)) return SETTINGS_SECTION_IDS.changePassword;
+  if (carriesAnyOf(params, TWO_FACTOR_PANEL_MARKERS)) return SETTINGS_SECTION_IDS.twoFactor;
   return DEFAULT_SETTINGS_SECTION;
 }
