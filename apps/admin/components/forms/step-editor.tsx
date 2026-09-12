@@ -395,6 +395,8 @@ function PinRow({
   readonly onMovePin: (questionId: string, version: number) => void;
 }) {
   const stateLabel = pinStateLabel(row.versionStatus);
+  /** What the version control shows, and therefore the front of what it is called. */
+  const versionLabel = t("forms.step.pinVersion", { version: row.version });
 
   return (
     <tr
@@ -472,13 +474,20 @@ function PinRow({
         {row.type}
       </td>
 
-      {/* FORM-OWNED: the one version change the builder has (R7). */}
+      {/* FORM-OWNED: the one version change the builder has (R7).
+
+          The trigger's name STARTS with the text it paints (WCAG 2.5.3, issue #879).
+          `kit.Menu` turns `triggerLabel` into an `aria-label` whenever it is given
+          alongside a `trigger`, and an `aria-label` REPLACES the content it sits on in the
+          name computation - so a bare "Move pin for q_x" left this control showing `v3`
+          and answering to nothing a person could see. `versionLabel` is the one string
+          both halves are built from. */}
       <td className="qcms-pincell--version qcms-cell--num" data-owner="form">
         <Menu
-          triggerLabel={t("forms.step.movePin", { questionId: row.questionId })}
+          triggerLabel={t("forms.step.movePin", { versionLabel, questionId: row.questionId })}
           trigger={
             <>
-              {t("forms.step.pinVersion", { version: row.version })}
+              {versionLabel}
               <svg
                 className="qcms-pinversion__caret"
                 viewBox="0 0 10 6"
@@ -491,7 +500,7 @@ function PinRow({
               </svg>
             </>
           }
-          menuLabel={t("forms.step.movePin", { questionId: row.questionId })}
+          menuLabel={t("forms.step.movePin", { versionLabel, questionId: row.questionId })}
           classNames={menuClasses("qcms-pinversion")}
           onAction={(key) => {
             const version = Number.parseInt(String(key), 10);

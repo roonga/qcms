@@ -627,7 +627,14 @@ export const messages = {
   "forms.step.addQuestion": "Add question from library",
   "forms.step.pinNote":
     "A pin names one frozen version. Publishing a newer version of a question changes nothing here until someone moves this pin by hand (R7).",
-  "forms.step.movePin": "Move pin for {questionId}",
+  // Label-in-name, WCAG 2.5.3 (issue #879). The control PAINTS `forms.step.pinVersion`
+  // and nothing else, so its name has to start with that same text or a speech-input user
+  // saying "click v3" targets nothing and a screen-reader user hears a name no sighted
+  // colleague can point at. `{versionLabel}` is that message, substituted by the caller
+  // rather than spelled again here: one string is the visible text, so the two cannot
+  // drift apart. What follows it is why the control carries a label at all - "v3" alone
+  // repeats down a column of pins and says nothing about which pin it moves.
+  "forms.step.movePin": "{versionLabel}, move pin for {questionId}",
   "forms.step.movePinTo": "Move to v{version}",
   "forms.step.movePinNone": "No other published version",
   "forms.step.movePinUnknown": "Other versions are not known: the question library did not load",
