@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 
+import { families } from "../../portal/e2e/support/font-families.js";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -601,6 +602,23 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
   const ruleId = (await ruleIds(page))[0] ?? "";
   await openRuleEditor(page, ruleId);
   await openRulePhase(page, "when");
+
+  // Issue #27, riding along on the one state in this suite that already has the JSON
+  // pane on screen. The pane's fallback stack was the only one outside a stylesheet -
+  // a literal list inside a CodeMirror theme object - so no sweep of the CSS could see
+  // it, and after the fix it is the only one of the three admin edits with no browser
+  // assertion: `preview-theme-island.pw.ts:138` covers `--font-portal` in the island and
+  // `appearance.pw.ts:203` covers `--font-admin`. What a browser has to settle here is
+  // narrower than "is the value right": whether a `var()` inside a theme object survives
+  // StyleModule's injection into a declaration that still resolves against the root.
+  const monoToken = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue("--font-mono"),
+  );
+  expect(families(monoToken)[0], `--font-mono resolved to "${monoToken}"`).toBe("ui-monospace");
+  const editorText = page.getByTestId("qcms-condition-json").locator(".cm-content");
+  await expect(editorText).toBeVisible();
+  const paneFamily = await editorText.evaluate((element) => getComputedStyle(element).fontFamily);
+  expect(families(paneFamily), `the pane resolved to "${paneFamily}"`).toEqual(families(monoToken));
 
   const operator = page.getByRole("combobox", { name: "Operator" });
   await operator.click();

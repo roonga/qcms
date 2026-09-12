@@ -27,6 +27,13 @@
  *    `QCMS_PORTAL_FONTS`), so config -> `<html class>` -> computed `font-family`
  *    -> a real same-origin `woff2` request is proven end to end.
  * 5. **Tabular figures** reach the numeric controls from `--type-numeric`.
+ * 6. **The fallback tail is one token, resolved on the page** (issue #27). The
+ *    stylesheet gate proves the list is written down once; only a browser can
+ *    say that the list a respondent actually falls back through IS that one.
+ *    Body text resolves to the configured family plus `--font-fallback-sans`
+ *    and nothing in between, and the submission reference - the one monospace
+ *    string a respondent reads - resolves to `--font-mono` rather than to
+ *    Tailwind's own built-in stack, which is what it used to get.
  *
  * The mode / theme / font switching here is done by setting the root class, as in
  * `theming.pw.ts`: selection is config-only in this slice and the respondent
@@ -39,6 +46,7 @@ import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts
 import type { Locator, Page } from "@playwright/test";
 
 import { partitionRequests } from "./support/dev-server-assets.js";
+import { families } from "./support/font-families.js";
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
@@ -92,6 +100,25 @@ function computed(target: Locator, property: string): Promise<string> {
 function firstFamily(computedValue: string): string {
   return (computedValue.split(",")[0] ?? "").trim().replace(/^["']|["']$/gu, "");
 }
+
+/** Every `--font-*` token the live page resolved, by name. */
+async function fontTokens(page: Page): Promise<Readonly<Record<string, string>>> {
+  return page.evaluate((names) => {
+    const style = getComputedStyle(document.documentElement);
+    return Object.fromEntries(
+      names.map((name) => [name, style.getPropertyValue(name).replaceAll(/\s+/gu, " ").trim()]),
+    );
+  }, TOKEN_NAMES);
+}
+
+/** The tokens the fallback contract is made of (issue #27). */
+const TOKEN_NAMES = [
+  "--font-fallback-sans",
+  "--font-fallback-serif",
+  "--font-fallback-mono",
+  "--font-portal",
+  "--font-mono",
+];
 
 /** Numeric pixel value of a computed property. */
 async function px(target: Locator, property: string): Promise<number> {
@@ -150,6 +177,81 @@ function expectFloors(floors: Floors, label: string): void {
   expect(floors.labelSize, `${label}: label font-size`).toBeGreaterThanOrEqual(16);
   expect(floors.hintSize, `${label}: hint font-size`).toBeGreaterThanOrEqual(14);
 }
+
+test("the fallback tail is one token, and it is what the page actually resolves", async ({
+  page,
+}) => {
+  // Issue #27. The manifest and the stylesheet gate prove the tail is written down
+  // once; neither proves that what a respondent's browser resolved is that tail. A
+  // typo in a `var()` name, a token declared under a selector the page never
+  // matches, or an import order that puts `fonts.css` first would all leave the
+  // repository green and the page rendering in the UA default - and a fallback is
+  // invisible on the machine that has the primary face, so nothing else would show
+  // it either.
+  const { slug } = readFixtures();
+  await page.goto(`/f/${slug}`);
+
+  const tokens = await fontTokens(page);
+  for (const name of TOKEN_NAMES) {
+    expect(tokens[name] ?? "", `${name} did not resolve on the page`).not.toBe("");
+  }
+
+  const sans = families(tokens["--font-fallback-sans"] ?? "");
+  const mono = families(tokens["--font-fallback-mono"] ?? "");
+
+  // The tail leads with the CSS Fonts 4 UI generic and carries a plain generic that
+  // a user's own per-script font preference can answer (css-fonts-4 2.1). system-ui
+  // is present but never in front: it resolves from the OS/UI locale rather than the
+  // content language (Mozilla bug 1724907, csswg-drafts issue 3658).
+  expect(sans[0]).toBe("ui-sans-serif");
+  expect(sans).toContain("system-ui");
+  expect(sans).toContain("sans-serif");
+  expect(mono[0]).toBe("ui-monospace");
+  expect(mono).toContain("monospace");
+
+  // Body text: the configured family first, then the shared tail, with nothing of
+  // its own in between. The harness configures a NON-default font, so a rule that
+  // ignored `--font-portal` could not pass here by accident.
+  const entry = FONT_REGISTRY.find((candidate) => candidate.key === HARNESS_FONT);
+  expect(entry, `unknown harness font ${HARNESS_FONT}`).toBeDefined();
+  const body = families(await computed(page.locator("body"), "font-family"));
+  expect(body[0], `computed body font-family: ${body.join(", ")}`).toBe(entry?.family ?? "");
+  expect(body.slice(1)).toEqual(sans);
+  expect(families(tokens["--font-portal"] ?? "")).toEqual(body);
+
+  // Monospace: the token IS the tail, and Tailwind's own `font-mono` utility - which
+  // is how the completion view asks for it - reads the same variable rather than
+  // Tailwind's built-in stack.
+  expect(families(tokens["--font-mono"] ?? "")).toEqual(mono);
+  const utility = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.className = "font-mono";
+    document.body.append(probe);
+    const resolved = getComputedStyle(probe).fontFamily;
+    probe.remove();
+    return resolved;
+  });
+  expect(families(utility)).toEqual(mono);
+});
+
+test("the submission reference renders in the monospace token, tail and all", async ({ page }) => {
+  // The one place a respondent reads monospace text. It used to resolve to whatever
+  // Tailwind's default `--font-mono` was, because the portal declared no such token
+  // (issue #27); now it resolves to the same tail the app's ids and rule values do.
+  const { slug } = readFixtures();
+  await startAnonymousFlow(page, slug);
+  await chooseAccident(page, "No");
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await page.getByTestId("primary-action").click();
+  await page.waitForURL(/\/done/);
+
+  const reference = page.getByTestId("content-hash");
+  await expect(reference).toHaveText(/^[0-9a-f]{64}$/);
+  const tokens = await fontTokens(page);
+  expect(families(await computed(reference, "font-family"))).toEqual(
+    families(tokens["--font-mono"] ?? ""),
+  );
+});
 
 test("per-deployment font config reaches the page and the offered subset", async ({ page }) => {
   const { slug } = readFixtures();

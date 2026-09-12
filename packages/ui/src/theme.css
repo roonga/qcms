@@ -5,7 +5,8 @@
  * property declared in this file. There are exactly four groups:
  *
  *   1. color        --color-*   palette, per theme x mode
- *   2. typography   --font-portal + --type-*   family and type scale
+ *   2. typography   --font-fallback-* + --font-portal + --font-mono + --type-*
+ *                   the fallback tails, the two family tokens, and the type scale
  *   3. spacing      --space-*   control height, paddings, gaps, rhythm
  *   4. radius       --radius-*  control / card / small-control corners
  *
@@ -51,7 +52,8 @@
  */
 
 /* ==========================================================================
-   GROUP 2 - TYPOGRAPHY. --font-portal is the family; --type-* is the scale.
+   GROUP 2 - TYPOGRAPHY. --font-fallback-* are the tails, --font-portal and
+   --font-mono are the families that consume them, --type-* is the scale.
    The five WCAG 1.4.12 floors are NUMERIC REQUIREMENTS carried by tokens, not
    guidance: body >= 16px, line-height >= 1.5, letter-spacing >= 0.12em,
    word-spacing >= 0.16em, paragraph spacing >= 2em. Nothing (no mode, no theme,
@@ -61,12 +63,78 @@
    `:is(:root, [data-qcms-theme-scope]).font-<key>` block that sets --font-portal
    and NOTHING else, so no font selection can reach a floor. Import fonts.css
    after this file.
+
+   THE FALLBACK TAILS ARE DECLARED HERE AND NOWHERE ELSE (issue #27). The three
+   --font-fallback-* values below are the ONLY literal font-family lists in the
+   product: --font-portal, --font-mono, the app face (--font-admin) and all 23
+   registry entries end in one of them, and `scripts/check-font-tokens.mjs` fails
+   the build when a second list is written down anywhere under apps/ or
+   packages/ui/src/. Before that gate there were three divergent sans tails and
+   two divergent mono tails in the repository, each edited on its own.
    ========================================================================== */
 :is(:root, [data-qcms-theme-scope]) {
-  /* Brand-neutral system stack, and the value the registry's System entry keeps
-     byte-identical (`SANS_TAIL` in font-registry.ts). A theme, a registry entry or
-     an adopter overrides the family only. */
-  --font-portal: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  /*
+   * THE SANS TAIL. What a respondent gets when the primary face is missing,
+   * refused, or still downloading. Read it left to right:
+   *
+   *   ui-sans-serif   the CSS Fonts 4 generic for the system's sans UI face
+   *                   (css-fonts-4 2.1.5). Honoured by Chromium and WebKit.
+   *   system-ui       the same intent for Firefox, which has no ui-sans-serif.
+   *                   It is deliberately NOT the first entry and never the only
+   *                   one: system-ui resolves from the OS/UI locale rather than
+   *                   the content language, so on a CJK-locale machine it is a
+   *                   CJK UI face whose Latin glyphs are oversized, and it used
+   *                   to short-circuit the rest of the list for non-Latin text
+   *                   (Mozilla bug 1724907, csswg-drafts issue 3658).
+   *   -apple-system   the Apple platforms' own alias, for older WebKit.
+   *   "Segoe UI"      Windows.
+   *   Roboto          Android and most Chrome OS builds.
+   *   "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial
+   *                   the broad-coverage named faces a desktop Linux or an older
+   *                   machine actually has. Noto Sans in particular is the widest
+   *                   glyph coverage most Linux distributions ship by default.
+   *   sans-serif      the generic. css-fonts-4 2.1 encourages a generic last so
+   *                   the user's own per-script font preference can answer, which
+   *                   is the only entry in this list that can serve a script the
+   *                   named faces do not cover.
+   *   emoji/symbol    AFTER the generic on purpose, as Bootstrap 5's Reboot does:
+   *                   these are consulted per GLYPH, for codepoints no earlier
+   *                   face has. Without them a respondent whose UI font carries
+   *                   no emoji sees a .notdef box in authored content.
+   *
+   * This is a fallback baseline, not multi-script coverage: the shipped webfonts
+   * are Latin subsets, and deciding which scripts QCMS self-hosts is the open
+   * half of issue #27.
+   */
+  --font-fallback-sans:
+    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", "Noto Sans",
+    "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
+    "Noto Color Emoji";
+
+  /* The serif tail, same shape: UI generic, named faces, generic last. Consumed
+     by the registry's Traditional & Corporate entries. */
+  --font-fallback-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+
+  /* The mono tail. The union of what the portal and the app each used to spell
+     out separately, so unifying them dropped no platform: SFMono-Regular is the
+     PostScript name, "SF Mono" the installed name, and Cascadia Code ships with
+     Windows Terminal. No emoji entries here - the mono token renders reference
+     codes and rule values, which are ASCII. */
+  --font-fallback-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, "Cascadia Code", "Roboto Mono", Consolas,
+    "Liberation Mono", monospace;
+
+  /* The respondent's body face. Brand-neutral by default: the tail alone, which
+     is what makes the registry's System entry a no-download entry rather than a
+     special case. A theme, a registry entry or an adopter overrides the FAMILY
+     and keeps the tail by ending in var(--font-fallback-sans). */
+  --font-portal: var(--font-fallback-sans);
+
+  /* Monospace text on either surface: the portal's submission reference, the
+     app's ids, hashes and rule values. Declaring it here also repoints Tailwind's
+     own `font-mono` utility at this token, so the utility and the variable cannot
+     disagree (the utility is how `completion-view.tsx` asks for monospace). */
+  --font-mono: var(--font-fallback-mono);
 
   /* Sizes. Body and label sit AT the 16px floor; hint text is the one smaller
      step and stops at 14px, and is never the sole carrier of meaning. */

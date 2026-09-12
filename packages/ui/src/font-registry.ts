@@ -34,9 +34,12 @@
  * every shipped font.
  *
  * SCRIPT COVERAGE. The shipped `woff2` files are the Latin subsets, so text
- * outside Latin falls back glyph-by-glyph through the entry's fallback stack -
- * correct, but not yet a designed baseline. A deliberate multi-script fallback
- * baseline is issue #27 and is NOT owned here.
+ * outside Latin falls back glyph-by-glyph through the entry's fallback stack.
+ * That stack is now a single shared token (`--font-fallback-sans` and its two
+ * siblings in `theme.css`, issue #27) rather than a literal list copied onto
+ * every entry, and it names the broad-coverage and emoji faces a device is
+ * likely to have. Deciding which non-Latin scripts QCMS SELF-HOSTS is still open
+ * and is NOT owned here.
  *
  * Contract documentation: docs/theming.md.
  */
@@ -87,15 +90,32 @@ export interface FontEntry {
 }
 
 /**
- * The three fallback tails. A tail always ends in a CSS generic family, so a
- * respondent whose browser refuses the webfont still gets the right *kind* of
- * face rather than the UA default. `SANS_TAIL` is byte-identical to the
- * `--font-portal` value the base anchor block of `theme.css` declares, which is
- * what makes System a no-download entry rather than a special case.
+ * The three fallback tails, as TOKEN REFERENCES rather than literal family lists
+ * (issue #27).
+ *
+ * The lists themselves live in exactly one place, the base anchor block of
+ * `theme.css`, so an entry here inherits every future improvement to the tail
+ * instead of pinning a copy of it on the day the entry was added. That matters
+ * because a tail is the whole answer to "what does a respondent see when the
+ * webfont is missing": three divergent copies of it used to exist in this
+ * repository, and `scripts/check-font-tokens.mjs` now fails the build on a
+ * second one. Each tail ends in a CSS generic family (css-fonts-4 2.1 encourages
+ * one last), which `font-registry.test.ts` re-checks by resolving these tokens
+ * against `theme.css` rather than trusting the reference.
+ *
+ * `SANS_TAIL` is byte-identical to the `--font-portal` value the base anchor
+ * block declares, which is what makes System a no-download entry rather than a
+ * special case.
+ *
+ * ORDERING REQUIREMENT. Because these are `var()` references, `fonts.css` only
+ * works when `theme.css` is imported before it - which the contract already
+ * required, since a `.font-<key>` block has to override the base `--font-portal`
+ * to do anything at all. An adopter who imports `fonts.css` alone gets a
+ * `font-family` that is invalid at computed-value time, not a silent wrong font.
  */
-const SANS_TAIL = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-const SERIF_TAIL = 'ui-serif, Georgia, Cambria, "Times New Roman", Times, serif';
-const MONO_TAIL = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+const SANS_TAIL = "var(--font-fallback-sans)";
+const SERIF_TAIL = "var(--font-fallback-serif)";
+const MONO_TAIL = "var(--font-fallback-mono)";
 
 /** The System entry's key. It is always present and can never be curated away. */
 export const SYSTEM_FONT_KEY = "system";

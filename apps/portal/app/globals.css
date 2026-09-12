@@ -80,13 +80,21 @@ html {
  * typography token group so nothing downstream can drop below them: body text at
  * 16px, line-height 1.5, letter-spacing 0.12em, word-spacing 0.16em. The
  * paragraph-spacing floor (2em) is applied to the content column below.
+ *
+ * `--font-portal` is named with NO inline fallback (issue #27). The token always
+ * resolves - theme.css declares it in the base anchor block two imports up - so an
+ * inline `var(--font-portal, ...)` fallback could never fire; what it did instead
+ * was write a SECOND fallback list down, which then drifted from the token's own
+ * and from the one the app's preview island used. The tail is
+ * `--font-fallback-sans`, declared once in theme.css, and
+ * `scripts/check-font-tokens.mjs` fails the build on any other font-family list.
  */
 body {
   margin: 0;
   min-height: 100dvh;
   background-color: var(--color-background);
   color: var(--color-text);
-  font-family: var(--font-portal, ui-sans-serif, system-ui, sans-serif);
+  font-family: var(--font-portal);
   font-size: var(--type-body);
   line-height: var(--type-line-height);
   letter-spacing: var(--type-letter-spacing);

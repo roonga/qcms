@@ -15,6 +15,18 @@ so there is no `prefers-contrast` companion. Landed at
 `apps/admin/app/theme.css`, kept byte-identical to this copy by
 `scripts/check-admin-theme.mjs`.
 
+**Rev 6 (2026-09-12, issue #27):** the fallback tails moved out. `--font-admin`
+is now `"Lexend", var(--font-fallback-sans)` and this sheet declares no
+`--font-mono` at all: both resolve from `packages/ui/src/theme.css`, which the
+app imports ahead of this file and which is the single place in the product where
+a font-family list is written down. Before this, the app's sans tail and the
+portal's were separate copies of the same list and the app's mono tail was a
+different list again, so "what a respondent or operator sees when the face is
+missing" had three answers. The values are unchanged for the sans tail and are the
+UNION of the two mono tails, so no platform lost a face. Enforced by
+`scripts/check-font-tokens.mjs`; the standalone preview inlines the tails, read
+from that sheet at build time.
+
 **Rev 5 (2026-07-30):** Lexend is the QCMS app face (Code Owner pick from the
 six-candidate comparison). No new dependency: the app consumes the registry's
 already-vendored `lexend-variable.woff2` (OFL-1.1, recorded in

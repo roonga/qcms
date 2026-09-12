@@ -348,6 +348,16 @@ jobs:
       - run: pnpm check:admin-theme
         if: env.PLAN_ONLY != 'true'
 
+      # One font fallback stack, written down once (issue #27). Every `font-family` in
+      # either app names a token with no inline fallback, every `--font-*` ends in one of
+      # the three `--font-fallback-*` tails that `packages/ui/src/theme.css` declares, and
+      # no Tailwind font utility reaches Tailwind's own stack. Its own step for the reason
+      # the steps above spell out: this job enumerates the checks, so a gate only in
+      # `check:all` runs nowhere in CI (issue #463). Its self-tests run under the `tooling`
+      # vitest project; this step is what scans the repository.
+      - run: pnpm check:font-tokens
+        if: env.PLAN_ONLY != 'true'
+
       # Every key in either message catalog is referenced by something that renders
       # (issues #538, #756). The other direction - a key referenced and not defined - is
       # already a build error, because `t()` takes `keyof typeof messages`. Its own step

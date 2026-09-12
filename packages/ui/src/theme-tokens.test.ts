@@ -500,8 +500,58 @@ describe("typography group: the WCAG 1.4.12 floors are carried by tokens", () =>
   const base = resolve("slate", "light");
   const rem = (value: string): number => Number.parseFloat(value.replace("rem", "")) * 16;
 
-  it("declares the family token", () => {
-    expect(base["--font-portal"]).toContain("system-ui");
+  /** Prettier reflows a long custom-property value, so compare on content. */
+  const flat = (value: string): string => value.replaceAll(/\s+/gu, " ").trim();
+
+  it("declares the family tokens, and both delegate their tail to one token", () => {
+    // Issue #27: the family tokens carry a family and NOTHING else. The fallback
+    // list they end in is declared once, as --font-fallback-*, so a respondent on
+    // a device without the primary face gets the same deliberate tail on either
+    // surface and a tail improvement cannot reach one and miss the other.
+    expect(base["--font-portal"]).toBe("var(--font-fallback-sans)");
+    expect(base["--font-mono"]).toBe("var(--font-fallback-mono)");
+  });
+
+  it("every fallback tail names a CSS generic, last except for symbol faces", () => {
+    // css-fonts-4 2.1 encourages a generic family last for robustness: it is the
+    // only entry that can serve a script none of the named faces cover, because a
+    // user's own per-script font preference answers it. The emoji and symbol faces
+    // that follow it are consulted per GLYPH for codepoints nothing earlier has.
+    const symbolFaces = new Set([
+      '"Apple Color Emoji"',
+      '"Segoe UI Emoji"',
+      '"Segoe UI Symbol"',
+      '"Noto Color Emoji"',
+    ]);
+    const expected: Readonly<Record<string, string>> = {
+      "--font-fallback-sans": "sans-serif",
+      "--font-fallback-serif": "serif",
+      "--font-fallback-mono": "monospace",
+    };
+    for (const [token, generic] of Object.entries(expected)) {
+      const families = flat(base[token] ?? "")
+        .split(",")
+        .map((family) => family.trim());
+      expect(families, `${token} is not declared`).not.toEqual([""]);
+      const at = families.indexOf(generic);
+      expect(at, `${token} never names ${generic}: ${base[token] ?? ""}`).toBeGreaterThanOrEqual(0);
+      for (const trailing of families.slice(at + 1)) {
+        expect(symbolFaces, `${token} has "${trailing}" after ${generic}`).toContain(trailing);
+      }
+    }
+  });
+
+  it("the sans tail does not lead with system-ui", () => {
+    // system-ui resolves from the OS/UI locale rather than the content language,
+    // so it is a CJK UI face on a CJK-locale machine and its Latin glyphs are
+    // oversized; as a generic it also used to short-circuit the rest of the list
+    // for non-Latin text (Mozilla bug 1724907, csswg-drafts issue 3658). It stays
+    // in the list, because Firefox has no ui-sans-serif, but never in front and
+    // never alone.
+    const families = flat(base["--font-fallback-sans"] ?? "").split(", ");
+    expect(families[0]).toBe("ui-sans-serif");
+    expect(families).toContain("system-ui");
+    expect(families.length).toBeGreaterThan(2);
   });
 
   it("body and label text are at least 16px", () => {

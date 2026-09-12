@@ -21,10 +21,20 @@
  * `@roonga/qcms-ui/theme.css`. Override token NAMES from the four-group contract; never
  * edit globals.css, theme.css, or a component.
  *
- *   1. Typography: `--font-portal` (self-host the files and add an `@font-face`
- *      block here, then name the family). The type scale (`--type-*`) carries the
- *      WCAG 1.4.12 floors: raising a size is fine, lowering one below its floor is
- *      an accessibility regression, not a style choice.
+ *   1. Typography: `--font-portal` for body text, `--font-mono` for the
+ *      submission reference (self-host the files and add an `@font-face` block
+ *      here, then name the family). END THE VALUE IN THE MATCHING FALLBACK TOKEN
+ *      rather than writing a fallback list of your own:
+ *
+ *        --font-portal: "Your Face", var(--font-fallback-sans);
+ *
+ *      `--font-fallback-sans`, `--font-fallback-serif` and `--font-fallback-mono`
+ *      are declared once, in `@roonga/qcms-ui/theme.css`, and are what a respondent
+ *      whose device lacks your face actually reads (issue #27). Overriding one of
+ *      the three tails is allowed and is how a deployment adds a script-specific
+ *      face for its audience. The type scale (`--type-*`) carries the WCAG 1.4.12
+ *      floors: raising a size is fine, lowering one below its floor is an
+ *      accessibility regression, not a style choice.
  *   2. Colour: any `--color-*` name. Provide a value per mode you support -
  *      `:root` (Light), `:root.dark`, `:root.hc` - and keep every text/background
  *      pair at WCAG 2.2 AA (`:root.hc` is the AAA layer: 7:1 body text). The four
@@ -42,7 +52,7 @@
  * predefined theme shows through):
  *
  *   :root {
- *     --font-portal: "Inter", ui-sans-serif, system-ui, sans-serif;
+ *     --font-portal: "Inter", var(--font-fallback-sans);
  *     --color-primary: #6d28d9;
  *     --color-primary-foreground: #ffffff;
  *   }

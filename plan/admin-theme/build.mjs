@@ -9,8 +9,42 @@
 // misses, so the published numbers cannot drift from the tokens.
 // Run: node build.mjs (from this directory)
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { lexendFontFaceCss } from "./lexend-font.mjs";
+
+// ---------- The shared fallback tails ----------
+
+/**
+ * The three `--font-fallback-*` lists, read from the product's token sheet
+ * (issue #27). They are declared in exactly one place, `packages/ui/src/theme.css`,
+ * and this app's face ends in one of them rather than restating it: the admin
+ * token sheet used to carry its own sans tail and its own, different, mono tail,
+ * and neither moved when the portal's did.
+ *
+ * `tokens.css` therefore emits `var(--font-fallback-sans)` and declares no mono
+ * token at all - the app imports the shipped sheet ahead of its own, so both
+ * resolve there. The preview below is standalone and has no such import, so it
+ * inlines the values read here, under a comment saying where they come from.
+ */
+const THEME_SHEET = "../../packages/ui/src/theme.css";
+
+function fallbackTails() {
+  const sheet = readFileSync(new URL(THEME_SHEET, import.meta.url), "utf8");
+  /** @type {Record<string, string>} */
+  const tails = {};
+  for (const name of ["--font-fallback-sans", "--font-fallback-serif", "--font-fallback-mono"]) {
+    const start = sheet.indexOf(`${name}:`);
+    if (start < 0) throw new Error(`${THEME_SHEET} declares no ${name}`);
+    const end = sheet.indexOf(";", start);
+    tails[name] = sheet
+      .slice(start + name.length + 1, end)
+      .replaceAll(/\s+/gu, " ")
+      .trim();
+  }
+  return tails;
+}
+
+const TAILS = fallbackTails();
 
 // ---------- WCAG math ----------
 
@@ -283,7 +317,7 @@ const css = `/* QCMS app theme - Cobalt (rev 2, aligned to the QCMS Design Syste
    as the DS overview's --ring == --primary). The topbar is translucent and
    mode-following (styled from standard tokens; no dedicated chrome group). */
 
-${block(":root", { ...light, ...spacing, "--font-admin": `"Lexend", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif`, "--font-mono": `ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace` })}
+${block(":root", { ...light, ...spacing, "--font-admin": `"Lexend", var(--font-fallback-sans)` })}
 
 ${block(":root.dark", dark)}
 
@@ -326,6 +360,18 @@ explicit choice, and this block covers the rest. High-contrast is never inferred
 so there is no \`prefers-contrast\` companion. Landed at
 \`apps/admin/app/theme.css\`, kept byte-identical to this copy by
 \`scripts/check-admin-theme.mjs\`.
+
+**Rev 6 (2026-09-12, issue #27):** the fallback tails moved out. \`--font-admin\`
+is now \`"Lexend", var(--font-fallback-sans)\` and this sheet declares no
+\`--font-mono\` at all: both resolve from \`packages/ui/src/theme.css\`, which the
+app imports ahead of this file and which is the single place in the product where
+a font-family list is written down. Before this, the app's sans tail and the
+portal's were separate copies of the same list and the app's mono tail was a
+different list again, so "what a respondent or operator sees when the face is
+missing" had three answers. The values are unchanged for the sans tail and are the
+UNION of the two mono tails, so no platform lost a face. Enforced by
+\`scripts/check-font-tokens.mjs\`; the standalone preview inlines the tails, read
+from that sheet at build time.
 
 **Rev 5 (2026-07-30):** Lexend is the QCMS app face (Code Owner pick from the
 six-candidate comparison). No new dependency: the app consumes the registry's
@@ -421,6 +467,14 @@ const html = `<!-- @dsCard group="QCMS" name="QCMS app theme - Cobalt" subtitle=
 <title>QCMS app theme - Cobalt</title>
 <style>
 ${lexendFontFaceCss()}
+/* Supplied in the product by packages/ui/src/theme.css, which this standalone
+   preview cannot import. Read from that sheet at build time, never retyped. */
+:root {
+  --font-fallback-sans: ${TAILS["--font-fallback-sans"]};
+  --font-fallback-serif: ${TAILS["--font-fallback-serif"]};
+  --font-fallback-mono: ${TAILS["--font-fallback-mono"]};
+  --font-mono: var(--font-fallback-mono);
+}
 ${css}
 * { box-sizing: border-box; }
 body { margin: 0; font-family: var(--font-admin); font-size: 16px; line-height: 1.5;

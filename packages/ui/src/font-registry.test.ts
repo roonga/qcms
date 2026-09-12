@@ -47,6 +47,17 @@ const NOTICE = readFileSync(join(FONT_DIR, "NOTICE.md"), "utf8");
 /** Permissive, MIT-redistributable licenses (CONTRIBUTING dependency policy). */
 const ALLOWED_LICENSES = new Set(["OFL-1.1", "Apache-2.0"]);
 
+/**
+ * The only three tails an entry may end in (issue #27). The lists themselves are
+ * declared once, in `theme.css`; an entry references one, so a tail improvement
+ * reaches all 23 entries at once instead of 23 copies drifting apart.
+ */
+const TAIL_TOKENS = [
+  "var(--font-fallback-sans)",
+  "var(--font-fallback-serif)",
+  "var(--font-fallback-mono)",
+];
+
 /** The groups the task requires, and the members it names explicitly. */
 const REQUIRED_MEMBERS: Readonly<Record<string, readonly string[]>> = {
   System: [SYSTEM_FONT_KEY],
@@ -155,14 +166,48 @@ describe("the manifest is well formed", () => {
     }
   });
 
-  it("every entry's stack starts with its own family and ends in a CSS generic", () => {
-    const generics = ["sans-serif", "serif", "monospace"];
+  it("every entry's stack starts with its own family and delegates its tail to a token", () => {
     for (const entry of FONT_REGISTRY) {
+      const tail =
+        entry.family === null ? entry.stack : entry.stack.slice(`"${entry.family}", `.length);
       if (entry.family !== null) {
         expect(entry.stack.startsWith(`"${entry.family}", `), entry.key).toBe(true);
       }
-      const last = entry.stack.split(",").at(-1)?.trim() ?? "";
-      expect(generics, `${entry.key} stack ends with "${last}"`).toContain(last);
+      // Issue #27: an entry may not spell a fallback list out. It ends in one of
+      // the three tail tokens, so the list lives in exactly one place and every
+      // entry inherits a change to it.
+      expect(
+        TAIL_TOKENS,
+        `${entry.key} tail is "${tail}", not a --font-fallback-* token`,
+      ).toContain(tail);
+    }
+  });
+
+  it("every tail token theme.css declares resolves to a list ending in a CSS generic", () => {
+    // The reference above is only as good as what it points at, so the tokens are
+    // resolved against the shipped sheet and the resolved list is what gets checked.
+    // css-fonts-4 2.1 encourages a generic family last for robustness, and it is the
+    // only entry a user's own per-script font preference can answer.
+    const generics = new Set(["sans-serif", "serif", "monospace", "cursive", "fantasy"]);
+    // Consulted per glyph for codepoints no earlier face carries, so they sit AFTER
+    // the generic on purpose (Bootstrap 5 Reboot does the same).
+    const symbolFaces = new Set([
+      '"Apple Color Emoji"',
+      '"Segoe UI Emoji"',
+      '"Segoe UI Symbol"',
+      '"Noto Color Emoji"',
+    ]);
+    for (const token of TAIL_TOKENS) {
+      const name = /var\((?<name>--[\w-]+)\)/u.exec(token)?.groups?.name ?? "";
+      const value = firstDeclaration(THEME_CSS, name);
+      expect(value, `theme.css declares no ${name}`).toBeDefined();
+      const families = (value ?? "").split(",").map((part) => normalize(part));
+      const genericAt = families.findIndex((family) => generics.has(family));
+      expect(genericAt, `${name} names no CSS generic: ${value ?? ""}`).toBeGreaterThanOrEqual(0);
+      // Nothing but symbol fallbacks may follow the generic.
+      for (const trailing of families.slice(genericAt + 1)) {
+        expect(symbolFaces, `${name} has "${trailing}" after its generic`).toContain(trailing);
+      }
     }
   });
 
@@ -332,7 +377,7 @@ describe("add and remove are one-entry manifest changes", () => {
     label: "Probe Font",
     family: "Probe Font",
     group: "Popular",
-    stack: '"Probe Font", ui-sans-serif, sans-serif',
+    stack: '"Probe Font", var(--font-fallback-sans)',
     faces: [{ weight: 400, file: "probefont-400.woff2" }],
     license: "OFL-1.1",
     copyright: "Copyright 2026 The Probe Font Project Authors",
@@ -347,7 +392,7 @@ describe("add and remove are one-entry manifest changes", () => {
     expect(added).toEqual([
       '@font-face { font-family: "Probe Font"; font-style: normal; font-weight: 400;' +
         ' font-display: swap; src: url("./fonts/probefont-400.woff2") format("woff2"); }',
-      `${SCOPE_ANCHOR}.font-probefont { --font-portal: "Probe Font", ui-sans-serif, sans-serif; }`,
+      `${SCOPE_ANCHOR}.font-probefont { --font-portal: "Probe Font", var(--font-fallback-sans); }`,
     ]);
     // And nothing that was there before is gone.
     expect(before.filter((rule) => !after.includes(rule))).toEqual([]);
@@ -360,8 +405,7 @@ describe("add and remove are one-entry manifest changes", () => {
     expect(removed).toEqual([
       '@font-face { font-family: "Inter"; font-style: normal; font-weight: 400;' +
         ' font-display: swap; src: url("./fonts/inter-400.woff2") format("woff2"); }',
-      `${SCOPE_ANCHOR}.font-inter { --font-portal: "Inter", ui-sans-serif, system-ui, -apple-system,` +
-        ' "Segoe UI", Roboto, sans-serif; }',
+      `${SCOPE_ANCHOR}.font-inter { --font-portal: "Inter", var(--font-fallback-sans); }`,
     ]);
     expect(after.filter((rule) => !before.includes(rule))).toEqual([]);
   });
