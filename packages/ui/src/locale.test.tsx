@@ -44,12 +44,27 @@ import { loadGoldenSteps, type GoldenStep } from "./test-support/golden.ts";
 /** React's per-root generated ids, which carry no locale information. */
 const GENERATED_ID = /_r_[0-9a-z]+_/g;
 
+/**
+ * One rendered step per (step, locale) pair, kept.
+ *
+ * Mounting the whole vendored control tree is the expensive part of this file, and the
+ * assertions below ask for the same pairs repeatedly. Without the cache the corpus is
+ * rendered five times over and the two comparison tests sat within a small multiple of
+ * their timeout under a loaded parallel run, which is issue #604's flake shape and is how
+ * this file first went red in `pnpm verify` after passing on its own.
+ */
+const RENDERED = new Map<string, string>();
+
 function markup(step: GoldenStep, locale: string): string {
+  const key = `${step.version}/${step.form}/${step.stepId}@${locale}`;
+  const cached = RENDERED.get(key);
+  if (cached !== undefined) return cached;
   const view = render(
     <A2UIStepRenderer document={step.document} specVersion={step.specVersion} locale={locale} />,
   );
   const html = view.container.innerHTML.replaceAll(GENERATED_ID, "ID");
   view.unmount();
+  RENDERED.set(key, html);
   return html;
 }
 
@@ -66,7 +81,10 @@ const LOCALE_SENSITIVE = STEPS.filter((step) => {
   return html.includes('role="spinbutton"') || html.includes("data-type=");
 });
 
-describe("the locale prop over the golden corpus", () => {
+// 30 seconds, the figure every other corpus-wide suite in this package uses. The whole
+// file measures a few seconds even cold; the margin is for a loaded parallel run, not for
+// the work.
+describe("the locale prop over the golden corpus", { timeout: 30_000 }, () => {
   it("loads a corpus with locale-sensitive controls in it", () => {
     expect(STEPS.length).toBeGreaterThan(10);
     expect(LOCALE_SENSITIVE.length).toBeGreaterThan(0);
