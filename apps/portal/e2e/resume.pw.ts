@@ -256,7 +256,8 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
 
 /**
  * Issue #151: a step containing a NumberField survives a RELOAD without a React
- * hydration mismatch. **Currently `test.fail`: the mismatch is real and unfixed.**
+ * hydration mismatch. **A live gate since the cause was fixed; it was `test.fail` for
+ * as long as the mismatch stood.**
  *
  * The gate has always been armed - `gates.ts` fails any spec that logs a console
  * error, and a hydration mismatch is one - but no spec had ever reloaded a step
@@ -296,40 +297,42 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  *
  * The `role` and `aria-value*` nulls the issue quoted are printed by React as
  * unchanged context on both sides, not as the difference. `@react-aria/numberfield`
- * picks `inputMode` from environment detection that resolves differently with no
- * DOM, so the server says `numeric` and the touch client says `decimal`. That is a
- * react-aria SSR defect in the vendored stack, not a QCMS one, and fixing it means
- * upstream work rather than anything at this seam.
+ * picks `inputMode` from the resolved number FORMAT and from platform detection that
+ * reads `navigator`, which a server render does not have, so the server said `numeric`
+ * and the touch client said `decimal`.
  *
- * `test.fail`, and not allowlisted. Allowlisting is out because #151 forbids
- * silencing the warning and an entry would blind every other spec in the suite to
- * the same shape. Which expected-failure marker to use is the part worth writing
- * down, because this file had it wrong first time round:
+ * HOW IT WAS FIXED, and why the marker came off. The format half of that decision is
+ * QCMS's to state. "How many?" is an integer-constrained question, which the compiler
+ * records as `step: 1`, but react-aria reads the format rather than the step, and the
+ * default format admits three fraction digits - so the field accepted "2.5" while
+ * typing, snapped it at commit, and asked for a decimal keypad on touch, for a question
+ * that was never fractional. `registry.tsx` now declares `maximumFractionDigits: 0` for
+ * such a question. With no fraction digits in the format every platform branch inside
+ * `useNumberField` leaves `inputMode` at `numeric`, which is what the server emits, so
+ * both renders agree by construction rather than by an allowlist entry (#151 forbids
+ * silencing, and an entry would have blinded every other spec to the same shape).
  *
- * - The marker it used first was the SKIP-with-intent one, which Playwright does
- *   not run past. A test that never runs can never notice that its defect was
- *   fixed, so the self-arming property claimed for it did not exist.
- * - `test.fail` RUNS the test "and ensures that it is actually failing" (its own
- *   API docs). The day the cause is fixed this body passes, and Playwright fails
- *   the run with "Expected to fail, but passed." That property is real, and it was
- *   confirmed against this Playwright version rather than taken on trust.
+ * WHAT IS STILL OPEN, so a reader does not take this test for more than it proves. A
+ * question that ADMITS fractions still resolves `decimal` on touch against the server's
+ * `numeric`, and so does a negative-admitting one on an iPhone (`text` there). No
+ * fixture form has such a question, so no spec here can reach one; pinning `inputMode`
+ * needs a prop on the `<Input>` the vendored control does not forward, which is an
+ * upstream change plus a pin move (ADR-22 keeps `packages/ui/src/components/a2ui/**`
+ * byte-identical). `packages/ui/src/number-input-mode.test.tsx` puts the same adapter
+ * through both renders at the jsdom layer for both kinds of question, and carries the
+ * self-arming marker for the fractional half.
  *
- * Safe to run rather than skip because the failure is deterministic: the mismatch
- * is one attribute on every reload of this step, not a race.
- *
- * The failing attempt this leaves in the run is an EXPECTED one, so a run whose only
- * red is this test is green. The contention reporter classifies by
- * `TestCase.outcome()` for exactly that reason (issue #828,
- * `e2e/support/contention-reporter.ts`): counting the raw result status made it print
- * its whole report, and claim one failing test, on green runs.
- *
- * The limit of `test.fail`, stated because it is easy to miss: it accepts ANY
- * failure, so a future unrelated regression inside this body would also satisfy it
- * and pass silently. It buys "this defect is still here", not "everything else in
- * this body still works". The body's assertions are documentation of the intended
- * end state until the marker comes off, at which point they start gating for real.
+ * The marker this test used to carry is worth remembering for the next defect that
+ * needs one. The first attempt used the SKIP-with-intent marker, which Playwright does
+ * not run past, so the self-arming property claimed for it did not exist. `test.fail`
+ * RUNS the test "and ensures that it is actually failing" (its own API docs), so the
+ * day the cause was fixed the run went red with "Expected to fail, but passed" and the
+ * marker had to be removed deliberately - which is exactly how a fix gets noticed.
+ * Its limit was real too: `test.fail` accepts ANY failure, so it bought "this defect is
+ * still here" and never "everything else in this body still works". Those assertions
+ * gate for real now.
  */
-test.fail(
+test(
   "reloading a step that contains a NumberField hydrates without a mismatch",
   async ({ page }) => {
     test.setTimeout(120_000);
@@ -368,8 +371,9 @@ test.fail(
     // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
     // any console error, and "A tree hydrated but some attributes of the server
     // rendered HTML didn't match the client properties" is one. There is deliberately
-    // no allowlist entry for it (#151 forbids silencing rather than fixing), which is
-    // why this test is `test.fail` rather than green. The fault the gate raises here
-    // arrives from the fixture TEARDOWN, after this body has run clean.
+    // no allowlist entry for it (#151 forbids silencing rather than fixing), so a
+    // returning mismatch reds this test rather than printing past it. Note where that
+    // fault would arrive from: the gate collects console output up to the fixture
+    // TEARDOWN, so a mismatch shows up after this body has already run clean.
   },
 );

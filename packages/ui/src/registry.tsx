@@ -329,6 +329,59 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
 }
 
 type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
+
+/**
+ * The `Intl.NumberFormat` options an INTEGER number question renders with, and the
+ * reason the adapter states them instead of leaving react-aria's default (issue
+ * #151).
+ *
+ * A number question compiles to `step: 1` exactly when its author constrained it to
+ * integers (`a2ui-compiler`'s `questionToNode`), and `step` is the only trace of that
+ * constraint in the compiled props. react-aria reads the *format*, not the step, when
+ * it decides what the field accepts and what software keyboard to ask for, and the
+ * default format admits three fraction digits. So an integer-only question shipped a
+ * field that accepted "2.5" while typing and snapped it to the step at commit, with a
+ * decimal keypad offered on touch throughout. Declaring `maximumFractionDigits: 0`
+ * makes the rendered field say what the question already meant: no fraction digits
+ * are parsed, displayed, or offered.
+ *
+ * The hydration consequence is why this is a fix rather than a tidy-up.
+ * `@react-aria/numberfield` derives the input's `inputMode` from the resolved format
+ * AND from platform detection that reads `navigator`: with fraction digits allowed
+ * and a non-negative minimum it asks for `decimal` on a touch device and `numeric`
+ * everywhere else. A server render has no `navigator`, so it always emits `numeric`,
+ * and reloading a step holding such a field raised a React hydration attribute
+ * mismatch on every touch client (`inputMode="decimal"` against `inputMode="numeric"`,
+ * the sole differing attribute). With no fraction digits in the format, every platform
+ * branch leaves `inputMode` at `numeric`, so both renders agree by construction and
+ * the mismatch is gone at its cause rather than silenced.
+ *
+ * What this does NOT reach, stated because the remaining surface is real: a question
+ * that ADMITS fractions still resolves to `decimal` on touch and `numeric` on the
+ * server, and so does any question whose minimum allows negatives on an iPhone
+ * (`text` there). Both need the input's `inputMode` pinned explicitly, and no prop
+ * here can pin it: the vendored control takes a fixed prop list and forwards neither
+ * `inputMode` nor unknown props to its `<Input>`, react-aria's own
+ * `useNumberField` overwrites any caller-supplied `inputMode` with its computed one,
+ * and `packages/ui/src/components/a2ui/**` must stay byte-identical to upstream
+ * (ADR-22). Only a prop ON the `<Input>` wins, because that is where
+ * react-aria-components merges the caller's props over the field's context. That is an
+ * upstream change in the sibling a2-react-aria checkout plus a pin move, and
+ * `number-input-mode.test.tsx` holds a live marker for it.
+ */
+const INTEGER_NUMBER_FORMAT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
+
+/**
+ * Whether a compiled NumberField admits fractional input, read from `step` alone.
+ *
+ * A missing step is the fractional case: the compiler emits `step: 1` for an
+ * integer-constrained question and nothing at all otherwise. A non-integral step
+ * (nothing compiles one today, an author-authored document could) is fractional too.
+ */
+export function numberFieldAdmitsFractions(step: number | undefined): boolean {
+  return step === undefined || !Number.isInteger(step);
+}
+
 function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
@@ -344,6 +397,9 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
         key={props.name}
         {...props}
         {...modeProps}
+        formatOptions={
+          numberFieldAdmitsFractions(props.step) ? undefined : INTEGER_NUMBER_FORMAT
+        }
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
