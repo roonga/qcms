@@ -18,99 +18,96 @@ answers "do the bytes still match" on every run, and this file answers "what mov
 pin, and what did a human check" once per pin move.
 
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
-  `009d44710bedef57324e216192d167e578b4e9de`
-- **Previous pin**: `7347b3b9c8067869f5a0407ab490ef1c83814d53`
-- **Captured**: 2026-09-12, re-taken at the squash commit of upstream
-  `roonga/a2-react-aria#79`, the pass carrying the `Menu` trigger and item slots
-  (issue #234, upstream issue `roonga/a2-react-aria#75`)
+  `27091f57ef93d9f0a58ca41f17e8c5f9a02a21f1`
+- **Previous pin**: `009d44710bedef57324e216192d167e578b4e9de`
+- **Captured**: 2026-09-12, at the head of upstream `roonga/a2-react-aria#81`, the pass
+  making `react-aria-components` a peer dependency of `@a2ra/core`
+  (issue #151, upstream issue `roonga/a2-react-aria#80`)
 - **Components installed**: alert, breadcrumb, button, card, checkbox, date-picker,
   dialog, form, layout, menu, number-field, radio, select, table, text, text-area,
   text-field
 
-## The pin names upstream `main`
+## The pin is PROVISIONAL, and this one moves no vendored byte at all
 
-`009d4471` is the squash commit of upstream `roonga/a2-react-aria#79`, on upstream `main`.
-**This is the final pin for this change**, and the two provisional pins this file named
-during the review are history rather than configuration now.
+`27091f57` is the head of upstream pull request `roonga/a2-react-aria#81`, which is open at
+this capture. Upstream squash-merges, so this commit can never become upstream `main`
+history: **the pin moves to the squash commit once that pull request lands**, and this file
+is re-taken there, exactly as the `009d4471` capture describes for the previous pass.
 
-The route here is worth keeping, because it is the shape a cross-repo pass takes in this
-repository and the next one will take it too. Upstream squash-merges, so the head of an
-open upstream PR can never become `main` history and a QCMS branch that adopts one has to
-name a commit that will be thrown away. Rather than stop short of the adoption, the pass
-was captured and gated against the branch head, this file said in so many words that the
-pin was provisional and would move to the squash commit, and the move is what this capture
-records:
+What is different this time is that the pass changes **nothing under `registry/`**. Upstream
+`#81` edits `packages/core/package.json` (moving one dependency to `peerDependencies`), its
+lockfile and a changeset, and no component source. So the vendored tree at this pin is the
+vendored tree at the last one, and the whole of the fidelity work below is a demonstration
+of that rather than a record of a change.
 
-| Pin        | What it was                                                                                                                          | Why it moved                                                                                                                                                                                                                                                                              |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `389d02ce` | first provisional capture, the PR branch head                                                                                        | Copilot flagged a real WCAG 2.5.3 defect on upstream `#79`: `triggerLabel` defaulted to `"Options"` and was applied as `aria-label` whenever `trigger` was given, so a caller passing a visible-text trigger with no `triggerLabel` got an accessible name that disagreed with the screen |
-| `a571e83d` | second provisional capture, the same branch head after the fix (`b387496`, plus `a571e83` regenerating `registry/menu.json` from it) | upstream `#79` squash-merged                                                                                                                                                                                                                                                              |
-| `009d4471` | the squash commit, upstream `main`                                                                                                   | final                                                                                                                                                                                                                                                                                     |
-
-**The re-pin from `a571e83d` to `009d4471` moved no vendored byte, and that is checkable
-without trusting this sentence.** The two commits store the identical whole-repository
-tree:
+That is checkable without trusting the sentence, and it is checked against the registry
+directory rather than the whole repository, because the whole repository is exactly what did
+move:
 
 ```console
-$ git -C <sibling a2-react-aria checkout> rev-parse a571e83d^{tree}
-58454dd2d9310e35f2f2134f2a94e9d19131c151
+$ git -C <sibling a2-react-aria checkout> rev-parse 009d4471:registry
+8b277709c32c08fc01c7dc714739a8698260744c
 
-$ git -C <sibling a2-react-aria checkout> rev-parse 009d4471^{tree}
-58454dd2d9310e35f2f2134f2a94e9d19131c151
+$ git -C <sibling a2-react-aria checkout> rev-parse 27091f57:registry
+8b277709c32c08fc01c7dc714739a8698260744c
+
+$ git -C <sibling a2-react-aria checkout> rev-parse 009d4471:packages/core/src/components
+1a455aab73a82ba039b3a549b1f5ba09fca15cda
+
+$ git -C <sibling a2-react-aria checkout> rev-parse 27091f57:packages/core/src/components
+1a455aab73a82ba039b3a549b1f5ba09fca15cda
 ```
 
-A squash of a branch whose merge base is the whole of `main` reproduces that branch's tree
-exactly, which is why the prediction this file made at the provisional pins could be made
-at all. The regenerated `a2ra-manifest.json` bears it out: it reproduced byte-for-byte
-apart from its two recorded sha lines (`pin` and `registry`), and all 74 upstream hashes
-are unchanged.
+Both the registry the CLI reads and the component sources it is generated from store the
+identical tree object at the two pins. The regenerated `a2ra-manifest.json` bears it out
+independently: it reproduced byte-for-byte apart from its two recorded pin lines, and all 74
+upstream hashes are unchanged.
 
-A manifest generated at another commit is a hard failure of `check:a2ra-fidelity` rather
-than a silent pass, so the pin, the manifest and the tree cannot drift apart quietly: the
-re-pin and the refresh are one change.
+**Why move the pin at all, then.** The pin is what `check:a2ra-fidelity` measures against, so
+it is also this repository's record of which upstream commit the vendored tree is aligned to.
+Issue #151's fix is upstream, and leaving the pin at the commit before it would leave that
+record saying something that is no longer true. A pin move that provably moves no byte is the
+cheapest possible way to say "this tree is upstream's, at the commit that carries the fix",
+and the gate keeps the claim honest: a manifest generated at another commit is a hard failure
+rather than a silent pass, so the pin, the manifest and the tree cannot drift apart quietly.
+
+**What the pin move does NOT deliver, stated plainly.** `a2ra.json` governs the vendored
+component sources. It does not govern the npm dependency on `@a2ra/core`, which
+`packages/ui/package.json` exact-pins at the published `1.0.0-preview.7`, and that published
+package still declares `react-aria-components` as a hard dependency at `^1.18.0`. The peer
+declaration reaches this repository only when upstream publishes the next preview. What
+closes the duplicate here today is the lockfile, and the pull request body says so rather
+than letting the pin move take credit for it.
 
 ## Which CLI, and why it is not `pnpm dlx`
 
-The published CLI at `1.0.0-preview.4` **reports this tree as drifted when it is not**.
-`diffLines` decided whether anything moved by scanning its own rendered output for the
-substrings `"- "` and `"+ "`; those mark a removed or an added line, and they also occur
-inside ordinary prose, so a component whose source carries a spaced hyphen diffs as
-changed forever. The new `Menu` prop documentation is the first registry source to contain
-one, so this pin is the first at which the bug is reachable, and the report it produces is
-every line as context, no `-` and no `+` anywhere in it, and "Run `a2ra add <name>
---overwrite` to update" at the end - a red no overwrite can clear.
+Unchanged from the previous capture, and re-checked rather than carried over: the published
+CLI at `1.0.0-preview.4` **reports this tree as drifted when it is not**. `diffLines` decided
+whether anything moved by scanning its own rendered output for the substrings `"- "` and
+`"+ "`; those mark a removed or an added line, and they also occur inside ordinary prose, so
+a component whose source carries a spaced hyphen diffs as changed forever. The `Menu` prop
+documentation added at the previous pin is the first registry source to contain one, and it
+is still there.
 
-The fix rode in on the same upstream PR and is therefore on upstream `main` at this pin
-(`packages/cli/src/diff.ts`: the walk records that it emitted a removal or an addition at
-the point it emits one). It is not published to npm yet, so the transcript below runs the
-CLI **built from the sibling a2-react-aria checkout at this pin** (`pnpm --filter @a2ra/cli
-build`, from `main` at `009d4471`) rather than `pnpm dlx @a2ra/cli`, written as `<cli>` in
-the console blocks. Both commands are otherwise the ones the guidelines name. When a
-preview containing the fix is published, `pnpm dlx` goes back to being the command.
+The fix is on upstream `main` and therefore at this pin (`packages/cli/src/diff.ts`: the walk
+records that it emitted a removal or an addition at the point it emits one). It is still not
+published: the npm registry serves `@a2ra/cli` at `1.0.0-preview.4` as its newest version at
+this capture. So the transcript below runs the CLI **built from the sibling a2-react-aria
+checkout at this pin** (`pnpm --filter @a2ra/cli build`) rather than `pnpm dlx @a2ra/cli`,
+written as `<cli>` in the console blocks. Both commands are otherwise the ones the guidelines
+name. When a preview containing the fix is published, `pnpm dlx` goes back to being the
+command.
 
 `check:a2ra-fidelity` was never affected: it hashes bytes and never renders a diff.
 
 ## What moved, and the proof that nothing else did
 
-A pin move re-vendors **every** component at once, so "only the intended fix changed" is
-a claim about the whole tree rather than about the files that happen to be in the diff.
-At this capture the claim has two halves, against two different pins.
+A pin move re-vendors **every** component at once, so "only the intended fix changed" is a
+claim about the whole tree rather than about the files that happen to be in the diff. At this
+capture the claim is the strongest form of it: **nothing moved, in any component.**
 
-**Against the previous merged pin (`7347b3b9`)**, what moved is the change this PR exists
-for, and only it:
-
-| Component | Files                                                      | Change                                                 | Issue               |
-| --------- | ---------------------------------------------------------- | ------------------------------------------------------ | ------------------- |
-| `menu`    | `Menu.tsx`, `index.ts`, `menu.schema.ts`, `menu.styles.ts` | trigger, menu-label, header, class-name and item slots | #234 / upstream #75 |
-
-The other sixteen components are untouched between those two pins, and the upstream commits
-that ride along in the squash outside the registry (`fix(cli)`, and the changesets) ship no
-vendored byte.
-
-**Against the reviewed provisional pin (`a571e83d`), nothing moved at all**, which is the
-thing a re-take at the squash commit has to demonstrate rather than assert. The sweep below
-ran with the already-vendored `a571e83d` bytes still in place, against the registry at
-`009d4471`, before any overwrite: seventeen components, seventeen clean.
+The sweep below ran with the already-vendored `009d4471` bytes still in place, against the
+registry at `27091f57`, before any overwrite: seventeen components, seventeen clean.
 
 ```console
 $ node <cli> --version
@@ -139,17 +136,17 @@ text-area      ✓ All installed components are up to date.
 text-field     ✓ All installed components are up to date.
 ```
 
-Run `a2ra diff` with **one component named**, not bare: the bare form stops after the
-first drifting file it finds, so it is a "something moved" signal rather than an
-enumeration. That is why the sweep above is a loop. The `tr -d '\n'` is only so each
-verdict prints beside its label: the CLI opens its report with a blank line, so without it
-the loop prints the label and the verdict on two lines.
+Run `a2ra diff` with **one component named**, not bare: the bare form stops after the first
+drifting file it finds, so it is a "something moved" signal rather than an enumeration. That
+is why the sweep above is a loop. The `tr -d '\n'` is only so each verdict prints beside its
+label: the CLI opens its report with a blank line, so without it the loop prints the label
+and the verdict on two lines.
 
 ## The whole-tree overwrite
 
-Every component was re-vendored from the registry at the new pin, not only the one this
-change touches, so the tree is a copy of the pinned registry rather than the previous tree
-with four files left in place and trusted.
+Every component was re-vendored from the registry at the new pin, not only the components
+this change touches (there are none), so the tree is a copy of the pinned registry rather
+than the previous tree left in place and trusted.
 
 ```console
 $ node <cli> add alert breadcrumb button card checkbox date-picker dialog form layout \
@@ -176,23 +173,25 @@ $ node <cli> --version
 $ node <cli> diff
 
 ✓ All installed components are up to date.
+exit=0
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 009d44710bed (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 27091f57ef93 (ADR-22).
+exit=0
 ```
 
 ### And independently of the CLI, by git tree hash
 
 The CLI compares text it fetched; a tree hash compares what git actually stored, on both
-sides, with no fetch and no renderer in between. It is the check that would survive a
-second CLI bug, so it is taken as well as the two above rather than instead of them: each
-vendored component directory hashes to the identical tree object as upstream's own
-directory at the pin.
+sides, with no fetch and no renderer in between. It is the check that would survive a second
+CLI bug, so it is taken as well as the two above rather than instead of them: each vendored
+component directory hashes to the identical tree object as upstream's own directory at the
+pin.
 
 ```console
 $ for c in alert breadcrumb button card checkbox date-picker dialog form layout menu \
 >          number-field radio select table text text-area text-field; do
->   up=$(git -C <sibling a2-react-aria checkout> rev-parse 009d4471:packages/core/src/components/$c)
+>   up=$(git -C <sibling a2-react-aria checkout> rev-parse 27091f57:packages/core/src/components/$c)
 >   here=$(git write-tree --prefix=packages/ui/src/components/a2ui/$c)
 >   [ "$up" = "$here" ] && printf "%-14s identical %s\n" "$c" "$up" || printf "%-14s DIFFERENT\n" "$c"
 > done
@@ -219,43 +218,49 @@ text-field     identical b3dd2e05fd3ac7f44f0a4e2f9ee7ae2f647b25d2
 group-schema-fields.ts identical 4308f0ed403e53879b312013b8534ddcba54ecc1
 ```
 
-Every sha above is unchanged from the `a571e83d` capture, `menu`'s
-`e4853c2bd65a8dd55ca173e763c760d049e3e033` included: the same seventeen trees, hashed
-against the squash commit this time instead of against the branch head. That is the
-per-directory form of the whole-tree equality at the top of this file.
-
-A tree object hashes the names, modes and blob contents of everything under it, so an
-identical tree sha means an identical set of files with identical bytes. Nothing about the
-comparison depends on the registry, the network, or the CLI. The GitHub compare API is
-deliberately not used for this: it answers a question about two commits, not about whether
-one directory in this repository equals one directory in another.
+Every sha above is unchanged from the `009d4471` capture, which is the per-directory form of
+the registry-tree equality at the top of this file. A tree object hashes the names, modes and
+blob contents of everything under it, so an identical tree sha means an identical set of
+files with identical bytes. Nothing about the comparison depends on the registry, the
+network, or the CLI. The GitHub compare API is deliberately not used for this: it answers a
+question about two commits, not about whether one directory in this repository equals one
+directory in another.
 
 ## The negative control
 
 A clean verdict from a gate that has never failed in front of you is a hypothesis, not a
 control (055's retro lesson, applied here). One byte was appended to a vendored file, both
 checks were re-run, and the file was restored - so the lines above are known to mean
-"identical" rather than "not checked". It is taken again at this pin rather than carried
-over from the provisional capture: a control proves the harness was working at the moment
-the verdict above was taken, and copying one forward proves nothing about this run.
+"identical" rather than "not checked". It is taken again at this pin rather than carried over
+from the previous capture: a control proves the harness was working at the moment the verdict
+above was taken, and copying one forward proves nothing about this run.
 
-The control is taken on `menu/Menu.tsx`, the file this pass changed and the one carrying
-the new slots: a control on an untouched file would prove the harness works without
-proving it works on the bytes under review.
+The control is taken on `number-field/NumberField.tsx`. A pass that moves no source has no
+"file this change touched" to control on, so the next best choice is the file the issue is
+about: #151 is a hydration mismatch on the NumberField's `<input>`, and this is the component
+that renders it.
 
 Context lines are elided where marked; nothing else is edited.
 
 ```console
-$ printf "\n" >> src/components/a2ui/menu/Menu.tsx   # deliberate one-byte drift
+$ printf "\n" >> src/components/a2ui/number-field/NumberField.tsx   # deliberate one-byte drift
 
-$ node <cli> diff menu
+$ node <cli> diff number-field
 
-── menu/Menu.tsx ──
+── number-field/NumberField.tsx ──
 
-[... 175 unchanged context lines elided ...]
+[... unchanged context lines elided ...]
 
-  			</Popover>
-  		</MenuTrigger>
+  			</Group>
+  			{description && (
+  				<Text slot="description" className={styles.description}>
+  					{description}
+  				</Text>
+  			)}
+  			<FieldError className={styles.errorMessage}>
+  				{({ validationErrors }) => errorMessage ?? validationErrors.join(", ")}
+  			</FieldError>
+  		</RACNumberField>
   	)
   }
 
@@ -267,28 +272,28 @@ $ node scripts/check-a2ra-fidelity.mjs
 check-a2ra-fidelity: the vendored tree is not the pinned upstream tree (ADR-22):
 
   changed (content differs from upstream at the pin):
-    menu/Menu.tsx  (upstream 538da066a0ac, here 6e9010672da7)
+    number-field/NumberField.tsx  (upstream 92e81d628bf8, here 25691ac47ea9)
 exit=1
 
-$ node <cli> add menu --overwrite   # restore from the registry
+$ node <cli> add number-field --overwrite   # restore from the registry
 
-✓ Added 4 file(s) for menu.
+✓ Added 4 file(s) for number-field.
 
 $ node <cli> diff
 
 ✓ All installed components are up to date.
+exit=0
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 009d44710bed (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 27091f57ef93 (ADR-22).
 exit=0
 ```
 
 The trailing `-` line is the removed byte: the appended newline, reported as a line the
-registry does not have. Both checks went red and then green on the same byte, which is
-what makes them a pair rather than one gate and one echo of it. The hash pair is the same
-one the `a571e83d` capture recorded (`538da066a0ac` upstream, `6e9010672da7` with the byte
-appended), which is what an unchanged `Menu.tsx` at an identical tree has to produce; a
-different pair here would mean the re-pin had moved the file after all.
+registry does not have. Both checks went red and then green on the same byte, which is what
+makes them a pair rather than one gate and one echo of it. The upstream hash in the failure,
+`92e81d628bf8`, is the hash of the unchanged file, so the control also re-states that this
+pin did not move `NumberField.tsx`.
 
-Note the restore is `add --overwrite`, not `git checkout --`: it restores from the registry
-at the current pin, so it cannot quietly put back a file from the old one.
+Note the restore is `add --overwrite`, not `git checkout --`: it restores from the registry at
+the current pin, so it cannot quietly put back a file from the old one.
