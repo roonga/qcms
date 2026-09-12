@@ -127,7 +127,6 @@ export function devOnlyDependencies(root = REPOSITORY_ROOT) {
   return dev;
 }
 
-
 /** The purl scheme for an npm package, which is the only ecosystem this gate reads. */
 const NPM_PURL = "pkg:npm/";
 
