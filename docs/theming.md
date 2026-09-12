@@ -622,14 +622,12 @@ Using it anyway would take a choice away from the one group of people the mode
 exists for, and MDN's own rule for the property is that it may support a
 contrast requirement, never override one.
 
-The case that would justify it is a swatch whose exact colour **is** the content
-
-- a colour picker, a chart legend keyed by hue, a brand-colour preview. The
-  portal renders none of those. If one ever arrives, it gets `forced-color-adjust:
-none` on that element alone, with a text or shape label beside it so the meaning
-  does not depend on the swatch either way. `theme-contrast.test.ts` fails on the
-  property appearing anywhere in the component sheet, so the decision cannot be
-  reversed by accident.
+The case that would justify it is a swatch whose exact colour **is** the content:
+a colour picker, a chart legend keyed by hue, a brand-colour preview. The portal
+renders none of those. If one ever arrives it gets the property on that element
+alone, with a text or shape label beside it so the meaning does not depend on the
+swatch either way. `theme-contrast.test.ts` fails on the property appearing
+anywhere in the component sheet, so the decision cannot be reversed by accident.
 
 ### Measured
 
