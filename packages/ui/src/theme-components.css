@@ -284,6 +284,10 @@
    intact and there is nothing to trade.
    -------------------------------------------------------------------------- */
 @media (prefers-contrast: more) {
+  /* `button[data-rac][aria-haspopup]` rather than every RAC button, because the
+     select trigger is the only one that draws an edge: the number field's
+     steppers sit inside the group's box and carry no border of their own, so
+     naming them would set a colour on a zero-width edge. */
   [data-qcms-theme-scope]
     [data-qcms-field]
     :is(
@@ -292,6 +296,25 @@
       [role="group"][data-rac],
       button[data-rac][aria-haspopup]
     ):not([aria-invalid="true"], [data-invalid]) {
+    border-color: var(--color-border-strong);
+  }
+
+  /* The checkbox and radio indicator, which is the one edge whose STATE lives on
+     a different element: react-aria keeps `data-selected`, `data-indeterminate`
+     and `data-invalid` on the `label[data-rac]` root, so the exclusions ride the
+     label and the border rides its indicator child.
+
+     The three excluded states are excluded for exactly the reason the invalid
+     control above is: a selected or indeterminate indicator's edge is
+     `--color-primary` and an invalid one's is `--color-danger`, and in each case
+     the colour IS the state rather than chrome. What is left is the unselected
+     indicator, which is the control that needed the step-up most - at
+     `--color-border` it sits near 1.5:1 against the surface, where every other
+     control was already stepping to about 4.4:1. */
+  [data-qcms-theme-scope]
+    [data-qcms-field]
+    label[data-rac]:not([data-selected], [data-indeterminate], [data-invalid])
+    > div {
     border-color: var(--color-border-strong);
   }
 
@@ -353,6 +376,11 @@
       separator are `w-px`/`h-px` elements with a background and no border.
    5. **Disabled.** `opacity` is not forced, so a disabled control stays faded,
       but faded CanvasText is not the signal the platform uses. GrayText is.
+      Nothing in the compiled form renders a disabled control today (neither
+      `packages/a2ui-compiler` nor `registry.tsx` passes `isDisabled`), so this
+      rule is ahead of its callers; the portal's own Continue and Back buttons
+      are the disabled control a respondent does meet, and they take the same
+      treatment in `apps/portal/app/globals.css`.
 
    NOTHING HERE USES `forced-color-adjust: none`, and that is a decision rather
    than an omission. Every colour in the portal that carries meaning - selected,
@@ -430,15 +458,32 @@
     background-color: CanvasText;
   }
 
-  /* 5. Disabled reads as the platform's disabled, not as faded body text. */
+  /* 5. Disabled reads as the platform's disabled, not as faded body text.
+
+     Read the state off the element react-aria puts it ON, which is not always
+     the element that DRAWS the edge. `input`, `textarea`, `button` and the field
+     group each carry their own `:disabled` / `[data-disabled]`. An option row
+     does not: `react-aria-components` marks the `label[data-rac]` root
+     (CheckboxButton and RadioButton both emit `data-disabled` there) and the
+     indicator is a plain child with only class names on it. The first cut of
+     this rule tested the indicator for the attribute, so it matched nothing at
+     all and the disabled indicator stayed at CanvasText. */
   [data-qcms-theme-scope]
     [data-qcms-field]
-    :is(input, textarea, button, [role="group"], label[data-rac] > div):is(
+    :is(input, textarea, button, [role="group"]):is(
       :disabled,
       [data-disabled],
       [aria-disabled="true"]
     ) {
     border-color: GrayText;
     color: GrayText;
+  }
+
+  [data-qcms-theme-scope] [data-qcms-field] label[data-rac][data-disabled] {
+    color: GrayText;
+  }
+
+  [data-qcms-theme-scope] [data-qcms-field] label[data-rac][data-disabled] > div {
+    border-color: GrayText;
   }
 }

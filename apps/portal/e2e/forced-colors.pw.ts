@@ -50,6 +50,7 @@ import { PORTAL_PORT } from "./support/harness-config.js";
 import {
   KS,
   answerNumber,
+  backStep,
   checkOption,
   chooseRadio,
   continueStep,
@@ -96,6 +97,7 @@ interface SystemPalette {
   readonly canvasText: string;
   readonly highlight: string;
   readonly highlightText: string;
+  readonly grayText: string;
 }
 
 /**
@@ -138,13 +140,22 @@ async function resolveColors<const T extends readonly string[]>(
 
 /** The four system colours every forced-colours assertion below is written against. */
 async function systemPalette(page: Page): Promise<SystemPalette> {
-  const [canvas, canvasText, highlight, highlightText] = await resolveColors(page, [
+  const [canvas, canvasText, highlight, highlightText, grayText] = await resolveColors(page, [
     "Canvas",
     "CanvasText",
     "Highlight",
     "HighlightText",
+    "GrayText",
   ]);
-  return { canvas, canvasText, highlight, highlightText };
+  return { canvas, canvasText, highlight, highlightText, grayText };
+}
+
+/** One computed property off one element. */
+function computedOf(target: Locator, property: string): Promise<string> {
+  return target.evaluate(
+    (element, name) => getComputedStyle(element).getPropertyValue(name),
+    property,
+  );
 }
 
 /**
@@ -396,6 +407,18 @@ test("forced colours: selected, checked and chosen states survive the palette", 
   await expect(tick).toBeVisible();
   await expect(tick).toHaveCSS("color", palette.canvasText);
 
+  // THE DATE SEGMENT being edited. Its highlight is a background fill on step 1,
+  // so this walks back to reach it: `data-focused` is what the vendored style
+  // keys on, and the pair has to be the platform's own selection pair.
+  await backStep(page);
+  const month = page
+    .getByRole("group", { name: KS.dob })
+    .getByRole("spinbutton", { name: /month/iu });
+  await month.click();
+  await expect(month).toHaveAttribute("data-focused", /.*/u);
+  await expect(month).toHaveCSS("background-color", palette.highlight);
+  await expect(month).toHaveCSS("color", palette.highlightText);
+
   // THE APPEARANCE CHIP. Its four selected signals are a check glyph, a heavier
   // weight, a heavier border and a fill; only the fill is lost, and it comes
   // back as the platform's own "chosen item" pair rather than as a theme colour.
@@ -479,4 +502,85 @@ test("prefers-contrast: more steps borders and focus rings onto the stronger tok
   const focused = await boundaryOf(input);
   expect(focused.outlineWidth).toBeCloseTo(3, 0);
   expect(isInvisible(focused.outlineColor)).toBe(false);
+});
+
+test("forced colours: a disabled option row reads as the platform's disabled", async ({ page }) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await page.emulateMedia({ forcedColors: "active" });
+  await pinOrdinaryPalette(page);
+  await walkToAnsweredStepTwo(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
+  const palette = await expectForcedPaletteInEffect(page);
+
+  // WHY THE ATTRIBUTE IS SET HERE RATHER THAN RENDERED.
+  // Nothing in the compiled form renders a disabled control: neither
+  // `packages/a2ui-compiler` nor `registry.tsx` ever passes `isDisabled`, so there
+  // is no fixture that can produce one. What CAN be tested, and is what the review
+  // at defd8754 found broken, is whether the rule matches the SHAPE react-aria
+  // renders when it does mark a row disabled. `data-disabled` on the
+  // `label[data-rac]` root is that shape, verbatim: `react-aria-components`
+  // CheckboxButton and RadioButton both emit exactly this attribute, and the first
+  // cut of the rule looked for it on the indicator child instead, where it never
+  // appears. So this sets the attribute react-aria would set, on the real rendered
+  // element, and measures the real sheet.
+  const row = page.locator('[data-qcms-field] label[data-rac]:has(input[type="checkbox"])').first();
+  const indicator = row.locator("> div");
+  const enabled = await computedOf(indicator, "border-top-color");
+  expect(enabled, "the enabled indicator should be drawn in the palette's text colour").toBe(
+    palette.canvasText,
+  );
+
+  await row.evaluate((element) => element.setAttribute("data-disabled", "true"));
+  await expect(indicator).toHaveCSS("border-top-color", palette.grayText);
+  await expect(row).toHaveCSS("color", palette.grayText);
+  expect(palette.grayText).not.toBe(palette.canvasText);
+});
+
+test("prefers-contrast: more reaches the option indicators, and spares a chosen one", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+  await page.emulateMedia({ contrast: "more" });
+  await pinOrdinaryPalette(page);
+  await walkToAnsweredStepTwo(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
+
+  const [border, borderStrong, primary] = await resolveColors(page, [
+    "var(--color-border)",
+    "var(--color-border-strong)",
+    "var(--color-primary)",
+  ]);
+
+  // The review at defd8754 measured these two edges sitting at `--color-border`,
+  // near 1.5:1, while every other control stepped to about 4.4:1. They are the
+  // controls the step-up was most needed for.
+  const unchosen = (type: string) =>
+    page
+      .locator(`[data-qcms-field] label[data-rac]:has(input[type="${type}"]):not([data-selected])`)
+      .first()
+      .locator("> div");
+  for (const type of ["checkbox", "radio"]) {
+    const edge = unchosen(type);
+    await expect(edge, `the unchosen ${type} indicator should step up`).toHaveCSS(
+      "border-top-color",
+      borderStrong,
+    );
+    expect(borderStrong, "the step-up must actually move the colour").not.toBe(border);
+  }
+
+  // And the chosen one keeps `--color-primary`, because there the edge colour IS
+  // the selected state rather than chrome. Both a checkbox and a radio are already
+  // chosen by the walk.
+  const chosen = (type: string) =>
+    page
+      .locator(`[data-qcms-field] label[data-rac][data-selected]:has(input[type="${type}"])`)
+      .first()
+      .locator("> div");
+  for (const type of ["checkbox", "radio"]) {
+    const edge = chosen(type);
+    await expect(edge, `the chosen ${type} indicator should keep its own edge`).toHaveCSS(
+      "border-top-color",
+      primary,
+    );
+  }
 });

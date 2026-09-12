@@ -28,13 +28,19 @@ existing High-contrast scaffold. Under `forced-colors: active`: control edges re
 `CanvasText` so they survive focus, the focus ring redrawn as a real `outline` in
 `Highlight`, the radio dot in `CanvasText`, the edited date segment and the focused
 listbox/menu row in `Highlight` / `HighlightText`, the number field's dividers and a menu
-separator in `CanvasText`, and disabled controls in `GrayText`. Under
+separator in `CanvasText`, and disabled controls in `GrayText` - the last one read off the
+element react-aria marks rather than the one that draws the edge, because an option row's
+`data-disabled` sits on its `label[data-rac]` root and its indicator child carries no state
+at all. Under
 `prefers-contrast: more`: control edges step from `--color-border` to
 `--color-border-strong`, the higher-contrast half of one authored pair, already asserted
 at 3:1 or better against every background - and the focus ring goes from 2px to 3px. That
-block moves no colour VALUE, so no contrast pair and no WCAG 1.4.12 floor can be reached
-from it, and it excludes an invalid control on purpose: that edge is `--color-danger`,
-which is meaning rather than chrome.
+includes the checkbox and radio indicator, which is the edge whose state lives on a
+different element (react-aria keeps `data-selected` on the `label[data-rac]` root, so the
+rule rides the label and the border rides its indicator child). The block moves no colour
+VALUE, so no contrast pair and no WCAG 1.4.12 floor can be reached from it, and it leaves
+alone every edge whose colour IS a state rather than chrome: an invalid control's
+`--color-danger`, a chosen indicator's `--color-primary`, and the Apply button's.
 
 A checked checkbox needed no rule: its tick is an SVG drawn in `currentColor`, which forces
 to `CanvasText` inside a `Canvas` box. The radio has no glyph, which is exactly why it

@@ -557,17 +557,28 @@ Two moves, and the boundary is the point:
    two are the higher- and lower-contrast half of one authored pair, and the
    token suite already asserts the strong half at >= 3:1 against every
    background in every theme x mode. So the step-up lands on a ratio that is
-   proven rather than on a new colour.
+   proven rather than on a new colour. That includes the checkbox and radio
+   indicator, whose edge is the one that lives on a different element from its
+   state: react-aria keeps `data-selected` on the `label[data-rac]` root, so the
+   rule rides the label and the border rides its indicator child.
 2. The focus ring goes from 2px to the 3px the `.hc` layer uses.
 
 It may **not** touch a `--color-*` value or a `--type-*` token. Contrast pairs
 and the WCAG 1.4.12 floors are asserted against the base blocks, so a rule here
-that could move either would put the whole assertion out of reach. It also
-leaves an **invalid** control alone: that edge is `--color-danger`, which is
-meaning rather than chrome, and flattening it to the neutral strong border would
-buy a contrast step by spending the error signal. (`.hc` does flatten it, on
-purpose: there the palette really is two colours and the error text carries the
-meaning instead.)
+that could move either would put the whole assertion out of reach.
+
+It also leaves alone every edge whose colour **is** a state rather than chrome,
+because flattening one of those to the neutral strong border would buy a contrast
+step by spending a signal:
+
+| Left alone                                   | Its edge          | What the colour says           |
+| -------------------------------------------- | ----------------- | ------------------------------ |
+| An invalid control                           | `--color-danger`  | this answer was refused        |
+| A selected or indeterminate option indicator | `--color-primary` | this option is chosen          |
+| The Appearance panel's Apply button          | `--color-primary` | this is the panel's one action |
+
+(`.hc` does flatten the invalid edge, on purpose: there the palette really is two
+colours and the error text carries the meaning instead.)
 
 ### What a theme may and may not override under forced colours
 
@@ -594,19 +605,19 @@ So the rule for a theme, and for an adopter's `adopter-theme.css`, is short:
   `apps/portal/app/globals.css` (the portal's own chrome) do. They are a short
   list of specific losses, never a second design:
 
-| What is lost                                                         | Restated as                       |
-| -------------------------------------------------------------------- | --------------------------------- |
-| A focus ring drawn as a Tailwind `ring-*` (that is a `box-shadow`)   | a real `outline` in `Highlight`   |
-| A control's border given up on focus (`focus:border-transparent`)    | the edge restated in `CanvasText` |
-| The radio's dot: a filled circle, no border, no glyph                | `CanvasText`                      |
-| The date segment being edited: a background fill                     | `Highlight` / `HighlightText`     |
-| The focused row of a listbox or menu: a background fill              | `Highlight` / `HighlightText`     |
-| The number field's dividers and a menu separator: filled `1px` boxes | `CanvasText`                      |
-| A disabled control faded with `opacity`                              | `GrayText`                        |
-| The portal's primary button: a fill with no border                   | a `1px solid ButtonBorder` edge   |
-| The skip link held off the page by a shadow                          | a `1px solid CanvasText` edge     |
-| The selected Appearance chip's fill                                  | `Highlight` / `HighlightText`     |
-| In-content links coloured by the theme                               | `LinkText`                        |
+| What is lost                                                         | Restated as                                                                                                               |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| A focus ring drawn as a Tailwind `ring-*` (that is a `box-shadow`)   | a real `outline` in `Highlight`                                                                                           |
+| A control's border given up on focus (`focus:border-transparent`)    | the edge restated in `CanvasText`                                                                                         |
+| The radio's dot: a filled circle, no border, no glyph                | `CanvasText`                                                                                                              |
+| The date segment being edited: a background fill                     | `Highlight` / `HighlightText`                                                                                             |
+| The focused row of a listbox or menu: a background fill              | `Highlight` / `HighlightText`                                                                                             |
+| The number field's dividers and a menu separator: filled `1px` boxes | `CanvasText`                                                                                                              |
+| A disabled control faded with `opacity`                              | `GrayText`, read off `label[data-rac][data-disabled]` for an option row (its indicator child carries no state of its own) |
+| The portal's primary button: a fill with no border                   | a `1px solid ButtonBorder` edge                                                                                           |
+| The skip link held off the page by a shadow                          | a `1px solid CanvasText` edge                                                                                             |
+| The selected Appearance chip's fill                                  | `Highlight` / `HighlightText`                                                                                             |
+| In-content links coloured by the theme                               | `LinkText`                                                                                                                |
 
 A checked checkbox needs no rule at all, and the reason is worth keeping: its
 tick is an SVG drawn in `currentColor`, which forces to `CanvasText` inside a

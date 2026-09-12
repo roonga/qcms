@@ -103,6 +103,28 @@ const FORCED = mediaBlock(COMPONENTS_CSS, "forced-colors: active");
 const MORE = mediaBlock(COMPONENTS_CSS, "prefers-contrast: more");
 
 describe("forced-colors: active", () => {
+  it("reads the disabled state off the element react-aria marks", () => {
+    // Finding 1 of the review at defd8754, and Copilot's line comment: the rule
+    // tested the indicator `div` for `[data-disabled]`, which react-aria puts on
+    // the `label[data-rac]` root instead, so that branch matched nothing. Asserted
+    // at the stylesheet level because no fixture can render a disabled vendored
+    // control: neither the compiler nor `registry.tsx` ever passes `isDisabled`.
+    // `forced-colors.pw.ts` covers the same rule against a real element by setting
+    // the attribute react-aria would have set.
+    const disabled = selectors(FORCED).filter((selector) => selector.includes("data-disabled"));
+    expect(disabled.length).toBeGreaterThan(0);
+    const onTheLabel = disabled.filter((selector) =>
+      selector.includes("label[data-rac][data-disabled]"),
+    );
+    expect(onTheLabel, "the option row's state is not read off its label root").not.toHaveLength(0);
+    for (const selector of disabled) {
+      expect(
+        selector.includes("label[data-rac] > div"),
+        `${selector} tests the indicator for an attribute react-aria never puts there`,
+      ).toBe(false);
+    }
+  });
+
   it("names only system colours, so no declaration is silently forced away", () => {
     const colorDeclarations = declarations(FORCED).filter((declaration) =>
       COLOR_PROPERTIES.includes(declaration.property),
@@ -164,11 +186,30 @@ describe("prefers-contrast: more", () => {
 
   it("leaves an invalid control's danger edge alone", () => {
     const edgeRules = selectors(MORE).filter((selector) => selector.includes("[data-qcms-field]"));
-    expect(edgeRules.length).toBeGreaterThan(0);
+    expect(edgeRules.length).toBeGreaterThan(1);
     for (const selector of edgeRules) {
-      expect(selector, `${selector} would flatten an invalid control's edge`).toContain(
-        ':not([aria-invalid="true"], [data-invalid])',
+      // The exclusion is asserted by shape rather than by literal, because the
+      // element that carries the invalid state is not always the element that
+      // draws the edge: a control carries its own `[data-invalid]`, while an
+      // option row's lives on the `label[data-rac]` root and the border is on its
+      // indicator child. Both spellings have to count.
+      expect(selector, `${selector} would flatten an invalid control's edge`).toMatch(
+        /:not\([^)]*\[data-invalid\][^)]*\)/u,
       );
     }
+  });
+
+  it("steps the UNSELECTED option indicator up, and only that one", () => {
+    // Finding 2 of the review at defd8754: this edge was missing from the block,
+    // so the checkbox and radio indicators stayed at `--color-border` (near 1.5:1)
+    // while every other control stepped to `--color-border-strong`. The rule has
+    // to reach the indicator AND leave the three states whose edge colour is the
+    // state itself.
+    const indicator = selectors(MORE).filter((selector) => selector.includes("label[data-rac]"));
+    expect(indicator, "no rule steps the option indicator's edge up").toHaveLength(1);
+    for (const state of ["[data-selected]", "[data-indeterminate]", "[data-invalid]"]) {
+      expect(indicator[0], `${state} must keep its own edge colour`).toContain(state);
+    }
+    expect(indicator[0]).toContain("> div");
   });
 });

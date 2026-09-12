@@ -136,13 +136,17 @@ body {
 
 /*
  * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance,
- * task 030). Zero-specificity `:where()` so the vendored @roonga/qcms-ui controls keep
- * their own focus rings; every other focusable element - the skip link, the
- * error-summary "jump to field" links, a step heading focused after a branch
- * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1
- * against its backgrounds in EVERY theme and mode (asserted by
- * `theme-tokens.test.ts`), and the heavier HC treatment is in
- * theme-components.css.
+ * task 030). EVERY focusable element gets a solid, high-contrast outline: the
+ * skip link, the error-summary "jump to field" links, a step heading focused
+ * after a branch removal, and the vendored @roonga/qcms-ui controls too. This
+ * rule is unlayered and their `focus:outline-none` is a Tailwind utility in
+ * `@layer utilities`, and unlayered author CSS beats any layer whatever the
+ * specificity, so it reaches them as well; what they keep is their own `ring`
+ * on top of it, not instead of it. The zero-specificity `:where()` is what lets
+ * a more specific unlayered rule replace this outline rather than stack with it,
+ * which is how the HC and forced-colours blocks in theme-components.css raise it
+ * to 3px. `--color-focus-ring` clears 3:1 against its backgrounds in EVERY theme
+ * and mode (asserted by `theme-tokens.test.ts`).
  */
 :where(a, button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus-ring);
@@ -496,6 +500,17 @@ body {
 @media (forced-colors: active) {
   .qcms-chrome-button {
     border: 1px solid ButtonBorder;
+  }
+
+  /* Continue and Back are `disabled` while a step is in flight
+     (`components/step-flow.tsx`), and `disabled:opacity-50` is the only thing
+     that says so. Opacity is not forced, so the faded button survives, but faded
+     ButtonText is not the signal the platform uses for disabled. This is the one
+     disabled control a respondent actually meets: the component kit's rule 5
+     covers the form controls, and nothing renders one of those disabled today. */
+  .qcms-chrome-button:disabled {
+    border-color: GrayText;
+    color: GrayText;
   }
 
   .skip-link {

@@ -15,7 +15,10 @@ flattened into plain text once the fill was forced to `Canvas`; a `CanvasText` e
 skip link, which was held off the content underneath it by a shadow and shadows are forced
 away; the selected Appearance chip in `Highlight` / `HighlightText`, so the one control a
 respondent uses to fix their own experience says "chosen" in the platform's vocabulary;
-and `LinkText` for links inside the content column. Under `prefers-contrast: more`: the
+and `LinkText` for links inside the content column. Continue and Back are also the one
+disabled control a respondent actually meets (`disabled={busy}` while a step is in flight,
+faded by `disabled:opacity-50`, and opacity is not forced), so they take `GrayText` there
+too. Under `prefers-contrast: more`: the
 disclosure, the font select, the panel and the chips step onto `--color-border-strong` and
 the chip's focus ring goes to 3px. The Apply button is deliberately left out of that list:
 its border is `--color-primary`, which names the panel's one action rather than describing
