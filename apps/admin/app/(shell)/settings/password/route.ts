@@ -2,6 +2,7 @@ import { changePassword } from "@/lib/server/auth-api";
 import { passwordRefusalFrom } from "@/lib/server/password-refusal";
 import {
   authRefused,
+  authThrottled,
   cookiesFrom,
   formField,
   isSameOriginPost,
@@ -25,6 +26,19 @@ const SETTINGS_PATH = "/settings";
  * A rejected change (wrong current password, new password too short) redirects back
  * with the same opaque marker every auth failure uses. Distinguishing them would tell
  * whoever is at the keyboard whether they guessed the current password right.
+ *
+ * **A `429` is the exception that says nothing about the credential** (issue #845, the
+ * ruling of 2026-09-12; issue #805 made the same change on the two-factor verify
+ * handlers). SEC-1 throttles `/change-password` in the same limiter as sign-in, three
+ * attempts per ten seconds, and issue #482 records that on the default Compose shape
+ * better-auth cannot resolve a client address and keys the bucket on a constant shared
+ * by every operator - so an admin can meet this refusal on their first, correct attempt
+ * because of somebody else's retries. Reported as the generic sentence it reads as
+ * "those details did not match", whose advice is to type it again, and typing it again
+ * is the one action that keeps the window shut. The marker and the sentence are
+ * sign-in's, not new ones: `lib/auth-failure-message.ts` is the single mapping, and a
+ * "too many attempts" string written for this screen would be a fourth distinguishable
+ * message on a surface whose discipline is that it has three.
  *
  * **One refusal is exempt, by ruling rather than by drift** (issue #437, Code Owner
  * 2026-09-03): a new password found in the public breach corpus gets its own marker and
@@ -70,6 +84,10 @@ export async function POST(request: Request): Promise<Response> {
   // hit is the one refusal that says what it is, and the body is read only on this branch,
   // so a successful change's `Set-Cookie` headers are never consumed to get at it.
   if (authRefused(changed)) {
+    // Status before body, which is also the order `authFailureMessage` reads its markers
+    // in: a throttled request never got as far as being judged, so there is no refusal
+    // code in it to classify and nothing to gain from reading one.
+    if (authThrottled(changed)) return redirectWithGenericFailure(SETTINGS_PATH, "throttled");
     return (await passwordRefusalFrom(changed)) === "compromised"
       ? redirectWithCompromisedPassword(SETTINGS_PATH)
       : redirectWithGenericFailure(SETTINGS_PATH);

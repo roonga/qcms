@@ -6,11 +6,13 @@ import { describe, expect, it } from "vitest";
 import { messages } from "./i18n/en.js";
 import {
   DEFAULT_SETTINGS_SECTION,
+  PASSWORD_PANEL_MARKERS,
   SETTINGS_SECTION_IDS,
   SETTINGS_SECTIONS,
   settingsSectionFromHash,
   settingsSectionFromParams,
   settingsSectionLabelKey,
+  TWO_FACTOR_PANEL_MARKERS,
 } from "./settings-sections.js";
 
 /**
@@ -71,9 +73,25 @@ describe("the Settings section list", () => {
   it("lands each redirect marker on the panel that renders its message", () => {
     // The failure this rules out is invisible until it happens to someone: a password change
     // that confirms itself inside a hidden panel reads as a change that did not take.
+    for (const marker of PASSWORD_PANEL_MARKERS) {
+      expect(settingsSectionFromParams({ [marker]: "1" }), marker).toBe(
+        SETTINGS_SECTION_IDS.changePassword,
+      );
+    }
+    for (const marker of TWO_FACTOR_PANEL_MARKERS) {
+      expect(settingsSectionFromParams({ [marker]: "1" }), marker).toBe(
+        SETTINGS_SECTION_IDS.twoFactor,
+      );
+    }
+    // Spelled out as well as looped, because the loop above would still pass if a marker
+    // were dropped from both the list and the page. These four are URL contracts: three
+    // shipped with task 031 and issue #437, and `throttled` is the one issue #845 added so
+    // a rate-limited change-password stops reading as a wrong password.
     expect(settingsSectionFromParams({ changed: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
     expect(settingsSectionFromParams({ error: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
+    expect(settingsSectionFromParams({ throttled: "1" })).toBe(SETTINGS_SECTION_IDS.changePassword);
     expect(settingsSectionFromParams({ codesError: "1" })).toBe(SETTINGS_SECTION_IDS.twoFactor);
+    expect(settingsSectionFromParams({ codesThrottled: "1" })).toBe(SETTINGS_SECTION_IDS.twoFactor);
     // The breached-password refusal (issue #437). A message an operator never sees is the
     // exact defect that issue exists to close, so routing it is part of the fix rather
     // than a detail of it.
@@ -83,14 +101,19 @@ describe("the Settings section list", () => {
   });
 
   it("reads every marker the Settings page actually renders a message for", () => {
-    // The tripwire, because the two sides are one list written twice: a fifth marker added
-    // to the page renders a message on whatever panel happened to be open until it is routed
-    // here too. Read off the page's source rather than restated, so it cannot be forgotten.
-    // It has already caught one: `compromised` arrived with issue #437 and failed here.
-    const rendered = [...PAGE.matchAll(/params\.(\w+) !== undefined/gu)].map(
-      (match) => match[1] ?? "",
+    // The tripwire, because the two sides are one list written twice: a marker added to the
+    // page renders a message on whatever panel happened to be open until it is routed here
+    // too. Read off the page's source rather than restated, so it cannot be forgotten. It
+    // has already caught one: `compromised` arrived with issue #437 and failed here.
+    //
+    // Every `params.<name>` read counts, not only the `!== undefined` shape: since issue
+    // #845 the two failure pairs reach `authFailureMessage` as fields rather than as
+    // conditions, and a pattern that only matched the old shape would have gone quietly
+    // blind to four of the six.
+    const rendered = [...PAGE.matchAll(/params\.(\w+)/gu)].map((match) => match[1] ?? "");
+    expect(new Set(rendered)).toEqual(
+      new Set([...PASSWORD_PANEL_MARKERS, ...TWO_FACTOR_PANEL_MARKERS]),
     );
-    expect(new Set(rendered)).toEqual(new Set(["changed", "error", "compromised", "codesError"]));
   });
 
   it("names every section, and says so rather than guessing when one is missing", () => {

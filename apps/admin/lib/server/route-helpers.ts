@@ -147,15 +147,37 @@ export function formField(form: FormData, name: string): string | undefined {
 }
 
 /**
+ * The names a refusal may travel under: two states, and one pair of names per screen
+ * that has to tell two of its own forms apart.
+ *
+ * `error` and `throttled` are the auth screens' pair, and they are the default because
+ * those screens carry one form each. The `codes*` pair belongs to Settings (issue #845):
+ * both of that screen's forms land their reader back on `/settings`, so a single pair
+ * would print the recovery-codes refusal under the password form, and the marker also
+ * decides which panel opens (`lib/settings-sections.ts`).
+ *
+ * Four names, still two states and still two sentences: `lib/auth-failure-message.ts`
+ * maps both pairs onto the same two strings, so this union is a second address rather
+ * than a second vocabulary. A name added here that renders new copy would be the fourth
+ * distinguishable message SEC-1 does not allow.
+ */
+export type FailureMarker = "error" | "throttled" | "codesError" | "codesThrottled";
+
+/**
  * The generic failure redirect. Auth failures are reported by an opaque marker in
  * the query string (`?error=1`), never by a message from the library: SEC-1
  * requires the same response for an unknown email and a wrong password, and an
  * error string travelling through a URL is exactly how a distinguishable message
  * leaks. The page turns the marker into one fixed sentence.
+ *
+ * `throttled` (and its `codesThrottled` twin) is the one refusal that gets a different
+ * sentence, and it is not a relaxation of that rule: a `429` is the API declining to
+ * judge the credential at all, so the sentence says nothing about the account. See
+ * {@link authThrottled} and `lib/auth-failure-message.ts`.
  */
 export function redirectWithGenericFailure(
   path: `/${string}`,
-  marker: "error" | "throttled" = "error",
+  marker: FailureMarker = "error",
 ): Response {
   return redirectAfterPost(`${path}?${marker}=1`);
 }
