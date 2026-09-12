@@ -52,6 +52,17 @@
  * registry copy has one" are different claims and only the second one is what an
  * adopter pulls.
  *
+ * ## Reading the SBOM back, not just proving it exists (issue #877)
+ *
+ * The SBOM was asserted to be PRESENT and never read. The #874 reviewer read one by
+ * hand and found `vitest`, `@playwright/test` and `testcontainers` in the `qcms-api`
+ * image: 680 npm packages where a production API needs a fraction of that. So
+ * {@link assertNoDevPackages} now reads the document this build just generated and
+ * fails if it lists anything the workspace declares only as a devDependency. It runs
+ * before {@link pushImage}, because a check that runs after the push is a report
+ * rather than a gate. `scripts/image-dev-deps.mjs` derives the boundary and explains
+ * why the tooling was there.
+ *
  * ## Keeping the attestations (issue #342)
  *
  * `--attestations <dir>` writes each image's in-toto documents out as plain JSON,
@@ -70,6 +81,7 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { captureProcess, DOCKER, REPOSITORY_ROOT, runProcess } from "./docker.mjs";
+import { assertNoDevDependencies } from "./image-dev-deps.mjs";
 
 /** The three published images, and the Dockerfile each is built from. */
 export const IMAGES = [
@@ -292,6 +304,27 @@ export function saveAttestations(directory, name, outputRoot) {
 }
 
 /**
+ * Assert the image's own SBOM lists no package this workspace only develops with.
+ *
+ * Separate from {@link assertArtifact} because it reads the attestation's BODY rather
+ * than its descriptor: that function asks whether an SBOM is attached, this one asks
+ * what it says. Both run before a push.
+ *
+ * @param {string} directory an OCI directory layout.
+ * @param {string} name the image, for the message.
+ * @returns {number} how many npm packages the SBOM listed, for the build log.
+ */
+export function assertNoDevPackages(directory, name) {
+  const sbom = attestationBlobs(directory).find(({ predicate }) => predicate === SPDX_PREDICATE);
+  if (sbom === undefined) {
+    // Unreachable through buildImage, which calls assertArtifact first; a direct caller
+    // gets the same message that function would have given rather than a TypeError.
+    throw new Error(`build-images: ${name} has no SBOM (${SPDX_PREDICATE}) to read`);
+  }
+  return assertNoDevDependencies(JSON.parse(readFileSync(sbom.path, "utf8")), name);
+}
+
+/**
  * Assert the artifact carries an SBOM, provenance, and the expected version stamp.
  *
  * @param {string} directory
@@ -456,8 +489,10 @@ export function buildImage(image, version, outputRoot, attestationRoot) {
     }),
   );
   assertArtifact(destination, version, image.name);
+  const npmPackages = assertNoDevPackages(destination, image.name);
   process.stdout.write(
-    `build-images: ${image.name} ${version} - SBOM, provenance and stamp present\n`,
+    `build-images: ${image.name} ${version} - SBOM, provenance and stamp present; ` +
+      `${String(npmPackages)} npm packages, none dev-only\n`,
   );
   if (attestationRoot === undefined) return;
   for (const file of saveAttestations(destination, image.name, attestationRoot)) {
