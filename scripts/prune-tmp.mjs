@@ -364,9 +364,15 @@ export function main(args, tmpRoot) {
 
   let inodes = 0;
   for (const entry of removable) {
-    const held = options.count && entry.kind === "directory" ? countInodes(entry.path) : undefined;
+    // A stale file is one inode; a directory is counted by walking it, which is the slow
+    // part and the reason `--count` is opt-in.
+    const held = options.count
+      ? entry.kind === "directory"
+        ? countInodes(entry.path)
+        : 1
+      : undefined;
     if (held !== undefined) inodes += held;
-    const suffix = held === undefined ? "" : `, ${String(held)} inodes`;
+    const suffix = held === undefined ? "" : `, ${String(held)} inode(s)`;
     console.log(
       `  ${options.apply ? "remove " : "stale  "} ${entry.name}  (${entry.creator}: ${entry.detail}${suffix})`,
     );
