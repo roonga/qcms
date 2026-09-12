@@ -16,6 +16,7 @@ import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
 import type { CompiledStep, DraftForm } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
+import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { unexpected } from "@/lib/ops/unexpected";
 import type { PreviewTheme } from "@/lib/preview-theme";
 
@@ -253,6 +254,10 @@ export function DraftPreview({
               values={answers}
               onChange={handleChange}
               specVersion={state.preview.a2uiSpecVersion}
+              // The locale the previewed controls format on (issue #906). Without it the
+              // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
+              // never chose; `PREVIEW_LOCALE` is the respondent tag the portal renders on.
+              locale={PREVIEW_LOCALE}
               // Same embed as the version view, and the same reason (issue #537): this
               // route's own `h1` names the page ("Draft preview: <slug>"), and the compiled
               // document arrives carrying the outline it would have as a whole page on the

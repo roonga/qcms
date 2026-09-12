@@ -190,12 +190,17 @@ function typeScaleOf(target: Locator): Promise<Record<string, string>> {
   });
 }
 
-/** Land on a question detail screen with a rendered preview, and let it settle. */
-async function openPreview(page: Page, name: string): Promise<void> {
-  // Multiple choice: it compiles to checkboxes, which are real descendants of the
-  // carrier (see the header note on portalled overlays), and the checkbox is also the
-  // control 032's interactivity round was fixed on, which exit criterion 4 re-checks.
-  await createDraft(page, `e2e-island-${name}-${RUN}`, "Multiple choice");
+/**
+ * Land on a question detail screen with a rendered preview, and let it settle.
+ *
+ * The default type is Multiple choice: it compiles to checkboxes, which are real
+ * descendants of the carrier (see the header note on portalled overlays), and the checkbox
+ * is also the control 032's interactivity round was fixed on, which exit criterion 4
+ * re-checks. The locale test below asks for a Date instead, because a segmented date field
+ * is the control a locale visibly rearranges.
+ */
+async function openPreview(page: Page, name: string, typeLabel = "Multiple choice"): Promise<void> {
+  await createDraft(page, `e2e-island-${name}-${RUN}`, typeLabel);
   await expect(island(page)).toBeVisible();
   await settleTransitions(page);
 }
@@ -435,6 +440,49 @@ test("the switcher is localized, keyboard-operable and shows focus", async ({ pa
   const surface = island(page);
   await expect(surface).toHaveAttribute("data-theme", "plum");
   expect(await token(surface, "--color-primary")).toBe(THEMES.plum.primary);
+});
+
+/**
+ * The locale the previewed controls format on (issue #906).
+ *
+ * The three preview surfaces used to pass no `locale` to `A2UIStepRenderer` and so
+ * inherited `@roonga/qcms-ui`'s own `en-US` into react-aria's `I18nProvider`, while this app
+ * declares `en` and the portal passes `en` to the same renderer. This is the browser
+ * reading of the corrected state: the segmented date field an author previews is laid out
+ * the way the declared locale lays it out, which is the same order the portal harness types
+ * into a respondent's date field key by key (`apps/portal/e2e/support/kitchen-sink.ts`).
+ *
+ * **What this assertion can and cannot see, stated rather than implied.** It cannot
+ * distinguish `en` from `en-US`: `packages/ui/src/locale.test.tsx` measures the whole golden
+ * corpus under both and the markup is identical, so no rendered assertion anywhere can
+ * witness a dropped prop. That guard is at the source and prop level, in
+ * `lib/questions/renderer-surface.test.ts` and `components/preview-locale.test.tsx`. What
+ * this one does is pin the shape those two only name: a locale change that DOES move the
+ * field, whether from a mis-declared tag or a renderer default that drifts to something
+ * other than `en`, lands here in the browser and on the operator's screen at the same time.
+ */
+test("the island lays out a date field the way the declared locale does", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await openPreview(page, "locale", "Date");
+
+  const surface = island(page);
+  // The segments, in document order, as react-aria tags them. `en` gives month first and
+  // a locale like `de-DE` gives day first, so the ORDER is the observable.
+  const segments = surface.locator("[data-type]");
+  await expect(segments.first()).toBeVisible();
+  expect(await segments.evaluateAll((nodes) => nodes.map((node) => node.dataset.type))).toEqual([
+    "month",
+    "literal",
+    "day",
+    "literal",
+    "year",
+  ]);
+  // And the placeholders the same locale supplies, which is what an author actually reads
+  // in an untouched field.
+  await expect(surface.locator('[data-type="month"]')).toHaveText("mm");
+  await expect(surface.locator('[data-type="day"]')).toHaveText("dd");
+  await expect(surface.locator('[data-type="year"]')).toHaveText("yyyy");
 });
 
 /**
