@@ -2,8 +2,13 @@
 "@roonga/qcms-ui": patch
 ---
 
-One copy of `react-aria-components` in the portal's closure again, and the split closed
-upstream so it stops coming back (issue #151).
+One copy of `react-aria-components` in the portal's closure again (issue #151). The
+declaration that let it fork is fixed upstream, but that fix is not in force here yet:
+`packages/ui/package.json` exact-pins `@a2ra/core` at the published `1.0.0-preview.7`,
+whose manifest still declares the hard dependency, so **the peer declaration reaches this
+repository only when the next `@a2ra/core` preview is published and pinned here. Until
+then the single copy rests on the lockfile dedupe alone**, which is the same footing the
+split was on the last time it was closed and reopened.
 
 `pnpm --filter qcms-portal why react-aria-components` reported two versions: 1.21.1 on the
 direct arm and 1.20.0 nested under `@a2ra/core@1.0.0-preview.7`. Neither range was wrong.
@@ -28,10 +33,18 @@ closed. It was closed once already and reopened at the next bump, which is what 
 that both sides declare does. So the declaration moved too: upstream
 `roonga/a2-react-aria#81` makes `react-aria-components` a **peer** dependency of
 `@a2ra/core`, at the same range, which is what makes a second copy unreachable rather than
-merely absent. `packages/ui/a2ra.json` moves to that pull request's head as a provisional
-pin, and `packages/ui/a2ra-diff.md` records the whole-tree re-vendor: the pass changes
-nothing under upstream's `registry/`, so no vendored byte moves, and the transcript proves
-that by git tree hash on both sides as well as through the CLI.
+merely absent, and it has merged. `packages/ui/a2ra.json` moves to that pull request's
+squash commit on upstream `main`, and `packages/ui/a2ra-diff.md` records the whole-tree
+re-vendor: the pass changes nothing under upstream's `registry/`, so no vendored byte
+moves, and the transcript proves that by git tree hash on both sides as well as through the
+CLI. The pin governs the vendored component sources and not the npm dependency, which is
+why moving it does not by itself bring the peer declaration across.
+
+So the honest summary of what ships today is two things rather than one: the duplicate is
+gone, and the mechanism that would bring it back is fixed but not yet installed. Anyone
+bumping `@a2ra/core` should take the preview that carries the peer declaration, and until
+that happens a bump of `react-aria-components` alone can reopen the split and
+`pnpm dedupe` is what closes it.
 
 **The hydration mismatch #151 was opened for is unchanged, and the issue stays open.** With
 one copy resolved, the reload spec was run with its `test.fail` marker removed and React

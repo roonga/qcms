@@ -18,55 +18,74 @@ answers "do the bytes still match" on every run, and this file answers "what mov
 pin, and what did a human check" once per pin move.
 
 - **Registry pin** (`a2ra.json`): `roonga/a2-react-aria` @
-  `27091f57ef93d9f0a58ca41f17e8c5f9a02a21f1`
+  `d1677b6607844433cf09772aadadea09ae888392`
 - **Previous pin**: `009d44710bedef57324e216192d167e578b4e9de`
-- **Captured**: 2026-09-12, at the head of upstream `roonga/a2-react-aria#81`, the pass
-  making `react-aria-components` a peer dependency of `@a2ra/core`
-  (issue #151, upstream issue `roonga/a2-react-aria#80`)
+- **Captured**: 2026-09-12, re-taken at the squash commit of upstream
+  `roonga/a2-react-aria#81`, the pass making `react-aria-components` a peer dependency of
+  `@a2ra/core` (issue #151, upstream issue `roonga/a2-react-aria#80`)
 - **Components installed**: alert, breadcrumb, button, card, checkbox, date-picker,
   dialog, form, layout, menu, number-field, radio, select, table, text, text-area,
   text-field
 
-## The pin is PROVISIONAL, and this one moves no vendored byte at all
+## The pin names upstream `main`, and this one moves no vendored byte at all
 
-`27091f57` is the head of upstream pull request `roonga/a2-react-aria#81`, which is open at
-this capture. Upstream squash-merges, so this commit can never become upstream `main`
-history: **the pin moves to the squash commit once that pull request lands**, and this file
-is re-taken there, exactly as the `009d4471` capture describes for the previous pass.
+`d1677b66` is the squash commit of upstream `roonga/a2-react-aria#81`, on upstream `main`.
+**This is the final pin for this change**, and the provisional pin this file named during
+the review (`27091f57`, the pull request's branch head) is history rather than
+configuration now. Upstream squash-merges, so a branch head can never become `main`
+history and a QCMS branch that adopts one has to name a commit that will be thrown away;
+the route is the same one the `009d4471` capture describes, and it is walked here for the
+second time.
 
-What is different this time is that the pass changes **nothing under `registry/`**. Upstream
-`#81` edits `packages/core/package.json` (moving one dependency to `peerDependencies`), its
-lockfile and a changeset, and no component source. So the vendored tree at this pin is the
-vendored tree at the last one, and the whole of the fidelity work below is a demonstration
-of that rather than a record of a change.
+| Pin        | What it was                          | Why it moved                 |
+| ---------- | ------------------------------------ | ---------------------------- |
+| `27091f57` | provisional capture, the branch head | upstream `#81` squash-merged |
+| `d1677b66` | the squash commit, upstream `main`   | final                        |
 
-That is checkable without trusting the sentence, and it is checked against the registry
-directory rather than the whole repository, because the whole repository is exactly what did
-move:
+What is different from the previous pass is that this one changes **nothing under
+`registry/`**. Upstream `#81` edits `packages/core/package.json` (moving one dependency to
+`peerDependencies`), its lockfile and a changeset, and no component source. So the vendored
+tree at this pin is the vendored tree at the last two, and the whole of the fidelity work
+below is a demonstration of that rather than a record of a change.
+
+That is checkable without trusting the sentence. Against the **previous merged pin** it is
+checked on the registry directory rather than the whole repository, because the whole
+repository is exactly what did move; against the **reviewed provisional pin** the whole
+repository is identical, which is the thing a re-take at a squash commit has to demonstrate
+rather than assert.
 
 ```console
 $ git -C <sibling a2-react-aria checkout> rev-parse 009d4471:registry
 8b277709c32c08fc01c7dc714739a8698260744c
 
-$ git -C <sibling a2-react-aria checkout> rev-parse 27091f57:registry
+$ git -C <sibling a2-react-aria checkout> rev-parse d1677b66:registry
 8b277709c32c08fc01c7dc714739a8698260744c
 
 $ git -C <sibling a2-react-aria checkout> rev-parse 009d4471:packages/core/src/components
 1a455aab73a82ba039b3a549b1f5ba09fca15cda
 
-$ git -C <sibling a2-react-aria checkout> rev-parse 27091f57:packages/core/src/components
+$ git -C <sibling a2-react-aria checkout> rev-parse d1677b66:packages/core/src/components
 1a455aab73a82ba039b3a549b1f5ba09fca15cda
+
+$ git -C <sibling a2-react-aria checkout> rev-parse 27091f57^{tree}
+fb6ce2026d98b6011ebf1650d1f3944c62b4d793
+
+$ git -C <sibling a2-react-aria checkout> rev-parse d1677b66^{tree}
+fb6ce2026d98b6011ebf1650d1f3944c62b4d793
 ```
 
-Both the registry the CLI reads and the component sources it is generated from store the
-identical tree object at the two pins. The regenerated `a2ra-manifest.json` bears it out
-independently: it reproduced byte-for-byte apart from its two recorded pin lines, and all 74
-upstream hashes are unchanged.
+The registry the CLI reads and the component sources it is generated from store the
+identical tree object at `009d4471` and `d1677b66`, and the reviewed branch head and the
+squash commit store the identical **whole-repository** tree. A squash of a branch whose
+merge base is the whole of `main` reproduces that branch's tree exactly, which is why the
+prediction this file made at the provisional pin could be made at all. The regenerated
+`a2ra-manifest.json` bears it out independently: it reproduced byte-for-byte apart from its
+two recorded pin lines, and all 74 upstream hashes are unchanged.
 
 **Why move the pin at all, then.** The pin is what `check:a2ra-fidelity` measures against, so
 it is also this repository's record of which upstream commit the vendored tree is aligned to.
 Issue #151's fix is upstream, and leaving the pin at the commit before it would leave that
-record saying something that is no longer true. A pin move that provably moves no byte is the
+record naming a commit that does not carry the fix. A pin move that provably moves no byte is the
 cheapest possible way to say "this tree is upstream's, at the commit that carries the fix",
 and the gate keeps the claim honest: a manifest generated at another commit is a hard failure
 rather than a silent pass, so the pin, the manifest and the tree cannot drift apart quietly.
@@ -106,8 +125,8 @@ A pin move re-vendors **every** component at once, so "only the intended fix cha
 claim about the whole tree rather than about the files that happen to be in the diff. At this
 capture the claim is the strongest form of it: **nothing moved, in any component.**
 
-The sweep below ran with the already-vendored `009d4471` bytes still in place, against the
-registry at `27091f57`, before any overwrite: seventeen components, seventeen clean.
+The sweep below ran with the already-vendored bytes still in place, against the registry at
+`d1677b66`, before any overwrite: seventeen components, seventeen clean.
 
 ```console
 $ node <cli> --version
@@ -176,7 +195,7 @@ $ node <cli> diff
 exit=0
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 27091f57ef93 (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ d1677b660784 (ADR-22).
 exit=0
 ```
 
@@ -191,7 +210,7 @@ pin.
 ```console
 $ for c in alert breadcrumb button card checkbox date-picker dialog form layout menu \
 >          number-field radio select table text text-area text-field; do
->   up=$(git -C <sibling a2-react-aria checkout> rev-parse 27091f57:packages/core/src/components/$c)
+>   up=$(git -C <sibling a2-react-aria checkout> rev-parse d1677b66:packages/core/src/components/$c)
 >   here=$(git write-tree --prefix=packages/ui/src/components/a2ui/$c)
 >   [ "$up" = "$here" ] && printf "%-14s identical %s\n" "$c" "$up" || printf "%-14s DIFFERENT\n" "$c"
 > done
@@ -218,10 +237,12 @@ text-field     identical b3dd2e05fd3ac7f44f0a4e2f9ee7ae2f647b25d2
 group-schema-fields.ts identical 4308f0ed403e53879b312013b8534ddcba54ecc1
 ```
 
-Every sha above is unchanged from the `009d4471` capture, which is the per-directory form of
-the registry-tree equality at the top of this file. A tree object hashes the names, modes and
-blob contents of everything under it, so an identical tree sha means an identical set of
-files with identical bytes. Nothing about the comparison depends on the registry, the
+Every sha above is unchanged from the `009d4471` capture and from the `27091f57` one, which
+is the per-directory form of the tree equalities at the top of this file: the same seventeen
+trees, hashed against the squash commit this time instead of against the branch head.
+
+A tree object hashes the names, modes and blob contents of everything under it, so an
+identical tree sha means an identical set of files with identical bytes. Nothing about the comparison depends on the registry, the
 network, or the CLI. The GitHub compare API is deliberately not used for this: it answers a
 question about two commits, not about whether one directory in this repository equals one
 directory in another.
@@ -232,8 +253,9 @@ A clean verdict from a gate that has never failed in front of you is a hypothesi
 control (055's retro lesson, applied here). One byte was appended to a vendored file, both
 checks were re-run, and the file was restored - so the lines above are known to mean
 "identical" rather than "not checked". It is taken again at this pin rather than carried over
-from the previous capture: a control proves the harness was working at the moment the verdict
-above was taken, and copying one forward proves nothing about this run.
+from the previous capture or from the provisional one: a control proves the harness was
+working at the moment the verdict above was taken, and copying one forward proves nothing
+about this run.
 
 The control is taken on `number-field/NumberField.tsx`. A pass that moves no source has no
 "file this change touched" to control on, so the next best choice is the file the issue is
@@ -285,15 +307,17 @@ $ node <cli> diff
 exit=0
 
 $ node scripts/check-a2ra-fidelity.mjs
-check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ 27091f57ef93 (ADR-22).
+check-a2ra-fidelity: OK - 74 vendored files byte-identical to roonga/a2-react-aria @ d1677b660784 (ADR-22).
 exit=0
 ```
 
 The trailing `-` line is the removed byte: the appended newline, reported as a line the
 registry does not have. Both checks went red and then green on the same byte, which is what
-makes them a pair rather than one gate and one echo of it. The upstream hash in the failure,
-`92e81d628bf8`, is the hash of the unchanged file, so the control also re-states that this
-pin did not move `NumberField.tsx`.
+makes them a pair rather than one gate and one echo of it. The hash pair in the failure,
+`92e81d628bf8` upstream and `25691ac47ea9` with the byte appended, is the pair the
+`27091f57` capture recorded, which is what an unchanged `NumberField.tsx` at an identical
+tree has to produce; a different pair here would mean the re-pin had moved the file after
+all.
 
 Note the restore is `add --overwrite`, not `git checkout --`: it restores from the registry at
 the current pin, so it cannot quietly put back a file from the old one.
