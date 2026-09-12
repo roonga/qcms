@@ -124,9 +124,7 @@ export default async function SettingsPage({
                   must not be distinguishable from a rejected new one (SEC-1), and a refusal
                   the API declined to judge at all says so rather than blaming the password
                   (issue #845). */}
-                {passwordFailure !== undefined && (
-                  <Alert variant="error">{passwordFailure}</Alert>
-                )}
+                {passwordFailure !== undefined && <Alert variant="error">{passwordFailure}</Alert>}
                 {/* The one refusal that says what it is (issue #437, Code Owner ruling
                   2026-09-03): the new password is in the public breach corpus, which is a
                   fact about a password the reader just typed rather than about the account.
