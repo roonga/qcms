@@ -14,7 +14,43 @@ COPY apps ./apps
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter qcms-api build
-RUN pnpm --filter qcms-api deploy --legacy --prod /opt/qcms
+# `--no-optional` is load-bearing, and `--prod` alone was not enough (issue #877).
+#
+# The image's SBOM used to list 680 npm packages, among them `vitest`,
+# `@playwright/test`, `testcontainers`, `drizzle-kit`, `tsx`, `jsdom`, `next` and
+# `react`. None of it runs here. It inflated the image and widened what every
+# scheduled `pnpm audit` and SBOM scan reports on, which is the SEC-11 surface
+# question rather than a functional defect.
+#
+# The cause was not a manifest mistake, and `--prod` was doing what it documents:
+# "packages in `devDependencies` won't be installed" (pnpm 11.18.0, `pnpm deploy
+# --help`; https://pnpm.io/cli/deploy). The deployed tree's top-level `node_modules`
+# held production dependencies only. The tooling arrived one level down, through
+# resolved OPTIONAL PEER dependencies: `better-auth@1.7.3` declares optional peers on
+# `vitest`, `next`, `react`, `react-dom` and `drizzle-kit`, `next` declares one on
+# `@playwright/test`, and `@roonga/qcms-db` declares them on `testcontainers` and
+# `@testcontainers/postgresql` so a consumer can supply them for its `./testing`
+# subpath. pnpm records every satisfied optional peer under that snapshot's
+# `optionalDependencies` in `pnpm-lock.yaml`, and `--prod` prunes `devDependencies`,
+# not `optionalDependencies` - so each install faithfully put the whole tree back.
+# `--no-optional` ("`optionalDependencies` are not installed") is the flag that
+# removes them: 388 virtual-store entries fall to 142.
+#
+# What it costs: a genuine optionalDependency of a production dependency goes too. In
+# this closure that is exactly one, `pg-cloudflare`, which `pg` loads only when
+# `net.Socket` is absent (a Cloudflare Worker) and never on Node. A future production
+# dependency that needs an optional native accelerator would need this reconsidered
+# rather than worked around.
+#
+# `--legacy` stays: pnpm 11's non-legacy deploy still refuses a workspace without
+# `inject-workspace-packages=true`, which is a whole-workspace install-shape change.
+# pnpm's docs note that requirement is gone from v12.2.0, so this is revisitable on
+# the next major.
+#
+# `scripts/image-dev-deps.mjs` holds the boundary from the other side: the build reads
+# the image's own SBOM and fails if it lists anything this workspace declares only as
+# a devDependency, so a regression here is red before an image is pushed.
+RUN pnpm --filter qcms-api deploy --legacy --prod --no-optional /opt/qcms
 
 FROM node:24-bookworm-slim@sha256:2fe369e969550cde8e867afc3fe370b260140cab4a23d467074295b42163d553 AS runtime
 
