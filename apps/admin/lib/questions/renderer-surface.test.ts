@@ -55,6 +55,17 @@ const PREVIEW_ISLAND = "components/preview-theme-island.tsx";
 /** The module that writes the carrier's name down once, for the island to stamp. */
 const SCOPE_VOCABULARY = "lib/preview-theme.ts";
 
+/**
+ * The module that declares the locale the previews render on, once (issue #906).
+ *
+ * It is the fourth module allowed to name {@link PREVIEW_LOCALE_CONSTANT}, and the only
+ * one that is not a rendering surface: it is where the value is written down.
+ */
+const LOCALE_VOCABULARY = "lib/i18n/format.ts";
+
+/** The name of that declaration, spelled here so the assertions cannot drift from it. */
+const PREVIEW_LOCALE_CONSTANT = "PREVIEW_LOCALE";
+
 /** ADR-38's carrier attribute, spelled here so the assertion cannot drift from it. */
 const THEME_SCOPE_ATTRIBUTE = "data-qcms-theme-scope";
 
@@ -174,6 +185,40 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
     // The app's own mode control stays untouched: the island's selection is ephemeral
     // and per-render, so nothing in it may reach the operator's mode cookie.
     expect(island, "the island must not touch the operator's mode").not.toContain("qcms-app-mode");
+  });
+
+  it("renders every preview on the one declared locale, from one declaration (906)", () => {
+    // `A2UIStepRenderer`'s `locale` prop is OPTIONAL and `@roonga/qcms-ui`'s own default is
+    // `en-US`, so a surface that omits it does not fail: it silently renders respondent
+    // controls - a date field's segment order, its calendar, a number field's stepper
+    // announcements - on a tag this app never chose. All three did, until #906. The portal
+    // half of the same defect was #729.
+    //
+    // This is the guard that has to be at the source level rather than in the DOM, and the
+    // reason is measured in `packages/ui/src/locale.test.tsx`: `en` and `en-US` render the
+    // golden corpus identically, so NO rendered assertion can witness a dropped prop. What
+    // can be checked is that the prop is there and comes from one place.
+    for (const path of RENDERING_MODULES) {
+      const module = files.find((file) => file.path === path);
+      expect(module, `${path} should be scanned`).toBeDefined();
+      const text = stripComments(module!.text);
+      expect(text, `${path} should pass the declared preview locale`).toContain(
+        `locale={${PREVIEW_LOCALE_CONSTANT}}`,
+      );
+      expect(text, `${path} should take it from ${LOCALE_VOCABULARY}`).toContain(
+        'from "@/lib/i18n/format"',
+      );
+      // And not as a literal of its own, which is the shape three sites drift apart in.
+      expect(text, `${path} should not spell a locale out`).not.toMatch(/locale=["{]["']/u);
+    }
+
+    // One declaration, three call sites: the modules naming the constant are exactly the
+    // three rendering surfaces plus the module that declares it. A fourth entry here is
+    // where review gets to ask which screen grew a locale.
+    expect(modulesMentioning(PREVIEW_LOCALE_CONSTANT)).toEqual([
+      ...RENDERING_MODULES,
+      LOCALE_VOCABULARY,
+    ]);
   });
 
   it("reaches no renderer engine directly", () => {

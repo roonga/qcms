@@ -60,6 +60,59 @@
  */
 export const ADMIN_LOCALE = "en";
 
+/**
+ * The locale the A2UI previews render on (issue #906).
+ *
+ * ## Why a preview needs a locale named at all
+ *
+ * `A2UIStepRenderer` takes a `locale` and hands it to react-aria's `I18nProvider`, which
+ * is what decides a `DateField`'s segment order and placeholders, its calendar, and the
+ * announcements a `NumberField`'s stepper buttons carry. The prop is optional and the
+ * package's own default is `en-US`, so the three preview surfaces
+ * (`components/forms/draft-preview.tsx`, `components/forms/version-view.tsx` and
+ * `components/questions/question-preview.tsx`) used to draw respondent controls on a tag
+ * this app never chose and could not change from here. Issue #729 corrected the portal
+ * half of exactly that; #906 is this half.
+ *
+ * ## Whose locale it is, which is the decision worth writing down
+ *
+ * A preview shows an author what a RESPONDENT will see, so the tag has to be the one the
+ * portal renders respondents on - preview fidelity is the property the preview exists for
+ * (ARCHITECTURE section 6). That tag is the portal's own `PORTAL_LOCALE`, and this app
+ * cannot import it, because `apps/*` never import each other. At launch the mirror costs
+ * nothing: R7 gives the product one locale, both apps declare `en`, and this is therefore
+ * defined as {@link ADMIN_LOCALE} rather than as a second literal, so there is one value
+ * in this app and no pair to drift. `format.test.ts` reads the portal's declaration and
+ * fails if the two ever disagree, which is what makes the mirror safe rather than merely
+ * true today.
+ *
+ * **The form's own `defaultLocale` is the obvious wrong answer, and it is worth saying
+ * why.** A draft and a snapshot both carry one, and it looks like the respondent's locale.
+ * It is not the same thing: `defaultLocale` selects WHICH localized strings the compiler
+ * writes into the document (ADR-11, invariant I3), and by the time a step reaches this
+ * renderer that choice is already made and baked into the stored bytes. What is left for
+ * the `locale` prop is how react-aria formats and announces the controls around that text,
+ * and the portal resolves that from its app constant while reading `defaultLocale`
+ * nowhere. So a preview that used the form's tag would render a form whose
+ * `defaultLocale` is `en-AU` differently from the portal serving that same form: the
+ * divergence #906 is about, reintroduced from the other side.
+ *
+ * What the separate NAME buys is the seam. When issue #732 gives a respondent a locale of
+ * their own, the portal starts resolving one per session and the preview has to follow it
+ * while the operator's chrome stays on {@link ADMIN_LOCALE}: that is a change to this one
+ * declaration rather than to three call sites.
+ * `lib/questions/renderer-surface.test.ts` asserts the three sites pass this constant and
+ * name no locale of their own, so a fourth surface cannot quietly reinstate the default.
+ *
+ * ## What moving off `en-US` changed on screen: nothing
+ *
+ * `packages/ui/src/locale.test.tsx` renders every step of the golden corpus under `en` and
+ * under `en-US` and the markup is identical, so this is a seam correction and not a
+ * rendering change. The same file renders the corpus under a locale that genuinely
+ * differs, so the prop is shown to be load-bearing rather than assumed to be.
+ */
+export const PREVIEW_LOCALE = ADMIN_LOCALE;
+
 /** The zone every timestamp is rendered in, named in the output so it is never assumed. */
 const DISPLAY_TIME_ZONE = "UTC";
 
