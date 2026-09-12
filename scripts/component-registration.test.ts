@@ -263,6 +263,19 @@ function defaultCommitMoment(): string {
 }
 
 /**
+ * An A2UI node `type` in a compiled document, and the same in a hand-written fixture.
+ *
+ * Anchored on an upper-case initial because every A2UI node type is PascalCase and the
+ * word `type` is not reserved to them: `packages/ui/src/test-support/a11y.ts` describes an
+ * axe violation with `type: "tag"`, which an unanchored scan harvests as a node type. It
+ * is inert today, since the set is only ever probed by registry type names, but a
+ * conformance claim that quietly includes a word from an unrelated object is the shape
+ * issue #690 names.
+ */
+const A2UI_NODE_TYPE_JSON = /"type":\s*"([A-Z]\w*)"/gu;
+const A2UI_NODE_TYPE_SOURCE = /type: "([A-Z]\w*)"/gu;
+
+/**
  * Every node type any conformance document renders.
  *
  * Two sources, because the corpus is append-only and Code-Owner-governed: the golden
@@ -277,13 +290,13 @@ function renderedNodeTypes(): ReadonlySet<string> {
   const types = new Set<string>();
   const golden = join(REPO_ROOT, "packages/a2ui-compiler/golden");
   for (const file of trackedFilesUnder(golden, { match: /\.a2ui\.json$/u })) {
-    for (const type of readFileSync(join(golden, file), "utf8").matchAll(/"type":\s*"(\w+)"/gu)) {
+    for (const type of readFileSync(join(golden, file), "utf8").matchAll(A2UI_NODE_TYPE_JSON)) {
       types.add(type[1] ?? "");
     }
   }
   const support = join(REPO_ROOT, "packages/ui/src/test-support");
   for (const file of trackedFilesUnder(support, { match: /\.tsx?$/u })) {
-    for (const type of readFileSync(join(support, file), "utf8").matchAll(/type: "(\w+)"/gu)) {
+    for (const type of readFileSync(join(support, file), "utf8").matchAll(A2UI_NODE_TYPE_SOURCE)) {
       types.add(type[1] ?? "");
     }
   }
@@ -509,6 +522,22 @@ function normalizeType(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9]/gu, "");
 }
 
+/**
+ * The kernel's closed set of question types, from `QUESTION_TYPE_SET`.
+ *
+ * That constant carries `satisfies Record<QuestionType, true>`, so the TypeScript build
+ * refuses a union member missing from it and refuses a member that no longer exists. It
+ * is therefore the one enumeration of question types that cannot quietly shrink, which is
+ * what makes it the right thing to hold the two documents to.
+ */
+function kernelQuestionTypes(): ReadonlySet<string> {
+  const definition = source("packages/core/src/question-definition.ts");
+  const literal = between(definition, "const QUESTION_TYPE_SET = {", "} as const satisfies");
+  return new Set(
+    [...literal.matchAll(/(\w+): true/gu)].map((match) => normalizeType(match[1] ?? "")),
+  );
+}
+
 /** ADR-31's commitment table: question type (normalized) -> the enum moment it names. */
 function adrCommitMoments(): ReadonlyMap<string, string> {
   const adr = source("docs/adr/portal.md");
@@ -580,8 +609,9 @@ function controlForQuestionType(): ReadonlyMap<string, ReadonlySet<string>> {
  *   - "Same-step visibility updates only after the relevant commit" is a browser-level
  *     ordering claim, proved in `apps/portal/e2e/commit-moments.pw.ts`.
  *   - "A retraction is posted only when the control holds an answer the record shows the
- *     server has" (the 2026-09-02 note) is a property of the post the host makes, proved
- *     by the portal's own answer-flow tests.
+ *     server has" (the 2026-09-02 note) is a property of the post the host makes against
+ *     the session record, proved by `apps/portal/lib/answer-record.test.ts`, in
+ *     `describe("what focus leaving a control commits (issue #168)")`.
  *
  * The date row's trigger is the same kind of thing one level down: `completion` is the
  * classification, and "editing ends AND the value is complete" is what the DatePicker
@@ -621,12 +651,12 @@ describe("the ADR-31 commit-moment classification (issue #91)", () => {
     const rows = commitMomentRows();
 
     const disagreements: string[] = [];
-    let compared = 0;
+    const compared = new Set<string>();
     for (const [type, moment] of wanted) {
       for (const control of controls.get(type) ?? []) {
         const actual = rows.get(control);
         if (actual === undefined) continue; // place 7 of the checklist reports the absence
-        compared += 1;
+        compared.add(control);
         if (actual !== moment) {
           disagreements.push(
             `${type} compiles to ${control}, which ADR-31 commits at "${moment}", but ` +
@@ -636,9 +666,21 @@ describe("the ADR-31 commit-moment classification (issue #91)", () => {
       }
     }
     // The claim is over pairs the three sources agree exist, so a parse that stops
-    // matching would satisfy it by comparing nothing. Every classified control is one
-    // pair at least, which is the floor a silent parse regression cannot clear.
-    expect(compared).toBeGreaterThanOrEqual(rows.size);
+    // matching would satisfy it by comparing nothing. What is asserted is therefore the
+    // SET of controls reached, not a count of pairs: a count has slack in it whenever one
+    // question type maps to two controls, and `singleChoice` does, either side of the
+    // seven-option threshold. A count floor of `rows.size` was 8 >= 7 here, so the
+    // `singleChoice -> Select` row could stop parsing and the file stayed green with
+    // `RadioGroup` still covering the type. The set has no such slack: every classified
+    // control has to be reached by name.
+    expect(
+      [...rows.keys()].filter((control) => !compared.has(control)).sort(),
+      "every control in `COMMIT_MOMENT_BY_CONTROL` must be reached through " +
+        "`docs/a2ui-mapping.md`'s compilation table and checked against ADR-31's moment " +
+        "for its question type. A control missing here is one whose agreement with the " +
+        "record has silently stopped being checked, usually because the mapping row that " +
+        "named it no longer parses",
+    ).toEqual([]);
     expect(
       disagreements.sort((left, right) => left.localeCompare(right)),
       "`COMMIT_MOMENT_BY_CONTROL` in `apps/portal/lib/visible.ts` is keyed by CONTROL and " +
@@ -648,20 +690,43 @@ describe("the ADR-31 commit-moment classification (issue #91)", () => {
     ).toEqual([]);
   });
 
-  it("condition: ADR-31's table reaches every question type the compiler can emit", () => {
-    // The condition that keeps the one above from going quiet. It compares two documents
-    // rather than a document and the code, so it catches the amendment that adds a
-    // question type to the mapping and forgets to give it a commit moment - which would
-    // otherwise leave the type simply skipped by the loop above.
-    const unclassified = [...controlForQuestionType().keys()]
-      .filter((type) => !adrCommitMoments().has(type))
-      .sort((left, right) => left.localeCompare(right));
-    expect(
-      unclassified,
-      "every question type in `docs/a2ui-mapping.md`'s compilation table needs a row in " +
-        "ADR-31's commitment table (`docs/adr/portal.md`), or its control commits at a " +
-        "moment the record never decided",
-    ).toEqual([]);
+  it("condition: both documents reach every question type the KERNEL holds", () => {
+    // The condition that keeps the one above from going quiet, and it is anchored on the
+    // kernel rather than on one document checking another. `QUESTION_TYPE_SET` is the
+    // closed set: it carries a `satisfies Record<QuestionType, true>` so the compiler
+    // itself refuses a union member left out of it, which makes it the one enumeration of
+    // question types nothing can quietly shrink. Asked of the two documents in both
+    // directions, it catches the type added to the kernel that no mapping row names (and
+    // so is skipped by the loop above without ever being unclassified), the type given a
+    // control but no commit moment, and the row left behind by a type that is gone.
+    const kernel = kernelQuestionTypes();
+    const mapped = controlForQuestionType();
+    const wanted = adrCommitMoments();
+
+    const gaps: string[] = [];
+    for (const type of kernel) {
+      if (!mapped.has(type)) {
+        gaps.push(
+          `${type} -> docs/a2ui-mapping.md: add a compilation row naming the control this ` +
+            "question type compiles to, or its commit moment is checked against nothing",
+        );
+      }
+      if (!wanted.has(type)) {
+        gaps.push(
+          `${type} -> docs/adr/portal.md: add a row to ADR-31's commitment table, or this ` +
+            "type's control commits at a moment the record never decided",
+        );
+      }
+    }
+    for (const type of mapped.keys()) {
+      if (!kernel.has(type)) {
+        gaps.push(
+          `${type} -> docs/a2ui-mapping.md: the compilation table names a question type ` +
+            "`QUESTION_TYPE_SET` in `packages/core/src/question-definition.ts` does not have",
+        );
+      }
+    }
+    expect(gaps.sort((left, right) => left.localeCompare(right))).toEqual([]);
   });
 });
 
@@ -680,6 +745,7 @@ describe("the derivations", () => {
   });
 
   it("finds a barrel, a registry, a classification and a corpus, none of them empty", () => {
+    expect(kernelQuestionTypes().size).toBeGreaterThan(1);
     expect(kitVendoredExports().size).toBeGreaterThan(1);
     expect(kitAllExports().size).toBeGreaterThan(kitVendoredExports().size);
     expect(kitTestPinnedNames().size).toBeGreaterThan(1);
