@@ -127,6 +127,26 @@ production (issue #30). `client` is a separate single connection for raw SQL: it
 sees only committed state, so do not use it to observe a transaction another
 connection still has open.
 
+**Opening your own pool or client? Register it** (issue #888). `teardown()` is the only
+thing that stops the container, and it stops it once every connection it knows about is
+closed. Hand it anything you open against `connectionUri` and it drains that too:
+
+```ts
+// A second pool, because the shared `client` cannot run overlapping transactions.
+const pool = ctx.register(new Pool({ connectionString: ctx.connectionUri, max: 8 }), "race pool");
+const db = drizzle(pool, { schema });
+// No afterAll of your own: `ctx.teardown()` closes this pool before the container stops.
+```
+
+Closing it yourself in a second `afterAll` looks equivalent and is not. Stopping the
+container answers every open backend with `57P01 terminating connection due to
+administrator command`, and on the dedicated `pg.Client` that used to be an uncaught
+exception that killed the whole Vitest worker; a pooled client still checked out is worse,
+because `pool.end()` cannot settle until it comes back, so teardown runs to the hook
+timeout and the container stop happens afterwards, next to live connections. Registering
+puts the drain and the stop in one function in one order, and the drain releases a leaked
+checkout rather than waiting for it.
+
 `applyMigrations(client, { from, to })` applies migration files one at a time
 (bypassing Drizzle's tracker) so a test can observe the schema **between**
 migrations - the "apply N, then N+1" forward path.

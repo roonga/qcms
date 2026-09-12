@@ -384,13 +384,13 @@ describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)",
   let pooledDeps: Deps;
 
   beforeAll(() => {
-    pool = new Pool({ connectionString: testDb.connectionUri, max: 8 });
+    // Registered with the harness rather than ended in a local `afterAll` (issue #888).
+    pool = testDb.register(
+      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      "outbox concurrency pool",
+    );
     const db = drizzle(pool, { schema }) as unknown as Deps["db"];
     pooledDeps = makeDeps({ db, env: baseEnv, clock: systemClock });
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it("two concurrent passes deliver a single (event, webhook) exactly once", async () => {

@@ -108,9 +108,18 @@ function uriFor(container: TestDb, role: string, password: string): string {
   return uri.toString();
 }
 
-/** Open a client on `container` as `role`. */
+/**
+ * Open a client on `container` as `role`, registered with that container's teardown.
+ *
+ * Registering rather than closing it in an `afterAll` of our own is issue #888: the harness
+ * drains every connection it knows about and only then stops the container, so no caller
+ * has to keep a close list in the right order next to the harness's own.
+ */
 async function connectAs(container: TestDb, role: string, password: string): Promise<pg.Client> {
-  const client = new pg.Client({ connectionString: uriFor(container, role, password) });
+  const client = container.register(
+    new pg.Client({ connectionString: uriFor(container, role, password) }),
+    `${role} client`,
+  );
   await client.connect();
   return client;
 }
@@ -120,7 +129,10 @@ beforeAll(async () => {
   // migration then runs as qcms_migrate - migrating here as the superuser first
   // would leave every object owned by the wrong role and quietly test nothing.
   testDb = await startTestDb({ migrate: false });
-  owner = new pg.Client({ connectionString: testDb.connectionUri });
+  owner = testDb.register(
+    new pg.Client({ connectionString: testDb.connectionUri }),
+    "owner client",
+  );
   await owner.connect();
 
   const migratePassword = ephemeralPassword();
@@ -181,12 +193,11 @@ beforeAll(async () => {
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
-  await reporting?.end().catch(() => undefined);
-  await app?.end().catch(() => undefined);
-  await migrator?.end().catch(() => undefined);
-  await owner?.end().catch(() => undefined);
+  // Every client above is registered with the harness, so this one call drains them all
+  // and then stops the container (issue #888). It also reports a close that failed, which
+  // the per-client `.catch(() => undefined)` this replaced could not.
   await testDb?.teardown();
-});
+}, CONTAINER_BOOT_TIMEOUT_MS);
 
 describe("the migration role is the only role that owns the schema", () => {
   it("migrated the database (the recipe's ordering works end to end)", async () => {
@@ -446,7 +457,10 @@ describe("an upgrading database, migrated under the old single credential", () =
     // the world this scenario exists for: every object, including drizzle's own
     // bookkeeping table and its linked sequence, owned by the old credential.
     upgradeDb = await startTestDb({ migrate: true });
-    bootstrap = new pg.Client({ connectionString: upgradeDb.connectionUri });
+    bootstrap = upgradeDb.register(
+      new pg.Client({ connectionString: upgradeDb.connectionUri }),
+      "bootstrap client",
+    );
     await bootstrap.connect();
 
     const before = await bootstrap.query<{ name: string; owner: string }>(LINKED_SEQUENCE_QUERY);
@@ -519,11 +533,8 @@ describe("an upgrading database, migrated under the old single credential", () =
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   afterAll(async () => {
-    await upgradeApp?.end().catch(() => undefined);
-    await upgradeMigrator?.end().catch(() => undefined);
-    await bootstrap?.end().catch(() => undefined);
     await upgradeDb?.teardown();
-  });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("completes the handover at all (it aborted on the linked sequence)", async () => {
     // If the handover threw, `beforeAll` would have failed and every test here would

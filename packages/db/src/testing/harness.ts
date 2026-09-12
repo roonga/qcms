@@ -18,6 +18,13 @@ import {
   instrumentPool,
   instrumentQueryable,
 } from "./pool-contention.js";
+import {
+  createHarnessTeardown,
+  type DrainableConnection,
+  type HarnessTeardown,
+} from "./teardown.js";
+
+export type { DrainableConnection } from "./teardown.js";
 
 const { Client, Pool } = pg;
 
@@ -248,7 +255,19 @@ export interface TestDb {
    * directly - use {@link TestDb.teardown}.
    */
   readonly container: StartedTestPostgres;
-  /** Stop the client and the container. Idempotent. */
+  /**
+   * Hand a pool or client this test file opened against {@link TestDb.connectionUri} to
+   * the harness, so {@link TestDb.teardown} drains it before the container stops, and so a
+   * connection of its that dies cannot take the worker down (issue #888). Returns its
+   * argument: `const pool = testDb.register(new Pool({ ... }), "concurrency pool")`.
+   *
+   * Use it instead of a second `afterAll` that ends the connection. A local `afterAll`
+   * happens to run before the harness's today because Vitest finishes a nested suite
+   * before its parent, which is a convention rather than a guarantee the harness can hold
+   * anyone to - and it does nothing at all for a pool whose client is still checked out.
+   */
+  register<T extends DrainableConnection>(connection: T, label: string): T;
+  /** Drain every registered connection, then stop the container. Idempotent. */
   teardown(): Promise<void>;
 }
 
@@ -572,7 +591,19 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   );
 
   const connectionUri = container.getConnectionUri();
+
+  // The single teardown for this container (issue #888). Every connection below is
+  // registered with it as it is opened, so the drain-then-stop order is a property of the
+  // harness rather than something each caller re-derives - including on the failure path,
+  // where `startTestDb` itself throws and no `afterAll` has a `TestDb` to tear down.
+  const teardown = createHarnessTeardown(container);
+
   const client = new Client({ connectionString: connectionUri });
+  // Registered BEFORE connecting: the `error` guard has to be attached before a connection
+  // exists to lose. This one connection is the whole of issue #888's fatal path - a 57P01
+  // on an unlistened `pg.Client` is an uncaught exception and takes the worker down,
+  // whereas the same event on the pool below is re-emitted where a listener already waits.
+  teardown.register(client, "dedicated client");
   try {
     await client.connect();
   } catch (cause) {
@@ -580,14 +611,17 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
     // host under load shows up next, and `timeout exceeded when trying to connect` names
     // no more of the cause than the mid-suite drop does.
     annotateWithHostSnapshot(cause);
+    await stopAfterFailedStart(teardown);
     throw cause;
   }
 
   const pool = new Pool({ connectionString: connectionUri });
-  // An idle pooled connection that dies (typically the container going away at
-  // teardown) emits `error` on the pool; node-postgres rethrows it as an
-  // unhandled error without a listener, which would red an unrelated test.
-  pool.on("error", () => undefined);
+  // An idle pooled connection that dies (typically the container going away at teardown)
+  // emits `error` on the pool; node-postgres rethrows it as an unhandled error without a
+  // listener, which would red an unrelated test. `register` attaches that listener, and
+  // tracks what the pool hands out so a checkout left open at teardown cannot keep
+  // `pool.end()` pending past the hook timeout.
+  teardown.register(pool, "pool");
 
   // A connection that dies MID-suite is a different event from the one above: it rejects
   // an in-flight query, reds the test that issued it, and says only `Connection
@@ -602,23 +636,45 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   const db = drizzle(pool, { schema });
 
   if (options.migrate ?? true) {
-    await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+    try {
+      await migrate(db, { migrationsFolder: MIGRATIONS_DIR });
+    } catch (cause) {
+      // Without this, a migration failure left the container running with both connections
+      // open and `testDb` never assigned, so the caller's `afterAll` had nothing to tear
+      // down and the eventual container stop landed on live connections.
+      await stopAfterFailedStart(teardown);
+      throw cause;
+    }
   }
 
-  let torn = false;
   return {
     db,
     client,
     connectionUri,
     container,
-    async teardown() {
-      if (torn) return;
-      torn = true;
-      await pool.end();
-      await client.end();
-      await container.stop();
+    register<T extends DrainableConnection>(connection: T, label: string): T {
+      return teardown.register(connection, label);
+    },
+    async teardown(): Promise<void> {
+      await teardown.run();
     },
   };
+}
+
+/**
+ * Drain and stop after `startTestDb` has already decided to throw.
+ *
+ * The caller's error is the one worth reporting, so a teardown failure here is appended to
+ * it rather than replacing it: `startTestDb` throws the original cause either way.
+ */
+async function stopAfterFailedStart(teardown: HarnessTeardown): Promise<void> {
+  try {
+    await teardown.run();
+  } catch (teardownFailure) {
+    const detail =
+      teardownFailure instanceof Error ? teardownFailure.message : String(teardownFailure);
+    process.emitWarning(`@roonga/qcms-db/testing: teardown after a failed start: ${detail}`);
+  }
 }
 
 /**
