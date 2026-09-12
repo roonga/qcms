@@ -284,8 +284,9 @@ test("forced colours: every control type in the kitchen-sink walk keeps a drawn 
   await continueStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
 
-  // Step 2 adds the boolean and single-choice radios, the number field's box and
-  // the multi-choice checkboxes: the remaining shapes the renderer produces.
+  // Step 2 adds the boolean radio, the number field's box and the multi-choice
+  // checkboxes: the remaining shapes the renderer draws a box around. (Step 3's
+  // single choice is the same RadioGroup as the boolean, so it adds no shape.)
   await expectDrawnBoundary(
     page.locator('[data-qcms-field] label[data-rac]:has(input[type="radio"]) > div').first(),
     "radio indicator",
