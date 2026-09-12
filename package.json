@@ -38,6 +38,7 @@
     "claude": "bash scripts/claude-session.sh",
     "agent-loop:status": "node scripts/agent-loop-status.mjs",
     "worktrees:prune": "node scripts/prune-worktrees.mjs",
+    "tmp:prune": "node scripts/prune-tmp.mjs",
     "png:preview": "node scripts/png-preview.mjs",
     "sql:capture": "node scripts/sql-capture.mjs",
     "ci:durations": "node scripts/ci-job-durations.mjs",

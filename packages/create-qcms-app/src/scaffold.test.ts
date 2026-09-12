@@ -1,15 +1,49 @@
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it, onTestFinished } from "vitest";
 
 import { withDefaults, type DeploymentShape, type ScaffoldOptions } from "./options.js";
 import { nextCommands } from "./next-steps.js";
 import { scaffold, TargetNotEmpty } from "./scaffold.js";
 
+/**
+ * Every workspace `target()` has created, kept so the sweep below can prove that none
+ * of them outlived the run (issue #918).
+ *
+ * A stamp writes about 495 files and nearly every test here stamps one, so a run that
+ * leaves its workspaces behind spends several thousand inodes per `pnpm verify`. The
+ * development host's `/tmp` is a tmpfs with a fixed inode table, and it reached 100
+ * percent twice on 2026-09-12, at which point every write on the host fails for
+ * reasons that never mention `/tmp`. This file was the dominant filler.
+ */
+const workspaces: string[] = [];
+
+afterAll(() => {
+  // The proof, not a second cleanup: each workspace is removed by the test that made
+  // it, and anything still standing here is a leak that would survive the run.
+  expect(workspaces.filter((workspace) => existsSync(workspace))).toStrictEqual([]);
+});
+
+/**
+ * A fresh, empty stamp target inside a throwaway workspace that the calling test
+ * removes when it finishes, whether it passed, failed, or threw.
+ */
 function target(): string {
-  return join(mkdtempSync(join(tmpdir(), "qcms-scaffold-")), "my-forms");
+  const workspace = mkdtempSync(join(tmpdir(), "qcms-scaffold-"));
+  workspaces.push(workspace);
+  onTestFinished(() => {
+    rmSync(workspace, { recursive: true, force: true });
+  });
+  return join(workspace, "my-forms");
 }
 
 function stamp(overrides: Partial<ScaffoldOptions> = {}): {
