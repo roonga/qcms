@@ -1,5 +1,6 @@
 ---
 "@roonga/qcms-observability": minor
+"create-qcms-app": patch
 ---
 
 Resolve the OpenTelemetry batch export timings from the standard environment variables,
@@ -37,3 +38,6 @@ time, the configured delay and timeout, and which artefact never arrived, and ev
 leaves the measured latency in `apps/portal/.playwright/otlp/delivery.txt`. No retry was
 added around the assertions: a retry would turn a slow pipeline into a pass, which is the
 mis-attribution issue #604 is about.
+
+The scaffolded templates carry the same three call sites, so a project generated from
+`create-qcms-app` gets the explicit timings too.
