@@ -276,13 +276,13 @@ function defaultCommitMoment(): string {
 function renderedNodeTypes(): ReadonlySet<string> {
   const types = new Set<string>();
   const golden = join(REPO_ROOT, "packages/a2ui-compiler/golden");
-  for (const file of trackedFilesUnder(golden, /\.a2ui\.json$/u)) {
+  for (const file of trackedFilesUnder(golden, { match: /\.a2ui\.json$/u })) {
     for (const type of readFileSync(join(golden, file), "utf8").matchAll(/"type":\s*"(\w+)"/gu)) {
       types.add(type[1] ?? "");
     }
   }
   const support = join(REPO_ROOT, "packages/ui/src/test-support");
-  for (const file of trackedFilesUnder(support, /\.tsx?$/u)) {
+  for (const file of trackedFilesUnder(support, { match: /\.tsx?$/u })) {
     for (const type of readFileSync(join(support, file), "utf8").matchAll(/type: "(\w+)"/gu)) {
       types.add(type[1] ?? "");
     }
@@ -455,15 +455,16 @@ describe("every vendored component is registered in all eight places (issue #91)
         stale.push(`packages/ui/a2ra-manifest.json lists ${component}, which is not vendored`);
       }
     }
-    for (const [directory, name] of [
+    for (const [place, listed] of [
       ["packages/ui/src/kit.test.tsx pinned set", kitTestPinnedNames()],
       ["packages/ui/src/kit.test.tsx PRIMITIVES", kitTestRenderedNames()],
       ["apps/admin/components/kit.tsx", adminKitExports()],
       ["docs/features/033-component-contract.md", contractKitListing()],
     ] as const) {
-      for (const entry of name) {
-        if (!exported.has(entry))
-          stale.push(`${directory} names ${entry}, which the kit barrel does not export`);
+      for (const name of listed) {
+        if (!exported.has(name)) {
+          stale.push(`${place} names ${name}, which the kit barrel does not export`);
+        }
       }
     }
     for (const control of commitMomentRows().keys()) {
