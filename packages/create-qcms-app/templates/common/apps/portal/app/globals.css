@@ -136,13 +136,17 @@ body {
 
 /*
  * Guaranteed focus-visible indicator (WCAG 2.2 - 2.4.11 Focus Appearance,
- * task 030). Zero-specificity `:where()` so the vendored @roonga/qcms-ui controls keep
- * their own focus rings; every other focusable element - the skip link, the
- * error-summary "jump to field" links, a step heading focused after a branch
- * removal - gets a solid, high-contrast outline. `--color-focus-ring` clears 3:1
- * against its backgrounds in EVERY theme and mode (asserted by
- * `theme-tokens.test.ts`), and the heavier HC treatment is in
- * theme-components.css.
+ * task 030). EVERY focusable element gets a solid, high-contrast outline: the
+ * skip link, the error-summary "jump to field" links, a step heading focused
+ * after a branch removal, and the vendored @roonga/qcms-ui controls too. This
+ * rule is unlayered and their `focus:outline-none` is a Tailwind utility in
+ * `@layer utilities`, and unlayered author CSS beats any layer whatever the
+ * specificity, so it reaches them as well; what they keep is their own `ring`
+ * on top of it, not instead of it. The zero-specificity `:where()` is what lets
+ * a more specific unlayered rule replace this outline rather than stack with it,
+ * which is how the HC and forced-colours blocks in theme-components.css raise it
+ * to 3px. `--color-focus-ring` clears 3:1 against its backgrounds in EVERY theme
+ * and mode (asserted by `theme-tokens.test.ts`).
  */
 :where(a, button, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--color-focus-ring);
@@ -420,5 +424,105 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+/* ==========================================================================
+   AUTOMATIC CONTRAST BASELINE (issue #28).
+
+   The user-agent-driven half of the contrast story: nothing here is a
+   respondent choice or a deployment setting, it is what the portal does when
+   the operating system says the person using it needs more contrast, or has
+   replaced the palette outright.
+
+   This file only covers the portal's OWN chrome - the skip link, the brand
+   header, the Appearance disclosure and its chips, and the Continue / Back /
+   Start buttons. The form controls are the component kit's, and their half of
+   the same two media queries lives beside the High-contrast scaffold in
+   `packages/ui/src/theme-components.css`, which also carries the full reasoning
+   for what forced colours do and why no rule in either file uses
+   `forced-color-adjust: none`. Both blocks are kept at the very end of their
+   sheet and touch nothing above them, so they are the only region either file
+   contributes to a merge.
+
+   The shared rules do reach this app: the portal stamps `data-qcms-theme-scope`
+   on its `<html>`, so the package's focus-ring rules already cover every
+   focusable element on the page, chrome included. What is left here is the
+   chrome that the package cannot see.
+   ========================================================================== */
+
+/* `prefers-contrast: more`: the palette stays, the edges step from
+   `--color-border` to `--color-border-strong` - the higher-contrast half of the
+   same authored pair, asserted at >= 3:1 against every background by
+   `theme-tokens.test.ts` - and the focus ring gains a pixel.
+
+   The Apply button is deliberately NOT in the list even though the `.hc` block
+   above raises it: its border is `--color-primary`, which says "this is the
+   panel's one action" rather than describing an edge, and trading that for a
+   neutral border would spend meaning on contrast the fill already has. */
+@media (prefers-contrast: more) {
+  :is(
+    .qcms-appearance__summary,
+    .qcms-appearance__select,
+    .qcms-appearance__panel,
+    .qcms-seg__chip
+  ) {
+    border-color: var(--color-border-strong);
+  }
+
+  .qcms-seg__chip:has(.qcms-seg__input:focus-visible) {
+    outline-width: 3px;
+  }
+}
+
+/*
+ * `forced-colors: active` (Windows High Contrast Mode and its equivalents).
+ * Three chrome-specific losses, each restated with a system colour pair:
+ *
+ * 1. The primary Continue / Submit / Start button is a fill with NO border, so
+ *    forcing its background to Canvas leaves a label floating on the page with
+ *    no button around it. `ButtonBorder` is the system colour for exactly this
+ *    edge. The secondary variant already carries a border and only changes
+ *    colour, but it takes the same rule so the pair still looks like a pair.
+ * 2. The skip link is a floating panel held apart from the content underneath
+ *    it by a shadow, and shadows are forced to `none`.
+ * 3. The selected Appearance chip loses its fill. Three of its four selected
+ *    signals survive on their own (the check glyph, the 600 weight, the heavier
+ *    border), which is the point of having four - but `Highlight` /
+ *    `HighlightText` is what the platform uses for a chosen item, so the chip
+ *    says "chosen" in the user's own vocabulary rather than only in ours.
+ *
+ * In-content links take `LinkText` for the same reason: the error summary's
+ * jump-to-field links are underlined and would survive without it, but a link
+ * that the user's palette colours as a link is the better answer, and the
+ * portal's other anchors are chrome that is not inside the content column.
+ */
+@media (forced-colors: active) {
+  .qcms-chrome-button {
+    border: 1px solid ButtonBorder;
+  }
+
+  /* Continue and Back are `disabled` while a step is in flight
+     (`components/step-flow.tsx`), and `disabled:opacity-50` is the only thing
+     that says so. Opacity is not forced, so the faded button survives, but faded
+     ButtonText is not the signal the platform uses for disabled. This is the one
+     disabled control a respondent actually meets: the component kit's rule 5
+     covers the form controls, and nothing renders one of those disabled today. */
+  .qcms-chrome-button:disabled {
+    border-color: GrayText;
+    color: GrayText;
+  }
+
+  .skip-link {
+    border: 1px solid CanvasText;
+  }
+
+  .qcms-seg__chip[data-selected="true"] {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  #portal-main a {
+    color: LinkText;
   }
 }
