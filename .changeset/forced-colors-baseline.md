@@ -1,6 +1,5 @@
 ---
 "@roonga/qcms-ui": minor
-"qcms-portal": minor
 "create-qcms-app": minor
 ---
 
@@ -47,12 +46,8 @@ that says the same thing inside the user's palette, so opting an element out of 
 would only take the user's choice away. The case that would justify it is a swatch whose
 exact colour IS the content, and the portal renders none.
 
-**`qcms-portal`** carries the same two media queries for its own chrome, at the end of
-`app/globals.css`: a `ButtonBorder` edge on the Continue / Back / Start buttons, a
-`CanvasText` edge on the skip link (its shadow is forced away), the selected Appearance chip
-in `Highlight` / `HighlightText`, `LinkText` for in-content links, and the stronger border
-token plus a 3px ring under `prefers-contrast: more`. `lib/ui.ts` gains one non-Tailwind
-hook class so the stylesheet can reach those three buttons from a media query.
+The portal's own chrome takes the same two media queries in its own changeset,
+`forced-colors-baseline-portal`.
 
 **`create-qcms-app`** re-syncs both template twins.
 
