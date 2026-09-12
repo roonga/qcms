@@ -8,12 +8,15 @@ per-deployment selection, the brand mark, the declarative self-hosted font regis
 with its curation config, the shared font fallback tails (issue #27), and the
 respondent mode / font / density controls with their persistence.
 **Does not own:** the Phase 4 admin theme editor (task 049), the admin font-curation UI,
-per-form theming, self-hosted **multi-script** coverage (the open half of issue #27:
-which non-Latin scripts QCMS ships faces for is undecided), and the
-`forced-colors` / Windows High Contrast Mode baseline (issue #28). Note the split
-on that last one: defaulting the mode from **`prefers-contrast: more`** is here
-(it is one line of the pre-paint script), while `forced-colors` is a separate
-baseline QCMS ships regardless of this feature.
+per-form theming, and self-hosted **multi-script** coverage (the open half of
+issue #27: which non-Latin scripts QCMS ships faces for is undecided).
+**Documented here but not part of this feature:** the automatic contrast
+baseline - `prefers-contrast: more` and `forced-colors` / Windows High Contrast
+Mode (issue #28). QCMS ships it regardless of managed theming, and it is written
+up here because the rules it adds sit in the same two stylesheets and because
+what a theme may and may not override under forced colours is a theming
+question. Note the one part that IS this feature: defaulting the mode from
+`prefers-contrast: more` is one line of the pre-paint script, below.
 
 ## Ownership in one paragraph
 
@@ -523,6 +526,131 @@ palette authored per theme. It is a single, theme-agnostic layer:
 identical HC palette apart from those four accent tokens, and an alternate theme's
 `.hc` block may not declare anything else.
 
+## The automatic contrast baseline: `prefers-contrast` and `forced-colors`
+
+High-contrast above is a **choice**: a respondent picks it, or a deployment
+defaults to it, and either way QCMS decides what the page looks like. This
+section is the other kind. `prefers-contrast: more` and `forced-colors: active`
+are settings the person made in their operating system, before the browser
+opened, and the portal honours them whatever theme it is running (issue #28).
+Neither is gated behind managed theming and neither needs any configuration.
+
+The three doors do not overlap, and it is worth being exact about which is which:
+
+| Signal                   | Who set it             | What changes                                            |
+| ------------------------ | ---------------------- | ------------------------------------------------------- |
+| `.hc` mode               | respondent or operator | the whole QCMS palette, to the shared HC layer          |
+| `prefers-contrast: more` | the OS                 | edges and focus rings only, inside the current palette  |
+| `forced-colors: active`  | the OS                 | the palette is the USER's; QCMS keeps shapes and states |
+
+`prefers-contrast: more` also **defaults the mode to High contrast** when
+`QCMS_PORTAL_MODE` is `auto` (see the precedence list below): that is the
+pre-paint script's job and it happens before any of this. The CSS half here is
+what runs when the mode is not `auto`, or when the respondent has chosen a
+different mode and still wants firmer edges.
+
+### What `prefers-contrast: more` may do
+
+Two moves, and the boundary is the point:
+
+1. Control edges take `--color-border-strong` instead of `--color-border`. Those
+   two are the higher- and lower-contrast half of one authored pair, and the
+   token suite already asserts the strong half at >= 3:1 against every
+   background in every theme x mode. So the step-up lands on a ratio that is
+   proven rather than on a new colour.
+2. The focus ring goes from 2px to the 3px the `.hc` layer uses.
+
+It may **not** touch a `--color-*` value or a `--type-*` token. Contrast pairs
+and the WCAG 1.4.12 floors are asserted against the base blocks, so a rule here
+that could move either would put the whole assertion out of reach. It also
+leaves an **invalid** control alone: that edge is `--color-danger`, which is
+meaning rather than chrome, and flattening it to the neutral strong border would
+buy a contrast step by spending the error signal. (`.hc` does flatten it, on
+purpose: there the palette really is two colours and the error text carries the
+meaning instead.)
+
+### What a theme may and may not override under forced colours
+
+Under `forced-colors: active` the palette **is not the theme's any more**. The
+user agent replaces it with the user's own: `color`, `background-color`,
+`border-color`, `outline-color`, `fill` and `stroke` are forced to system
+colours, and `box-shadow`, `text-shadow` and non-`url()` `background-image` are
+forced to `none`. An author declaration is honoured only where its value is a
+**system-colour keyword**; every other value is discarded silently, with no
+error and no visible failure until someone looks at the page in that mode.
+
+So the rule for a theme, and for an adopter's `adopter-theme.css`, is short:
+
+- **A theme may not set a colour under forced colours.** Not its brand accent,
+  not a semantic colour, not a neutral. Every `--color-*` value it declares is
+  discarded there. This is not a restriction QCMS imposes; it is what the mode
+  is.
+- **A theme keeps everything that is not a colour.** Geometry, spacing, radius,
+  type scale and the font selection are untouched, so the page is still
+  recognisably the deployment's page.
+- **QCMS's job is to keep the shapes and the states legible inside the user's
+  palette**, which is what the two blocks at the end of
+  `packages/ui/src/theme-components.css` (the component kit) and
+  `apps/portal/app/globals.css` (the portal's own chrome) do. They are a short
+  list of specific losses, never a second design:
+
+| What is lost                                                         | Restated as                       |
+| -------------------------------------------------------------------- | --------------------------------- |
+| A focus ring drawn as a Tailwind `ring-*` (that is a `box-shadow`)   | a real `outline` in `Highlight`   |
+| A control's border given up on focus (`focus:border-transparent`)    | the edge restated in `CanvasText` |
+| The radio's dot: a filled circle, no border, no glyph                | `CanvasText`                      |
+| The date segment being edited: a background fill                     | `Highlight` / `HighlightText`     |
+| The focused row of a listbox or menu: a background fill              | `Highlight` / `HighlightText`     |
+| The number field's dividers and a menu separator: filled `1px` boxes | `CanvasText`                      |
+| A disabled control faded with `opacity`                              | `GrayText`                        |
+| The portal's primary button: a fill with no border                   | a `1px solid ButtonBorder` edge   |
+| The skip link held off the page by a shadow                          | a `1px solid CanvasText` edge     |
+| The selected Appearance chip's fill                                  | `Highlight` / `HighlightText`     |
+| In-content links coloured by the theme                               | `LinkText`                        |
+
+A checked checkbox needs no rule at all, and the reason is worth keeping: its
+tick is an SVG drawn in `currentColor`, which forces to `CanvasText` inside a
+`Canvas` box. The radio has no glyph, which is exactly why it needs one.
+
+### No rule uses `forced-color-adjust: none`, deliberately
+
+`forced-color-adjust: none` opts an element out of the user's palette. Every
+colour in the portal that carries meaning - selected, checked, focused, invalid,
+disabled - has a system-colour pair that says the same thing **inside** that
+palette, so there is nothing here the property would buy that a pair does not.
+Using it anyway would take a choice away from the one group of people the mode
+exists for, and MDN's own rule for the property is that it may support a
+contrast requirement, never override one.
+
+The case that would justify it is a swatch whose exact colour **is** the content
+
+- a colour picker, a chart legend keyed by hue, a brand-colour preview. The
+  portal renders none of those. If one ever arrives, it gets `forced-color-adjust:
+none` on that element alone, with a text or shape label beside it so the meaning
+  does not depend on the swatch either way. `theme-contrast.test.ts` fails on the
+  property appearing anywhere in the component sheet, so the decision cannot be
+  reversed by accident.
+
+### Measured
+
+`apps/portal/e2e/forced-colors.pw.ts` emulates both features in Chromium and
+walks the kitchen-sink form. It asserts a drawn boundary (a border or an outline
+with non-zero width, a drawing style and a non-transparent colour) on every
+control type the renderer produces plus the portal's own chrome; that a focused
+text control keeps its edge AND gains a painted ring, with the `box-shadow` the
+ring used to be confirmed gone; that the radio dot, the checkbox tick and the
+selected Appearance chip each resolve to the system colour they should; and that
+axe is clean in all three states. Every comparison is against system colours
+resolved from the live page, because the forced palette is the user's and its
+values are not knowable up front - and each test first asserts that the page
+body's background really is `Canvas`, so a run where the emulation queried the
+media feature without forcing the palette fails instead of passing vacuously.
+
+`packages/ui/src/theme-contrast.test.ts` guards the parts that are about what
+the blocks may NOT contain: system colours only under forced colours, no
+`forced-color-adjust`, edges and rings only under `prefers-contrast: more`, and
+the invalid-control exclusion.
+
 ## Per-deployment selection (config only in this slice)
 
 QCMS is single-tenant (ADR-20), so one deployment runs one theme. The portal reads
@@ -693,9 +821,12 @@ Two limits are worth stating rather than discovering:
 
 - **`?mode=` and the OS signals still need scripting.** They are resolved by the
   pre-paint script, so a no-JS respondent whose OS asks for `prefers-contrast: more`
-  still gets the configured default and must pick High contrast themselves. Issue #28
-  (`forced-colors` / Windows High Contrast Mode) is the separate CSS-level answer to
-  part of that, and is deliberately not folded in here.
+  still gets the configured default and must pick High contrast themselves. The
+  automatic contrast baseline (issue #28) is the CSS-level answer to part of that
+  and needs no scripting at all: a media query runs whatever the respondent's
+  scripting settings are, so a no-JS respondent on `prefers-contrast: more` still
+  gets the stronger edges and rings, and one in Windows High Contrast Mode still
+  gets the whole forced-colours treatment.
 - **The redirect target is validated, never reflected, and never emitted relatively.** The
   return path (path and query) arrives in a hidden field, so it is respondent-controllable.
   It is accepted only when it resolves inside this origin, with the `Referer` (when that
@@ -769,6 +900,9 @@ gate, so a deployment that changes colours checks its own pairs.
 | The vendored controls really consume the spacing tokens                                              | same spec (moves each token and re-measures)                        |
 | The floors hold on rendered text                                                                     | same spec                                                           |
 | Every theme is axe-clean in Light, Dark and HC                                                       | same spec                                                           |
+| Every control keeps a boundary, ring and state under `forced-colors: active`                         | `apps/portal/e2e/forced-colors.pw.ts`                               |
+| `prefers-contrast: more` steps edges and rings onto the stronger token                               | same spec                                                           |
+| The contrast blocks name only system colours and never `forced-color-adjust`                         | `packages/ui/src/theme-contrast.test.ts`                            |
 | HC really is heavy borders, flat surfaces, heavy focus                                               | same spec                                                           |
 | The rewrite moved no selector: each anchored form scores what its `:root` form scored                | `packages/ui/src/theme-tokens.test.ts`                              |
 | The resolution is order-sensitive, so a mis-ordered sheet resolves wrong rather than being certified | same file                                                           |

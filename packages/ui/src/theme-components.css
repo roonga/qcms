@@ -256,3 +256,189 @@
 [data-qcms-theme-scope].hc :is(hr, [role="separator"]) {
   border-color: var(--color-border-strong);
 }
+
+/* --------------------------------------------------------------------------
+   PREFERS-CONTRAST: MORE (issue #28).
+
+   The user-agent-driven half of the contrast story, and deliberately NOT the
+   `.hc` mode above: that one is a respondent CHOICE (or a deployment default)
+   that swaps the whole palette, this one is a system setting the respondent
+   made once, outside the browser, and it only steps the existing palette's
+   edges up. Nothing here changes a colour VALUE, so no text pair moves and no
+   1.4.12 floor can be reached.
+
+   Two moves, and only two:
+
+   1. Control edges take `--color-border-strong` instead of `--color-border`.
+      Those two are the higher- and lower-contrast half of one authored pair,
+      and `theme-tokens.test.ts` asserts the strong half clears 3:1 against its
+      background in every theme x mode. So this is a step onto a ratio that is
+      already proven rather than a new colour.
+   2. The focus ring gains a pixel (2px -> 3px), matching the weight `.hc` uses.
+
+   An INVALID control is excluded from the edge rule on purpose. Its border is
+   `--color-danger`, which is meaning rather than chrome, and flattening it to
+   the neutral strong border would trade a contrast step for the loss of the
+   error signal. `.hc` does flatten it, because there the palette really is two
+   colours and the error text carries the meaning instead; here the palette is
+   intact and there is nothing to trade.
+   -------------------------------------------------------------------------- */
+@media (prefers-contrast: more) {
+  [data-qcms-theme-scope]
+    [data-qcms-field]
+    :is(
+      input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
+      textarea,
+      [role="group"][data-rac],
+      button[data-rac][aria-haspopup]
+    ):not([aria-invalid="true"], [data-invalid]) {
+    border-color: var(--color-border-strong);
+  }
+
+  [data-qcms-theme-scope] [data-rac]:has(> [role="listbox"]),
+  [data-qcms-theme-scope] [data-rac]:has(> [role="menu"]) {
+    border-color: var(--color-border-strong);
+  }
+
+  [data-qcms-theme-scope]
+    :is(
+      a,
+      button,
+      input,
+      textarea,
+      select,
+      summary,
+      [tabindex],
+      [contenteditable="true"]
+    ):focus-visible {
+    outline: 3px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+
+  [data-qcms-theme-scope] :is(hr, [role="separator"]) {
+    border-color: var(--color-border-strong);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   FORCED COLORS / Windows High Contrast Mode (issue #28).
+
+   Under `forced-colors: active` the user agent replaces the palette with the
+   user's own: `color`, `background-color`, `border-color`, `outline-color`,
+   `fill` and `stroke` are forced to system colours, and `box-shadow`,
+   `text-shadow` and non-`url()` `background-image` are forced to `none`. An
+   author declaration is honoured only when its value is a system colour
+   keyword, which is why every value below is one.
+
+   That default is right for most of this sheet - text, surfaces and plain
+   edges land on Canvas / CanvasText and read fine - so this block is a short
+   list of the specific places where the automatic result LOSES something,
+   never a second design:
+
+   1. **An edge that is drawn as a shadow, or given up on focus.** The vendored
+      text field, textarea and number field carry `focus:border-transparent`
+      plus a Tailwind `ring-*`, and a `ring` is a box-shadow. Forced colours
+      delete the shadow, so a focused control was left with no boundary at all.
+      Restating the border colour puts the edge back; it is unlayered, so it
+      wins over the layered `focus:border-transparent` utility without
+      `!important`.
+   2. **A focus ring that must not be a shadow.** Same reason, one level up:
+      the ring is redrawn as a real `outline` in `Highlight`.
+   3. **A state that is only a background fill.** The radio's dot, the date
+      segment being edited and the focused row of a listbox or menu are each a
+      filled rectangle with no border and no glyph, so forcing the fill to
+      Canvas erases the state itself rather than only its colour. Each is
+      restated with a system pair.
+   4. **A rule drawn as a filled box.** The number field's dividers and a menu
+      separator are `w-px`/`h-px` elements with a background and no border.
+   5. **Disabled.** `opacity` is not forced, so a disabled control stays faded,
+      but faded CanvasText is not the signal the platform uses. GrayText is.
+
+   NOTHING HERE USES `forced-color-adjust: none`, and that is a decision rather
+   than an omission. Every colour in the portal that carries meaning - selected,
+   checked, focused, invalid, disabled - has a system-colour pair that expresses
+   the same meaning inside the user's palette, so opting an element out of that
+   palette would only take the user's choice away. MDN's own rule for the
+   property is that it may support a contrast requirement, never override one.
+   The one thing that would need it is a swatch whose exact colour IS the
+   content, and the portal renders none.
+
+   Checked checkboxes need no rule: the indicator's tick is an SVG drawn in
+   `currentColor`, which forces to CanvasText inside a Canvas box, so the
+   checked state survives on its own. The radio has no glyph, which is exactly
+   why it needs rule 3.
+   -------------------------------------------------------------------------- */
+@media (forced-colors: active) {
+  /* 1. Every control edge stays drawn, at rest and while focused. */
+  [data-qcms-theme-scope]
+    [data-qcms-field]
+    :is(
+      input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
+      textarea,
+      [role="group"][data-rac],
+      button[data-rac],
+      label[data-rac] > div
+    ) {
+    border-color: CanvasText;
+  }
+
+  [data-qcms-theme-scope] [data-rac]:has(> [role="listbox"]),
+  [data-qcms-theme-scope] [data-rac]:has(> [role="menu"]) {
+    border-color: CanvasText;
+  }
+
+  /* 2. The focus ring, as an outline rather than a ring/box-shadow. */
+  [data-qcms-theme-scope]
+    :is(
+      a,
+      button,
+      input,
+      textarea,
+      select,
+      summary,
+      [tabindex],
+      [contenteditable="true"]
+    ):focus-visible {
+    outline: 3px solid Highlight;
+    outline-offset: 2px;
+  }
+
+  /* 3. States that are only a fill. */
+  [data-qcms-theme-scope] [data-qcms-field] label[data-rac]:has(input[type="radio"]) > div > div {
+    background-color: CanvasText;
+  }
+
+  [data-qcms-theme-scope] [data-qcms-field] [role="spinbutton"][data-focused] {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  [data-qcms-theme-scope]
+    :is(
+      [role="option"],
+      [role="menuitem"],
+      [role="menuitemradio"],
+      [role="menuitemcheckbox"]
+    )[data-rac][data-focused] {
+    background-color: Highlight;
+    color: HighlightText;
+  }
+
+  /* 4. Rules drawn as a filled box rather than as a border. */
+  [data-qcms-theme-scope] [data-qcms-field] [role="group"][data-rac] > span[aria-hidden="true"],
+  [data-qcms-theme-scope] [role="separator"][data-rac] {
+    background-color: CanvasText;
+  }
+
+  /* 5. Disabled reads as the platform's disabled, not as faded body text. */
+  [data-qcms-theme-scope]
+    [data-qcms-field]
+    :is(input, textarea, button, [role="group"], label[data-rac] > div):is(
+      :disabled,
+      [data-disabled],
+      [aria-disabled="true"]
+    ) {
+    border-color: GrayText;
+    color: GrayText;
+  }
+}
