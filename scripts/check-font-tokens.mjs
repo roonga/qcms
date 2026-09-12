@@ -275,10 +275,12 @@ export function checkSource(relative, source) {
  * 78 files, so dropping it leaves 221; dropping `.tsx` leaves 156; dropping `.ts`
  * leaves exactly 150, which this floor still admits. What the floor catches is the
  * collapse, a scan narrowed to one or two roots (the four smallest together are 84
- * files) or to nothing at all, and `trackedFilesUnder` throwing on an empty
- * enumeration is the other half of that. The loss of a root or an extension that held
- * a real declaration is caught instead by the companion assertion in
- * `check-font-tokens.test.ts`, which pins each of the seven cited files as in scope.
+ * files) or to nothing at all, and `trackedFilesUnder` is the other half of that: it
+ * throws on an empty enumeration, and on a root that is not a directory, so a root
+ * renamed away without this list being edited is a red of its own. What has no red of
+ * its own is a deliberate narrowing of either list, and the loss of a root or an
+ * extension that held a real declaration is caught instead by the companion assertion
+ * in `check-font-tokens.test.ts`, which pins each of the seven cited files as in scope.
  * Raise this if it ever gets close; do not lower it to make a red go away.
  */
 export const MINIMUM_SCANNED = 150;

@@ -42,10 +42,12 @@
  *   node scripts/prune-tmp.mjs --count               # add per-entry inode counts (slow)
  *   node scripts/prune-tmp.mjs --strict              # exit 1 when stale entries remain
  *
- * `QCMS_TMP_ROOT` replaces the root that is swept (`os.tmpdir()` otherwise). It is the
- * only knob that changes where `--apply` deletes, and it is how `prune-tmp.test.ts`
- * points the real classifier at a fixture tree. Nothing schedules this sweep: it runs
- * when someone runs it (`docs/DEVELOPER_GUIDE.md`, "Monitoring and control").
+ * `QCMS_TMP_ROOT` replaces the root that is swept (`os.tmpdir()` otherwise). It is read
+ * once, at the entry point below, and is the only knob that changes where `--apply`
+ * deletes; everything above that takes the root as a parameter, which is how
+ * `prune-tmp.test.ts` points the real classifier at a fixture tree. Nothing schedules
+ * this sweep: it runs when someone runs it (`docs/DEVELOPER_GUIDE.md`, "Monitoring and
+ * control").
  */
 
 import { lstatSync, readdirSync, realpathSync, rmSync } from "node:fs";
