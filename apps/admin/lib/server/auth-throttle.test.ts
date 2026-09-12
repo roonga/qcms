@@ -10,17 +10,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * ## The defect this pins
  *
  * `POST /sign-in/submit` has always read the refusal's status and redirected with
- * `?throttled=1` for a `429`. The three two-factor verify handlers read only "did it
- * refuse", so every refusal became `?error=1` and the screen rendered the one sentence
- * that means the credential was wrong. That is not a cosmetic difference. The advice a
- * wrong-code message carries is "type it again", and typing it again is the one action
- * that keeps a throttle window shut - so the message actively worked against the person
- * reading it, on the only screen where they have no other move.
+ * `?throttled=1` for a `429`. Every other handler that reads an auth refusal read only
+ * "did it refuse", so every refusal became the generic marker and the screen rendered the
+ * one sentence that means the credential was wrong. That is not a cosmetic difference.
+ * The advice a wrong-code message carries is "type it again", and typing it again is the
+ * one action that keeps a throttle window shut - so the message actively worked against
+ * the person reading it, on the only screen where they have no other move.
  *
  * It is reachable without an attacker. `/two-factor/*` has its own three-per-ten-seconds
  * bucket, and issue #482 records that on the default Compose shape there is no proxy, so
  * better-auth cannot resolve a client address and keys that bucket on a constant shared
  * by every operator. One colleague's retries therefore throttle everyone.
+ *
+ * ## All six readers, including the two Settings forms (issue #845)
+ *
+ * The three two-factor verify handlers were fixed by issue #805 and the two Settings
+ * handlers were recorded here as justified exclusions: both are reached with a session
+ * already established, so nobody is locked out, and the screen carries its own copy set.
+ * The Code Owner ruled on 2026-09-12 that they render the sign-in throttled sentence too,
+ * one throttled sentence app-wide and no new catalog key, so the exclusions became covered
+ * cases and this file now pins every handler that reads a refusal.
+ *
+ * Those two are throttled by the same limiter for the same reason: SEC-1 puts
+ * `/change-password` in the sign-in bucket and the recovery-codes call is
+ * `/two-factor/generate-backup-codes`. What differs is the marker names. Both Settings
+ * forms land their reader back on `/settings`, so the recovery-codes form carries a
+ * `codesError`/`codesThrottled` pair of its own or its refusal would print under the
+ * password form. The pairs are addresses, not vocabulary: both render the same two
+ * sentences through `authFailureMessage`, which is what the sentence assertions below
+ * check rather than taking the marker as a proxy for the message.
  *
  * ## Why this layer, and why not the browser suite
  *
@@ -81,6 +99,19 @@ vi.mock("@/lib/server/auth-api", () => ({
   signOut: seams.signOut,
 }));
 
+/**
+ * The request scope Next gives a route handler, which a direct call has none of.
+ *
+ * `requireAdminSessionForRequest` is the real module here (the two Settings handlers apply
+ * the shell's session policy themselves, issue #177, and stubbing that out would leave the
+ * test asserting a handler that production does not run), and it reads `headers()`. Only
+ * the accessor is substituted; the policy above it and the session it reads are real, the
+ * latter coming back through the mocked auth mount below like every other seam.
+ */
+vi.mock("next/headers", () => ({
+  headers: (): Promise<Headers> => Promise.resolve(new Headers()),
+}));
+
 vi.mock("@/lib/server/enrollment", () => ({
   pendingEnrollmentCookie: (): string => "qcms_admin.enrollment=uri; Path=/",
   recoveryCodesCookie: (): string => "qcms_admin.recovery_codes=%5B%5D; Path=/",
@@ -92,6 +123,8 @@ const signInRoute = await import("../../app/sign-in/submit/route.ts");
 const challengeRoute = await import("../../app/two-factor/challenge/verify/route.ts");
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
 const recoveryRoute = await import("../../app/two-factor/recovery/verify/route.ts");
+const passwordRoute = await import("../../app/(shell)/settings/password/route.ts");
+const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
 const { authFailureMessage } = await import("../auth-failure-message.ts");
 const { messages } = await import("../i18n/en.ts");
 
@@ -120,21 +153,60 @@ function formPost(path: string, fields: Record<string, string>): Request {
   });
 }
 
+/**
+ * The two query markers a handler reports its two refusal states with.
+ *
+ * The auth screens carry one form each, so they all use this pair.
+ */
+const SHARED_MARKERS = { throttled: "throttled", refused: "error" } as const;
+
+/**
+ * The Settings recovery-codes form's pair (issue #845).
+ *
+ * Two forms on one screen, both landing back on `/settings`: without a second pair the
+ * recovery-codes refusal would render under the password form, and the marker also decides
+ * which panel opens (`lib/settings-sections.ts`). Different names, same two states, same
+ * two sentences.
+ */
+const CODES_MARKERS = { throttled: "codesThrottled", refused: "codesError" } as const;
+
 /** One handler that turns an auth-mount refusal into a redirect a screen can read. */
 interface RefusingRoute {
   /** Repo-relative source path, so a red names the file to open. */
   readonly path: string;
   /** The screen a refusal lands on, without its marker. */
   readonly screen: string;
+  /** The names this handler reports the two states under. */
+  readonly markers: { readonly throttled: string; readonly refused: string };
   /** Arm the auth-mount call this handler makes with the given refusal. */
   readonly refuseWith: (status: number) => void;
   readonly post: () => Promise<Response>;
+}
+
+/**
+ * The sentence a screen would render from a redirect this handler produced.
+ *
+ * The marker is read back out of the `Location` and put through the real mapping under the
+ * handler's own marker names, which is exactly what the screen does with it: the password
+ * panel reads `throttled`/`error` and the recovery-codes panel reads its `codes*` pair
+ * (`app/(shell)/settings/page.tsx`). Asserting the sentence rather than only the marker is
+ * what makes the second pair worth having - a `codesThrottled` nothing maps to would pass
+ * a marker-only assertion while showing the operator no message at all.
+ */
+function sentenceRenderedFor(route: RefusingRoute, response: Response): string | undefined {
+  const location = response.headers.get("location") ?? "";
+  const query = new URL(location, ADMIN_BASE).searchParams;
+  return authFailureMessage({
+    throttled: query.get(route.markers.throttled) ?? undefined,
+    error: query.get(route.markers.refused) ?? undefined,
+  });
 }
 
 const ROUTES: readonly RefusingRoute[] = [
   {
     path: "app/sign-in/submit/route.ts",
     screen: "/sign-in",
+    markers: SHARED_MARKERS,
     refuseWith: (status) => seams.signInEmail.mockResolvedValue(refusal(status)),
     post: () =>
       signInRoute.POST(
@@ -147,25 +219,74 @@ const ROUTES: readonly RefusingRoute[] = [
   {
     path: "app/two-factor/challenge/verify/route.ts",
     screen: "/two-factor/challenge",
+    markers: SHARED_MARKERS,
     refuseWith: (status) => seams.verifyTotp.mockResolvedValue(refusal(status)),
     post: () => challengeRoute.POST(formPost("/two-factor/challenge/verify", { code: "123456" })),
   },
   {
     path: "app/two-factor/enroll/verify/route.ts",
     screen: "/two-factor/enroll",
+    markers: SHARED_MARKERS,
     refuseWith: (status) => seams.verifyTotp.mockResolvedValue(refusal(status)),
     post: () => enrollRoute.POST(formPost("/two-factor/enroll/verify", { code: "123456" })),
   },
   {
     path: "app/two-factor/recovery/verify/route.ts",
     screen: "/two-factor/recovery",
+    markers: SHARED_MARKERS,
     refuseWith: (status) => seams.verifyBackupCode.mockResolvedValue(refusal(status)),
     post: () => recoveryRoute.POST(formPost("/two-factor/recovery/verify", { code: "aaaa-bbbb" })),
   },
+  {
+    // Reached with a session, which is why it was excluded until the 2026-09-12 ruling. The
+    // marker pair is the shared one: this form owns the panel the pair opens.
+    path: "app/(shell)/settings/password/route.ts",
+    screen: "/settings",
+    markers: SHARED_MARKERS,
+    refuseWith: (status) => seams.changePassword.mockResolvedValue(refusal(status)),
+    post: () =>
+      passwordRoute.POST(
+        formPost("/settings/password", {
+          currentPassword: "correct horse battery staple",
+          newPassword: "a much longer replacement",
+        }),
+      ),
+  },
+  {
+    path: "app/(shell)/settings/recovery-codes/route.ts",
+    screen: "/settings",
+    markers: CODES_MARKERS,
+    refuseWith: (status) => seams.generateBackupCodes.mockResolvedValue(refusal(status)),
+    post: () =>
+      codesRoute.POST(
+        formPost("/settings/recovery-codes", { password: "correct horse battery staple" }),
+      ),
+  },
 ];
+
+/**
+ * The session the two Settings handlers require before they reach the auth mount at all.
+ *
+ * Enrolled and freshly issued, so all three gates in `./session.ts` pass: an unenrolled or
+ * aged session would redirect to enrollment or sign-in and the refusal under test would
+ * never be produced.
+ */
+function signedInSession(): unknown {
+  return {
+    session: { createdAt: new Date().toISOString(), token: "session-token" },
+    user: {
+      id: "usr_1",
+      email: "admin@example.test",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: true,
+    },
+  };
+}
 
 beforeEach(() => {
   for (const seam of Object.values(seams)) seam.mockReset();
+  seams.proxiedSession.mockResolvedValue(signedInSession());
 });
 
 describe.each(ROUTES)("$path", (route) => {
@@ -173,7 +294,10 @@ describe.each(ROUTES)("$path", (route) => {
     route.refuseWith(429);
     const response = await route.post();
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${route.screen}?throttled=1`);
+    expect(response.headers.get("location")).toBe(`${route.screen}?${route.markers.throttled}=1`);
+    // And that marker is one the screen has a sentence for: the message the operator reads
+    // is what the issue is about, and it is the same sentence on all six routes.
+    expect(sentenceRenderedFor(route, response)).toBe(messages["signIn.throttled"]);
   });
 
   it("still redirects with the generic marker when the credential was refused", async () => {
@@ -183,7 +307,8 @@ describe.each(ROUTES)("$path", (route) => {
     route.refuseWith(401);
     const response = await route.post();
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe(`${route.screen}?error=1`);
+    expect(response.headers.get("location")).toBe(`${route.screen}?${route.markers.refused}=1`);
+    expect(sentenceRenderedFor(route, response)).toBe(messages["signIn.error"]);
   });
 
   it("issues no cookies on either refusal", async () => {
@@ -231,22 +356,10 @@ describe("the marker the screen reads", () => {
  * by not being in them. So the set is read off the tree and has to be accounted for.
  */
 describe("every admin handler that reads an auth refusal is accounted for", () => {
-  /**
-   * Handlers that refuse without a throttled marker, and why each one is not an omission.
-   *
-   * Both are Settings screens reached with a session already established, so the person
-   * reading the message is signed in and not locked out of anything: the failure mode
-   * this issue is about (an operator stuck on an auth screen, told to retry, and spending
-   * the retry) has no analogue there. Giving them the distinction would mean new markers
-   * and a fourth and fifth sentence on a screen that has its own copy set, which is a
-   * change worth its own issue rather than a rider on this one.
-   */
-  const OUT_OF_SCOPE: Readonly<Record<string, string>> = {
-    "app/(shell)/settings/password/route.ts": "signed-in Settings screen, own marker set",
-    "app/(shell)/settings/recovery-codes/route.ts": "signed-in Settings screen, own marker set",
-  };
-
-  it("is the table above plus the recorded exclusions, and nothing else", () => {
+  it("is the table above and nothing else, with no exclusions left", () => {
+    // There were two, both Settings handlers, recorded here when issue #805 shipped. The
+    // 2026-09-12 ruling folded them in, so the set is now the whole table: a handler added
+    // later has to join it rather than earn a paragraph.
     const appDir = fileURLToPath(new URL("../../app/", import.meta.url));
     const handlers = readdirSync(appDir, { recursive: true, encoding: "utf8" })
       .filter((entry) => entry.endsWith("route.ts"))
@@ -254,8 +367,6 @@ describe("every admin handler that reads an auth refusal is accounted for", () =
       .map((entry) => `app/${entry.split("\\").join("/")}`);
 
     const order = (a: string, b: string): number => a.localeCompare(b);
-    expect([...handlers].sort(order)).toEqual(
-      [...ROUTES.map((route) => route.path), ...Object.keys(OUT_OF_SCOPE)].sort(order),
-    );
+    expect([...handlers].sort(order)).toEqual([...ROUTES.map((route) => route.path)].sort(order));
   });
 });
