@@ -52,22 +52,37 @@ const IPHONE_PLATFORM = "iPhone";
 const REAL_NAVIGATOR: Navigator = window.navigator;
 
 /**
- * A `navigator` that reports the given overrides and delegates everything else to the
- * real one. A proxy rather than a spread: `userAgent` and `platform` are prototype
- * getters, so a spread copy would report neither.
+ * Run `body` with the REAL navigator reporting `overrides`, restoring it however `body`
+ * ends.
+ *
+ * An own property shadowing a prototype getter, rather than a substitute navigator
+ * object. `userAgent` and `platform` are getters on jsdom's `Navigator.prototype` and
+ * jsdom brand-checks their receiver, so neither a spread copy (which would report
+ * neither) nor an object inheriting from the real one (`'get platform' called on an
+ * object that is not a valid instance of Navigator`) survives contact with it. Defining
+ * the property on the genuine navigator and deleting it afterwards leaves every other
+ * read exactly as it was.
  */
-function navigatorReporting(overrides: Readonly<Record<string, string>>): Navigator {
-  return new Proxy(REAL_NAVIGATOR, {
-    get(target, property, receiver) {
-      if (typeof property === "string" && property in overrides) return overrides[property];
-      return Reflect.get(target, property, target) as unknown;
-    },
-  }) as Navigator;
+function withPlatform<T>(overrides: Readonly<Record<string, string>>, body: () => T): T {
+  for (const [property, value] of Object.entries(overrides)) {
+    Object.defineProperty(REAL_NAVIGATOR, property, { value, configurable: true });
+  }
+  try {
+    return body();
+  } finally {
+    for (const property of Object.keys(overrides)) {
+      Reflect.deleteProperty(REAL_NAVIGATOR, property);
+    }
+  }
 }
 
-/** Run `body` with `window.navigator` replaced, restoring it however `body` ends. */
-function withNavigator<T>(replacement: Navigator | undefined, body: () => T): T {
-  Object.defineProperty(window, "navigator", { value: replacement, configurable: true });
+/**
+ * Run `body` with no `navigator` at all, restoring it however `body` ends. react-aria's
+ * platform helpers return false for every platform when `window.navigator == null`,
+ * which is the branch a Node render takes.
+ */
+function withoutNavigator<T>(body: () => T): T {
+  Object.defineProperty(window, "navigator", { value: undefined, configurable: true });
   try {
     return body();
   } finally {
@@ -80,7 +95,7 @@ function numberStep(props: Readonly<Record<string, unknown>>): A2UIStepDocument 
   return {
     stepId: "stp_number",
     root: { type: "Form", children: [{ type: "NumberField", props }] },
-  } as A2UIStepDocument;
+  };
 }
 
 /**
@@ -97,7 +112,7 @@ function soleInputMode(root: ParentNode): string | null {
 
 /** What the server emits: no `navigator`, which is the branch Node takes. */
 function serverInputMode(document_: A2UIStepDocument): string | null {
-  const markup = withNavigator(undefined, () =>
+  const markup = withoutNavigator(() =>
     renderToStaticMarkup(<A2UIStepRenderer document={document_} />),
   );
   return soleInputMode(new DOMParser().parseFromString(markup, "text/html"));
@@ -108,7 +123,7 @@ function clientInputMode(
   document_: A2UIStepDocument,
   overrides: Readonly<Record<string, string>>,
 ): string | null {
-  return withNavigator(navigatorReporting(overrides), () => {
+  return withPlatform(overrides, () => {
     const { container } = render(<A2UIStepRenderer document={document_} />);
     return soleInputMode(container);
   });

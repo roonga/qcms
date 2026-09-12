@@ -286,16 +286,16 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  * The second dedup closed it again and closed it upstream as well, by making
  * react-aria-components a peer dependency of `@a2ra/core` so the fork is unreachable
  * rather than merely absent today. This test was run with the marker off at that
- * point, and React reported the same one attribute it reports below. Two independent
- * occasions, same result: the copy count is not what this is.
+ * point, and React reported the same one attribute quoted below. Two independent
+ * occasions, same result: the copy count is not what this was.
  *
- * The actual diff React reports is ONE attribute, and it is not among the five the
+ * The diff React reported was ONE attribute, and it was not among the five the
  * issue named:
  *
  *     +  inputMode="decimal"     (client)
  *     -  inputMode="numeric"     (server)
  *
- * The `role` and `aria-value*` nulls the issue quoted are printed by React as
+ * The `role` and `aria-value*` nulls the issue quoted were printed by React as
  * unchanged context on both sides, not as the difference. `@react-aria/numberfield`
  * picks `inputMode` from the resolved number FORMAT and from platform detection that
  * reads `navigator`, which a server render does not have, so the server said `numeric`
