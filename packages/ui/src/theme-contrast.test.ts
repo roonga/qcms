@@ -76,12 +76,17 @@ function declarations(block: string): readonly { property: string; value: string
   );
 }
 
-/** Every selector in a block, comments removed. */
+/**
+ * Every selector in a block, comments removed. Split rather than matched: a
+ * `([^{}]+)\{...\}` pattern is the shape the lint rule refuses for its
+ * backtracking, and splitting on the braces says the same thing in linear time.
+ */
 function selectors(block: string): readonly string[] {
   const withoutComments = block.replace(/\/\*[\s\S]*?\*\//gu, "");
-  return [...withoutComments.matchAll(/([^{}]+)\{[^{}]*\}/gu)].map((match) =>
-    (match[1] ?? "").trim().replace(/\s+/gu, " "),
-  );
+  return withoutComments
+    .split("}")
+    .map((chunk) => (chunk.split("{")[0] ?? "").trim().replace(/\s+/gu, " "))
+    .filter((selector) => selector.length > 0);
 }
 
 /**

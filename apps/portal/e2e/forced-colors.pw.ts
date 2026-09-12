@@ -43,8 +43,10 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
 
+import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
+import { PORTAL_PORT } from "./support/harness-config.js";
 import {
   KS,
   answerNumber,
@@ -55,6 +57,38 @@ import {
   fillText,
   startKitchenSink,
 } from "./support/kitchen-sink.js";
+
+/** The origin the harness serves, for the cookie seeded before a navigation. */
+const ORIGIN = `http://localhost:${PORTAL_PORT}`;
+
+/**
+ * Pin the respondent's mode to Light before the first navigation, and prove it
+ * stuck.
+ *
+ * This is what stops the whole spec from measuring the wrong thing. The portal's
+ * pre-paint script defaults the mode from the OS when `QCMS_PORTAL_MODE` is
+ * `auto`, and `prefers-contrast: more` is one of the signals it reads: emulate
+ * that feature and the page can arrive already in `.hc`, whose mode layer sets
+ * 2px `--color-border-strong` edges and a 3px ring of its own. Every assertion
+ * below would then pass against a mode switch rather than against the media
+ * query it is supposed to be testing. The `qcms-theme` cookie is the respondent's
+ * own choice and outranks the OS signals, so seeding it holds the ordinary
+ * palette in place and the two blocks under test are the only thing that can
+ * move an edge.
+ */
+async function pinOrdinaryPalette(page: Page): Promise<void> {
+  await page.context().addCookies([{ name: MODE_COOKIE, value: "light", url: ORIGIN }]);
+}
+
+/** The page is on the ordinary Light palette, so nothing measured came from `.hc`. */
+async function expectOrdinaryPalette(page: Page): Promise<void> {
+  const root = page.locator("html");
+  await expect(root).toHaveClass(/\blight\b/u);
+  await expect(
+    root,
+    "the page fell into High-contrast, so nothing below measures the media query",
+  ).not.toHaveClass(/\bhc\b/u);
+}
 
 /** The system colours this spec compares against, resolved from the live page. */
 interface SystemPalette {
@@ -75,24 +109,31 @@ interface SystemPalette {
  * unsupported keyword would come back as the initial `rgba(0, 0, 0, 0)` and fail
  * the assertion that uses it, rather than silently comparing two unknowns.
  */
-async function resolveColors(page: Page, values: readonly string[]): Promise<readonly string[]> {
-  return page.evaluate((wanted) => {
-    const probe = document.createElement("div");
-    probe.setAttribute("aria-hidden", "true");
-    probe.style.position = "fixed";
-    probe.style.inset = "auto";
-    probe.style.width = "1px";
-    probe.style.height = "1px";
-    probe.style.pointerEvents = "none";
-    document.documentElement.append(probe);
-    const resolved = wanted.map((value) => {
-      probe.style.backgroundColor = "";
-      probe.style.backgroundColor = value;
-      return getComputedStyle(probe).backgroundColor;
-    });
-    probe.remove();
-    return resolved;
-  }, values);
+async function resolveColors<const T extends readonly string[]>(
+  page: Page,
+  values: T,
+): Promise<{ readonly [K in keyof T]: string }> {
+  const resolved = await page.evaluate(
+    (wanted) => {
+      const probe = document.createElement("div");
+      probe.setAttribute("aria-hidden", "true");
+      probe.style.position = "fixed";
+      probe.style.inset = "auto";
+      probe.style.width = "1px";
+      probe.style.height = "1px";
+      probe.style.pointerEvents = "none";
+      document.documentElement.append(probe);
+      const read = wanted.map((value) => {
+        probe.style.backgroundColor = "";
+        probe.style.backgroundColor = value;
+        return getComputedStyle(probe).backgroundColor;
+      });
+      probe.remove();
+      return read;
+    },
+    values as readonly string[],
+  );
+  return resolved as { readonly [K in keyof T]: string };
 }
 
 /** The four system colours every forced-colours assertion below is written against. */
@@ -215,7 +256,9 @@ test("forced colours: every control type in the kitchen-sink walk keeps a drawn 
 }) => {
   const { kitchenSinkSlug } = readFixtures();
   await page.emulateMedia({ forcedColors: "active" });
+  await pinOrdinaryPalette(page);
   await startKitchenSink(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
   await expectForcedPaletteInEffect(page);
 
   // Step 1: the short-text control, the segmented date control's box, the
@@ -263,7 +306,9 @@ test("forced colours: a focused control keeps both its edge and a painted focus 
 }) => {
   const { kitchenSinkSlug } = readFixtures();
   await page.emulateMedia({ forcedColors: "active" });
+  await pinOrdinaryPalette(page);
   await startKitchenSink(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
   const palette = await expectForcedPaletteInEffect(page);
 
   const input = page.getByRole("textbox", { name: KS.fullName });
@@ -308,7 +353,9 @@ test("forced colours: selected, checked and chosen states survive the palette", 
 }) => {
   const { kitchenSinkSlug } = readFixtures();
   await page.emulateMedia({ forcedColors: "active" });
+  await pinOrdinaryPalette(page);
   await walkToAnsweredStepTwo(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
   const palette = await expectForcedPaletteInEffect(page);
 
   // THE RADIO. Its selected state is a filled dot with no border and no glyph,
@@ -345,7 +392,9 @@ test("forced colours: selected, checked and chosen states survive the palette", 
 test("forced colours: the kitchen-sink walk is axe-clean", async ({ page }) => {
   const { kitchenSinkSlug } = readFixtures();
   await page.emulateMedia({ forcedColors: "active" });
+  await pinOrdinaryPalette(page);
   await startKitchenSink(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
   await expectForcedPaletteInEffect(page);
   await expectNoAxeViolations(page, "forced colours, kitchen-sink step 1");
 
@@ -367,7 +416,9 @@ test("prefers-contrast: more steps borders and focus rings onto the stronger tok
 }) => {
   const { kitchenSinkSlug } = readFixtures();
   await page.emulateMedia({ contrast: "more" });
+  await pinOrdinaryPalette(page);
   await startKitchenSink(page, kitchenSinkSlug);
+  await expectOrdinaryPalette(page);
   expect(await page.evaluate(() => window.matchMedia("(prefers-contrast: more)").matches)).toBe(
     true,
   );
