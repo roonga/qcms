@@ -31,7 +31,12 @@ import type { A2UIAnswerValue } from "./field-context.tsx";
 import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
-import { NATIVE_FIELD_KIND_PREFIX, type NativeFieldKind } from "./native-submit.ts";
+import {
+  NATIVE_FIELD_ANSWERED_PREFIX,
+  NATIVE_FIELD_ANSWERED_VALUE,
+  NATIVE_FIELD_KIND_PREFIX,
+  type NativeFieldKind,
+} from "./native-submit.ts";
 import { toVSafePattern } from "./v-safe-pattern.ts";
 
 /**
@@ -53,10 +58,11 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  * Native (no-JS) submit mode (task 044): when `useQcmsNativeSubmit()` is true the
  * adapters render the SAME vendored control *uncontrolled* - a `defaultValue`
  * seeded from `values` and no `onChange` - so the browser's own form
- * serialization carries the answer without any JavaScript, plus a hidden
- * kind-tag input so the strict BFF can decode the wire string back to the
- * canonical shape (see `native-submit.ts`). The default (controlled) branch is
- * byte-identical to 028/029, so the conformance snapshots are undisturbed.
+ * serialization carries the answer without any JavaScript, plus the hidden
+ * marker inputs (`FieldMarkers`) that let the strict BFF decode the wire string
+ * back to the canonical shape and tell a cleared field from an unanswered one
+ * (see `native-submit.ts`). The default (controlled) branch is byte-identical to
+ * 028/029, so the conformance snapshots are undisturbed.
  */
 
 /** Narrows a canonical answer to the multiChoice (OptionId[]) shape. */
@@ -148,13 +154,50 @@ function absentIfNoSelection(values: readonly string[]): readonly string[] | und
 const NO_SELECTION = null;
 
 /**
- * The hidden companion that tags one answer field with its transport kind, so the
- * BFF can decode the form-encoded string without knowing the question (R2). Only
- * emitted in native mode, and only for a control that has a questionId `name`.
+ * The hidden companions that travel with one answer field in native mode, so the
+ * strict BFF can decode the form-encoded post without knowing the question (R2).
+ * Only emitted in native mode, and only for a control that has a questionId `name`.
+ *
+ * Two markers, because the wire loses two different things:
+ *
+ * - **`__qk__<id>`, the transport kind.** A form posts strings; the API expects a
+ *   JSON boolean, a number, a string or an array. The renderer knows each control's
+ *   semantics, so it says which, and the BFF coerces without judging.
+ * - **`__qa__<id>`, answered-now.** Emitted only when this question currently holds
+ *   an answer (issue #127). A native form posts an emptied text box exactly as it
+ *   posts a never-touched one, and posts an all-unchecked checkbox group as nothing
+ *   at all, so without this the BFF - which holds no answer state - had to read both
+ *   as "never answered" and drop them, leaving a cleared answer standing. With it, a
+ *   marked field that arrives empty is the respondent clearing it, and the BFF posts
+ *   the same ADR-33 retraction the scripted path posts at that control's ADR-31
+ *   commit moment.
+ *
+ * Presence is read from the same `values` the control is seeded from, which is what
+ * keeps this a restatement of an already visible signal rather than new state: an
+ * answered field is pre-filled in the HTML either way. `undefined` is the one
+ * spelling of absence at this seam (`useQcmsField`), so the test is a plain
+ * comparison rather than a per-kind emptiness rule.
+ *
+ * Both are `type="hidden"`: no box, no tab stop, no accessible name, nothing for a
+ * screen reader to announce.
  */
-function FieldKind({ name, kind }: { readonly name?: string; readonly kind: NativeFieldKind }) {
+function FieldMarkers({ name, kind }: { readonly name?: string; readonly kind: NativeFieldKind }) {
+  // Called before the early return, because a conditional hook is not allowed.
+  // `useQcmsField` already tolerates an undefined name.
+  const field = useQcmsField(name);
   if (name === undefined) return null;
-  return <input type="hidden" name={`${NATIVE_FIELD_KIND_PREFIX}${name}`} value={kind} />;
+  return (
+    <>
+      <input type="hidden" name={`${NATIVE_FIELD_KIND_PREFIX}${name}`} value={kind} />
+      {field.value === undefined ? null : (
+        <input
+          type="hidden"
+          name={`${NATIVE_FIELD_ANSWERED_PREFIX}${name}`}
+          value={NATIVE_FIELD_ANSWERED_VALUE}
+        />
+      )}
+    </>
+  );
 }
 
 /**
@@ -256,7 +299,7 @@ function TextFieldField(props: Readonly<TextFieldProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="string" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -280,7 +323,7 @@ function TextAreaField(props: Readonly<TextAreaProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="string" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -304,7 +347,7 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="number" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="number" /> : null}
     </FieldBlur>
   );
 }
@@ -384,7 +427,7 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="string" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
@@ -439,7 +482,7 @@ function RadioGroupField(props: RadioGroupProps) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="radio" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="radio" /> : null}
     </FieldBlur>
   );
 }
@@ -467,7 +510,7 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="multi" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="multi" /> : null}
     </FieldBlur>
   );
 }
@@ -502,7 +545,7 @@ function SelectField(props: Readonly<SelectProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldKind name={props.name} kind="string" /> : null}
+      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }

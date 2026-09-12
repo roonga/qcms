@@ -7,7 +7,13 @@
 export { A2UIStepRenderer } from "./A2UIStepRenderer.tsx";
 export type { A2UIStepDocument, A2UIStepRendererProps } from "./A2UIStepRenderer.tsx";
 
-export { NATIVE_FIELD_KIND_PREFIX, SUBMIT_NODE_TYPE, withNativeSubmit } from "./native-submit.ts";
+export {
+  NATIVE_FIELD_ANSWERED_PREFIX,
+  NATIVE_FIELD_ANSWERED_VALUE,
+  NATIVE_FIELD_KIND_PREFIX,
+  SUBMIT_NODE_TYPE,
+  withNativeSubmit,
+} from "./native-submit.ts";
 export type { NativeFieldKind, NativeSubmitOptions } from "./native-submit.ts";
 
 export { withDemotedHeadings } from "./heading-demotion.ts";
