@@ -273,11 +273,20 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  *
  * WHAT THIS TEST ESTABLISHED, running it for the first time. #151 recorded the
  * strongest available lead as two copies of react-aria-components in the portal's
- * closure (1.19.0 transitively through `@a2ra/core`, 1.20.0 direct), which is two
- * SSR id and context providers - and recorded it explicitly as inference rather
- * than proof. The a2ra pin move deduplicated them (`pnpm why` reports one copy),
- * and **the mismatch did not clear**. So the dual copy was a real improvement and
- * was not the cause.
+ * closure, which is two SSR id and context providers - and recorded it explicitly
+ * as inference rather than proof. Deduplicating them (`pnpm why` reports one copy)
+ * left **the mismatch unchanged**. So the dual copy was a real improvement and was
+ * not the cause.
+ *
+ * That was measured twice, against two different splits, which is worth recording
+ * because the split came back in between. The first dedup was a lockfile refresh;
+ * the copies then reopened at 1.21.1 direct against 1.20.0 nested under
+ * `@a2ra/core@1.0.0-preview.7`, because a dependency bump moves only the direct arm.
+ * The second dedup closed it again and closed it upstream as well, by making
+ * react-aria-components a peer dependency of `@a2ra/core` so the fork is unreachable
+ * rather than merely absent today. This test was run with the marker off at that
+ * point, and React reported the same one attribute it reports below. Two independent
+ * occasions, same result: the copy count is not what this is.
  *
  * The actual diff React reports is ONE attribute, and it is not among the five the
  * issue named:
