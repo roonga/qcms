@@ -254,6 +254,14 @@ So this note records a clean tree, checked by CI rather than by reading.
 
 **Note.** Both apps now carry a locale constant and a format module: `apps/admin/lib/i18n/format.ts` exports `ADMIN_LOCALE` and `apps/portal/lib/i18n/format.ts` exports `PORTAL_LOCALE`, and both are `en` (issue #729). The portal used to inline `toLocaleString("en-US", ...)` in `components/completion-view.tsx` and to let its A2UI step views inherit the renderer package's own `en-US` default for react-aria, so a second portal locale meant editing components; both resolve `PORTAL_LOCALE` now. The respondent-facing strings are unchanged: for every value the portal renders, `en` and `en-US` resolve to the same CLDR data, which `apps/portal/lib/i18n/format.test.ts` asserts. No currency value exists in the domain yet; that clause is forward-looking. A runtime locale switcher stays Phase 4 (issue #732).
 
+**Note (issue #906).** The admin's three A2UI preview surfaces were the last call sites on the renderer package's own `en-US` default, one surface behind the portal half above.
+`apps/admin/lib/i18n/format.ts` now exports `PREVIEW_LOCALE` and `components/forms/draft-preview.tsx`, `components/forms/version-view.tsx` and `components/questions/question-preview.tsx` all pass it, so the locale react-aria formats and announces the previewed controls on is declared once rather than inherited three times.
+**It mirrors `PORTAL_LOCALE` rather than reading the form's own `defaultLocale`, and that is the decision this note exists to record.**
+`defaultLocale` selects WHICH localized strings the compiler writes into the stored document (ADR-11, invariant I3); by the time a step reaches the renderer that choice is baked into bytes, and what is left for the `locale` prop is how the controls around that text are formatted and announced.
+The portal resolves that from its own app constant and reads `defaultLocale` nowhere, so a preview keyed to the form's tag would render a form whose `defaultLocale` is, say, `en-AU` differently from the portal serving that same form: preview fidelity (ARCHITECTURE section 6) lost from the other side.
+Nothing on screen moved, and that is measured rather than asserted: `packages/ui/src/locale.test.tsx` renders every step of the golden corpus under `en` and under `en-US` and the markup is identical, and renders it under a locale that genuinely differs so the prop is shown to be load-bearing.
+When issue #732 gives a respondent a locale of their own, the portal starts resolving one per session and `PREVIEW_LOCALE` is the one declaration the preview follows it from; the operator's chrome stays on `ADMIN_LOCALE`.
+
 ### ADR-38 - Theme scope carrier
 
 **Status:** implemented.
