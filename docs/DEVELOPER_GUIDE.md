@@ -551,6 +551,68 @@ Indexed colour, other bit depths and Adam7 interlacing are refused by name with 
 Alpha is composited over white, so a transparent capture reads as blank.
 `scripts/png-preview.mjs` carries the rest, and `scripts/png-preview.test.ts` builds its fixture PNGs in the test rather than committing binaries.
 
+## Reading a query change as SQL before reviewing it
+
+**A review of a query helper is a review of a builder chain, and the chain is not the statement.**
+The two readings come apart exactly where it matters.
+`notExists(...)` around a correlated subquery, an `or()` supplying parentheses a raw fragment would not, `sql.param` binding a list as one array instead of ten thousand placeholders: each of those is a comment in `packages/db/src/queries/outbox.ts` explaining a statement no reviewer could see.
+The way to see it has been to boot a Testcontainers Postgres, which is minutes and a Docker daemon for a question that needs neither, so in practice nobody did and the chain was reviewed instead.
+
+**`pnpm sql:capture` prints the statement.**
+It loads one named export from the built `@roonga/qcms-db`, calls it with a recording executor as its first argument (every helper in that package takes one, by contract), and prints each statement it issued with its parameters in order.
+No connection, no container, no network: Drizzle's dialect turns a builder into SQL and parameters on its own, and the driver underneath is a callback that records what it was handed.
+Like `pnpm png:preview` it adds nothing to any manifest; Drizzle is resolved through `packages/db`, which already depends on it.
+
+```sh
+pnpm sql:capture claimDue --args '[25, {"$date": "2026-03-01T00:00:00.000Z"}]'
+pnpm sql:capture --list                    # the exported names it will accept
+```
+
+The worked example is the one the tool exists for: the outbox retention sweep, which probes for candidates and then updates them under a correlated anti-join.
+
+```sh
+pnpm sql:capture redactAgedOutboxPayloads \
+  --args '[{"$date": "2026-03-01T00:00:00.000Z"}]' \
+  --rows '[[["0198c0de-0000-7000-8000-000000000001"]]]'
+```
+
+```text
+redactAgedOutboxPayloads: 2 statements
+
+-- statement 1
+select "id" from "outbox" where ("outbox"."payload_redacted_at" is null and jsonb_exists("outbox"."payload", 'answers') and greatest("outbox"."delivered_at", "outbox"."dead_lettered_at") < $1) limit $2
+-- parameters
+$1 = "2026-03-01T00:00:00.000Z"
+$2 = 10001
+
+-- statement 2
+update "outbox" set "payload" = "outbox"."payload" - 'answers', "payload_redacted_at" = now() where ("outbox"."id" = any($1::uuid[]) and ("outbox"."payload_redacted_at" is null and jsonb_exists("outbox"."payload", 'answers') and greatest("outbox"."delivered_at", "outbox"."dead_lettered_at") < $2) and not exists (select 1 from "webhook_deliveries" "d" where ("d"."outbox_id" = "outbox"."id" and (greatest("d"."delivered_at", "d"."dead_lettered_at", "d"."cancelled_at") is null or greatest("d"."delivered_at", "d"."dead_lettered_at", "d"."cancelled_at") >= $3)))) returning "id"
+-- parameters
+$1 = ["0198c0de-0000-7000-8000-000000000001"]
+$2 = "2026-03-01T00:00:00.000Z"
+$3 = "2026-03-01T00:00:00.000Z"
+```
+
+Three things are now checkable that the builder only asserted: the id list is one `uuid[]` parameter rather than a thousand placeholders, the `not exists` subquery is correlated on `"d"."outbox_id" = "outbox"."id"` rather than free-floating, and the `or` inside it is parenthesised so a recently settled delivery elsewhere in the table cannot block the whole sweep.
+That block is what belongs in a PR body for a change to this helper.
+
+**`--args` is the argument list after the executor, as JSON.**
+A `Date` is written `{"$date": "2026-03-01T00:00:00.000Z"}`, tagged rather than sniffed: JSON has no date type, and an ISO-shaped string is a plain string in this schema as often as it is a timestamp.
+
+**`--rows` is what the recording driver hands back, statement by statement.**
+Element N is the rows for statement N, each row an array of column values in the order the select lists them; `[]` and `null` both mean no rows.
+With no `--rows` at all, every statement returns one row with no columns, which is what lets a probe-then-act helper reach its second statement instead of returning early.
+Every field a helper reads off that row is `undefined`, so the worked example above prints a real id in `$1` only because `--rows` supplied one; drop the flag and the same parameter prints `$1 = [null]`, that being how `JSON.stringify` renders the hole.
+Supply real values where the helper does arithmetic on what it read: `recordFailure` needs `--rows '[[[3]]]'` to compute the fourth attempt's backoff.
+A helper that wraps a read-modify-write in `transaction` runs against the same recording handle, so its statements are captured in order; no `begin` or `commit` is printed, because none is sent and the statements are what is under review.
+
+Scope, and the refusals.
+Anything exported from `@roonga/qcms-db` that is not a query helper is refused by name with exit 1: no such export, an export that is not a function (a table, a constant), or a function that ran without issuing a statement (`backoffDelayMs` and the other pure helpers).
+None of the three prints "0 statements", which would read like a query helper that generates no SQL.
+A helper that throws part way through still prints what it captured before the reason lands on stderr, because those statements are real.
+The package has to be built first (`pnpm --filter @roonga/qcms-db build`); the refusal says so.
+`scripts/sql-capture.mjs` carries the rest, and `scripts/sql-capture.test.ts` drives real query helpers rather than fixture chains, because what the script has to be right about is the shapes this repository actually writes.
+
 ## Running work
 
 | You type             | What happens                                                                                                                              |
