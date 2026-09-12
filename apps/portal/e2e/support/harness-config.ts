@@ -57,11 +57,91 @@ export const OTEL_SERVICE_NAMES = {
 } as const;
 
 /**
- * How long the batch span processors wait before exporting
- * (`OTEL_BSP_SCHEDULE_DELAY`). The SDK default is 5s, which the trace spec would
- * spend waiting on every run; 500ms keeps it prompt without exporting per span.
+ * How long the batch processors wait before exporting, for BOTH pipelines
+ * (`OTEL_BSP_SCHEDULE_DELAY` for spans, `OTEL_BLRP_SCHEDULE_DELAY` for log records).
+ * The SDK defaults are 5s and 1s, which a telemetry spec would spend waiting on every
+ * run; 500ms keeps both prompt without exporting per record.
+ *
+ * **Both names are now passed, and the reason is issue #901.** This constant existed
+ * from task 054 but only ever reached `OTEL_BSP_SCHEDULE_DELAY`, and in OpenTelemetry
+ * JS 2.x that variable reaches no processor this repository constructs: the env
+ * fallbacks live in the `@opentelemetry/sdk-trace-base` compatibility shims, and
+ * `@opentelemetry/sdk-logs` publishes no shim at all. So the whole suite ran on the
+ * library defaults while its comments said 500ms, and the admin log spec's 20s poll had
+ * a fifth of the margin it was written with. `@roonga/qcms-observability/otel` resolves
+ * these variables explicitly now, and the services pass the result to their processors.
  */
 export const OTLP_SCHEDULE_DELAY_MS = "500";
+
+/**
+ * How long ONE export attempt may run before the processor abandons that batch
+ * (`OTEL_BSP_EXPORT_TIMEOUT`, `OTEL_BLRP_EXPORT_TIMEOUT`).
+ *
+ * Pinned here for the same reason the delay is, plus one of its own: it is the term
+ * that dominates {@link OTLP_DELIVERY_BUDGET_MS}, and the SDK default of 30s is longer
+ * than the whole spec timeout, so a budget derived from it could not be waited for. The
+ * receiver is 40 lines of `node:http` on loopback in the runner process, where an export
+ * of a few kilobytes completes in single-digit milliseconds, so 10s is already three
+ * orders of magnitude of headroom. Production keeps the 30s default.
+ */
+export const OTLP_EXPORT_TIMEOUT_MS = "10000";
+
+/**
+ * Receiver ingest plus poll granularity: the part of the trip that is neither a batch
+ * delay nor an export attempt. The receiver appends the body to a JSONL file and a spec
+ * re-reads that file every {@link OTLP_POLL_MS}, so a record can be in the file for one
+ * poll interval before any assertion sees it.
+ */
+const OTLP_INGEST_MARGIN_MS = 1_500;
+
+/** How often a spec re-reads the capture file while waiting for exported telemetry. */
+export const OTLP_POLL_MS = 250;
+
+/**
+ * How long a spec may wait for exported telemetry to reach the receiver before failing
+ * (issue #901).
+ *
+ * **Derived, never a literal.** Two specs used to poll a flat 20s for a record whose
+ * pipeline they could have asked, and the number bore no relation to the configuration:
+ * with the values above unset, one missed batch cycle plus one export attempt running
+ * to its own ceiling is 35s for the span pipeline, so the poll could expire while the
+ * SDK was still doing exactly what it was configured to do. The spec then failed on
+ * delivery latency and reported it as a missing record, which is the same
+ * mis-attribution issue #604 is about, on a network hop rather than a container boot.
+ *
+ * The terms are the trip a record actually makes: a full batch delay (a record that
+ * arrives just after a flush cycle starts waits the whole next one), plus a second delay
+ * for the second pipeline the admin spec needs (the API's span and the two services' log
+ * records travel independently), plus one export attempt at its configured ceiling, plus
+ * the ingest margin above. With the values in this file that is 12.5s.
+ *
+ * Measured against it on the branch that introduced it, from the moment the request
+ * completed to the moment both correlated log records were readable: 1.1s, 1.6s, 2.5s,
+ * 3.4s and 4.0s BEFORE the delay reached the processors, at host loads from idle to 95
+ * on 24 cores, and consistently under a second after. The budget is therefore roughly
+ * ten times the observed worst case rather than five, and it moves with the
+ * configuration instead of being re-guessed.
+ */
+export const OTLP_DELIVERY_BUDGET_MS =
+  2 * Number(OTLP_SCHEDULE_DELAY_MS) + Number(OTLP_EXPORT_TIMEOUT_MS) + OTLP_INGEST_MARGIN_MS;
+
+/**
+ * The sentence a telemetry spec fails with, so the next sighting is diagnosable from
+ * the failure alone (issue #901).
+ *
+ * A poll that expires prints what it waited for, what the pipeline was configured to
+ * do, and how long it actually took. That is what separates a slow pipeline from a real
+ * regression: a missing record reads as "elapsed 12507ms of 12500ms" against a 500ms
+ * delay, and a genuinely broken correlation reads as an immediate failure with the
+ * elapsed time near zero.
+ */
+export function otlpDeliveryNote(elapsedMs: number): string {
+  return (
+    `waited ${String(elapsedMs)}ms of a ${String(OTLP_DELIVERY_BUDGET_MS)}ms budget ` +
+    `(2 x ${OTLP_SCHEDULE_DELAY_MS}ms batch delay + ${OTLP_EXPORT_TIMEOUT_MS}ms export ` +
+    `timeout + ${String(OTLP_INGEST_MARGIN_MS)}ms ingest margin)`
+  );
+}
 
 /** Synthetic shared SEC-4 internal token (test-only, not a real secret). */
 export const FIXED_INTERNAL_TOKEN = "qcms-e2e-portal-shared-internal-token-000000";
@@ -195,6 +275,19 @@ export const SERVER_LOG_FILES = {
  */
 export const OTLP_CAPTURE_PATH = fileURLToPath(
   new URL("../../.playwright/otlp/spans.jsonl", import.meta.url),
+);
+
+/**
+ * Where the telemetry specs append the delivery latency they measured (issue #901).
+ *
+ * Same reason the font and appearance metrics files exist: a claim with numbers in it
+ * has to leave the numbers behind after a GREEN run. `OTLP_DELIVERY_BUDGET_MS` says
+ * what the pipeline is allowed to take, and this file says what it took, run after run,
+ * which is the evidence that would have made the two #901 sightings a measurement
+ * rather than a guess. A red run prints the same numbers in its failure message.
+ */
+export const OTLP_DELIVERY_PATH = fileURLToPath(
+  new URL("../../.playwright/otlp/delivery.txt", import.meta.url),
 );
 
 /**

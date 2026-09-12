@@ -29,6 +29,10 @@
       "types": "./dist/otlp-log-allowlist.d.ts",
       "default": "./dist/otlp-log-allowlist.js"
     },
+    "./otel": {
+      "types": "./dist/otel-batch-timings.d.ts",
+      "default": "./dist/otel-batch-timings.js"
+    },
     "./next": {
       "types": "./dist/next-span-redaction.d.ts",
       "default": "./dist/next-span-redaction.js"

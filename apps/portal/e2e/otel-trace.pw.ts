@@ -28,7 +28,12 @@ import { readFileSync } from "node:fs";
 
 import { readFixtures } from "./support/fixtures.js";
 import { test, expect } from "./support/gates.js";
-import { OTEL_SERVICE_NAMES, SERVER_LOG_FILES } from "./support/harness-config.js";
+import {
+  OTEL_SERVICE_NAMES,
+  OTLP_DELIVERY_BUDGET_MS,
+  OTLP_POLL_MS,
+  SERVER_LOG_FILES,
+} from "./support/harness-config.js";
 import {
   KS,
   checkOption,
@@ -57,9 +62,15 @@ import {
  */
 const ANSWER_CANARY = "Zzcanaryqx Redactowski";
 
-/** Batch export plus receiver write: poll rather than sleep a fixed amount. */
-const SPAN_WAIT_MS = 20_000;
-const POLL_MS = 250;
+/**
+ * Batch export plus receiver write: poll rather than sleep a fixed amount, on the
+ * budget the exporters' own configuration implies (issue #901). This was a literal
+ * 20s, the twin of the one `apps/admin/e2e/otel-logs.pw.ts` failed on twice in a week;
+ * `OTLP_DELIVERY_BUDGET_MS` moves with the batch delay and export timeout the harness
+ * sets, so the two specs cannot drift apart from the pipeline or from each other.
+ */
+const SPAN_WAIT_MS = OTLP_DELIVERY_BUDGET_MS;
+const POLL_MS = OTLP_POLL_MS;
 
 /** Wait until the captured spans satisfy `ready`, then return them. */
 async function waitForSpans(ready: (spans: CapturedSpan[]) => boolean): Promise<CapturedSpan[]> {

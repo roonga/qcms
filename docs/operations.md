@@ -185,6 +185,23 @@ so logs correlate to traces with no call-site change (ADR-34). OTel is configure
 through the standard `OTEL_*` variables in the reference below; leave them unset and
 the SDK stays off.
 
+**Export timing is configurable through the standard batch variables, and since issue
+#901 they are actually read.**
+`OTEL_BLRP_SCHEDULE_DELAY` and `OTEL_BLRP_EXPORT_TIMEOUT` govern the log pipeline,
+`OTEL_BSP_SCHEDULE_DELAY` and `OTEL_BSP_EXPORT_TIMEOUT` the span pipeline,
+all four in milliseconds, defaulting to the OpenTelemetry specification's 1000, 30000,
+5000 and 30000 respectively.
+Lower the delay to see records sooner at the cost of more, smaller export requests;
+leave all four unset and each pipeline keeps the SDK default, which is what the shipped
+topology does.
+The reason this is worth a paragraph is that setting one of them used to do nothing:
+OpenTelemetry JS 2.x reads the batch variables only in the compatibility shims these
+services do not construct, so a deployment that tuned export timing got the library
+default and no warning.
+QCMS resolves all four itself now, and a value it cannot parse falls back to the default
+rather than refusing to start, because telemetry configuration must never be able to stop
+a process from serving.
+
 **Answer values, direct identifiers and secrets are never logged.**
 Handlers use route templates and opaque ids, while the stdout redactor masks
 sensitive-looking fields before serialization. OTLP applies a stricter independent
