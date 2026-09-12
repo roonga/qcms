@@ -42,6 +42,7 @@
 
 import AxeBuilder from "@axe-core/playwright";
 import type { Locator, Page } from "@playwright/test";
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
 
 import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
@@ -164,6 +165,13 @@ function computedOf(target: Locator, property: string): Promise<string> {
  * against the ordinary theme.
  */
 async function expectForcedPaletteInEffect(page: Page): Promise<SystemPalette> {
+  // The vendored controls and the portal's chrome buttons carry `transition-colors`,
+  // so any state change just before this starts a colour animation and an immediate
+  // read samples a MID-TRANSITION value. Under forced colours that frame is not even
+  // in the user's palette, which is how it first showed up: axe reported the primary
+  // action at 1.44:1 on `#e4d3d3` while the settled colour was ButtonText. Same race
+  // and same signature as issue #187; `settleTransitions` is the shared answer to it.
+  await settleTransitions(page);
   const matches = await page.evaluate(() => window.matchMedia("(forced-colors: active)").matches);
   expect(matches, "the page does not report forced-colors: active").toBe(true);
   const palette = await systemPalette(page);
@@ -239,6 +247,7 @@ async function expectDrawnBoundary(target: Locator, label: string): Promise<void
 
 /** Run axe over the current page state; fail on any violation, prove it ran. */
 async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
+  await settleTransitions(page);
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
     .analyze();
@@ -270,6 +279,7 @@ async function walkToAnsweredStepTwo(page: Page, slug: string): Promise<void> {
   await chooseRadio(page, "Yes");
   await answerNumber(page, "10");
   await checkOption(page, "Breakdown");
+  await settleTransitions(page);
 }
 
 test("forced colours: every control type in the kitchen-sink walk keeps a drawn boundary", async ({
