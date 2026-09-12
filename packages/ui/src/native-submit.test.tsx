@@ -20,6 +20,15 @@ const minimalV2 = loadGoldenForms().find((f) => f.version === "v2" && f.form ===
 if (!minimalV2) throw new Error("v2 minimal golden not found");
 const minimalV2Step = minimalV2.compiled.documents[0];
 
+const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");
+if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
+const kitchenSinkSteps = kitchenSink.compiled.documents;
+
+// The kitchen sink's multiChoice, which is the control that serializes NOTHING when
+// nothing is checked and so cannot be read off the posted values at all.
+const MULTI_QUESTION = "q_preexisting_conditions";
+const multiStep = kitchenSinkSteps[1]!;
+
 const NATIVE = {
   action: "/s/ses_abc/step",
   submitLabel: "Submit",
@@ -112,15 +121,21 @@ describe("native submit mode (task 044)", () => {
     expect(honeypot!.closest('[aria-hidden="true"]')).not.toBeNull();
   });
 
-  it("leaves the controlled default path unchanged (no form action, no submit, no kind tags)", () => {
-    const { container } = render(<A2UIStepRenderer document={insuranceStep} />);
+  it("leaves the controlled default path unchanged (no form action, no submit, no markers)", () => {
+    const { container } = render(
+      <A2UIStepRenderer document={insuranceStep} values={{ q_at_fault_accident: true }} />,
+    );
     const form = container.querySelector("form");
     expect(form).not.toBeNull();
     // The controlled root Form renders a <form> but carries no native action, and
-    // the submit control / kind tags exist ONLY in native mode.
+    // the submit control / marker inputs exist ONLY in native mode. Rendered WITH an
+    // answer, so the answered marker's own condition is met and its absence here is
+    // the mode gate rather than an empty `values` (issue #127): the scripted path
+    // never submits this form, so nothing about it may change.
     expect(form!.getAttribute("action")).toBeNull();
     expect(container.querySelector('button[type="submit"]')).toBeNull();
     expect(container.querySelector('input[name^="__qk__"]')).toBeNull();
+    expect(container.querySelector('input[name^="__qa__"]')).toBeNull();
   });
 
   it("does not mutate the stored compiled document (ADR-18)", () => {
@@ -135,5 +150,130 @@ describe("native submit mode (task 044)", () => {
     expect(root.props).toBeUndefined();
     expect(transformed).not.toBe(root);
     expect((transformed.props as { action?: string }).action).toBe("/s/ses_abc/step");
+  });
+});
+
+/**
+ * The answered marker (issue #127, Code Owner ruling 2026-09-02).
+ *
+ * A native form posts an emptied text box exactly as it posts a never-touched one,
+ * and posts an all-unchecked checkbox group as nothing at all, so the strict BFF
+ * could not tell a cleared answer from an unanswered question and left the stale
+ * one standing. The renderer knows which questions hold an answer (it seeds their
+ * controls from `values`), so it says so in a hidden `__qa__<questionId>` companion
+ * and the BFF reads a marked-but-empty field as an ADR-33 retraction.
+ *
+ * What these cases pin is that the marker tracks ANSWEREDNESS and nothing else, and
+ * that the two invariants the decoding rule rests on hold in the rendered DOM: an
+ * unanswered question is never marked (or every no-JS submit would retract), and an
+ * answered one always serializes a value (or every no-JS submit would retract it).
+ */
+describe("the answered marker (issue #127)", () => {
+  const answered = (container: HTMLElement) =>
+    [...container.querySelectorAll<HTMLInputElement>('input[name^="__qa__"]')].map(
+      (el) => el.name,
+    );
+
+  it("marks only the questions that currently hold an answer", () => {
+    const { container } = render(
+      <A2UIStepRenderer
+        document={insuranceStep}
+        nativeSubmit={NATIVE}
+        values={{ q_at_fault_accident: true }}
+      />,
+    );
+    // Both questions are rendered and both carry a kind tag; only the answered one
+    // carries the marker. That asymmetry IS the signal.
+    expect(container.querySelectorAll('input[name^="__qk__"]')).toHaveLength(2);
+    expect(answered(container)).toEqual(["__qa__q_at_fault_accident"]);
+  });
+
+  it("marks nothing on a step where nothing has been answered", () => {
+    const { container } = render(
+      <A2UIStepRenderer document={insuranceStep} nativeSubmit={NATIVE} />,
+    );
+    expect(answered(container)).toEqual([]);
+  });
+
+  it("marks a multiChoice that holds a selection, and not an empty one", () => {
+    const withSelection = render(
+      <A2UIStepRenderer
+        document={multiStep}
+        nativeSubmit={NATIVE}
+        values={{ [MULTI_QUESTION]: ["opt_diabetes"] }}
+      />,
+    );
+    expect(answered(withSelection.container)).toContain(`__qa__${MULTI_QUESTION}`);
+
+    const empty = render(<A2UIStepRenderer document={multiStep} nativeSubmit={NATIVE} />);
+    expect(answered(empty.container)).not.toContain(`__qa__${MULTI_QUESTION}`);
+  });
+
+  it("is invisible to a respondent and to assistive technology, and takes no tab stop", () => {
+    const { container } = render(
+      <A2UIStepRenderer
+        document={insuranceStep}
+        nativeSubmit={NATIVE}
+        values={{ q_at_fault_accident: true }}
+      />,
+    );
+    const marker = container.querySelector<HTMLInputElement>(
+      'input[name="__qa__q_at_fault_accident"]',
+    );
+    expect(marker).not.toBeNull();
+    // `type=hidden` is the whole of it: such an input has no box, is not focusable,
+    // is not in the accessibility tree and so can carry no accessible name. Asserted
+    // as the absence of anything that would give it one, rather than only the type,
+    // because a later hand could keep the type and add a label.
+    expect(marker!.type).toBe("hidden");
+    expect(marker!.getAttribute("aria-label")).toBeNull();
+    expect(marker!.getAttribute("aria-labelledby")).toBeNull();
+    expect(marker!.getAttribute("tabindex")).toBeNull();
+    expect(marker!.labels?.length ?? 0).toBe(0);
+  });
+
+  it("rides inside the native form, so it posts with the answers", () => {
+    const { container } = render(
+      <A2UIStepRenderer
+        document={insuranceStep}
+        nativeSubmit={NATIVE}
+        values={{ q_at_fault_accident: true }}
+      />,
+    );
+    const marker = container.querySelector('input[name="__qa__q_at_fault_accident"]');
+    expect(marker!.closest("form")).toBe(container.querySelector("form"));
+  });
+
+  it("keeps every answered control serializing a value, so a marker cannot clear one by accident", () => {
+    // The decoding rule is "marked and empty means cleared", so a control that is
+    // answered but serializes NOTHING would retract itself on every no-JS submit.
+    // Two controls are worth the check by name: the NumberField and the DatePicker
+    // both carry their form value in a JS-synced hidden input rather than in the
+    // control the respondent sees, which is what puts clearing them out of scope
+    // here (issue #18, phase 4) and what makes their marker safe.
+    const { container } = render(
+      <A2UIStepRenderer
+        document={kitchenSinkSteps[0]!}
+        nativeSubmit={NATIVE}
+        values={{ q_full_name: "Ada Lovelace", q_dob: "1990-05-17" }}
+      />,
+    );
+    const posted = new FormData(container.querySelector("form")!);
+    for (const name of answered(container)) {
+      const question = name.slice("__qa__".length);
+      expect(posted.getAll(question).filter((v) => v !== "")).not.toHaveLength(0);
+    }
+    expect(answered(container).sort()).toEqual(["__qa__q_dob", "__qa__q_full_name"]);
+
+    const number = render(
+      <A2UIStepRenderer
+        document={insuranceStep}
+        nativeSubmit={NATIVE}
+        values={{ q_at_fault_accident: true, q_accident_count: 3 }}
+      />,
+    );
+    const numberPosted = new FormData(number.container.querySelector("form")!);
+    expect(numberPosted.get("q_accident_count")).toBe("3");
+    expect(answered(number.container)).toContain("__qa__q_accident_count");
   });
 });

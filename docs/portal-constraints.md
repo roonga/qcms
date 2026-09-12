@@ -13,6 +13,20 @@ cites live in `docs/adr/portal.md` and `docs/adr/core.md`.
 including submission (task 044). The e2e suite covers it, and
 `docs/COMPONENT_GUIDELINES.md` makes no-JS coverage binding for any input control.
 
+**Clearing an answer works without scripting too** (issue #127). A native form cannot say
+"I emptied this": it posts an emptied text box exactly as it posts a never-touched one,
+and posts an all-unchecked checkbox group as nothing at all, so the BFF - which holds no
+answer state and may not ask for any (R2) - used to read both as "never answered" and
+leave the stale answer standing, while the scripted path had retracted it since issue
+#98. The renderer now emits a hidden `__qa__<questionId>` companion for each question
+that currently holds an answer, and the whole-step route reads a marked field arriving
+empty as an ADR-33 retraction, posted to the same answer endpoint with the same `null`
+body the scripted path posts for the same gesture. An unmarked empty field stays silence,
+so nothing is tombstoned for a question nobody answered. Two controls are exempt by
+construction and not by choice: a NumberField and a DatePicker carry their form value in
+a hidden input that JavaScript syncs, so with scripting off the seeded answer is what
+serializes and neither can be emptied at all - that is issue #18, phase 4.
+
 ## Rule evaluation
 
 **R2.** The browser never talks to the API directly, and the portal never evaluates rules. It

@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
-import type { A2UIStepDocument } from "./A2UIStepRenderer.tsx";
+import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { loadGoldenForms } from "./test-support/golden.ts";
 import { ControlledHost } from "./test-support/host.tsx";
 import { SELECT_STEP } from "./test-support/select-step.ts";
@@ -197,5 +197,77 @@ describe("the discrete controls have no clear gesture", { timeout: 30_000 }, () 
 
     expect(changes).not.toHaveBeenCalled();
     expect(trigger.textContent).toContain("New Zealand");
+  });
+});
+
+/**
+ * The same gesture on the NATIVE (no-JS) transport (issue #127).
+ *
+ * The cases above pin what the scripted path reports: `undefined`, which the portal
+ * posts to the answer endpoint as `value ?? null`, so a clear reaches the API as a
+ * literal `null` (`components/step-flow.tsx`). The native path has no `onChange` to
+ * report anything - the browser posts the form - so what has to agree is the BYTES
+ * it posts. This is the half that makes the two transports one behaviour rather than
+ * two, and it is asserted for a text question and for a multiChoice question because
+ * they fail differently: the text box posts itself EMPTY, the checkbox group posts
+ * NOTHING AT ALL, and before the marker both were indistinguishable from a question
+ * nobody had answered.
+ *
+ * The pairs asserted here - the `__qa__` marker present, the field carrying nothing -
+ * are the exact inputs `decodeStepForm` turns into `{ questionId, value: null }`, in
+ * `apps/portal/lib/server/step-form.test.ts`. Together the two files say that one
+ * respondent gesture reaches one ledger call down either transport; neither says it
+ * alone, so neither may be deleted without the other's claim being re-made.
+ */
+describe("the native transport posts the same clear (issue #127)", { timeout: 30_000 }, () => {
+  /** Render a step natively-submittable with `values` already answered, and serialize it. */
+  function renderNative(document: A2UIStepDocument, values: Record<string, unknown>) {
+    const { container } = render(
+      <A2UIStepRenderer
+        document={document}
+        values={values as never}
+        nativeSubmit={{ action: "/s/ses_127/step", submitLabel: "Continue" }}
+      />,
+    );
+    return () => [...new FormData(container.querySelector("form")!).entries()];
+  }
+
+  it("shortText: an emptied box posts empty WITH its answered marker", async () => {
+    const user = userEvent.setup();
+    const serialize = renderNative(stepAbout, { q_full_name: "Ada" });
+
+    // Answered: the value is on the wire and the marker says so.
+    expect(serialize()).toContainEqual(["q_full_name", "Ada"]);
+    expect(serialize()).toContainEqual(["__qa__q_full_name", "1"]);
+
+    await user.clear(screen.getByRole("textbox", { name: "Full name" }));
+
+    // Cleared: the field is present and empty, and the marker is STILL there - the
+    // form was rendered from the answer the server holds, and emptying a box cannot
+    // un-render it. That pair is the clear.
+    expect(serialize()).toContainEqual(["q_full_name", ""]);
+    expect(serialize()).toContainEqual(["__qa__q_full_name", "1"]);
+  });
+
+  it("multiChoice: an emptied group posts NOTHING, and the marker is its only trace", async () => {
+    const user = userEvent.setup();
+    const serialize = renderNative(stepHistory, { q_preexisting_conditions: ["opt_diabetes"] });
+
+    expect(serialize()).toContainEqual(["q_preexisting_conditions", "opt_diabetes"]);
+
+    await user.click(screen.getByRole("checkbox", { name: "Diabetes" }));
+
+    // No entry for the question at all. A decoder that walked the posted values
+    // could not see this clear even in principle, which is why the BFF walks the
+    // kind tags instead.
+    const posted = serialize();
+    expect(posted.filter(([name]) => name === "q_preexisting_conditions")).toEqual([]);
+    expect(posted).toContainEqual(["__qk__q_preexisting_conditions", "multi"]);
+    expect(posted).toContainEqual(["__qa__q_preexisting_conditions", "1"]);
+  });
+
+  it("an unanswered question of either type posts no marker, so its emptiness stays silence", async () => {
+    const nothing = renderNative(stepHistory, {})();
+    expect(nothing.filter(([name]) => name.startsWith("__qa__"))).toEqual([]);
   });
 });

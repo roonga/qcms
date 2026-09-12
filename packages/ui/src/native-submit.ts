@@ -33,6 +33,58 @@ export const SUBMIT_NODE_TYPE = "SubmitButton";
 export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
 
 /**
+ * The hidden-input name prefix that marks one answer field as **currently
+ * answered**, so the strict BFF can tell "this field was submitted empty" from
+ * "this field was never answered" (issue #127, Code Owner ruling 2026-09-02).
+ *
+ * ## The hole it closes
+ *
+ * A native form posts a blank text box and a never-touched one identically, and
+ * posts an all-unchecked checkbox group as nothing at all. So the BFF, which under
+ * R2 holds no answer state and cannot ask whether a question had an answer, decoded
+ * both to absence and omitted them. On the scripted path an emptied control is an
+ * ADR-33 retraction (issue #98); on the native path it was a silent no-op, so a
+ * respondent who cleared a previously answered field submitted with the stale answer
+ * still standing and any rule reading it evaluating on a value they believed gone.
+ *
+ * ## Why the marker is the right shape
+ *
+ * The renderer already knows which questions hold an answer - it seeds their
+ * controls from `values` - so this makes an existing, respondent-visible signal
+ * explicit and machine-readable rather than disclosing anything new. The BFF stays
+ * a pure decoder of what was posted (no prior-state diffing, no rule evaluation),
+ * and the API's submit semantics are untouched, so partial submits are unaffected.
+ *
+ * For question `q_x` the companion field is `__qa__q_x` with the value
+ * {@link NATIVE_FIELD_ANSWERED_VALUE}. It is `type="hidden"`, so it is not visible,
+ * not focusable and carries no accessible name.
+ *
+ * ## What a forged marker can and cannot do
+ *
+ * The marker is respondent-editable, like every other field in a form they own. The
+ * worst it buys is retracting their own answer inside their own session, which is
+ * exactly what the scripted path already lets them do by posting `null` to the
+ * answer endpoint. It confers no authority the API does not already grant, and a
+ * retraction of a question that holds no answer is a documented no-op.
+ *
+ * ## Out of scope: the NumberField
+ *
+ * A react-aria NumberField carries its form value in a hidden input that JavaScript
+ * syncs, so with scripting off a respondent's edit never reaches it and the seeded
+ * answer is what serializes. A marked number therefore never arrives empty and can
+ * never retract here - the no-JS path cannot clear a number at all. That is issue
+ * #18 (phase 4), not this seam.
+ */
+export const NATIVE_FIELD_ANSWERED_PREFIX = "__qa__";
+
+/**
+ * The value the {@link NATIVE_FIELD_ANSWERED_PREFIX} marker carries. Its content is
+ * never read - presence is the whole signal - but a hidden input needs some value,
+ * and a constant keeps the renderer and the decoder's tests naming one thing.
+ */
+export const NATIVE_FIELD_ANSWERED_VALUE = "1";
+
+/**
  * The transport kind the BFF decoder keys off. Deliberately coarse - it is a
  * serialization hint, not the question type:
  *

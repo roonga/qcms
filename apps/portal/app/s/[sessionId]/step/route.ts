@@ -40,6 +40,13 @@ import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-mes
  * The honeypot decoy (026) rides in the form with no kind tag, so it lands in the
  * decoded `extras` and is forwarded verbatim into the session-submit body, where
  * the API's anti-abuse check reads it - exactly as on the JS path.
+ *
+ * Clearing works here too (issue #127). A field the renderer marked as holding an
+ * answer, arriving empty, decodes to `null`, and `forwardAnswers` posts that to the
+ * same `/answers` endpoint the scripted path posts its clears to, so it becomes the
+ * same ADR-33 tombstone. It is not a special case in this handler: a retraction is
+ * one more decoded answer, subject to the same authorization, visibility and error
+ * handling as every other.
  */
 
 /** Redirect (303) back to the flow page so the server re-renders the step. */
@@ -110,6 +117,12 @@ interface Forwarded {
  * Forward each decoded answer to the API's per-question endpoint (the sole
  * validator, R2). Collects submitted values and typed 422 errors; skips a
  * question hidden by a just-changed branch trigger; stops on any other API error.
+ *
+ * A decoded `null` is a RETRACTION rather than a value (issue #127): the field was
+ * marked as holding an answer and arrived empty, so the respondent cleared it. It
+ * travels on the same call, to the same endpoint, with the same body the scripted
+ * path posts for the same gesture - one ledger call for both transports, which is
+ * the whole point of the marker.
  */
 async function forwardAnswers(
   sessionId: string,
@@ -121,7 +134,13 @@ async function forwardAnswers(
   const constraints: Record<string, string> = {};
   let last: StepResponse | undefined;
   for (const answer of answers) {
-    values[answer.questionId] = answer.value as A2UIAnswerValue;
+    // A retraction is deliberately NOT recorded as a re-render value. The cookie
+    // exists to re-show what the API does not hold; here the API holds nothing
+    // precisely because this call succeeded, so leaving the key ABSENT lets the
+    // (now empty) stored answer show through and the field renders blank. Writing
+    // it would also have to survive JSON, where an `undefined` member vanishes -
+    // see `mergeStepValues` on why absent and cleared are different renders.
+    if (answer.value !== null) values[answer.questionId] = answer.value as A2UIAnswerValue;
     try {
       last = await submitAnswer(sessionId, token, answer.questionId, answer.value);
     } catch (error) {

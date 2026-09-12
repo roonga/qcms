@@ -444,6 +444,97 @@ describe("answer retraction (ADR-33)", () => {
   });
 });
 
+// --- the no-JS whole-step round (issue #127) ---------------------------------
+
+/**
+ * What the no-JS transport now sends, against the real ledger.
+ *
+ * The scripted path posts one answer per commit moment (ADR-31), so every case above
+ * is a single call. The no-JS path cannot: a native form posts the WHOLE step at
+ * once, so the BFF forwards every tagged field of that step in document order,
+ * including fields the respondent did not touch. Since issue #127 one of those
+ * forwarded calls can be a `null` retraction, because a field the rendered form
+ * marked as answered arrived empty.
+ *
+ * These two cases pin what that round does to the ledger, which is the thing a
+ * respondent's data correctness rests on and which no per-call test can show: the
+ * tombstone lands beside the round's other writes, and a clear the same round just
+ * made invisible does not become a tombstone at all.
+ */
+describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
+  it("appends the tombstone beside the round's other writes, in the order they were posted", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const sid = SessionId.parse(sessionId);
+
+    // Round one: the respondent answers both questions and the flow is submittable.
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
+
+    // Round two, exactly as the whole-step route forwards it: every tagged field of
+    // the step, in document order. The boolean is untouched and so is re-posted with
+    // the same value; the number was emptied and so arrives as a retraction.
+    const unchanged = await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    expect(unchanged.status).toBe(200);
+    const cleared = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
+    expect(cleared.status).toBe(200);
+
+    // The consequence a 200 alone cannot show: the required question is unanswered
+    // again, so the round did NOT leave the respondent submittable on a value they
+    // believe they removed. That is the defect the issue was raised for.
+    const body = (await cleared.json()) as StepBody;
+    expect(body.flowState.missingRequired).toEqual(["q_accident_count"]);
+    expect(body.flowState.readyToSubmit).toBe(false);
+
+    const latest = await latestAnswers(testDb.db, sid);
+    expect(latest.has(QuestionId.parse("q_accident_count"))).toBe(false);
+
+    // Nothing is erased: the re-posted answer is its own row (the no-JS path has no
+    // client-side dedupe to lean on) and the tombstone is the last row, marked.
+    const ledger = (await answerLedger(testDb.db, sid)) as {
+      questionId: string;
+      value: unknown;
+      retracted: boolean;
+    }[];
+    expect(ledger.map((row) => [row.questionId, row.value, row.retracted])).toEqual([
+      ["q_at_fault_accident", true, false],
+      ["q_accident_count", 10, false],
+      ["q_at_fault_accident", true, false],
+      ["q_accident_count", null, true],
+    ]);
+  });
+
+  it("refuses a clear for a question the same round just hid, and appends no tombstone", async () => {
+    const { sessionId, sessionToken } = await startSession("auto");
+    const sid = SessionId.parse(sessionId);
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
+    await postAnswer(sessionId, sessionToken, "q_accident_count", 10);
+
+    // The respondent flips the boolean, which closes the branch the number sits on.
+    // The form they submitted was rendered BEFORE the flip, so it still carries the
+    // number's marker and the BFF still forwards a clear for it - second, because the
+    // boolean comes first in the document. By then the question is not visible.
+    await postAnswer(sessionId, sessionToken, "q_at_fault_accident", false);
+    const stale = await postAnswer(sessionId, sessionToken, "q_accident_count", null);
+    expect(stale.status).toBe(409);
+    expect(((await stale.json()) as ErrBody).error.code).toBe("QUESTION_NOT_VISIBLE");
+
+    // No tombstone. A marker on a stale render cannot write to a question the flow
+    // has since removed, which is what keeps the marker from reaching past the
+    // visibility gate the API applies to every answer write. The whole-step route
+    // swallows this refusal exactly as it does for an ordinary answer to a
+    // just-hidden question.
+    const ledger = (await answerLedger(testDb.db, sid)) as {
+      questionId: string;
+      retracted: boolean;
+    }[];
+    expect(ledger.map((row) => [row.questionId, row.retracted])).toEqual([
+      ["q_at_fault_accident", false],
+      ["q_accident_count", false],
+      ["q_at_fault_accident", false],
+    ]);
+  });
+});
+
 // --- ADR-33: an empty value is not an answer (issue #128 batch) -------------
 
 // The insurance fixture holds only a boolean and a number, neither of which has
