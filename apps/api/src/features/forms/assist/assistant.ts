@@ -383,9 +383,18 @@ function emptyTurnError(outcome: RunOutcome, maxSteps: number): AssistEvent {
     return {
       type: "error",
       code: "STEP_LIMIT",
+      // The step ceiling is an operator setting, so the sentence says the behaviour and
+      // not the variable that sets it (issue #910). Every `AssistEvent` is framed into
+      // the SSE response body by `handler.ts`, which puts this string in front of a
+      // client, and ADR-24's "clients receive behavior, not flag values" has reached any
+      // environment identifier in a response body since the Code Owner widened it on
+      // 2026-09-12. The admin never renders this prose anyway - it keys on `code` and
+      // reads `forms.assist.error.STEP_LIMIT` out of its own catalog - so the operator
+      // half lives where an operator sets the ceiling, in `docs/operations.md`.
       message:
         "The assistant reached its step limit before proposing a draft. " +
-        "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS.",
+        "Try a smaller request, or raise the assistant's step ceiling " +
+        "(docs/operations.md).",
     };
   }
   return {
