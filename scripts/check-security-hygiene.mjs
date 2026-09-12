@@ -23,7 +23,19 @@
  * stops a placeholder reaching production, this gate stops a real secret
  * reaching the repository.
  *
- * **3. No SQL is built by string concatenation or spliced verbatim.**
+ * **3. No environment-variable name reaches an API response body.**
+ * ADR-24 says "clients receive behavior, not flag values", and the Code Owner
+ * widened that on 2026-09-12 to reach **any environment identifier in a response
+ * body**, not only the `QCMS_FLAG_` registry: a variable a client cannot set is
+ * not made actionable for the client by sitting outside the registry. It had
+ * been a review catch twice in two weeks - the webhook refusal prose ending
+ * "set QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets" (issue #756) and the
+ * breach-check outage body ending "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false"
+ * (issue #910) - so it is a gate here instead. See {@link scanEnvNamesInBodies}
+ * for exactly what "reaches a response body" is taken to mean, and for the one
+ * hop of indirection it follows.
+ *
+ * **4. No SQL is built by string concatenation or spliced verbatim.**
  * `docs/features/040-security-review-hardening.md` asks for Drizzle
  * parameterization to be asserted rather than assumed. Drizzle's `sql` tagged
  * template parameterizes every `${...}` it interpolates; `sql.raw()` is the one
@@ -265,6 +277,240 @@ export function scanSql(label, text) {
 }
 
 /**
+ * The source with every comment replaced by spaces, character for character.
+ *
+ * A rule about what a **string literal** says cannot read comments, and this file is
+ * in a repository whose prose explains the very constructs its gates hunt for: the
+ * constant below is documented in a JSDoc block that names the variable it must not
+ * ship, and a naive scan would flag the explanation instead of the code. Blanking
+ * rather than deleting keeps every offset and line number identical, so a hit found
+ * here points at the same character of the original - which is what lets
+ * {@link waived} keep reading an allow marker out of the comment above a finding.
+ *
+ * A small hand-written lexer rather than a regex, because the three states a regex
+ * gets wrong here are exactly the ones that matter: a `//` inside a string ("http://"
+ * appears throughout), a quote character inside a comment (an apostrophe in English
+ * prose, which a regex pairing quotes reads as opening a string that never closes),
+ * and an escaped quote inside a string. Template-literal `${...}` interpolations are
+ * treated as string content, which can only make a slice longer and the check
+ * stricter. It is not a full ECMAScript lexer: a regex literal containing a quote or
+ * a slash-star is the known gap, and no file under the scanned root has one.
+ */
+export function blankComments(source) {
+  const out = source.split("");
+  let index = 0;
+  let mode = "code";
+  let quote = "";
+  while (index < source.length) {
+    const ch = source[index];
+    const next = source[index + 1];
+    if (mode === "code") {
+      if (ch === "/" && (next === "/" || next === "*")) {
+        mode = next === "/" ? "line" : "block";
+        out[index] = " ";
+        out[index + 1] = " ";
+        index += 2;
+        continue;
+      }
+      if (ch === '"' || ch === "'" || ch === "`") {
+        mode = "string";
+        quote = ch;
+      }
+      index += 1;
+      continue;
+    }
+    if (mode === "line") {
+      if (ch === "\n") mode = "code";
+      else out[index] = " ";
+      index += 1;
+      continue;
+    }
+    if (mode === "block") {
+      if (ch === "*" && next === "/") {
+        out[index] = " ";
+        out[index + 1] = " ";
+        mode = "code";
+        index += 2;
+        continue;
+      }
+      if (ch !== "\n") out[index] = " ";
+      index += 1;
+      continue;
+    }
+    // Inside a string: only an unescaped matching quote ends it.
+    if (ch === "\\") {
+      index += 2;
+      continue;
+    }
+    if (ch === quote) mode = "code";
+    index += 1;
+  }
+  return out.join("");
+}
+
+/**
+ * The roots whose response bodies this rule reads. Only the API builds one: the
+ * two Next apps are BFFs whose own bodies are redirects and catalog-keyed
+ * messages (ADR-27), and a `packages/*` library answers no request.
+ */
+export const BODY_SOURCE_ROOT = "apps/api/src/";
+
+/** An environment identifier, which for this repository means the `QCMS_` prefix. */
+const ENV_NAME = /QCMS_[A-Z0-9_]+/;
+
+/**
+ * Expressions this gate treats as reaching a response body.
+ *
+ * Two shapes, both of which the API actually uses:
+ *
+ * - **A wire-shaped property.** `message`, `details`/`detail`, `reason`, `hint`
+ *   and `title` are the fields `ErrorEnvelope` and the assist `AssistEvent`
+ *   stream put in front of a client. The `AssistEvent` case is why a property
+ *   scan is needed at all rather than only a constructor scan: those events are
+ *   plain object literals returned from a generator and serialized by
+ *   `features/forms/assist/handler.ts`, so nothing at the literal names a
+ *   response.
+ * - **A response constructor's arguments.** `ApiError` (`errors.ts`), better-auth's
+ *   `APIError`, and the Fetch/Hono body builders. This catches a positional
+ *   message - `new ApiError("code", 422, "...")` - which no property scan can see.
+ *
+ * Deliberately **not** sinks: `logger.*`, `process.stderr.write`, `issues.push`
+ * (config.ts's boot refusals, raised before the process serves anything) and
+ * `describeRefusal`'s plain `return`. Every one of those is an operator channel,
+ * and naming the variable there is the point rather than the defect.
+ */
+const BODY_PROPERTY = /\b(?:message|details?|reason|hint|title)\s*:/g;
+
+/**
+ * The value expression that starts at `from`, up to the end of its property.
+ *
+ * Quote-aware, and that is the whole reason it is not a regex: the first version
+ * sliced with `[^,}]*` and missed the assist stream's step-limit message, whose text
+ * is "Try a smaller request, or raise ..." - the comma inside the English sentence cut
+ * the slice before the variable name. A property value ends at the first `,`, `}` or
+ * `;` that is at bracket depth zero and outside a string; anything nested is part of
+ * the value. Running off the end of the file returns the rest, which can only make the
+ * slice longer and the check stricter.
+ */
+export function propertyValue(code, from) {
+  let depth = 0;
+  let quote = "";
+  for (let i = from; i < code.length; i += 1) {
+    const ch = code[i];
+    if (quote !== "") {
+      if (ch === "\\") i += 1;
+      else if (ch === quote) quote = "";
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      quote = ch;
+      continue;
+    }
+    if (ch === "(" || ch === "[" || ch === "{") depth += 1;
+    else if (ch === ")" || ch === "]" || ch === "}") {
+      // At depth zero this bracket closes something that *contains* the property, so
+      // the value ended before it. Returning here rather than going negative is what
+      // stops a TypeScript parameter annotation - `warn: (message: string) => void,`,
+      // whose `)` arrives before any comma - from swallowing the rest of the file and
+      // reporting every variable named anywhere in it.
+      if (depth === 0) return code.slice(from, i);
+      depth -= 1;
+    } else if ((ch === "," || ch === ";") && depth === 0) return code.slice(from, i);
+  }
+  return code.slice(from);
+}
+
+/** Call expressions whose arguments become a response body. */
+const BODY_CONSTRUCTORS =
+  /(?:^|[^\w$.])(?:new\s+(?:Api|API)Error|(?:Api|API)Error|new\s+Response|Response\s*\.\s*json|errors\s*\.\s*[\w$]+|[\w$]+\s*\.\s*(?:json|text|body)\s*\()/g;
+
+/**
+ * Module-scope `const NAME = <string expression>` whose text carries an env name.
+ *
+ * The one hop of indirection this gate follows, and the hop the two known defects
+ * both used: issue #910's message was a named constant referenced from the
+ * `APIError`, so a scan of argument literals alone read clean while the body
+ * shipped the variable. Anything further - a constant built from another constant,
+ * a value assembled in a helper and returned - is out of reach of a regex and is
+ * stated here as the residual rather than implied to be covered. A second hop
+ * would want an AST with data-flow, which is a bigger tool than this gate.
+ */
+export function envNameConstants(text) {
+  const found = new Map();
+  const pattern = /(?:^|\n)\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*([^;]*);/g;
+  let match = pattern.exec(text);
+  while (match !== null) {
+    const [, name, initializer] = match;
+    if (ENV_NAME.test(initializer)) found.set(name, initializer);
+    match = pattern.exec(text);
+  }
+  return found;
+}
+
+/**
+ * Every environment identifier that reaches a response body in `text`.
+ *
+ * `label` decides whether the file is in scope at all, so a caller passes the
+ * repo-relative path. Waivable one line at a time with {@link ALLOW_MARKER}, like
+ * the rules above: a literal that genuinely is not a body - a fixture, a
+ * generated OpenAPI description - says so in the diff where a reviewer reads it.
+ */
+export function scanEnvNamesInBodies(label, text) {
+  if (!label.startsWith(BODY_SOURCE_ROOT)) return [];
+  // Scan the code, waive against the source. {@link blankComments} preserves every
+  // offset, so a hit found in `code` indexes the same character of `text` - which is
+  // what lets the allow marker keep working, since the marker itself lives in a comment
+  // the scan cannot see.
+  const code = blankComments(text);
+  const constants = envNameConstants(code);
+  const hits = [];
+  const seen = new Set();
+
+  /** Record one hit, at most once per offending source line. */
+  const record = (index, name, what) => {
+    if (waived(text, index)) return;
+    const line = text.slice(0, index).split("\n").length;
+    const key = `${line}:${name}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    hits.push({ file: label, line, name, what });
+  };
+
+  /** The env names `slice` carries, directly or through one named constant. */
+  const namesIn = (slice) => {
+    const names = new Set();
+    for (const found of slice.matchAll(/QCMS_[A-Z0-9_]+/g)) names.add(found[0]);
+    for (const identifier of slice.matchAll(/[A-Za-z_$][\w$]*/g)) {
+      const initializer = constants.get(identifier[0]);
+      if (initializer === undefined) continue;
+      for (const found of initializer.matchAll(/QCMS_[A-Z0-9_]+/g)) names.add(found[0]);
+    }
+    return names;
+  };
+
+  BODY_PROPERTY.lastIndex = 0;
+  let property = BODY_PROPERTY.exec(code);
+  while (property !== null) {
+    const value = propertyValue(code, property.index + property[0].length);
+    for (const name of namesIn(value)) record(property.index, name, "a wire-shaped property");
+    property = BODY_PROPERTY.exec(code);
+  }
+
+  BODY_CONSTRUCTORS.lastIndex = 0;
+  let match = BODY_CONSTRUCTORS.exec(code);
+  while (match !== null) {
+    const open = code.indexOf("(", match.index);
+    if (open !== -1) {
+      for (const name of namesIn(callArguments(code, open))) {
+        record(match.index, name, "a response constructor's arguments");
+      }
+    }
+    match = BODY_CONSTRUCTORS.exec(code);
+  }
+  return hits;
+}
+
+/**
  * Value shapes an example env file may carry. Must stay in agreement with
  * `PLACEHOLDER_PREFIXES` in `apps/api/src/config.ts`: a spelling this gate
  * accepts as a placeholder but the boot guard does not recognise would sail
@@ -311,17 +557,24 @@ export function envExampleFiles() {
 function main() {
   const logHits = [];
   const sqlHits = [];
+  const bodyHits = [];
   for (const file of sourceFiles()) {
     const text = readFileSync(`${REPO_ROOT}${file}`, "utf8");
     logHits.push(...scanSource(file, text));
     sqlHits.push(...scanSql(file, text));
+    bodyHits.push(...scanEnvNamesInBodies(file, text));
   }
   const envHits = [];
   for (const file of envExampleFiles()) {
     envHits.push(...scanEnvExample(file, readFileSync(`${REPO_ROOT}${file}`, "utf8")));
   }
 
-  if (logHits.length === 0 && sqlHits.length === 0 && envHits.length === 0) {
+  if (
+    logHits.length === 0 &&
+    sqlHits.length === 0 &&
+    envHits.length === 0 &&
+    bodyHits.length === 0
+  ) {
     console.log(
       `check-security-hygiene: OK (${sourceFiles().length} source files, ${envExampleFiles().length} example env files)`,
     );
@@ -341,8 +594,13 @@ function main() {
       `${hit.file}:${hit.line}  ${hit.name} has a value that is not a recognisable placeholder`,
     );
   }
+  for (const hit of bodyHits) {
+    console.error(
+      `${hit.file}:${hit.line}  ${hit.name} reaches a response body through ${hit.what} - ADR-24 (widened 2026-09-12) allows no environment identifier in a response body; state the behaviour and put the variable in a log line or docs/operations.md`,
+    );
+  }
   console.error(
-    `\ncheck-security-hygiene: ${logHits.length + sqlHits.length + envHits.length} problem(s). Waive one line with a "${ALLOW_MARKER} <reason>" comment above it.`,
+    `\ncheck-security-hygiene: ${logHits.length + sqlHits.length + envHits.length + bodyHits.length} problem(s). Waive one line with a "${ALLOW_MARKER} <reason>" comment above it.`,
   );
   process.exitCode = 1;
 }

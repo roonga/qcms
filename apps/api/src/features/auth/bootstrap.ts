@@ -5,6 +5,7 @@ import type { AdminAuth } from "./instance.js";
 import {
   BREACH_LOOKUP_FAILED_CODE,
   BREACH_LOOKUP_FAILED_MESSAGE,
+  BREACH_LOOKUP_OPERATOR_GUIDANCE,
   CORPUS_HIT_CODE,
   MIN_PASSWORD_LENGTH,
 } from "./instance.js";
@@ -175,7 +176,10 @@ export function describeRefusal(refusal: BootstrapRefusal): string {
         "passphrase you have never used elsewhere is the reliable fix."
       );
     case "breach-corpus-unreachable":
-      return `Refusing: ${BREACH_LOOKUP_FAILED_MESSAGE}`;
+      // Both halves, because a command line IS the operator's channel (issue #910). The
+      // API's 503 body carries only the first sentence and names no variable; this is
+      // where the variable belongs, beside the other two `QCMS_ADMIN_*` names above.
+      return `Refusing: ${BREACH_LOOKUP_FAILED_MESSAGE} ${BREACH_LOOKUP_OPERATOR_GUIDANCE}`;
     case "sign-up-rejected":
       return (
         `Refusing: creating the account failed with HTTP ${refusal.status} (${refusal.detail}). ` +

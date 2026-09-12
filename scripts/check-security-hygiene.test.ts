@@ -17,7 +17,9 @@ import { describe, expect, it } from "vitest";
 // @ts-expect-error - the gate is plain ESM tooling, deliberately untypechecked.
 import {
   ALLOW_MARKER,
+  blankComments,
   scanEnvExample,
+  scanEnvNamesInBodies,
   scanSource,
   scanSql,
   sourceFiles,
@@ -222,5 +224,167 @@ describe("backtick concatenation, the evasion a quote-only alternation missed", 
     // start flagging Drizzle's parameterizing template.
     expect(scanSql("probe.ts", "await exec.execute(sql`select ${a} from t`);")).toHaveLength(0);
     expect(scanSql("probe.ts", "await db.execute(sql`select 1`);")).toHaveLength(0);
+  });
+});
+
+/**
+ * ADR-24's widened rule, as a gate rather than a review catch (issue #910).
+ *
+ * The rule: no environment identifier may appear in an API response body. It was caught
+ * by a reviewer twice in two weeks - the webhook refusal prose ending "set
+ * QCMS_WEBHOOK_ALLOW_PRIVATE for on-prem targets" (issue #756) and the breach-check 503
+ * ending "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false" (issue #910) - so these cases
+ * plant each shape the gate must name, and, at least as important, the shapes it must
+ * not, because the same file that must not ship a variable name to a client is full of
+ * operator log lines and boot refusals that legitimately do.
+ *
+ * `label` is load-bearing in every case: the rule reads `apps/api/src/` only.
+ */
+describe("an environment identifier in a response body is refused", () => {
+  /** A path inside the scanned root, so the rule engages at all. */
+  const API = "apps/api/src/features/auth/instance.ts";
+
+  it("names a variable spelled straight into a wire-shaped property", () => {
+    const source =
+      'throw new ApiError("x", 503, "");\nconst e = { message: "set QCMS_A=false" };\n';
+    const hits = scanEnvNamesInBodies(API, source);
+
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ file: API, line: 2, name: "QCMS_A" });
+  });
+
+  it("follows one hop through a named constant, which is how #910 hid", () => {
+    // The exact shape of the defect: the literal is nowhere near the response, and a
+    // scan of constructor arguments alone reads clean.
+    const source = [
+      'const FAILED = "... or set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false ...";',
+      'throw new APIError("SERVICE_UNAVAILABLE", { message: FAILED, code: "X" });',
+    ].join("\n");
+
+    const names = scanEnvNamesInBodies(API, source).map((hit) => hit.name);
+    expect(names).toContain("QCMS_ADMIN_PASSWORD_BREACH_CHECK");
+  });
+
+  it("reads a positional message, which no property scan can see", () => {
+    const source = 'throw new ApiError("refused", 422, "set QCMS_WEBHOOK_ALLOW_PRIVATE");';
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(1);
+  });
+
+  it("is not fooled by a comma inside the sentence", () => {
+    // The first version of this rule sliced a property value with `[^,}]*` and missed
+    // the assist stream's "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS." - the
+    // comma in the English ended the slice before the variable.
+    const source =
+      '  const e = {\n    message:\n      "Try a smaller request, or raise QCMS_AGENT_MAX_STEPS.",\n  };\n';
+    const hits = scanEnvNamesInBodies(API, source);
+
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({ name: "QCMS_AGENT_MAX_STEPS" });
+  });
+
+  it("names every hit rather than stopping at the first", () => {
+    const source = [
+      'const a = { message: "QCMS_ONE and QCMS_TWO" };',
+      'const b = { reason: "QCMS_THREE" };',
+    ].join("\n");
+
+    expect(
+      scanEnvNamesInBodies(API, source)
+        .map((hit) => hit.name)
+        .sort(),
+    ).toEqual(["QCMS_ONE", "QCMS_THREE", "QCMS_TWO"]);
+  });
+
+  it("reports the line of the offending literal, not of the file", () => {
+    const source = '\n\n\nconst e = { message: "QCMS_LATE" };\n';
+    expect(scanEnvNamesInBodies(API, source)[0]).toMatchObject({ line: 4 });
+  });
+});
+
+describe("the operator channels keep naming variables, because that is the point", () => {
+  const API = "apps/api/src/features/auth/instance.ts";
+
+  it("leaves a logger line alone", () => {
+    const source =
+      'const WARNING = "QCMS_ADMIN_SIGNIN_THROTTLE is set to a false value";\nlogger.warn(WARNING, fields);';
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
+  });
+
+  it("leaves a boot refusal alone", () => {
+    // `config.ts` raises these before the process serves a request, so no client exists
+    // to receive one. Twelve of them, none of which may start needing a waiver.
+    const source = "issues.push(`QCMS_AGENT_MODEL is required when QCMS_FLAG_AGENT_AUTHORING=x`);";
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
+  });
+
+  it("leaves a CLI line and a bare environment read alone", () => {
+    const cli = 'process.stderr.write("Set QCMS_ADMIN_EMAIL and QCMS_ADMIN_PASSWORD\\n");';
+    const read = 'const HOPS_ENV = "QCMS_ADMIN_TRUSTED_PROXY_HOPS";\nconst v = env[HOPS_ENV];';
+    expect(scanEnvNamesInBodies(API, cli)).toHaveLength(0);
+    expect(scanEnvNamesInBodies(API, read)).toHaveLength(0);
+  });
+
+  it("does not read a TypeScript parameter annotation as a body", () => {
+    // `warn: (message: string) => void,` has a `message:` and then a `)` before any
+    // comma. An earlier version let the value slice run negative on that bracket and
+    // swallow the rest of the file, reporting every variable named anywhere in it.
+    const source = [
+      "export interface Input {",
+      "  readonly warn?: (message: string) => void;",
+      "}",
+      'const WARNING = "QCMS_SOMETHING is off";',
+    ].join("\n");
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
+  });
+
+  it("ignores a variable named in a comment, including its own documentation", () => {
+    const source = [
+      "/** Why QCMS_ADMIN_PASSWORD_BREACH_CHECK must not appear in a body. */",
+      '// message: "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false"',
+      'const e = { message: "the check is unavailable" };',
+    ].join("\n");
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(0);
+  });
+
+  it("reads only apps/api/src, where the response bodies are", () => {
+    const source = 'const e = { message: "QCMS_A" };';
+    expect(scanEnvNamesInBodies("apps/admin/lib/forms/assist-stream.ts", source)).toHaveLength(0);
+    expect(scanEnvNamesInBodies("scripts/env-reference.mjs", source)).toHaveLength(0);
+    expect(scanEnvNamesInBodies("apps/api/src/x.ts", source)).toHaveLength(1);
+  });
+
+  it("takes a waiver on the line above, like the rules beside it", () => {
+    const source = `  // ${ALLOW_MARKER} a fixture, not a body\n  const e = { message: "QCMS_A" };\n`;
+    expect(scanEnvNamesInBodies("apps/api/src/x.ts", source)).toHaveLength(0);
+  });
+});
+
+describe("comments are blanked without moving a single character", () => {
+  it("keeps the offsets and line numbers identical, which the waiver depends on", () => {
+    const source = 'const a = 1; // QCMS_A\n/* QCMS_B */ const b = "QCMS_C";\n';
+    const blanked = blankComments(source);
+
+    expect(blanked).toHaveLength(source.length);
+    expect(blanked.split("\n")).toHaveLength(source.split("\n").length);
+    expect(blanked).not.toContain("QCMS_A");
+    expect(blanked).not.toContain("QCMS_B");
+    // The string literal survives: that is the half the rule is about.
+    expect(blanked).toContain("QCMS_C");
+  });
+
+  it("does not mistake a slash inside a string for the start of a comment", () => {
+    // "http://" appears throughout this repository's prose and URLs, and a regex that
+    // blanked from the first `//` would eat the rest of the line - including, in the
+    // real file, the variable name the rule exists to find.
+    const blanked = blankComments('const e = { message: "see http://x/ QCMS_A" };');
+    expect(blanked).toContain("QCMS_A");
+  });
+
+  it("does not mistake an apostrophe in prose for an opening quote", () => {
+    // The failure this prevents is silent and total: a comment containing "process's"
+    // would open a string that never closes, and every literal after it in the file
+    // would be read as comment text and skipped.
+    const source = ["// this process's environment", 'const e = { message: "QCMS_A" };'].join("\n");
+    expect(scanEnvNamesInBodies("apps/api/src/x.ts", source)).toHaveLength(1);
   });
 });

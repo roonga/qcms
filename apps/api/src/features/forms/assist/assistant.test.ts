@@ -387,6 +387,12 @@ describe("assist error codes are all reachable", () => {
     // The message is what an operator reads, so an empty one is a defect even
     // when the code is right.
     expect(error.message.length).toBeGreaterThan(0);
+    // ...and it is framed into the SSE response body by `handler.ts`, so it carries no
+    // environment identifier (ADR-24 as widened 2026-09-12; issue #910). Asserted on
+    // every row rather than only on `STEP_LIMIT`, which is the row that broke it: a
+    // sixth code whose sentence names a variable fails here without anyone remembering
+    // the rule. `QCMS_` is this repository's environment prefix.
+    expect(error.message).not.toMatch(/QCMS_[A-Z0-9_]+/);
     // No code may arrive with a proposal attached: an error turn is terminal.
     expect(events.filter((e) => e.type === "proposal")).toHaveLength(0);
   });

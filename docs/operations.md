@@ -78,6 +78,15 @@ in the corpus is a different answer entirely: `400` with `PASSWORD_COMPROMISED`,
 line that says the password appears in the corpus. Telling the two apart never requires
 reading the source.
 
+**Where to read the variable, and where you will not (issue #910).** The `503` body
+names the host and the cause and **no environment variable at all**: ADR-24 allows no
+environment identifier in a response body, so a knob a client cannot set is not offered
+to one. The variable is named on the two channels you actually read - the API logs one
+`warn` line carrying it at the moment the lookup fails, and `qcms:create-admin` writes
+the same guidance to stderr - plus the row below. If you are holding a `503` and not a
+log, that is the order to look in. `pnpm check:security-hygiene` fails the build if the
+name creeps back into a body.
+
 ### Rate limits are per-process, so replicas multiply them
 
 **Every rate limit in QCMS is counted inside one API process. Run N API processes and

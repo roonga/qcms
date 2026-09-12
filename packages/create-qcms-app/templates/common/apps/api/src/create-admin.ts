@@ -101,7 +101,17 @@ async function main(): Promise<number> {
 
   const pool = new pg.Pool({ connectionString: config.databaseUrl });
   const db = drizzle(pool, { schema }) as unknown as Executor;
-  const auth = createAdminAuth({ db, adminAuth: config.adminAuth });
+  const auth = createAdminAuth({
+    db,
+    adminAuth: config.adminAuth,
+    // Same sink as the server's logger, spelled for a command line (issue #910).
+    // `describeRefusal` below prints the same guidance on the refusal path; this fires
+    // at the moment of the failed lookup, so a run that ends some other way still leaves
+    // the operator the line that names the variable.
+    warn: (message) => {
+      process.stderr.write(`${message}\n`);
+    },
+  });
 
   const name = process.env.QCMS_ADMIN_NAME?.trim();
   const result = await createInitialAdmin(auth, db, {

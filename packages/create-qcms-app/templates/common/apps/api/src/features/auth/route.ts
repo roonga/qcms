@@ -121,7 +121,16 @@ const instances = new WeakMap<Deps, AdminAuth>();
 export function adminAuthFor(deps: Deps): AdminAuth {
   const existing = instances.get(deps);
   if (existing !== undefined) return existing;
-  const built = createAdminAuth({ db: deps.db, adminAuth: deps.config.adminAuth });
+  const built = createAdminAuth({
+    db: deps.db,
+    adminAuth: deps.config.adminAuth,
+    // The operator's half of a breach-corpus outage (issue #910). The 503 body says what
+    // happened and names no variable; this line says which variable turns the check off,
+    // to the log an operator reads rather than to the client that provoked it.
+    warn: (message) => {
+      deps.logger.warn(message);
+    },
+  });
   instances.set(deps, built);
   return built;
 }
