@@ -163,10 +163,20 @@ async function expectForcedPaletteInEffect(page: Page): Promise<SystemPalette> {
   return palette;
 }
 
-/** A colour with zero alpha draws nothing, whatever its channels say. */
+/**
+ * A colour draws nothing only when its ALPHA is zero.
+ *
+ * The component count is what decides that, and reading the last number instead
+ * is the trap: `rgb(0, 0, 0)` is opaque black, and a pattern that took its final
+ * channel as an alpha would call the forced palette's own text colour invisible
+ * and fail every assertion in this file for the opposite of the right reason.
+ */
 function isInvisible(color: string): boolean {
-  const alpha = /rgba?\([^)]*,\s*([\d.]+)\s*\)/u.exec(color);
-  return color === "transparent" || (alpha !== null && Number.parseFloat(alpha[1]!) === 0);
+  if (color === "transparent") return true;
+  const channels = /^rgba?\(([^)]*)\)$/u.exec(color);
+  if (channels === null) return false;
+  const parts = (channels[1] ?? "").split(/[,/\s]+/u).filter((part) => part.length > 0);
+  return parts.length >= 4 && Number.parseFloat(parts[3] ?? "1") === 0;
 }
 
 interface Boundary {
@@ -312,6 +322,18 @@ test("forced colours: a focused control keeps both its edge and a painted focus 
   await expectOrdinaryPalette(page);
   const palette = await expectForcedPaletteInEffect(page);
 
+  // The keyboard's first stop is the skip link: chrome, not a form control, and
+  // it takes the same ring. Taken FIRST, because "the first Tab stop" is only
+  // the skip link from the document's starting position - one Tab after focusing
+  // a field lands on whatever follows that field.
+  await page.keyboard.press("Tab");
+  const skip = page.getByRole("link", { name: "Skip to content" });
+  await expect(skip).toBeFocused();
+  const skipBox = await boundaryOf(skip);
+  expect(skipBox.outlineWidth).toBeGreaterThanOrEqual(2);
+  expect(skipBox.outlineStyle).not.toBe("none");
+  expect(isInvisible(skipBox.outlineColor)).toBe(false);
+
   const input = page.getByRole("textbox", { name: KS.fullName });
   const resting = await boundaryOf(input);
   expect(resting.borderWidth, "the resting control has no border to keep").toBeGreaterThan(0);
@@ -338,15 +360,6 @@ test("forced colours: a focused control keeps both its edge and a painted focus 
   // And the shadow the ring used to be really is gone, which is the reason the
   // outline has to exist.
   await expect(input).toHaveCSS("box-shadow", "none");
-
-  // The keyboard's first stop is the skip link: chrome, not a form control, and
-  // it takes the same ring.
-  await page.keyboard.press("Tab");
-  const skip = page.getByRole("link", { name: "Skip to content" });
-  await expect(skip).toBeFocused();
-  const skipBox = await boundaryOf(skip);
-  expect(skipBox.outlineWidth).toBeGreaterThanOrEqual(2);
-  expect(isInvisible(skipBox.outlineColor)).toBe(false);
 });
 
 test("forced colours: selected, checked and chosen states survive the palette", async ({
@@ -442,11 +455,19 @@ test("prefers-contrast: more steps borders and focus rings onto the stronger tok
     borderStrong,
   );
 
+  // An UNSELECTED chip: the selected one keeps `--color-primary` on its edge,
+  // which is the selected treatment rather than a neutral border, and the
+  // step-up rule is deliberately less specific than the rule that draws it.
   await openAppearance(page);
-  await expect(page.locator('[data-testid="appearance-mode"] label').first()).toHaveCSS(
-    "border-top-color",
-    borderStrong,
-  );
+  const restingChip = page
+    .locator('[data-testid="appearance-mode"] label[data-selected="false"]')
+    .first();
+  await expect(restingChip).toHaveCSS("border-top-color", borderStrong);
+  const chosenChip = page.locator('[data-testid="appearance-mode"] label[data-selected="true"]');
+  await expect(
+    chosenChip,
+    "the chosen chip should keep its primary edge, not take the neutral step-up",
+  ).not.toHaveCSS("border-top-color", borderStrong);
   await page.locator('[data-testid="appearance"] > summary').click();
 
   // The ring steps from 2px to the 3px the High-contrast mode already uses.
