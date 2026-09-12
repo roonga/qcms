@@ -14,6 +14,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   assertArtifact,
+  assertNoDevPackages,
   attestationFileName,
   attestationManifestCount,
   buildArgv,
@@ -59,8 +60,15 @@ afterAll(() => {
  *
  * @param predicates predicate types the attestation manifest advertises.
  * @param labels config labels the image manifest's config blob carries.
+ * @param sbomPackages npm `name@version` pairs the SBOM predicate lists, for the
+ *   dev-dependency assertion (issue #877), which reads the blob's body rather than
+ *   its annotation.
  */
-function ociArtifact(predicates: string[], labels: Record<string, string>): string {
+function ociArtifact(
+  predicates: string[],
+  labels: Record<string, string>,
+  sbomPackages: string[] = ["hono@4.13.7"],
+): string {
   const root = mkdtempSync(join(tmpdir(), "qcms-oci-"));
   workspaces.push(root);
   const blobs = join(root, "blobs", "sha256");
@@ -88,7 +96,28 @@ function ociArtifact(predicates: string[], labels: Record<string, string>): stri
       // used only to read the annotation; `saveAttestations` copies the blob, so the
       // fixture has to carry one or the export path would be tested against a shape
       // buildx does not produce.
-      digest: put({ _type: "https://in-toto.io/Statement/v1", predicateType: predicate }),
+      digest: put({
+        _type: "https://in-toto.io/Statement/v1",
+        predicateType: predicate,
+        // Only the SBOM predicate carries a body anything reads. The purl is where the
+        // package name comes from, so the fixture has to have one.
+        ...(predicate === SPDX_PREDICATE
+          ? {
+              predicate: {
+                packages: sbomPackages.map((reference) => ({
+                  name: reference.slice(0, reference.lastIndexOf("@")),
+                  externalRefs: [
+                    {
+                      referenceCategory: "PACKAGE-MANAGER",
+                      referenceType: "purl",
+                      referenceLocator: `pkg:npm/${reference.replace(/^@/, "%40")}`,
+                    },
+                  ],
+                })),
+              },
+            }
+          : {}),
+      }),
       annotations: { "in-toto.io/predicate-type": predicate },
     })),
   });
@@ -170,6 +199,31 @@ describe("OCI artifact traversal", () => {
   it("rejects a stamp that does not match what was requested", () => {
     const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "9.9.9" });
     expect(() => assertArtifact(artifact, "1.2.3", "qcms-api")).toThrow(/9\.9\.9/);
+  });
+});
+
+describe("the dev-dependency boundary (issue #877)", () => {
+  it("passes an image whose SBOM lists production packages only", () => {
+    const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" }, ["hono@4.13.7", "pg@8.23.0"]);
+    expect(assertNoDevPackages(artifact, "qcms-api")).toBe(2);
+  });
+
+  it("fails the build on the tooling the API image was found carrying", () => {
+    // The real thing this catches: before the `--no-optional` deploy boundary landed,
+    // the qcms-api SBOM listed 680 npm packages including these three.
+    const artifact = ociArtifact(BOTH, { [VERSION_LABEL]: "1.2.3" }, [
+      "hono@4.13.7",
+      "vitest@4.1.11",
+      "@playwright/test@1.63.0",
+      "testcontainers@12.1.0",
+    ]);
+    expect(() => assertNoDevPackages(artifact, "qcms-api")).toThrow(/devDependency/);
+    expect(() => assertNoDevPackages(artifact, "qcms-api")).toThrow(/vitest@4\.1\.11/);
+  });
+
+  it("cannot read an SBOM that is not there", () => {
+    const artifact = ociArtifact([PROVENANCE_PREDICATE], { [VERSION_LABEL]: "1.2.3" });
+    expect(() => assertNoDevPackages(artifact, "qcms-api")).toThrow(/no SBOM/);
   });
 });
 
