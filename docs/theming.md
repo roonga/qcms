@@ -787,13 +787,14 @@ gate, so a deployment that changes colours checks its own pairs.
 | Every control target clears WCAG 2.5.8's 24px minimum at Compact                                     | same spec                                                           |
 | The 1.4.12 floors hold at every density x every font (69 combinations)                               | same spec                                                           |
 | The brand mark and `<title>` come from config, with no `QCMS` literal rendered                       | same spec                                                           |
+| The panel is axe-clean in every mode x density, with the panel open                                  | `apps/portal/e2e/appearance.pw.ts`                                  |
+| Without scripting the controls are hidden, and the config default still applies                      | same spec                                                           |
 | A font-family list exists in exactly one place, on either surface                                    | `scripts/check-font-tokens.test.ts` (the gate, on the shipped tree) |
 | Each tail names a CSS generic, with only symbol faces after it                                       | `packages/ui/src/theme-tokens.test.ts`                              |
 | Every registry entry delegates its tail to a token rather than restating it                          | `packages/ui/src/font-registry.test.ts`                             |
 | Body text resolves to the configured family plus exactly that tail, in a browser                     | `apps/portal/e2e/fonts.pw.ts`                                       |
 | The submission reference resolves to `--font-mono`, not Tailwind's built-in stack                    | same spec                                                           |
-| The panel is axe-clean in every mode x density, with the panel open                                  | same spec                                                           |
-| Without scripting the controls are hidden, and the config default still applies                      | same spec                                                           |
+| The condition editor's CodeMirror pane resolves to `--font-mono` too                                 | `apps/admin/e2e/forms-builder.pw.ts`                                |
 | Every declared face is a real committed `woff2`, with no duplicate bytes                             | `packages/ui/src/font-registry.test.ts`                             |
 | `fonts.css` is exactly what the manifest renders (add/remove is one entry)                           | same file                                                           |
 | Every family is permissively licensed and its notice ships                                           | same file                                                           |

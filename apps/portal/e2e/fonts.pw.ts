@@ -46,6 +46,7 @@ import { FONT_REGISTRY, fontClass, SYSTEM_FONT_KEY } from "@roonga/qcms-ui/fonts
 import type { Locator, Page } from "@playwright/test";
 
 import { partitionRequests } from "./support/dev-server-assets.js";
+import { families } from "./support/font-families.js";
 import { readFixtures } from "./support/fixtures.js";
 import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
@@ -98,23 +99,6 @@ function computed(target: Locator, property: string): Promise<string> {
  */
 function firstFamily(computedValue: string): string {
   return (computedValue.split(",")[0] ?? "").trim().replace(/^["']|["']$/gu, "");
-}
-
-/**
- * A computed `font-family`, or a computed `--font-*` token, split into families
- * with quoting and whitespace normalized away.
- *
- * Both sides need it. Chromium re-serializes `font-family` (quoting a multi-word
- * name, collapsing the space after each comma) but returns a custom property's
- * computed value close to how it was authored, so the two spellings of the SAME
- * list are not the same string. Comparing family by family is what makes
- * "the body resolves to exactly the token" an assertion rather than a hope.
- */
-function families(computedValue: string): readonly string[] {
-  return computedValue
-    .split(",")
-    .map((family) => family.trim().replace(/^["']|["']$/gu, ""))
-    .filter((family) => family !== "");
 }
 
 /** Every `--font-*` token the live page resolved, by name. */

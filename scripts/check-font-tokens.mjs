@@ -7,20 +7,39 @@
  * wrong: what does a respondent read when the primary face is missing, refused, or
  * still downloading? It is invisible on every machine that HAS the face, which is
  * every machine the author is testing on, so a second copy of the list never looks
- * wrong and never gets corrected. This repository had six copies before this gate:
+ * wrong and never gets corrected. Ten declarations spelled a list out here before this
+ * gate, and between them they said SEVEN different things.
  *
- *   - `packages/ui/src/theme.css` declared the portal's sans tail;
- *   - `apps/portal/app/globals.css` wrote a SHORTER one inline as
- *     `var(--font-portal, ui-sans-serif, system-ui, sans-serif)` - a fallback that
- *     could never fire, because the token it guards is always declared;
- *   - `apps/admin/app/globals.css` wrote that same short list a third time for the
- *     preview island, with a comment claiming it matched the portal "byte for byte";
- *   - `apps/admin/app/theme.css` carried its own mono tail with `"SF Mono"` and
- *     `"Cascadia Code"`, which the portal's did not have;
- *   - `apps/admin/app/globals.css` wrote `var(--font-mono, ui-monospace, monospace)`,
- *     a fifth list;
- *   - `apps/admin/components/forms/condition-json-pane.tsx` held a sixth in a
- *     CodeMirror inline style object, where no sweep of the stylesheets could see it.
+ * Two sans lists across five sites:
+ *
+ *   - `ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif` in
+ *     `packages/ui/src/theme.css:69`, again as `SANS_TAIL` in
+ *     `packages/ui/src/font-registry.ts:98`, and again as the tail of `--font-admin`
+ *     in `apps/admin/app/theme.css:57`;
+ *   - `ui-sans-serif, system-ui, sans-serif`, shorter, in
+ *     `apps/portal/app/globals.css:89` and `apps/admin/app/globals.css:2531`. Both were
+ *     inline `var(--font-portal, ...)` fallbacks, so neither could ever fire: the token
+ *     they guard is always declared. The second sat under a comment claiming it matched
+ *     the portal's `body` rule "byte for byte" - true of each other, and both differed
+ *     from the token they were guarding.
+ *
+ * Four mono lists, one per site, no two alike:
+ *
+ *   - `ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace`
+ *     (`MONO_TAIL`, `packages/ui/src/font-registry.ts:100`);
+ *   - `ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, monospace`
+ *     (`apps/admin/app/theme.css:58`);
+ *   - `ui-monospace, monospace` (`apps/admin/app/globals.css:1678`);
+ *   - `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`
+ *     (`apps/admin/components/forms/condition-json-pane.tsx:222`), in a CodeMirror theme
+ *     object, where no sweep of the stylesheets could have seen it.
+ *
+ * And one serif list, the only one that never had a second copy (`SERIF_TAIL`,
+ * `packages/ui/src/font-registry.ts:99`).
+ *
+ * Six of the ten are shapes this gate judges; `scripts/check-font-tokens.test.ts` holds
+ * all six verbatim as its fixtures. The three `font-registry.ts` tails are TS string
+ * constants rather than declarations, so the manifest's own suite polices them instead.
  *
  * So the gate is deliberately not "the CSS looks tidy". It is the property that
  * makes the tail improvable at all: change `--font-fallback-sans` and every surface
@@ -45,6 +64,14 @@
  *    is the variable that utility reads, so the utility and the token agree by
  *    construction. Inline `fontFamily` in a style object is held to rule 1.
  *
+ * WHAT IS SCANNED. Every `.css`, `.ts` and `.tsx` file git knows about under the seven
+ * roots in `SCAN_DIRS`, enumerated through `trackedFilesUnder` rather than by walking
+ * the directory tree (CONTRIBUTING, issues #635 and #641): a walk enumerates the
+ * working directory, where a prior `verify:browser` or `pnpm dev:*` has left `.next`,
+ * `.next-dev` and a generated `next-env.d.ts`, and a gate that reads those is asserting
+ * a property of the machine. `MINIMUM_SCANNED` below is the companion floor the same
+ * rule asks for, so a narrowed scan is a red rather than a vacuous green.
+ *
  * WHAT IS NOT SCANNED, AND WHY.
  *   - `packages/ui/src/components/a2ui/` is the byte-for-byte upstream vendor drop
  *     (ADR-22). A gate cannot ask it to change.
@@ -61,10 +88,11 @@
  * Usage:  node scripts/check-font-tokens.mjs
  */
 
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { stripComments } from "./check-admin-theme.mjs";
+import { trackedFilesUnder } from "./tracked-files.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
@@ -225,32 +253,70 @@ export function checkSource(relative, source) {
   return problems;
 }
 
-/** Every scannable file under one repo-relative directory. */
-function walk(dir) {
-  const out = [];
-  for (const entry of readdirSync(`${ROOT}${dir}`)) {
-    const relative = `${dir}/${entry}`;
-    if (statSync(`${ROOT}${relative}`).isDirectory()) {
-      out.push(...walk(relative));
-      continue;
+/**
+ * The lowest number of files this scan may legitimately reach (CONTRIBUTING, "A test
+ * that asserts a property of 'every X in the codebase'"): the clause that says each
+ * caller "also asserts that its scan reaches something".
+ *
+ * Without it, the three rules are only as broad as `SCAN_DIRS` and `SCAN_EXTENSIONS`
+ * happen to be, and narrowing either - a directory renamed out from under this list,
+ * an extension dropped - leaves all three vacuously true with the gate still green.
+ * That is the fail-open shape the rule exists to close, and it is the one a gate
+ * cannot notice about itself.
+ *
+ * Set well under the live count (the scan reaches 299 files today) so ordinary
+ * churn never touches it, and far enough above zero that losing any one SCAN_DIR is
+ * a red. Raise it if it ever gets close; do not lower it to make a red go away.
+ */
+export const MINIMUM_SCANNED = 150;
+
+/**
+ * Every file this gate judges, repo-relative and sorted.
+ *
+ * Enumerated from git rather than walked (CONTRIBUTING, issues #635 and #641): a walk
+ * enumerates the WORKING DIRECTORY, so `apps/*\/.next`, `.next-dev` and a generated
+ * `next-env.d.ts` read as source, and the gate then asserts a property of the machine
+ * rather than of the repository. `trackedFilesUnder` asks
+ * `git ls-files --cached --others --exclude-standard`, which is tracked files plus
+ * files that are new and not ignored, so a stylesheet added and not yet staged is
+ * still in scope and the gate is not defeatable by not staging. It throws on an empty
+ * enumeration, which is the other half of the same fail-open story.
+ */
+export function scannedFiles() {
+  const files = [];
+  for (const dir of SCAN_DIRS) {
+    for (const relative of trackedFilesUnder(`${ROOT}${dir}`)) {
+      const path = `${dir}/${relative}`;
+      if (!SCAN_EXTENSIONS.some((extension) => path.endsWith(extension))) continue;
+      // A string in a test is an assertion about the shipped value, not a style a
+      // browser paints.
+      if (/\.(?:test|spec|pw)\.tsx?$/u.test(path)) continue;
+      // ADR-22 keeps the vendor drop byte-for-byte upstream; a gate cannot ask it to change.
+      if (isVendoredSource(path)) continue;
+      files.push(path);
     }
-    if (!SCAN_EXTENSIONS.some((extension) => entry.endsWith(extension))) continue;
-    if (/\.(?:test|spec|pw)\.tsx?$/u.test(entry)) continue;
-    if (isVendoredSource(relative)) continue;
-    out.push(relative);
   }
-  return out;
+  return files.sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 }
 
 /** Run the three rules across the repository, returning a list of problems. */
 export function checkFontTokens() {
   const problems = [];
-  for (const relative of SCAN_DIRS.flatMap(walk)) {
+  const files = scannedFiles();
+  for (const relative of files) {
     const source = readFileSync(`${ROOT}${relative}`, "utf8");
     problems.push(
       ...(relative.endsWith(".css")
         ? checkStylesheet(relative, source)
         : checkSource(relative, source)),
+    );
+  }
+
+  // Fail closed on a scan that has quietly stopped covering the apps.
+  if (files.length < MINIMUM_SCANNED) {
+    problems.push(
+      `the scan reached only ${files.length} files, below the floor of ${MINIMUM_SCANNED}` +
+        `  - SCAN_DIRS or SCAN_EXTENSIONS has narrowed, so the rules above are vacuous`,
     );
   }
 
@@ -275,5 +341,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     console.error(`\n${problems.length} problem(s).`);
     process.exit(1);
   }
-  console.log(`QCMS font tokens: every stack ends in a tail declared once in ${TOKEN_SHEET}.`);
+  console.log(
+    `QCMS font tokens: ${scannedFiles().length} files scanned, every stack ends in a tail ` +
+      `declared once in ${TOKEN_SHEET}.`,
+  );
 }
