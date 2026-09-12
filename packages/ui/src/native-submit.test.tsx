@@ -27,7 +27,7 @@ const kitchenSinkSteps = kitchenSink.compiled.documents;
 // The kitchen sink's multiChoice, which is the control that serializes NOTHING when
 // nothing is checked and so cannot be read off the posted values at all.
 const MULTI_QUESTION = "q_preexisting_conditions";
-const multiStep = kitchenSinkSteps[1]!;
+const multiStep = kitchenSinkSteps[1];
 
 const NATIVE = {
   action: "/s/ses_abc/step",
@@ -170,9 +170,7 @@ describe("native submit mode (task 044)", () => {
  */
 describe("the answered marker (issue #127)", () => {
   const answered = (container: HTMLElement) =>
-    [...container.querySelectorAll<HTMLInputElement>('input[name^="__qa__"]')].map(
-      (el) => el.name,
-    );
+    [...container.querySelectorAll<HTMLInputElement>('input[name^="__qa__"]')].map((el) => el.name);
 
   it("marks only the questions that currently hold an answer", () => {
     const { container } = render(
@@ -253,7 +251,7 @@ describe("the answered marker (issue #127)", () => {
     // here (issue #18, phase 4) and what makes their marker safe.
     const { container } = render(
       <A2UIStepRenderer
-        document={kitchenSinkSteps[0]!}
+        document={kitchenSinkSteps[0]}
         nativeSubmit={NATIVE}
         values={{ q_full_name: "Ada Lovelace", q_dob: "1990-05-17" }}
       />,

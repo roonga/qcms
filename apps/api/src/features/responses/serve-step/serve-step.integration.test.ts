@@ -462,8 +462,33 @@ describe("answer retraction (ADR-33)", () => {
  * made invisible does not become a tombstone at all.
  */
 describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
+  /**
+   * A session on the insurance form, created and signed directly rather than through
+   * `POST /sessions`.
+   *
+   * The suite runs on a frozen clock, so every start-session call in this file falls in
+   * one per-IP rate-limit window (026, 20/hour) and the file already sits at its edge -
+   * two more entries here would 429 the cases that come after. These two are about the
+   * ledger, not about entry, so they spend none of that budget. Same construction as
+   * `sessionOn` in the semantics-gate block, for the same stated reason.
+   */
+  async function ledgerSession(id: string): Promise<{ sessionId: string; sessionToken: string }> {
+    const sessionId = SessionId.parse(id);
+    const expiresAt = new Date(NOW.getTime() + TTL_MS);
+    await createSession(testDb.db, {
+      sessionId,
+      formId: FormId.parse("frm_auto_quote"),
+      formVersion: 1,
+      accessMode: "anonymous",
+      expiresAt,
+    });
+    const [signingKey] = await importSessionKeys(deps.config);
+    if (signingKey === undefined) throw new Error("no session signing key in test config");
+    return { sessionId, sessionToken: await mintSessionToken(sessionId, expiresAt, signingKey) };
+  }
+
   it("appends the tombstone beside the round's other writes, in the order they were posted", async () => {
-    const { sessionId, sessionToken } = await startSession("auto");
+    const { sessionId, sessionToken } = await ledgerSession("ses_nojs_round");
     const sid = SessionId.parse(sessionId);
 
     // Round one: the respondent answers both questions and the flow is submittable.
@@ -504,7 +529,7 @@ describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
   });
 
   it("refuses a clear for a question the same round just hid, and appends no tombstone", async () => {
-    const { sessionId, sessionToken } = await startSession("auto");
+    const { sessionId, sessionToken } = await ledgerSession("ses_nojs_hidden");
     const sid = SessionId.parse(sessionId);
     await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true);
     await postAnswer(sessionId, sessionToken, "q_accident_count", 10);

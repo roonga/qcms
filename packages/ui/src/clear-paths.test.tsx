@@ -266,7 +266,7 @@ describe("the native transport posts the same clear (issue #127)", { timeout: 30
     expect(posted).toContainEqual(["__qa__q_preexisting_conditions", "1"]);
   });
 
-  it("an unanswered question of either type posts no marker, so its emptiness stays silence", async () => {
+  it("an unanswered question of either type posts no marker, so its emptiness stays silence", () => {
     const nothing = renderNative(stepHistory, {})();
     expect(nothing.filter(([name]) => name.startsWith("__qa__"))).toEqual([]);
   });

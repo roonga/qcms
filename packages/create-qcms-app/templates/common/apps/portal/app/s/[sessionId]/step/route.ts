@@ -99,6 +99,40 @@ function answerErrorMessage(error: ApiError): string {
   return defaultAnswerMessage(firstAnswerRejection(error.details), t("answer.invalid"));
 }
 
+/**
+ * Record one refusal of a single answer against the question it names, and say whether
+ * the whole-step round can carry on.
+ *
+ * Three outcomes, and only the last ends the round:
+ *
+ * - a typed **422** is the respondent's to fix, so it fills that question's error slot
+ *   (WCAG 3.3) and the remaining answers still go;
+ * - **QUESTION_NOT_VISIBLE** is not a failure at all. A whole-step post carries fields
+ *   rendered before this round's own answers changed a branch, so a question this round
+ *   just hid is silently dropped - including a clear for it (issue #127), which the API
+ *   refuses behind the same visibility gate as any other write;
+ * - anything else (session lost or expired, a 5xx) means nothing more can usefully be
+ *   posted, so the caller re-renders the page.
+ *
+ * Its own function so `forwardAnswers` reads as the loop it is. A non-`ApiError` is
+ * rethrown rather than classified: it is a defect here, not an answer the API refused.
+ */
+function recordRejection(
+  error: unknown,
+  questionId: string,
+  errors: Record<string, string>,
+  constraints: Record<string, string>,
+): boolean {
+  if (!(error instanceof ApiError)) throw error;
+  if (error.status === 422) {
+    errors[questionId] = answerErrorMessage(error);
+    const constraint = firstAnswerRejection(error.details)?.constraint;
+    if (constraint !== undefined) constraints[questionId] = constraint;
+    return true;
+  }
+  return error.code === "QUESTION_NOT_VISIBLE";
+}
+
 /** The outcome of forwarding a step's decoded answers to the API. */
 interface Forwarded {
   /** Submitted values, kept so a re-render re-populates the form. */
@@ -144,12 +178,7 @@ async function forwardAnswers(
     try {
       last = await submitAnswer(sessionId, token, answer.questionId, answer.value);
     } catch (error) {
-      if (!(error instanceof ApiError)) throw error;
-      if (error.status === 422) {
-        errors[answer.questionId] = answerErrorMessage(error);
-        const constraint = firstAnswerRejection(error.details)?.constraint;
-        if (constraint !== undefined) constraints[answer.questionId] = constraint;
-      } else if (error.code !== "QUESTION_NOT_VISIBLE") {
+      if (!recordRejection(error, answer.questionId, errors, constraints)) {
         return { values, errors, constraints, last, fatal: true };
       }
     }
