@@ -332,48 +332,47 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  * still here" and never "everything else in this body still works". Those assertions
  * gate for real now.
  */
-test(
-  "reloading a step that contains a NumberField hydrates without a mismatch",
-  async ({ page }) => {
-    test.setTimeout(120_000);
-    const { kitchenSinkSlug } = readFixtures();
+test("reloading a step that contains a NumberField hydrates without a mismatch", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const { kitchenSinkSlug } = readFixtures();
 
-    await startKitchenSink(page, kitchenSinkSlug);
-    await fillText(page, KS.fullName, "Ada Lovelace");
-    await enterDate(page, "05171990");
-    await continueStep(page);
+  await startKitchenSink(page, kitchenSinkSlug);
+  await fillText(page, KS.fullName, "Ada Lovelace");
+  await enterDate(page, "05171990");
+  await continueStep(page);
 
-    await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
-    await answerNumber(page, "2");
-    // q_optional_cover (required) is deliberately left unanswered, so this step is
-    // still the first incomplete one and the reload comes back to it.
+  await chooseRadio(page, "Yes"); // boolean -> reveals the number follow-up
+  await answerNumber(page, "2");
+  // q_optional_cover (required) is deliberately left unanswered, so this step is
+  // still the first incomplete one and the reload comes back to it.
 
-    const log = watchAnswerPosts(page);
-    await resume(page);
+  const log = watchAnswerPosts(page);
+  await resume(page);
 
-    // The NumberField is present on the hydrated document and shows what the server
-    // holds. Without this the test could pass on a step that never rendered one.
-    const count = page.getByRole("textbox", { name: KS.count });
-    await expect(count).toBeVisible();
-    await expect(count).toHaveValue("2");
+  // The NumberField is present on the hydrated document and shows what the server
+  // holds. Without this the test could pass on a step that never rendered one.
+  const count = page.getByRole("textbox", { name: KS.count });
+  await expect(count).toBeVisible();
+  await expect(count).toHaveValue("2");
 
-    // The field is labelled and reads back its stored answer. The mismatch itself is
-    // left to the console gate below rather than asserted attribute by attribute:
-    // which of `role` and the `aria-value*` set a browser ends up with is react-aria's
-    // decision and varies by pointer type, so pinning the set here would make this
-    // spec brittle about the wrong thing.
-    await expect(count).toHaveAccessibleName(KS.count);
+  // The field is labelled and reads back its stored answer. The mismatch itself is
+  // left to the console gate below rather than asserted attribute by attribute:
+  // which of `role` and the `aria-value*` set a browser ends up with is react-aria's
+  // decision and varies by pointer type, so pinning the set here would make this
+  // spec brittle about the wrong thing.
+  await expect(count).toHaveAccessibleName(KS.count);
 
-    // Rendering a resumed step posts nothing (the #146 property, re-asserted here
-    // because this reload lands on a step no other test resumes onto).
-    expect(log).toEqual([]);
+  // Rendering a resumed step posts nothing (the #146 property, re-asserted here
+  // because this reload lands on a step no other test resumes onto).
+  expect(log).toEqual([]);
 
-    // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
-    // any console error, and "A tree hydrated but some attributes of the server
-    // rendered HTML didn't match the client properties" is one. There is deliberately
-    // no allowlist entry for it (#151 forbids silencing rather than fixing), so a
-    // returning mismatch reds this test rather than printing past it. Note where that
-    // fault would arrive from: the gate collects console output up to the fixture
-    // TEARDOWN, so a mismatch shows up after this body has already run clean.
-  },
-);
+  // The hydration mismatch itself is asserted by `gates.ts`: it fails this test on
+  // any console error, and "A tree hydrated but some attributes of the server
+  // rendered HTML didn't match the client properties" is one. There is deliberately
+  // no allowlist entry for it (#151 forbids silencing rather than fixing), so a
+  // returning mismatch reds this test rather than printing past it. Note where that
+  // fault would arrive from: the gate collects console output up to the fixture
+  // TEARDOWN, so a mismatch shows up after this body has already run clean.
+});

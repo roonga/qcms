@@ -397,9 +397,7 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
         key={props.name}
         {...props}
         {...modeProps}
-        formatOptions={
-          numberFieldAdmitsFractions(props.step) ? undefined : INTEGER_NUMBER_FORMAT
-        }
+        formatOptions={numberFieldAdmitsFractions(props.step) ? undefined : INTEGER_NUMBER_FORMAT}
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
