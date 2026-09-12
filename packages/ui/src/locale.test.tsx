@@ -81,9 +81,11 @@ const LOCALE_SENSITIVE = STEPS.filter((step) => {
   return html.includes('role="spinbutton"') || html.includes("data-type=");
 });
 
-// 30 seconds, the figure every other corpus-wide suite in this package uses. The whole
-// file measures a few seconds even cold; the margin is for a loaded parallel run, not for
-// the work.
+// 30 seconds, the figure every other corpus-wide suite in this package uses, and the
+// margin is measured rather than guessed (issue #604): the slowest test here is 1.6s on an
+// idle box and 4.1s with a system load average near 85, which is the condition that took
+// it past the 5000ms default and made this file red in `pnpm verify` after passing on its
+// own.
 describe("the locale prop over the golden corpus", { timeout: 30_000 }, () => {
   it("loads a corpus with locale-sensitive controls in it", () => {
     expect(STEPS.length).toBeGreaterThan(10);
