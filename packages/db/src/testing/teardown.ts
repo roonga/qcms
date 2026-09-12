@@ -213,10 +213,17 @@ export interface HarnessTeardown {
  */
 export function createHarnessTeardown(container: StoppableContainer): HarnessTeardown {
   const registrations: Registration[] = [];
+  /** What has already been registered, so one connection is drained exactly once. */
+  const known = new Set<DrainableConnection>();
   let ran = false;
 
   return {
     register<T extends DrainableConnection>(connection: T, label: string): T {
+      // Registering the same connection twice registers it once. Two entries would each
+      // want to drain it, and only the first would carry the checkout tracking, so the
+      // second would call `end()` on a pool with a client still out and never settle.
+      if (known.has(connection)) return connection;
+      known.add(connection);
       guardConnectionErrors(connection, label);
       const releaseHeld = isConnectable(connection) ? trackCheckouts(connection) : () => undefined;
       registrations.push({ label, connection, releaseHeld });

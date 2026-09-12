@@ -664,8 +664,10 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
 /**
  * Drain and stop after `startTestDb` has already decided to throw.
  *
- * The caller's error is the one worth reporting, so a teardown failure here is appended to
- * it rather than replacing it: `startTestDb` throws the original cause either way.
+ * The caller's error is the one worth reporting, so a teardown failure here becomes a
+ * process warning rather than replacing it: `startTestDb` throws the original cause either
+ * way. Swapping a boot failure for "the pool would not close" would hide the only fact the
+ * caller can act on.
  */
 async function stopAfterFailedStart(teardown: HarnessTeardown): Promise<void> {
   try {

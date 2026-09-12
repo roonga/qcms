@@ -172,6 +172,22 @@ describe("createHarnessTeardown drain order", () => {
 
     expect(client.listenerCount()).toBe(1);
   });
+
+  it("registers one connection once, so a repeat registration adds no second drain", async () => {
+    const journal: Journal = [];
+    const teardown = createHarnessTeardown(fakeContainer(journal));
+    const pool = fakePool(journal, "pool");
+
+    teardown.register(pool, "pool");
+    teardown.register(pool, "pool again");
+    await pool.connect();
+
+    // A second entry would carry no checkout tracking of its own, so its `end()` would wait
+    // on the held client forever and the container would never be stopped.
+    await teardown.run();
+
+    expect(journal).toEqual(["release:pool", "end:pool", "stop"]);
+  });
 });
 
 describe("createHarnessTeardown and a client checked out at teardown time", () => {
