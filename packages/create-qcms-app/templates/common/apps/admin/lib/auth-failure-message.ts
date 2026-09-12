@@ -18,6 +18,13 @@ import { t } from "@/lib/i18n/en";
  * marker vocabulary is a property of these screens as a set, so a screen joining the set
  * inherits it rather than re-deriving it.
  *
+ * Settings joined that set on the Code Owner ruling of 2026-09-12 (issue #845). It is the
+ * one screen whose markers are not named `throttled` and `error` throughout: its two forms
+ * both land their reader back on `/settings`, so the recovery-codes form carries a
+ * `codesThrottled`/`codesError` pair and the page reads each pair into the fields below.
+ * That is an addressing detail and deliberately not a second vocabulary - the states are
+ * these three and the sentences are these three, whatever the query spells them.
+ *
  * The ordering matters and is not alphabetical. `throttled` is read first because a
  * throttled request never got as far as being judged: reading `error` first would let a
  * redirect that carried both report the weaker fact.
