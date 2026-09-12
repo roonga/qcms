@@ -121,10 +121,10 @@ importers:
         specifier: ^1.5.4
         version: 1.5.4
       react:
-        specifier: ^19.2.8
+        specifier: 19.2.8
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
     devDependencies:
       '@roonga/qcms-core':
@@ -315,10 +315,10 @@ importers:
         specifier: 16.3.4
         version: 16.3.4(@opentelemetry/api@1.9.1)(@playwright/test@1.63.0)(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
       react:
-        specifier: ^19.2.8
+        specifier: 19.2.8
         version: 19.2.8
       react-dom:
-        specifier: ^19.2.8
+        specifier: 19.2.8
         version: 19.2.8(react@19.2.8)
       zod:
         specifier: ^4.5.4
