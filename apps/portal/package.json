@@ -24,16 +24,16 @@
     "@roonga/qcms-ui": "workspace:*",
     "@vercel/otel": "^2.1.3",
     "next": "16.3.4",
-    "react": "19.2.8",
-    "react-dom": "19.2.8",
-    "zod": "^4.5.4"
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^4.6.2"
   },
   "devDependencies": {
     "@roonga/qcms-e2e-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^24.13.3",
-    "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.7",
+    "@types/node": "^24.13.4",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3"
   }
 }
