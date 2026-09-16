@@ -18,6 +18,8 @@ import { describe, expect, it } from "vitest";
 import {
   ALLOW_MARKER,
   blankComments,
+  callArgumentsQuoteAware,
+  endOfStringLiteral,
   scanEnvExample,
   scanEnvNamesInBodies,
   scanSource,
@@ -298,6 +300,67 @@ describe("an environment identifier in a response body is refused", () => {
   it("reports the line of the offending literal, not of the file", () => {
     const source = '\n\n\nconst e = { message: "QCMS_LATE" };\n';
     expect(scanEnvNamesInBodies(API, source)[0]).toMatchObject({ line: 4 });
+  });
+});
+
+/**
+ * A stray `)` inside a string argument used to end the slice and hide the rest of the
+ * call (issue #910, raised on the pull request by a reviewer and by Copilot).
+ *
+ * `callArguments` counts parentheses and does not track quotes, and its comment claimed
+ * the miscount could only lengthen a slice. It cannot: an unbalanced `)` in a literal
+ * closes the count early and makes the slice SHORTER, so a later argument is never
+ * examined. That mattered most exactly where there was no second net - a **positional**
+ * message, `new ApiError(code, status, "...")`, which is the #756 shape and which the
+ * property scan cannot see at all - and it meant the rule held or failed depending on
+ * whether an author's prose happened to balance its brackets. Hence
+ * `callArgumentsQuoteAware`, and hence one case per shape the reviewer probed.
+ */
+describe("a stray ) inside a string argument no longer hides the rest of the call", () => {
+  const API = "apps/api/src/features/auth/instance.ts";
+
+  const shapes = [
+    {
+      label: "an unbalanced ) in the first argument, before a positional message",
+      source: 'throw new ApiError("smile :)", 422, "set QCMS_A");',
+    },
+    {
+      label: "prose whose ) arrives in an earlier argument",
+      source: 'throw new ApiError("c", 422, "docs/operations.md) so set QCMS_A");',
+    },
+    {
+      label: "an unbalanced ) inside a c.text body",
+      source: 'return c.text("a) b set QCMS_A", 503);',
+    },
+  ];
+
+  it.each(shapes)("names the variable despite $label", ({ source }) => {
+    const hits = scanEnvNamesInBodies(API, source);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]).toMatchObject({
+      name: "QCMS_A",
+      what: "a response constructor's arguments",
+    });
+  });
+
+  it("still catches the balanced case, which is the one that always worked", () => {
+    // Kept as a control: the bug was that whether the rule held depended on the
+    // author's brackets, so the passing half has to keep passing.
+    const source = 'throw new ApiError("c", 422, "see (docs/operations.md) then set QCMS_A");';
+    expect(scanEnvNamesInBodies(API, source)).toHaveLength(1);
+  });
+
+  it("ends a literal on its closing quote and not on an escaped one", () => {
+    // The shared skipper's one subtlety: `\\"` is content, so the literal does not end
+    // there and the argument after it is still examined.
+    expect(callArgumentsQuoteAware('f("a \\" b)", "QCMS_A")', 1)).toContain("QCMS_A");
+    expect(endOfStringLiteral('"a\\"b"', 0)).toBe(6);
+  });
+
+  it("treats an unterminated literal as running to the end rather than throwing", () => {
+    // A gate that cannot parse a file still has to answer for it.
+    expect(() => scanEnvNamesInBodies(API, 'c.json("QCMS_A')).not.toThrow();
+    expect(endOfStringLiteral('"abc', 0)).toBe(4);
   });
 });
 

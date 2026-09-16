@@ -184,8 +184,21 @@ export function sourceFiles() {
 
 /**
  * Slice the argument text of a call whose `(` sits at `open`, by counting
- * parentheses. Bounded by the end of the file; quotes are not tracked, which can
- * only ever make the slice longer and so the check stricter.
+ * parentheses. Bounded by the end of the file.
+ *
+ * **Quotes are not tracked here, and that is not a safe direction** - an earlier
+ * version of this comment claimed it "can only ever make the slice longer and so
+ * the check stricter", which is wrong and was corrected on issue #910 after a
+ * reviewer probed it. An unbalanced `)` inside a string literal - `"smile :)"`, or
+ * the prose `"(docs/operations.md)"` split across arguments - closes the count
+ * early and makes the slice **shorter**, so a later argument is never examined.
+ * Rule 1's logging scan still uses this: its residual is a content key sitting
+ * after such a literal in the same call, which no call site in the tree has, and
+ * widening it is a change to that rule rather than to this one.
+ * Rule 4 does not use it. {@link callArgumentsQuoteAware} is the slicer that
+ * rule's sinks go through, because the positional-message shape it guards
+ * (`new ApiError(code, status, "...")`) has no second net: the property scan
+ * cannot see a positional argument at all.
  */
 export function callArguments(text, open) {
   let depth = 0;
@@ -198,6 +211,67 @@ export function callArguments(text, open) {
     }
   }
   return text.slice(open + 1);
+}
+
+/**
+ * The index just past the string literal that opens at `start`.
+ *
+ * Shared by {@link propertyValue} and {@link callArgumentsQuoteAware} so the two
+ * slicers cannot drift apart on what a string is - and so the duplication gate is
+ * not asked to tolerate the same eight-line loop twice. An escape consumes the next
+ * character whatever it is, which is what keeps `"a \" b"` one literal; an
+ * unterminated literal returns the end of the input rather than throwing, since a
+ * gate that cannot parse a file still has to answer for it. Template-literal
+ * `${...}` interpolations count as content, which can only lengthen the literal and
+ * so is the conservative direction for a slicer that is looking for what comes
+ * after it.
+ */
+export function endOfStringLiteral(code, start) {
+  const quote = code[start];
+  let i = start + 1;
+  while (i < code.length) {
+    if (code[i] === "\\") {
+      i += 2;
+      continue;
+    }
+    if (code[i] === quote) return i + 1;
+    i += 1;
+  }
+  return code.length;
+}
+
+/**
+ * {@link callArguments}, but skipping over string and template literals while it
+ * counts, so a `)` inside one cannot end the slice.
+ *
+ * This exists because of a confirmed false negative rather than in the abstract
+ * (issue #910, raised on the pull request by a reviewer and by Copilot): with the
+ * paren-only slicer, every one of
+ * `new ApiError("smile :)", 422, "set QCMS_A")`,
+ * `new ApiError("c", 422, "docs/operations.md) so set QCMS_A")` and
+ * `c.text("a) b set QCMS_A", 503)` scanned clean, while the balanced
+ * `"see (docs/operations.md) then set QCMS_A"` was caught - so whether the rule
+ * held depended on whether an author's prose happened to balance its brackets.
+ * The first of those is the #756 shape, and a positional argument is invisible to
+ * the property scan, so there was nothing behind it.
+ */
+export function callArgumentsQuoteAware(code, open) {
+  let depth = 0;
+  let i = open;
+  while (i < code.length) {
+    const ch = code[i];
+    if (ch === '"' || ch === "'" || ch === "`") {
+      i = endOfStringLiteral(code, i);
+      continue;
+    }
+    if (ch === "(") depth += 1;
+    else if (ch === ")") {
+      depth -= 1;
+      if (depth === 0) return code.slice(open + 1, i);
+    }
+    i += 1;
+  }
+  return code.slice(open + 1);
 }
 
 /** True when the line above `index` waives this finding. */
@@ -394,16 +468,11 @@ const BODY_PROPERTY = /\b(?:message|details?|reason|hint|title)\s*:/g;
  */
 export function propertyValue(code, from) {
   let depth = 0;
-  let quote = "";
-  for (let i = from; i < code.length; i += 1) {
+  let i = from;
+  while (i < code.length) {
     const ch = code[i];
-    if (quote !== "") {
-      if (ch === "\\") i += 1;
-      else if (ch === quote) quote = "";
-      continue;
-    }
     if (ch === '"' || ch === "'" || ch === "`") {
-      quote = ch;
+      i = endOfStringLiteral(code, i);
       continue;
     }
     if (ch === "(" || ch === "[" || ch === "{") depth += 1;
@@ -416,6 +485,7 @@ export function propertyValue(code, from) {
       if (depth === 0) return code.slice(from, i);
       depth -= 1;
     } else if ((ch === "," || ch === ";") && depth === 0) return code.slice(from, i);
+    i += 1;
   }
   return code.slice(from);
 }
@@ -434,6 +504,17 @@ const BODY_CONSTRUCTORS =
  * a value assembled in a helper and returned - is out of reach of a regex and is
  * stated here as the residual rather than implied to be covered. A second hop
  * would want an AST with data-flow, which is a bigger tool than this gate.
+ *
+ * **The largest residual is cross-file, and it is named here because it is not
+ * hypothetical.** This reads the `const` declarations of the file being scanned and
+ * nothing else, so a constant exported from one file and put into a body in another
+ * yields no hit in either: the declaration sits where no sink is, and the sink sees
+ * only an identifier. {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} in
+ * `apps/api/src/features/auth/instance.ts` is exactly that string - exported, and
+ * carrying the variable name on purpose. No importer is a body sink today (the
+ * bootstrap CLI's `describeRefusal` is a command line), which is what makes the
+ * clean result honest rather than lucky, and it is also why an import of that
+ * constant into a route is the one edit this gate would not catch.
  */
 export function envNameConstants(text) {
   const found = new Map();
@@ -501,7 +582,7 @@ export function scanEnvNamesInBodies(label, text) {
   while (match !== null) {
     const open = code.indexOf("(", match.index);
     if (open !== -1) {
-      for (const name of namesIn(callArguments(code, open))) {
+      for (const name of namesIn(callArgumentsQuoteAware(code, open))) {
         record(match.index, name, "a response constructor's arguments");
       }
     }
