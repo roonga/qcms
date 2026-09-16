@@ -595,7 +595,8 @@ describe("releasing the seat", () => {
 
       const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
       expect(recorded).toMatch(new RegExp(`seat_foreign=${String(port)}:${String(bystanderPid)}:`));
-      expect(recorded).toMatch(/Do not kill them/);
+      expect(recorded).toMatch(/foreign-tree/);
+      expect(recorded).toMatch(/Do not kill it\. Take a free seat instead\./);
       // Never filed as a survivor: that field tells the reader to kill what it names.
       expect(recorded).not.toMatch(/seat_survivors=/);
       expect(recorded).not.toMatch(/THE SEAT WAS NOT RELEASED/);
@@ -613,7 +614,11 @@ describe("releasing the seat", () => {
         out: (line) => lines.push(line),
       });
       expect(code).toBe(EXIT_RUNNER_KILLED);
-      expect(lines.join("\n")).toMatch(/Do not kill it; take a free seat/);
+      const printed = lines.join("\n");
+      expect(printed).toMatch(/could not claim, and it was left alone/);
+      expect(printed).toMatch(/another checkout's process is not yours to kill/);
+      // The rc file is reprinted underneath, which is where the per-grounds advice lives.
+      expect(printed).toMatch(/--- end of rc ---/);
 
       killPid(bystanderPid, "SIGKILL");
     },
@@ -685,7 +690,14 @@ describe("releasing the seat", () => {
       ],
     ).join("\n");
     expect(foreign).toMatch(/seat_foreign=17300:4242:foreign-tree,17310:unknown:unattributable/);
-    expect(foreign).toMatch(/Do not kill them/);
+    // The two grounds get opposite advice. Measured on a real seat: a sweep saw the API
+    // port held by an unattributable pid (its own dying Playwright runner, whose fd was
+    // closing mid-scan), and "do not kill it" would be the wrong thing to tell an operator
+    // about their own orphan.
+    expect(foreign).toMatch(/foreign-tree: another checkout's process/);
+    expect(foreign).toMatch(/Do not kill it\. Take a free seat instead\./);
+    expect(foreign).toMatch(/unattributable: the holder could not be identified/);
+    expect(foreign).toMatch(/It may be this lane's own/);
     expect(foreign).toMatch(/Every port this run owned was released/);
     expect(foreign).not.toMatch(/seat_survivors=/);
     expect(foreign).not.toMatch(/THE SEAT WAS NOT RELEASED/);
@@ -700,6 +712,9 @@ describe("releasing the seat", () => {
     ).join("\n");
     expect(both).toMatch(/seat_survivors=17300:11/);
     expect(both).toMatch(/seat_foreign=17310:22:foreign-tree/);
+    // Only the grounds that actually occurred get their paragraph.
+    expect(both).toMatch(/foreign-tree: another checkout's process/);
+    expect(both).not.toMatch(/unattributable: the holder could not be identified/);
     expect(describeForeignListener({ port: 17300, pid: 4242 })).toBe("17300:4242:unattributable");
   });
 });

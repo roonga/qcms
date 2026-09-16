@@ -913,10 +913,28 @@ export function releaseLines(ports, remaining) {
   if (foreign.length > 0) {
     lines.push(
       `seat_foreign=${foreign.map(describeForeignListener).join(",")}`,
-      "# Those holders are NOT this run's and were deliberately not signalled: they are",
-      "# outside this checkout or unattributable. Do not kill them - on a shared host they",
-      "# are another lane's servers (issue #902). Take a free seat instead.",
+      "# Those holders were deliberately NOT signalled, and the grounds above decide what",
+      "# to do about each one (issue #902).",
     );
+    // The two grounds need opposite advice, and conflating them was worth one more
+    // paragraph. A `foreign-tree` holder is provably somebody else's and killing it is the
+    // defect this confinement removes. An `unattributable` one is a holder `/proc` could
+    // not name at that instant: on THIS seat's own ports it may well be this lane's own
+    // orphan, so telling an operator to leave it alone would strand their seat.
+    if (foreign.some((listener) => listener.ownership === "foreign-tree")) {
+      lines.push(
+        "# foreign-tree: another checkout's process, so on a shared host it is another",
+        "# lane's server. Do not kill it. Take a free seat instead.",
+      );
+    }
+    if (foreign.some((listener) => listener.ownership !== "foreign-tree")) {
+      lines.push(
+        "# unattributable: the holder could not be identified from /proc (another user,",
+        "# another PID namespace, or a socket closing mid-scan). It may be this lane's own",
+        "# orphan. Re-check with `ss -ltnp` and read /proc/<pid>/cwd before killing anything;",
+        "# the next run's seat preflight will name it too.",
+      );
+    }
   }
   return lines;
 }
@@ -1478,8 +1496,10 @@ export async function waitForRun({
         const seat =
           rc.foreign === undefined
             ? ""
-            : ` A port on this seat is held by something that is NOT this run and was left ` +
-              `alone: ${rc.foreign} (port:pid:grounds). Do not kill it; take a free seat.`;
+            : ` A port on this seat is held by something this run could not claim, and it ` +
+              `was left alone: ${rc.foreign} (port:pid:grounds). The grounds decide what to ` +
+              "do about it and the rc file below spells that out: another checkout's " +
+              "process is not yours to kill, an unattributable one may be your own orphan.";
         const owned =
           rc.survivors === undefined
             ? ""

@@ -480,7 +480,12 @@ So a holder is now signalled only once it is shown to be this run's, on one of t
 
 **The checkout test is by nearest `.git`, not by path prefix, and that distinction is load-bearing**: lane worktrees live _inside_ the primary checkout (`.worktrees/`, `.claude/worktrees/`) as well as beside it, so a prefix test would let a runner in the primary tree call a nested lane's dev server "mine" and kill it, which is the same defect by a second route. A linked worktree carries a `.git` **file**, so it resolves to itself rather than to the checkout containing it.
 
-Anything else is left alone and named, under a field of its own: `seat_foreign=<port>:<pid>:<grounds>`, where the grounds are `foreign-tree` (another checkout) or `unattributable` (another user, another PID namespace, or a pid that exited mid-scan). **Do not kill what that field names** - it is the opposite instruction to `seat_survivors`, which is there precisely because pointing a kill instruction at a neighbour's live gate is the defect being removed. A `seat_foreign` line means take a free seat. An unattributable holder counts as foreign for the same reason the seat preflight refuses to adopt one: "cannot tell whose it is" and "it is mine" must not collapse into one outcome.
+Anything else is left alone and named, under a field of its own: `seat_foreign=<port>:<pid>:<grounds>`. It is not the same instruction as `seat_survivors`, and **the grounds decide what to do**:
+
+- **`foreign-tree`** is another checkout's process, so on this host it is another lane's server. **Do not kill it**; take a free seat. Pointing a kill instruction at a neighbour's live gate is the defect being removed.
+- **`unattributable`** is a holder `/proc` could not name at that instant (another user, another PID namespace, or a socket closing mid-scan). On this seat's own ports **it may well be your own orphan**, so re-check with `ss -ltnp` and read `/proc/<pid>/cwd` before killing anything; the next run's preflight names it too. It is still not signalled, for the same reason the preflight refuses to adopt one: "cannot tell whose it is" and "it is mine" must not collapse into one outcome.
+
+That second case is measured rather than hypothetical. A real seat-6 run signalled mid-suite released both `next-server` processes as `same-tree` and reported the API port as `unattributable`, because the holder was its own Playwright runner already dying from the group signal and its socket was closing as the scan read it. The seat came out clear, and the field said so.
 
 ## Waiting for a long gate, and whether the clock is telling the truth
 
