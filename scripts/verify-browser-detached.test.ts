@@ -721,9 +721,9 @@ describe("ownershipOf", () => {
       { 100: 200, 200: 300, 300: 400, 400: 450, 450: 500, 500: 600 },
       {},
     );
-    expect(
-      ownershipOf(100, { ancestors: new Set([600, 500]), parent, workingDirectory }),
-    ).toBe("descendant");
+    expect(ownershipOf(100, { ancestors: new Set([600, 500]), parent, workingDirectory })).toBe(
+      "descendant",
+    );
     // The suite pid itself, which is the group leader the first cleanup step signals.
     expect(ownershipOf(500, { ancestors: new Set([500]), parent, workingDirectory })).toBe(
       "descendant",
@@ -741,9 +741,9 @@ describe("ownershipOf", () => {
 
   it("refuses a pid whose working directory cannot be read at all", () => {
     // Another user's process, or another PID namespace. "Cannot tell" is not "mine".
-    expect(
-      ownershipOf(10, { parent: () => undefined, workingDirectory: () => undefined }),
-    ).toBe("unattributable");
+    expect(ownershipOf(10, { parent: () => undefined, workingDirectory: () => undefined })).toBe(
+      "unattributable",
+    );
   });
 
   it("refuses the values that mean something else entirely to kill", () => {
@@ -796,12 +796,12 @@ describe("ownershipOf", () => {
     // so the fallback is the narrowest thing that is still honest.
     const root = temporaryDirectory();
     const options = { parent: () => undefined };
-    expect(
-      ownershipOf(10, { ...options, workingDirectory: () => root, repoRoot: root }),
-    ).toBe("same-tree");
-    expect(
-      ownershipOf(10, { ...options, workingDirectory: () => tmpdir(), repoRoot: root }),
-    ).toBe("unattributable");
+    expect(ownershipOf(10, { ...options, workingDirectory: () => root, repoRoot: root })).toBe(
+      "same-tree",
+    );
+    expect(ownershipOf(10, { ...options, workingDirectory: () => tmpdir(), repoRoot: root })).toBe(
+      "unattributable",
+    );
   });
 });
 
@@ -973,7 +973,9 @@ describe("waitForRun", () => {
       const recorded = readFileSync(join(directory, RUN_FILES.rc), "utf8");
       expect(recorded).toMatch(/signal_target=runner/);
       expect(recorded).toMatch(/seat=7/);
-      expect(recorded).toMatch(new RegExp(`runner_pid=${String(readPid(join(directory, RUN_FILES.pid)) ?? 0)}`));
+      expect(recorded).toMatch(
+        new RegExp(`runner_pid=${String(readPid(join(directory, RUN_FILES.pid)) ?? 0)}`),
+      );
       expect(recorded).toMatch(/runner_ppid=\d+/);
       expect(recorded).toMatch(/No sender pid/);
       // The same lines reach the log, where a reader of a truncated run finds them.

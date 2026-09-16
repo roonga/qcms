@@ -57,10 +57,12 @@
  * neighbouring lane's live browser gate. That is the shape issue #902 reported twice,
  * both sightings on the same seat as the test's, with `EXIT=143` and no failing test.
  *
- * So a pid is signalled only once it is shown to belong to this run: a descendant of
- * this runner or its suite, or a process whose `/proc/<pid>/cwd` is inside this runner's
- * own worktree ({@link ownershipOf}). Anything else is named in the log and the rc file
- * and left alone, because a port this run cannot account for belongs to somebody.
+ * So a pid is signalled only once it is shown to belong to this run: a descendant of this
+ * runner or its suite, or a process whose `/proc/<pid>/cwd` resolves to this runner's own
+ * CHECKOUT ({@link ownershipOf}, by nearest `.git` rather than by path prefix, because
+ * lane worktrees nest inside the primary checkout). Anything else is named in the log and
+ * in the rc file's `seat_foreign` field and left alone, because a port this run cannot
+ * account for belongs to somebody.
  */
 
 import { spawn } from "node:child_process";
@@ -807,7 +809,9 @@ function hostSnapshot() {
   /** @type {string[]} */
   const lines = [];
   try {
-    lines.push(`loadavg=${readFileSync("/proc/loadavg", "utf8").trim().split(/\s+/).slice(0, 3).join(" ")}`);
+    lines.push(
+      `loadavg=${readFileSync("/proc/loadavg", "utf8").trim().split(/\s+/).slice(0, 3).join(" ")}`,
+    );
   } catch {
     lines.push("loadavg=unreadable");
   }
@@ -841,10 +845,16 @@ export function commandLineOf(pid, read = readProcCmdline) {
   if (!Number.isInteger(pid) || pid < 1) return undefined;
   const raw = read(pid);
   if (raw === undefined) return undefined;
-  // The control-character class is written with escapes rather than as literal bytes: a
-  // control character typed into a source file is invisible to a reader, and
-  // `pnpm check:no-control-chars` refuses one outright.
-  const flat = raw.replace(/[\u0000-\u001F\u007F]/g, " ");
+  // Filtered by code point rather than by a regular expression, which is the one spelling
+  // that satisfies both gates at once: a literal control byte in source is invisible to a
+  // reader and `pnpm check:no-control-chars` refuses it, while the escaped equivalent
+  // (a `u0000-u001F` class spelled with escapes) is an ESLint `no-control-regex` error.
+  const flat = [...raw]
+    .map((character) => {
+      const code = character.codePointAt(0) ?? 0;
+      return code < 0x20 || code === 0x7f ? " " : character;
+    })
+    .join("");
   const collapsed = flat.replace(/\s+/g, " ").trim();
   if (collapsed === "") return undefined;
   return collapsed.length <= COMMAND_LINE_LIMIT
@@ -960,7 +970,10 @@ function isOwnProcess(ownership) {
 function parentOf(pid) {
   try {
     const stat = readFileSync(`/proc/${String(pid)}/stat`, "utf8");
-    const fields = stat.slice(stat.lastIndexOf(")") + 1).trim().split(/\s+/);
+    const fields = stat
+      .slice(stat.lastIndexOf(")") + 1)
+      .trim()
+      .split(/\s+/);
     // After `comm` the fields are: state, ppid, pgrp, session, ...
     const parent = Number(fields[1]);
     return Number.isInteger(parent) && parent > 0 ? parent : undefined;
