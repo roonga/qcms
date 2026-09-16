@@ -92,7 +92,11 @@ describe("receipt timestamp formatting", () => {
       expect(east).toBe(west);
       expect(east).toBe("Aug 2, 2026, 4:36 AM UTC");
     } finally {
-      process.env.TZ = original;
+      // Deleted rather than assigned: an unset `TZ` read back as `undefined` and written
+      // back becomes the string "undefined", which ICU does not recognize, leaving the
+      // process on a zone no machine is in (issue #903).
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
     }
   });
 

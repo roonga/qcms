@@ -62,7 +62,10 @@ describe("date formatting", () => {
       const west = formatDateTime("2026-08-02T04:36:17.098Z");
       expect(east).toBe(west);
     } finally {
-      process.env.TZ = original;
+      // Deleted rather than assigned: an unset `TZ` read back as `undefined` and written
+      // back becomes the string "undefined", which ICU does not recognize (issue #903).
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
     }
   });
 
@@ -88,14 +91,25 @@ describe("date formatting", () => {
  * already pinned. `components/operator-time.test.tsx` pins the gate between them.
  */
 describe("operator-local date formatting", () => {
-  /** Run `read` with the process on `zone`, then put the zone back. */
+  /**
+   * Run `read` with the process on `zone`, then put the zone back.
+   *
+   * `read` is a thunk rather than a value so the formatter runs INSIDE the zone; an
+   * expectation computed in the argument list would resolve where this file is executing
+   * instead (issue #903).
+   *
+   * An unset `TZ` is restored by deleting the variable: `process.env.TZ = undefined` stores
+   * the literal string `"undefined"`, which ICU does not recognize, leaving every later case
+   * in the file on a zone that formats as `GMT+0` rather than on the machine's own.
+   */
   function inZone<T>(zone: string, read: () => T): T {
     const original = process.env.TZ;
     try {
       process.env.TZ = zone;
       return read();
     } finally {
-      process.env.TZ = original;
+      if (original === undefined) delete process.env.TZ;
+      else process.env.TZ = original;
     }
   }
 
