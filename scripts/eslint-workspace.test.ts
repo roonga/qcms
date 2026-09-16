@@ -30,13 +30,18 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..
 const RUNNER = path.join(REPO_ROOT, "scripts", "eslint-workspace.mjs");
 
 /**
- * Generous per-case budget for the cases that spawn ESLint. One cold ESLint run over
- * this config loads 279 sonarjs rules plus typescript-eslint and takes several seconds,
- * and the central case pays for two of them, so the 5s default is not the right bound.
- * Measured at roughly 10s for the pair on a warm developer machine, i.e. an order of
- * magnitude inside this limit (issue #604).
+ * Per-case budget for the cases that spawn ESLint. One cold ESLint run over this config
+ * loads 279 sonarjs rules plus typescript-eslint, and the central case pays for two of
+ * them, so the 5s default is not the right bound.
+ *
+ * The number is measured at both ends rather than guessed (issue #604). Idle, the two
+ * cases take 4.6s and 2.0s. On the same 24-core host at load average 122, with several
+ * other gate runs competing, they take 30.4s and 16.8s: a spawning test is bounded by
+ * scheduling, not by its own work, so the honest budget is one that survives a busy
+ * machine. 300s leaves roughly an order of magnitude over the worst measurement and
+ * still fails fast against a genuine hang.
  */
-const SPAWN_TIMEOUT_MS = 120_000;
+const SPAWN_TIMEOUT_MS = 300_000;
 
 const fixtureRoots: string[] = [];
 
