@@ -107,7 +107,12 @@ export function parseWorkspaceGlobs(yaml) {
 }
 
 /**
- * Expand the workspace globs to directories. Only the two shapes this repo uses
+ * Expand the workspace globs to directories. Exported because
+ * `scripts/image-dev-deps.mjs` derives the same workspace manifest set (issue #877) and
+ * a second expander is how the two would come to disagree about which packages exist.
+ * The message carries no script prefix for the same reason: two callers raise it.
+ *
+ * Only the two shapes this repo uses
  * are supported: a literal directory and a trailing `/*`. Anything else THROWS
  * rather than being skipped - a silently unexpanded glob would silently stop the
  * gate from guarding those packages.
@@ -116,7 +121,7 @@ export function parseWorkspaceGlobs(yaml) {
  * @param {string[]} globs
  * @returns {string[]} repo-relative, posix-separated directories
  */
-function expandGlobs(root, globs) {
+export function expandGlobs(root, globs) {
   const dirs = [];
   for (const glob of globs) {
     if (!glob.includes("*")) {
@@ -125,7 +130,7 @@ function expandGlobs(root, globs) {
     }
     if (!glob.endsWith("/*") || glob.slice(0, -2).includes("*")) {
       throw new Error(
-        `check-changeset: unsupported workspace glob "${glob}" - extend expandGlobs() rather than leaving those packages unguarded.`,
+        `unsupported workspace glob "${glob}" - extend expandGlobs() rather than leaving those packages unguarded.`,
       );
     }
     const parent = glob.slice(0, -2);

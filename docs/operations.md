@@ -56,6 +56,36 @@ can see from outside:
 Nothing else about the contract moved: the same variables, the same port, the same
 non-root user, the same healthcheck paths in the table below.
 
+The API image has no standalone tracer to lean on, so it ships a **pruned production
+install**: the build stage runs `pnpm --filter qcms-api deploy --legacy --prod
+--no-optional /opt/qcms` and the runtime stage copies that directory and nothing else.
+`--no-optional` is the half that is easy to lose and was missing until issue #877. The
+image's SBOM listed 680 npm packages, among them `vitest`, `@playwright/test`,
+`testcontainers`, `drizzle-kit`, `tsx`, `jsdom`, `next` and `react`. None of it ran.
+`--prod` was not at fault: the tooling arrived as resolved **optional peer**
+dependencies (`better-auth` declares optional peers on `vitest`, `next`, `react` and
+`drizzle-kit`; `@roonga/qcms-db` declares them on `testcontainers`), pnpm records each
+satisfied optional peer under that snapshot's `optionalDependencies`, and `--prod`
+prunes `devDependencies` only. Pruning them took the SBOM from **680 npm packages to
+287** and the image from **202 MB to 90 MB** of compressed layers, 125 MB of which was
+the one `node_modules` layer, now 13 MB.
+
+That is now a property the build **asserts** rather than a state of affairs.
+`scripts/image-dev-deps.mjs` derives the set of names this workspace declares only as a
+`devDependency`, reads the SBOM the build just generated, and fails
+`pnpm qcms:build-images` if any image lists one - before the `Images` workflow pushes
+anything. The front-end images were already clean, and they are held to the same line.
+The exception it allows is `@types/*`, because production packages upstream declare
+those as real dependencies (`@opentelemetry/instrumentation-pg` declares `@types/pg`)
+and they ship declaration files and no code.
+
+One local-only trap if you run that deploy command by hand in a checkout: `pnpm deploy
+--prod` rewrites `node_modules/.pnpm-workspace-state-v1.json` to say the last install
+was production-only, after which every `pnpm <script>` in that checkout tries to
+reinstall and, with no TTY, aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY`.
+`pnpm install --frozen-lockfile` puts it back. Nothing inside the image is affected,
+because the build stage runs no script after the deploy.
+
 ### Outbound network the API needs
 
 Two destinations, both from `qcms-api` only, and both worth knowing before you write

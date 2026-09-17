@@ -490,6 +490,10 @@ The real limit is a different one: that tag also lives in the Testcontainers har
 **Both container ecosystems are now bounded to non-major updates** (`version-update:semver-major` ignored on each), because the first PR from each was an unwanted major: #776's Postgres 16 to 18 is not an in-place upgrade for an existing volume, and #777's Node 24 to 26 was red on arrival, since Node 26 images no longer ship the corepack all three Dockerfiles enable.
 Majors are done deliberately now; digest refreshes, the security-relevant half, still arrive weekly.
 **What has not changed: there is still no container-image vulnerability scanning of any kind**, so what a different base would buy remains unmeasured, and the "measure before and after" half of the ruling is still open.
+**What the SBOM contains is now asserted, not just that one exists (2026-09-13, issue #877).**
+The #874 reviewer read the newly persisted SBOMs and found `vitest`, `@playwright/test` and `testcontainers` in the `qcms-api` image: 680 npm packages, because `pnpm deploy --prod` prunes `devDependencies` and the tooling arrived as resolved optional peer dependencies, which it does not prune.
+`--no-optional` on the deploy step removes them (680 npm packages to 287, 202 MB to 90 MB of compressed layers), and `scripts/image-dev-deps.mjs` now derives the dev-only set from the workspace manifests and fails `pnpm qcms:build-images` if any image's SBOM lists one, before the `Images` workflow can push it.
+That closes the gap between "an SBOM is attached" and "the runtime stage is what is scanned"; it is not image vulnerability scanning, which remains open.
 The scaffold (037) must never contain a real secret - a scaffold-output scan is part of its CI.
 GitHub: branch protection, required CI, no force-push to main.
 
@@ -512,7 +516,7 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 | Secrets handling + redaction (SEC-8)             | §6       | 017, 037 · **040 (placeholder boot refusal + `check:security-hygiene`)** · #491 (both BFFs) · #489 (stdout exception text recorded) · #910 (`check:security-hygiene` refuses an environment name in a response body) |
 | Transport/browser hardening (SEC-9)              | §5       | 029, 031, 036 · **040 (API headers, #471)**                                                                                                                                                                          |
 | Least-privilege DB roles (SEC-10)                | §7       | 013, 015 · 040 (reporting role asserted) · **#492 (app/migration split shipped and asserted)** · #432 (the split guards a command)                                                                                   |
-| Supply chain (SEC-11)                            | §9       | 001 (CI), 036, 037 · #372 (base digests + Dependabot containers) · **image scan still not run**                                                                                                                      |
+| Supply chain (SEC-11)                            | §9       | 001 (CI), 036, 037 · #372 (base digests + Dependabot containers) · #877 (SBOM read back: no dev-only package) · **image scan still not run**                                                                         |
 | Review + disclosure (SEC-12)                     | §10      | **040 (`docs/security-review-2026-08-14.md`, `SECURITY.md`)**, 038 gate                                                                                                                                              |
 | Telemetry privacy / redaction allowlist (SEC-13) | §8a      | 054, 062 · **not re-verified by 040**                                                                                                                                                                                |
 
