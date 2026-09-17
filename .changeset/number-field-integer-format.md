@@ -32,20 +32,33 @@ offered - and with no fraction digits in the format every platform branch inside
 renders agree by construction. Nothing is allowlisted and no vendored byte moves: ADR-22
 keeps `packages/ui/src/components/a2ui/**` byte-identical to upstream.
 
-**What is still open, and where its marker lives.** A question that ADMITS fractions still
-resolves `decimal` on touch against the server's `numeric`, and a negative-admitting one
-resolves `text` on an iPhone. Pinning `inputMode` for those needs a prop on the `<Input>`
-that the vendored control does not forward - react-aria's `useNumberField` overwrites any
-`inputMode` a caller passes to the field, and only a prop on the `<Input>` itself wins,
-because that is where react-aria-components merges a caller's props over the field's
-context. That is an upstream change in the sibling a2-react-aria checkout plus a pin move.
-`packages/ui/src/number-input-mode.test.tsx` puts the adapter through a server render and
-a client render for both kinds of question and carries a self-arming `it.fails` marker for
-the fractional half, so the day the passthrough lands the suite says so. The earlier
-changesets in this release that record #151 as open describe the state at their own
-commits; this is the one that closes the reported defect.
+**What is still open, stated as two things rather than one (issue #945).** This closes the
+mismatch the gated projects can see; it does not close the class. Two attributes on that
+same input are still decided by the environment:
+
+- `inputMode` for a question that ADMITS fractions (`decimal` on touch against the server's
+  `numeric`), and `text` on an iPhone for a question whose minimum allows negatives. No
+  fixture form has such a question today.
+- `aria-roledescription` for EVERY number question, the integer one this change fixes
+  included: `useNumberField` sets it to "Number field" unless `isIOS()`, so the server
+  emits it and an iOS client emits nothing. Android and desktop agree with the server,
+  which is why no Chromium project in `playwright.config.ts` can observe it, and why the
+  browser gate went green over it. On iOS, reloading a step that holds a NumberField still
+  logs a hydration attribute mismatch.
+
+One reason covers both, and it is why neither is fixed here: the vendored control forwards
+only `placeholder` and `className` to its `<Input>`, `useNumberField` overwrites both
+attributes after spreading the caller's props, and only a prop on the `<Input>` itself wins
+(that is where react-aria-components merges a caller's props over the field's context). So
+both need the same upstream passthrough in the sibling a2-react-aria checkout plus a pin
+move, which #945 records along with the suggestion of a WebKit project for the reload spec.
+Until then `packages/ui/src/number-input-mode.test.tsx` carries a self-arming `it.fails`
+marker for each, so the day the passthrough lands the suite reds and the markers come off
+deliberately. The earlier changesets in this release that record #151 as open describe the
+state at their own commits; this is the one that closes the reported symptom.
 
 **Coverage.** `apps/portal/e2e/resume.pw.ts` reloads the step holding the kitchen sink's
 number question under the console gate, and its `test.fail` marker is gone, so the
-mismatch is a live merge gate rather than an expected failure. The jsdom suite pins the
-rule for both question kinds and three platform positions.
+mismatch is a live merge gate rather than an expected failure. The jsdom suite reads both
+environment-derived attributes across three platform positions and both kinds of question,
+and pins `numberFieldAdmitsFractions` at its two documented edges.

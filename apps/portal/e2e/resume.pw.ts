@@ -312,15 +312,27 @@ test("clearing an answer on a resumed step still retracts it", async ({ page }) 
  * both renders agree by construction rather than by an allowlist entry (#151 forbids
  * silencing, and an entry would have blinded every other spec to the same shape).
  *
- * WHAT IS STILL OPEN, so a reader does not take this test for more than it proves. A
- * question that ADMITS fractions still resolves `decimal` on touch against the server's
- * `numeric`, and so does a negative-admitting one on an iPhone (`text` there). No
- * fixture form has such a question, so no spec here can reach one; pinning `inputMode`
- * needs a prop on the `<Input>` the vendored control does not forward, which is an
- * upstream change plus a pin move (ADR-22 keeps `packages/ui/src/components/a2ui/**`
- * byte-identical). `packages/ui/src/number-input-mode.test.tsx` puts the same adapter
- * through both renders at the jsdom layer for both kinds of question, and carries the
- * self-arming marker for the fractional half.
+ * WHAT IS STILL OPEN, so a reader does not take this test for more than it proves
+ * (issue #945). Two environment-derived attributes on this same input can still differ,
+ * and this spec can observe NEITHER:
+ *
+ * - `aria-roledescription`, for the very integer question above. `useNumberField` sets
+ *   it to "Number field" unless `isIOS()`, so the server emits it and an iOS client
+ *   emits nothing. Android agrees with the server, which is exactly why it prints as
+ *   unchanged context in the diff quoted earlier, and why a green run here says nothing
+ *   about iOS: no project in `playwright.config.ts` is WebKit or iOS. On iOS this step's
+ *   reload still logs a mismatch.
+ * - `inputMode` for a question that ADMITS fractions (`decimal` on touch against the
+ *   server's `numeric`), and `text` on an iPhone for a negative-admitting one. No
+ *   fixture form has such a question, so no spec here can reach one either.
+ *
+ * Both need a prop on the `<Input>` that the vendored control does not forward, which is
+ * an upstream change plus a pin move (ADR-22 keeps
+ * `packages/ui/src/components/a2ui/**` byte-identical).
+ * `packages/ui/src/number-input-mode.test.tsx` puts the same adapter through both
+ * renders at the jsdom layer, reads both attributes, and carries a self-arming marker
+ * for each residual, because a jsdom platform override is the only place this repository
+ * can see them at all.
  *
  * The marker this test used to carry is worth remembering for the next defect that
  * needs one. The first attempt used the SKIP-with-intent marker, which Playwright does

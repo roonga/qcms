@@ -352,22 +352,33 @@ type NumberFieldProps = NonNullable<NumberFieldNode["props"]>;
  * everywhere else. A server render has no `navigator`, so it always emits `numeric`,
  * and reloading a step holding such a field raised a React hydration attribute
  * mismatch on every touch client (`inputMode="decimal"` against `inputMode="numeric"`,
- * the sole differing attribute). With no fraction digits in the format, every platform
- * branch leaves `inputMode` at `numeric`, so both renders agree by construction and
- * the mismatch is gone at its cause rather than silenced.
+ * the differing attribute in the logged diff). With no fraction digits in the format,
+ * every platform branch leaves `inputMode` at `numeric`, so both renders agree by
+ * construction and that mismatch is gone at its cause rather than silenced.
  *
- * What this does NOT reach, stated because the remaining surface is real: a question
- * that ADMITS fractions still resolves to `decimal` on touch and `numeric` on the
- * server, and so does any question whose minimum allows negatives on an iPhone
- * (`text` there). Both need the input's `inputMode` pinned explicitly, and no prop
- * here can pin it: the vendored control takes a fixed prop list and forwards neither
- * `inputMode` nor unknown props to its `<Input>`, react-aria's own
- * `useNumberField` overwrites any caller-supplied `inputMode` with its computed one,
- * and `packages/ui/src/components/a2ui/**` must stay byte-identical to upstream
- * (ADR-22). Only a prop ON the `<Input>` wins, because that is where
- * react-aria-components merges the caller's props over the field's context. That is an
- * upstream change in the sibling a2-react-aria checkout plus a pin move, and
- * `number-input-mode.test.tsx` holds a live marker for it.
+ * WHAT THIS DOES NOT REACH, which is more than one thing (issue #945). Two attributes
+ * on this same input are still decided by the environment, and neither is reachable
+ * from here:
+ *
+ * - `inputMode` for a question that ADMITS fractions: `decimal` on touch against the
+ *   server's `numeric`, and `text` on an iPhone for a question whose minimum allows
+ *   negatives. No fixture form has such a question today.
+ * - `aria-roledescription` for ANY number question, this integer one included:
+ *   `useNumberField` sets it to "Number field" unless `isIOS()`, so the server emits it
+ *   and an iOS client emits nothing. Android and desktop agree with the server, which
+ *   is why the browser gate cannot see it: no project in `playwright.config.ts` is
+ *   WebKit or iOS. Every iOS reload of a step holding a NumberField therefore still
+ *   logs the mismatch this repository's gates do not reach.
+ *
+ * One reason covers both. The vendored control takes a fixed prop list and forwards
+ * only `placeholder` and `className` to its `<Input>`; react-aria's `useNumberField`
+ * spreads the caller's props and THEN sets `inputMode` and `aria-roledescription` from
+ * its own computation; and `packages/ui/src/components/a2ui/**` must stay
+ * byte-identical to upstream (ADR-22). Only a prop ON the `<Input>` wins, because that
+ * is where react-aria-components merges the caller's props over the field's context. So
+ * both need the same upstream passthrough in the sibling a2-react-aria checkout plus a
+ * pin move, which is what #945 asks for; `number-input-mode.test.tsx` holds a
+ * self-arming marker for each until it lands.
  */
 const INTEGER_NUMBER_FORMAT: Intl.NumberFormatOptions = { maximumFractionDigits: 0 };
 
