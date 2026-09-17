@@ -20,6 +20,10 @@
  * The log assertion is the honest one for this symptom (the WARNING never reaches
  * the client as an error), and it fails if the redundant statements come back.
  *
+ * One describe block covers the teardown ordering of issue #888 against a real container:
+ * a pooled client checked out when `teardown()` is called must be handed back, and the
+ * container stop must be issued only once every connection is closed.
+ *
  * The last two describe blocks cover the harness's failure-reporting contract. A
  * container image that cannot be pulled must be reported as a registry failure
  * naming the image, not as Docker's opaque HTTP error (issue #74) - and a failure
@@ -28,6 +32,7 @@
  */
 
 import { sql } from "drizzle-orm";
+import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -158,6 +163,83 @@ async function captureStartFailure(
     return error as Error;
   }
 }
+
+describe("startTestDb teardown ordering (issue #888)", () => {
+  it(
+    "hands back a checked-out pooled client and stops the container only after the drain",
+    async () => {
+      const pinned = await startTestDb({ migrate: false });
+      // A pool this file owns, handed to the harness rather than closed in an `afterAll` of
+      // its own. Three integration suites had exactly this shape and their own local
+      // `afterAll`, whose ordering against the harness's was a Vitest convention rather
+      // than anything the harness could hold them to.
+      const pool = pinned.register(
+        new pg.Pool({ connectionString: pinned.connectionUri, max: 4 }),
+        "pin pool",
+      );
+      const held = await pool.connect();
+      // A live backend, checked out and never released: `pool.end()` cannot settle while
+      // this client is out, so without the release the drain hangs to the hook timeout and
+      // the container stop lands next to a connection Postgres will answer with 57P01.
+      await held.query("select 1");
+      expect(pool.totalCount).toBeGreaterThan(0);
+
+      // Observe the machine state at the exact moment the stop is issued. Patching the
+      // container's own method is the only vantage point that proves ordering rather than
+      // merely the end state.
+      const container: { stop: () => Promise<unknown> } = pinned.container;
+      const realStop = container.stop.bind(container);
+      let atStop: { pooled: number; clientOpen: boolean } | undefined;
+      container.stop = async () => {
+        atStop = {
+          pooled: pool.totalCount,
+          // A client that is still open answers this; a closed one rejects with
+          // `Client was closed and is not queryable`, which never reaches the server.
+          clientOpen: await pinned.client.query("select 1").then(
+            () => true,
+            () => false,
+          ),
+        };
+        return realStop();
+      };
+
+      await pinned.teardown();
+
+      expect(atStop).toEqual({ pooled: 0, clientOpen: false });
+      expect(pool.totalCount).toBe(0);
+      expect(pool.idleCount).toBe(0);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+
+  it(
+    "survives a container that goes away with the dedicated client still open",
+    async () => {
+      const pinned = await startTestDb({ migrate: false });
+      await pinned.client.query("select 1");
+
+      // The event issue #888 was filed for, forced rather than waited for: the server is
+      // shut down under a live connection, so every open backend is answered with 57P01.
+      // An `error` event on a `pg.Client` with no listener is an uncaught exception, which
+      // is how one harmless shutdown notice used to take a whole Vitest worker down.
+      await pinned.container.stop();
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      // Reaching this line is the assertion: the guard observed the shutdown notice. The
+      // error still reaches a caller that asks, untouched and unretried.
+      const refusal = await pinned.client.query("select 1").then(
+        () => "no error",
+        (error: unknown) => (error instanceof Error ? error.message : String(error)),
+      );
+      expect(refusal).not.toBe("no error");
+
+      // The container is already gone, so this call's own stop fails; it is here to drain
+      // the pool and the client so no socket or idle timer outlives the file.
+      await pinned.teardown().catch(() => undefined);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
+});
 
 describe("startTestDb image-pull failure reporting (issue #74)", () => {
   it("reports the registry failure and the image instead of Docker's opaque error", async () => {

@@ -189,7 +189,13 @@ beforeAll(async () => {
   // leave every object owned by the wrong role, and the ownership guard this suite
   // exists to exercise would be asserting nothing.
   testDb = await startTestDb({ migrate: false });
-  owner = new pg.Client({ connectionString: testDb.connectionUri });
+  // Every connection this file opens is handed to the harness (issue #888), so one
+  // teardown drains them all before the container stops and no local `afterAll` has to
+  // re-derive that order.
+  owner = testDb.register(
+    new pg.Client({ connectionString: testDb.connectionUri }),
+    "owner client",
+  );
   await owner.connect();
 
   const migratePassword = ephemeralPassword();
@@ -217,13 +223,24 @@ beforeAll(async () => {
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT USAGE ON SCHEMAS TO ${APP_ROLE}`,
   );
 
-  const migrator = new pg.Client({ connectionString: uriFor(MIGRATE_ROLE, migratePassword) });
+  const migrator = testDb.register(
+    new pg.Client({ connectionString: uriFor(MIGRATE_ROLE, migratePassword) }),
+    "migrator client",
+  );
   await migrator.connect();
   await applyMigrations(migrator);
+  // Closed here because the ownership assertions below must not see it; registered above
+  // as well, so a throwing `applyMigrations` cannot leave it open. `end()` is idempotent.
   await migrator.end();
 
-  migratePool = new pg.Pool({ connectionString: uriFor(MIGRATE_ROLE, migratePassword) });
-  appPool = new pg.Pool({ connectionString: uriFor(APP_ROLE, appPassword) });
+  migratePool = testDb.register(
+    new pg.Pool({ connectionString: uriFor(MIGRATE_ROLE, migratePassword) }),
+    "migrate pool",
+  );
+  appPool = testDb.register(
+    new pg.Pool({ connectionString: uriFor(APP_ROLE, appPassword) }),
+    "app pool",
+  );
   migrateDb = drizzle(migratePool, { schema });
   appDb = drizzle(appPool, { schema });
 
@@ -240,9 +257,6 @@ beforeAll(async () => {
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
-  await migratePool?.end();
-  await appPool?.end();
-  await owner?.end();
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 

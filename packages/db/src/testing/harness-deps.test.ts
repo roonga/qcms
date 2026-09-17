@@ -119,6 +119,17 @@ describe("the published @roonga/qcms-db/testing subpath", () => {
     },
   ] as const;
 
+  /**
+   * Budget for the two mock-and-import cases below (issue #604).
+   *
+   * Neither boots a container and neither asserts latency: each resets the module registry
+   * and then imports the harness cold, so what it pays is one transform of the harness and
+   * everything it pulls in - pg, drizzle, the schema. On a busy machine that lands at 5.5s
+   * against Vitest's default 5s, which reds a test that is asserting an error message. The
+   * budget is named rather than defaulted so the failure that remains is a real one.
+   */
+  const MODULE_MOCK_TIMEOUT_MS = 30_000;
+
   it.each(resolutionFailures)(
     "names both packages and the install command when the optional peers are absent ($runner)",
     async ({ error }) => {
@@ -150,22 +161,27 @@ describe("the published @roonga/qcms-db/testing subpath", () => {
         vi.resetModules();
       }
     },
+    MODULE_MOCK_TIMEOUT_MS,
   );
 
-  it("rethrows a genuine fault inside Testcontainers rather than blaming the install", async () => {
-    vi.resetModules();
-    vi.doMock("@testcontainers/postgresql", () => ({
-      get PostgreSqlContainer(): never {
-        throw new Error("boom from inside testcontainers");
-      },
-    }));
-
-    try {
-      const { startTestDb } = await import("./harness.js");
-      await expect(startTestDb()).rejects.toThrow("boom from inside testcontainers");
-    } finally {
-      vi.doUnmock("@testcontainers/postgresql");
+  it(
+    "rethrows a genuine fault inside Testcontainers rather than blaming the install",
+    async () => {
       vi.resetModules();
-    }
-  });
+      vi.doMock("@testcontainers/postgresql", () => ({
+        get PostgreSqlContainer(): never {
+          throw new Error("boom from inside testcontainers");
+        },
+      }));
+
+      try {
+        const { startTestDb } = await import("./harness.js");
+        await expect(startTestDb()).rejects.toThrow("boom from inside testcontainers");
+      } finally {
+        vi.doUnmock("@testcontainers/postgresql");
+        vi.resetModules();
+      }
+    },
+    MODULE_MOCK_TIMEOUT_MS,
+  );
 });

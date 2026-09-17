@@ -513,12 +513,12 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    pool = new Pool({ connectionString: testDb.connectionUri, max: 8 });
+    // Registered with the harness rather than ended in a local `afterAll` (issue #888).
+    pool = testDb.register(
+      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      "delivery concurrency pool",
+    );
     db = drizzle(pool, { schema });
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it("two concurrent claimers never claim the same delivery (FOR UPDATE OF ... SKIP LOCKED)", async () => {

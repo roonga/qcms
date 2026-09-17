@@ -820,12 +820,13 @@ describe("concurrency (live, pooled connections)", () => {
   let db: NodePgDatabase<typeof schema>;
 
   beforeAll(() => {
-    pool = new Pool({ connectionString: testDb.connectionUri, max: 8 });
+    // Registered with the harness rather than ended in a local `afterAll` (issue #888):
+    // one teardown drains every connection and only then stops the container.
+    pool = testDb.register(
+      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      "queries concurrency pool",
+    );
     db = drizzle(pool, { schema });
-  });
-
-  afterAll(async () => {
-    await pool.end();
   });
 
   it("appendAnswer under concurrent writers loses no rows and resolves the latest", async () => {
