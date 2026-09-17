@@ -1,8 +1,12 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
 import { t, tPlural } from "./en.ts";
 import {
   ADMIN_LOCALE,
+  PREVIEW_LOCALE,
   formatDateTime,
   formatDay,
   formatList,
@@ -270,5 +274,37 @@ describe("list formatting", () => {
 
   it("renders nothing for nothing rather than a stray separator", () => {
     expect(formatList([])).toBe("");
+  });
+});
+
+/**
+ * The locale the previews render respondent controls on (issue #906).
+ *
+ * `PREVIEW_LOCALE` is a MIRROR of the portal's `PORTAL_LOCALE`, because the preview has to
+ * render what a respondent gets and `apps/*` never import each other. A mirror with no gate
+ * is a value that is true when it is written and silently wrong afterwards, so the gate is
+ * here: the portal's declaration is read from its source and compared. Reading the source
+ * rather than importing it keeps the ban on cross-app imports intact - this is a test
+ * looking at a file, not the admin depending on the portal.
+ */
+describe("the previewed respondent locale", () => {
+  /** The portal's own declaration, as its module spells it. */
+  const portalFormat = readFileSync(
+    fileURLToPath(new URL("../../../portal/lib/i18n/format.ts", import.meta.url)),
+    "utf8",
+  );
+
+  it("agrees with the tag the portal renders respondents on", () => {
+    const declared = /export const PORTAL_LOCALE = "([^"]+)"/u.exec(portalFormat);
+    expect(declared, "the portal should declare PORTAL_LOCALE as a literal").not.toBeNull();
+    expect(PREVIEW_LOCALE).toBe(declared![1]);
+  });
+
+  it("is the same tag the operator's own chrome uses, at launch", () => {
+    // R7 gives the product one locale, so the respondent's tag and the operator's are the
+    // same value and this app writes it once. The two are separate NAMES because issue
+    // #732 moves one of them and not the other; they are one VALUE because today nothing
+    // distinguishes them, and a second literal would only give them room to disagree.
+    expect(PREVIEW_LOCALE).toBe(ADMIN_LOCALE);
   });
 });
