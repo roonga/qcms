@@ -66,10 +66,13 @@ export const OTEL_SERVICE_NAMES = {
  * from task 054 but only ever reached `OTEL_BSP_SCHEDULE_DELAY`, and in OpenTelemetry
  * JS 2.x that variable reaches no processor this repository constructs: the env
  * fallbacks live in the `@opentelemetry/sdk-trace-base` compatibility shims, and
- * `@opentelemetry/sdk-logs` publishes no shim at all. So the whole suite ran on the
- * library defaults while its comments said 500ms, and the admin log spec's 20s poll had
- * a fifth of the margin it was written with. `@roonga/qcms-observability/otel` resolves
- * these variables explicitly now, and the services pass the result to their processors.
+ * `@opentelemetry/sdk-logs` publishes no shim at all. What that left running on the
+ * library defaults was every log pipeline and the API's span pipeline, which is the
+ * slowest leg the admin log spec waits on, so its 20s poll had a fraction of the margin
+ * it was written with. The portal's and the admin's span batches are `@vercel/otel`'s
+ * own, which reads `OTEL_BSP_*` for itself, so those two were prompt already and are
+ * unaffected either way. `@roonga/qcms-observability/otel` resolves these variables
+ * explicitly now, and the services pass the result to the processors they construct.
  */
 export const OTLP_SCHEDULE_DELAY_MS = "500";
 

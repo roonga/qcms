@@ -7,16 +7,19 @@ Resolve the OpenTelemetry batch export timings from the standard environment var
 and derive the browser suite's telemetry poll budget from them (issue #901).
 
 `OTEL_BSP_SCHEDULE_DELAY` had been set in the Playwright harness since task 054 and
-reached no processor. OpenTelemetry JS 2.x moved the batch variables' env fallbacks into
-the compatibility shims that `@opentelemetry/sdk-trace-base` re-exports, which is not the
-constructor the API calls, and `@opentelemetry/sdk-logs` publishes no such shim at all, so
-`BatchLogRecordProcessor` has no env-reading path in any 2.x release. Every service
-therefore ran on the library defaults of a 5 s span delay and a 1 s log delay while the
-harness, its comments and two telemetry specs were all written as though export happened
-in about half a second. Nothing was red: the only symptom was that
-`apps/admin/e2e/otel-logs.pw.ts` polled a flat 20 s for a record whose pipeline could
-legitimately take longer than that, and failed twice in one week under contention, on
-delivery latency, reporting it as a missing record.
+reached no processor this repository constructs. OpenTelemetry JS 2.x moved the batch
+variables' env fallbacks into the compatibility shims that `@opentelemetry/sdk-trace-base`
+re-exports, which is not the constructor the API calls, and `@opentelemetry/sdk-logs`
+publishes no such shim at all, so `BatchLogRecordProcessor` has no env-reading path in any
+2.x release. Every log pipeline therefore ran on the library default of a 1 s delay, and
+the API's span pipeline on 5 s, while the harness, its comments and two telemetry specs
+were all written as though export happened in about half a second. The portal's and the
+admin's span batches are the exception: those come from `@vercel/otel`'s `"auto"`
+processor, which bundles its own env-reading copy, so they were prompt already. Nothing
+was red: the only symptom was that `apps/admin/e2e/otel-logs.pw.ts` polled a flat 20 s for
+records whose slowest leg, the API's span, could legitimately take longer than that, and
+failed twice in one week under contention, on delivery latency, reporting it as a missing
+record.
 
 New in this package: `@roonga/qcms-observability/otel` exports `batchSpanExportTimings` and
 `batchLogExportTimings`, which read `OTEL_BSP_SCHEDULE_DELAY`, `OTEL_BSP_EXPORT_TIMEOUT`,

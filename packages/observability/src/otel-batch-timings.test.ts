@@ -82,6 +82,14 @@ describe("batchLogExportTimings", () => {
    * from serving requests. The cases that matter are the ones a permissive parser would
    * accept as plausible numbers - `parseInt("500ms")` is 500 and `parseInt("1e4")` is 1 -
    * because those turn a typo into a timing nobody would question.
+   *
+   * `0` is the one case that is a rejection rather than a parse failure, and it is
+   * asserted here on purpose. The `@opentelemetry/sdk-trace-base` shim would apply it;
+   * this helper does not, because a zero delay stops batching rather than shortening it
+   * (one export request per tick, which is what a simple processor is for and what no
+   * QCMS process constructs). The floor is documented for operators in
+   * `docs/operations.md`, and `1` is accepted, so nothing here blocks a deployment that
+   * genuinely wants the promptest batch this pipeline offers.
    */
   it.each([
     ["not a number", "soon"],

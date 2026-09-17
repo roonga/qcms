@@ -33,7 +33,9 @@ import {
   OTLP_DELIVERY_BUDGET_MS,
   OTLP_POLL_MS,
   SERVER_LOG_FILES,
+  otlpDeliveryNote,
 } from "./support/harness-config.js";
+import { recordOtlpDelivery } from "./support/otlp-delivery.js";
 import {
   KS,
   checkOption,
@@ -72,25 +74,56 @@ const ANSWER_CANARY = "Zzcanaryqx Redactowski";
 const SPAN_WAIT_MS = OTLP_DELIVERY_BUDGET_MS;
 const POLL_MS = OTLP_POLL_MS;
 
-/** Wait until the captured spans satisfy `ready`, then return them. */
-async function waitForSpans(ready: (spans: CapturedSpan[]) => boolean): Promise<CapturedSpan[]> {
-  const deadline = Date.now() + SPAN_WAIT_MS;
-  let spans = readCapturedSpans();
-  while (!ready(spans) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    spans = readCapturedSpans();
-  }
-  return spans;
+/** What one bounded wait for exported telemetry observed. */
+interface Waited<T> {
+  /** Everything captured by the end of the wait, satisfied or not. */
+  readonly captured: readonly T[];
+  /**
+   * The sentence an assertion adds when what it wanted is not in `captured`: what was
+   * waited for, how long it took, and the configuration that set the budget. Without
+   * it a slow pipeline and a broken correlation both read as a missing record, which
+   * is the mis-attribution issue #901 was filed about.
+   */
+  readonly note: string;
 }
 
-async function waitForLogs(ready: (logs: CapturedLog[]) => boolean): Promise<CapturedLog[]> {
-  const deadline = Date.now() + SPAN_WAIT_MS;
-  let logs = readCapturedLogs();
-  while (!ready(logs) && Date.now() < deadline) {
+/**
+ * Poll until `ready`, then return what was captured with the measurement beside it.
+ *
+ * Each wait records its own latency, so a green run leaves the trip's real cost in
+ * `OTLP_DELIVERY_PATH` rather than only proving it fitted inside a budget.
+ */
+async function waitFor<T>(
+  what: string,
+  read: () => T[],
+  ready: (captured: T[]) => boolean,
+): Promise<Waited<T>> {
+  const started = Date.now();
+  const deadline = started + SPAN_WAIT_MS;
+  let captured = read();
+  while (!ready(captured) && Date.now() < deadline) {
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
-    logs = readCapturedLogs();
+    captured = read();
   }
-  return logs;
+  const elapsedMs = Date.now() - started;
+  const satisfied = ready(captured);
+  recordOtlpDelivery(what, elapsedMs, { arrived: satisfied ? elapsedMs : -1 });
+  return { captured, note: `${what}: ${otlpDeliveryNote(elapsedMs)}` };
+}
+
+/** Wait until the captured spans satisfy `ready`, then return them. */
+async function waitForSpans(
+  what: string,
+  ready: (spans: CapturedSpan[]) => boolean,
+): Promise<Waited<CapturedSpan>> {
+  return waitFor(what, readCapturedSpans, ready);
+}
+
+async function waitForLogs(
+  what: string,
+  ready: (logs: CapturedLog[]) => boolean,
+): Promise<Waited<CapturedLog>> {
+  return waitFor(what, readCapturedLogs, ready);
 }
 
 /** OTLP span kinds, as they appear on the wire. */
@@ -142,29 +175,38 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
     span.attributes["qcms.request_id"] === requestId &&
     mentions(span, "/submit");
 
-  const spans = await waitForSpans((all) => all.some(isSubmitServerSpan));
+  const { captured: spans, note: submitSpanNote } = await waitForSpans(
+    "the API's submit SERVER span",
+    (all) => all.some(isSubmitServerSpan),
+  );
   expect(
     spans.filter(isSubmitServerSpan),
-    "the API should export one semantic SERVER span, not a duplicate raw HTTP span",
+    `the API should export one semantic SERVER span, not a duplicate raw HTTP span; ${submitSpanNote}`,
   ).toHaveLength(1);
   const apiServerSpan = spans.find(isSubmitServerSpan);
   expect(
     apiServerSpan,
-    "the API should have exported a SERVER span for the submit carrying this request id",
+    `the API should have exported a SERVER span for the submit carrying this request id; ${submitSpanNote}`,
   ).toBeDefined();
   const traceId = apiServerSpan?.traceId ?? "";
-  expect(traceId).toMatch(/^[0-9a-f]{32}$/);
+  expect(traceId, `the exported API span should carry a trace id; ${submitSpanNote}`).toMatch(
+    /^[0-9a-f]{32}$/,
+  );
 
   // The portal's own spans must be in the SAME trace: that is `traceparent`
   // crossing the BFF hop and `@hono/otel` extracting it.
-  const trace = await waitForSpans((all) =>
-    all.some((span) => span.traceId === traceId && span.serviceName === OTEL_SERVICE_NAMES.portal),
+  const { captured: trace, note: traceNote } = await waitForSpans(
+    "the portal's spans in the API's trace",
+    (all) =>
+      all.some(
+        (span) => span.traceId === traceId && span.serviceName === OTEL_SERVICE_NAMES.portal,
+      ),
   );
   const inTrace = trace.filter((span) => span.traceId === traceId);
   const portalSpans = inTrace.filter((span) => span.serviceName === OTEL_SERVICE_NAMES.portal);
   expect(
     portalSpans.length,
-    "portal spans must share the API span's trace id (traceparent over the BFF hop)",
+    `portal spans must share the API span's trace id (traceparent over the BFF hop); ${traceNote}`,
   ).toBeGreaterThan(0);
 
   // The pg spans belong to the API's side of that trace, under an API span.
@@ -205,8 +247,9 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
   expect(correlated.some((line) => line.trace_id === traceId)).toBe(true);
   expect(correlated.every((line) => typeof line.span_id === "string")).toBe(true);
 
-  const exportedLogs = (
-    await waitForLogs((records) => {
+  const { captured: logRecords, note: logNote } = await waitForLogs(
+    "both services' log records in that trace",
+    (records) => {
       const services = new Set(
         records
           .filter(
@@ -215,22 +258,23 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
           .map((record) => record.serviceName),
       );
       return services.has(OTEL_SERVICE_NAMES.portal) && services.has(OTEL_SERVICE_NAMES.api);
-    })
-  ).filter((record) => record.traceId === traceId);
+    },
+  );
+  const exportedLogs = logRecords.filter((record) => record.traceId === traceId);
   expect(
     exportedLogs.some(
       (record) =>
         record.serviceName === OTEL_SERVICE_NAMES.portal &&
         record.attributes.requestId === requestId,
     ),
-    "the Portal should export a safe log in the connected trace",
+    `the Portal should export a safe log in the connected trace; ${logNote}`,
   ).toBe(true);
   expect(
     exportedLogs.some(
       (record) =>
         record.serviceName === OTEL_SERVICE_NAMES.api && record.attributes.requestId === requestId,
     ),
-    "the API should export a safe log in the connected trace",
+    `the API should export a safe log in the connected trace; ${logNote}`,
   ).toBe(true);
 
   // --- Exit criterion 4: SEC-13 --------------------------------------------
@@ -253,17 +297,20 @@ test("a secure-link token is redacted out of the exported span, not just absent"
   await page.goto(`/l/${invalidToken}`);
   await page.waitForURL(/\/link-error/);
 
-  const spans = await waitForSpans((all) =>
-    all.some(
-      (span) => span.serviceName === OTEL_SERVICE_NAMES.portal && span.name.includes("/l/[token]"),
-    ),
+  const { captured: spans, note: linkSpanNote } = await waitForSpans(
+    "the portal's redacted link-route span",
+    (all) =>
+      all.some(
+        (span) =>
+          span.serviceName === OTEL_SERVICE_NAMES.portal && span.name.includes("/l/[token]"),
+      ),
   );
   const redacted = spans.filter(
     (span) => span.serviceName === OTEL_SERVICE_NAMES.portal && span.name.includes("/l/[token]"),
   );
   expect(
     redacted.length,
-    "the portal should export the link route with its token replaced by the pattern",
+    `the portal should export the link route with its token replaced by the pattern; ${linkSpanNote}`,
   ).toBeGreaterThan(0);
   expect(readCapturedPayloads()).not.toContain(invalidToken);
 });

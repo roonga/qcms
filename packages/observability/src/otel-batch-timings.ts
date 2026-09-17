@@ -13,12 +13,16 @@
  * That silence is what issue #901 is about. The browser harness sets
  * `OTEL_BSP_SCHEDULE_DELAY=500` and has since task 054, so every comment and every
  * poll budget in the suite was written as though exported telemetry arrived in about
- * half a second. It did not. Measured on this branch before the fix, a log record
- * correlated to one admin request reached the in-test receiver 1.1 s to 4.0 s after
- * the request completed, and the dominant term was the API's span batch sitting on the
- * library default of 5 s rather than the 500 ms the harness asked for. Nothing failed
- * loudly; the spec's 20 s poll simply had a fraction of the margin its author believed
- * it had, and under CI contention it expired twice in one week.
+ * half a second. For the processors the services construct themselves, it did not.
+ * Measured on this branch before the fix, a log record correlated to one admin request
+ * reached the in-test receiver 1.1 s to 4.0 s after the request completed, and the
+ * dominant term was the API's span batch sitting on the library default of 5 s rather
+ * than the 500 ms the harness asked for. (The portal's and the admin's span batches
+ * come from `@vercel/otel`'s `"auto"` processor, which bundles an env-reading copy of
+ * its own, so those two were already prompt. The gap was every log pipeline and the
+ * API's spans.) Nothing failed loudly; the spec's 20 s poll simply had a fraction of
+ * the margin its author believed it had, and under CI contention it expired twice in
+ * one week.
  *
  * So the values are resolved here, explicitly, and passed to each processor as
  * options. Two properties follow that a shim could not give us. The resolution is one
@@ -72,6 +76,17 @@ const LOG_DEFAULTS: BatchExportTimings = {
  * nobody would question. Silent, because telemetry configuration must never be able to
  * stop a process from serving: a rejected value falls back to the documented default,
  * which is the same behaviour the SDK gives an unset variable.
+ *
+ * **`0` is refused, and that is one deliberate divergence from the `sdk-trace-base`
+ * shim, which applies it.** A zero delay does not schedule an export sooner, it stops
+ * batching: the processor arms `setTimeout(..., 0)`, so it exports on the next tick and
+ * each record, or the few that happen to share one tick, leaves in an export request of
+ * its own. Over a network exporter that is a different component
+ * (`SimpleLogRecordProcessor`, which this repository never constructs) rather than a
+ * tuning of this one, and arriving at it by way of a delay knob would be a surprise a
+ * running deployment absorbs silently. `docs/operations.md` records the floor, so an
+ * operator who wants per-record export reads why they cannot get it this way rather
+ * than wondering why nothing changed.
  */
 function millis(env: BatchTimingEnv, name: string, fallback: number): number {
   const raw = env[name]?.trim();
