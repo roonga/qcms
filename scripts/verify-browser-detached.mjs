@@ -60,9 +60,11 @@
  * So a pid is signalled only once it is shown to belong to this run: a descendant of this
  * runner or its suite, or a process whose `/proc/<pid>/cwd` resolves to this runner's own
  * CHECKOUT ({@link ownershipOf}, by nearest `.git` rather than by path prefix, because
- * lane worktrees nest inside the primary checkout). Anything else is named in the log and
- * in the rc file's `seat_foreign` field and left alone, because a port this run cannot
- * account for belongs to somebody.
+ * lane worktrees nest inside the primary checkout) - and in neither case descended from a
+ * DIFFERENT detached runner, which is the one route by which a lane could still reach its
+ * own live gate from its own `pnpm verify` at the same seat. Anything else is named in the
+ * log and in the rc file's `seat_foreign` field and left alone, because a port this run
+ * cannot account for belongs to somebody.
  */
 
 import { spawn } from "node:child_process";
@@ -732,19 +734,46 @@ export async function supervise({
   clearInterval(beat);
 
   const suiteCode = signal === null ? code : 128 + signalNumber(signal);
+  // A signal the suite's own wrapper swallowed and reported as an ordinary failure. The
+  // suite runs as `pnpm exec playwright test`, so this runner's direct child is pnpm: a
+  // signal delivered to the Playwright process alone never reaches `child.on("exit")` as a
+  // signal at all, and pnpm exits 1 after printing that it was killed. That shape is
+  // indistinguishable from a red suite by exit code, which is exactly the thing issue
+  // #902's 2026-09-12 comment asked to be able to tell apart, and it is the shape the
+  // cross-seat sweep actually produced in its victims.
+  const relayed = signal === null && code !== 0 ? relayedSignal(log) : undefined;
   const lines = [`EXIT=${String(suiteCode)}`];
   if (signalled !== undefined) {
     lines.push(`killed=${signalled}`, ...provenance);
     // Only ever written from what the port check actually found, never from the
     // intention to clean up: a release that failed is the case a report has to see.
     lines.push(...releaseLines(releasePorts, await (releasing ?? Promise.resolve([]))));
-  } else if (signal !== null) {
+  } else if (signal !== null || relayed !== undefined) {
     // The suite died on a signal this runner never saw, so nothing in this tree sent it.
     // `wait` reports that as its own exit code rather than folding it into "the runner
     // was killed", because the two have different causes (issue #902).
     lines.push(
-      `killed=${signal}`,
-      ...signalProvenance({ signal, target: "suite", seat, elapsedSeconds: elapsedSeconds() }),
+      `killed=${signal ?? relayed ?? "unknown"}`,
+      ...signalProvenance({
+        signal: signal ?? relayed ?? "unknown",
+        target: "suite",
+        seat,
+        elapsedSeconds: elapsedSeconds(),
+        // The process that was actually hit, and its parent, which is this runner. Filled
+        // from the runner's own pid before this change, so a suite kill named the role and
+        // then gave the wrong victim.
+        pid: child.pid ?? 0,
+        parentPid: process.pid,
+        runnerPid: process.pid,
+        command,
+      }),
+      ...(relayed === undefined
+        ? []
+        : [
+            "signal_relay=suite-wrapper",
+            `# The signal did not reach this runner's own child: pnpm reported it and exited`,
+            `# ${String(code)}. Read as a kill rather than a verdict because the log says so.`,
+          ]),
       "# The SUITE died on a signal while this runner was never signalled; this is not a",
       "# test verdict. Nothing in this tree sent it: look at the host (the OOM killer, a",
       "# cgroup limit, or a group signal aimed at the suite's own session).",
@@ -766,10 +795,21 @@ export async function supervise({
  * attributable without a live process to inspect (issue #902, whose two reports had no
  * evidence beyond a timestamp and an exit code): which process was hit, its parent, the
  * seat, how far into the run it happened, and what the machine looked like at that
- * moment. A supervisor started under `setsid` normally reports `runner_ppid=1`, which is
- * itself the useful reading - nothing in this tree is left that could have sent it.
+ * moment.
  *
- * @param {{ signal: string; target: "runner" | "suite"; seat?: string; elapsedSeconds: number; pid?: number; parentPid?: number; host?: () => string[] }} options
+ * **`signalled_pid` is the process that was actually hit, and for a suite-only kill that
+ * is NOT the runner.** The fields used to be named `runner_*` and were filled from
+ * `process.pid` in both branches, so a `signal_target=suite` record named the role
+ * correctly and then gave the runner's pid as the victim - fully attributing a suite-only
+ * kill still needed the live process tree, which is the one thing a post-mortem does not
+ * have. So the victim and the runner are separate fields now, `runner_pid` is always this
+ * supervisor, and for a suite kill `signalled_ppid` is that runner: the suite's parent.
+ * They are equal in the runner case, which is the honest way to show it.
+ *
+ * A supervisor started under `setsid` normally reports `runner_ppid=1`, and that is itself
+ * the useful reading - nothing in this tree is left that could have sent it.
+ *
+ * @param {{ signal: string; target: "runner" | "suite"; seat?: string; elapsedSeconds: number; pid?: number; parentPid?: number; runnerPid?: number; command?: string[]; host?: () => string[] }} options
  * @returns {string[]}
  */
 export function signalProvenance({
@@ -779,15 +819,22 @@ export function signalProvenance({
   elapsedSeconds,
   pid = process.pid,
   parentPid = process.ppid,
+  runnerPid = process.pid,
+  command,
   host = hostSnapshot,
 }) {
   return [
     `signal=${signal}`,
     `signal_target=${target}`,
     `signal_at_elapsed_seconds=${String(elapsedSeconds)}`,
-    `runner_pid=${String(pid)}`,
-    `runner_ppid=${String(parentPid)}`,
-    `runner_parent=${commandLineOf(parentPid) ?? "unreadable"}`,
+    `signalled_pid=${String(pid)}`,
+    `signalled_ppid=${String(parentPid)}`,
+    `signalled_parent=${commandLineOf(parentPid) ?? "unreadable"}`,
+    // The victim's own argv, passed in rather than read from `/proc`: by the time a suite
+    // kill is recorded the suite has already exited, so its `/proc` entry is gone and the
+    // command this runner spawned is the only surviving account of what was hit.
+    ...(command === undefined ? [] : [`signalled_command=${boundedLine(command.join(" "))}`]),
+    `runner_pid=${String(runnerPid)}`,
     `seat=${seat === undefined || seat === "" ? "unrecorded" : seat}`,
     ...host(),
     "# No sender pid: Linux passes one only through SA_SIGINFO or signalfd, neither of",
@@ -824,7 +871,44 @@ function hostSnapshot() {
   return lines;
 }
 
-/** How much of a parent's command line the rc file records. */
+/** How many trailing log lines {@link relayedSignal} reads. */
+export const RELAY_SCAN_LINES = 80;
+
+/**
+ * The signal name a suite wrapper swallowed, when the log says one was delivered.
+ *
+ * This closes the half of the 2026-09-12 ask that the exit codes alone could not. The
+ * suite command is `pnpm exec playwright test`, so this runner's direct child is pnpm, not
+ * Playwright. A signal aimed at the Playwright process alone therefore never arrives at
+ * `child.on("exit")` as a signal: pnpm reaps it, prints that the command was killed, and
+ * exits 1. From the outside that is byte-for-byte a red suite, and it is the shape the
+ * cross-seat sweep left in its victims - a reviewer found a live instance of it on this
+ * host while #902 was open, an `EXIT=1` with no `killed=` line over a log saying
+ * `Command was killed with SIGTERM`.
+ *
+ * Spawning Playwright directly would make the signal observable and was the other option.
+ * It was not taken: `playwrightCommand` is pinned against `package.json`'s `verify:browser`
+ * by a test precisely so the detached form and CI stay the same suite, and resolving the
+ * binary without `pnpm exec` is a second way for the two to drift. Reading pnpm's own
+ * report is additive and cannot change which suite runs.
+ *
+ * Only consulted for a nonzero exit with no signal of its own, and matched on pnpm's own
+ * wording rather than on a bare signal name, so ordinary test output naming SIGTERM cannot
+ * trip it.
+ *
+ * @param {string} logPath
+ * @param {(path: string, count: number) => string[]} [tail]
+ * @returns {string | undefined}
+ */
+export function relayedSignal(logPath, tail = tailLines) {
+  for (const line of tail(logPath, RELAY_SCAN_LINES)) {
+    const killed = /\bkilled with (SIG[A-Z0-9]+)\b/.exec(line);
+    if (killed?.[1] !== undefined) return killed[1];
+  }
+  return undefined;
+}
+
+/** How much of a command line the rc file records. */
 const COMMAND_LINE_LIMIT = 200;
 
 /**
@@ -845,6 +929,40 @@ export function commandLineOf(pid, read = readProcCmdline) {
   if (!Number.isInteger(pid) || pid < 1) return undefined;
   const raw = read(pid);
   if (raw === undefined) return undefined;
+  const bounded = boundedLine(raw);
+  return bounded === "" ? undefined : bounded;
+}
+
+/**
+ * One rc-file field value: a single line, bounded in length, no control characters.
+ *
+ * Shared by the two provenance fields that carry somebody's argv, because both land in a
+ * file whose whole contract is that a reader can parse it a line at a time. One embedded
+ * newline would split a field in half, and a shell wrapper's argv can run to kilobytes
+ * while the rc file is meant to be read whole.
+ *
+ * @param {string} raw
+ * @returns {string} the empty string when nothing survives
+ */
+export function boundedLine(raw) {
+  const collapsed = flattenArgv(raw);
+  return collapsed.length <= COMMAND_LINE_LIMIT
+    ? collapsed
+    : `${collapsed.slice(0, COMMAND_LINE_LIMIT)}...(truncated)`;
+}
+
+/**
+ * One process's argv as a single space-separated line, with no length cap.
+ *
+ * Separate from {@link boundedLine} because {@link isOtherSupervisor} matches a marker
+ * against the whole argv and the cap would hide it: the marker sits after an interpreter
+ * path and a script path, which in a deeply nested worktree can run past the limit, and a
+ * truncated argv would silently answer "not a supervisor" for the runs that matter most.
+ *
+ * @param {string} raw
+ * @returns {string}
+ */
+export function flattenArgv(raw) {
   // Filtered by code point rather than by a regular expression, which is the one spelling
   // that satisfies both gates at once: a literal control byte in source is invisible to a
   // reader and `pnpm check:no-control-chars` refuses it, while the escaped equivalent
@@ -855,11 +973,7 @@ export function commandLineOf(pid, read = readProcCmdline) {
       return code < 0x20 || code === 0x7f ? " " : character;
     })
     .join("");
-  const collapsed = flat.replace(/\s+/g, " ").trim();
-  if (collapsed === "") return undefined;
-  return collapsed.length <= COMMAND_LINE_LIMIT
-    ? collapsed
-    : `${collapsed.slice(0, COMMAND_LINE_LIMIT)}...(truncated)`;
+  return flat.replace(/\s+/g, " ").trim();
 }
 
 /**
@@ -916,18 +1030,25 @@ export function releaseLines(ports, remaining) {
       "# Those holders were deliberately NOT signalled, and the grounds above decide what",
       "# to do about each one (issue #902).",
     );
-    // The two grounds need opposite advice, and conflating them was worth one more
-    // paragraph. A `foreign-tree` holder is provably somebody else's and killing it is the
-    // defect this confinement removes. An `unattributable` one is a holder `/proc` could
-    // not name at that instant: on THIS seat's own ports it may well be this lane's own
-    // orphan, so telling an operator to leave it alone would strand their seat.
+    // The grounds need different advice, and conflating them was worth the extra lines. A
+    // `foreign-tree` or `other-run` holder is provably somebody else's and killing it is
+    // the defect this confinement removes. An `unattributable` one is a holder `/proc`
+    // could not name at that instant: on THIS seat's own ports it may well be this lane's
+    // own orphan, so telling an operator to leave it alone would strand their seat.
     if (foreign.some((listener) => listener.ownership === "foreign-tree")) {
       lines.push(
         "# foreign-tree: another checkout's process, so on a shared host it is another",
         "# lane's server. Do not kill it. Take a free seat instead.",
       );
     }
-    if (foreign.some((listener) => listener.ownership !== "foreign-tree")) {
+    if (foreign.some((listener) => listener.ownership === "other-run")) {
+      lines.push(
+        "# other-run: descended from a DIFFERENT detached runner, which can happen in this",
+        "# very checkout when one lane's gate and its `pnpm verify` share a seat. Do not kill",
+        "# it: something is still waiting on that run. Take a free seat instead.",
+      );
+    }
+    if (foreign.some((listener) => listener.ownership === "unattributable")) {
       lines.push(
         "# unattributable: the holder could not be identified from /proc (another user,",
         "# another PID namespace, or a socket closing mid-scan). It may be this lane's own",
@@ -960,7 +1081,7 @@ function killGroup(leader, signal) {
 }
 
 /**
- * @typedef {"descendant" | "same-tree" | "foreign-tree" | "unattributable"} PortOwnership
+ * @typedef {"descendant" | "same-tree" | "other-run" | "foreign-tree" | "unattributable"} PortOwnership
  * @typedef {{ port: number; pid: number | undefined; ownership?: PortOwnership }} PortListener
  */
 
@@ -1058,6 +1179,34 @@ export function checkoutRootOf(directory, hasGit = gitEntryExists) {
   return undefined;
 }
 
+/** How this script's own detached side is recognised in another process's argv. */
+export const SUPERVISOR_ARGV_MARK = "verify-browser-detached.mjs supervise";
+
+/**
+ * Is `pid` a detached runner other than this one?
+ *
+ * Matched on argv rather than on a pid file, deliberately. A pid file would mean reading
+ * every lane's scratch directory, which is the shared-state trap issues #396 and #602 are
+ * about, and a stale file there is indistinguishable from a live run. A process's own argv
+ * is the one account of itself that cannot go stale: if `/proc/<pid>/cmdline` says it is a
+ * supervisor and it is not this process, then it is somebody's live detached run and its
+ * subtree is not this runner's to signal.
+ *
+ * The argv is normalised through {@link flattenArgv} first, so the NUL separators become
+ * spaces and the marker above matches the two adjacent arguments. Uncapped on purpose: see
+ * that function for why the bounded form would hide the marker.
+ *
+ * @param {number} pid
+ * @param {(pid: number) => string | undefined} [read]
+ * @returns {boolean}
+ */
+export function isOtherSupervisor(pid, read = readProcCmdline) {
+  if (pid === process.pid) return false;
+  const raw = read(pid);
+  if (raw === undefined) return false;
+  return flattenArgv(raw).includes(SUPERVISOR_ARGV_MARK);
+}
+
 /**
  * @param {string} path
  * @returns {boolean}
@@ -1089,10 +1238,15 @@ function gitEntryExists(path) {
  *   is one lane and a second live run in it is refused at `start`, so "in my checkout"
  *   cannot mean somebody else's run - whereas "under my path" can, because lanes nest.
  *
+ * Both are overruled by **`other-run`**: a chain that passes through a different detached
+ * supervisor belongs to that run whatever its cwd says. That is the one case the two
+ * grounds above cannot see, because a lane's own live gate in its own checkout is
+ * `same-tree` by every honest measure.
+ *
  * Everything else is `foreign-tree` (a neighbouring lane, which is exactly what the
  * cross-seat kill was) or `unattributable` (another user, another PID namespace, or a pid
- * that exited mid-scan). Neither is signalled: "I cannot account for this" and "it is
- * mine" must not collapse into one outcome, the same rule the seat preflight already
+ * that exited mid-scan). None of the three is signalled: "I cannot account for this" and
+ * "it is mine" must not collapse into one outcome, the same rule the seat preflight already
  * applies to adoption in `apps/portal/e2e/support/port-seat.ts`.
  *
  * @param {number | undefined} pid
@@ -1107,6 +1261,7 @@ export function ownershipOf(
     parent = parentOf,
     workingDirectory = workingDirectoryOf,
     checkoutRoot = checkoutRootOf,
+    isForeignSupervisor = isOtherSupervisor,
   } = {},
 ) {
   if (pid === undefined || !Number.isInteger(pid) || pid < 2) return "unattributable";
@@ -1115,6 +1270,17 @@ export function ownershipOf(
   let walker = pid;
   for (let hop = 0; hop < 64; hop += 1) {
     if (ancestors.has(walker)) return "descendant";
+    // Somebody else's detached run, and the check has to happen HERE rather than after the
+    // checkout test, because the case it closes is one the checkout test cannot see: a lane
+    // whose seat is 3 running `pnpm verify` in the same checkout as its own live seat-3
+    // gate. That gate's holders are `same-tree` by every honest measure, so cross-lane
+    // confinement alone would still kill them. The `already live in this lane` refusal in
+    // `startDetached` does not help either, since the test's supervisor writes to a
+    // different scratch lane and never consults that pid file.
+    //
+    // Ours is found first: the suite's chain reaches this supervisor's own pid through
+    // `ancestors` above before this line ever examines it.
+    if (isForeignSupervisor(walker)) return "other-run";
     const next = parent(walker);
     if (next === undefined || next < 2 || next === walker) break;
     walker = next;
@@ -1123,9 +1289,19 @@ export function ownershipOf(
   if (directory === undefined) return "unattributable";
   const mine = checkoutRoot(repoRoot);
   const theirs = checkoutRoot(directory);
-  // No `.git` above either path means the question cannot be answered, not that the
-  // answer is yes. Falls back to "is it literally my root", which is true of a runner
-  // started in a plain directory (a fixture, a tarball) and false of everything else.
+  // No `.git` above a path means the question cannot be answered there, not that the
+  // answer is yes, so the fallback is deliberately narrow and is spelled out here because
+  // it is a comment sitting on a kill decision.
+  //
+  // It accepts `directory` **at or below `repoRoot`** - a descendant, not only an exact
+  // match - because that is the shape a runner started outside a repository actually has: a
+  // fixture or an unpacked tarball puts its servers in `<root>/apps/portal` exactly as a
+  // checkout does, and requiring equality would refuse to clean up after itself.
+  //
+  // `mine === theirs` is the other half and is doing real work rather than reading as a
+  // tautology: both sides are `undefined` only when NEITHER path has a `.git` above it. If
+  // one of them resolved to a checkout and the other did not, the two are not comparable
+  // and the verdict is `unattributable`, never "mine".
   if (mine === undefined || theirs === undefined) {
     return isInside(directory, repoRoot) && mine === theirs ? "same-tree" : "unattributable";
   }
@@ -1340,10 +1516,10 @@ export async function releaseSeat({
     for (const listener of listeners) {
       const { port, pid, ownership } = listener;
       const who = pid === undefined ? "unknown" : String(pid);
-      const key = `${who}:${signal}`;
-      if (signalled.has(key)) continue;
-      signalled.add(key);
       if (!isOwnProcess(ownership)) {
+        // Logged per PORT while the signalling below dedupes per pid, because the rc file's
+        // `seat_foreign` field lists every port and a log that named only the first left a
+        // reader comparing four ports against one refusal line.
         note(
           `port ${String(port)} is held by pid ${who} (${ownership ?? "unattributable"}): NOT ` +
             "signalling it, it is not this run's process (issue #902)",
@@ -1351,6 +1527,11 @@ export async function releaseSeat({
         continue;
       }
       note(`port ${String(port)} still held by pid ${who} (${ownership ?? "?"})`);
+      // One signal per pid per level, not per port: a dev server holding two of this seat's
+      // ports does not need two SIGTERMs, and a second one would only race its teardown.
+      const key = `${who}:${signal}`;
+      if (signalled.has(key)) continue;
+      signalled.add(key);
       signalPid(pid, signal, skipPids, note);
     }
     return listeners;
