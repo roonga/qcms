@@ -31,10 +31,10 @@
     "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "dependencies": {
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^24.13.3",
-    "fast-check": "^4.9.0"
+    "@types/node": "^24.13.4",
+    "fast-check": "^4.10.0"
   }
 }
