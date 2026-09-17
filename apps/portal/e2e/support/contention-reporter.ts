@@ -29,12 +29,15 @@
  * ## A failing result is not a failing test (issue #828)
  *
  * The first cut counted `result.status`, and that made the reporter fire on runs with
- * zero real failures. `apps/portal/e2e/resume.pw.ts` carries a deliberate `test.fail`
- * marker for the open NumberField hydration defect (#804): Playwright RUNS that test,
- * the body fails as intended, and the run is green because the outcome was the expected
- * one. The raw result still reads `failed`, so a green 291-test run printed the whole
- * contention block and claimed "1 failing test". A report that appears on green runs is
- * a report operators learn to skip, which costs the one red where it mattered.
+ * zero real failures. `apps/portal/e2e/resume.pw.ts` carried a deliberate `test.fail`
+ * marker for the then-open NumberField hydration defect (#151, since fixed and the
+ * marker removed): Playwright RUNS such a test, the body fails as intended, and the run
+ * is green because the outcome was the expected one. The raw result still reads
+ * `failed`, so a green 291-test run printed the whole contention block and claimed "1
+ * failing test". A report that appears on green runs is a report operators learn to
+ * skip, which costs the one red where it mattered. No spec carries the marker today,
+ * which is why the rule below is stated from `TestCase.outcome()` rather than from that
+ * one example: the next expected failure gets the same treatment without a code change.
  *
  * So the trigger is the **outcome**, not the status. Playwright folds the result status
  * and `TestCase.expectedStatus` together in `TestCase.outcome()`:
