@@ -18,32 +18,12 @@ import { pathToFileURL } from "node:url";
 import { ESLint } from "eslint";
 import { getFileInfo } from "prettier";
 
+import { VALUE_FLAGS, WORKSPACE_RUNNER } from "./eslint-workspace.mjs";
 import { isGeneratedCopy } from "./generated-copy.mjs";
 import { isVendoredSource } from "./vendored-source.mjs";
 
 /** Extensions ESLint is configured to parse in this workspace. */
 const SOURCE_GLOBS = ["*.ts", "*.tsx", "*.mts", "*.cts", "*.js", "*.jsx", "*.mjs", "*.cjs"];
-
-/**
- * Flags that consume the token after them, which would otherwise be read as a file
- * to lint. Only the separated form needs listing: `--flag=value` is self-contained.
- */
-const VALUE_FLAGS = new Set([
-  "-c",
-  "--config",
-  "--ext",
-  "--ignore-pattern",
-  "--rulesdir",
-  "--parser",
-  "--plugin",
-  "--rule",
-  "--resolve-plugins-relative-to",
-  "--output-file",
-  "-o",
-  "-f",
-  "--format",
-  "--max-warnings",
-]);
 
 /**
  * @param {string[]} args
@@ -100,24 +80,57 @@ export function trackedManifests() {
 }
 
 /**
- * The paths the eslint invocations in one `lint` script are handed.
+ * Whether a token is the `scripts/eslint-workspace.mjs` runner, by any relative spelling.
  *
- * Only eslint segments count. `turbo run lint && prettier --check .` yields none,
- * which is the honest answer: the root package lints nothing itself.
+ * @param {string | undefined} token
+ * @returns {boolean}
+ */
+function isWorkspaceRunner(token) {
+  return token !== undefined && path.posix.basename(token) === WORKSPACE_RUNNER;
+}
+
+/**
+ * Where one `lint` script's eslint segments start, and how they were spelled.
+ *
+ * A segment counts when it runs `eslint` directly or through
+ * `scripts/eslint-workspace.mjs`, which is ESLint with the working directory pinned to
+ * the workspace root (issue #899). Both forms take their targets the same way, written
+ * relative to the package, so the caller reads them identically.
+ *
+ * `turbo run lint && prettier --check .` yields none, which is the honest answer: the
+ * root package lints nothing itself in that segment.
  *
  * @param {string} script the raw `scripts.lint` string.
- * @returns {string[]} targets, exactly as written in the script.
+ * @returns {{ tokens: string[]; index: number; pinned: boolean }[]} one entry per
+ *   eslint segment, with `index` at the last token before the first target and
+ *   `pinned` true when the segment goes through the runner.
  */
-export function lintTargets(script) {
-  const targets = [];
+function eslintSegments(script) {
+  const segments = [];
   for (const segment of script.split(/&&|\|\||;/)) {
     const tokens = segment.trim().split(/\s+/);
     let index = 0;
     // Strip a runner prefix so `pnpm exec eslint src` reads the same as `eslint src`.
     if (tokens[index] === "pnpm" && tokens[index + 1] === "exec") index += 2;
     else if (tokens[index] === "npx") index += 1;
-    if (tokens[index] !== "eslint") continue;
-    for (index += 1; index < tokens.length; index += 1) {
+    const pinned = tokens[index] === "node" && isWorkspaceRunner(tokens[index + 1]);
+    if (pinned) index += 1;
+    else if (tokens[index] !== "eslint") continue;
+    segments.push({ tokens, index, pinned });
+  }
+  return segments;
+}
+
+/**
+ * The paths the eslint invocations in one `lint` script are handed.
+ *
+ * @param {string} script the raw `scripts.lint` string.
+ * @returns {string[]} targets, exactly as written in the script.
+ */
+export function lintTargets(script) {
+  const targets = [];
+  for (const { tokens, index: start } of eslintSegments(script)) {
+    for (let index = start + 1; index < tokens.length; index += 1) {
       const token = tokens[index] ?? "";
       if (token === "") continue;
       if (token.startsWith("-")) {
@@ -131,18 +144,38 @@ export function lintTargets(script) {
 }
 
 /**
+ * Whether every eslint segment in one `lint` script pins the working directory.
+ *
+ * A bare `eslint` in a package script is a verdict that depends on where it was run
+ * from, which is the defect in issue #899: 14 `eslint-plugin-sonarjs` rules only switch
+ * on when a test framework is declared at or above the linted file, and that search
+ * stops at `context.cwd`. Run from `apps/portal` they were all silently off, so the
+ * root sweep reported errors the per-package merge gate could not see. Every lint
+ * script therefore goes through `scripts/eslint-workspace.mjs`.
+ *
+ * @param {string} script the raw `scripts.lint` string.
+ * @returns {boolean} true when at least one segment runs ESLint unpinned.
+ */
+export function hasUnpinnedEslint(script) {
+  return eslintSegments(script).some(({ pinned }) => !pinned);
+}
+
+/**
  * Where every package's lint run reaches, as repo-relative paths.
  *
  * @param {string[]} manifests tracked package.json paths.
  * @param {string} repoRoot absolute path to the repository root.
- * @returns {{ dirs: string[]; files: Set<string>; missing: { manifest: string; target: string }[] }}
+ * @returns {{ dirs: string[]; files: Set<string>; missing: { manifest: string; target: string }[]; unpinned: string[] }}
  *   `dirs` are prefixes ending in `/`; `missing` are targets that do not exist on
- *   disk, which is a stale lint script (the #387 item 21 shape) and a failure.
+ *   disk, which is a stale lint script (the #387 item 21 shape) and a failure;
+ *   `unpinned` are manifests whose lint script runs ESLint without pinning the
+ *   working directory (issue #899) and is therefore a cwd-dependent verdict.
  */
 export function lintScope(manifests, repoRoot) {
   const dirs = [];
   const files = new Set();
   const missing = [];
+  const unpinned = [];
 
   for (const manifest of manifests) {
     const dirname = path.posix.dirname(manifest);
@@ -158,6 +191,7 @@ export function lintScope(manifests, repoRoot) {
     const scripts = /** @type {{ scripts?: Record<string, unknown> }} */ (parsed).scripts;
     const script = scripts?.lint;
     if (typeof script !== "string") continue;
+    if (hasUnpinnedEslint(script)) unpinned.push(manifest);
 
     for (const target of lintTargets(script)) {
       const joined = packageDir === "" ? target : `${packageDir}/${target}`;
@@ -176,7 +210,7 @@ export function lintScope(manifests, repoRoot) {
     }
   }
 
-  return { dirs, files, missing };
+  return { dirs, files, missing, unpinned };
 }
 
 /**
@@ -242,6 +276,7 @@ export async function main() {
 
   if (
     scope.missing.length === 0 &&
+    scope.unpinned.length === 0 &&
     ignoredViolations.length === 0 &&
     violations.length === 0 &&
     markdownViolations.length === 0
@@ -262,6 +297,24 @@ export async function main() {
     }
     console.error(
       "\nA lint target that does not exist is a lint script nobody has re-read. Remove it,\nor fix the path.\n",
+    );
+  }
+
+  if (scope.unpinned.length > 0) {
+    console.error("check-lint-coverage: lint script(s) running ESLint without a pinned cwd:\n");
+    for (const manifest of scope.unpinned) console.error(`  ${manifest}`);
+    console.error(
+      [
+        "",
+        "ESLint hands every rule `context.cwd`, and 14 eslint-plugin-sonarjs rules only",
+        "switch on when a test framework is declared at or above the linted file, a search",
+        "that stops there. Run from a package that borrows `vitest` or `@playwright/test`",
+        "from the root manifest, all 14 are silently off, so this sweep and the per-package",
+        "merge gate reach different verdicts on the same file (issue #899).",
+        "",
+        "Run ESLint through `scripts/eslint-workspace.mjs` instead:",
+        '  "lint": "node ../../scripts/eslint-workspace.mjs src"',
+      ].join("\n"),
     );
   }
 

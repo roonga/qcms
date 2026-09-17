@@ -1,5 +1,12 @@
 // Root ESLint flat config - the single lint configuration for the whole workspace.
-// Per-package `lint` scripts run `eslint src`; ESLint resolves this file by walking up.
+//
+// Per-package `lint` scripts run `node ../../scripts/eslint-workspace.mjs src`, which is
+// ESLint with the working directory pinned to the repository root. One config is not
+// enough on its own: rules also read `context.cwd`, and 14 eslint-plugin-sonarjs rules
+// stop looking for a test framework there, so the same file got two verdicts depending on
+// which directory lint started in (issue #899). The runner's header carries the
+// measurement. `files` patterns below are relative to THIS file's directory, not to the
+// working directory, so they were never part of that problem.
 import { builtinModules } from "node:module";
 
 import eslint from "@eslint/js";

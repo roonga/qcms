@@ -190,7 +190,9 @@ Over every non-test `.ts`/`.tsx` under `app/`, `components/`, `lib/`, `scripts/`
 
 ## Per-file hygiene
 
-`pnpm exec prettier --write <file>` and `pnpm exec eslint <file>` as you finish each file,
-not batched at the end. Lint reports one violation at a time and runs late inside `verify`,
-so a violation found late costs a full cycle. Expect `sonarjs/cognitive-complexity` on big
+`pnpm exec prettier --write <file>` and `node scripts/eslint-workspace.mjs <file>` as you
+finish each file, not batched at the end. Lint reports one violation at a time and runs late
+inside `verify`, so a violation found late costs a full cycle. Use the runner rather than
+`pnpm exec eslint`: it pins ESLint's working directory to the repository root, which is what
+makes a single-file verdict match the gate's (issue #899). Expect `sonarjs/cognitive-complexity` on big
 components: split the function, do not disable the rule.

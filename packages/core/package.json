@@ -28,7 +28,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-core",
     "coverage": "vitest run --root ../.. --project @roonga/qcms-core --coverage",
-    "lint": "eslint src"
+    "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "dependencies": {
     "zod": "^4.5.4"

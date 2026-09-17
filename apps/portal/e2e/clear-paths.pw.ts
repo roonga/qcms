@@ -309,6 +309,13 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   // selected. A boolean or singleChoice question therefore travels unanswered ->
   // answered -> another answer, and never back to unanswered (whole-session
   // erasure is the only other door, and is out of ADR-33's scope).
+  //
+  // `force` is load-bearing on the two clicks below, not a flake workaround. The
+  // `radio` role resolves to react-aria's own input, which is visually hidden behind
+  // the label every real selection in this suite clicks (`chooseRadio` goes through
+  // `page.getByText`), so it is never actionable. Bypassing actionability is the point:
+  // the assertion is that this gesture reaches the control and still posts nothing.
+  // eslint-disable-next-line sonarjs/no-forced-browser-interaction -- see above: the bypass is the subject of the test
   await no.click({ force: true });
   await no.focus();
   await page.keyboard.press("Delete");
@@ -336,6 +343,7 @@ test("a discrete choice has no clear path: it can be changed, never emptied", as
   await page.getByText("Standard", { exact: true }).click();
   await posted;
 
+  // eslint-disable-next-line sonarjs/no-forced-browser-interaction -- the hidden react-aria input again; the bypass is the subject of the test
   await standard.click({ force: true });
   await standard.focus();
   await page.keyboard.press("Delete");

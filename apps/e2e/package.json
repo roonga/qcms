@@ -7,7 +7,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint ."
+    "lint": "node ../../scripts/eslint-workspace.mjs ."
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

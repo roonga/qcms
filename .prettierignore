@@ -48,3 +48,9 @@ packages/ui/src/components/a2ui/
 # Written without the backslashes git needs: Prettier's matcher does not read them
 # as escapes the way gitignore does, and no path in this repository begins `C:`.
 C:*
+
+# Throwaway ESLint fixture trees `scripts/eslint-workspace.test.ts` writes at the
+# repository root (issue #899, see `.gitignore`). Formatting a fixture whose whole
+# purpose is to carry one deliberate rule violation buys nothing, and a run that died
+# before its cleanup must not turn the next `prettier --check .` red.
+.lint-cwd-fixture-*/
