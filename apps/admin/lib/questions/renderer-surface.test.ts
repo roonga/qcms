@@ -66,6 +66,34 @@ const LOCALE_VOCABULARY = "lib/i18n/format.ts";
 /** The name of that declaration, spelled here so the assertions cannot drift from it. */
 const PREVIEW_LOCALE_CONSTANT = "PREVIEW_LOCALE";
 
+/**
+ * A locale spelled out at a call site, in every shape JSX and TypeScript allow.
+ *
+ * The first version of this pattern was `/locale=["{]["']/u`, which reads as if it covers
+ * the ground and does not: it matches `locale={"en"}`, `locale={'en'}` and the empty
+ * `locale=""`, and misses `locale="en"` - the ONE shape a person actually writes, because
+ * a JSX string attribute needs no braces. Copilot caught it on PR #938. The gap was closed
+ * indirectly (each module must also contain `locale={PREVIEW_LOCALE}`, and TSX refuses a
+ * duplicate attribute on one element) but only for a second mount inside the SAME element,
+ * which is not what the assertion claims. {@link LOCALE_LITERAL_SHAPES} pins the pattern
+ * against each spelling, so a guard that stops guarding fails here rather than passing
+ * quietly, which is the whole failure mode this file exists to prevent.
+ */
+const LOCALE_LITERAL = /locale=(?:["']|\{\s*["'])/u;
+
+/** Every spelling {@link LOCALE_LITERAL} has to catch, and two it must not. */
+const LOCALE_LITERAL_SHAPES = {
+  caught: [
+    'locale="en"',
+    "locale='en'",
+    'locale={"en"}',
+    "locale={'en'}",
+    'locale={ "en" }',
+    'locale=""',
+  ],
+  passed: ["locale={PREVIEW_LOCALE}", "locale={locale}"],
+} as const;
+
 /** ADR-38's carrier attribute, spelled here so the assertion cannot drift from it. */
 const THEME_SCOPE_ATTRIBUTE = "data-qcms-theme-scope";
 
@@ -209,7 +237,7 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
         'from "@/lib/i18n/format"',
       );
       // And not as a literal of its own, which is the shape three sites drift apart in.
-      expect(text, `${path} should not spell a locale out`).not.toMatch(/locale=["{]["']/u);
+      expect(text, `${path} should not spell a locale out`).not.toMatch(LOCALE_LITERAL);
     }
 
     // One declaration, three call sites: the modules naming the constant are exactly the
@@ -219,6 +247,21 @@ describe("A2UI rendering surface (exit criterion 3)", () => {
       ...RENDERING_MODULES,
       LOCALE_VOCABULARY,
     ]);
+  });
+
+  it("catches a locale literal in every shape someone would write one (906)", () => {
+    // The guard above is a regex over source text, and a regex that has stopped matching
+    // looks exactly like a codebase that is clean. So the pattern is exercised directly
+    // against each spelling rather than trusted: this is the assertion that was missing
+    // when `/locale=["{]["']/u` shipped matching four shapes and missing `locale="en"`.
+    for (const shape of LOCALE_LITERAL_SHAPES.caught) {
+      expect(LOCALE_LITERAL.test(shape), `${shape} should be caught`).toBe(true);
+    }
+    // And the two legitimate shapes stay legitimate, or the guard would fail the very
+    // call sites it exists to require.
+    for (const shape of LOCALE_LITERAL_SHAPES.passed) {
+      expect(LOCALE_LITERAL.test(shape), `${shape} should be allowed`).toBe(false);
+    }
   });
 
   it("reaches no renderer engine directly", () => {

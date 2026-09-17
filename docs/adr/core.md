@@ -260,7 +260,8 @@ So this note records a clean tree, checked by CI rather than by reading.
 `defaultLocale` selects WHICH localized strings the compiler writes into the stored document (ADR-11, invariant I3); by the time a step reaches the renderer that choice is baked into bytes, and what is left for the `locale` prop is how the controls around that text are formatted and announced.
 The portal resolves that from its own app constant and reads `defaultLocale` nowhere, so a preview keyed to the form's tag would render a form whose `defaultLocale` is, say, `en-AU` differently from the portal serving that same form: preview fidelity (ARCHITECTURE section 6) lost from the other side.
 Nothing on screen moved, and that is measured rather than asserted: `packages/ui/src/locale.test.tsx` renders every step of the golden corpus under `en` and under `en-US` and the markup is identical, and renders it under a locale that genuinely differs so the prop is shown to be load-bearing.
-When issue #732 gives a respondent a locale of their own, the portal starts resolving one per session and `PREVIEW_LOCALE` is the one declaration the preview follows it from; the operator's chrome stays on `ADMIN_LOCALE`.
+`PREVIEW_LOCALE` carries the react-aria tag and only that, which is today's whole job because a stored document's text is already resolved.
+When issue #732 gives a respondent a locale of their own, this declaration is where the preview's copy of that tag moves, and the compiled document's own locale is a second half that #732 owns rather than anything this constant can express; the operator's chrome stays on `ADMIN_LOCALE`.
 
 ### ADR-38 - Theme scope carrier
 

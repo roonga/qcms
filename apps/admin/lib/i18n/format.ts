@@ -97,10 +97,13 @@ export const ADMIN_LOCALE = "en";
  * `defaultLocale` is `en-AU` differently from the portal serving that same form: the
  * divergence #906 is about, reintroduced from the other side.
  *
- * What the separate NAME buys is the seam. When issue #732 gives a respondent a locale of
- * their own, the portal starts resolving one per session and the preview has to follow it
- * while the operator's chrome stays on {@link ADMIN_LOCALE}: that is a change to this one
- * declaration rather than to three call sites.
+ * What the separate NAME buys is the seam, and it is worth being exact about how much of
+ * one. This constant carries the react-aria tag and only that, which is today's whole job
+ * because a stored document's text is already resolved. When issue #732 gives a respondent
+ * a locale of their own, this declaration is where the preview's copy of that tag moves -
+ * one place rather than three call sites - while the operator's chrome stays on
+ * {@link ADMIN_LOCALE}. Which locale the document itself is compiled in is the other half
+ * of #732 and not something this constant can express.
  * `lib/questions/renderer-surface.test.ts` asserts the three sites pass this constant and
  * name no locale of their own, so a fourth surface cannot quietly reinstate the default.
  *

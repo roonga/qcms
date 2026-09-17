@@ -1,11 +1,13 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import type {
+  DraftForm,
+  DraftPreview as DraftPreviewPayload,
+  FormVersionSnapshot,
+} from "@/lib/forms/types";
 import { PREVIEW_LOCALE } from "@/lib/i18n/format";
-
-import type { DraftForm, DraftPreview as DraftPreviewPayload } from "../lib/forms/types.ts";
-import type { FormVersionSnapshot } from "../lib/forms/types.ts";
-import type { PreviewDocument } from "../lib/questions/types.ts";
+import type { PreviewDocument } from "@/lib/questions/types";
 
 /**
  * Every preview surface hands the renderer the locale this app declares (issue #906).
