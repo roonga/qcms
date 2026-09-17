@@ -9,6 +9,7 @@ import {
   AUTH_BASE_PATH,
   BREACH_CHECK_DISABLED_WARNING,
   BREACH_LOOKUP_FAILED_CODE,
+  BREACH_LOOKUP_OPERATOR_GUIDANCE,
   createAdminAuth,
   explainBreachLookupFailure,
   warnIfBreachCheckDisabled,
@@ -108,13 +109,17 @@ let wire: Wire | undefined;
  * would sign their cookies with different keys and the change-password case below
  * would fail for an unrelated reason.
  */
-function authWith(breachedPasswordCheck: boolean) {
+function authWith(breachedPasswordCheck: boolean, warn?: (message: string) => void) {
   const config = loadAdminAuthConfig({
     ...baseEnv,
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: String(breachedPasswordCheck),
   });
   expect(config.adminAuth.breachedPasswordCheck).toBe(breachedPasswordCheck);
-  return createAdminAuth({ db: testDb.db, adminAuth: config.adminAuth });
+  return createAdminAuth({
+    db: testDb.db,
+    adminAuth: config.adminAuth,
+    ...(warn === undefined ? {} : { warn }),
+  });
 }
 
 beforeAll(async () => {
@@ -208,6 +213,9 @@ describe("an unreachable corpus fails closed, and says so", () => {
   });
 
   it("names the network, denies the wrong hypothesis, and points at the knob", () => {
+    // The CLI line, which is an operator channel: it gets both halves, variable
+    // included, beside the `QCMS_ADMIN_EMAIL` and `QCMS_ADMIN_PASSWORD` names the other
+    // refusals already print (issue #910).
     const message = describeRefusal({ kind: "breach-corpus-unreachable" });
 
     expect(message).toContain("network failure");
@@ -250,6 +258,48 @@ describe("an unreachable corpus fails closed, and says so", () => {
     // SEC-8: what the wire carries names the host and the control, never the value.
     expect(JSON.stringify(body)).not.toContain(password);
     expect(await countAdminUsers(testDb.db)).toBe(0);
+  });
+
+  it("puts no environment identifier of any kind in the body (ADR-24, issue #910)", async () => {
+    const password = newPassword();
+    wire = stubWire(unreachable);
+    const logged: string[] = [];
+
+    const response = await authWith(true, (message) => logged.push(message)).handler(
+      new Request(`${ADMIN_ORIGIN}${AUTH_BASE_PATH}/sign-up/email`, {
+        method: "POST",
+        headers: { "content-type": "application/json", origin: ADMIN_ORIGIN },
+        body: JSON.stringify({ email: "no-env-name@example.test", password, name: "Nobody" }),
+      }),
+    );
+
+    // The whole serialized body, not just `message`: a variable name is no better in a
+    // `details` field than in a sentence. `QCMS_` is this repository's environment
+    // prefix, so the absence of that token is the absence of the class.
+    const raw = await response.text();
+    expect(response.status).toBe(503);
+    expect(raw).not.toMatch(/QCMS_[A-Z0-9_]+/);
+    // And the report did not simply get shorter: the client still learns the cause, and
+    // the operator still learns the knob - on the channel the operator reads.
+    expect(raw).toContain(BREACH_LOOKUP_FAILED_CODE);
+    expect(raw).toContain("api.pwnedpasswords.com");
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toContain("QCMS_ADMIN_PASSWORD_BREACH_CHECK");
+    expect(logged[0]).toContain(BREACH_LOOKUP_OPERATOR_GUIDANCE);
+  });
+
+  it("logs nothing on the two branches it passes through untouched", () => {
+    // The warn sink is not a general error hook. A fault that is not the corpus lookup
+    // must not leave an operator a line blaming the network for it.
+    const logged: string[] = [];
+    const warn = (message: string): void => {
+      logged.push(message);
+    };
+    const unrelated = new Error("scrypt failed");
+
+    expect(explainBreachLookupFailure(unrelated, warn)).toBe(unrelated);
+    expect(explainBreachLookupFailure("not an error at all", warn)).toBe("not an error at all");
+    expect(logged).toEqual([]);
   });
 
   it("relabels only the vendor's lookup failure, so nothing unrelated is blamed on it", () => {

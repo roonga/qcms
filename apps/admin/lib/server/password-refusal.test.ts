@@ -92,3 +92,47 @@ describe("passwordRefusalFrom", () => {
     await expect(passwordRefusalFrom(new Response(null, { status: 500 }))).resolves.toBe("generic");
   });
 });
+
+/**
+ * The classification is keyed on `code` and reads no prose, asserted rather than
+ * inferred (issue #910).
+ *
+ * The API's breach-corpus outage body used to end "set
+ * QCMS_ADMIN_PASSWORD_BREACH_CHECK=false", which ADR-24 (widened by the Code Owner on
+ * 2026-09-12) does not allow in a response body, and that sentence was rewritten on the
+ * API side. Anything reading the message text would have moved with it. Nothing here
+ * does, and these cases are what keeps that true: the same code classifies identically
+ * with the old prose, the new prose, and no prose at all, so the next rewording of an API
+ * sentence cannot change which sentence this admin renders.
+ */
+describe("the API's prose is never what decides the sentence", () => {
+  /** The API's own `BREACH_LOOKUP_FAILED_CODE`, mirrored the way the ruled code is. */
+  const BREACH_CORPUS_UNREACHABLE = "BREACH_CORPUS_UNREACHABLE";
+
+  const bodies = [
+    { label: "the pre-#910 prose, variable and all", message: "... set QCMS_X=false ..." },
+    { label: "the rewritten operator-neutral prose", message: "Retry once that host is..." },
+    { label: "no message at all", message: undefined },
+  ];
+
+  it.each(bodies)("classifies the outage code as generic with $label", ({ message }) => {
+    // Generic is correct and is the point: SEC-1 allows exactly one specific sentence on
+    // this form, and an availability failure is not it.
+    expect(passwordRefusalOf({ code: BREACH_CORPUS_UNREACHABLE, message })).toBe("generic");
+  });
+
+  it.each(bodies)("classifies the corpus hit as compromised with $label", ({ message }) => {
+    // The other direction, which is the one that would break a prose-reading classifier:
+    // the ruled code still earns the specific sentence whatever the API says beside it.
+    expect(passwordRefusalOf({ code: PASSWORD_COMPROMISED_CODE, message })).toBe("compromised");
+  });
+
+  it("gives the corpus-hit sentence to no body that merely quotes the prose", async () => {
+    // The inverse guard: prose alone, without the code, must not reach the exception.
+    const looksRight = refusal({
+      message: "The password you entered has been compromised.",
+      code: BREACH_CORPUS_UNREACHABLE,
+    });
+    await expect(passwordRefusalFrom(looksRight)).resolves.toBe("generic");
+  });
+});

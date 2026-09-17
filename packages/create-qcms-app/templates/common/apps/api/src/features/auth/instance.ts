@@ -421,17 +421,49 @@ export const CORPUS_HIT_CODE = "PASSWORD_COMPROMISED";
 export const BREACH_LOOKUP_FAILED_CODE = "BREACH_CORPUS_UNREACHABLE";
 
 /**
- * What that refusal says. Written to be read in a CI log by someone whose change had
- * nothing to do with passwords: the first sentence names the cause, the second denies
- * the wrong hypothesis outright, and the third is the action.
+ * What that refusal says **in the response body**. Written to be read in a CI log by
+ * someone whose change had nothing to do with passwords: the first sentence names the
+ * cause, the second denies the wrong hypothesis outright, and the third says what to
+ * wait for.
+ *
+ * It names **no environment variable**, and that is a rule rather than a wording
+ * preference (issue #910). ADR-24's "clients receive behavior, not flag values" was
+ * widened by the Code Owner on 2026-09-12 to reach any environment identifier in a
+ * response body, on the reasoning that a variable a client cannot set is not made
+ * actionable for the client by being outside the flag registry. This string used to end
+ * "set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for a deployment that has none", which put
+ * an operator's configuration knob into a 503 any session holder can provoke. The knob
+ * is still the answer; {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} is where it is now said,
+ * on the two channels only an operator reads.
+ *
+ * The host name stays. `api.pwnedpasswords.com` is an upstream dependency documented in
+ * `docs/SECURITY_DESIGN.md` and `docs/operations.md`, not an environment identifier, and
+ * naming it is the whole reason this message beats the vendor's opaque 500 (issue #436).
+ * `scripts/check-security-hygiene.mjs` enforces the narrow rule - a `QCMS_` token in a
+ * literal that reaches a response body - rather than a general ban on being specific.
  */
 export const BREACH_LOOKUP_FAILED_MESSAGE =
   "The SEC-1 breach-corpus lookup to api.pwnedpasswords.com did not complete, so this " +
   "password was refused without ever being compared against the corpus. This is a " +
   "network failure, not an authentication failure and not a judgement about the " +
-  "credential: the check fails closed by design. Restore egress to " +
-  "api.pwnedpasswords.com and retry, or set QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for " +
-  "a deployment that has none (docs/operations.md).";
+  "credential: the check fails closed by design. Retry once that host is reachable " +
+  "again; a deployment that structurally cannot reach it has a documented configuration " +
+  "switch (docs/operations.md).";
+
+/**
+ * The operator half of the same outage: which variable turns the check off, for the
+ * deployment that has no egress to the corpus at all.
+ *
+ * Split out of {@link BREACH_LOOKUP_FAILED_MESSAGE} rather than deleted, because the
+ * instruction is still the right one - it is the audience that was wrong. This string
+ * reaches the API's `warn` log and `qcms:create-admin`'s stderr, both of which an
+ * operator reads and neither of which is a response body. **Never put it in one.**
+ */
+export const BREACH_LOOKUP_OPERATOR_GUIDANCE =
+  "Restore egress to api.pwnedpasswords.com, or set " +
+  "QCMS_ADMIN_PASSWORD_BREACH_CHECK=false for a deployment that structurally has none " +
+  "(docs/operations.md). That is a documented downgrade against NIST SP 800-63B Rev 4 " +
+  "section 3.1.1.2 and OWASP ASVS 5.0 6.2.12 (SEC-1).";
 
 /**
  * Turn the vendor's opaque 500 into a refusal that names the network (issue #436).
@@ -453,12 +485,24 @@ export const BREACH_LOOKUP_FAILED_MESSAGE =
  *
  * The status becomes 503: an upstream this process depends on was unavailable, which
  * is what "Service Unavailable" means and what "Internal Server Error" does not.
+ *
+ * `warn`, when given, receives {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} on exactly the
+ * relabels - never on the two pass-through branches (issue #910). It is the operator's
+ * half of the report, and it goes to a log rather than into the body for the reason
+ * {@link BREACH_LOOKUP_FAILED_MESSAGE} states. Optional so the unit tests that assert
+ * the pass-throughs need no sink, and a plain `(message: string) => void` for the reason
+ * {@link warnIfBreachCheckDisabled} takes one: the server has a structured logger and
+ * the CLI has a stderr stream, and "somewhere an operator reads" is all they share.
  */
-export function explainBreachLookupFailure(error: unknown): unknown {
+export function explainBreachLookupFailure(
+  error: unknown,
+  warn?: (message: string) => void,
+): unknown {
   if (!isAPIError(error)) return error;
   if (error.status !== "INTERNAL_SERVER_ERROR") return error;
   const code: unknown = (error.body as { code?: unknown } | undefined)?.code;
   if (code === CORPUS_HIT_CODE) return error;
+  warn?.(`${BREACH_LOOKUP_FAILED_MESSAGE} ${BREACH_LOOKUP_OPERATOR_GUIDANCE}`);
   return new APIError("SERVICE_UNAVAILABLE", {
     message: BREACH_LOOKUP_FAILED_MESSAGE,
     code: BREACH_LOOKUP_FAILED_CODE,
@@ -480,32 +524,48 @@ type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
  *
  * It changes what is reported and nothing about what is enforced: every path that
  * refused a password before still refuses it, with the same fail-closed behaviour.
+ *
+ * A factory rather than a module constant since issue #910, so the operator sink the
+ * caller owns reaches the relabel. With no sink the plugin behaves exactly as it did.
  */
-const breachLookupDiagnostics: BetterAuthPlugin = {
-  id: "qcms-breach-lookup-diagnostics",
-  init(ctx: PluginInitContext) {
-    const checkedHash = ctx.password.hash;
-    return {
-      context: {
-        password: {
-          ...ctx.password,
-          hash: async (password: string): Promise<string> => {
-            try {
-              return await checkedHash(password);
-            } catch (error) {
-              throw explainBreachLookupFailure(error);
-            }
+function breachLookupDiagnostics(warn?: (message: string) => void): BetterAuthPlugin {
+  return {
+    id: "qcms-breach-lookup-diagnostics",
+    init(ctx: PluginInitContext) {
+      const checkedHash = ctx.password.hash;
+      return {
+        context: {
+          password: {
+            ...ctx.password,
+            hash: async (password: string): Promise<string> => {
+              try {
+                return await checkedHash(password);
+              } catch (error) {
+                throw explainBreachLookupFailure(error, warn);
+              }
+            },
           },
         },
-      },
-    };
-  },
-};
+      };
+    },
+  };
+}
 
 /** What {@link createAdminAuth} needs: a database handle and the auth config. */
 export interface AdminAuthInput {
   readonly db: Executor;
   readonly adminAuth: Config["adminAuth"];
+  /**
+   * Where an operator-facing line about a breach-corpus outage goes (issue #910).
+   *
+   * Optional, and absent means silence rather than a default sink: the OpenAPI
+   * generator and dozens of unit tests build an instance they never send a password
+   * through, and neither owns a logger. The two callers that do - `route.ts` with
+   * `deps.logger` and `create-admin.ts` with stderr - pass one, which is what keeps
+   * {@link BREACH_LOOKUP_OPERATOR_GUIDANCE} out of the response body and in front of
+   * the only reader who can act on it.
+   */
+  readonly warn?: (message: string) => void;
 }
 
 /** The configured better-auth instance type, so callers need not restate it. */
@@ -712,7 +772,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       // `password.hash` is at its turn, and the vendor's checked hash is what that is
       // at this position. See the plugin's own note (issue #436). Fail-closed is
       // untouched; the refusal just stops reading like an authentication failure.
-      breachLookupDiagnostics,
+      breachLookupDiagnostics(input.warn),
     ],
   });
 }
