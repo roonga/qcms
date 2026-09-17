@@ -90,7 +90,7 @@
     "chrome-launcher": "^1.2.1",
     "eslint": "^10.10.0",
     "eslint-plugin-sonarjs": "^4.2.0",
-    "jscpd": "^5.1.2",
+    "jscpd": "^5.2.0",
     "lighthouse": "^13.4.1",
     "otplib": "^13.5.0",
     "prettier": "^3.9.6",
