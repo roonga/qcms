@@ -9,7 +9,12 @@
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createHarnessTeardown, DRAIN_FAILED_MESSAGE, guardConnectionErrors } from "./teardown.js";
+import {
+  createHarnessTeardown,
+  describeDrainFailure,
+  DRAIN_FAILED_MESSAGE,
+  guardConnectionErrors,
+} from "./teardown.js";
 
 /** A recorder every fake in this file appends to, so one array holds the whole order. */
 type Journal = string[];
@@ -268,6 +273,50 @@ describe("createHarnessTeardown when a drain fails", () => {
     if (!(failure instanceof AggregateError)) throw new Error("unreachable");
     expect(failure.message).toBe(DRAIN_FAILED_MESSAGE);
     expect(String(failure.errors[0])).toContain("bad client");
+
+    // The one caller that cannot rethrow this - `startTestDb`'s failure path - logs a
+    // string, so the detail has to survive being flattened into one.
+    expect(describeDrainFailure(failure)).toContain("bad client did not close cleanly");
+    expect(describeDrainFailure(failure)).toContain("bad refused to close");
+  });
+});
+
+describe("describeDrainFailure", () => {
+  it("names every connection and its cause, which AggregateError.message alone does not", () => {
+    const aggregate = new AggregateError(
+      [
+        new Error("pool did not close cleanly", { cause: new Error("still had a client out") }),
+        new Error("dedicated client did not close cleanly", { cause: new Error("socket gone") }),
+      ],
+      DRAIN_FAILED_MESSAGE,
+    );
+
+    // The bug this exists for: the aggregate's own message is the constant, nothing more.
+    expect(aggregate.message).toBe(DRAIN_FAILED_MESSAGE);
+
+    expect(describeDrainFailure(aggregate)).toBe(
+      `${DRAIN_FAILED_MESSAGE}: pool did not close cleanly: still had a client out;` +
+        " dedicated client did not close cleanly: socket gone",
+    );
+  });
+
+  it("keeps an entry that carries no cause, rather than dropping it", () => {
+    const aggregate = new AggregateError([new Error("pool did not close cleanly")], "top");
+
+    expect(describeDrainFailure(aggregate)).toBe("top: pool did not close cleanly");
+  });
+
+  it("passes a plain error and a non-error through unchanged", () => {
+    expect(describeDrainFailure(new Error("the container refused to stop"))).toBe(
+      "the container refused to stop",
+    );
+    expect(describeDrainFailure("a thrown string")).toBe("a thrown string");
+  });
+
+  it("falls back to the aggregate's own message when it carries no errors", () => {
+    expect(describeDrainFailure(new AggregateError([], DRAIN_FAILED_MESSAGE))).toBe(
+      DRAIN_FAILED_MESSAGE,
+    );
   });
 });
 

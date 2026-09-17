@@ -20,6 +20,7 @@ import {
 } from "./pool-contention.js";
 import {
   createHarnessTeardown,
+  describeDrainFailure,
   type DrainableConnection,
   type HarnessTeardown,
 } from "./teardown.js";
@@ -673,9 +674,12 @@ async function stopAfterFailedStart(teardown: HarnessTeardown): Promise<void> {
   try {
     await teardown.run();
   } catch (teardownFailure) {
-    const detail =
-      teardownFailure instanceof Error ? teardownFailure.message : String(teardownFailure);
-    process.emitWarning(`@roonga/qcms-db/testing: teardown after a failed start: ${detail}`);
+    // `describeDrainFailure` rather than `.message`: a drain raises an `AggregateError`
+    // whose message is a constant, so logging the message alone would name no connection
+    // on the one path where nothing else reports it.
+    process.emitWarning(
+      `@roonga/qcms-db/testing: teardown after a failed start: ${describeDrainFailure(teardownFailure)}`,
+    );
   }
 }
 

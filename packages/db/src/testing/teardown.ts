@@ -44,10 +44,17 @@
 
 import { isContentionShaped } from "./pool-contention.js";
 
-/** A `pg.Pool` or `pg.Client`: something with an `end()` the harness must await. */
-export interface DrainableConnection {
+/**
+ * A `pg.Pool` or `pg.Client`: an object with an `end()` the harness must await.
+ *
+ * The `object &` is load-bearing rather than decorative. {@link HarnessTeardown.register}
+ * stamps a symbol on what it is handed and reads `.connect` off it, so a value that is not
+ * an object would satisfy a bare `{ end(): ... }` shape at the call site and then fail at
+ * the first property write. Intersecting `object` makes the compiler refuse it instead.
+ */
+export type DrainableConnection = object & {
   end(): Promise<void> | void;
-}
+};
 
 /**
  * The container surface this module needs. Structural for the same reason
@@ -77,6 +84,30 @@ interface Connectable {
 export const DRAIN_FAILED_MESSAGE =
   "@roonga/qcms-db/testing: teardown could not drain every connection";
 
+/**
+ * One line naming every connection a drain could not close, and why.
+ *
+ * `AggregateError.message` is exactly the constant it was constructed with, so a caller
+ * that logs `failure.message` prints {@link DRAIN_FAILED_MESSAGE} and learns nothing: not
+ * which connection refused, not what it refused with. That matters on exactly one path -
+ * `startTestDb` failing before it can return a `TestDb` - because there no test is
+ * watching and the warning is the only report there will ever be. Everywhere else the
+ * `AggregateError` itself reaches the runner with its `errors` intact.
+ */
+export function describeDrainFailure(failure: unknown): string {
+  if (!(failure instanceof AggregateError)) {
+    return failure instanceof Error ? failure.message : String(failure);
+  }
+  const detail = failure.errors
+    .map((error: unknown) => {
+      const head = error instanceof Error ? error.message : String(error);
+      const cause: unknown = error instanceof Error ? error.cause : undefined;
+      return cause instanceof Error ? `${head}: ${cause.message}` : head;
+    })
+    .join("; ");
+  return detail.length > 0 ? `${failure.message}: ${detail}` : failure.message;
+}
+
 /** True for a value that can be awaited. */
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return (
@@ -97,7 +128,14 @@ function isReleasable(value: unknown): value is ReleasableClient {
 
 /** True when `value` exposes the `connect` a pool carries. */
 function isConnectable(value: unknown): value is Connectable {
-  return typeof (value as { connect?: unknown }).connect === "function";
+  // The same object-and-null guard its two siblings carry. `register` is typed against
+  // `DrainableConnection`, so a caller cannot reach here with a primitive today, but a
+  // narrowing helper that throws on `null` is a trap for the next call site.
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    typeof (value as { connect?: unknown }).connect === "function"
+  );
 }
 
 /** Marks a connection whose `error` event is already guarded. */
@@ -140,9 +178,7 @@ export function guardConnectionErrors(connection: object, label: string): void {
     setTimeout(() => {
       throw error instanceof Error
         ? error
-        : new Error(
-            `@roonga/qcms-db/testing: non-connection error on the test ${label}: ${message}`,
-          );
+        : new Error(`@roonga/qcms-db/testing: non-connection error on the ${label}: ${message}`);
     }, 0);
   });
 }
