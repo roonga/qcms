@@ -249,6 +249,22 @@ export function pinLabel(page: Page, questionId: string, version: number): Locat
   return page.locator(`[data-pin-question="${questionId}"][data-pin-version="${String(version)}"]`);
 }
 
+/**
+ * One pin row's version control, addressed by its WHOLE accessible name (issue #879).
+ *
+ * The name is the visible `v{version}` followed by which pin it moves, in that order,
+ * because a control whose name omits the text it paints fails WCAG 2.5.3: speech input
+ * cannot target it and a screen-reader user hears something nobody else can see. `exact`
+ * is set, so this locator is the browser-level statement of that order rather than a
+ * convenience - a name that grew a prefix or lost the version would stop matching.
+ */
+export function pinVersionTrigger(page: Page, questionId: string, version: number): Locator {
+  return page.getByRole("button", {
+    name: `v${String(version)}, move pin for ${questionId}`,
+    exact: true,
+  });
+}
+
 /** One pin row's grip: its reorder keys, and the only route to its row menu. */
 export function pinGrip(page: Page, questionId: string): Locator {
   return page.locator(`[data-pin-question="${questionId}"] [data-pin-grip]`);
@@ -555,8 +571,13 @@ export async function toggleCheckbox(
 export async function movePin(page: Page, questionId: string, version: number): Promise<void> {
   // A menu again, and the builder's only version change (issue #815).
   await waitForHydration(page);
+  // The trigger's name now STARTS with the version it paints (WCAG 2.5.3, issue #879), and
+  // the version it paints is the one being moved AWAY from, which this helper is not told.
+  // So it matches the tail, which Playwright's default name matching does: a `name` string
+  // with no `exact` is a case-insensitive SUBSTRING of the computed name. The exact whole
+  // name is asserted where the current version is known - `pinVersionTrigger` below.
   await page
-    .getByRole("button", { name: `Move pin for ${questionId}` })
+    .getByRole("button", { name: `move pin for ${questionId}` })
     .first()
     .click();
   await page.getByRole("menuitem", { name: `Move to v${String(version)}`, exact: true }).click();

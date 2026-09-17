@@ -15,6 +15,7 @@ import {
   pinLabel,
   pinQuestion,
   pinRowMenuItem,
+  pinVersionTrigger,
   pinnedOrder,
   savedStamp,
   usePinRowMenu,
@@ -377,7 +378,12 @@ test("the version pin is operable at 390, and the page never scrolls sideways", 
   await expect(page.getByRole("columnheader", { name: "Version" })).toBeVisible();
 
   const beforeVersionMove = await savedStamp(page);
-  const trigger = page.getByRole("button", { name: `Move pin for ${COVER_ID}` });
+  // Addressed by its whole computed name, which is the label-in-name assertion (WCAG 2.5.3,
+  // issue #879): the pin is on v1 here, the control paints `v1`, and a name that did not
+  // start with those two characters would not match this locator at all. jsdom carries the
+  // same assertion over the component (`components/forms/pin-label-in-name.test.tsx`); this
+  // is it in the engine that computes names for the assistive technology.
+  const trigger = pinVersionTrigger(page, COVER_ID, 1);
   await expect(trigger).toBeVisible();
   await trigger.click();
   await page.getByRole("menuitem", { name: "Move to v2", exact: true }).click();
