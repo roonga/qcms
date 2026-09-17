@@ -185,6 +185,32 @@ so logs correlate to traces with no call-site change (ADR-34). OTel is configure
 through the standard `OTEL_*` variables in the reference below; leave them unset and
 the SDK stays off.
 
+**Export timing is configurable through the standard batch variables, and since issue
+#901 they are actually read.**
+`OTEL_BLRP_SCHEDULE_DELAY` and `OTEL_BLRP_EXPORT_TIMEOUT` govern the log pipeline,
+`OTEL_BSP_SCHEDULE_DELAY` and `OTEL_BSP_EXPORT_TIMEOUT` the span pipeline,
+all four in milliseconds, defaulting to the OpenTelemetry specification's 1000, 30000,
+5000 and 30000 respectively.
+Lower the delay to see records sooner at the cost of more, smaller export requests;
+leave all four unset and each pipeline keeps the SDK default, which is what the shipped
+topology does.
+The reason this is worth a paragraph is that setting one of them used to do nothing for
+most of the pipelines:
+OpenTelemetry JS 2.x reads the batch variables only in the compatibility shims these
+services do not construct, so a deployment that tuned the log pipelines, or the API's
+spans, got the library default and no warning.
+(The Portal's and the Admin's span batches were the exception, since those come from
+`@vercel/otel`, which reads `OTEL_BSP_*` for itself.)
+QCMS resolves all four itself now, and a value it cannot parse falls back to the default
+rather than refusing to start, because telemetry configuration must never be able to stop
+a process from serving.
+**The accepted range is whole milliseconds of 1 or more, so `0` is refused and the
+default applies.**
+Zero does not export sooner, it stops batching: the exporter would send a request per
+record, which is a different component rather than a faster setting of this one, and no
+QCMS process constructs that component.
+A delay of `1` is accepted and is as prompt as this pipeline gets.
+
 **Answer values, direct identifiers and secrets are never logged.**
 Handlers use route templates and opaque ids, while the stdout redactor masks
 sensitive-looking fields before serialization. OTLP applies a stricter independent

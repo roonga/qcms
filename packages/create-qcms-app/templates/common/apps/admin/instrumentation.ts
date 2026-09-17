@@ -13,6 +13,7 @@
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { BatchLogRecordProcessor } from "@opentelemetry/sdk-logs";
 import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
+import { batchLogExportTimings } from "@roonga/qcms-observability/otel";
 import { registerOTel } from "@vercel/otel";
 
 import { assertNoPlaceholderSecrets, assertSecureCookiesConfigured } from "./lib/server/config";
@@ -92,6 +93,11 @@ export function register(): void {
       allowlistingLogRecordProcessor(),
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
+        // `OTEL_BLRP_SCHEDULE_DELAY` and `OTEL_BLRP_EXPORT_TIMEOUT`, which this
+        // constructor does not read for itself (issue #901). Unset, these resolve to
+        // the SDK's own defaults, so nothing changes for a deployment that sets
+        // neither.
+        ...batchLogExportTimings(process.env),
       }),
     ],
     instrumentations: ["auto"],

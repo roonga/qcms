@@ -30,6 +30,7 @@
  */
 
 import { allowlistingLogRecordProcessor } from "@roonga/qcms-observability/logs";
+import { batchLogExportTimings, batchSpanExportTimings } from "@roonga/qcms-observability/otel";
 import { SpanKind, type Context } from "@opentelemetry/api";
 import type { ReadableSpan, Span, SpanProcessor } from "@opentelemetry/sdk-trace";
 
@@ -138,6 +139,13 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
     import("@opentelemetry/instrumentation-pg"),
   ]);
 
+  // The standard batch knobs, resolved explicitly because these two constructors
+  // read no environment of their own (issue #901). `batchSpanExportTimings` and
+  // `batchLogExportTimings` return the SDK's own defaults when nothing is set, so
+  // this changes nothing for a deployment that configures nothing.
+  const spanTimings = batchSpanExportTimings(env);
+  const logTimings = batchLogExportTimings(env);
+
   const sdk = new NodeSDK({
     serviceName: env.OTEL_SERVICE_NAME ?? DEFAULT_SERVICE_NAME,
     // SEC-13 first, exporter second: the allowlist runs before the batch
@@ -147,6 +155,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
       suppressDuplicateIncomingHttpSpans(
         new BatchSpanProcessor({
           exporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces` }),
+          ...spanTimings,
         }),
       ),
     ],
@@ -155,6 +164,7 @@ export async function startTelemetry(options: TelemetryOptions = {}): Promise<Te
       allowlistingLogRecordProcessor(),
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({ url: `${endpoint}/v1/logs` }),
+        ...logTimings,
       }),
     ],
     instrumentations: [

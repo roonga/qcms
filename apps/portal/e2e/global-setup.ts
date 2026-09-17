@@ -19,9 +19,14 @@
  */
 
 import { startApiProcess } from "./support/api-process-control.js";
+import { startOtlpDeliveryRecord } from "./support/otlp-delivery.js";
 import { startOtlpReceiver } from "./support/otlp-receiver.js";
 
 export default async function globalSetup(): Promise<void> {
+  // Beside the receiver's own truncation, and for the same reason: both files describe
+  // one run window. This one has to be cleared here rather than by its first writer,
+  // because a run writes it from one process per Playwright project (issue #901).
+  startOtlpDeliveryRecord();
   await startOtlpReceiver();
   await startApiProcess();
 }

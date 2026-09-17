@@ -14,6 +14,7 @@ import {
   HARNESS_THEME,
   OTEL_SERVICE_NAMES,
   OTLP_ENDPOINT,
+  OTLP_EXPORT_TIMEOUT_MS,
   OTLP_PORT,
   OTLP_SCHEDULE_DELAY_MS,
   PORTAL_PORT,
@@ -241,7 +242,14 @@ export default defineConfig({
         // string, which a protobuf payload would hide behind an encoder.
         OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
         OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.portal,
+        // Both pipelines, both knobs (issue #901). The span pair was here from task
+        // 054; the LOG pair was missing entirely, so exported log records ran on the
+        // SDK default while every comment and poll budget in the suite assumed 500ms.
+        // See OTLP_SCHEDULE_DELAY_MS for why naming them was not enough on its own.
         OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        OTEL_BSP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
+        OTEL_BLRP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        OTEL_BLRP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
         // Per-deployment theming (ADR-30, task 051), set to a NON-default theme and
         // corner preset on purpose - see HARNESS_THEME.
         QCMS_PORTAL_THEME: HARNESS_THEME,
@@ -303,7 +311,12 @@ export default defineConfig({
         OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
         OTEL_EXPORTER_OTLP_PROTOCOL: "http/json",
         OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.admin,
+        // The same four as the portal entry above, and the same reasoning: this is the
+        // service `otel-logs.pw.ts` hunts a log record from (issue #901).
         OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        OTEL_BSP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
+        OTEL_BLRP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+        OTEL_BLRP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
         // The deployment's respondent theme (task 058). The SAME constant the portal
         // entry above is given, because it is the same deployment fact reaching two
         // services - which is exactly what the admin's preview island has to render at

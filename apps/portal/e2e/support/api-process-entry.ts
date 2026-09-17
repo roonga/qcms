@@ -8,17 +8,32 @@
 
 import { startTelemetry } from "../../../api/src/telemetry.js";
 
-import { OTEL_SERVICE_NAMES, OTLP_ENDPOINT, OTLP_SCHEDULE_DELAY_MS } from "./harness-config.js";
+import {
+  OTEL_SERVICE_NAMES,
+  OTLP_ENDPOINT,
+  OTLP_EXPORT_TIMEOUT_MS,
+  OTLP_SCHEDULE_DELAY_MS,
+} from "./harness-config.js";
 
 type ParentMessage = { readonly type: "shutdown" };
 
 async function run(): Promise<void> {
-  process.env.OTEL_BSP_SCHEDULE_DELAY = OTLP_SCHEDULE_DELAY_MS;
   const telemetry = await startTelemetry({
     env: {
       ...process.env,
       OTEL_EXPORTER_OTLP_ENDPOINT: OTLP_ENDPOINT,
       OTEL_SERVICE_NAME: OTEL_SERVICE_NAMES.api,
+      // All four batch knobs, in the record `startTelemetry` actually reads (issue
+      // #901). They used to be one assignment to `process.env` alongside this call,
+      // which was the right variable in the wrong place twice over: the API's
+      // processors read no environment at all in OpenTelemetry JS 2.x, and this
+      // composed API is handed an explicit env record precisely so it need not mutate
+      // the ambient one. The API's span batch is the slowest leg of
+      // `otel-logs.pw.ts`, so this is the assignment that budget depends on.
+      OTEL_BSP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+      OTEL_BSP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
+      OTEL_BLRP_SCHEDULE_DELAY: OTLP_SCHEDULE_DELAY_MS,
+      OTEL_BLRP_EXPORT_TIMEOUT: OTLP_EXPORT_TIMEOUT_MS,
     },
   });
   const { startApiServer, stopApiServer } = await import("./api-server.js");
