@@ -18,7 +18,7 @@ import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core"
  * upgrade throws.
  *
  * "At startup" is shorthand for the first request through `auth.handler`, where
- * better-auth 1.7.3 runs `ctx.checkSchema()` from the router's `onRequest` hook and
+ * better-auth 1.7.5 runs `ctx.checkSchema()` from the router's `onRequest` hook and
  * caches the verdict; nothing is checked at import.
  *
  * The check runs in **both directions** as of 1.7.3, which is the property that made

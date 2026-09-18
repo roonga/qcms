@@ -384,7 +384,7 @@ function lineIndex(text) {
  * Where an installed package at an exact version lives.
  *
  * pnpm's store encodes a scope as `+` and appends a peer-dependency hash, so
- * `@better-auth/core@1.7.3` is a directory named `@better-auth+core@1.7.3_<hash>` whose
+ * `@better-auth/core@1.7.5` is a directory named `@better-auth+core@1.7.5_<hash>` whose
  * `node_modules` holds the real package. **Matching the version exactly is the point**:
  * a tree carrying two copies of a package would otherwise hand back whichever one the
  * directory listing returned first, and the citation would be read against a version

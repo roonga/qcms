@@ -116,7 +116,7 @@ describe("@roonga/qcms-db migrations", () => {
     });
 
     it("leaves account keyed on the provider pair, with no issuer column or index", async () => {
-      // better-auth 1.7.3 recognizes an account by `(providerId, accountId)`, as 1.6 did,
+      // better-auth 1.7.5 recognizes an account by `(providerId, accountId)`, as 1.6 did,
       // and never writes `issuer` (issue #849, migration 0020). A `NOT NULL` column the
       // library does not write is not dead weight: 1.7.3 refuses to boot against one, so
       // the shape of this table at the end of the chain is a startup precondition rather
