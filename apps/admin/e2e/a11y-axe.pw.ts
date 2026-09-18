@@ -183,7 +183,9 @@ async function chooseVersion(page: Page, label: string, version: string): Promis
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /**
- * Rules run **in addition** to the tag set above (issue #511).
+ * Rules run **in addition** to the tag set above (issues #511, #943). Two rules are in
+ * this run only because they are named here, and they are kept out of a tag-selected run
+ * for two different reasons - one has no wcag tag, the other has an excluded one.
  *
  * `heading-order` carries no wcag tag at all: axe classifies it as best-practice,
  * because a skipped level is a defect no success criterion states in those words. That
@@ -192,14 +194,30 @@ const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
  * screen-reader user navigates an admin screen by, so a hole in it is a real defect here
  * whatever tag axe files it under.
  *
+ * `label-content-name-mismatch` is the WCAG 2.5.3 label-in-name check, and it is
+ * excluded from this run **by tag, not by a disabled rule** (issue #943). Its descriptor
+ * in axe-core 4.13.0 carries `wcag21a` and `wcag253` and no `enabled` key at all; what
+ * keeps it out is the `experimental` tag, which `axe._audit.tagExclude` subtracts from
+ * every tag-selected run. (`axe.getRules()` reports `enabled: false` for it, but that
+ * field is DERIVED from the same tag exclusion, so reading it is what makes the rule look
+ * like a rule someone turned off.) The gap it exists for is not hypothetical here: the
+ * step editor's pin control painted `v3` and was named "Move pin for q_at_fault_accident"
+ * until issue #879, and this sweep watched it in all three modes without a word. Verified
+ * falsifiable before it was switched on: on that exact pre-#879 markup the rule reports a
+ * violation with this hook and reports nothing without it, and the markup #879 shipped
+ * passes.
+ *
  * `runOnly` and `rules` are set in one `options()` call rather than by chaining
  * `withTags`: `AxeBuilder#options` **replaces** its accumulated option object, so
  * `.withTags(...).options(...)` would silently drop the tags, and `withRules` is
- * documented as mutually exclusive with `withTags`. Inside axe-core an explicit
- * `rules[id].enabled` is consulted before the `runOnly` tag filter, which is what lets a
- * tagless rule join a tag-selected run.
+ * documented as mutually exclusive with `withTags`. Inside axe-core `ruleShouldRun`
+ * consults an explicit `rules[id].enabled` BEFORE the `runOnly` tag filter, which is what
+ * lets both a tagless rule and a tag-excluded one join a tag-selected run.
  */
-const EXTRA_RULES = { "heading-order": { enabled: true } };
+const EXTRA_RULES = {
+  "heading-order": { enabled: true },
+  "label-content-name-mismatch": { enabled: true },
+};
 
 /**
  * The heading-order gaps that already existed on the day the rule was switched on

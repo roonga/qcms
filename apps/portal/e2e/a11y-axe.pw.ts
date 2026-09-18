@@ -49,6 +49,39 @@ import {
   startKitchenSink,
 } from "./support/kitchen-sink.js";
 
+/** WCAG 2.2 AA, the same rule set the admin gate uses. */
+const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+
+/**
+ * Rules run **in addition** to the tag set above (issue #943).
+ *
+ * `label-content-name-mismatch` is the WCAG 2.5.3 label-in-name check: where a control
+ * carries visible text, that text has to be part of its accessible name, or a speech-input
+ * operator saying what they can read targets nothing and a screen-reader operator hears a
+ * name no sighted colleague can point at. It is kept out of a tag-selected run **by tag,
+ * not by a disabled rule**: in axe-core 4.13.0 its descriptor carries `wcag21a` and
+ * `wcag253` and no `enabled` key at all, and what keeps it out is the `experimental` tag,
+ * which `axe._audit.tagExclude` subtracts from every tag-selected run. (`axe.getRules()`
+ * reports `enabled: false` for it, but that field is DERIVED from the same tag exclusion,
+ * so reading it is what makes the rule look like a rule someone turned off.)
+ *
+ * The defect class is real in this codebase - the admin's pin control painted `v3` and
+ * answered to "Move pin for q_at_fault_accident" until issue #879, with this sweep's
+ * admin twin watching and silent - and it is a class the portal can grow at any time,
+ * because `kit.Menu` turns `triggerLabel` into an `aria-label` and an `aria-label`
+ * REPLACES the content it sits on in the name computation. Verified falsifiable before it
+ * was switched on: on that exact pre-#879 markup the rule reports a violation with this
+ * hook and reports nothing without it, and the markup #879 shipped passes.
+ *
+ * `runOnly` and `rules` go in one `options()` call rather than through `withTags`:
+ * `AxeBuilder#options` **replaces** its accumulated option object, so
+ * `.withTags(...).options(...)` would silently drop the tags, and `withRules` is
+ * documented as mutually exclusive with `withTags`. Inside axe-core `ruleShouldRun`
+ * consults an explicit `rules[id].enabled` BEFORE the `runOnly` tag filter, which is what
+ * lets a tag-excluded rule join a tag-selected run.
+ */
+const EXTRA_RULES = { "label-content-name-mismatch": { enabled: true } };
+
 /**
  * Run axe on the current page state; fail on any violation, prove it ran.
  *
@@ -59,7 +92,7 @@ import {
  */
 async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
     .analyze();
   const summary = results.violations.map((v) => `${v.id} (${v.nodes.length})`).join(", ");
   test.info().annotations.push({
