@@ -64,17 +64,28 @@ describe("readStepContext", () => {
       values: { q_plate: "ABC-123", q_odometer: 42, q_insured: true, q_extras: ["a", "b"] },
       errors: { q_plate: "That does not look like a plate." },
       constraints: { q_plate: "pattern" },
+      missingRequired: ["q_odometer"],
     };
     await expect(readCookie(JSON.stringify(written))).resolves.toEqual(written);
   });
 
   it("fills the members a writer omitted, so an earlier build's cookie still reads", async () => {
-    // `constraints` postdates the cookie (task 048); a context written before it
-    // must not be thrown away.
+    // `constraints` postdates the cookie (task 048) and `missingRequired` postdates
+    // both (issue #920); a context written before either must not be thrown away.
     await expect(
       readCookie(JSON.stringify({ values: { q_plate: "ABC-123" }, errors: {} })),
-    ).resolves.toEqual({ values: { q_plate: "ABC-123" }, errors: {}, constraints: {} });
-    await expect(readCookie("{}")).resolves.toEqual({ values: {}, errors: {}, constraints: {} });
+    ).resolves.toEqual({
+      values: { q_plate: "ABC-123" },
+      errors: {},
+      constraints: {},
+      missingRequired: [],
+    });
+    await expect(readCookie("{}")).resolves.toEqual({
+      values: {},
+      errors: {},
+      constraints: {},
+      missingRequired: [],
+    });
   });
 
   it("drops a hand-forged errors or constraints entry, and keeps the rest", async () => {
@@ -89,6 +100,22 @@ describe("readStepContext", () => {
     );
     expect(context?.errors).toEqual({ q_plate: "That does not look like a plate." });
     expect(context?.constraints).toEqual({ q_plate: "pattern" });
+  });
+
+  it("drops a hand-forged missingRequired entry that is not a question id (issue #920)", async () => {
+    // Same lenience, same reason: one unreadable entry must not cost the respondent
+    // the messages sitting beside it. The renderer narrows what survives to the
+    // step's own visible questions, so a forged id draws nothing either way.
+    const context = await readCookie(
+      JSON.stringify({ missingRequired: ["q_odometer", 42, { q: 1 }, null] }),
+    );
+    expect(context?.missingRequired).toEqual(["q_odometer"]);
+  });
+
+  it("refuses a missingRequired that is not a list at all", async () => {
+    // Structure is strict and content is lenient: this is not an envelope this app
+    // wrote, so it is refused outright rather than half-read.
+    await expect(readCookie(JSON.stringify({ missingRequired: "q_odometer" }))).resolves.toBeUndefined();
   });
 
   it("CLEARS an unreadable values entry rather than dropping it", async () => {
@@ -165,7 +192,7 @@ describe("readStepContext", () => {
   it("ignores unknown top-level members instead of forwarding them", async () => {
     await expect(
       readCookie(JSON.stringify({ errors: {}, sessionToken: "stolen", admin: true })),
-    ).resolves.toEqual({ values: {}, errors: {}, constraints: {} });
+    ).resolves.toEqual({ values: {}, errors: {}, constraints: {}, missingRequired: [] });
   });
 });
 

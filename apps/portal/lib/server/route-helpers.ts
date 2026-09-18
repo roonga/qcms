@@ -182,6 +182,22 @@ export interface StepContext {
    * context cookie written by an earlier build still reads.
    */
   readonly constraints?: Readonly<Record<string, string>>;
+  /**
+   * The questions the API reports as still missing a required answer, narrowed to
+   * the step that was just posted (issue #920).
+   *
+   * The set is the API's `flowState.missingRequired`, which the kernel computes
+   * (`evaluateRules`, invariant I9) and which the hydrated `StepFlow` already gates
+   * Continue and Submit on. Nothing here decides whether a question is required or
+   * whether it is answered: the route forwards what the API said so the no-JS
+   * re-render can show it, exactly as the scripted path shows it. Before this, a
+   * no-JS respondent who left a required question blank got a silent reload of the
+   * same step and no way to learn why.
+   *
+   * Optional for the same reason as `constraints`: a context cookie written by an
+   * earlier build still reads.
+   */
+  readonly missingRequired?: readonly string[];
 }
 
 /** Translate an API error into a same-status JSON response the client can branch on. */
@@ -354,6 +370,13 @@ const stepContextSchema = z.object({
   values: stepValuesSchema.optional(),
   errors: lenientRecord(z.string()).optional(),
   constraints: lenientRecord(z.string()).optional(),
+  // Question ids, so entries that are not strings are dropped rather than fatal -
+  // the same lenience the two records above get, for the same reason. Like every
+  // other member it is respondent-forgeable, and like `errors` the worst a forged
+  // one buys is a message beside a question in the forger's own render: the
+  // renderer intersects it with the step's visible set, and the API - which never
+  // reads this cookie - still refuses the submit (issue #920).
+  missingRequired: z.array(z.unknown()).transform((raw) => raw.filter((q) => typeof q === "string")).optional(),
 });
 
 /**
@@ -379,5 +402,6 @@ export async function readStepContext(): Promise<StepContext | undefined> {
     values: parsed.data.values ?? {},
     errors: parsed.data.errors ?? {},
     constraints: parsed.data.constraints ?? {},
+    missingRequired: parsed.data.missingRequired ?? [],
   };
 }

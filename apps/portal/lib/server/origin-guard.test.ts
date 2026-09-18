@@ -469,8 +469,13 @@ describe("app/appearance/route.ts does not emit a Location off this origin", () 
 describe.each(ROUTES)("$path", (route) => {
   beforeEach(() => {
     api.startSession.mockReset().mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
-    api.submitAnswer.mockReset().mockResolvedValue({ flowState: { readyToSubmit: false } });
-    api.getStep.mockReset().mockResolvedValue({ flowState: { readyToSubmit: false } });
+    // The projection the routes read their gates off. `missingRequired` and
+    // `visibleQuestions` are part of the API's published `flowState` and the step
+    // route reads the first of them (issue #920), so the double carries them rather
+    // than the two members this file happens to look at.
+    const flowState = { readyToSubmit: false, missingRequired: [], visibleQuestions: [] };
+    api.submitAnswer.mockReset().mockResolvedValue({ flowState });
+    api.getStep.mockReset().mockResolvedValue({ flowState });
     api.submitSession
       .mockReset()
       .mockResolvedValue({ submittedAt: new Date().toISOString(), contentHash: "hash" });
