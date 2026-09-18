@@ -213,8 +213,7 @@ export function atOrAbove(list, floor, includeUnfixed) {
   return list
     .filter(
       (finding) =>
-        severityRank(finding.severity) >= minimum &&
-        (includeUnfixed || finding.fixState === FIXED),
+        severityRank(finding.severity) >= minimum && (includeUnfixed || finding.fixState === FIXED),
     )
     .sort(
       (left, right) =>
@@ -353,9 +352,16 @@ function capitalise(word) {
  * Run the scanner over one SPDX file.
  *
  * `sbom:` is grype's explicit scheme for a local SBOM document, which is what keeps
- * this off the registry entirely. The full JSON is kept - no severity filtering at the
- * scanner - so the artifact carries every finding and only the floors above decide what
- * turns a job red.
+ * this off the registry entirely. The document has to be the bare SPDX: grype refuses
+ * the in-toto envelope the build persists, which is why the caller unwraps it first.
+ *
+ * The full JSON is kept - no `--severity` and deliberately no `--fail-on` at the
+ * scanner - for two reasons. The artifact carries every finding, including the ones no
+ * floor selects, so a reader can see what was decided and what was not. And grype's
+ * `--fail-on` exits 2 while a scanner or database error exits 1; letting the scanner
+ * own the verdict would mean collapsing "the floor was crossed" and "the scan did not
+ * work" into one non-zero exit. Here any non-zero exit from grype is a failure to
+ * scan, and the floors are this script's business.
  *
  * @param {string} scanner the grype binary.
  * @param {string} sbomPath
@@ -400,7 +406,8 @@ export function parseArgv(argv, env = process.env) {
     reportRoot: value("--report", join(REPOSITORY_ROOT, "dist-image-scan")),
     failOn,
     notifyOn,
-    failOnUnfixed: argv.includes("--fail-on-unfixed") || env.QCMS_IMAGE_SCAN_FAIL_ON_UNFIXED === "true",
+    failOnUnfixed:
+      argv.includes("--fail-on-unfixed") || env.QCMS_IMAGE_SCAN_FAIL_ON_UNFIXED === "true",
     scanner: value("--scanner", env.QCMS_GRYPE_BIN ?? "grype"),
     // The Markdown also goes to stdout, because the run log answering "what was in
     // that build" is the same property the build step's own report step has. Tests

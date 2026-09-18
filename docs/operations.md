@@ -110,12 +110,12 @@ job is not a required check, so a red scan never blocks a merge.
 
 **Triage, in the order the causes actually occur.**
 
-| The finding is against                                            | It is cleared by                                                                                                                                                     |
-| ------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a `deb` package                                                     | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.        |
-| an `npm` package under `/usr/local/lib/node_modules/npm`            | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                     |
-| an `npm` package in the application tree                            | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                           |
-| nothing with a fix available                                        | nothing yet. Record it; do not silence it. An acceptance decision belongs to the Code Owner.                                                                          |
+| The finding is against                                   | It is cleared by                                                                                                                                               |
+| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a `deb` package                                          | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together. |
+| an `npm` package under `/usr/local/lib/node_modules/npm` | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.              |
+| an `npm` package in the application tree                 | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                    |
+| nothing with a fix available                             | nothing yet. Record it; do not silence it. An acceptance decision belongs to the Code Owner.                                                                   |
 
 **Reproducing a finding locally.** Build the images with their attestations, then scan
 them. grype is not a workspace dependency; install it yourself and point the script at

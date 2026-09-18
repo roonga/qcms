@@ -210,7 +210,10 @@ describe("refusing a scan that cannot answer the question", () => {
 });
 
 describe("the report", () => {
-  const summary = summarizeImage({ image: "qcms-api", document: STATEMENT, report: REPORT }, FLOORS);
+  const summary = summarizeImage(
+    { image: "qcms-api", document: STATEMENT, report: REPORT },
+    FLOORS,
+  );
 
   it("summarises the image without counting the unfixable critical as blocking", () => {
     expect(summary.packages).toBe(3);

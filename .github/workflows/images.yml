@@ -308,6 +308,12 @@ jobs:
       GRYPE_VERSION: "0.119.0"
       GRYPE_SHA256: "3fa2dc4b924621ab65404cf08d0b8438d896d80ab949c9d5a4ca283c36004c9b"
 
+      # The scanner's own "is there a newer grype" call, off. The version is pinned by
+      # digest above, so the answer cannot change what this job runs, and a CI job
+      # should make the network calls it needs and no others. The vulnerability database
+      # fetch is unaffected; that one is the point.
+      GRYPE_CHECK_FOR_APP_UPDATE: "false"
+
     steps:
       - uses: actions/checkout@v7
 
