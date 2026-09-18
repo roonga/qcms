@@ -52,8 +52,9 @@ concurrency:
 jobs:
   # The fast-lane classifier. A pull request whose every changed path is in the
   # fast-lane set - `plan/` (the committed planning/scratch area, not a workspace),
-  # Markdown under `.claude/` (the agent and skill definitions, NOT the settings file
-  # and not a hook script) and the three root instruction files -
+  # all of `.claude/` (agent and skill definitions, the settings file and any hook
+  # script, by ruling: Code Owner, 2026-09-19, issue #873) and the three root
+  # instruction files -
   # cannot break build, typecheck, lint, the unit suites or any of the three
   # end-to-end suites, yet it used to cost the full ~20-minute matrix: PR #524 was
   # prose-only and paid it twice on one head, and PR #868 (`.claude/` plus
@@ -168,7 +169,7 @@ jobs:
     if: ${{ !cancelled() }}
     env:
       # Read by every step below. `true` means every changed path is in the fast-lane
-      # set (`plan/`, `.claude/**/*.md`, `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`,
+      # set (`plan/`, `.claude/`, `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`,
       # `CONTRIBUTING.md`), so
       # this job runs `check:plan` and stops; the job itself still runs and still
       # reports its required context.

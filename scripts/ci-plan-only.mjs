@@ -75,63 +75,34 @@ const GIT = process.platform === "win32" ? "git.exe" : "git";
 export const PLAN_PREFIX = "plan/";
 
 /**
- * Directories the fast lane covers WHATEVER the file is.
+ * Directories the fast lane covers, whatever the file is.
  *
- * `plan/` alone, and it stays alone until something argues it should not. The tree is
- * committed scratch: no tsconfig includes it, no `@source` root reaches it, nothing
- * imports from it, and the gates that do read it (`check-admin-theme`, `check:plan`'s
- * ESLint and Prettier) all run on the lane.
+ * `plan/` is committed scratch: no tsconfig includes it, no `@source` root reaches it,
+ * nothing imports from it, and the gates that do read it (`check-admin-theme`,
+ * `check:plan`'s ESLint and Prettier) all run on the lane.
  *
- * **The separator is what makes the prefix safe.** Without it `plan` would match
- * `planner.ts`.
+ * `.claude/` is the agent and skill definitions, `.claude/settings.json` and any hook
+ * script, all of it, by ruling (Code Owner, 2026-09-19, issue #873). The evidence in
+ * front of that ruling, from the reviews of PR #952:
+ *
+ *   - **CI inspects the content of none of these files, on either lane.** A probe of a
+ *     tracked `.claude/hooks/on-stop.sh`, a `.py` beside it, and a `settings.json`
+ *     wiring that hook, emptying `permissions.deny` and setting `defaultMode` to
+ *     `bypassPermissions` passes `pnpm check:plan`, and passed the full suite before
+ *     this lane existed too. What each gate does and does not select for these files is
+ *     tabulated in CONTRIBUTING, "The instruction and plan fast lane".
+ *   - **The difference is the wait**: about a minute for four required contexts instead
+ *     of about 45.
+ *   - Agent frontmatter grants tools and picks a model (`.claude/agents/*.md` carry
+ *     `tools:` and `model:`), and a settings change can rewire permissions and hooks.
+ *
+ * `.claude/worktrees/` and `**`/`.claude/settings.local.json` are git-ignored, so those
+ * cannot appear in a diff at all whatever this list says.
+ *
+ * **The separator is what makes each prefix safe.** Without it `plan` would match
+ * `planner.ts` and `.claude` would match a future `.claude-hooks/`.
  */
-export const FAST_LANE_PREFIXES = [PLAN_PREFIX];
-
-/**
- * Directories the fast lane covers FOR MARKDOWN ONLY.
- *
- * `.claude/` holds the agent definitions and skill files that issue #873 is about, and
- * nothing there is built, imported, bundled or served. But it also holds
- * `.claude/settings.json`, which is harness configuration the harness ACTS on: a hook
- * command, a `permissions.deny` list, a default permission mode. It can hold hook
- * scripts too.
- *
- * **What this rule does and does not buy, stated exactly** (reviews of PR #952). It is
- * not a line between inert text and executable text, because the Markdown it admits is
- * not inert either: an agent definition carries harness-interpreted frontmatter, so
- * `.claude/agents/task-reviewer.md` is where that agent's `tools:` grant and `model:`
- * are set, and a fast-lane pull request can widen the grant or change the model with
- * four green contexts in about a minute. That surface is exactly what issue #873 asked
- * to put on the lane, and no CI job ever gated it. What the rule draws a line around is
- * narrower and worth having anyway: the settings file and the hook scripts, which
- * configure the harness for the whole repository rather than one agent, and which the
- * first version of this change admitted.
- *
- * The probe that set the line: a tracked `.claude/hooks/on-stop.sh`, a `.py` beside it,
- * and a `settings.json` wiring the hook, emptying `permissions.deny` and setting
- * `defaultMode` to `bypassPermissions` all pass `pnpm check:plan`. No gate reads any of
- * it - the full suite was equally blind, so the detection delta is nil - but the TIME
- * delta is not: `protect-main` requires zero approving reviews and has no CODEOWNERS, so
- * the four contexts are the only platform-enforced gate, and the lane takes that window
- * from roughly 30-55 minutes to about one. Whether that is an acceptable trade is a
- * security acceptance and belongs to the Code Owner, so this classifier does not make
- * it: until it is ruled on, nothing about those files changes, here or in
- * {@link ADMIN_ONLY_PREFIXES}.
- *
- * See CONTRIBUTING, "The instruction and plan fast lane", for the open question.
- */
-export const FAST_LANE_MARKDOWN_PREFIXES = [".claude/"];
-
-/**
- * The one suffix {@link FAST_LANE_MARKDOWN_PREFIXES} admits, lowercase and exact.
- *
- * `.claude/notes.MD` is deliberately NOT on the lane, and not out of fussiness. The
- * gates that make the lane safe select their input with a case-sensitive `git ls-files`
- * pathspec of `*.md` (`check-no-em-dash`, `check-ports`, `check-vendor-pin`,
- * `check-lint-coverage`), so an uppercase spelling is a file the lane's own gates would
- * not open. Admitting it would be admitting an unscanned file.
- */
-export const FAST_LANE_MARKDOWN_SUFFIX = ".md";
+export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
 
 /**
  * Repository-root instruction files the fast lane covers, matched by EQUALITY.
@@ -155,23 +126,18 @@ const LOG_LIMIT = 40;
 /**
  * Is this one path in the fast-lane set?
  *
- * Three rules, deliberately of three different shapes: a directory prefix, a directory
- * prefix plus a suffix, and equality. The suffix is tested against the WHOLE path
- * rather than the last segment, which is what makes `.claude/x.md/evil.sh` code: a
- * directory may be named `x.md`, and only the full path's own ending says whether the
- * thing that changed is the Markdown file.
+ * Two rules, of two deliberately different shapes: a directory prefix carrying its
+ * separator, and equality. Nothing here matches on an extension. An intermediate version
+ * of this file admitted only Markdown under `.claude/`, which is why the tests still
+ * carry the shapes that rule had to get right (`.claude/x.md/evil.sh`, `.claude/x.MD`):
+ * they are all on the lane now, and the cases are kept because they pin that the
+ * classification no longer depends on a suffix at all.
  *
  * @param {string} path repo-relative, exactly as git recorded it.
  * @returns {boolean}
  */
 export function isFastLanePath(path) {
   if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
-  if (
-    path.endsWith(FAST_LANE_MARKDOWN_SUFFIX) &&
-    FAST_LANE_MARKDOWN_PREFIXES.some((prefix) => path.startsWith(prefix))
-  ) {
-    return true;
-  }
   return FAST_LANE_FILES.includes(path);
 }
 
@@ -200,29 +166,16 @@ export function isPlanOnly(files) {
 /**
  * Directories a change can be confined to without any portal-rendered surface moving.
  *
- * `apps/admin/` is the whole point; `docs/` and `plan/` ride along because prose cannot
- * render anything either and an admin PR routinely carries some.
+ * `apps/admin/` is the whole point; `docs/`, `plan/` and `.claude/` ride along because
+ * none of them renders anything and an admin PR routinely carries some.
  *
- * **`.claude/` is deliberately NOT a prefix here, and the reason is not about
- * rendering.** On the rendering question it plainly belongs: nothing under `.claude/`
- * moves a portal screen at any extension, and an earlier version of this list said so
- * and carried the whole directory. What that missed (delta review of PR #952) is that
- * `browser-e2e` is the SLOWEST required context - 30.5 minutes against 9 for `verify` on
- * this pull request's own run - so it is the context that sets the merge window, and the
- * open Code Owner question about `.claude/settings.json` and hook scripts is a question
- * about that window. At this file's base a `settings.json` change took the whole browser
- * suite; with the prefix here it would take `--project admin-chromium` only. That is a
- * change to the very thing being ruled on, made by the pull request that says it changes
- * nothing until the ruling.
- *
- * So the fast-lane set reaches this classification through {@link isFastLanePath}
- * instead, which admits Markdown under `.claude/` and no more. Markdown there still
- * narrows the browser suite; the settings file and the hook scripts still run everything,
- * exactly as they do today.
- *
- * The invariant that does matter still holds and is pinned by a test: every path on the
- * fast lane is admin-only too. A path the narrow lane lets skip the browser suite
- * ENTIRELY must also be one the wide lane lets narrow it.
+ * The fast-lane directories are spread in rather than retyped, and the root instruction
+ * files reach this classification through {@link isFastLanePath}, so the two lists cannot
+ * answer differently about one path. That pins an invariant a test asserts over the sets:
+ * every path on the fast lane is admin-only too. A path the narrow lane lets skip the
+ * browser suite ENTIRELY must also be one the wide lane lets narrow it, or an admin PR
+ * carrying a `CLAUDE.md` tweak pays for the whole portal suite while the same tweak alone
+ * pays for none of it.
  *
  * What is deliberately NOT here is the condition someone will reach for first,
  * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
@@ -376,11 +329,7 @@ function main() {
     return;
   }
 
-  const fastLaneScope = [
-    ...FAST_LANE_PREFIXES,
-    ...FAST_LANE_MARKDOWN_PREFIXES.map((prefix) => `${prefix}**/*${FAST_LANE_MARKDOWN_SUFFIX}`),
-    ...FAST_LANE_FILES,
-  ].join(", ");
+  const fastLaneScope = [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES].join(", ");
   const outsidePlan = files.filter((path) => !isFastLanePath(path));
   report(
     "plan_only",
