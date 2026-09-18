@@ -43,30 +43,39 @@
  * lists deb packages and the report names no distro, because that combination is
  * exactly a scan that has gone half-blind while still reporting a tidy npm-only result.
  *
- * ## What blocks, and what only reports
+ * ## What blocks, and what only reports: two axes, deliberately decoupled
  *
- * Two floors, both configurable, and a third axis that is the reason the first one is
- * usable at all:
+ * - `--fail-on` (default `critical`) is the **blocking** floor. A finding at or above it
+ *   makes this script exit {@link EXIT_BLOCKED}, which fails the `scan` job.
+ * - `--notify-on` (default `high`) is the **reporting** floor. The scheduled run files
+ *   or updates one labeled issue from it, the way `audit.yml` does for `pnpm audit`.
+ * - `--fail-on-unfixed` widens **the blocking floor only**. By default a finding with no
+ *   published fix cannot turn a job red.
  *
- * - `--fail-on` (default `critical`) is the blocking floor. A finding at or above it
- *   fails this script, which fails the `scan` job in the `Images` workflow.
- * - `--notify-on` (default `high`) is the reporting floor. The scheduled run files or
- *   updates one labeled issue when anything reaches it, the way `audit.yml` does for
- *   `pnpm audit`.
- * - **Only a finding with a published fix can do either**, unless `--fail-on-unfixed`
- *   says otherwise. Every finding, fixable or not, is still counted in the summary and
- *   written to the artifact; what the flag decides is whether it can turn a job red.
+ * **The published-fix rule applies to blocking and never to reporting**, and the second
+ * half of that sentence is the point. An earlier draft applied it to both, which meant
+ * an unfixed critical was counted in a table and named nowhere a person would look: an
+ * eighth one next week would have turned a 7 into an 8 and done nothing else. Reporting
+ * costs nothing and blocks nothing, so every finding at or above the reporting floor is
+ * named by id, package, version and fix state, with the ones that have no fix in their
+ * own section of the summary, the job log and the weekly issue.
  *
- * The third one is not a loophole, it is what makes a `critical` floor mean something.
+ * ## Why the blocking floor is fixable-only by default, and what that is NOT claiming
+ *
  * Measured on `node:24-bookworm-slim` at the digest pinned when this landed, the base
- * image carries 7 critical findings, every one of them `wont-fix` or `not-fixed`
- * upstream: `libc6`, `libc-bin` and five against `perl-base`. A blocking floor that
- * counted those would be red on the day it landed and red every day after, with no
- * action anyone could take to clear it - the definition of a gate people learn to
- * ignore. A floor that counts only findings with a fix available is a floor that says
- * "a base digest bump, an override or a dependency bump will clear this", which is a
- * claim someone can act on. The unfixable ones are not hidden: they are in the counts,
- * in the artifact, and called out by name in `docs/SECURITY_DESIGN.md` §9.
+ * image carries 7 critical findings, none of which has a fix **in Debian 12**. A
+ * blocking floor that counted them would be red from the day it landed with no change
+ * to this repository able to clear it, which is the definition of a gate people learn
+ * to ignore. So the default is an interim that keeps the gate actionable.
+ *
+ * It is not a claim that nothing can be done. Every one of the six CVEs is fixed in
+ * Debian 13 (trixie) and upstream, Debian tags them `<no-dsa>` or `<postponed>` with
+ * "Minor issue" notes rather than refusing to fix them, and `grype`'s `wont-fix` and
+ * `not-fixed` are the scanner's labels for "no fixed version for this distro", not
+ * upstream's verdict. The options - accept with per-CVE reasons, move the base to
+ * trixie as a deliberate major, or wait for a bookworm point release - are open and
+ * belong to the Code Owner. `docs/SECURITY_DESIGN.md` §9 carries the evidence for each,
+ * including what a trixie base was measured to buy.
  *
  * ## Why this cannot red an unrelated pull request
  *
@@ -86,9 +95,13 @@
  *   node scripts/image-scan.mjs --attestations <dir> --report <dir> [--fail-on critical]
  *                               [--notify-on high] [--fail-on-unfixed] [--scanner grype]
  *                               [--quiet]
+ *
+ * Exits 0 clean, 2 when the blocking floor is crossed, 1 when the scan could not be
+ * performed at all.
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -106,8 +119,25 @@ import { REPOSITORY_ROOT } from "./docker.mjs";
  */
 export const SEVERITIES = ["unknown", "negligible", "low", "medium", "high", "critical"];
 
-/** The fix states grype reports; only `fixed` means a published fix exists. */
+/**
+ * The fix states grype reports; only `fixed` means a fixed version exists **for this
+ * distribution**. `wont-fix` and `not-fixed` are the scanner's labels for "Debian 12
+ * has no fixed version", not a statement that upstream refuses to fix.
+ */
 export const FIXED = "fixed";
+
+/**
+ * Exit codes, kept apart on purpose.
+ *
+ * {@link runScanner}'s comment argues that "the floor was crossed" and "the scan did not
+ * work" must not share one code, and this script has to hold to that at its own boundary
+ * too. A caller that collapses them cannot tell a real verdict from a broken run, and on
+ * the scheduled path the two want opposite handling: a crossed floor is news to report,
+ * a broken scan is news that there is no report.
+ */
+export const EXIT_OK = 0;
+export const EXIT_ERROR = 1;
+export const EXIT_BLOCKED = 2;
 
 /**
  * Where a severity sits on the ladder.
@@ -248,9 +278,20 @@ export function assertScanIsAnswerable({ image, document, report }) {
       `image-scan: ${image} has an SBOM listing no packages with a purl at all, so the scan cannot answer what is in the image. Check the SBOM shape before trusting a clean report.`,
     );
   }
-  if (report?.descriptor?.db === undefined || report.descriptor.db === null) {
+  // grype 0.119.0 writes `descriptor.db.status = { schemaVersion, from, built, path,
+  // valid }` beside a `providers` map. Both halves are checked rather than the key's
+  // presence: a database that failed to load reports `valid: false` and still answers,
+  // and a shape change upstream should fail loudly here rather than quietly widen what
+  // counts as a scan.
+  const database = report?.descriptor?.db?.status;
+  if (typeof database?.built !== "string" || database.built === "") {
     throw new Error(
-      `image-scan: ${image} has a report with no vulnerability database recorded in \`descriptor.db\`. A report produced without a database is clean for the wrong reason.`,
+      `image-scan: ${image} has a report with no vulnerability database build date in \`descriptor.db.status.built\`. A report produced without a database is clean for the wrong reason; if the scanner's report shape has changed, this check has to change with it.`,
+    );
+  }
+  if (database.valid === false) {
+    throw new Error(
+      `image-scan: ${image} was scanned against a vulnerability database the scanner itself reports as invalid (\`descriptor.db.status.valid\` is false).`,
     );
   }
   const distro = report?.distro?.name;
@@ -270,6 +311,10 @@ export function assertScanIsAnswerable({ image, document, report }) {
 export function summarizeImage({ image, document, report }, floors) {
   const list = findings(report);
   const ecosystems = purlEcosystems(document);
+  // `reported` is deliberately computed with `true` rather than with
+  // `floors.failOnUnfixed`: the published-fix rule narrows what can turn a job red and
+  // must never narrow what a person is shown. See the header.
+  const reported = atOrAbove(list, floors.notifyOn, true);
   return {
     image,
     packages: Object.values(ecosystems).reduce((sum, count) => sum + count, 0),
@@ -278,14 +323,78 @@ export function summarizeImage({ image, document, report }, floors) {
     counts: severityCounts(list),
     unfixed: list.filter((finding) => finding.fixState !== FIXED).length,
     blocking: atOrAbove(list, floors.failOn, floors.failOnUnfixed),
-    notifying: atOrAbove(list, floors.notifyOn, floors.failOnUnfixed),
+    reported,
+    reportedFixable: reported.filter((finding) => finding.fixState === FIXED),
+    reportedUnfixed: reported.filter((finding) => finding.fixState !== FIXED),
   };
 }
 
-/** One finding as a table row body, shared by the two lists below. */
-function findingRow(image, finding) {
-  const fix = finding.fixVersions.length > 0 ? finding.fixVersions.join(", ") : finding.fixState;
-  return `| ${image} | ${finding.severity} | ${finding.id} | ${finding.ecosystem} | ${finding.name}@${finding.version} | ${fix} |`;
+/**
+ * One cell of a Markdown table, safe to put in an issue body.
+ *
+ * Package names, versions, advisory ids and fixed-version strings all reach this from
+ * data: syft reads a name and version out of whatever `package.json` is on disk, and
+ * the ids come from the vulnerability database. A `|` would inject a column, a newline
+ * would end the table and start a heading, and an `@name` would notify a person. A code
+ * span neutralises `#`, `@` and `[` ; the pipe and the newline have to go first,
+ * because a code span does not protect either inside a table.
+ *
+ * @param {string} value
+ * @returns {string} a fenced, pipe-safe, single-line cell.
+ */
+export function escapeCell(value) {
+  const flattened = String(value)
+    .replace(/[\r\n]+/g, " ")
+    // A backtick would close the span this is about to open.
+    .replaceAll("`", "'")
+    .replaceAll("|", "\\|")
+    .trim();
+  return flattened === "" ? "``" : `\`${flattened}\``;
+}
+
+/**
+ * The same finding seen in several images, as one row.
+ *
+ * The three images share a base, so an unfiltered listing repeats every operating-system
+ * finding three times: 198 rows where 66 carry the same information. Collapsing on the
+ * advisory, package and fix state and naming the images in a column keeps the weekly
+ * issue readable and makes "one more than last week" visible at a glance, which is the
+ * property the reporting floor exists for.
+ *
+ * @param {{ image: string }[]} summaries
+ * @param {"blocking" | "reportedFixable" | "reportedUnfixed"} key
+ */
+export function mergeFindings(summaries, key) {
+  /** @type {Map<string, any>} */
+  const rows = new Map();
+  for (const summary of summaries) {
+    for (const finding of summary[key]) {
+      const id = [
+        finding.severity,
+        finding.id,
+        finding.ecosystem,
+        finding.name,
+        finding.version,
+        finding.fixState,
+      ].join("|");
+      const existing = rows.get(id);
+      if (existing === undefined) rows.set(id, { ...finding, images: [summary.image] });
+      else existing.images.push(summary.image);
+    }
+  }
+  return [...rows.values()].sort(
+    (left, right) =>
+      severityRank(right.severity) - severityRank(left.severity) ||
+      left.id.localeCompare(right.id) ||
+      left.name.localeCompare(right.name),
+  );
+}
+
+/** One merged finding as a table row. */
+function findingRow(row) {
+  const fix =
+    row.fixVersions.length > 0 ? `${row.fixState}: ${row.fixVersions.join(", ")}` : row.fixState;
+  return `| ${escapeCell(row.severity)} | ${escapeCell(row.id)} | ${escapeCell(row.ecosystem)} | ${escapeCell(`${row.name}@${row.version}`)} | ${escapeCell(fix)} | ${row.images.join(", ")} |`;
 }
 
 /**
@@ -300,11 +409,13 @@ function findingRow(image, finding) {
  */
 export function renderReport(summaries, floors) {
   const lines = [];
-  const scope = floors.failOnUnfixed ? "every finding" : "findings with a published fix";
+  const blockingScope = floors.failOnUnfixed
+    ? "every finding, fix available or not"
+    : "findings with a published fix";
   lines.push("## Image vulnerability scan");
   lines.push("");
   lines.push(
-    `Scanner: grype, over the SPDX SBOM each image's build attached. Blocking floor \`${floors.failOn}\`, reporting floor \`${floors.notifyOn}\`, applied to ${scope}.`,
+    `Scanner: grype, over the SPDX SBOM each image's build attached. Blocking floor \`${floors.failOn}\` (${blockingScope}); reporting floor \`${floors.notifyOn}\`, which always names every finding whether or not a fix exists.`,
   );
   lines.push("");
   lines.push(`| Image | Distro | Packages | ${SEVERITIES.map(capitalise).join(" | ")} | No fix |`);
@@ -316,31 +427,74 @@ export function renderReport(summaries, floors) {
     );
   }
 
-  for (const [floor, key, heading] of /** @type {const} */ ([
-    [floors.failOn, "blocking", "Blocking"],
-    [floors.notifyOn, "notifying", "Reported"],
+  // Three sections, and the third is the one that carries the decision the Code Owner
+  // has not taken yet. A finding with no fix cannot turn a job red, so this is the only
+  // place it is named; if it were dropped here as well, an eighth unfixed critical would
+  // move a digit in the table above and reach nobody.
+  for (const [heading, key] of /** @type {const} */ ([
+    [`Blocking: at or above \`${floors.failOn}\`, ${blockingScope}`, "blocking"],
+    [`Reported: at or above \`${floors.notifyOn}\`, fix available`, "reportedFixable"],
+    [
+      `Reported: at or above \`${floors.notifyOn}\`, NO FIX AVAILABLE (not blocking, not accepted)`,
+      "reportedUnfixed",
+    ],
   ])) {
-    const rows = summaries.flatMap((summary) =>
-      summary[key].map((finding) => findingRow(summary.image, finding)),
-    );
+    const rows = mergeFindings(summaries, key);
     lines.push("");
-    lines.push(`### ${heading}: at or above \`${floor}\`, ${scope}`);
+    lines.push(`### ${heading}`);
     lines.push("");
     if (rows.length === 0) {
       lines.push("None.");
       continue;
     }
-    lines.push("| Image | Severity | Advisory | Ecosystem | Package | Fixed in |");
+    lines.push("| Severity | Advisory | Ecosystem | Package | Fix | Images |");
     lines.push("| --- | --- | --- | --- | --- | --- |");
-    lines.push(...rows);
+    lines.push(...rows.map(findingRow));
   }
 
   lines.push("");
   lines.push(
-    "Triage: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it; `docker/*.Dockerfile` carries the digest beside the tag), an `npm` finding under `/usr/local/lib/node_modules/npm` by the same bump, and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger. A finding with no fix available is recorded rather than accepted: see `docs/SECURITY_DESIGN.md` section 9.",
+    "Triage: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it; `docker/*.Dockerfile` carries the digest beside the tag), an `npm` finding under `/usr/local/lib/node_modules/npm` by the same bump, and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger. A finding with no fix in this distribution is recorded rather than accepted, and `wont-fix` is the scanner's label for that rather than upstream's verdict: see `docs/SECURITY_DESIGN.md` section 9 and `docs/operations.md`.",
   );
   lines.push("");
   return lines.join("\n");
+}
+
+/**
+ * A stable fingerprint of everything this run reports.
+ *
+ * The weekly issue exists to be read, and an identical comment every Monday is how a
+ * thread stops being read. The scheduled job compares this against the digest recorded
+ * in the last comment and stays silent when the finding set has not moved, so the
+ * issue changes exactly when the answer changes - one new unfixed critical, one fix
+ * landing, one package leaving the image.
+ *
+ * Over the merged rows and not over the Markdown: a rendered summary carries counts
+ * that drift with unrelated severities, and the question is whether the reported set
+ * moved.
+ *
+ * @param {ReturnType<typeof summarizeImage>[]} summaries
+ * @returns {string} a hex sha-256.
+ */
+export function reportDigest(summaries) {
+  const rows = [
+    ...mergeFindings(summaries, "blocking"),
+    ...mergeFindings(summaries, "reportedFixable"),
+    ...mergeFindings(summaries, "reportedUnfixed"),
+  ].map((row) =>
+    [
+      row.severity,
+      row.id,
+      row.ecosystem,
+      `${row.name}@${row.version}`,
+      row.fixState,
+      row.fixVersions.join(","),
+      [...row.images].sort().join(","),
+    ].join("|"),
+  );
+  return createHash("sha256")
+    .update([...new Set(rows)].sort().join("\n"))
+    .digest("hex");
 }
 
 /** `high` to `High`, for the table header. */
@@ -361,7 +515,8 @@ function capitalise(word) {
  * `--fail-on` exits 2 while a scanner or database error exits 1; letting the scanner
  * own the verdict would mean collapsing "the floor was crossed" and "the scan did not
  * work" into one non-zero exit. Here any non-zero exit from grype is a failure to
- * scan, and the floors are this script's business.
+ * scan, and the floors are this script's business - which this script then reports on
+ * the same two codes, {@link EXIT_BLOCKED} and {@link EXIT_ERROR}.
  *
  * @param {string} scanner the grype binary.
  * @param {string} sbomPath
@@ -449,15 +604,19 @@ export function main(argv = process.argv.slice(2), env = process.env) {
 
   const markdown = renderReport(summaries, floors);
   writeFileSync(join(options.reportRoot, "summary.md"), markdown);
-  // The machine-readable half, so the scheduled job decides whether to file an issue
-  // without parsing the Markdown it is about to paste.
+  // The machine-readable half, so the scheduled job decides whether to file an issue,
+  // and whether the finding set has moved since last week, without parsing the Markdown
+  // it is about to paste.
+  const blocking = mergeFindings(summaries, "blocking").length;
   writeFileSync(
     join(options.reportRoot, "summary.json"),
     `${JSON.stringify(
       {
         ...floors,
-        blocking: summaries.reduce((sum, summary) => sum + summary.blocking.length, 0),
-        notifying: summaries.reduce((sum, summary) => sum + summary.notifying.length, 0),
+        blocking,
+        reported: mergeFindings(summaries, "reportedFixable").length,
+        reportedUnfixed: mergeFindings(summaries, "reportedUnfixed").length,
+        digest: reportDigest(summaries),
         images: summaries.map(({ image, distro, packages, counts, unfixed }) => ({
           image,
           distro,
@@ -472,21 +631,24 @@ export function main(argv = process.argv.slice(2), env = process.env) {
   );
   if (!options.quiet) process.stdout.write(`${markdown}\n`);
 
-  const blocking = summaries.reduce((sum, summary) => sum + summary.blocking.length, 0);
   if (blocking > 0) {
+    const scope = floors.failOnUnfixed
+      ? "counting findings with no fix available, because --fail-on-unfixed is set"
+      : "each with a published fix";
     process.stderr.write(
-      `image-scan: ${String(blocking)} finding(s) at or above ${options.failOn} with a published fix. Triage is in the summary above.\n`,
+      `image-scan: ${String(blocking)} finding(s) at or above ${options.failOn}, ${scope}. Triage is in the summary above.\n`,
     );
-    return 1;
+    return EXIT_BLOCKED;
   }
-  return 0;
+  return EXIT_OK;
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     process.exitCode = main();
   } catch (error) {
-    process.exitCode = 1;
+    // EXIT_ERROR and never EXIT_BLOCKED: nothing here is a verdict about the images.
+    process.exitCode = EXIT_ERROR;
     process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
   }
 }

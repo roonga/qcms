@@ -8,11 +8,16 @@ import { IMAGES } from "./build-images.mjs";
 import {
   assertScanIsAnswerable,
   atOrAbove,
+  escapeCell,
+  EXIT_BLOCKED,
+  EXIT_OK,
   findings,
   main,
+  mergeFindings,
   parseArgv,
   purlEcosystems,
   renderReport,
+  reportDigest,
   severityCounts,
   severityRank,
   spdxDocument,
@@ -22,12 +27,17 @@ import {
 /**
  * The image vulnerability scan (issue #894).
  *
- * No Docker and no scanner binary: the two halves worth asserting cheaply are the
- * **decision** - which findings a floor selects, and the fact that an unfixable one
- * cannot turn a job red - and the **refusals**, which are what stop a scan that has
- * gone half-blind from reporting a tidy clean result. The end-to-end path is covered
- * too, with a stub scanner standing in for grype, so the argument vector this script
- * passes and the exit code it returns are both exercised.
+ * No Docker and no scanner binary. Three properties are worth asserting cheaply:
+ *
+ * - **The decision.** Which findings a floor selects, and the rule that matters most
+ *   here: the published-fix filter narrows what can turn a job red and must never
+ *   narrow what a person is shown. An unfixed critical has to appear by id in the
+ *   rendered report, because reporting is the only channel the Code Owner's pending
+ *   decision has.
+ * - **The refusals.** What stops a scan that has gone half-blind from reporting a tidy
+ *   clean result.
+ * - **The boundary.** Exit codes, argument parsing, and Markdown that ends up in an
+ *   issue body built out of package names nobody in this repository controls.
  *
  * The real scan over the real SBOMs is what `.github/workflows/images.yml` runs.
  */
@@ -61,9 +71,10 @@ function spdxPackage(purl: string, name: string, version: string) {
 }
 
 /**
- * The SBOM fixture: one npm package and one deb package, the deb one carrying the
- * `distro=` qualifier that is how the operating-system half of the scan stays possible
- * at all once the image itself is out of reach.
+ * The SBOM fixture, in the shape syft writes through `docker/buildkit-syft-scanner`:
+ * one npm package and one deb package, the deb one carrying the `distro=` qualifier
+ * that is how the operating-system half of the scan stays possible at all once the
+ * image itself is out of reach.
  */
 const SBOM = {
   spdxVersion: "SPDX-2.3",
@@ -99,8 +110,16 @@ function match(
 }
 
 /**
- * The report fixture: one critical with no fix (the base image's real situation), one
- * high with a fix, one medium with a fix.
+ * The report fixture.
+ *
+ * `distro` and `descriptor` are copied from a real `grype 0.119.0 --output json` run
+ * over the `qcms-api` SBOM and trimmed: the real `descriptor.db.providers` map carries
+ * about thirty entries and `descriptor.configuration` the whole resolved config. The
+ * `db.status` nesting is the part that matters, because a fixture with `built` at the
+ * top of `db` would satisfy a presence check and say nothing about the real report.
+ *
+ * The matches are the three cases the floors have to tell apart: a critical with no fix
+ * anywhere (the base image's real situation), a high with a fix, and a medium with one.
  */
 const REPORT = {
   matches: [
@@ -117,8 +136,20 @@ const REPORT = {
       versions: ["5.0.9"],
     }),
   ],
-  distro: { name: "debian", version: "12.15", idLike: ["debian"] },
-  descriptor: { name: "grype", version: "0.119.0", db: { built: "2026-09-18T06:30:15Z" } },
+  distro: { name: "debian", version: "12.15", idLike: [] },
+  descriptor: {
+    name: "grype",
+    version: "0.119.0",
+    db: {
+      status: {
+        schemaVersion: "v6.1.9",
+        built: "2026-09-18T06:30:15Z",
+        path: "/home/runner/.cache/grype/db/6/vulnerability.db",
+        valid: true,
+      },
+      providers: { debian: { captured: "2026-09-18T00:31:49Z", input: "xxh64:de3468208f484970" } },
+    },
+  },
 };
 
 const FLOORS = { failOn: "critical", notifyOn: "high", failOnUnfixed: false };
@@ -199,7 +230,20 @@ describe("refusing a scan that cannot answer the question", () => {
         document: STATEMENT,
         report: { ...REPORT, descriptor: { name: "grype" } },
       }),
-    ).toThrow(/no vulnerability database/);
+    ).toThrow(/no vulnerability database build date/);
+  });
+
+  it("refuses a database the scanner itself reports as invalid", () => {
+    const invalid = {
+      ...REPORT,
+      descriptor: {
+        ...REPORT.descriptor,
+        db: { ...REPORT.descriptor.db, status: { ...REPORT.descriptor.db.status, valid: false } },
+      },
+    };
+    expect(() => assertScanIsAnswerable({ image, document: STATEMENT, report: invalid })).toThrow(
+      /reports as invalid/,
+    );
   });
 
   it("refuses an npm-only report over an SBOM that carries deb packages", () => {
@@ -209,28 +253,152 @@ describe("refusing a scan that cannot answer the question", () => {
   });
 });
 
-describe("the report", () => {
+describe("the two axes are decoupled", () => {
   const summary = summarizeImage(
     { image: "qcms-api", document: STATEMENT, report: REPORT },
     FLOORS,
   );
 
-  it("summarises the image without counting the unfixable critical as blocking", () => {
+  it("keeps the published-fix filter on blocking and not on reporting", () => {
+    expect(summary.blocking).toEqual([]);
+    expect(summary.reportedFixable.map((finding) => finding.id)).toEqual(["GHSA-rgw5-rvv9-x895"]);
+    expect(summary.reportedUnfixed.map((finding) => finding.id)).toEqual(["CVE-2026-5450"]);
+  });
+
+  it("NAMES an unfixed critical by id in the rendered report", () => {
+    // The property this section exists for. An unfixed critical cannot turn a job red,
+    // so if it is not named here it reaches nobody, and an eighth one next week would
+    // move a digit in a counts table and change nothing else.
+    const markdown = renderReport([summary], FLOORS);
+    expect(markdown).toContain("CVE-2026-5450");
+    expect(markdown).toContain("NO FIX AVAILABLE");
+    expect(markdown).toMatch(/NO FIX AVAILABLE[\s\S]*?CVE-2026-5450[\s\S]*?wont-fix/);
+    // ...and it is still not in the blocking section.
+    expect(markdown).toMatch(/### Blocking:[\s\S]*?None\./);
+  });
+
+  it("summarises the image and keeps every finding in the counts", () => {
     expect(summary.packages).toBe(3);
     expect(summary.distro).toBe("debian 12.15");
     expect(summary.unfixed).toBe(1);
-    expect(summary.blocking).toEqual([]);
-    expect(summary.notifying.map((finding) => finding.id)).toEqual(["GHSA-rgw5-rvv9-x895"]);
+    expect(summary.counts.critical).toBe(1);
   });
 
-  it("renders a summary table, the fixed version, and the triage pointer", () => {
+  it("renders the fixed version and the triage pointer", () => {
     const markdown = renderReport([summary], FLOORS);
-    expect(markdown).toContain("| qcms-api | debian 12.15 | 3 |");
     expect(markdown).toContain("GHSA-rgw5-rvv9-x895");
     expect(markdown).toContain("5.0.9");
     expect(markdown).toContain("Security overrides");
-    // The unfixable critical is recorded in the counts and absent from the blocking list.
-    expect(markdown).toMatch(/### Blocking: at or above `critical`[\s\S]*?None\./);
+  });
+
+  it("moves an unfixed critical into the blocking section under --fail-on-unfixed", () => {
+    const widened = { ...FLOORS, failOnUnfixed: true };
+    const markdown = renderReport(
+      [summarizeImage({ image: "qcms-api", document: STATEMENT, report: REPORT }, widened)],
+      widened,
+    );
+    expect(markdown).toMatch(/### Blocking:[\s\S]*?CVE-2026-5450/);
+    // Reporting is unchanged by the flag: the finding is named in both places.
+    expect(markdown).toMatch(/NO FIX AVAILABLE[\s\S]*?CVE-2026-5450/);
+  });
+});
+
+describe("merging the three images into one listing", () => {
+  const summaries = ["qcms-api", "qcms-portal", "qcms-admin"].map((image) =>
+    summarizeImage({ image, document: STATEMENT, report: REPORT }, FLOORS),
+  );
+
+  it("collapses the same base-image finding into one row naming every image", () => {
+    const rows = mergeFindings(summaries, "reportedUnfixed");
+    expect(rows).toHaveLength(1);
+    expect(rows[0].id).toBe("CVE-2026-5450");
+    expect(rows[0].images).toEqual(["qcms-api", "qcms-portal", "qcms-admin"]);
+  });
+
+  it("keeps a finding that only one image carries distinct", () => {
+    const extra = {
+      ...REPORT,
+      matches: [
+        ...REPORT.matches,
+        match("CVE-2026-9999", "High", "npm", "only-here", "1.0.0", {
+          state: "wont-fix",
+          versions: [],
+        }),
+      ],
+    };
+    const mixed = [
+      summarizeImage({ image: "qcms-api", document: STATEMENT, report: extra }, FLOORS),
+      summarizeImage({ image: "qcms-portal", document: STATEMENT, report: REPORT }, FLOORS),
+    ];
+    const rows = mergeFindings(mixed, "reportedUnfixed");
+    expect(rows.find((row) => row.id === "CVE-2026-9999")?.images).toEqual(["qcms-api"]);
+  });
+});
+
+describe("the digest that decides whether the weekly issue changes", () => {
+  const summaries = [
+    summarizeImage({ image: "qcms-api", document: STATEMENT, report: REPORT }, FLOORS),
+  ];
+
+  it("is stable for the same finding set", () => {
+    expect(reportDigest(summaries)).toBe(reportDigest(summaries));
+  });
+
+  it("moves when one more unfixed critical appears", () => {
+    const worse = {
+      ...REPORT,
+      matches: [
+        ...REPORT.matches,
+        match("CVE-2026-0002", "Critical", "deb", "perl-base", "5.36.0-7+deb12u3", {
+          state: "not-fixed",
+          versions: [],
+        }),
+      ],
+    };
+    const after = [
+      summarizeImage({ image: "qcms-api", document: STATEMENT, report: worse }, FLOORS),
+    ];
+    expect(reportDigest(after)).not.toBe(reportDigest(summaries));
+  });
+});
+
+describe("Markdown that ends up in an issue body", () => {
+  it("neutralises a pipe, a newline, a heading, a mention and a link", () => {
+    expect(escapeCell("a|b")).toBe("`a\\|b`");
+    expect(escapeCell("one\ntwo")).toBe("`one two`");
+    expect(escapeCell("# heading")).toBe("`# heading`");
+    expect(escapeCell("@roonga")).toBe("`@roonga`");
+    expect(escapeCell("[x](https://example.invalid)")).toBe("`[x](https://example.invalid)`");
+    // A backtick would close the span that does the neutralising.
+    expect(escapeCell("a`b")).toBe("`a'b`");
+    expect(escapeCell("")).toBe("``");
+  });
+
+  it("keeps a crafted package name inside one table cell", () => {
+    const crafted = {
+      ...REPORT,
+      matches: [
+        match(
+          "CVE-2026-0003",
+          "Critical",
+          "npm",
+          "evil | ## pwned\n@roonga [click](https://example.invalid)",
+          "1.0.0",
+          { state: "wont-fix", versions: [] },
+        ),
+      ],
+    };
+    const markdown = renderReport(
+      [summarizeImage({ image: "qcms-api", document: STATEMENT, report: crafted }, FLOORS)],
+      FLOORS,
+    );
+    const row = markdown.split("\n").find((line) => line.includes("CVE-2026-0003"));
+    expect(row).toBeDefined();
+    // Seven unescaped pipes: six columns with a leading and a trailing delimiter. The
+    // injected pipe is escaped rather than opening a seventh cell.
+    expect(row?.split(/(?<!\\)\|/)).toHaveLength(8);
+    // No newline escaped out of the cell, so no heading was injected.
+    expect(markdown).not.toMatch(/^## pwned/m);
   });
 });
 
@@ -265,6 +433,17 @@ describe("end to end, with a stub scanner", () => {
     return path;
   }
 
+  /** A stub that fails the way a missing database or a broken binary would. */
+  function brokenScanner(root: string): string {
+    const path = join(root, "broken-scanner.mjs");
+    writeFileSync(
+      path,
+      `#!/usr/bin/env node\nprocess.stderr.write("could not fetch vulnerability database\\n");\nprocess.exit(1);\n`,
+    );
+    chmodSync(path, 0o755);
+    return path;
+  }
+
   function attestations(root: string): string {
     const attestationRoot = join(root, "attestations");
     for (const image of IMAGES) {
@@ -277,7 +456,7 @@ describe("end to end, with a stub scanner", () => {
     return attestationRoot;
   }
 
-  it("scans every image, writes both summaries, and exits 0 when nothing blocks", () => {
+  it("scans every image, writes both summaries, and exits clean when nothing blocks", () => {
     const root = scratch();
     const reportRoot = join(root, "report");
     const code = main(
@@ -293,22 +472,27 @@ describe("end to end, with a stub scanner", () => {
       {},
     );
 
-    expect(code).toBe(0);
+    expect(code).toBe(EXIT_OK);
     const summary: {
       blocking: number;
-      notifying: number;
+      reported: number;
+      reportedUnfixed: number;
+      digest: string;
       images: { image: string }[];
     } = JSON.parse(readFileSync(join(reportRoot, "summary.json"), "utf8"));
     expect(summary.images.map((entry) => entry.image)).toEqual(IMAGES.map((image) => image.name));
     expect(summary.blocking).toBe(0);
-    // One reportable high per image, which is what the scheduled run files an issue on.
-    expect(summary.notifying).toBe(IMAGES.length);
-    expect(readFileSync(join(reportRoot, "summary.md"), "utf8")).toContain(
-      "## Image vulnerability scan",
-    );
+    // Merged across the three images, so one row each rather than three.
+    expect(summary.reported).toBe(1);
+    expect(summary.reportedUnfixed).toBe(1);
+    expect(summary.digest).toMatch(/^[0-9a-f]{64}$/);
+    const markdown = readFileSync(join(reportRoot, "summary.md"), "utf8");
+    expect(markdown).toContain("## Image vulnerability scan");
+    // The unfixed critical reaches the file a person reads, not only the artifact.
+    expect(markdown).toContain("CVE-2026-5450");
   });
 
-  it("exits 1 when a finding at the blocking floor has a published fix", () => {
+  it("exits with the blocking code when a finding at the blocking floor has a published fix", () => {
     const root = scratch();
     const fixable = {
       ...REPORT,
@@ -332,7 +516,43 @@ describe("end to end, with a stub scanner", () => {
         ],
         {},
       ),
-    ).toBe(1);
+    ).toBe(EXIT_BLOCKED);
+  });
+
+  it("blocks on an unfixed finding only when --fail-on-unfixed is given", () => {
+    const root = scratch();
+    const argv = [
+      "--attestations",
+      attestations(root),
+      "--report",
+      join(root, "report"),
+      "--scanner",
+      stubScanner(root, REPORT),
+      "--quiet",
+    ];
+    expect(main(argv, {})).toBe(EXIT_OK);
+    expect(main([...argv, "--fail-on-unfixed"], {})).toBe(EXIT_BLOCKED);
+    // ...and through the environment, which is how the workflow would move it.
+    expect(main(argv, { QCMS_IMAGE_SCAN_FAIL_ON_UNFIXED: "true" })).toBe(EXIT_BLOCKED);
+  });
+
+  it("throws rather than returning a verdict when the scanner itself fails", () => {
+    const root = scratch();
+    // A throw, never EXIT_BLOCKED: a broken scanner is not a statement about the images.
+    expect(() =>
+      main(
+        [
+          "--attestations",
+          attestations(root),
+          "--report",
+          join(root, "report"),
+          "--scanner",
+          brokenScanner(root),
+          "--quiet",
+        ],
+        {},
+      ),
+    ).toThrow();
   });
 
   it("refuses a missing SBOM rather than reporting an image as clean", () => {
