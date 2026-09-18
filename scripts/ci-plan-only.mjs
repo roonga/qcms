@@ -5,10 +5,11 @@
  * observed by and no more. Two classifications, both fail-safe:
  *
  *   - **`plan_only`**: every changed path is in the fast-lane set - the `plan/`
- *     scratch tree, the `.claude/` agent and skill definitions, and the three
- *     root instruction files. Those changes skip the application build, the unit
- *     suites and all three end-to-end jobs, but `check:plan` still runs every gate
- *     that reads any of those paths. See {@link isPlanOnly}.
+ *     scratch tree, MARKDOWN under `.claude/` (the agent and skill definitions, not
+ *     the settings file and not a hook script), and the three root instruction files.
+ *     Those changes skip the application build, the unit suites and all three
+ *     end-to-end jobs, but `check:plan` still runs every gate that reads any of those
+ *     paths. See {@link isPlanOnly}.
  *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or the
  *     fast-lane set, so nothing in the diff can reach a portal-rendered surface. See
  *     {@link isAdminOnly}.
@@ -74,19 +75,52 @@ const GIT = process.platform === "win32" ? "git.exe" : "git";
 export const PLAN_PREFIX = "plan/";
 
 /**
- * Directories the fast lane covers, each with its trailing separator.
+ * Directories the fast lane covers WHATEVER the file is.
  *
- * `.claude/` joined `plan/` for issue #873. Both trees are read by agents and by
- * repository gates, and by nothing that is built, imported, bundled or served: no
- * tsconfig includes them, no `@source` root reaches them, no application imports
- * from them. `.claude/worktrees/` cannot appear in a diff at all - it is
- * git-ignored - so what this admits is the tracked agent definitions, the skill
- * files and `.claude/settings.json`.
+ * `plan/` alone, and it stays alone until something argues it should not. The tree is
+ * committed scratch: no tsconfig includes it, no `@source` root reaches it, nothing
+ * imports from it, and the gates that do read it (`check-admin-theme`, `check:plan`'s
+ * ESLint and Prettier) all run on the lane.
  *
- * **The separator is what makes the prefix safe.** Without it `.claude` would also
- * match a future `.claude-hooks/` and `plan` would match `planner.ts`.
+ * **The separator is what makes the prefix safe.** Without it `plan` would match
+ * `planner.ts`.
  */
-export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
+export const FAST_LANE_PREFIXES = [PLAN_PREFIX];
+
+/**
+ * Directories the fast lane covers FOR MARKDOWN ONLY.
+ *
+ * `.claude/` holds the agent definitions and skill files that issue #873 is about, and
+ * nothing there is built, imported, bundled or served. But it also holds
+ * `.claude/settings.json`, which is harness-EXECUTABLE configuration: a hook command,
+ * a `permissions.deny` list, a default permission mode. It can hold hook scripts too.
+ *
+ * The review of PR #952 probed exactly that, and the probe is the reason this is a
+ * suffix rule rather than a prefix: a tracked `.claude/hooks/on-stop.sh`, a `.py`
+ * beside it, and a `settings.json` wiring the hook, emptying `permissions.deny` and
+ * setting `defaultMode` to `bypassPermissions` all pass `pnpm check:plan`. No gate
+ * reads any of it - the full suite was equally blind, so the detection delta is nil -
+ * but the TIME delta is not: `protect-main` requires zero approving reviews and has no
+ * CODEOWNERS, so the four contexts are the only platform-enforced gate, and the lane
+ * takes that window from roughly 30-55 minutes to about one. Whether that is an
+ * acceptable trade for harness-executable configuration is a security acceptance and
+ * belongs to the Code Owner, so this classifier does not make it: the lane admits only
+ * what cannot execute, and everything else under `.claude/` takes the full suite.
+ *
+ * See CONTRIBUTING, "The instruction and plan fast lane", for the open question.
+ */
+export const FAST_LANE_MARKDOWN_PREFIXES = [".claude/"];
+
+/**
+ * The one suffix {@link FAST_LANE_MARKDOWN_PREFIXES} admits, lowercase and exact.
+ *
+ * `.claude/notes.MD` is deliberately NOT on the lane, and not out of fussiness. The
+ * gates that make the lane safe select their input with a case-sensitive `git ls-files`
+ * pathspec of `*.md` (`check-no-em-dash`, `check-ports`, `check-vendor-pin`,
+ * `check-lint-coverage`), so an uppercase spelling is a file the lane's own gates would
+ * not open. Admitting it would be admitting an unscanned file.
+ */
+export const FAST_LANE_MARKDOWN_SUFFIX = ".md";
 
 /**
  * Repository-root instruction files the fast lane covers, matched by EQUALITY.
@@ -110,13 +144,24 @@ const LOG_LIMIT = 40;
 /**
  * Is this one path in the fast-lane set?
  *
+ * Three rules, deliberately of three different shapes: a directory prefix, a directory
+ * prefix plus a suffix, and equality. The suffix is tested against the WHOLE path
+ * rather than the last segment, which is what makes `.claude/x.md/evil.sh` code: a
+ * directory may be named `x.md`, and only the full path's own ending says whether the
+ * thing that changed is the Markdown file.
+ *
  * @param {string} path repo-relative, exactly as git recorded it.
  * @returns {boolean}
  */
 export function isFastLanePath(path) {
-  return (
-    FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix)) || FAST_LANE_FILES.includes(path)
-  );
+  if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
+  if (
+    path.endsWith(FAST_LANE_MARKDOWN_SUFFIX) &&
+    FAST_LANE_MARKDOWN_PREFIXES.some((prefix) => path.startsWith(prefix))
+  ) {
+    return true;
+  }
+  return FAST_LANE_FILES.includes(path);
 }
 
 /**
@@ -144,14 +189,21 @@ export function isPlanOnly(files) {
 /**
  * Directories a change can be confined to without any portal-rendered surface moving.
  *
- * `apps/admin/` is the whole point; `docs/` and the fast-lane directories ride along
- * because prose cannot render anything either and an admin PR routinely carries some.
+ * `apps/admin/` is the whole point; `docs/`, `plan/` and `.claude/` ride along because
+ * prose cannot render anything either and an admin PR routinely carries some.
  *
- * The fast-lane set is included here by construction rather than by a second list,
- * which pins an invariant worth stating: a path the narrow lane lets skip the browser
- * suite ENTIRELY must also be a path the wide lane lets narrow it. A set that was in
- * one and not the other would mean an admin PR carrying a `CLAUDE.md` tweak paid for
- * the whole portal suite while the same tweak alone paid for none of it.
+ * `.claude/` is here WHOLE, where the fast lane admits only its Markdown, and the
+ * asymmetry is deliberate because the two lanes ask different questions. This one asks
+ * whether a portal-rendered surface can move, and nothing under `.claude/` renders
+ * anything at any extension - a hook script is as incapable of moving a portal screen
+ * as a skill file is. The Markdown restriction next door answers a different question
+ * (what a one-minute merge window may carry past every gate), and importing it here
+ * would only mean an admin PR carrying a `settings.json` tweak paid for the whole
+ * portal browser suite for no reason anyone could state.
+ *
+ * The invariant that does matter still holds and is pinned by a test: every path on the
+ * fast lane is admin-only too. A path the narrow lane lets skip the browser suite
+ * ENTIRELY must also be one the wide lane lets narrow it.
  *
  * What is deliberately NOT here is the condition someone will reach for first,
  * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
@@ -159,7 +211,12 @@ export function isPlanOnly(files) {
  * must run the whole suite. The safe question is what the diff touches OUTSIDE this
  * list, and one path outside it is enough to run everything.
  */
-export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
+export const ADMIN_ONLY_PREFIXES = [
+  "apps/admin/",
+  "docs/",
+  ...FAST_LANE_PREFIXES,
+  ...FAST_LANE_MARKDOWN_PREFIXES,
+];
 
 /**
  * Can this diff move a portal-rendered surface?
@@ -305,7 +362,11 @@ function main() {
     return;
   }
 
-  const fastLaneScope = [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES].join(", ");
+  const fastLaneScope = [
+    ...FAST_LANE_PREFIXES,
+    ...FAST_LANE_MARKDOWN_PREFIXES.map((prefix) => `${prefix}**/*${FAST_LANE_MARKDOWN_SUFFIX}`),
+    ...FAST_LANE_FILES,
+  ].join(", ");
   const outsidePlan = files.filter((path) => !isFastLanePath(path));
   report(
     "plan_only",

@@ -52,7 +52,8 @@ concurrency:
 jobs:
   # The fast-lane classifier. A pull request whose every changed path is in the
   # fast-lane set - `plan/` (the committed planning/scratch area, not a workspace),
-  # `.claude/` (agent and skill definitions) and the three root instruction files -
+  # Markdown under `.claude/` (the agent and skill definitions, NOT the settings file
+  # and not a hook script) and the three root instruction files -
   # cannot break build, typecheck, lint, the unit suites or any of the three
   # end-to-end suites, yet it used to cost the full ~20-minute matrix: PR #524 was
   # prose-only and paid it twice on one head, and PR #868 (`.claude/` plus
@@ -167,7 +168,8 @@ jobs:
     if: ${{ !cancelled() }}
     env:
       # Read by every step below. `true` means every changed path is in the fast-lane
-      # set (`plan/`, `.claude/`, `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`, `CONTRIBUTING.md`), so
+      # set (`plan/`, `.claude/**/*.md`, `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`,
+      # `CONTRIBUTING.md`), so
       # this job runs `check:plan` and stops; the job itself still runs and still
       # reports its required context.
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
@@ -204,8 +206,17 @@ jobs:
       # instruction files live. Measured at about 13 seconds for check:all on a tree
       # with nothing built. Do not trim it back to a hand-picked list: the whole point
       # of naming `check:all` is that a gate added later covers the lane for free.
+      #
+      # DEFAULT_BRANCH for the same reason the two steps below take it: `check:all`
+      # contains `check:changeset` and `check:golden-append-only`, both of which diff
+      # against it and both of which default to `main`. Without this line a fast-lane
+      # pull request stacked on another branch would diff against `main` and read its
+      # parent's commits as its own. Both fail in the safe direction, which is exactly
+      # why it would have gone unnoticed.
       - run: pnpm check:plan
         if: env.PLAN_ONLY == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.pull_request.base.ref || 'main' }}
 
       # Build before typecheck so every workspace package's dist/ (and its emitted
       # .d.ts) exists on disk first. `pnpm typecheck` (turbo, ^build) should build
