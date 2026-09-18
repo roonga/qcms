@@ -190,7 +190,7 @@ describe("what a floor selects", () => {
     });
   });
 
-  it("leaves an unfixable critical out of the blocking set by default", () => {
+  it("leaves a critical with no available fix out of the blocking set by default", () => {
     expect(atOrAbove(findings(REPORT), "critical", false)).toEqual([]);
   });
 

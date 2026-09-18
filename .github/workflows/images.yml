@@ -359,10 +359,14 @@ jobs:
 
       # The floors live here rather than in the script's defaults so that moving one is
       # a one-line workflow edit a reviewer sees, which is what "configurable" has to
-      # mean for a number the Code Owner may want to change. `critical` blocks, `high`
-      # is reported by the scheduled job below, and only a finding with a published fix
-      # can do either - `scripts/image-scan.mjs` explains at length why an unfixable
-      # base-image critical is counted and reported but not made blocking.
+      # mean for a number the Code Owner may want to change.
+      #
+      # `critical` blocks and `high` is reported, and the two are NOT filtered the same
+      # way. Only a finding with a published fix can block, which is an interim while
+      # the Code Owner's decision about the base image's unfixed criticals is open.
+      # Reporting is never filtered that way: every finding at or above `high` is named
+      # by id whether or not a fix exists, because a finding that cannot turn a job red
+      # has no other channel. `scripts/image-scan.mjs` argues both at length.
       - name: Scan each image's SBOM
         env:
           QCMS_IMAGE_SCAN_FAIL_ON: critical
