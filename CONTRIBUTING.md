@@ -138,6 +138,22 @@ Do not assume popularity - check stars/downloads. Below every threshold: stop, s
 
 **A group and an exclusion are two halves of one decision.** A group with no `patterns` matches everything, so a package named in a narrower group must also be excluded from the broad one or the broad one claims it by update level. Both `@codemirror/*` entries exist for that reason, and neither is an `ignore`: an exclusion changes which pull request a bump lands in, never whether it arrives.
 
+### Adding a `uses:` to a workflow: a third-party action is pinned by commit SHA
+
+**A GitHub Action is a dependency that runs with access to the job's secrets, and this repository pins the third-party ones the way it pins base images** (Code Owner, 2026-09-19, issue #948; the full reasoning and the sources are in SEC-11 of `docs/SECURITY_DESIGN.md`). Three classes, and a new step belongs to exactly one:
+
+| Class                                         | Write it as                                     | Why                                                                                                                                           |
+| --------------------------------------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Third-party** (any owner but the two below) | `uses: owner/repo@<40-hex commit SHA> # vX.Y.Z` | A tag is mutable, so a tag reference does not name what ran. A full SHA is the only immutable reference GitHub offers.                        |
+| **First-party** (`actions/*`, `github/*`)     | `uses: actions/checkout@v7`                     | The Code Owner's carve-out: the trust argument is about a third party's repository. A ref is still required; no ref means the default branch. |
+| **Local** (`./.github/actions/...`)           | `uses: ./.github/actions/test-postgres-image`   | Reviewed in the pull request that changes it. GitHub accepts no ref on a local reference.                                                     |
+
+**Resolving the SHA is a two-step read, because most release tags are annotated.** `gh api repos/<owner>/<repo>/git/ref/tags/<tag>` returns an object of type `tag` for an annotated tag, and that object's SHA is **not** the commit; `gh api repos/<owner>/<repo>/git/tags/<that sha>` dereferences it to the commit the pin must name. `git ls-remote --tags <url>` is the independent cross-check: the line whose ref ends `^{}` is the dereferenced commit. Record both readings in the pull request body. The release-age hold below does not reach Actions, since pnpm never resolves them, so apply it by judgement: do not pin a release younger than twenty-four hours.
+
+**After the first pin, Dependabot owns it.** The `actions` group in `.github/dependabot.yml` moves the SHA and the trailing version comment together, weekly; the comment is machine-read, so it has to be a tag or a link on the same line rather than prose. That half is not optional - a pin with no updater ages quietly, which is the #372 lesson restated one layer up.
+
+**`scripts/check-actions-pinned.test.ts` is what fails if any of that slips.** Its file set is derived from git and covers `.github/workflows/**` and `.github/actions/**`, so a third-party action called from a composite action is in scope too. It names the file and line, and it refuses a `uses:` shape it does not understand instead of reading past it, so a form nobody has thought about is a red rather than a silent exemption. It is a Vitest test in the `tooling` project rather than a `check:*` script for the same reason `scripts/check-dependabot-groups.test.ts` is: nothing about it needs to run outside `pnpm test`, and a new `check:*` also has to arrive as its own step in `ci.yml` under `pnpm check:ci-parity`.
+
 ### The release-age hold (`minimumReleaseAge`), and what a refusal means
 
 **pnpm 11 holds newly published versions back, and this repository now sets that hold explicitly and strictly** (issue #455; Code Owner ruling of 2026-09-04).
