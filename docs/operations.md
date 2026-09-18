@@ -96,26 +96,42 @@ pulls no image and holds no registry credential: the SBOM is a workflow artifact
 
 **Where to read it.** The `image-scan-report` artifact on the run, kept 90 days. It
 carries the full grype JSON per image, the SPDX document each report was produced from,
-and a Markdown summary; the same summary is printed in the job log. On the weekly run,
-anything at or above `high` with a published fix also lands in a `security`-labeled
-issue titled "Image vulnerability scan findings (scheduled run)", updated by comment
-rather than duplicated, exactly as the `pnpm audit` run does.
+and a Markdown summary; the same summary is printed in the job log. The summary has
+three sections: what is blocking, what is reported **with** a fix available, and what is
+reported **without** one. All three name each finding by id, package, version and fix
+state, and a finding present in all three images is one row naming them rather than
+three.
+
+**The weekly issue.** On the scheduled run, everything at or above `high` - fixable or
+not - also lands in a `security`-labeled issue titled "Image vulnerability scan findings
+(scheduled run)", updated by comment rather than duplicated, as the `pnpm audit` run
+does. Two things about it are worth knowing before you wait on one. A week in which the
+reported set has not moved posts **nothing**: the job compares a digest of the set
+against the digest embedded in the last comment, so a new comment means the answer
+changed rather than that a Monday passed. And a week in which the scan failed outright
+posts that fact, so silence never means "the scan broke".
 
 **What turns the job red.** A finding at or above `critical` **that has a published
-fix**. Every finding is counted and kept either way; what the published-fix rule
-decides is what can fail a job. The reason is in `docs/SECURITY_DESIGN.md` section 9:
-the pinned base image carries seven criticals that Debian marks `wont-fix` or has not
-fixed, so a floor counting those would be permanently red and permanently ignored. The
-job is not a required check, so a red scan never blocks a merge.
+fix**, and the job exits `2` when that happens against `1` when the scan could not be
+performed at all. Every finding is counted, kept and named either way; the published-fix
+rule decides only what can fail a job. The reason is in `docs/SECURITY_DESIGN.md`
+section 9, and the short form has to be stated carefully: the pinned base image carries
+seven criticals for which **Debian 12** has no fixed version, so a floor counting them
+would be permanently red and permanently ignored. `wont-fix` and `not-fixed` in the
+report are **grype's** labels for that, not a statement that upstream refuses to fix;
+Debian tags these `<no-dsa>` or `<postponed>` and rates them minor, and all six are
+fixed in Debian 13. Whether to accept them, move the base, or wait for a bookworm point
+release is an open Code Owner decision recorded in that section. The job is not a
+required check, so a red scan never blocks a merge.
 
 **Triage, in the order the causes actually occur.**
 
-| The finding is against                                   | It is cleared by                                                                                                                                               |
-| -------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a `deb` package                                          | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together. |
-| an `npm` package under `/usr/local/lib/node_modules/npm` | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.              |
-| an `npm` package in the application tree                 | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                    |
-| nothing with a fix available                             | nothing yet. Record it; do not silence it. An acceptance decision belongs to the Code Owner.                                                                   |
+| The finding is against                                   | It is cleared by                                                                                                                                                                               |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a `deb` package                                          | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.                                 |
+| an `npm` package under `/usr/local/lib/node_modules/npm` | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                                              |
+| an `npm` package in the application tree                 | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                                                    |
+| nothing with a fix available in this distribution        | nothing in this repository, yet. It is reported and not silenced, and `wont-fix` is the scanner's label rather than upstream's verdict; check the Debian security tracker before repeating it. |
 
 **Reproducing a finding locally.** Build the images with their attestations, then scan
 them. grype is not a workspace dependency; install it yourself and point the script at
@@ -126,9 +142,11 @@ pnpm qcms:build-images -- --output ./dist-images --attestations ./dist-attestati
 pnpm qcms:scan-images -- --attestations ./dist-attestations --report ./dist-image-scan
 ```
 
-`--fail-on <severity>` and `--notify-on <severity>` move the two floors,
-`--fail-on-unfixed` makes findings with no published fix blocking as well, and
-`--scanner <path>` names a grype binary that is not on `PATH`. The scan refuses to pass
+`--fail-on <severity>` moves the blocking floor and `--notify-on <severity>` the
+reporting floor; `--fail-on-unfixed` widens the **blocking** floor to findings with no
+published fix (it does not change reporting, which always covers both); and
+`--scanner <path>` names a grype binary that is not on `PATH`. Both output directories
+are in `.gitignore`. The scan refuses to pass
 vacuously: an SBOM listing no packages, a report with no vulnerability database behind
 it, or deb packages in the SBOM with no distro in the report each fail the run rather
 than reading as clean.

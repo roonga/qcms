@@ -509,17 +509,49 @@ That risk is real here rather than theoretical: syft's SPDX output carries no op
 The syft document does record it there (`pkg:deb/debian/libc6@2.36-9+deb12u14?arch=amd64&distro=debian-12.15`), grype reconstructs it from exactly that, and the report says so: measured on the three images, `debian 12.15`, with 220 of 229 matches against `deb` packages.
 `scripts/image-scan.mjs` refuses a run in which an SBOM lists deb packages and the report names no distro, so that this cannot decay into a silent pass.
 
-**What blocks, what reports, and the floor's one exception.**
+**What blocks, and what reports: two axes, deliberately decoupled.**
 `critical` is the blocking floor and `high` the reporting floor, both set in the workflow so moving one is a one-line edit a reviewer sees.
-**Only a finding with a published fix can do either.**
-That exception is what makes a `critical` floor usable rather than decorative, and the numbers are the argument: at the pinned `node:24-bookworm-slim` digest the base image carries **7 critical findings, every one of them `wont-fix` or `not-fixed` upstream** - `CVE-2026-5450` against `libc6` and `libc-bin`, and five against `perl-base` (`CVE-2026-8376`, `CVE-2026-13221`, `CVE-2026-42496`, `CVE-2026-12087`, `CVE-2026-57433`).
-A floor that counted those would be red on the day it landed and red every day after, with nothing anyone could do to clear it.
-Nothing is hidden by the exception: every finding is counted in the summary table, kept in the `image-scan-report` artifact for 90 days, and the unfixable criticals are named here.
-**Whether to accept those seven, and on what basis, is a Code Owner decision and is not taken by this change.**
+**Only a finding with a published fix can block**, and that rule is deliberately confined to blocking.
+Reporting names **every** finding at or above its floor, fix or no fix, by id, package, version and fix state, with the ones that have no fix in their own section of `summary.md`, of the job log and of the weekly issue.
+The first draft of this applied the published-fix rule to both, and the #953 reviewer was right that this was not defensible: an unfixed critical was counted in a table and named nowhere a person looks, so an eighth one next week would have turned a 7 into an 8 and reached nobody.
+Reporting costs nothing and blocks nothing, and it is exactly the channel the open decision below needs.
 
-**The before-and-after the #372 ruling asked for, measured for the first time.**
-Per image: 229 matches, of which 7 critical, 59 high, 81 medium, 8 low, 58 negligible and 16 unknown; 214 of the 229 have no fix available.
-Seven have one, and all seven are in the **base image** rather than in the application tree: `CVE-2026-86145`, `CVE-2026-89157` and `CVE-2026-89161` against `libpcre2-8-0@10.42-1`, fixed in Debian's `10.42-1+deb12u1`, so the pinned digest is behind a point release; and `brace-expansion@5.0.7`, `tar@7.5.19` and `ip-address@10.2.0`, which are **npm's own bundled dependencies under `/usr/local/lib/node_modules/npm`** and not this workspace's (the lockfile resolves `brace-expansion@5.0.9` under the override CONTRIBUTING records).
+**Why the blocking floor is fixable-only, as an interim, and what that does not claim.**
+At the pinned `node:24-bookworm-slim` digest the base image carries **7 critical findings for which Debian 12 has no fixed version**: `CVE-2026-5450` against `libc6` and `libc-bin`, and five against `perl-base` (`CVE-2026-8376`, `CVE-2026-13221`, `CVE-2026-42496`, `CVE-2026-12087`, `CVE-2026-57433`).
+A blocking floor that counted them would be red from the day it landed with **no change to this repository** able to clear it, which is how a non-required job becomes one people filter out of their inbox.
+That is the whole of the argument, and it is narrower than the sentence that stood here before, which said "nothing anyone could do to clear it" and was false.
+Two corrections belong with it.
+**`wont-fix` and `not-fixed` are grype's labels for "this distribution has no fixed version", not upstream's verdict**; Debian's own tags for these are `<no-dsa>` and `<postponed>`, with notes such as "Minor issue; can be fixed in point release" (`CVE-2026-8376`) and "Minor issue; wait for regressions upstream sorted out" (`CVE-2026-42496`).
+And **all six are fixed in Debian 13 (trixie)**, at `glibc 2.41-12+deb13u4` and `perl 5.40.1-6+deb13u1`, verified on `security-tracker.debian.org` on 2026-09-18, one page per id.
+
+**The open question, with its evidence, not a recommendation.**
+Three options, and the Code Owner picks one:
+
+1. **Accept the seven, per CVE, with removal conditions.** The tracker's own notes are the material: Debian rates every one "Minor issue"; `CVE-2026-8376`'s upstream description scopes the heap overflow to **32-bit builds** while these images are amd64; and `CVE-2026-13221` is recorded as introduced in **perl v5.37.10** while bookworm ships 5.36.0, which sits oddly beside Debian marking bookworm vulnerable and is worth resolving before it is relied on.
+2. **Move the base to `node:24-trixie-slim` as a deliberate major.** Measured rather than assumed, below.
+3. **Wait for a bookworm point release.** Two of the six are tagged as fixable in one.
+
+A second question rides with it: whether the blanket published-fix rule should become a **per-id acceptance ledger** with removal conditions, in the style of CONTRIBUTING's security-overrides table. Neither question is answered here, and this change builds no ledger.
+
+**What a trixie base would buy, measured.**
+The sentence a few paragraphs up records "what a different base would buy remains unmeasured" as the open half of the #372 ruling.
+It is measured now, with the same grype build and database, scanning each **base image alone** (the scanner run directly against the image rather than through one of our SBOMs, so these numbers are about the base and not about our images):
+
+| Base image                                                                | Findings | Critical | With a published fix |
+| ------------------------------------------------------------------------- | -------- | -------- | -------------------- |
+| `node:24-bookworm-slim@sha256:2fe369e9...` (pinned today)                 | 229      | 7        | 15                   |
+| `node:24-trixie-slim` (published digest `sha256:d7b4e5c4...`, 2026-09-18) | 180      | 7        | 37                   |
+
+**The result is more interesting than "trixie clears them", and that phrasing would be wrong.**
+Trixie removes 49 findings outright.
+It does **not** remove the seven criticals: the published `node:24-trixie-slim` ships `glibc 2.41-12+deb13u3` and `perl 5.40.1-6`, both **below** the trixie versions that carry the fixes, so the same seven ids are still present - now as findings **with a published fix**.
+Under the blocking rule above that is a material difference in both directions: those seven become actionable, and they would also turn the `scan` job red on the day the base moved, until a `node:24-trixie-slim` built on trixie's current point release is available to pin.
+That is a fact for the decision, not an argument against it.
+
+**The application-tree result, and what an image scan adds over `pnpm audit`.**
+Per image (through the SBOM, which is what the workflow scans): 229 matches, of which 7 critical, 59 high, 81 medium, 8 low, 58 negligible and 16 unknown; **214 have no fix available and 15 have one** - 7 at `high` and 8 at `medium`.
+Every one of the 15 is in the **base image** rather than in the application tree.
+At `high`: `CVE-2026-86145`, `CVE-2026-89157` and `CVE-2026-89161` against `libpcre2-8-0@10.42-1`, fixed in Debian's `10.42-1+deb12u1`, so the pinned digest is behind a point release; and `brace-expansion@5.0.7`, `tar@7.5.19` and `ip-address@10.2.0`, which are **npm's own bundled dependencies under `/usr/local/lib/node_modules/npm`** and not this workspace's (the lockfile resolves `brace-expansion@5.0.9` under the override CONTRIBUTING records).
 That last group is the concrete answer to what an image scan adds over `pnpm audit`: `pnpm audit` reads this repository's dependency graph and structurally cannot see a package the base image ships.
 
 **Why this cannot block unrelated work, stated rather than left to be discovered.**
@@ -531,18 +563,25 @@ Promoting either into a required context would turn an upstream publication into
 grype is installed as a release binary verified against a SHA-256 recorded in the workflow, not taken from the publisher's own checksums file beside the asset - checking an artifact against a file from the same place proves only that the two agree.
 That is the property the base-image digests give `docker/*.Dockerfile`: the version is legible, the digest is what is enforced.
 No third-party Action is added, so issue #948's open question about pinning Actions by commit SHA is unaffected either way.
-Dependabot does not track a digest in a workflow `env`, so a bump is a deliberate edit: take the new version's asset, verify it against the publisher's signed checksums, and record the digest in the same commit.
+What "verified" means, precisely: the asset was downloaded, hashed locally, and that hash compared against two independent publications of it, the release's `grype_<version>_checksums.txt` and the `digest` the GitHub releases API reports for the asset.
+The keyless cosign signature over `checksums.txt` was **not** checked; no cosign was available, and claiming otherwise would be the kind of overstatement this section exists to avoid.
+Dependabot does not track a digest in a workflow `env`, so a bump is a deliberate edit: hash the new asset, confirm it against those two publications, wait out the repository's 24-hour release-age hold (CONTRIBUTING, "The release-age hold", whose reasoning applies with more force to a binary CI executes), and record the digest in the same commit.
 
 **Weekly, and how a finding reaches a person.**
 The workflow gained a `schedule` trigger for the same reason `audit.yml` has one: the images are a deterministic function of the tree (digest-pinned bases, `--frozen-lockfile`), so what moves between runs is the advisory database, and nothing would surface a CVE disclosed against an already-published image unless a run happened without a commit.
 A scheduled run builds and **publishes nothing**.
 `scan-issue` is the only job in the workflow holding `issues: write`, it runs only on the schedule, and it files or updates one `security`-labeled issue the way the `pnpm audit` run does.
+Three properties keep that issue worth reading.
+It carries unfixed findings as well as fixable ones, for the reason given above.
+A finding present in all three images is one row naming them rather than three rows, so the listing is about 66 rows and not 198.
+And the script emits a digest of the reported set which the job compares against the digest embedded in the last comment, so a week in which nothing moved says nothing at all - which makes a comment appearing mean that the answer changed.
+A scheduled run whose scan failed outright files that fact instead of staying silent, as `audit.yml` does.
 Triage is the same shape as that run's: a `deb` finding is cleared by a base-image digest bump (Dependabot's `docker` ecosystem opens it), an `npm` finding under `/usr/local/lib/node_modules/npm` by the same bump, and an `npm` finding in the application tree by a dependency bump or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger.
 `docs/operations.md` carries the runbook and the local reproduction.
 
 **Removal conditions.**
 The scan goes when an equivalent one runs against these images somewhere the repository already reads - a registry-side scanner covering `ghcr.io/roonga/qcms-*` whose findings reach the same place - at which point running a second one only doubles the noise.
-The published-fix exception goes when the base image stops carrying unfixable criticals, or when the Code Owner rules on accepting them; until then `--fail-on-unfixed` is the flag that turns it off for a one-off run.
+The published-fix rule on the blocking floor is an interim and goes when the Code Owner answers the open question above - by accepting the unfixed criticals per id with removal conditions, by moving the base, or by ruling that the blocking floor should count them; until then `--fail-on-unfixed` turns it off for a one-off run, and no finding is hidden by it in the meantime.
 The scaffold (037) must never contain a real secret - a scaffold-output scan is part of its CI.
 GitHub: branch protection, required CI, no force-push to main.
 
