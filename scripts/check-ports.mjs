@@ -160,6 +160,11 @@ export const ALLOWED = [
     why: "LM Studio's own default server port, in the Windows and WSL2 walkthrough (issue #819). Third-party like Ollama's above, and named for the same reason: an operator types the number their own install listens on. This one carries a second trap the guide has to show - the port is unreachable from WSL2 or a container until LM Studio is told to serve on the local network - so it appears there in three different addresses.",
   },
   {
+    file: "packages/db/src/testing/pool-contention.test.ts",
+    value: 34517,
+    why: "the ephemeral port Docker mapped to a test container, quoted inside the `connect ECONNREFUSED` message `pg` raises against it (issue #939). Docker picks it, not this repository, and it differs every run; the fixture keeps the whole message, loopback address and trailing port included, because what is under test is whether that exact wording is recognised as a contention shape.",
+  },
+  {
     file: "apps/api/src/config.test.ts",
     value: 11434,
     why: "Ollama's own default port again, in the fixtures that assert the local-endpoint key relaxation (041). The value under test is the hostname, not the port.",
