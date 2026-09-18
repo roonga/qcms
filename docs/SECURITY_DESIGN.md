@@ -529,7 +529,7 @@ Three options, and the Code Owner picks one:
 
 1. **Accept the seven, per CVE, with removal conditions.** The tracker's own notes are the material: Debian rates every one "Minor issue"; `CVE-2026-8376`'s upstream description scopes the heap overflow to **32-bit builds** while these images are amd64; and `CVE-2026-13221` is recorded as introduced in **perl v5.37.10** while bookworm ships 5.36.0, which sits oddly beside Debian marking bookworm vulnerable and is worth resolving before it is relied on.
 2. **Move the base to `node:24-trixie-slim` as a deliberate major.** Measured rather than assumed, below.
-3. **Wait for a bookworm point release.** Two of the six are tagged as fixable in one.
+3. **Wait for a bookworm point release.** One of the six carries that in its bookworm row explicitly: `CVE-2026-8376`, tagged `<no-dsa> (Minor issue; can be fixed in point release)`. The others are `<no-dsa>` or `<postponed>` without naming a point release, so this option is a wait of unknown length rather than a scheduled one.
 
 A second question rides with it: whether the blanket published-fix rule should become a **per-id acceptance ledger** with removal conditions, in the style of CONTRIBUTING's security-overrides table. Neither question is answered here, and this change builds no ledger.
 
@@ -604,7 +604,7 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 | Secrets handling + redaction (SEC-8)             | §6       | 017, 037 · **040 (placeholder boot refusal + `check:security-hygiene`)** · #491 (both BFFs) · #489 (stdout exception text recorded) · #910 (`check:security-hygiene` refuses an environment name in a response body) |
 | Transport/browser hardening (SEC-9)              | §5       | 029, 031, 036 · **040 (API headers, #471)**                                                                                                                                                                          |
 | Least-privilege DB roles (SEC-10)                | §7       | 013, 015 · 040 (reporting role asserted) · **#492 (app/migration split shipped and asserted)** · #432 (the split guards a command)                                                                                   |
-| Supply chain (SEC-11)                            | §9       | 001 (CI), 036, 037 · #372 (base digests + Dependabot containers) · #877 (SBOM read back: no dev-only package) · **#894 (grype over the persisted SBOMs; critical blocks, high files a weekly issue)**                |
+| Supply chain (SEC-11)                            | §9       | 001 (CI), 036, 037 · #372 (base digests + Dependabot containers) · #877 (SBOM read back: no dev-only package) · **#894 (grype over the persisted SBOMs; fixable criticals block, every high reported weekly)**       |
 | Review + disclosure (SEC-12)                     | §10      | **040 (`docs/security-review-2026-08-14.md`, `SECURITY.md`)**, 038 gate                                                                                                                                              |
 | Telemetry privacy / redaction allowlist (SEC-13) | §8a      | 054, 062 · **not re-verified by 040**                                                                                                                                                                                |
 
