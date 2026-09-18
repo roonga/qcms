@@ -11,7 +11,7 @@ import { builtinModules } from "node:module";
 
 import eslint from "@eslint/js";
 import sonarjs from "eslint-plugin-sonarjs";
-import tseslint from "typescript-eslint";
+import tseslint from "./tooling/eslint-config/typescript-eslint.js";
 
 import { noUnhandledThen } from "./scripts/eslint-rules/no-unhandled-then.mjs";
 

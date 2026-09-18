@@ -6,6 +6,7 @@
   // cached verdict from the previous behaviour (issue #899).
   "globalDependencies": [
     "eslint.config.js",
+    "tooling/eslint-config/**/*",
     "scripts/eslint-workspace.mjs",
     ".prettierrc*",
     "tsconfig.base.json"
