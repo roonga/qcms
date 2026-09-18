@@ -10,10 +10,9 @@
  *   body is a serialized `ZodError` rather than the `ErrorEnvelope` every route
  *   documents in `docs/openapi/*.json`, and a client keying off `error.code`
  *   reads `undefined`.
- * - That body **echoes submitted input**: a Zod `unrecognized_keys` issue names
- *   the keys it was sent, and nothing stops a future issue kind carrying the
- *   value itself. SEC-8 and SEC-13 both say a refusal never carries the value
- *   that caused it.
+ * - That body **echoes submitted values**, unboundedly: nothing stops an issue
+ *   kind carrying the value it rejected, at whatever length it arrived. SEC-8 and
+ *   SEC-13 both say a refusal never carries the value that caused it.
  *
  * So this hook is installed as the `defaultHook` at every `OpenAPIHono`
  * construction site in `app.ts`, and it **throws** the deliberate {@link ApiError}
@@ -22,9 +21,27 @@
  * other client-safe failure.
  *
  * What the body carries is the *location* of each failure plus Zod's own issue
- * code, never the input - the same house style `config.ts` uses for a boot
- * failure, where the message names the variable and the constraint and never
+ * code, never the submitted value - the same house style `config.ts` uses for a
+ * boot failure, where the message names the variable and the constraint and never
  * the value.
+ *
+ * **One exception, and it is deliberate: an unrecognized key is named** (Code
+ * Owner, 2026-09-19, issue #893). Request bodies reject unknown keys, and a
+ * refusal that will not say which key it means is a refusal a caller cannot act
+ * on - "the request does not match this route's schema" against a body of twelve
+ * fields is a guessing game. A key name is not a submitted value: it is the
+ * caller's own field naming, it is what the caller must change, and it is the one
+ * part of the input the schema has already decided it will not store or process.
+ * The 182 property therefore narrows from "no submitted input" to "no submitted
+ * **value**", and everything else on this page is unchanged - a `z.record` key is
+ * still reduced to `*`, because there the key *is* content the schema accepted.
+ *
+ * Named under bounds, because a key name is attacker-controlled text reflected
+ * into a response body and a log line: {@link MAX_KEYS_PER_ISSUE} keys per issue,
+ * {@link MAX_KEY_LENGTH} characters each, control and format characters removed so
+ * a caller cannot inject a newline into the log or a zero-width run into the
+ * message. With {@link MAX_REPORTED_ISSUES} the whole envelope stays small whatever
+ * arrives.
  */
 
 import type { ValidationTargets } from "hono";
@@ -45,6 +62,35 @@ const MAX_REPORTED_ISSUES = 20;
 const ROOT_PATH = "(root)";
 
 /**
+ * Cap on unrecognized keys named per issue. Five is enough to fix a hand-written
+ * body or a mistyped client; past that the caller is sending a different shape
+ * than the route has, and a count says so more usefully than a list would.
+ */
+const MAX_KEYS_PER_ISSUE = 5;
+
+/**
+ * Cap on the length of a named key, in characters. Far past any field name this
+ * API declares, so a real mistake is always shown in full, while a key invented
+ * to bloat the response or the log is cut to a fixed size.
+ */
+const MAX_KEY_LENGTH = 64;
+
+/** Marker appended to a key that was cut at {@link MAX_KEY_LENGTH}. */
+const TRUNCATION_MARK = "...";
+
+/**
+ * Control, format and line-separator characters, removed from a named key. A key
+ * reaches the `warn` log line as well as the response body, so a caller must not
+ * be able to put a newline, an ANSI escape or a zero-width run inside it. `\p{C}`
+ * covers the C0/C1 controls and the format characters; the two separators are the
+ * line breaks outside them.
+ */
+const UNSAFE_IN_KEY = /[\p{C}\p{Zl}\p{Zp}]/gu;
+
+/** Zod's `unrecognized_keys` issue code - the one issue kind that names keys. */
+const UNRECOGNIZED_KEYS = "unrecognized_keys";
+
+/**
  * A path segment is reproduced only when it reads as a schema-declared field
  * name (or an array index). Normally that is exactly what it is - but a schema
  * built on `z.record` keys its children by whatever the caller sent, so the
@@ -59,6 +105,14 @@ export interface ValidationIssueReport {
   readonly path: string;
   /** Zod's issue code (`invalid_type`, `too_big`, `custom`, ...). */
   readonly code: string;
+  /**
+   * The unknown keys this object refused, sanitized and capped (#893). Present
+   * only on an `unrecognized_keys` issue; the names are the caller's own field
+   * naming, never a submitted value.
+   */
+  readonly keys?: readonly string[];
+  /** Keys beyond {@link MAX_KEYS_PER_ISSUE}; absent when none were dropped. */
+  readonly omittedKeys?: number;
 }
 
 /** `details` of an {@link INVALID_REQUEST} envelope. */
@@ -80,30 +134,76 @@ function safePath(path: readonly PropertyKey[]): string {
   return path.map(safeSegment).join(".");
 }
 
+/** One refused key, stripped of anything unsafe in a log line and cut to length. */
+function safeKey(key: unknown): string {
+  const scrubbed = String(key).replace(UNSAFE_IN_KEY, "");
+  return scrubbed.length > MAX_KEY_LENGTH
+    ? `${scrubbed.slice(0, MAX_KEY_LENGTH)}${TRUNCATION_MARK}`
+    : scrubbed;
+}
+
+/**
+ * The keys an `unrecognized_keys` issue refused. Zod carries them on the issue as
+ * `keys`; read through a local shape because `ZodError`'s issue union narrows by a
+ * literal code and this stays readable across a Zod minor.
+ */
+function refusedKeys(issue: { readonly code: string }): readonly string[] {
+  if (issue.code !== UNRECOGNIZED_KEYS) return [];
+  const keys = (issue as { readonly keys?: unknown }).keys;
+  return Array.isArray(keys) ? keys.map(safeKey) : [];
+}
+
+/** The reported form of one Zod issue: its location, its rule, and any refused keys. */
+function reportIssue(issue: { readonly code: string; readonly path: readonly PropertyKey[] }): ValidationIssueReport {
+  const keys = refusedKeys(issue);
+  const named = keys.slice(0, MAX_KEYS_PER_ISSUE);
+  const omittedKeys = keys.length - named.length;
+  return {
+    path: safePath(issue.path),
+    code: issue.code,
+    ...(named.length > 0 ? { keys: named } : {}),
+    ...(omittedKeys > 0 ? { omittedKeys } : {}),
+  };
+}
+
+/** The base message, unchanged for every failure that is not an unknown key. */
+const SCHEMA_MISMATCH = "The request does not match this route's schema";
+
+/**
+ * The refusal message. An unknown key gets named (#893) so the caller can fix the
+ * body; every other failure keeps the location-only message, because there the
+ * thing to name would be a value.
+ */
+function refusalMessage(reports: readonly ValidationIssueReport[]): string {
+  const named: string[] = [];
+  let dropped = 0;
+  for (const report of reports) {
+    for (const key of report.keys ?? []) {
+      if (named.length < MAX_KEYS_PER_ISSUE) named.push(`"${key}"`);
+      else dropped += 1;
+    }
+    dropped += report.omittedKeys ?? 0;
+  }
+  if (named.length === 0) return SCHEMA_MISMATCH;
+  const noun = named.length === 1 && dropped === 0 ? "key" : "keys";
+  const more = dropped > 0 ? ` and ${String(dropped)} more` : "";
+  return `${SCHEMA_MISMATCH}: unrecognized ${noun} ${named.join(", ")}${more}`;
+}
+
 /**
  * The value-free {@link ApiError} for a failed request-schema validation.
  * Exported for the tests that pin the shape; production code reaches it through
  * {@link validationErrorHook}.
  */
 export function invalidRequest(target: keyof ValidationTargets, error: ZodError): ApiError {
-  const reported = error.issues
-    .slice(0, MAX_REPORTED_ISSUES)
-    .map((issue): ValidationIssueReport => ({
-      path: safePath(issue.path),
-      code: issue.code,
-    }));
+  const reported = error.issues.slice(0, MAX_REPORTED_ISSUES).map(reportIssue);
   const omitted = error.issues.length - reported.length;
   const details: ValidationFailureDetails = {
     target,
     issues: reported,
     ...(omitted > 0 ? { omitted } : {}),
   };
-  return new ApiError(
-    INVALID_REQUEST,
-    400,
-    "The request does not match this route's schema",
-    details,
-  );
+  return new ApiError(INVALID_REQUEST, 400, refusalMessage(reported), details);
 }
 
 /**

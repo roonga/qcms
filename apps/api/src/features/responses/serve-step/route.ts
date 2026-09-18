@@ -17,7 +17,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import { answersPerIpLimiter, answersPerSessionLimiter } from "../rate-limits.js";
 import { makeGetStepHandler, makeSubmitAnswerHandler } from "./handler.js";
 import { SessionParams, StepQuery, StepResponse, SubmitAnswerBody } from "./schema.js";
@@ -48,10 +48,7 @@ export const submitAnswerRoute = createRoute({
   request: {
     params: SessionParams,
     query: StepQuery,
-    body: {
-      required: true,
-      content: { "application/json": { schema: SubmitAnswerBody } },
-    },
+    body: jsonBody(SubmitAnswerBody),
   },
   responses: {
     200: {
