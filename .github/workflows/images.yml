@@ -410,7 +410,10 @@ jobs:
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/image-scan"
-          notifying=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).notifying))' "${report}/summary.json")
+          # `jq` and not node: this job deliberately does not check the repository out,
+          # so there is no workspace here and nothing to set up. Both are preinstalled
+          # on the runner; jq is the one that reads as what it is.
+          notifying=$(jq -r '.notifying' "${report}/summary.json")
           if [ "${notifying}" -eq 0 ]; then
             echo "No image findings at or above the reporting floor with a published fix."
             exit 0
