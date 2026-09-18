@@ -221,9 +221,7 @@ describe("reading who holds the lock", () => {
             : "/dev/null",
     });
 
-    expect(lines).toEqual([
-      "pid 1015609  cwd /checkout/apps/portal  next-build (v16.3.5)",
-    ]);
+    expect(lines).toEqual(["pid 1015609  cwd /checkout/apps/portal  next-build (v16.3.5)"]);
   });
 
   it("stays silent when the pid holds no descriptor on the lock file", () => {
@@ -274,7 +272,10 @@ describe("arguments and resolution", () => {
 
   it("refuses an invocation with no command", () => {
     expect(parseArgs([])).toEqual({ ok: false, reason: "no build command given" });
-    expect(parseArgs(["--lock-dir"])).toEqual({ ok: false, reason: "--lock-dir needs a directory" });
+    expect(parseArgs(["--lock-dir"])).toEqual({
+      ok: false,
+      reason: "--lock-dir needs a directory",
+    });
   });
 
   it("prefers the calling package's own bin over PATH", () => {

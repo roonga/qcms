@@ -437,7 +437,9 @@ async function main() {
   const parsed = parseArgs(argv.slice(2));
   if (!parsed.ok) {
     console.error(`next-build: ${parsed.reason}`);
-    console.error("usage: node ../../scripts/next-build.mjs [--lock-dir <dir>] <command> [args...]");
+    console.error(
+      "usage: node ../../scripts/next-build.mjs [--lock-dir <dir>] <command> [args...]",
+    );
     return 64;
   }
   const lockPath = join(resolve(cwd(), parsed.lockDir), "lock");
