@@ -274,6 +274,22 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
     ]);
   });
 
+  it("de-duplicates, so a forged repeat cannot draw one question twice", () => {
+    // Every surviving id becomes a React key and a summary anchor, so a repeat would
+    // render the same question twice under the same key. The API's own set never
+    // repeats; a hand-set cookie can.
+    expect(missingOnStep(["q_dob", "q_dob", "q_full_name", "q_dob"], VISIBLE, {})).toEqual([
+      "q_dob",
+      "q_full_name",
+    ]);
+    // First-seen order survives the de-duplication, so the summary still reads in the
+    // API's document order.
+    expect(missingOnStep(["q_full_name", "q_dob", "q_full_name"], VISIBLE, {})).toEqual([
+      "q_full_name",
+      "q_dob",
+    ]);
+  });
+
   it("is inert for a forged set naming questions that are not on the page", () => {
     // The re-render context is httpOnly but unsigned, so a respondent can hand the
     // render any ids they like. The worst that buys is a message beside a question on

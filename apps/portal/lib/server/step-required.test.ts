@@ -243,6 +243,55 @@ describe("a required question left blank is reported, not silently reloaded (iss
     expect(context.errors).toEqual({ q_dob: "Too late" });
   });
 
+  it("keeps the refusals and the typed values when the projection read FAILS", async () => {
+    // The narrow regression this change introduced and then closed (reviewer finding).
+    // When every posted answer is refused there is no projection in hand, so the route
+    // reads one; if that read throws, the round must still re-render with the 422 and
+    // the value the respondent typed. Returning before the write would hand them the
+    // silent reload this whole change exists to remove.
+    api.submitAnswer.mockRejectedValue(
+      new FakeApiError(422, "INVALID_ANSWER", {
+        questionId: "q_full_name",
+        errors: [{ code: "PATTERN_MISMATCH", constraint: "pattern", message: "Letters only" }],
+      }),
+    );
+    api.getStep.mockRejectedValue(new FakeApiError(503, "UPSTREAM"));
+
+    const response = await postStep([
+      ["__qk__q_full_name", "string"],
+      ["q_full_name", "Ada1"],
+    ]);
+
+    expect(response.status).toBe(303);
+    const context = writtenContext();
+    expect(context.errors).toEqual({ q_full_name: "Letters only" });
+    expect(context.values).toEqual({ q_full_name: "Ada1" });
+    // The missing-required half is the only casualty of the failed read: it is the
+    // API's to give, so with no projection the route reports none rather than guessing.
+    expect(context.missingRequired).toEqual([]);
+    // And nothing was submitted on a guess about readiness.
+    expect(api.submitSession).not.toHaveBeenCalled();
+  });
+
+  it("keeps the typed values when the read fails and nothing was refused", async () => {
+    // The same protection one step further out: no refusals either, so the only thing
+    // worth carrying is what the respondent typed, and it is carried.
+    api.submitAnswer.mockResolvedValue(
+      projection({ visibleQuestions: ["q_full_name"], readyToSubmit: false }),
+    );
+    api.getStep.mockRejectedValue(new FakeApiError(503, "UPSTREAM"));
+
+    await postStep([
+      ["__qk__q_full_name", "string"],
+      ["q_full_name", "Ada Lovelace"],
+    ]);
+
+    // `submitAnswer` returned a projection here, so this asserts the ordinary
+    // not-ready path still carries values; the read is never even reached.
+    expect(writtenContext().values).toEqual({ q_full_name: "Ada Lovelace" });
+    expect(api.submitSession).not.toHaveBeenCalled();
+  });
+
   it("submits the session untouched when the API reports no gap", async () => {
     // The behaviour that must not regress: a complete step still submits on the same
     // POST, with no extra round trip introduced by the gap read.

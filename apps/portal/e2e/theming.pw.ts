@@ -34,6 +34,7 @@ import { ACCIDENT_LABEL, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
 import { HARNESS_CORNERS, HARNESS_THEME, PORTAL_PORT } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
+import { starveScripts } from "./support/script-starve.js";
 
 /** The four corner presets and the `--radius-control` / `--radius-card` they set. */
 const CORNER_PRESETS = [
@@ -327,4 +328,52 @@ test("the High-contrast mode layer is heavier borders, flat surfaces and heavy f
   expect(await px(skip, "outline-width")).toBeCloseTo(3, 0);
   // HC is not Dark: the UA is told to keep light form controls.
   expect(await computed(page.locator("html"), "color-scheme")).toBe("light");
+});
+
+test("the no-JS date fallback's box consumes the same spacing tokens (issue #920)", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // COMPONENT_GUIDELINES item 9's other half for the native day input. It draws a box
+  // of its own, so it has to be the box the tokens describe rather than one styled by
+  // hand: a respondent with scripting off must not get a date control that sits at a
+  // different height or inset from the text field above it. No new rule in
+  // `theme-components.css` was needed - the text-entry-control rule already reaches
+  // any input that is not a radio, a checkbox or hidden - and that is exactly the
+  // claim worth measuring, because it is a rule this control was never written for.
+  //
+  // Scripts starved rather than `javaScriptEnabled: false`, because computed style is
+  // read through `page.evaluate` (see `support/script-starve.ts`).
+  const starvation = await starveScripts(page);
+  await page.goto(`/f/${kitchenSinkSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+
+  const day = page.locator('[data-qcms-field] input[type="date"]');
+  await expect(day).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this measures the hydrated render",
+  ).toBeGreaterThan(0);
+
+  // The shipped Comfortable values, the same three the vendored text input is held to
+  // above: --space-control-h 44px and --space-control-pad-x 0.9rem.
+  expect(await px(day, "min-height")).toBeCloseTo(44, 0);
+  expect(await px(day, "padding-left")).toBeCloseTo(14.4, 0);
+  expect(await px(day, "padding-right")).toBeCloseTo(14.4, 0);
+
+  // The 44px is also WCAG 2.5.8's target floor, and it is the reason this control may
+  // not fall back to a browser default height on the one path where it is the only way
+  // to answer the question.
+  const box = await day.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+
+  // And the TOKENS drive them: move the two and the computed values follow.
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--space-control-h", "60px");
+    document.documentElement.style.setProperty("--space-control-pad-x", "2rem");
+  });
+  expect(await px(day, "min-height")).toBeCloseTo(60, 0);
+  expect(await px(day, "padding-left")).toBeCloseTo(32, 0);
 });

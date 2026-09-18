@@ -171,6 +171,12 @@ export function errorSummaryEntries(
  * question the API refused is missing an answer by construction, and the kernel's
  * message about the value it refused says more than "this needs an answer".
  *
+ * The result is DE-DUPLICATED, which the API's own set never needs: a forged cookie
+ * can repeat an id, and each surviving id becomes a React key and a summary anchor, so
+ * a repeat would draw one question twice under one key. De-duplicating here rather
+ * than at the cookie's schema keeps the guarantee at the seam that produces the keys,
+ * so it holds for any caller rather than only for the one path the cookie takes.
+ *
  * Decides nothing about `required`. The set arrives from the kernel by way of the
  * API (`evaluateRules`, invariant I9), exactly as it does on the hydrated path.
  */
@@ -181,7 +187,7 @@ export function missingOnStep(
 ): readonly string[] {
   if (missingRequired.length === 0) return [];
   const visible = new Set(visibleQuestions);
-  return missingRequired.filter(
+  return [...new Set(missingRequired)].filter(
     (questionId) => visible.has(questionId) && !Object.hasOwn(errors, questionId),
   );
 }
@@ -197,7 +203,9 @@ export function missingOnStep(
  * The hydrated path draws the summary alone and this one draws both. That is a
  * considered difference rather than an oversight: a no-JS respondent gets one render
  * per POST, with nothing re-validating under them as they type, so the field itself
- * has to carry the state until the next round trip.
+ * has to carry the state until the next round trip. Whether the hydrated path should
+ * mark the field too is **issue #967**, so the asymmetry is recorded rather than left
+ * as a remark.
  */
 export function requiredFieldErrors(
   document: A2UIStepDocument | null,

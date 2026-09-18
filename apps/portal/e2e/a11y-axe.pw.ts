@@ -24,6 +24,12 @@
  *   this page does not render. Auditing only the hydrated one would have been the
  *   wrong trade: a respondent with JavaScript off sees the fallback, and WCAG
  *   applies to them too.
+ * - A STEP's fallback render is audited too, since issue #920, clean and in its
+ *   missing-required state. The entry page was the only fallback scanned before, and
+ *   it carries no input control, so two things had no axe pass anywhere: the native
+ *   day input a date question renders on this transport, whose label, description and
+ *   error slot are qcms-owned markup rather than the vendored control's; and the
+ *   per-field missing-required message, which only this transport draws.
  *
  * Each scan records the rule counts it observed as a test annotation, so a report
  * reader can see that both renders were really exercised rather than that one of
@@ -143,6 +149,63 @@ test("axe: the entry page's no-JS FALLBACK render has zero violations", async ({
     "the bundle must have been requested and starved, or this scans the hydrated render",
   ).toBeGreaterThan(0);
   await expectNoAxeViolations(page, "entry (no-JS fallback render)");
+});
+
+test("axe: the no-JS FALLBACK step, with the native date input, has zero violations", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // The no-JS render of a STEP, which no scan reached before issue #920: the entry
+  // page's fallback was the only one audited, and the entry page carries no input
+  // control at all. Two things on this render exist nowhere else and so were never
+  // scanned. The date question is a qcms-owned `<input type="date">` rather than the
+  // vendored picker (`packages/ui/src/native-date-field.tsx`), with a hand-written
+  // label association, description and error slot - markup that a manual read found
+  // correct and that nothing was watching. And the missing-required report draws a
+  // summary plus a per-field message on this transport only.
+  //
+  // Scripts starved rather than `javaScriptEnabled: false`, because axe runs by
+  // injecting and evaluating script in the page: with scripting off there is nothing to
+  // scan with (see `support/script-starve.ts`, and the entry-page fallback scan above).
+  const starvation = await starveScripts(page);
+  await page.goto(`/f/${kitchenSinkSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  const day = page.locator('[data-qcms-field] input[type="date"]');
+  await expect(day).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this scans the hydrated render",
+  ).toBeGreaterThan(0);
+  // Which render is on screen, asserted rather than assumed: the hydrated one has
+  // spinbutton segments and no day input.
+  await expect(page.locator('[data-qcms-field] [role="spinbutton"]')).toHaveCount(0);
+
+  await expectNoAxeViolations(page, "step 1 clean (no-JS fallback render)");
+
+  // The missing-required state, reached by posting the step with the required date
+  // empty. It takes a hand-built post because the ruling KEPT browser validation, so
+  // the browser refuses this submission from the page itself (issue #920,
+  // `no-js-required.pw.ts`) - the state is real, and a client that ignores `required`
+  // is how a respondent reaches it.
+  const sessionId = new URL(page.url()).pathname.split("/")[2] ?? "";
+  const posted = await page.request.post(`/s/${sessionId}/step`, {
+    headers: { "sec-fetch-site": "same-origin" },
+    form: {
+      __qk__q_full_name: "string",
+      q_full_name: "Ada Lovelace",
+      __qk__q_dob: "string",
+      q_dob: "",
+    },
+    maxRedirects: 0,
+  });
+  expect(posted.status()).toBe(303);
+
+  await page.goto(`/s/${sessionId}`);
+  await expect(page.getByTestId("error-summary")).toBeVisible();
+  await expect(page.locator('[data-qcms-field] input[type="date"]')).toBeVisible();
+  await expectNoAxeViolations(page, "step 1 missing required (no-JS fallback render)");
 });
 
 test("axe: flow initial, branch-inserted, and branch-removed states have zero violations", async ({

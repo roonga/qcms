@@ -234,6 +234,26 @@ function missingOnPostedStep(
   });
 }
 
+/**
+ * One fresh step read, or `undefined` when the API could not be reached.
+ *
+ * A failure is deliberately NOT fatal to the caller. It costs the round its
+ * missing-required report and its readiness verdict, both of which are the API's to
+ * give, and it costs the respondent nothing else: the refusals and the values they
+ * typed are already in hand and are written regardless. Returning the absence rather
+ * than throwing is what lets the caller keep those two facts apart.
+ */
+async function projectionOrNone(
+  sessionId: string,
+  token: string,
+): Promise<StepResponse | undefined> {
+  try {
+    return await getStep(sessionId, token);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
@@ -266,28 +286,30 @@ export async function POST(
   if (fatal) return backToStep(request, sessionId);
 
   // The authoritative projection: the one the API returned for the last answer
-  // written, or a fresh read when this round posted nothing (every field blank).
-  // Its `missingRequired` and `readyToSubmit` are the API's, never recomputed here
-  // (R2).
-  let projection = last;
-  if (projection === undefined) {
-    try {
-      projection = await getStep(sessionId, token);
-    } catch {
-      return backToStep(request, sessionId);
-    }
-  }
+  // written, or a fresh read when this round wrote none (every field blank, or every
+  // answer refused). Its `missingRequired` and `readyToSubmit` are the API's, never
+  // recomputed here (R2).
+  const projection = last ?? (await projectionOrNone(sessionId, token));
+  const missingRequired =
+    projection === undefined
+      ? []
+      : missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
 
-  const missingRequired = missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
-  if (Object.keys(errors).length > 0 || missingRequired.length > 0) {
+  // Write the re-render context on EVERY path that returns the respondent to the
+  // step, including the one where the projection could not be read. The refusals and
+  // the values the respondent typed do not depend on that read - only the
+  // missing-required half does - and dropping them to a transient read failure is the
+  // silent reload this route exists to remove (reviewer finding, issue #920). Without
+  // a projection there is also nothing to judge readiness from, so the round ends
+  // here rather than submitting on a guess.
+  if (
+    projection === undefined ||
+    Object.keys(errors).length > 0 ||
+    missingRequired.length > 0 ||
+    !projection.flowState.readyToSubmit
+  ) {
     const context: StepContext = { values, errors, constraints, missingRequired };
     await writeStepContext(context);
-    return backToStep(request, sessionId);
-  }
-
-  if (!projection.flowState.readyToSubmit) {
-    // More questions are now visible: carry the values so the reload keeps them.
-    await writeStepContext({ values, errors: {}, constraints: {}, missingRequired: [] });
     return backToStep(request, sessionId);
   }
 
