@@ -118,7 +118,7 @@ const OpaqueDefinition = z
 
 /** `POST /admin/questions` - the library slug plus the first draft's definition. */
 export const CreateQuestionBody = z
-  .object({
+  .strictObject({
     slug: z.string().min(1).openapi({ example: "favourite-colour" }),
     definition: OpaqueDefinition,
   })
@@ -126,7 +126,7 @@ export const CreateQuestionBody = z
 
 /** `PUT /admin/questions/:id/versions/:v` - the replacement draft definition. */
 export const EditVersionBody = z
-  .object({ definition: OpaqueDefinition })
+  .strictObject({ definition: OpaqueDefinition })
   .openapi("EditVersionBody");
 
 // --- responses --------------------------------------------------------------

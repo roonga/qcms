@@ -28,7 +28,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import {
   makeEraseHandler,
   makeExportHandler,
@@ -112,7 +112,7 @@ export const eraseRoute = createRoute({
   tags,
   request: {
     params: FormSessionParams,
-    body: { required: true, content: { "application/json": { schema: EraseBody } } },
+    body: jsonBody(EraseBody),
   },
   responses: {
     200: {

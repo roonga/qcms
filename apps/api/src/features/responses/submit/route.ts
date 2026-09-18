@@ -15,7 +15,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import { submitPerSessionLimiter } from "../rate-limits.js";
 import { makeSubmitHandler } from "./handler.js";
 import { SessionParams, SubmitBody, SubmitResponse } from "./schema.js";
@@ -28,10 +28,21 @@ export const submitRoute = createRoute({
   tags: ["responses"],
   request: {
     params: SessionParams,
-    body: {
-      required: true,
-      content: { "application/json": { schema: SubmitBody } },
-    },
+    // The one request body in this API that stays OPEN (#893). Two reasons, and
+    // either alone would be enough. Functionally, the no-JS path forwards every
+    // posted form field the compiled document did not tag as an answer control
+    // (`extras` in `apps/portal/lib/server/step-form.ts`), and the honeypot field
+    // name is deployment configuration, so a closed body would refuse a
+    // legitimate submit the moment an operator renamed it. And as a matter of
+    // anti-abuse, refusing an unknown key here would build the oracle this slice
+    // exists to deny: `{"website":"x"}` answering 200 while `{"nickname":"x"}`
+    // answers 400 tells a bot which field is the trap in two requests.
+    body: jsonBody(SubmitBody, {
+      openBecause:
+        "The honeypot field name is deployment-configured and the no-JS path forwards " +
+        "untagged form fields, so an unknown key must reach the handler rather than be " +
+        "refused - and a refusal would tell a bot which field is the honeypot.",
+    }),
   },
   responses: {
     200: {
