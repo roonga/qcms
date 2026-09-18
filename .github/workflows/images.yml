@@ -57,6 +57,18 @@ on:
     paths-ignore:
       - "**/*.md"
       - "plan/**"
+  # Weekly, for the `scan` job below and for nothing else (issue #894). The three images
+  # are a deterministic function of the tree - the base images are digest-pinned (#372)
+  # and the install is `--frozen-lockfile` - so rebuilding the same commit next week
+  # produces the same SBOM it produces today. What moves between runs is the
+  # vulnerability database, which is published upstream and fetched at scan time. A
+  # weekly rebuild-and-scan is therefore how a CVE disclosed against a package already
+  # inside a published image becomes visible without anyone pushing a commit. Same shape
+  # as `audit.yml`'s weekly `pnpm audit`, an hour later so the two never queue together.
+  #
+  # A scheduled run deliberately PUBLISHES NOTHING; see the `PUBLISH` env below.
+  schedule:
+    - cron: "0 3 * * 1"
   workflow_dispatch:
 
 # Workflow plus ref, so each branch keeps its own lane and a second push replaces the
@@ -75,24 +87,49 @@ on:
 # and `:latest` is a convenience. Serialising the publish would mean cancelling a
 # pending `main` run, which is exactly the verdict-loss issue #529 carved `main` out
 # of; trading a documented tag race for a lost build verdict is the worse deal.
+#
+# A scheduled run is keyed on the run id for the same reason `workflow_dispatch` is: it
+# is not a push and must never displace, or be displaced by, a build of a commit.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'workflow_dispatch' && github.run_id || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.ref || github.run_id }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
-# `packages: write` is the whole credential story for publishing: GHCR accepts the
-# built-in `GITHUB_TOKEN`, so no external registry secret is stored or rotated. It is
-# granted at workflow level because GitHub has no per-step permission scope, and that
-# is contained: this workflow triggers only on `push` and `workflow_dispatch`, neither
-# of which a fork can fire against this repository, and the push steps themselves are
-# gated to `refs/heads/main` below.
+# Read-only at workflow level, and each job widens from there (issue #894). `packages:
+# write` used to be granted here, because GitHub has no per-step permission scope and
+# the workflow had one job. It has three now, and only one of them publishes: granting
+# the registry credential to the scan and to the issue-filing job as well would be
+# handing two jobs a token they have no use for. The per-job blocks below are the whole
+# story, and each says what it needs and why.
 permissions:
   contents: read
-  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    # `packages: write` is the whole credential story for publishing: GHCR accepts the
+    # built-in `GITHUB_TOKEN`, so no external registry secret is stored or rotated. It is
+    # contained: this workflow triggers only on `push`, `schedule` and
+    # `workflow_dispatch`, none of which a fork can fire against this repository, and the
+    # push steps themselves are gated on `PUBLISH` below.
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      # Publishing is gated on the REF **and** on the event. A branch push builds and
+      # pushes nothing, which is what a pull request wants: the image build stays the
+      # cheap early warning it has always been, and no branch can mint a tag anyone
+      # might deploy. Keying on the ref rather than on `github.event_name == 'push'`
+      # also leaves `workflow_dispatch` on `main` as the escape hatch for a commit whose
+      # own push was skipped by `paths-ignore`.
+      #
+      # The scheduled run is the carve-out (issue #894). It runs on `main` and would
+      # otherwise satisfy the ref test, re-minting `:latest` and a second `:<sha>` for a
+      # commit that already has one - a publish nobody asked for, racing the `main`
+      # lane's own. It exists to feed the scanner, so it builds and stops there.
+      PUBLISH: ${{ github.ref == 'refs/heads/main' && github.event_name != 'schedule' }}
 
     steps:
       - uses: actions/checkout@v7
@@ -110,15 +147,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Publishing is gated on the REF, not on the event. A branch push builds and
-      # pushes nothing, which is what a pull request wants: the image build stays the
-      # cheap early warning it has always been, and no branch can mint a tag anyone
-      # might deploy. Keying on the ref rather than on `github.event_name == 'push'`
-      # also leaves `workflow_dispatch` on `main` as the escape hatch for a commit
-      # whose own push was skipped by `paths-ignore`.
       - name: Resolve the registry namespace
         id: registry
-        if: github.ref == 'refs/heads/main'
+        if: env.PUBLISH == 'true'
         env:
           REPOSITORY_OWNER: ${{ github.repository_owner }}
         # A registry repository path must be lowercase and the owner login need not be.
@@ -132,7 +163,7 @@ jobs:
       # secret exists to leak, and `packages: write` on GITHUB_TOKEN is scoped to this
       # repository's own packages.
       - name: Log in to GHCR
-        if: github.ref == 'refs/heads/main'
+        if: env.PUBLISH == 'true'
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: printf '%s' "${GHCR_TOKEN}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -150,7 +181,7 @@ jobs:
       # node:24-bookworm-slim. Both are build-time pulls, which is the same exception
       # the full-stack-e2e job already documents for the base image.
       - name: Build the three images with SBOM, provenance and a version stamp
-        if: github.ref != 'refs/heads/main'
+        if: env.PUBLISH != 'true'
         run: |
           pnpm qcms:build-images -- \
             --output "${RUNNER_TEMP}/images" \
@@ -162,7 +193,7 @@ jobs:
       # its SBOM, provenance and version-stamp assertions locally, then reads the
       # pushed manifest back to confirm the attestations survived the export.
       - name: Build and publish the three images to GHCR
-        if: github.ref == 'refs/heads/main'
+        if: env.PUBLISH == 'true'
         env:
           NAMESPACE: ${{ steps.registry.outputs.namespace }}
         run: |
@@ -206,3 +237,186 @@ jobs:
               console.log(image.name, labels[VERSION_LABEL], predicates.join(" "));
             }
           ' --input-type=module
+
+  # Container-image vulnerability scanning, over the SBOM `build` just attached
+  # (issue #894, the open half of the #372 ruling that `docs/SECURITY_DESIGN.md` §9
+  # recorded as "no container-image vulnerability scanning of any kind").
+  #
+  # ## Why it is its own job
+  #
+  # Two reasons, both about what this job is allowed to do. It needs no registry
+  # credential, so it should not hold one: `build` keeps `packages: write` and this job
+  # has `contents: read` and nothing else. And it must not delay or break publishing -
+  # `needs: build` means a red scan reports after the images are already pushed, which
+  # is the right order for a report that a newly published CVE can flip overnight.
+  #
+  # ## Why the SBOM and not the image
+  #
+  # `grype` accepts a local SBOM document directly (`grype sbom:<file>`), so this job
+  # pulls no image and authenticates to no registry. It could not pull one usefully in
+  # any case: a branch push publishes nothing, so there would be nothing in GHCR to
+  # scan, and every branch would lose the report that makes the gate worth having.
+  # The SBOM is on disk as a workflow artifact the moment `build` finishes.
+  #
+  # ## THIS JOB CANNOT RED AN UNRELATED PULL REQUEST
+  #
+  # The vulnerability database is fetched at run time, so the verdict is a function of
+  # the day as much as of the diff: a CVE published this morning against `perl-base`
+  # changes the answer for every branch in flight. That is acceptable **only** because
+  # this workflow publishes no required context. `protect-main` requires exactly four
+  # (`verify (node-24)`, `api-e2e`, `browser-e2e`, `full-stack-e2e`), and neither this
+  # job nor `build` is among them, so a red scan reports beside a mergeable pull request
+  # rather than blocking it - the same position `codeql.yml` and `audit.yml` occupy, and
+  # the header of this file already records the set. Promoting this job to a required
+  # context would turn an upstream publication into a merge blocker for unrelated work
+  # and is a Code Owner decision, not a default.
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: build
+    # `!cancelled()` and not `success()`: `build` uploads the attestations even when a
+    # later step of it fails, and a scan of the SBOMs that were produced is still worth
+    # having. The download step below fails honestly if there is nothing to scan.
+    if: ${{ !cancelled() }}
+
+    # Read-only. No registry, no issues, no packages: the artifact comes from `needs`
+    # and the vulnerability database from the scanner's own public endpoint.
+    permissions:
+      contents: read
+
+    env:
+      # The scanner, pinned twice over (issue #894, and see #948 on Action pinning).
+      #
+      # A checksum-verified release binary rather than a third-party Action. Actions in
+      # this repository are referenced by tag today and issue #948 asks the Code Owner
+      # whether to move to commit SHAs; installing a binary introduces no new Action at
+      # all, so this change is compatible with either ruling and adds nothing that would
+      # have to be re-pinned under one of them.
+      #
+      # `GRYPE_SHA256` is the SHA-256 of that exact release asset, recorded here rather
+      # than taken from the publisher's own `checksums.txt` - verifying an artifact
+      # against a file fetched from the same place proves only that the two agree. This
+      # is the same property the base-image digests give `docker/*.Dockerfile`: the
+      # version is legible, the digest is what is enforced. Dependabot does not track a
+      # digest in a workflow `env`, so bumping it is a deliberate edit: take the new
+      # version's asset, verify it against the publisher's signed checksums, and record
+      # the digest here in the same commit.
+      #
+      # linux/amd64 because `runs-on: ubuntu-latest` is amd64. A runner move would need
+      # a different asset and a different digest, and the checksum makes that a loud
+      # failure rather than a silent one.
+      GRYPE_VERSION: "0.119.0"
+      GRYPE_SHA256: "3fa2dc4b924621ab65404cf08d0b8438d896d80ab949c9d5a4ca283c36004c9b"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      # No `pnpm install`. `scripts/image-scan.mjs` imports only Node built-ins and two
+      # constants from `scripts/build-images.mjs`, so the workspace install `build`
+      # needs (it compiles the images from source) buys this job nothing but minutes.
+
+      # v8 is `download-artifact`'s current major and does not track `upload-artifact`'s
+      # numbering; it verifies the artifact's digest and fails on a mismatch by default,
+      # which is the behaviour to want for a file this job is about to draw conclusions
+      # from. Dependabot's `github-actions` ecosystem tracks both.
+      - name: Fetch the SBOMs this run produced
+        uses: actions/download-artifact@v8
+        with:
+          name: image-attestations
+          path: ${{ runner.temp }}/attestations
+
+      - name: Install the scanner, verified against its recorded digest
+        working-directory: ${{ runner.temp }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location \
+            --output grype.tar.gz \
+            "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          printf '%s  grype.tar.gz\n' "${GRYPE_SHA256}" | sha256sum --check --strict -
+          tar --extract --gzip --file grype.tar.gz grype
+          ./grype version
+
+      # The floors live here rather than in the script's defaults so that moving one is
+      # a one-line workflow edit a reviewer sees, which is what "configurable" has to
+      # mean for a number the Code Owner may want to change. `critical` blocks, `high`
+      # is reported by the scheduled job below, and only a finding with a published fix
+      # can do either - `scripts/image-scan.mjs` explains at length why an unfixable
+      # base-image critical is counted and reported but not made blocking.
+      - name: Scan each image's SBOM
+        env:
+          QCMS_IMAGE_SCAN_FAIL_ON: critical
+          QCMS_IMAGE_SCAN_NOTIFY_ON: high
+        run: |
+          node scripts/image-scan.mjs \
+            --attestations "${RUNNER_TEMP}/attestations" \
+            --report "${RUNNER_TEMP}/image-scan" \
+            --scanner "${RUNNER_TEMP}/grype"
+
+      # Uploaded whether the scan passed or failed: the report is the evidence either
+      # way, and a red scan is exactly when someone wants to read it. It carries the
+      # full grype JSON per image, the SPDX document each was produced from, and the
+      # Markdown summary, so a finding can be reproduced by hand with the same binary.
+      - name: Upload the scan report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: image-scan-report
+          path: ${{ runner.temp }}/image-scan/
+          if-no-files-found: error
+          retention-days: 90
+
+  # The scheduled run's reporting half (issue #894), filed the way `audit.yml` files
+  # `pnpm audit` findings: one labeled issue, updated with a comment rather than
+  # duplicated, so a weekly advisory lands somewhere a person looks instead of sitting
+  # in a workflow artifact nobody opens.
+  #
+  # Its own job for one reason: `issues: write`. That is the only permission in this
+  # workflow that can write anything back to the repository, and it is confined to the
+  # job that needs it, on the one event that needs it. A push and a `workflow_dispatch`
+  # get the artifact and the job summary and file nothing.
+  scan-issue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: scan
+    # `!cancelled()` so that a scan which failed on a blocking critical still files the
+    # weekly issue - that is precisely the week someone needs to read it.
+    if: ${{ !cancelled() && github.event_name == 'schedule' }}
+
+    permissions:
+      contents: read
+      issues: write
+
+    steps:
+      - name: Fetch the scan report
+        uses: actions/download-artifact@v8
+        with:
+          name: image-scan-report
+          path: ${{ runner.temp }}/image-scan
+
+      - name: File or update the findings issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          report="${RUNNER_TEMP}/image-scan"
+          notifying=$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).notifying))' "${report}/summary.json")
+          if [ "${notifying}" -eq 0 ]; then
+            echo "No image findings at or above the reporting floor with a published fix."
+            exit 0
+          fi
+          title="Image vulnerability scan findings (scheduled run)"
+          existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+          # Truncated well under GitHub's 65536-character issue body limit; the artifact
+          # `image-scan-report` on run $GITHUB_RUN_ID always carries the whole thing.
+          body=$(printf 'Scheduled image scan found %s finding(s) with a published fix at or above the reporting floor (run %s).\n\nThe full grype JSON per image is the `image-scan-report` artifact on that run.\n\n%s' \
+            "${notifying}" "${GITHUB_RUN_ID}" "$(head -c 50000 "${report}/summary.md")")
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --body "$body"
+          else
+            gh issue create --title "$title" --label security --body "$body"
+          fi
