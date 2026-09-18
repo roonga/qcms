@@ -23,6 +23,15 @@ const line = () => SNAPSHOT;
 /** The exact text issue #812 was filed for. */
 const TERMINATED = "Connection terminated unexpectedly";
 
+/**
+ * The exact text issue #939 was filed for, as `pg` raises it.
+ *
+ * Measured rather than guessed: a `pg.Client` pointed at a closed local port throws an
+ * `Error` with this message and `code: "ECONNREFUSED"`, no `cause` and no mention of
+ * Docker. The port is the ephemeral one Testcontainers mapped, so it differs every run.
+ */
+const REFUSED = "connect ECONNREFUSED 127.0.0.1:34517";
+
 describe("isContentionShaped", () => {
   it("matches a dependency that went away or never answered", () => {
     for (const text of [
@@ -34,6 +43,10 @@ describe("isContentionShaped", () => {
       "read ECONNRESET",
       "socket hang up",
       "not bound after 210000ms",
+      // Issue #939: a container that reported itself ready with nothing listening on the
+      // mapped port yet. Refused below the protocol, so no answering database produces it.
+      REFUSED,
+      "connect ECONNREFUSED ::1:34517",
     ]) {
       expect(isContentionShaped(text), text).toBe(true);
     }
@@ -99,6 +112,18 @@ describe("annotateWithHostSnapshot", () => {
     annotateWithHostSnapshot(error, line);
 
     expect(error.message).toBe("duplicate key value violates unique constraint");
+  });
+
+  it("annotates a refused connect, which says nothing about the host on its own", () => {
+    // Issue #939. This is the shape a boot takes when the port Testcontainers mapped has
+    // nothing behind it, and until it was a marker it arrived bare: no stack worth
+    // reading, no load line, and nothing to separate it from a defect in the branch.
+    const error = Object.assign(new Error(REFUSED), { code: "ECONNREFUSED" });
+
+    annotateWithHostSnapshot(error, line);
+
+    expect(error.message).toBe(`${REFUSED}\n${SNAPSHOT}`);
+    expect(error.code).toBe("ECONNREFUSED");
   });
 
   it("ignores a rejection that is not an Error at all", () => {

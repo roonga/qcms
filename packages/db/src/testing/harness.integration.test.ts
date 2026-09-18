@@ -432,9 +432,16 @@ describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
       const failure = await captureStartFailure({ image: SNAPSHOT_PROBE_IMAGE });
 
       expect(failure?.message).toContain(HOST_SNAPSHOT_PREFIX);
-      // The daemon was really asked: these numbers come from a `docker ps` on the machine
-      // running this test, not from a placeholder.
-      expect(failure?.message).toMatch(/docker \d+ running, \d+ Testcontainers across \d+ session/);
+      // The daemon was really asked, and the answer is one of the two the real probe can
+      // give: a census, or a stated overrun. Insisting on the census alone made this pin
+      // red 3/3 under exactly the load the snapshot exists to describe, because a daemon
+      // carrying 54 Testcontainers Postgres took 2.56 to 5.82 s to answer `docker ps`
+      // (issue #942) - the pin failed for the reason it was written for. Both branches
+      // come from the real host; neither is a placeholder, and the degrade rendering
+      // itself is pinned deterministically in `host-snapshot.test.ts`.
+      expect(failure?.message).toMatch(
+        /docker (?:\d+ running, \d+ Testcontainers across \d+ session|unknown \(the daemon did not answer the census within \d+ms\))/,
+      );
       // And the kernel was really read, or said so plainly when it could not be.
       expect(failure?.message).toMatch(/load (?:\d+\.\d\d\/|unknown)/);
       // The snapshot is additive: the diagnosis it hangs off is untouched, and the
