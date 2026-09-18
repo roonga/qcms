@@ -72,12 +72,51 @@ async function liveMode(page: Page): Promise<string | undefined> {
   );
 }
 
-/** The header disclosure, opened. Idempotent, so a test can call it after a reload. */
+/**
+ * The header disclosure, opened. Idempotent, so a test can call it after a reload.
+ *
+ * THE HYDRATION WAIT IS THE HELPER (issue #946)
+ * The flow page paints `NativeStep` on the server, renders it again as the first
+ * client render so hydration matches, and only then swaps to the controlled
+ * `StepFlow` (`components/progressive-step.tsx`). Those two components each render
+ * their OWN `PortalShell`, so the swap unmounts the header's `<details>` and mounts
+ * a fresh one. A `summary` click that lands before the swap therefore opens an
+ * element that is about to be thrown away: the replacement renders closed,
+ * `appearance-mode` stays hidden forever, and the case fails on a timeout naming the
+ * fieldset rather than the race that closed it.
+ *
+ * That is silent at full speed and reproduces EVERY run at a 6x CPU throttle
+ * (`Emulation.setCPUThrottlingRate` armed before the first navigation, the technique
+ * `support/hydration.ts` records). Under load it showed up as a flake instead: three
+ * times for the #944 lane and once for the #906 lane, on a host carrying three other
+ * seats, always at the post-reload call site below - the one call this file makes
+ * that no entry helper's own wait covers.
+ *
+ * `waitForHydration` is the portal's own marker, and on the flow page that marker is
+ * mounted on `StepFlow` rather than on the shared shell, so it appears only once the
+ * swap has committed: exactly the guarantee this needs, and the reason this is a
+ * reuse rather than a new signal. It is a WAIT, not a longer timeout and not a
+ * retry - on an already-hydrated page it resolves on its first poll, so the two
+ * call sites that enter through `startKitchenSink` / `startAnonymousFlow` pay
+ * nothing for it, and the two that navigate to `/f/:slug` themselves get the entry
+ * page's own marker (`components/entry-view.tsx`) rather than a guess.
+ *
+ * `no-js-appearance.pw.ts` keeps its own copy of this helper WITHOUT the wait, and
+ * that asymmetry is the point rather than an oversight: with scripting off the
+ * marker is never stamped, and the disclosure is a native `<details>` that opens
+ * with no script in play. The scripted path and the no-JS path are different paths,
+ * and the two helpers say so.
+ */
 async function openAppearance(page: Page): Promise<void> {
+  await waitForHydration(page);
   const disclosure = page.getByTestId("appearance");
   if (!(await disclosure.evaluate((element) => (element as HTMLDetailsElement).open))) {
     await page.locator('[data-testid="appearance"] > summary').click();
   }
+  // Assert the state this helper SET before the state that state implies. A failure
+  // here then reads "the disclosure is closed" rather than "some fieldset is
+  // hidden", which is the difference between naming the race and burying it.
+  await expect(disclosure).toHaveJSProperty("open", true);
   await expect(page.getByTestId("appearance-mode")).toBeVisible();
 }
 
@@ -149,6 +188,14 @@ test("the brand mark and the document title come from config, with no QCMS liter
    ========================================================================== */
 
 test("each control switches its axis and the choice survives a reload", async ({ page }) => {
+  // MARGIN (issue #604). Measured on seat 1 at this head: 6.4s against the config's
+  // 60s timeout on a quiet host. The #946 reproduction of this case - the same drive
+  // at a 6x CPU throttle, which is the slowest it has ever been made to run - took
+  // 8.5s to 20.3s over ten runs on mobile-chromium and 8.9s to 19.1s over ten on
+  // desktop-chromium: a third of the budget at its worst. No explicit budget is set
+  // here because none is warranted; this note exists so the next lane that finds this
+  // case red can tell a timing regression from a contention hit without having to
+  // re-measure the baseline first.
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
   const root = page.locator("html");
@@ -353,8 +400,10 @@ test("a persisted choice paints with no flash, and so does an OS-derived default
 test("the controls are operable from the keyboard alone", async ({ page }) => {
   const { slug } = readFixtures();
   await page.goto(`/f/${slug}`);
-  // This test navigates itself rather than entering through a flow helper, so it is
-  // the one place in the file that has to ask for hydration explicitly (issue #391).
+  // This test navigates itself rather than entering through a flow helper AND opens
+  // the disclosure by keyboard rather than through `openAppearance`, so it is the one
+  // place left in the file that has to ask for hydration explicitly (issue #391;
+  // `openAppearance` grew its own wait in issue #946).
   // Without it the Tab/Tab/Enter below toggles the NATIVE `<details>` before React
   // attaches, and React then hydrates against a DOM whose `open` attribute the
   // browser changed underneath it. That is the appearance panel's `open`-attribute
