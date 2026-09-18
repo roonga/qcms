@@ -48,6 +48,7 @@ import { MODE_COOKIE } from "../lib/appearance.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
 import { PORTAL_PORT } from "./support/harness-config.js";
+import { waitForHydration } from "./support/hydration.js";
 import {
   KS,
   answerNumber,
@@ -260,12 +261,24 @@ async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
 }
 
-/** The header Appearance disclosure, opened. */
+/**
+ * The header Appearance disclosure, opened.
+ *
+ * Same shape, same wait, same reason as `appearance.pw.ts` (issue #946): the flow
+ * page's progressive swap replaces the header's `<details>` wholesale, so a
+ * `summary` click landing before hydration opens an element that is then discarded,
+ * and the panel never appears. Every call site here enters through
+ * `startKitchenSink`, which already waits, so this is cover for the next call site
+ * rather than a fix for a failure seen in this file - and on an already-hydrated page
+ * it resolves on its first poll, so it costs the run nothing.
+ */
 async function openAppearance(page: Page): Promise<void> {
+  await waitForHydration(page);
   const disclosure = page.getByTestId("appearance");
   if (!(await disclosure.evaluate((element) => (element as HTMLDetailsElement).open))) {
     await page.locator('[data-testid="appearance"] > summary').click();
   }
+  await expect(disclosure).toHaveJSProperty("open", true);
   await expect(page.getByTestId("appearance-mode")).toBeVisible();
 }
 

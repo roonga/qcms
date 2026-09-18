@@ -41,7 +41,18 @@ test.use({ javaScriptEnabled: false });
 const EXPIRED_TITLE = "This link has expired";
 const INVALID_TITLE = "This link is not valid";
 
-/** The disclosure, opened. Native `<details>`, so this needs no scripting. */
+/**
+ * The disclosure, opened. Native `<details>`, so this needs no scripting.
+ *
+ * This copy deliberately has NO hydration wait, which is what makes it a separate
+ * helper from the one in `appearance.pw.ts` rather than a duplicate of it (issue
+ * #946). With `javaScriptEnabled: false` the hydration marker is never stamped, so
+ * waiting for it here would be an unconditional timeout - and there is nothing to
+ * wait for: the panel this opens is served markup inside a native `<details>`, and
+ * that is precisely the claim this file exists to make. The one test below that runs
+ * with scripting ON asks for hydration itself, at its own call site, so the scripted
+ * path and the no-JS path stay told apart rather than merged.
+ */
 async function openAppearance(page: Page): Promise<void> {
   await page.locator('[data-testid="appearance"] > summary').click();
   await expect(page.getByTestId("appearance-mode")).toBeVisible();
