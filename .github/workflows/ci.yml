@@ -167,7 +167,7 @@ jobs:
     strategy:
       fail-fast: false
       # Cross-version drift check (e.g. contentHash / encoding stability,
-      # task 009): 24 is our pinned LTS floor (engines >=24) and is required;
+      # task 009): 24 is our pinned LTS floor (engines >=24.15.0) and is required;
       # 26 is the incoming LTS line - non-blocking early warning only.
       matrix:
         node-version: [24, 26]
