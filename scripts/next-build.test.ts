@@ -1,7 +1,7 @@
-import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync, spawn } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ import {
   resolveCommand,
   stripAnsi,
 } from "./next-build.mjs";
+import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
  * Tests for the Next build-lock wait (issue #925).
@@ -48,6 +49,35 @@ const CONTENTION_OUTPUT = [
   "",
   "  Suggestion: Wait for the build to complete.",
 ].join("\n");
+
+/** One app that runs on Next, as derived below. */
+interface NextApp {
+  /** Repository-relative directory, e.g. `apps/portal`. */
+  directory: string;
+  manifest: { dependencies?: Record<string, string>; scripts?: Record<string, string> };
+}
+
+/**
+ * Every app in this repository that runs on Next, asked of git.
+ *
+ * Derived rather than listed, and derived on the property that matters: an app takes
+ * the build lock exactly when it declares `next`, so that is the predicate, not a name
+ * and not the presence of a `next.config.ts` (which a non-Next package could carry as
+ * a fixture). `trackedFilesUnder` reads `git ls-files` rather than walking, because a
+ * walk of `apps/` also finds `.next` and `.next-dev` build output and would assert a
+ * property of this machine instead of of the repository.
+ */
+function nextApps(): NextApp[] {
+  const manifests = trackedFilesUnder(REPO_ROOT, {
+    match: /^apps\/[^/]+\/package\.json$/,
+  });
+  return manifests
+    .map((path) => {
+      const parsed: unknown = JSON.parse(readFileSync(join(REPO_ROOT, path), "utf8"));
+      return { directory: dirname(path), manifest: parsed as NextApp["manifest"] };
+    })
+    .filter((app) => app.manifest.dependencies?.next !== undefined);
+}
 
 const tempDirs: string[] = [];
 
@@ -289,25 +319,26 @@ describe("arguments and resolution", () => {
     expect(resolveCommand("./tool", dir)).toBe("./tool");
   });
 
-  it("falls back to the default for an unusable env bound", () => {
+  it("keeps a usable bound, and falls back to the default for an unusable one", () => {
     expect(positiveNumber(undefined, 600_000)).toBe(600_000);
     expect(positiveNumber("nonsense", 600_000)).toBe(600_000);
     expect(positiveNumber("-1", 600_000)).toBe(600_000);
-    expect(positiveNumber("0", 600_000)).toBe(0);
     expect(positiveNumber("1500", 600_000)).toBe(1500);
+    // `0` is usable and means something: give up on the first collision rather than
+    // wait at all, which is the switch that turns the wrapper back into a bare
+    // `next build`. It has to survive the guard, not fall back to ten minutes.
+    expect(positiveNumber("0", 600_000)).toBe(0);
   });
 });
 
 describe("the wiring the wait depends on", () => {
   it("is on the build script of every Next app", () => {
-    // Derived rather than listed: a third Next app that did not go through the wrapper
-    // would reintroduce the failure silently, and the scaffolding generator's
-    // APP_SCRIPT_FRAGMENTS entry would then describe a transform that never fires.
-    for (const app of ["portal", "admin"]) {
-      const manifest = JSON.parse(
-        readFileSync(join(REPO_ROOT, "apps", app, "package.json"), "utf8"),
-      ) as { scripts: Record<string, string> };
-      expect(manifest.scripts.build).toBe("node ../../scripts/next-build.mjs next build");
+    // A third Next app that did not go through the wrapper would reintroduce the
+    // failure silently, and the scaffolding generator's APP_SCRIPT_FRAGMENTS entry
+    // would then describe a transform that never fires. So the set is derived from
+    // git rather than listed here (CONTRIBUTING, issues #635/#641).
+    for (const app of nextApps()) {
+      expect(app.manifest.scripts?.build).toBe("node ../../scripts/next-build.mjs next build");
     }
   });
 
@@ -315,10 +346,19 @@ describe("the wiring the wait depends on", () => {
     // The holder diagnostic reads `<lockDir>/lock`. If an app moved its production
     // distDir, the wait would still work (an attempt is the poll) but it would stop
     // being able to say who is holding the lock, silently.
-    for (const app of ["portal", "admin"]) {
-      const config = readFileSync(join(REPO_ROOT, "apps", app, "next.config.ts"), "utf8");
+    for (const app of nextApps()) {
+      const config = readFileSync(join(REPO_ROOT, app.directory, "next.config.ts"), "utf8");
       expect(config).toContain(`const PRODUCTION_DIST_DIR = "${DEFAULT_LOCK_DIR}";`);
     }
+  });
+
+  it("derives that set from git, and the derivation reaches something", () => {
+    // The fail-open half of the rule. A filter that matched nothing would leave both
+    // assertions above vacuously true, which is the failure mode a derived set is
+    // supposed to remove rather than introduce.
+    const apps = nextApps();
+    expect(apps.length).toBeGreaterThan(0);
+    for (const app of apps) expect(app.directory.startsWith("apps/")).toBe(true);
   });
 });
 
@@ -375,4 +415,82 @@ describe("end to end", () => {
 
     expect(status).toBe(3);
   });
+
+  it("says so cleanly when the build command cannot be started", () => {
+    // A spawn failure used to reach the top-level await as a rejected promise and print
+    // an unhandled-rejection stack, which reads like a crash in the wrapper rather than
+    // a missing command.
+    const dir = tempDir();
+    let status: number | undefined;
+    let stderrText = "";
+    try {
+      execFileSync(process.execPath, [SCRIPT, join(dir, "no-such-build")], {
+        cwd: dir,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+    } catch (error) {
+      const failure = error as { status?: number; stderr?: string };
+      status = failure.status;
+      stderrText = failure.stderr ?? "";
+    }
+
+    expect(status).toBe(127);
+    expect(stderrText).toContain("next-build: could not start");
+    expect(stderrText).not.toContain("UnhandledPromiseRejection");
+  });
+
+  it("forwards a stop signal to the build instead of orphaning it", async () => {
+    // The wrapper must not become the second cause its own header names: killed at a
+    // harness cap while `next build` keeps running, reparented and still holding
+    // `.next/lock`. The stub records the signal it received and the wrapper's exit code
+    // reports it the way a shell does.
+    //
+    // Only processes this test started are signalled: `spawn` gives back the pid, and
+    // that pid is the only one touched.
+    const dir = tempDir();
+    const received = join(dir, "received-signal");
+    const started = join(dir, "child-started");
+    const stub = join(dir, "stub-build.mjs");
+    writeFileSync(
+      stub,
+      [
+        'import { writeFileSync } from "node:fs";',
+        `writeFileSync(${JSON.stringify(started)}, String(process.pid));`,
+        'for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {',
+        "  process.on(signal, () => {",
+        `    writeFileSync(${JSON.stringify(received)}, signal);`,
+        "    process.exit(0);",
+        "  });",
+        "}",
+        // Keep the event loop alive until the signal arrives, or give up on its own.
+        "setTimeout(() => process.exit(0), 20_000);",
+      ].join("\n"),
+      "utf8",
+    );
+
+    const wrapper = spawn(process.execPath, [SCRIPT, process.execPath, stub], {
+      cwd: dir,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((done) => {
+      wrapper.on("close", (code, signal) => done({ code, signal }));
+    });
+
+    // Wait for the CHILD to exist before signalling the wrapper, so the test measures
+    // forwarding rather than a race against spawn.
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(started) && Date.now() < deadline) {
+      await new Promise((tick) => setTimeout(tick, 20));
+    }
+    expect(existsSync(started)).toBe(true);
+
+    wrapper.kill("SIGTERM");
+    const result = await exited;
+
+    expect(readFileSync(received, "utf8")).toBe("SIGTERM");
+    // 128 + SIGTERM, the conventional shell code, rather than the wrapper dying first
+    // and reporting nothing about the build.
+    expect(result.code).toBe(143);
+  }, 30_000);
 });
