@@ -31,6 +31,7 @@
  */
 
 import AxeBuilder from "@axe-core/playwright";
+import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 import { expect, test } from "./support/gates.js";
 import type { Page } from "@playwright/test";
 
@@ -102,6 +103,18 @@ async function expectNoAxeViolations(page: Page, label: string): Promise<void> {
   expect(results.violations, `axe violations at "${label}": ${summary}`).toEqual([]);
   // Guard against a vacuous pass: axe must have exercised real rules here.
   expect(results.passes.length, `axe ran no rules at "${label}"`).toBeGreaterThan(0);
+  // And against the narrower vacuous pass the extra rules can have on their own
+  // (issue #943). A misspelt id is not the hole this closes - axe itself throws "unknown
+  // rule `x` in options.rules", verified by misspelling one. The hole is the option map
+  // going missing while the id in it stays correct: `AxeBuilder#options` REPLACES the
+  // accumulated option object, so an edit that reaches back for `.withTags(TAGS)` takes
+  // `rules` with it, the extra rule silently leaves the run, and this sweep stays green
+  // while measuring less than its comments say it does. That failure was reproduced
+  // against this assertion before it was committed.
+  expect(
+    rulesNotRun(results, Object.keys(EXTRA_RULES)),
+    `axe did not load these rules at "${label}": the tag selection alone drops them, so EXTRA_RULES is what puts them in the run and it is not reaching axe`,
+  ).toEqual([]);
 }
 
 test("axe: the entry page's HYDRATED render has zero violations", async ({ page }) => {

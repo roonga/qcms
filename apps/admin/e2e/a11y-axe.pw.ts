@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 import { generate } from "otplib";
 import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
+import { rulesNotRun } from "@roonga/qcms-e2e-support/axe";
 
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
@@ -312,6 +313,19 @@ async function expectNoViolations(page: Page, state: string): Promise<void> {
       const results = await new AxeBuilder({ page })
         .options({ runOnly: { type: "tag", values: TAGS }, rules: EXTRA_RULES })
         .analyze();
+      // Every rule named above has to be shown to have RUN here, not just asked for
+      // (issue #943). A misspelt id is not the hole this closes - axe itself throws
+      // "unknown rule `x` in options.rules", verified by misspelling one. The hole is the
+      // option map going missing while every id in it stays correct: `AxeBuilder#options`
+      // REPLACES the accumulated option object, so an edit that reaches back for
+      // `.withTags(TAGS)` takes `rules` with it, both extra rules silently leave the run,
+      // and the sweep stays green while measuring less than this file says it does. That
+      // failure was reproduced against this assertion before it was committed. Checked per
+      // state and mode, before any verdict is read out of the results.
+      expect(
+        rulesNotRun(results, Object.keys(EXTRA_RULES)),
+        `axe did not load these rules on the ${state} state in ${mode.name}: the tag selection alone drops them, so EXTRA_RULES is what puts them in the run and it is not reaching axe`,
+      ).toEqual([]);
       // Pre-existing gaps this state is known to carry drop out here, and only for
       // `heading-order` and only on the exact nodes named (issue #511). A violation that
       // names any other node survives the filter with its whole node list intact, so the
