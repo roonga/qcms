@@ -2,7 +2,7 @@ import { RuleTester } from "eslint";
 import { describe, it } from "vitest";
 
 import { noUnhandledThen } from "./no-unhandled-then.mjs";
-import tseslint from "../../tooling/eslint-config/typescript-eslint.js";
+import tseslint from "typescript-eslint";
 
 /**
  * `qcms/no-unhandled-then` (issue #809), driven through ESLint's own `RuleTester`.
