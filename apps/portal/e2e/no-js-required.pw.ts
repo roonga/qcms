@@ -108,15 +108,22 @@ test("the browser still refuses to submit an empty required date, and says so on
   page,
 }) => {
   const { kitchenSinkSlug } = readFixtures();
+  await startWithoutJs(page, kitchenSinkSlug);
 
-  // Every POST this page makes, so "the browser blocked it" is a counted fact rather
-  // than an absence observed for an arbitrary length of time.
+  // Every whole-step POST this page makes, so "the browser blocked it" is a counted
+  // fact rather than an absence observed for an arbitrary length of time. Scoped to
+  // this route and registered after the entry: anonymous entry is a native form POST
+  // of its own (issue #579), so an unscoped counter starts at one.
   const posts: string[] = [];
   page.on("request", (request) => {
-    if (request.method() === "POST") posts.push(request.url());
+    if (
+      request.method() === "POST" &&
+      /\/s\/ses_[^/]+\/step$/.test(new URL(request.url()).pathname)
+    ) {
+      posts.push(request.url());
+    }
   });
 
-  await startWithoutJs(page, kitchenSinkSlug);
   await page.locator(NAME_FIELD).fill("Ada Lovelace");
 
   // Click Continue with the date empty. The ruling KEPT browser validation, so this
