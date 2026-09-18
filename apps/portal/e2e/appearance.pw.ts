@@ -96,9 +96,10 @@ async function liveMode(page: Page): Promise<string | undefined> {
  * mounted on `StepFlow` rather than on the shared shell, so it appears only once the
  * swap has committed: exactly the guarantee this needs, and the reason this is a
  * reuse rather than a new signal. It is a WAIT, not a longer timeout and not a
- * retry - on an already-hydrated page it resolves on its first poll, so the four
+ * retry - on an already-hydrated page it resolves on its first poll, so the two
  * call sites that enter through `startKitchenSink` / `startAnonymousFlow` pay
- * nothing for it.
+ * nothing for it, and the two that navigate to `/f/:slug` themselves get the entry
+ * page's own marker (`components/entry-view.tsx`) rather than a guess.
  *
  * `no-js-appearance.pw.ts` keeps its own copy of this helper WITHOUT the wait, and
  * that asymmetry is the point rather than an oversight: with scripting off the
@@ -188,11 +189,13 @@ test("the brand mark and the document title come from config, with no QCMS liter
 
 test("each control switches its axis and the choice survives a reload", async ({ page }) => {
   // MARGIN (issue #604). Measured on seat 1 at this head: 6.4s against the config's
-  // 60s timeout on a quiet host, and 6.7s to 15.4s over ten runs at a 6x CPU
-  // throttle - a quarter of the budget in the worst case that reproduces the #946
-  // race at all. No explicit budget is set here because none is warranted; this note
-  // exists so the next lane that sees this case red can tell a timing regression
-  // from a contention hit without re-measuring the baseline.
+  // 60s timeout on a quiet host. The #946 reproduction of this case - the same drive
+  // at a 6x CPU throttle, which is the slowest it has ever been made to run - took
+  // 8.5s to 20.3s over ten runs on mobile-chromium and 8.9s to 19.1s over ten on
+  // desktop-chromium: a third of the budget at its worst. No explicit budget is set
+  // here because none is warranted; this note exists so the next lane that finds this
+  // case red can tell a timing regression from a contention hit without having to
+  // re-measure the baseline first.
   const { kitchenSinkSlug } = readFixtures();
   await startKitchenSink(page, kitchenSinkSlug);
   const root = page.locator("html");
