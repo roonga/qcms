@@ -118,10 +118,15 @@ rule decides only what can fail a job. The reason is in `docs/SECURITY_DESIGN.md
 section 9, and the short form has to be stated carefully: the pinned base image carries
 seven criticals for which **Debian 12** has no fixed version, so a floor counting them
 would be permanently red and permanently ignored. `wont-fix` and `not-fixed` in the
-report are **grype's** labels for that, not a statement that upstream refuses to fix;
-Debian tags these `<no-dsa>` or `<postponed>` and rates them minor, and all six are
-fixed in Debian 13. Whether to accept them, move the base, or wait for a bookworm point
-release is an open Code Owner decision recorded in that section. The job is not a
+report are **grype's** labels for that, not a statement that upstream refuses to fix; all
+six are fixed in Debian 13. What Debian itself has said about them differs per id and is
+tabulated in that section rather than summarised, because the difference matters: three
+carry a bookworm note on the source package in the image (`CVE-2026-5450`,
+`CVE-2026-8376`, `CVE-2026-42496`, all "Minor issue"), `CVE-2026-12087` carries one only
+on a sibling source package the images do not ship, and `CVE-2026-13221` and
+`CVE-2026-57433` carry **none at all** - Debian has not triaged those two for bookworm.
+Whether to accept them, move the base, wait for a point release, or upgrade packages at
+build time is an open Code Owner decision recorded in that section. The job is not a
 required check, so a red scan never blocks a merge.
 
 **Triage, in the order the causes actually occur.**

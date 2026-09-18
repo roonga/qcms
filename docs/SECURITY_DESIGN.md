@@ -524,12 +524,31 @@ Two corrections belong with it.
 **`wont-fix` and `not-fixed` are grype's labels for "this distribution has no fixed version", not upstream's verdict**; Debian's own tags for these are `<no-dsa>` and `<postponed>`, with notes such as "Minor issue; can be fixed in point release" (`CVE-2026-8376`) and "Minor issue; wait for regressions upstream sorted out" (`CVE-2026-42496`).
 And **all six are fixed in Debian 13 (trixie)**, at `glibc 2.41-12+deb13u4` and `perl 5.40.1-6+deb13u1`, verified on `security-tracker.debian.org` on 2026-09-18, one page per id.
 
-**The open question, with its evidence, not a recommendation.**
-Three options, and the Code Owner picks one:
+**What Debian has actually said about each of the six, per id and not in a summary.**
+A summary sentence here would lean toward acceptance, so there is none.
+Each row was read from that CVE's own page on `security-tracker.debian.org` on 2026-09-18, and "the source in the image" means the source package the vulnerable binary package is built from: `glibc` for `libc6` and `libc-bin`, `perl` for `perl-base`.
 
-1. **Accept the seven, per CVE, with removal conditions.** The tracker's own notes are the material: Debian rates every one "Minor issue"; `CVE-2026-8376`'s upstream description scopes the heap overflow to **32-bit builds** while these images are amd64; and `CVE-2026-13221` is recorded as introduced in **perl v5.37.10** while bookworm ships 5.36.0, which sits oddly beside Debian marking bookworm vulnerable and is worth resolving before it is relied on.
-2. **Move the base to `node:24-trixie-slim` as a deliberate major.** Measured rather than assumed, below.
-3. **Wait for a bookworm point release.** One of the six carries that in its bookworm row explicitly: `CVE-2026-8376`, tagged `<no-dsa> (Minor issue; can be fixed in point release)`. The others are `<no-dsa>` or `<postponed>` without naming a point release, so this option is a wait of unknown length rather than a scheduled one.
+| CVE              | Source in the image | Debian's bookworm note                                                                                                                                                                | grype       |
+| ---------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `CVE-2026-5450`  | `glibc`             | `[bookworm] - glibc <no-dsa> (Minor issue)`                                                                                                                                           | `wont-fix`  |
+| `CVE-2026-8376`  | `perl`              | `[bookworm] - perl <no-dsa> (Minor issue; can be fixed in point release)`                                                                                                             | `wont-fix`  |
+| `CVE-2026-42496` | `perl`              | `[bookworm] - perl <postponed> (Minor issue; wait for regressions upstream sorted out)`                                                                                               | `wont-fix`  |
+| `CVE-2026-12087` | `perl`              | **None for `perl`.** The only bookworm note is on `libsocket-perl`, a different source package these images do not carry: `<postponed> (Minor issue; up-to-3-byte heap over-read...)` | `not-fixed` |
+| `CVE-2026-13221` | `perl`              | **None. Debian has not triaged this one for bookworm.**                                                                                                                               | `not-fixed` |
+| `CVE-2026-57433` | `perl`              | **None. Debian has not triaged this one for bookworm.**                                                                                                                               | `not-fixed` |
+
+So: **three** carry a Debian bookworm note on the source package that is in the image, **one** carries a note only on a sibling source package that is not, and **two** are untriaged for bookworm.
+That is not a detail of phrasing.
+"Debian looked at this and called it minor" and "Debian has not looked at this" are different inputs to the decision below, and the second is true of two of the seven findings.
+The split also lines up exactly with what the scanner says, which is a useful cross-check rather than a coincidence: grype reports `wont-fix` for the three Debian has tagged on the in-image source and `not-fixed` for the three it has not.
+
+**The open question, with its evidence, not a recommendation.**
+Four options, and the Code Owner picks one:
+
+1. **Accept the seven, per CVE, with removal conditions.** The material is the table above, read per id rather than in aggregate, plus two upstream facts: `CVE-2026-8376`'s description scopes the heap overflow to **32-bit builds** while these images are amd64, and `CVE-2026-13221` is recorded upstream as introduced in **perl v5.37.10** while bookworm ships 5.36.0, which sits oddly beside Debian marking bookworm vulnerable and is worth resolving before it is relied on.
+2. **Move the base to `node:24-trixie-slim` as a deliberate major.** Measured rather than assumed, below, including the part that makes it not a same-day fix.
+3. **Wait for a bookworm point release.** Exactly one of the six names that possibility: `CVE-2026-8376`, tagged `<no-dsa> (Minor issue; can be fixed in point release)`. Three others carry no bookworm note on the source in the image at all, so for those this is a wait of unknown length on a decision Debian has not published.
+4. **Add an `apt-get upgrade` layer to `docker/*.Dockerfile`.** It would pick up whatever Debian has fixed at build time without waiting for a rebuilt base image. The cost is the property SEC-11's digest pinning exists for: the image would no longer be reproducible from the pinned `FROM` digest alone, because two builds of the same commit on different days would install different packages. That cuts directly against the pinning half of #372 recorded above, which is why it is listed rather than recommended. It also does nothing for the six, none of which Debian 12 has fixed.
 
 A second question rides with it: whether the blanket published-fix rule should become a **per-id acceptance ledger** with removal conditions, in the style of CONTRIBUTING's security-overrides table. Neither question is answered here, and this change builds no ledger.
 

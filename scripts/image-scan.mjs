@@ -70,13 +70,24 @@
  * to ignore. So the default is an interim that keeps the gate actionable.
  *
  * It is not a claim that nothing can be done. Every one of the six CVEs is fixed in
- * Debian 13 (trixie) and upstream, Debian tags them `<no-dsa>` or `<postponed>` with
- * "Minor issue" notes rather than refusing to fix them, and `grype`'s `wont-fix` and
- * `not-fixed` are the scanner's labels for "no fixed version for this distro", not
- * upstream's verdict. The options - accept with per-CVE reasons, move the base to
- * trixie as a deliberate major, or wait for a bookworm point release - are open and
- * belong to the Code Owner. `docs/SECURITY_DESIGN.md` §9 carries the evidence for each,
- * including what a trixie base was measured to buy.
+ * Debian 13 (trixie) and upstream, and `grype`'s `wont-fix` and `not-fixed` are the
+ * scanner's labels for "no fixed version for this distro", not upstream's verdict.
+ *
+ * What Debian itself has said differs per id, and stating it in aggregate would lean
+ * toward accepting them, so it is stated per id here and in a table in
+ * `docs/SECURITY_DESIGN.md` §9. Three carry a bookworm note on the source package that
+ * is in the image: `CVE-2026-5450` (`glibc`, `<no-dsa>`, "Minor issue"),
+ * `CVE-2026-8376` (`perl`, `<no-dsa>`, "can be fixed in point release") and
+ * `CVE-2026-42496` (`perl`, `<postponed>`). `CVE-2026-12087`'s only bookworm note is on
+ * `libsocket-perl`, a source package these images do not carry, and none exists for
+ * `perl`. `CVE-2026-13221` and `CVE-2026-57433` carry **no bookworm note at all**:
+ * Debian has not triaged them for bookworm. "Called minor" and "not looked at" are
+ * different inputs to a decision.
+ *
+ * The options - accept with per-CVE reasons, move the base to trixie as a deliberate
+ * major, wait for a bookworm point release, or add an `apt-get upgrade` layer and give
+ * up reproducibility from the pinned digest - are open and belong to the Code Owner.
+ * §9 carries the evidence for each, including what a trixie base was measured to buy.
  *
  * ## Why this cannot red an unrelated pull request
  *
