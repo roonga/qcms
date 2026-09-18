@@ -485,9 +485,15 @@ jobs:
             body=$(printf 'The scheduled image scan produced no report this week (scan job result: **%s**).\n\nNothing is known about the images from this run. The run log is at %s.\n\nThis is a failure of the scan, not a verdict about the images.' \
               "${SCAN_RESULT}" "${run_url}")
           else
-            # `jq -e` so a null or a missing key is an error rather than a string that
-            # reads as false in the arithmetic test below.
-            reported=$(jq -e '.reported + .reportedUnfixed' "${report}/summary.json")
+            # A missing key must be an error, not a zero. `jq` adds `null` as if it
+            # were 0, so a bare `.reported + .reportedUnfixed` would read a summary
+            # that had lost one of them as "nothing to report" and stay silent - the
+            # one direction this job must never fail in. Both types are asserted first.
+            reported=$(jq -e '
+              if (.reported | type) == "number" and (.reportedUnfixed | type) == "number"
+              then .reported + .reportedUnfixed
+              else error("summary.json is missing reported or reportedUnfixed")
+              end' "${report}/summary.json")
             digest=$(jq -er '.digest' "${report}/summary.json")
             if [ "${reported}" -eq 0 ]; then
               echo "Nothing at or above the reporting floor. No issue to file."
@@ -502,22 +508,29 @@ jobs:
           existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
 
           if [ -n "${existing}" ] && [ -n "${digest}" ]; then
-            marker="<!-- image-scan-digest: ${digest} -->"
-            # The most recent comment on the issue, or the issue body when it has none.
+            # The last digest this job posted, which is NOT the same as the last comment
+            # on the issue. Reading "the most recent comment" meant that any human note
+            # added after the bot's made the next unchanged week post a duplicate,
+            # because a person's comment carries no marker. Scanning the issue body and
+            # every comment in order and taking the LAST marker found asks the question
+            # that was meant: what did this job last say?
+            #
             # `|| true` because a fresh issue has no comments and an API hiccup here must
-            # not stop the findings being filed; the cost of getting this wrong is one
-            # duplicate comment.
-            latest=$(gh api --paginate "repos/${GH_REPO}/issues/${existing}/comments" --jq '.[].body | @base64' | tail -1 | base64 --decode || true)
-            if [ -z "${latest}" ]; then
-              latest=$(gh api "repos/${GH_REPO}/issues/${existing}" --jq .body || true)
-            fi
-            if printf '%s' "${latest}" | grep -qF "${marker}"; then
-              echo "The reported finding set is unchanged since the last comment. Not repeating it."
+            # not stop the findings being filed. The failure direction is a duplicate
+            # comment, never a silence.
+            previous=$({ gh api "repos/${GH_REPO}/issues/${existing}" --jq .body;
+                         gh api --paginate "repos/${GH_REPO}/issues/${existing}/comments" --jq '.[].body'; } 2>/dev/null \
+                       | grep -o 'image-scan-digest: [0-9a-f]\{64\}' | tail -1 || true)
+            if [ "${previous}" = "image-scan-digest: ${digest}" ]; then
+              echo "The reported finding set is unchanged since this job last posted. Not repeating it."
               exit 0
             fi
           fi
 
           if [ -n "${digest}" ]; then
+            # Appended last, after the truncated summary, so that this job's own marker
+            # is the final one in its comment even if a package name in the table were
+            # ever crafted to contain something marker-shaped.
             body=$(printf '%s\n\n<!-- image-scan-digest: %s -->' "${body}" "${digest}")
           fi
 

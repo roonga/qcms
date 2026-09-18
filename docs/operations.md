@@ -106,9 +106,11 @@ images is one row naming them rather than three.
 not - also lands in a `security`-labeled issue titled "Image vulnerability scan findings
 (scheduled run)", updated by comment rather than duplicated, as the `pnpm audit` run
 does. Two things about it are worth knowing before you wait on one. A week in which the
-reported set has not moved posts **nothing**: the job compares a digest of the set
-against the digest embedded in the last comment, so a new comment means the answer
-changed rather than that a Monday passed. And a week in which the scan failed outright
+reported set has not moved posts **nothing**: the job compares a digest of that set
+against the last digest **it** posted, which it finds by scanning the issue body and
+every comment for its own marker and taking the last one. So a comment from the job
+means the answer changed rather than that a Monday passed, and your own notes on the
+thread in between do not disturb that. And a week in which the scan failed outright
 posts that fact, so silence never means "the scan broke".
 
 **What turns the job red.** A finding at or above `critical` **that has a published

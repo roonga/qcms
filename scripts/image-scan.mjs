@@ -354,14 +354,39 @@ export function summarizeImage({ image, document, report }, floors) {
  * @param {string} value
  * @returns {string} a fenced, pipe-safe, single-line cell.
  */
+export const MAX_CELL_LENGTH = 200;
+
 export function escapeCell(value) {
   const flattened = String(value)
-    .replace(/[\r\n]+/g, " ")
+    // U+2028 and U+2029 are line separators too, and a renderer that honours them
+    // would end the row as surely as a newline does.
+    .replace(/[\r\n\u2028\u2029]+/g, " ")
     // A backtick would close the span this is about to open.
     .replaceAll("`", "'")
+    // Backslashes first, then pipes. Escaping only the pipe leaves a name containing a
+    // literal `\|` as `a\\|b`, which two renderers read two ways: GFM's table splitter
+    // looks only at the character before the pipe and calls it escaped, while a reader
+    // that parses escape sequences properly consumes `\\` and finds a bare delimiter.
+    // Doubling the backslash first makes it `a\\\|b`, which is an escaped pipe under
+    // both readings. The crafted-name test in `image-scan.test.ts` caught this; a package
+    // name is an unlikely place for a backslash, and "unlikely" is not the standard for
+    // a cell that becomes an issue body.
+    .replaceAll("\\", "\\\\")
     .replaceAll("|", "\\|")
     .trim();
-  return flattened === "" ? "``" : `\`${flattened}\``;
+  if (flattened.length <= MAX_CELL_LENGTH) {
+    return flattened === "" ? "``" : `\`${flattened}\``;
+  }
+  // The cap is structural rather than cosmetic. The scheduled job truncates the body it
+  // posts at 50,000 bytes, and without a bound on one cell that cut could land inside a
+  // code span and leave the rest of the issue rendering as code. Bounding each cell
+  // bounds where the cut can fall. Nothing legitimate is lost: a package name or an
+  // advisory id is tens of characters, and the untruncated value is in the grype JSON
+  // the artifact carries.
+  const cut = flattened.slice(0, MAX_CELL_LENGTH - 3);
+  // Never end on a lone backslash: it would escape the closing backtick.
+  const trailing = /(\\*)$/.exec(cut)?.[1].length ?? 0;
+  return `\`${trailing % 2 === 1 ? cut.slice(0, -1) : cut}...\``;
 }
 
 /**

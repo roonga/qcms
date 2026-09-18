@@ -11,6 +11,7 @@ import {
   escapeCell,
   EXIT_BLOCKED,
   EXIT_OK,
+  MAX_CELL_LENGTH,
   findings,
   main,
   mergeFindings,
@@ -346,6 +347,59 @@ describe("the digest that decides whether the weekly issue changes", () => {
     expect(reportDigest(summaries)).toBe(reportDigest(summaries));
   });
 
+  it("does not move when the same findings arrive in a different order", () => {
+    // The silence depends on this. If the digest tracked the scanner's ordering, a
+    // week in which nothing changed but the match order did would post a duplicate,
+    // and people would stop reading a thread that cries wolf.
+    const reversed = { ...REPORT, matches: [...REPORT.matches].reverse() };
+    const after = [
+      summarizeImage({ image: "qcms-api", document: STATEMENT, report: reversed }, FLOORS),
+    ];
+    expect(reportDigest(after)).toBe(reportDigest(summaries));
+  });
+
+  it("does not move when the images are listed in a different order", () => {
+    const order = ["qcms-api", "qcms-portal", "qcms-admin"].map((image) =>
+      summarizeImage({ image, document: STATEMENT, report: REPORT }, FLOORS),
+    );
+    expect(reportDigest([...order].reverse())).toBe(reportDigest(order));
+  });
+
+  it("moves when a finding gains a fix, which is a real change of answer", () => {
+    const fixed = {
+      ...REPORT,
+      matches: REPORT.matches.map((entry) =>
+        entry.vulnerability.id === "CVE-2026-5450"
+          ? match("CVE-2026-5450", "Critical", "deb", "libc6", "2.36-9+deb12u14", {
+              state: "fixed",
+              versions: ["2.36-9+deb12u15"],
+            })
+          : entry,
+      ),
+    };
+    const after = [
+      summarizeImage({ image: "qcms-api", document: STATEMENT, report: fixed }, FLOORS),
+    ];
+    expect(reportDigest(after)).not.toBe(reportDigest(summaries));
+  });
+
+  it("does not move for a change below the reporting floor", () => {
+    const noisier = {
+      ...REPORT,
+      matches: [
+        ...REPORT.matches,
+        match("GHSA-0000-low", "Low", "npm", "something", "1.0.0", {
+          state: "fixed",
+          versions: ["1.0.1"],
+        }),
+      ],
+    };
+    const after = [
+      summarizeImage({ image: "qcms-api", document: STATEMENT, report: noisier }, FLOORS),
+    ];
+    expect(reportDigest(after)).toBe(reportDigest(summaries));
+  });
+
   it("moves when one more unfixed critical appears", () => {
     const worse = {
       ...REPORT,
@@ -376,6 +430,23 @@ describe("Markdown that ends up in an issue body", () => {
     expect(escapeCell("")).toBe("``");
   });
 
+  it("caps a cell so the issue body's byte cut cannot land inside a code span", () => {
+    const long = escapeCell("x".repeat(5_000));
+    expect(long.length).toBeLessThanOrEqual(MAX_CELL_LENGTH + 2);
+    expect(long.startsWith("`")).toBe(true);
+    expect(long.endsWith("...`")).toBe(true);
+    expect(long.match(/`/g)).toHaveLength(2);
+  });
+
+  it("never cuts a capped cell on a lone backslash, which would escape the fence", () => {
+    // Every character escapes to two, so the cut lands mid-escape unless it is moved.
+    const piped = escapeCell("|".repeat(5_000));
+    expect(piped.match(/`/g)).toHaveLength(2);
+    expect(piped.endsWith("|...`")).toBe(true);
+    // No odd run of backslashes immediately before the closing fence.
+    expect(piped).not.toMatch(/(^|[^\\])(\\\\)*\\\.\.\.`$/);
+  });
+
   it("keeps a crafted package name inside one table cell", () => {
     const crafted = {
       ...REPORT,
@@ -384,7 +455,7 @@ describe("Markdown that ends up in an issue body", () => {
           "CVE-2026-0003",
           "Critical",
           "npm",
-          "evil | ## pwned\n@roonga [click](https://example.invalid)",
+          "evil | a\\|b ## pwned\n@roonga [click](https://example.invalid)",
           "1.0.0",
           { state: "wont-fix", versions: [] },
         ),
@@ -398,7 +469,13 @@ describe("Markdown that ends up in an issue body", () => {
     expect(row).toBeDefined();
     // Seven unescaped pipes: six columns with a leading and a trailing delimiter. The
     // injected pipe is escaped rather than opening a seventh cell.
-    expect(row?.split(/(?<!\\)\|/)).toHaveLength(8);
+    //
+    // Counted by removing every backslash escape first rather than with a lookbehind.
+    // `/(?<!\\)\|/` asks "is the previous character a backslash", which a name
+    // containing a literal `\|` defeats: it escapes to `\\|`, the lookbehind sees the
+    // second backslash and calls the pipe unescaped. Dropping `\\.` pairs leaves only
+    // the delimiters, whatever the cell contained.
+    expect(row?.replace(/\\./g, "").split("|")).toHaveLength(8);
     // No newline escaped out of the cell, so no heading was injected.
     expect(markdown).not.toMatch(/^## pwned/m);
   });
