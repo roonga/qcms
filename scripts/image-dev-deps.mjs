@@ -14,7 +14,7 @@
  * The cause was not a manifest mistake. `pnpm deploy --prod` does exactly what it
  * documents - "packages in `devDependencies` won't be installed" - and the deployed
  * tree's top-level `node_modules` held prod dependencies only. The test tooling
- * arrived through **resolved optional peer dependencies**: `better-auth@1.7.3`
+ * arrived through **resolved optional peer dependencies**: `better-auth@1.7.5`
  * declares optional peers on `vitest`, `next`, `react`, `react-dom` and `drizzle-kit`,
  * `next` declares one on `@playwright/test`, and `@roonga/qcms-db` declares them on
  * `testcontainers` and `@testcontainers/postgresql`. pnpm records each satisfied
