@@ -108,7 +108,10 @@ export function NativeDateField({
   // Both slots are named when both are drawn, so a screen reader announces the
   // hint and the refusal rather than one of them (WCAG 3.3.2, 3.3.1).
   const describedBy =
-    [description === undefined ? undefined : descriptionId, errorMessage === undefined ? undefined : errorId]
+    [
+      description === undefined ? undefined : descriptionId,
+      errorMessage === undefined ? undefined : errorId,
+    ]
       .filter((id) => id !== undefined)
       .join(" ") || undefined;
 
@@ -118,7 +121,10 @@ export function NativeDateField({
         <label htmlFor={inputId} className={styles.label}>
           {label}
           {isRequired === true ? (
-            <span aria-hidden="true" className={styles.requiredIndicator}> *</span>
+            <span aria-hidden="true" className={styles.requiredIndicator}>
+              {" "}
+              *
+            </span>
           ) : null}
         </label>
       )}

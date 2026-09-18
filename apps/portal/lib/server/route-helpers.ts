@@ -376,7 +376,10 @@ const stepContextSchema = z.object({
   // one buys is a message beside a question in the forger's own render: the
   // renderer intersects it with the step's visible set, and the API - which never
   // reads this cookie - still refuses the submit (issue #920).
-  missingRequired: z.array(z.unknown()).transform((raw) => raw.filter((q) => typeof q === "string")).optional(),
+  missingRequired: z
+    .array(z.unknown())
+    .transform((raw) => raw.filter((q) => typeof q === "string"))
+    .optional(),
 });
 
 /**

@@ -123,9 +123,7 @@ function projection(options: {
   };
 }
 
-async function postStep(
-  fields: readonly (readonly [string, string])[],
-): Promise<Response> {
+async function postStep(fields: readonly (readonly [string, string])[]): Promise<Response> {
   const body = new FormData();
   for (const [name, value] of fields) body.append(name, value);
   const request = new Request(`${PORTAL_BASE}/s/${SESSION_ID}/step`, {
@@ -251,7 +249,10 @@ describe("a required question left blank is reported, not silently reloaded (iss
     api.submitAnswer.mockResolvedValue(
       projection({ readyToSubmit: true, visibleQuestions: ["q_dob"] }),
     );
-    api.submitSession.mockResolvedValue({ submittedAt: "2026-09-18T00:00:00.000Z", contentHash: "a" });
+    api.submitSession.mockResolvedValue({
+      submittedAt: "2026-09-18T00:00:00.000Z",
+      contentHash: "a",
+    });
 
     const response = await postStep([
       ["__qk__q_dob", "string"],

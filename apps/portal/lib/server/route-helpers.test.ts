@@ -115,7 +115,9 @@ describe("readStepContext", () => {
   it("refuses a missingRequired that is not a list at all", async () => {
     // Structure is strict and content is lenient: this is not an envelope this app
     // wrote, so it is refused outright rather than half-read.
-    await expect(readCookie(JSON.stringify({ missingRequired: "q_odometer" }))).resolves.toBeUndefined();
+    await expect(
+      readCookie(JSON.stringify({ missingRequired: "q_odometer" })),
+    ).resolves.toBeUndefined();
   });
 
   it("CLEARS an unreadable values entry rather than dropping it", async () => {
