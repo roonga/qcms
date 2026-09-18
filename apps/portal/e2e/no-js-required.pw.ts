@@ -179,3 +179,51 @@ test("a crafted post that skips the browser is refused by the API and reported o
     await db.close();
   }
 });
+
+test("the API's own 422 lands next to its field too, with the rest of the step intact", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug, databaseUrl } = readFixtures();
+  const db = await openDb(databaseUrl);
+  try {
+    const sessionId = await startWithoutJs(page, kitchenSinkSlug);
+
+    // The BFF's 422 rendering has never had a browser assertion on this transport,
+    // and it takes a crafted post to reach at all: `q_full_name` carries a `pattern`
+    // the renderer emits as the HTML attribute, so the browser refuses a name with a
+    // digit in it before the form leaves the page. That is the ruling working as
+    // intended; it also means the server half is the only thing standing between a
+    // client that ignores `pattern` and a stored answer, which is what this asserts.
+    const response = await page.request.post(`/s/${sessionId}/step`, {
+      headers: { "sec-fetch-site": "same-origin" },
+      form: {
+        __qk__q_full_name: "string",
+        q_full_name: "Ada1",
+        __qk__q_dob: "string",
+        q_dob: "1990-05-17",
+      },
+      maxRedirects: 0,
+    });
+    expect(response.status()).toBe(303);
+
+    // Refused by the kernel through the API, so nothing was stored for the name; the
+    // date posted beside it was fine and was.
+    const stored = await db.latestAnswers(sessionId);
+    expect(stored.has("q_full_name")).toBe(false);
+    expect(stored.get("q_dob")).toBe("1990-05-17");
+
+    await page.goto(`/s/${sessionId}`);
+    await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
+    // The kernel's own wording for the constraint that failed, in the field's slot and
+    // in the summary - not the generic "that answer is not valid" (issue #322).
+    await expect(page.getByTestId("error-summary")).toContainText(/does not match/i);
+    await expect(page.getByText(/does not match/i).first()).toBeVisible();
+
+    // The value the respondent typed is back in the box, so they correct it rather
+    // than retype it, and the accepted date beside it is untouched.
+    await expect(page.locator(NAME_FIELD)).toHaveValue("Ada1");
+    await expect(page.locator(DATE_FIELD)).toHaveValue("1990-05-17");
+  } finally {
+    await db.close();
+  }
+});

@@ -14,17 +14,16 @@
  *
  * ## Why the setup runs with scripting ON
  *
- * The issue's own scenario is a **resume**: the answer being cleared was given earlier.
- * Giving it here needs a scripted context for a reason that is itself worth recording:
- * the kitchen sink's first step carries a required date, and a react-aria DatePicker's
- * form value rides an `<input hidden required>` that JavaScript syncs. A hidden control
- * that fails constraint validation cannot be focused to show a message, so the browser
- * refuses to submit the form at all - `An invalid form control with name='q_dob' is not
- * focusable` - and step one is a dead end with scripting off. That is a live no-JS
- * defect of its own, not this issue's, and it is carried in this change's pull request
- * rather than worked around here; what this file does is seed the session through the scripted path and then do
- * the whole subject of the issue - the clear, the submit, and what the server keeps -
- * in a context with `javaScriptEnabled: false`.
+ * The issue's own scenario is a **resume**: the answer being cleared was given earlier,
+ * which needs a context that can give it. When this file was written there was a second
+ * reason - the kitchen sink's first step carries a required date, and the DatePicker's
+ * form value rode an `<input type="text" hidden required>` the browser could not focus
+ * to report validity on, so step one was a dead end with scripting off. Issue #920 fixed
+ * that (the native-submit renderer emits a real `<input type="date">`, and
+ * `no-js-required.pw.ts` walks step one with no scripting at all), so only the resume
+ * reason remains. What this file does is seed the session through the scripted path and
+ * then do the whole subject of the issue - the clear, the submit, and what the server
+ * keeps - in a context with `javaScriptEnabled: false`.
  *
  * ## What can be cleared without scripting, and what the browser refuses first
  *
@@ -34,15 +33,18 @@
  * group makes the browser refuse the submission before it leaves the page. The marker is
  * still what makes the optional clear reach the ledger, and it is still the whole of the
  * mechanism, but the required half of the issue's scenario is blocked one layer earlier
- * than the BFF. That is a separate finding, carried in this change's pull request rather
- * than fixed here: whether the no-JS path should submit past the browser's validation is
- * a decision, not a detail.
+ * than the BFF. The Code Owner ruled on that (2026-09-13, issue #920): browser
+ * validation stays, so a required question staying unclearable here is the decided
+ * behaviour, and the server reports the same constraint for anything that gets past the
+ * browser (`no-js-required.pw.ts`).
  *
  * The multiChoice half of "the two transports agree" is therefore asserted where both
  * are reachable together rather than here: `packages/ui/src/clear-paths.test.tsx` for
  * what each render mode puts on the wire, and `apps/portal/lib/server/step-form.test.ts`
- * for what the BFF makes of it. Clearing a NUMBER without scripting is out of scope for
- * the same reason the date is (issue #18, phase 4).
+ * for what the BFF makes of it. Clearing a NUMBER without scripting is still out of
+ * scope, and is now the only control in that position: its form value rides a hidden
+ * input JavaScript syncs (issue #18, phase 4). The date left that position with #920 -
+ * `clear-paths.test.tsx` carries the bytes an emptied native day input posts.
  *
  * ## Why the assertion is Postgres
  *
