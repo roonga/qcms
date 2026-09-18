@@ -418,7 +418,7 @@ jobs:
   # Its own job for one reason: `issues: write`. That is the only permission in this
   # workflow that can write anything back to the repository, and it is confined to the
   # job that needs it, on the one event that needs it. A push and a `workflow_dispatch`
-  # get the artifact and the job log and file nothing.
+  # get the artifact and the run page's job summary, and file nothing.
   #
   # ## What reaches the issue, and what keeps it readable
   #

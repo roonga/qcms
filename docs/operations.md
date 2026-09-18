@@ -96,12 +96,11 @@ pulls no image and holds no registry credential: the SBOM is a workflow artifact
 
 **Where to read it.** The `image-scan-report` artifact on the run, kept 90 days. It
 carries the full grype JSON per image, the SPDX document each report was produced from,
-and a Markdown summary. That summary is also rendered on the run's own page as the
-job summary, and printed in the job log. It has
-three sections: what is blocking, what is reported **with** a fix available, and what is
-reported **without** one. All three name each finding by id, package, version and fix
-state, and a finding present in all three images is one row naming them rather than
-three.
+and a Markdown summary. That summary is also rendered on the run's own page as the job
+summary, and printed in the job log. It has three sections: what is blocking, what is
+reported **with** a fix available, and what is reported **without** one. All three name
+each finding by id, package, version and fix state, and a finding present in all three
+images is one row naming them rather than three.
 
 **The weekly issue.** On the scheduled run, everything at or above `high` - fixable or
 not - also lands in a `security`-labeled issue titled "Image vulnerability scan findings
