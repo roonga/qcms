@@ -71,6 +71,11 @@ updates:
       # build failure and is invisible to the package-scoped typecheck a contributor
       # reaches for first. `apps/admin/components/forms/condition-json-pane.tsx`
       # carries the same note beside the code.
+      #
+      # None of that is enforced by prose: `scripts/check-dependabot-groups.test.ts`
+      # derives the package list from the workspace manifests and fails if this group
+      # is deleted, moved below `minor-and-patch`, stripped of its exclusion there, or
+      # left behind by a new `@codemirror/*` package (issue #889).
       codemirror:
         patterns:
           - "@codemirror/*"
