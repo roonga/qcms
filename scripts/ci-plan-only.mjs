@@ -92,20 +92,31 @@ export const FAST_LANE_PREFIXES = [PLAN_PREFIX];
  *
  * `.claude/` holds the agent definitions and skill files that issue #873 is about, and
  * nothing there is built, imported, bundled or served. But it also holds
- * `.claude/settings.json`, which is harness-EXECUTABLE configuration: a hook command,
- * a `permissions.deny` list, a default permission mode. It can hold hook scripts too.
+ * `.claude/settings.json`, which is harness configuration the harness ACTS on: a hook
+ * command, a `permissions.deny` list, a default permission mode. It can hold hook
+ * scripts too.
  *
- * The review of PR #952 probed exactly that, and the probe is the reason this is a
- * suffix rule rather than a prefix: a tracked `.claude/hooks/on-stop.sh`, a `.py`
- * beside it, and a `settings.json` wiring the hook, emptying `permissions.deny` and
- * setting `defaultMode` to `bypassPermissions` all pass `pnpm check:plan`. No gate
- * reads any of it - the full suite was equally blind, so the detection delta is nil -
- * but the TIME delta is not: `protect-main` requires zero approving reviews and has no
- * CODEOWNERS, so the four contexts are the only platform-enforced gate, and the lane
- * takes that window from roughly 30-55 minutes to about one. Whether that is an
- * acceptable trade for harness-executable configuration is a security acceptance and
- * belongs to the Code Owner, so this classifier does not make it: the lane admits only
- * what cannot execute, and everything else under `.claude/` takes the full suite.
+ * **What this rule does and does not buy, stated exactly** (reviews of PR #952). It is
+ * not a line between inert text and executable text, because the Markdown it admits is
+ * not inert either: an agent definition carries harness-interpreted frontmatter, so
+ * `.claude/agents/task-reviewer.md` is where that agent's `tools:` grant and `model:`
+ * are set, and a fast-lane pull request can widen the grant or change the model with
+ * four green contexts in about a minute. That surface is exactly what issue #873 asked
+ * to put on the lane, and no CI job ever gated it. What the rule draws a line around is
+ * narrower and worth having anyway: the settings file and the hook scripts, which
+ * configure the harness for the whole repository rather than one agent, and which the
+ * first version of this change admitted.
+ *
+ * The probe that set the line: a tracked `.claude/hooks/on-stop.sh`, a `.py` beside it,
+ * and a `settings.json` wiring the hook, emptying `permissions.deny` and setting
+ * `defaultMode` to `bypassPermissions` all pass `pnpm check:plan`. No gate reads any of
+ * it - the full suite was equally blind, so the detection delta is nil - but the TIME
+ * delta is not: `protect-main` requires zero approving reviews and has no CODEOWNERS, so
+ * the four contexts are the only platform-enforced gate, and the lane takes that window
+ * from roughly 30-55 minutes to about one. Whether that is an acceptable trade is a
+ * security acceptance and belongs to the Code Owner, so this classifier does not make
+ * it: until it is ruled on, nothing about those files changes, here or in
+ * {@link ADMIN_ONLY_PREFIXES}.
  *
  * See CONTRIBUTING, "The instruction and plan fast lane", for the open question.
  */
@@ -189,17 +200,25 @@ export function isPlanOnly(files) {
 /**
  * Directories a change can be confined to without any portal-rendered surface moving.
  *
- * `apps/admin/` is the whole point; `docs/`, `plan/` and `.claude/` ride along because
- * prose cannot render anything either and an admin PR routinely carries some.
+ * `apps/admin/` is the whole point; `docs/` and `plan/` ride along because prose cannot
+ * render anything either and an admin PR routinely carries some.
  *
- * `.claude/` is here WHOLE, where the fast lane admits only its Markdown, and the
- * asymmetry is deliberate because the two lanes ask different questions. This one asks
- * whether a portal-rendered surface can move, and nothing under `.claude/` renders
- * anything at any extension - a hook script is as incapable of moving a portal screen
- * as a skill file is. The Markdown restriction next door answers a different question
- * (what a one-minute merge window may carry past every gate), and importing it here
- * would only mean an admin PR carrying a `settings.json` tweak paid for the whole
- * portal browser suite for no reason anyone could state.
+ * **`.claude/` is deliberately NOT a prefix here, and the reason is not about
+ * rendering.** On the rendering question it plainly belongs: nothing under `.claude/`
+ * moves a portal screen at any extension, and an earlier version of this list said so
+ * and carried the whole directory. What that missed (delta review of PR #952) is that
+ * `browser-e2e` is the SLOWEST required context - 30.5 minutes against 9 for `verify` on
+ * this pull request's own run - so it is the context that sets the merge window, and the
+ * open Code Owner question about `.claude/settings.json` and hook scripts is a question
+ * about that window. At this file's base a `settings.json` change took the whole browser
+ * suite; with the prefix here it would take `--project admin-chromium` only. That is a
+ * change to the very thing being ruled on, made by the pull request that says it changes
+ * nothing until the ruling.
+ *
+ * So the fast-lane set reaches this classification through {@link isFastLanePath}
+ * instead, which admits Markdown under `.claude/` and no more. Markdown there still
+ * narrows the browser suite; the settings file and the hook scripts still run everything,
+ * exactly as they do today.
  *
  * The invariant that does matter still holds and is pinned by a test: every path on the
  * fast lane is admin-only too. A path the narrow lane lets skip the browser suite
@@ -211,12 +230,7 @@ export function isPlanOnly(files) {
  * must run the whole suite. The safe question is what the diff touches OUTSIDE this
  * list, and one path outside it is enough to run everything.
  */
-export const ADMIN_ONLY_PREFIXES = [
-  "apps/admin/",
-  "docs/",
-  ...FAST_LANE_PREFIXES,
-  ...FAST_LANE_MARKDOWN_PREFIXES,
-];
+export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
 
 /**
  * Can this diff move a portal-rendered surface?

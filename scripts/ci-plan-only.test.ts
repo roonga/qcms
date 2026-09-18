@@ -108,8 +108,12 @@ describe("plan-only classification", () => {
  * all (asserted lower down too, by a scan rather than by a comment).
  *
  * The set is narrower than the first version of this pull request: only MARKDOWN under
- * `.claude/`, because the rest of that tree is harness-executable configuration and
- * whether a one-minute merge window may carry it is the Code Owner's call.
+ * `.claude/`. That is not a line between inert text and executable text - an agent
+ * definition's frontmatter sets that agent's `tools:` grant and `model:`, which the
+ * lane now lets through in about a minute, and which is the surface #873 asked for. It
+ * is a line around `.claude/settings.json` and hook scripts, which configure the
+ * harness for the whole repository, and whether a one-minute merge window may carry
+ * those is the Code Owner's call.
  */
 describe("plan-only classification: the instruction tree", () => {
   it("accepts an agent or skill definition under .claude/", () => {
@@ -121,11 +125,13 @@ describe("plan-only classification: the instruction tree", () => {
   it("REJECTS everything under .claude/ that is not Markdown", () => {
     // Narrowed in the review of PR #952, and the reason is not that these files can
     // break a build - nothing reads them, so the full suite was equally blind. It is
-    // that they are harness-EXECUTABLE (a hook command, a permission list, a default
-    // permission mode), `protect-main` requires zero approving reviews and has no
-    // CODEOWNERS, so the four contexts are the only platform-enforced gate, and the
-    // lane takes that window from roughly 30-55 minutes to about one. Whether to
-    // accept that is the Code Owner's call; until it is made, these run everything.
+    // that they configure the harness for the WHOLE repository (a hook command, a
+    // permission list, a default permission mode) rather than one agent, that
+    // `protect-main` requires zero approving reviews and has no CODEOWNERS, so the four
+    // contexts are the only platform-enforced gate, and that the lane takes that window
+    // from roughly 30-55 minutes to about one. The Markdown next door is not inert
+    // either - its frontmatter carries `tools:` and `model:` - but that surface is what
+    // #873 asked for, where these were admitted by accident in the first version.
     expect(isPlanOnly([".claude/settings.json"])).toBe(false);
     expect(isPlanOnly([".claude/settings.local.json"])).toBe(false);
     expect(isPlanOnly([".claude/hooks/on-stop.sh"])).toBe(false);
@@ -293,10 +299,30 @@ describe("admin-only classification", () => {
   it("keeps every prefix anchored with a trailing separator", () => {
     // `apps/administration/` and `docsite/` are not in scope, and without the
     // separator both would classify as admin-only.
-    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/", ".claude/"]);
+    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/"]);
     expect(isAdminOnly(["apps/administration/page.tsx"])).toBe(false);
     expect(isAdminOnly(["docsite/index.html"])).toBe(false);
     expect(isAdminOnly(["apps/admin"])).toBe(false);
+  });
+
+  it("REJECTS the .claude/ files held back pending the Code Owner ruling", () => {
+    // `.claude/` is not a prefix in ADMIN_ONLY_PREFIXES, and this is the reason
+    // (delta review of PR #952). On the rendering question it belongs there - a hook
+    // script cannot move a portal screen - but `browser-e2e` is the SLOWEST required
+    // context, so it is the one that sets the merge window, and the window for these
+    // files is exactly what the open decision is about. Admitting them here would
+    // narrow that window from the whole browser suite to `--project admin-chromium`,
+    // which is a change to the thing being ruled on.
+    expect(isAdminOnly([".claude/settings.json"])).toBe(false);
+    expect(isAdminOnly([".claude/settings.local.json"])).toBe(false);
+    expect(isAdminOnly([".claude/hooks/on-stop.sh"])).toBe(false);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", ".claude/settings.json"])).toBe(false);
+  });
+
+  it("still narrows the browser suite for Markdown under .claude/", () => {
+    // The other half: the narrowing an admin PR carrying agent-file edits should keep.
+    expect(isAdminOnly([".claude/agents/task-reviewer.md"])).toBe(true);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", ".claude/agents/dev-task.md"])).toBe(true);
   });
 
   it("preserves a leading space rather than accepting it as an admin path", () => {
@@ -318,7 +344,7 @@ describe("admin-only classification", () => {
     // `CLAUDE.md` tweak pays for the whole portal suite while the same tweak on its
     // own pays for none of it. Asserted over the sets rather than over examples, so a
     // future entry in either list cannot break it quietly.
-    for (const prefix of FAST_LANE_PREFIXES) {
+    for (const prefix of [...FAST_LANE_PREFIXES, ...FAST_LANE_MARKDOWN_PREFIXES]) {
       expect(isAdminOnly([`${prefix}some/file.md`])).toBe(true);
     }
     for (const file of FAST_LANE_FILES) {
@@ -412,40 +438,69 @@ describe("check:plan covers what the lane skips", () => {
  *
  * The scan is deliberately narrow so it is worth keeping green:
  *
- *   - **Quoted occurrences only.** This repository writes paths in prose with
- *     backticks, so requiring the needle inside a `'` or `"` string drops every
- *     commentary mention without needing to parse comments. Measured over the tracked
- *     tree at the time of writing: three hits, all real string literals.
+ *   - **Quoted occurrences only, backticks included.** A needle counts when it sits
+ *     inside a `'`, `"` or backtick string. Template literals are in because that is a
+ *     shape this repository genuinely uses for this kind of read -
+ *     `apps/api/src/openapi-document.test.ts:30` reads its contract artifact that way -
+ *     and the first version of this scan was blind to them (delta review of PR #952).
+ *   - **Lines that OPEN with a comment marker are skipped**, which is what keeps the
+ *     backtick half from drowning in prose: this repository writes paths in running
+ *     commentary with backticks, and all five extra hits the backtick added were JSDoc
+ *     continuation lines. Measured over the tracked tree at the time of writing: three
+ *     hits either way, the same three. The residual is a backticked lane path inside a
+ *     TRAILING comment on a code line, which would be a false positive; the failure is
+ *     loud and the allowlist is the fix.
  *   - **`plan/` is not a needle.** It predates #873 and its documents are cited in
- *     dozens of component comments, several of which are inside JSX where the quoting
- *     rule does not hold. The property this pins is the one #873 introduced.
- *   - **A hit is a question, not a verdict.** The two allowed files below name
+ *     dozens of component comments, many of them inside JSX where no comment-marker
+ *     rule holds (62 such lines when this was written). The property this pins is the
+ *     one #873 introduced.
+ *   - **A hit is a question, not a verdict.** The allowed entries below name
  *     `CONTRIBUTING.md` and `CLAUDE.md` as APP-RELATIVE strip rules - what a scaffolded
- *     project must not ship - and never read the repository root's copy.
+ *     project must not ship - and never read the repository root's copy. They are
+ *     scoped to the exact line text, so a later root read in the same file is still a
+ *     failure rather than something hiding behind an existing reason.
  */
 describe("no reader of a lane path lives where the lane cannot see it", () => {
   const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
   const SOURCE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+  const COMMENT_OPENER = /^(?:\/\/|\/\*|\*|\{\/\*)/;
 
-  /** File -> why a lane literal in it is not a read of the repository's own copy. */
-  const ALLOWED = new Map([
-    [
-      "packages/create-qcms-app/scripts/sync-templates.mjs",
-      "APP_EXCLUDED_PATHS and AGENT_INSTRUCTIONS: app-relative names the scaffold drops",
-    ],
-    [
-      "packages/create-qcms-app/scripts/sync-templates.test.ts",
-      "asserts the same app-relative strip rules",
-    ],
-  ]);
-
-  it("finds no unlisted lane literal under apps/ or packages/", () => {
-    const needles = [...FAST_LANE_FILES, ...FAST_LANE_MARKDOWN_PREFIXES];
-    const quoted = new RegExp(
+  /**
+   * The pattern the scan uses, built once so the self-test below exercises the real one.
+   *
+   * @param needles paths whose quoted appearance is the thing being looked for.
+   */
+  const laneLiteralPattern = (needles: readonly string[]): RegExp =>
+    new RegExp(
       needles
-        .map((needle) => `["'][^"']*${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"']*["']`)
+        .map(
+          (needle) =>
+            `["'\`][^"'\`]*${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"'\`]*["'\`]`,
+        )
         .join("|"),
     );
+
+  /** One line that may name a lane path, and why it is not a read of our own copy. */
+  const ALLOWED = [
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.mjs",
+      line: '"CONTRIBUTING.md",',
+      why: "APP_EXCLUDED_PATHS: an app-relative name the scaffold drops, never read from the root",
+    },
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.test.ts",
+      line: '"CONTRIBUTING.md",',
+      why: "asserts the same app-relative strip rule",
+    },
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.test.ts",
+      line: '"CLAUDE.md",',
+      why: "asserts the same app-relative strip rule",
+    },
+  ];
+
+  const scan = (): { found: string[]; matched: Set<string> } => {
+    const pattern = laneLiteralPattern([...FAST_LANE_FILES, ...FAST_LANE_MARKDOWN_PREFIXES]);
     const tracked = execFileSync("git", ["ls-files", "-z", "apps", "packages", "tooling"], {
       cwd: REPO_ROOT,
       encoding: "utf8",
@@ -455,13 +510,26 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
       .filter((file) => file !== "" && SOURCE.test(file));
 
     const found: string[] = [];
+    const matched = new Set<string>();
     for (const file of tracked) {
-      if (ALLOWED.has(file)) continue;
       const text = readFileSync(path.join(REPO_ROOT, file), "utf8");
-      text.split("\n").forEach((line, index) => {
-        if (quoted.test(line)) found.push(`${file}:${String(index + 1)}  ${line.trim()}`);
+      text.split("\n").forEach((raw, index) => {
+        const line = raw.trim();
+        if (COMMENT_OPENER.test(line)) return;
+        if (!pattern.test(line)) return;
+        const allowed = ALLOWED.find((entry) => entry.file === file && entry.line === line);
+        if (allowed !== undefined) {
+          matched.add(`${allowed.file} ${allowed.line}`);
+          return;
+        }
+        found.push(`${file}:${String(index + 1)}  ${line}`);
       });
     }
+    return { found, matched };
+  };
+
+  it("finds no unlisted lane literal under apps/ or packages/", () => {
+    const { found } = scan();
 
     // The message is the point of the test: whoever trips it has to answer one
     // question, and the answer decides between three fixes.
@@ -472,19 +540,39 @@ describe("no reader of a lane path lives where the lane cannot see it", () => {
         "Ask whether it READS the repository's own copy at that path:",
         "  - it does      -> it must run on the lane, or the path must leave the lane",
         "                    (scripts/ci-plan-only.mjs, CONTRIBUTING 'The instruction and plan fast lane')",
-        "  - it does not  -> add it to ALLOWED here with the reason, as the two entries above do",
+        "  - it does not  -> add it to ALLOWED here with its exact line text and the reason",
         "Hits:",
         ...found,
       ].join("\n"),
     ).toEqual([]);
   });
 
-  it("would notice a reader added under apps/", () => {
-    // The scan is only worth having if it can fail. Asserted on a synthetic line
-    // rather than by writing into the tree, so nothing has to be cleaned up.
-    const quoted = new RegExp(`["'][^"']*CLAUDE\\.md[^"']*["']`);
-    expect(quoted.test('const brief = readFileSync("../../CLAUDE.md", "utf8");')).toBe(true);
-    expect(quoted.test("// the trap CLAUDE.md describes, in prose, with backticks")).toBe(false);
+  it("keeps no stale allowlist entry, so each one still stands for something", () => {
+    // An entry whose line has moved or gone is an exemption nobody is watching, and it
+    // would silently cover the next line that happens to match it.
+    const { matched } = scan();
+    for (const entry of ALLOWED) {
+      expect(
+        matched,
+        `${entry.file} no longer has the line '${entry.line}' (${entry.why})`,
+      ).toContain(`${entry.file} ${entry.line}`);
+    }
+  });
+
+  it("would notice a reader added under apps/, quoted or in a template literal", () => {
+    // The scan is only worth having if it can fail, and this exercises the SAME builder
+    // the scan uses rather than a copy of the pattern (delta review of PR #952).
+    // Synthetic lines rather than a write into the tree, so nothing has to be cleaned up.
+    const pattern = laneLiteralPattern(["CLAUDE.md", ".claude/"]);
+    expect(pattern.test('const brief = readFileSync("../../CLAUDE.md", "utf8");')).toBe(true);
+    expect(pattern.test("const brief = readFileSync(`../../CLAUDE.md`, 'utf8');")).toBe(true);
+    expect(pattern.test("const p = new URL(`${root}/.claude/agents/x.md`, base);")).toBe(true);
+    expect(pattern.test("const brief = readFileSync(join(root, 'CLAUDE.md'));")).toBe(true);
+    // And the shapes it must NOT flag: prose, wherever the comment marker opens the line.
+    expect(COMMENT_OPENER.test("// the trap `CLAUDE.md` describes")).toBe(true);
+    expect(
+      COMMENT_OPENER.test("* documented in `apps/api/CONTRIBUTING.md`, not a dependency"),
+    ).toBe(true);
   });
 });
 
