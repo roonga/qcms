@@ -144,7 +144,9 @@ const REPORT = {
       status: {
         schemaVersion: "v6.1.9",
         built: "2026-09-18T06:30:15Z",
-        path: "/home/runner/.cache/grype/db/6/vulnerability.db",
+        // The real report carries an absolute cache path here; a placeholder stands in
+        // it, because a committed fixture never hard-codes one machine's home.
+        path: "<cache-dir>/grype/db/6/vulnerability.db",
         valid: true,
       },
       providers: { debian: { captured: "2026-09-18T00:31:49Z", input: "xxh64:de3468208f484970" } },
