@@ -33,11 +33,14 @@ const WORKFLOW = ".github/workflows/ci.yml";
  * Checks that legitimately appear in the workflow without being part of
  * `check:all`.
  *
- * `check:plan` is the plan-only fast lane's REPLACEMENT for `check:all`, not one of
- * its members: a pull request whose every path is under `plan/` runs it instead of
- * the build-and-test steps (see CONTRIBUTING, "The plan/** fast lane"). It is the
- * only such case, and it is named here rather than pattern-matched so a second one
- * cannot appear by accident.
+ * `check:plan` is the fast lane's replacement for the build-and-test steps, not a
+ * member of `check:all`: a pull request whose every path is in the fast-lane set runs
+ * it instead (see CONTRIBUTING, "The instruction and plan fast lane"). Since issue
+ * #873 it WRAPS `check:all` - `pnpm check:plan` runs the whole gate set and then some
+ * - which changes nothing here: this gate reads the `check:all` script body and the
+ * workflow's steps, and `check:plan` is a step in neither list's sense. It is the only
+ * such case, and it is named here rather than pattern-matched so a second one cannot
+ * appear by accident.
  */
 const NOT_IN_CHECK_ALL = new Set(["check:plan"]);
 

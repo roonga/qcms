@@ -50,11 +50,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The fast-lane classifier. A pull request whose every changed path is under
-  # `plan/` (the committed planning/scratch area, not a workspace) cannot break
-  # build, typecheck, lint, the unit suites or any of the three end-to-end suites,
-  # yet it used to cost the full ~20-minute matrix: PR #524 was prose-only and paid
-  # it twice on one head.
+  # The fast-lane classifier. A pull request whose every changed path is in the
+  # fast-lane set - `plan/` (the committed planning/scratch area, not a workspace),
+  # `.claude/` (agent and skill definitions) and the three root instruction files -
+  # cannot break build, typecheck, lint, the unit suites or any of the three
+  # end-to-end suites, yet it used to cost the full ~20-minute matrix: PR #524 was
+  # prose-only and paid it twice on one head, and PR #868 (`.claude/` plus
+  # `CLAUDE.md`) paid about an hour across two pushes, nearly all of it browser-e2e.
+  #
+  # The lane is not "these files look harmless". Everything that READS one of those
+  # paths runs in `pnpm check:plan`, which the `verify` job below runs instead of the
+  # build-and-test steps; scripts/ci-plan-only.test.ts ties the two halves together.
   #
   # What this job does NOT do is decide whether a job runs. `protect-main` requires
   # four contexts and has no bypass actors, so a context that never reports strands
@@ -73,7 +79,7 @@ jobs:
     outputs:
       plan_only: ${{ steps.classify.outputs.plan_only }}
       # `admin_only` (issue #696): every changed path is under `apps/admin/`, `docs/`
-      # or `plan/`, so nothing in the diff can move a portal-rendered surface and
+      # or the fast-lane set, so nothing in the diff can move a portal-rendered surface and
       # `browser-e2e` narrows to the admin Playwright project instead of running the
       # whole browser suite. It inherits `plan_only`'s posture exactly - unresolvable,
       # empty or ambiguous means `false`, which means run everything - and it does NOT
@@ -104,7 +110,7 @@ jobs:
       # THE CLASSIFIER MUST NOT BE THE ONE IN THE PULL REQUEST. It is read from the
       # BASE ref and run against the head checkout, because a checked-out copy would
       # certify its own diff: a PR that refactors this script and introduces a defect
-      # answering `true` too readily touches only a non-`plan/` file, so a full run is
+      # answering `true` too readily touches only a file outside the lane, so a full run is
       # intended - but its own broken copy would answer `plan_only=true`, `pnpm test`
       # is a step the fast lane skips, and scripts/ci-plan-only.test.ts (written for
       # exactly that defect) would never execute. Four green contexts in 45 seconds,
@@ -160,7 +166,8 @@ jobs:
     # that skips is a cancelled run, whose head is superseded anyway.
     if: ${{ !cancelled() }}
     env:
-      # Read by every step below. `true` means the diff is entirely under `plan/`, so
+      # Read by every step below. `true` means every changed path is in the fast-lane
+      # set (`plan/`, `.claude/`, `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`, `CONTRIBUTING.md`), so
       # this job runs `check:plan` and stops; the job itself still runs and still
       # reports its required context.
       PLAN_ONLY: ${{ needs.changes.outputs.plan_only }}
@@ -188,8 +195,15 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      # Plan-only pull requests skip application builds and tests, but still run the
-      # plan security, theme, ESLint, and Prettier checks.
+      # Fast-lane pull requests skip the application build, typecheck, ESLint and the
+      # unit suites. `pnpm check:plan` is what they run instead, and it is a SUPERSET
+      # of `pnpm check:all` rather than a subset of it: every text gate that reads a
+      # fast-lane path (check:no-em-dash, check:paths, check:ports, check:vendor-pin,
+      # check:adr-citations among them) runs here, plus Prettier over each lane path
+      # and the `tooling` Vitest project, which is where the tests that assert on the
+      # instruction files live. Measured at about 13 seconds for check:all on a tree
+      # with nothing built. Do not trim it back to a hand-picked list: the whole point
+      # of naming `check:all` is that a gate added later covers the lane for free.
       - run: pnpm check:plan
         if: env.PLAN_ONLY == 'true'
 
@@ -445,7 +459,7 @@ jobs:
 
       - name: Plan-only change, no product code to exercise
         if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely under plan/ - reporting api-e2e green without running the suite."
+        run: echo "Diff is entirely plan and instruction files - reporting api-e2e green without running the suite."
 
       - uses: pnpm/action-setup@v6.0.9
         if: env.PLAN_ONLY != 'true'
@@ -522,7 +536,7 @@ jobs:
 
       - name: Plan-only change, no rendered surface to exercise
         if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely under plan/ - reporting browser-e2e green without running the suite."
+        run: echo "Diff is entirely plan and instruction files - reporting browser-e2e green without running the suite."
 
       - uses: pnpm/action-setup@v6.0.9
         if: env.PLAN_ONLY != 'true'

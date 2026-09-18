@@ -1,12 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   ADMIN_ONLY_PREFIXES,
+  FAST_LANE_FILES,
+  FAST_LANE_PREFIXES,
   PLAN_PREFIX,
   changedFiles,
   isAdminOnly,
@@ -91,6 +94,92 @@ describe("plan-only classification", () => {
 });
 
 /**
+ * The instruction tree on the lane (issue #873).
+ *
+ * PR #868 changed `.claude/agents/task-reviewer.md` and `CLAUDE.md` and paid the full
+ * matrix twice, about an hour of wall time, nearly all of it `browser-e2e` on a diff
+ * with no browser, app or package code in it.
+ *
+ * What made that safe to fix is not that the files look like prose. It is that every
+ * gate and test which READS one of them now runs inside `check:plan` (asserted at the
+ * bottom of this file), and that every such reader lives OUTSIDE the lane - in
+ * `scripts/`, `packages/` or `apps/` - so the pull request that adds the next one
+ * takes a full run and gets to notice.
+ */
+describe("plan-only classification: the instruction tree", () => {
+  it("accepts an agent or skill definition under .claude/", () => {
+    expect(isPlanOnly([".claude/agents/task-reviewer.md", ".claude/skills/task/SKILL.md"])).toBe(
+      true,
+    );
+  });
+
+  it("accepts the three root instruction files", () => {
+    expect(isPlanOnly(["CLAUDE.md"])).toBe(true);
+    expect(isPlanOnly(["PROJECT_INSTRUCTIONS.md"])).toBe(true);
+    expect(isPlanOnly(["CONTRIBUTING.md"])).toBe(true);
+  });
+
+  it("accepts the diff issue #873 was filed for", () => {
+    expect(isPlanOnly([".claude/agents/task-reviewer.md", "CLAUDE.md"])).toBe(true);
+  });
+
+  it("REJECTS a .claude/ diff carrying one source file", () => {
+    // The case the lane exists to get wrong-way-safe. The instruction files dominate
+    // by count and the single `.ts` is exactly what the skipped suites check.
+    expect(
+      isPlanOnly([
+        ".claude/agents/task-executor.md",
+        ".claude/skills/next-issue/SKILL.md",
+        "CLAUDE.md",
+        "packages/core/src/rules.ts",
+      ]),
+    ).toBe(false);
+  });
+
+  it("REJECTS docs/, which several gates outside check:plan read", () => {
+    // Proposed in #873 and deliberately left out. `docs/openapi/*.json` is an API
+    // contract artifact proven by apps/api's `openapi-document.test.ts`, which needs a
+    // build the lane does not do; `docs/SECURITY_DESIGN.md` §3.2 is parsed at RUNTIME
+    // by `apps/api/e2e/security/matrix-coverage.e2e.ts`, which is the `api-e2e`
+    // required context the lane reports green without running. Neither reader can be
+    // moved into `check:plan`, so the whole tree stays code.
+    expect(isPlanOnly(["docs/openapi/admin.json"])).toBe(false);
+    expect(isPlanOnly(["docs/SECURITY_DESIGN.md"])).toBe(false);
+    expect(isPlanOnly(["docs/PORTS.md"])).toBe(false);
+    expect(isPlanOnly(["CLAUDE.md", "docs/features/README.md"])).toBe(false);
+  });
+
+  it("matches the root instruction files by EQUALITY, not as a prefix", () => {
+    // As prefixes these would admit files no gate on the lane has been checked
+    // against, and `apps/api/CONTRIBUTING.md` is read by the scaffolding generator.
+    expect(isPlanOnly(["CLAUDE.md.bak"])).toBe(false);
+    expect(isPlanOnly(["CONTRIBUTING.mdx"])).toBe(false);
+    expect(isPlanOnly(["apps/api/CONTRIBUTING.md"])).toBe(false);
+    expect(isPlanOnly(["apps/admin/CLAUDE.md"])).toBe(false);
+  });
+
+  it("keeps the .claude prefix anchored with its separator", () => {
+    expect(FAST_LANE_PREFIXES).toEqual(["plan/", ".claude/"]);
+    expect(FAST_LANE_FILES).toEqual(["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"]);
+    expect(isPlanOnly([".claude-hooks/on-stop.mjs"])).toBe(false);
+    expect(isPlanOnly([".claudeignore"])).toBe(false);
+  });
+
+  it("preserves a leading space rather than accepting it as an instruction file", () => {
+    // The same defect the NUL parse exists for, asserted on the widened set: a
+    // committed ` CLAUDE.md` is a real path, and a reader that trimmed would wave
+    // through whatever it actually is.
+    expect(isPlanOnly(parsePaths(" CLAUDE.md\0"))).toBe(false);
+    expect(isPlanOnly(parsePaths(" .claude/evil.ts\0"))).toBe(false);
+  });
+
+  it("still rejects a diff that also touches the workflow or the classifier", () => {
+    expect(isPlanOnly(["CLAUDE.md", ".github/workflows/ci.yml"])).toBe(false);
+    expect(isPlanOnly([".claude/agents/dev-task.md", "scripts/ci-plan-only.mjs"])).toBe(false);
+  });
+});
+
+/**
  * Admin-only classification (issue #696).
  *
  * The asymmetry is milder than the plan-only lane's but the same shape. A false
@@ -147,7 +236,7 @@ describe("admin-only classification", () => {
   it("keeps every prefix anchored with a trailing separator", () => {
     // `apps/administration/` and `docsite/` are not in scope, and without the
     // separator both would classify as admin-only.
-    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/"]);
+    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/", ".claude/"]);
     expect(isAdminOnly(["apps/administration/page.tsx"])).toBe(false);
     expect(isAdminOnly(["docsite/index.html"])).toBe(false);
     expect(isAdminOnly(["apps/admin"])).toBe(false);
@@ -164,6 +253,81 @@ describe("admin-only classification", () => {
     // rather than discovered.
     expect(isPlanOnly(["plan/notes.md"])).toBe(true);
     expect(isAdminOnly(["plan/notes.md"])).toBe(true);
+  });
+
+  it("holds the containment invariant: every fast-lane path is admin-only too", () => {
+    // Not a convenience. A path the NARROW lane lets skip the browser suite entirely
+    // must also be one the WIDE lane lets narrow it, or an admin PR carrying a
+    // `CLAUDE.md` tweak pays for the whole portal suite while the same tweak on its
+    // own pays for none of it. Asserted over the sets rather than over examples, so a
+    // future entry in either list cannot break it quietly.
+    for (const prefix of FAST_LANE_PREFIXES) {
+      expect(isAdminOnly([`${prefix}some/file.md`])).toBe(true);
+    }
+    for (const file of FAST_LANE_FILES) {
+      expect(isAdminOnly([file])).toBe(true);
+    }
+    expect(
+      isAdminOnly(["apps/admin/app/page.tsx", "CLAUDE.md", ".claude/skills/task/SKILL.md"]),
+    ).toBe(true);
+  });
+});
+
+/**
+ * The half of the lane that is not in this file: what `check:plan` actually runs.
+ *
+ * The classification above decides which pull requests skip the build, the unit
+ * suites and the three end-to-end jobs. What makes that safe is `check:plan` running
+ * every gate and test that reads a fast-lane path. The two halves are in different
+ * files and nothing but this block ties them together - the same shape of hole
+ * `check:ci-parity` exists for one level up, and the same fix.
+ *
+ * Read from `package.json` rather than restated, so this cannot pass over a lane that
+ * has quietly lost a gate.
+ */
+describe("check:plan covers what the lane skips", () => {
+  const manifest = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+  ) as { scripts: Record<string, string> };
+  const checkPlan = manifest.scripts["check:plan"] ?? "";
+
+  it("runs the whole check:all gate set, not a hand-picked subset", () => {
+    // Every text gate that reads the fast-lane tree is in `check:all`:
+    // `check:no-em-dash`, `check:paths`, `check:ports`, `check:vendor-pin` and
+    // `check:adr-citations` all scan tracked Markdown outside `plan/`, which is
+    // exactly `.claude/**` and the three root files. Naming the whole set rather than
+    // those five is what makes a gate added later cover the lane for free - and
+    // `pnpm check:all` costs about 13 seconds against a tree with no build in it.
+    expect(checkPlan).toContain("pnpm check:all");
+  });
+
+  it("prettier-checks every path the lane admits", () => {
+    // `pnpm lint` (which the lane skips) is what normally runs `prettier --check .`.
+    for (const target of [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES]) {
+      expect(checkPlan).toContain(target.replace(/\/$/, ""));
+    }
+  });
+
+  it("runs the tooling test project, which is where the readers of this tree live", () => {
+    // `scripts/agent-scratch.test.ts` asserts that six briefing files name the scratch
+    // helper and that none of them spells the lane override as an unexported prefix;
+    // `scripts/prune-worktrees.test.ts` asserts two skill files name the sweep. Both
+    // are in `pnpm test`, which the lane skips, and both are broken by an ordinary
+    // edit to a file the lane admits. The whole project runs rather than those two
+    // files, so a test added later is covered without anyone updating a list.
+    expect(checkPlan).toContain("pnpm test:tooling:no-build");
+  });
+
+  it("excludes exactly one tooling file from the lane, and says which", () => {
+    // `scripts/sql-capture.test.ts` refuses to run until `packages/db` is built, and
+    // building is the cost the lane exists to avoid. It reads nothing the lane admits.
+    // Any OTHER tooling test that grows a build dependency fails `check:plan` loudly,
+    // which is the direction that can be fixed rather than the one that goes unnoticed.
+    const noBuild = manifest.scripts["test:tooling:no-build"] ?? "";
+    expect(noBuild).toContain("--project tooling");
+    expect(noBuild).toContain("sql-capture.test.ts");
+    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(2);
+    expect(noBuild).toContain("node_modules");
   });
 });
 
