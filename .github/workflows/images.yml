@@ -377,6 +377,19 @@ jobs:
             --report "${RUNNER_TEMP}/image-scan" \
             --scanner "${RUNNER_TEMP}/grype"
 
+      # The same summary on the run page, not only in the log (issue #894 fix round).
+      # A job log is a place you go when you already suspect something; the job summary
+      # is on the run's own page beside the green tick, which is where a finding that
+      # cannot turn anything red has a chance of being read. It renders the Markdown,
+      # so the three sections and the NO FIX AVAILABLE table arrive as tables.
+      #
+      # `!cancelled()` and not `success()`: a scan that crossed the blocking floor is
+      # exactly the run whose summary someone wants, and `|| true` because a missing
+      # file here must never be the reason a run is red - the scan step already said so.
+      - name: Publish the summary on the run page
+        if: ${{ !cancelled() }}
+        run: cat "${RUNNER_TEMP}/image-scan/summary.md" >> "${GITHUB_STEP_SUMMARY}" || true
+
       # Uploaded whether the scan passed or failed: the report is the evidence either
       # way, and a red scan is exactly when someone wants to read it. It carries the
       # full grype JSON per image, the SPDX document each was produced from, and the

@@ -58,7 +58,8 @@
  * eighth one next week would have turned a 7 into an 8 and done nothing else. Reporting
  * costs nothing and blocks nothing, so every finding at or above the reporting floor is
  * named by id, package, version and fix state, with the ones that have no fix in their
- * own section of the summary, the job log and the weekly issue.
+ * own section of the summary, the run page's job summary, the job log and the weekly
+ * issue.
  *
  * ## Why the blocking floor is fixable-only by default, and what that is NOT claiming
  *
