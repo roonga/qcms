@@ -294,13 +294,24 @@ jobs:
       # have to be re-pinned under one of them.
       #
       # `GRYPE_SHA256` is the SHA-256 of that exact release asset, recorded here rather
-      # than taken from the publisher's own `checksums.txt` - verifying an artifact
-      # against a file fetched from the same place proves only that the two agree. This
-      # is the same property the base-image digests give `docker/*.Dockerfile`: the
-      # version is legible, the digest is what is enforced. Dependabot does not track a
-      # digest in a workflow `env`, so bumping it is a deliberate edit: take the new
-      # version's asset, verify it against the publisher's signed checksums, and record
-      # the digest here in the same commit.
+      # than read at run time from the publisher's own `checksums.txt` - verifying an
+      # artifact against a file fetched from the same place proves only that the two
+      # agree. This is the same property the base-image digests give `docker/*.Dockerfile`:
+      # the version is legible, the digest is what is enforced.
+      #
+      # What "verified" means for the value below, precisely, because a vaguer word
+      # invites a reader to assume more: the asset was downloaded and hashed locally,
+      # and that hash was compared against two independent publications of it - the
+      # release's `grype_<version>_checksums.txt` and the `digest` field the GitHub
+      # releases API reports for the asset. The cosign signature over `checksums.txt`
+      # (`.sig` and `.pem`, keyless) was NOT checked; no cosign is installed here. A
+      # future bump that does check it should say so and widen this note.
+      #
+      # Bumping is a deliberate edit, because Dependabot does not track a digest in a
+      # workflow `env`: take the new version's asset, hash it, confirm the hash against
+      # those two publications, wait for the repository's 24-hour release-age hold to
+      # pass (CONTRIBUTING, "The release-age hold" - the same reasoning applies with more
+      # force to a binary this workflow executes), and record the digest here.
       #
       # linux/amd64 because `runs-on: ubuntu-latest` is amd64. A runner move would need
       # a different asset and a different digest, and the checksum makes that a loud
@@ -366,13 +377,20 @@ jobs:
       # way, and a red scan is exactly when someone wants to read it. It carries the
       # full grype JSON per image, the SPDX document each was produced from, and the
       # Markdown summary, so a finding can be reproduced by hand with the same binary.
+      #
+      # `warn` and not `error`, for the reason the SBOM upload in `build` already gives:
+      # the step that failed is already the red that matters. `main()` creates the report
+      # directory before the first scan, so a scan that dies early leaves it empty and
+      # `error` would add a second, more confusing failure ("no files found") after the
+      # real one. The scheduled job below treats a missing report as news in its own
+      # right rather than relying on this step to say so.
       - name: Upload the scan report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: image-scan-report
           path: ${{ runner.temp }}/image-scan/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 90
 
   # The scheduled run's reporting half (issue #894), filed the way `audit.yml` files
@@ -383,13 +401,36 @@ jobs:
   # Its own job for one reason: `issues: write`. That is the only permission in this
   # workflow that can write anything back to the repository, and it is confined to the
   # job that needs it, on the one event that needs it. A push and a `workflow_dispatch`
-  # get the artifact and the job summary and file nothing.
+  # get the artifact and the job log and file nothing.
+  #
+  # ## What reaches the issue, and what keeps it readable
+  #
+  # EVERY finding at or above the reporting floor, whether or not a fix exists, named by
+  # id, package, version and fix state - the ones with no fix in their own section.
+  # `scripts/image-scan.mjs` explains why at length; the short form is that a finding
+  # which cannot turn a job red has only this channel, and the Code Owner's open
+  # decision about the base image's unfixed criticals is exactly the thing that needs
+  # it. An eighth one has to change this issue, not a digit in a table.
+  #
+  # Two things stop that becoming noise. The script merges a finding seen in all three
+  # images into one row naming them, so the listing is about 66 rows rather than 198.
+  # And it emits a digest of the reported set, which this job compares against the
+  # digest embedded in the last comment: an unchanged week says nothing at all. So the
+  # issue moves exactly when the answer moves, and a silent week is itself information.
+  #
+  # ## A broken scan is reported, not swallowed
+  #
+  # `audit.yml` files an issue whatever went wrong. If the scan job died before writing
+  # a report there is no artifact to download, so the download is allowed to fail and
+  # this job says so in the issue instead. A week with no scan and no word would be the
+  # worst outcome available.
   scan-issue:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: scan
-    # `!cancelled()` so that a scan which failed on a blocking critical still files the
-    # weekly issue - that is precisely the week someone needs to read it.
+    # `!cancelled()` so that a scan which failed - on a blocking critical, or because it
+    # could not run at all - still reaches the issue. That is precisely the week someone
+    # needs to read it.
     if: ${{ !cancelled() && github.event_name == 'schedule' }}
 
     permissions:
@@ -398,6 +439,7 @@ jobs:
 
     steps:
       - name: Fetch the scan report
+        continue-on-error: true
         uses: actions/download-artifact@v8
         with:
           name: image-scan-report
@@ -406,26 +448,64 @@ jobs:
       - name: File or update the findings issue
         env:
           GH_TOKEN: ${{ github.token }}
+          # `gh` infers the repository from a git remote and this job deliberately does
+          # not check the repository out, so it has to be told.
           GH_REPO: ${{ github.repository }}
+          SCAN_RESULT: ${{ needs.scan.result }}
         run: |
           set -euo pipefail
           report="${RUNNER_TEMP}/image-scan"
-          # `jq` and not node: this job deliberately does not check the repository out,
-          # so there is no workspace here and nothing to set up. Both are preinstalled
-          # on the runner; jq is the one that reads as what it is.
-          notifying=$(jq -r '.notifying' "${report}/summary.json")
-          if [ "${notifying}" -eq 0 ]; then
-            echo "No image findings at or above the reporting floor with a published fix."
-            exit 0
-          fi
           title="Image vulnerability scan findings (scheduled run)"
-          existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
-          # Truncated well under GitHub's 65536-character issue body limit; the artifact
-          # `image-scan-report` on run $GITHUB_RUN_ID always carries the whole thing.
-          body=$(printf 'Scheduled image scan found %s finding(s) with a published fix at or above the reporting floor (run %s).\n\nThe full grype JSON per image is the `image-scan-report` artifact on that run.\n\n%s' \
-            "${notifying}" "${GITHUB_RUN_ID}" "$(head -c 50000 "${report}/summary.md")")
-          if [ -n "$existing" ]; then
-            gh issue comment "$existing" --body "$body"
+          run_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          digest=""
+          # `jq` rather than a node one-liner: this job has no checkout and so no
+          # workspace, and jq is a preinstalled runner tool of the same standing as the
+          # `curl`, `tar`, `sha256sum` and `gh` the rest of this workflow already uses.
+
+          if [ ! -f "${report}/summary.json" ]; then
+            # No report at all. Say so rather than exiting quietly: the whole point of a
+            # scheduled run is that somebody hears from it.
+            body=$(printf 'The scheduled image scan produced no report this week (scan job result: **%s**).\n\nNothing is known about the images from this run. The run log is at %s.\n\nThis is a failure of the scan, not a verdict about the images.' \
+              "${SCAN_RESULT}" "${run_url}")
           else
-            gh issue create --title "$title" --label security --body "$body"
+            # `jq -e` so a null or a missing key is an error rather than a string that
+            # reads as false in the arithmetic test below.
+            reported=$(jq -e '.reported + .reportedUnfixed' "${report}/summary.json")
+            digest=$(jq -er '.digest' "${report}/summary.json")
+            if [ "${reported}" -eq 0 ]; then
+              echo "Nothing at or above the reporting floor. No issue to file."
+              exit 0
+            fi
+            # Truncated well under GitHub's 65536-character body limit; the full grype
+            # JSON per image is the `image-scan-report` artifact on the run.
+            body=$(printf 'Scheduled image scan, run %s.\n\nFindings with no available fix are listed as well as fixable ones: a finding that cannot turn a job red has only this issue to reach anyone, and whether the unfixed ones are accepted is an open Code Owner decision (see `docs/SECURITY_DESIGN.md` section 9).\n\n%s' \
+              "${run_url}" "$(head -c 50000 "${report}/summary.md")")
+          fi
+
+          existing=$(gh issue list --state open --label security --search "in:title \"$title\"" --json number --jq '.[0].number // empty')
+
+          if [ -n "${existing}" ] && [ -n "${digest}" ]; then
+            marker="<!-- image-scan-digest: ${digest} -->"
+            # The most recent comment on the issue, or the issue body when it has none.
+            # `|| true` because a fresh issue has no comments and an API hiccup here must
+            # not stop the findings being filed; the cost of getting this wrong is one
+            # duplicate comment.
+            latest=$(gh api --paginate "repos/${GH_REPO}/issues/${existing}/comments" --jq '.[].body | @base64' | tail -1 | base64 --decode || true)
+            if [ -z "${latest}" ]; then
+              latest=$(gh api "repos/${GH_REPO}/issues/${existing}" --jq .body || true)
+            fi
+            if printf '%s' "${latest}" | grep -qF "${marker}"; then
+              echo "The reported finding set is unchanged since the last comment. Not repeating it."
+              exit 0
+            fi
+          fi
+
+          if [ -n "${digest}" ]; then
+            body=$(printf '%s\n\n<!-- image-scan-digest: %s -->' "${body}" "${digest}")
+          fi
+
+          if [ -n "${existing}" ]; then
+            gh issue comment "${existing}" --body "${body}"
+          else
+            gh issue create --title "${title}" --label security --body "${body}"
           fi
