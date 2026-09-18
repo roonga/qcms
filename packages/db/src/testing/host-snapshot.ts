@@ -40,8 +40,9 @@
  *
  * ## Why this lives in the published package rather than reusing the portal's copy
  *
- * `apps/portal/e2e/support/contention.ts` samples the same machine for the browser
- * suite, and this is deliberately not an import of it. `@roonga/qcms-db/testing` is
+ * `apps/portal/e2e/support/host-pressure.ts` samples the same machine for the browser
+ * suite (its report lives next door in `contention.ts`), and this is deliberately not an
+ * import of it. `@roonga/qcms-db/testing` is
  * published: an adopter gets this harness with none of this repository's scripts,
  * worktrees or Playwright configuration, so anything it reaches for has to be something
  * a bare install still has. That rules out `scripts/ports.mjs`, which is where the port
@@ -87,7 +88,12 @@ export interface HostSnapshot {
   readonly load: HostLoadSample | undefined;
   readonly daemon: DaemonSample | undefined;
   /**
-   * What the census cost and whether it finished, `undefined` when none was attempted.
+   * What the census cost and whether it finished.
+   *
+   * {@link sampleHost} always sets it, the machine with no Docker CLI on it included -
+   * that is a reading too, and it is the one that separates "nothing to ask" from "asked
+   * and not answered". It is `undefined` only for a snapshot nobody sampled: the
+   * {@link hostSnapshotLine} fallback when a probe threw, and hand-built fixtures.
    *
    * Kept beside `daemon` rather than inside it because it is the reading that survives
    * when `daemon` does not: a census that ran out of time leaves no census to parse and
@@ -417,7 +423,11 @@ export const HOST_SNAPSHOT_SLOW_CENSUS_CACHE_MS = 30_000;
 let cached: { at: number; line: string; window: number } | undefined;
 
 /**
- * The snapshot line, sampling at most once per {@link HOST_SNAPSHOT_CACHE_MS}.
+ * The snapshot line, sampling at most once per cache window.
+ *
+ * The window is {@link HOST_SNAPSHOT_CACHE_MS} for a reading that cost what a reading
+ * normally costs, and {@link HOST_SNAPSHOT_SLOW_CENSUS_CACHE_MS} for one whose census hit
+ * its ceiling, which is the reading that must not be re-paid through a cascade.
  *
  * Never throws: a probe that fails renders as "unknown" and the caller's own error is
  * what surfaces.

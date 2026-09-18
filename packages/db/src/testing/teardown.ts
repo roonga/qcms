@@ -164,10 +164,11 @@ function claim(target: object, marker: symbol): boolean {
  *
  * **A connection death is ignored; anything else is re-raised.** The shapes ignored here
  * are exactly {@link isContentionShaped} - a backend that went away, timed out, refused
- * the connection, or was shut down. Any other `error` event is rethrown on a fresh turn of the event loop, so it
- * reaches the runner instead of disappearing into a listener that returns `undefined`.
- * Nothing here makes a failing query pass: an error that rejects a query is delivered to
- * that query's caller by pg and never reaches this listener at all.
+ * the connection, or was shut down. Any other `error` event is rethrown on a fresh turn of
+ * the event loop, so it reaches the runner instead of disappearing into a listener that
+ * returns `undefined`. Nothing here makes a failing query pass: an error that rejects a
+ * query is delivered to that query's caller by pg and never reaches this listener at all,
+ * which `refused-connect.test.ts` pins for the shape issue #939 added.
  */
 export function guardConnectionErrors(connection: object, label: string): void {
   if (!claim(connection, GUARDED)) return;

@@ -7,7 +7,7 @@
  * to be able to tell a busy machine from a broken one without running anything.
  */
 
-import { existsSync } from "node:fs";
+import { execPath } from "node:process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -272,24 +272,35 @@ describe("hostSnapshotLine", () => {
  * silence, which is the decision the rendering hangs off.
  */
 describe("runDockerCensus", () => {
-  /** `sleep` and `echo` as absolute paths: the same rule the Docker probe follows. */
-  const slowCommand = ["/bin/sleep", "/usr/bin/sleep"].find((path) => existsSync(path)) ?? "";
-  const fastCommand = ["/bin/echo", "/usr/bin/echo"].find((path) => existsSync(path)) ?? "";
+  /**
+   * The stand-in daemon is this process's own Node binary.
+   *
+   * `/bin/sleep` was the obvious choice and the wrong one: it made both cases
+   * `it.skipIf`, so on a machine without it the only pin on issue #942's degrade path
+   * would vanish with no signal - a test that reports "passed" for a thing it never ran.
+   * `process.execPath` is absolute (the rule the Docker probe itself follows), is by
+   * definition present wherever this suite runs, and needs no shell.
+   */
+  const command = execPath;
 
-  it.skipIf(slowCommand === "")("reports a census that outran its ceiling", () => {
+  it("reports a census that outran its ceiling", () => {
     // A small ceiling rather than the real 3 s one: what is under test is the reporting,
     // and the test should not spend the budget it exists to protect.
-    const reading = runDockerCensus(slowCommand, ["5"], 200);
+    const reading = runDockerCensus(command, ["-e", "setTimeout(() => undefined, 5_000)"], 200);
 
     expect(reading.timedOut).toBe(true);
     expect(reading.stdout).toBeUndefined();
+    // Not a truncation race, though it reads like one. `Date.now()` truncates, and for an
+    // integer ceiling `n`, `floor(t1) - floor(t0) >= n` holds whenever the real duration
+    // is at least `n`, because `floor(t0 + n) === floor(t0) + n`. So this bound cannot be
+    // undercut by rounding; measured 20/20 at 200 to 202ms, floor exactly 200.
     expect(reading.elapsedMs).toBeGreaterThanOrEqual(200);
     // It gave up at the ceiling rather than waiting out the command.
     expect(reading.elapsedMs).toBeLessThan(5_000);
   });
 
-  it.skipIf(fastCommand === "")("returns the output and the cost when it answers", () => {
-    const reading = runDockerCensus(fastCommand, ["ok"], 5_000);
+  it("returns the output and the cost when it answers", () => {
+    const reading = runDockerCensus(command, ["-e", "process.stdout.write('ok')"], 5_000);
 
     expect(reading.stdout?.trim()).toBe("ok");
     expect(reading.timedOut).toBe(false);
