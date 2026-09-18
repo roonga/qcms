@@ -610,7 +610,9 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   } catch (cause) {
     // The first connection to a container that has just reported itself ready is where a
     // host under load shows up next, and `timeout exceeded when trying to connect` names
-    // no more of the cause than the mid-suite drop does.
+    // no more of the cause than the mid-suite drop does. So does its blunter sibling,
+    // `connect ECONNREFUSED 127.0.0.1:<port>` - a container that reported ready and then
+    // had nothing listening on the mapped port when this line ran (issue #939).
     annotateWithHostSnapshot(cause);
     await stopAfterFailedStart(teardown);
     throw cause;

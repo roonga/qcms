@@ -61,6 +61,13 @@ export const MID_SUITE_CONTENTION_MARKERS: readonly RegExp[] = [
   /terminating connection due to administrator command/i,
   // Socket-level endings of the same event.
   /ECONNRESET|EPIPE|socket hang up/i,
+  // A connect that was refused outright: nothing is listening on the port the container
+  // reported, or nothing is listening yet. `pg` raises it as a bare `connect ECONNREFUSED
+  // 127.0.0.1:<port>` with an `ECONNREFUSED` code and no word about Docker, which is
+  // indistinguishable from a defect until the file is re-run alone (issue #939). A
+  // database that is up and says no never produces this shape: a refusal happens below
+  // the protocol, before any statement is sent.
+  /ECONNREFUSED/i,
   // Testcontainers' port-bind ceiling. Usually raised from `.start()`, where the harness
   // annotates it directly, but it also reaches a caller through a lazily started
   // container, and the text names a port rather than the contention behind it.
