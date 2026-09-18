@@ -31,6 +31,7 @@ import type { A2UIAnswerValue } from "./field-context.tsx";
 import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
+import { NativeDateField } from "./native-date-field.tsx";
 import {
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_ANSWERED_VALUE,
@@ -63,6 +64,13 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  * back to the canonical shape and tell a cleared field from an unanswered one
  * (see `native-submit.ts`). The default (controlled) branch is byte-identical to
  * 028/029, so the conformance snapshots are undisturbed.
+ *
+ * The DatePicker is the one adapter where native mode renders a DIFFERENT control
+ * (issue #920): its vendored rendering is a row of JS-driven spinbutton segments a
+ * no-JS respondent cannot type into, and the mirror carrying its form value is an
+ * unfocusable `hidden` input the browser refuses to submit a required step around.
+ * Native mode renders `NativeDateField` instead, a real `<input type="date">` that
+ * posts the same ISO day on the same field name. See `native-date-field.tsx`.
  */
 
 /** Narrows a canonical answer to the multiChoice (OptionId[]) shape. */
@@ -441,6 +449,21 @@ function dateInputIsComplete(container: HTMLElement): boolean {
 }
 
 type DatePickerProps = NonNullable<DatePickerNode["props"]>;
+
+/**
+ * The one adapter whose native-submit rendering is a DIFFERENT control rather than
+ * the same vendored one left uncontrolled (issue #920).
+ *
+ * Every other adapter can go uncontrolled because its vendored control is a real
+ * form element underneath. The DatePicker is not: it is a row of JS-driven
+ * `role="spinbutton"` segments a no-JS respondent cannot type into, and its form
+ * value rides on an `<input type="text" hidden required>` the browser tries to
+ * report validity on and cannot focus - so Chrome refused the whole step's submit
+ * (`An invalid form control with name='q_dob' is not focusable`) and a required date
+ * was a no-JS dead end. `NativeDateField` carries the reasoning and the wire
+ * contract; the scripted branch below is untouched, and neither branch edits a
+ * vendored byte (ADR-22).
+ */
 function DatePickerField(props: Readonly<DatePickerProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
@@ -467,24 +490,43 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
     field.blur();
   };
 
-  const modeProps: Partial<ComponentProps<typeof DatePicker>> = native
-    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
-    : {
-        // `NO_SELECTION` (null, never "" and never `undefined`) when unanswered, so
-        // the date stays CONTROLLED like every other adapter here. This used to be
-        // the one control that could not take it: the vendored body was
-        // `value ? parseDate(value) : undefined`, which collapsed every empty
-        // spelling to `undefined` (react-stately's uncontrolled path) no matter what
-        // was passed, leaving one uncontrolled-to-controlled flip per answered date at
-        // this seam (issue #144). Issues #148 and #549 fixed that upstream, so an
-        // empty value now reaches react-aria as `null`, and a stored value
-        // `parseDate` cannot parse renders unselected instead of throwing during
-        // render.
-        value: typeof field.value === "string" ? field.value : NO_SELECTION,
-        onChange: (s: string) => field.setValue(s === "" ? undefined : s),
-      };
+  if (native) {
+    return (
+      <FieldBlur name={props.name} onBlur={field.blur}>
+        <NativeDateField
+          name={props.name}
+          label={props.label}
+          description={props.description}
+          isRequired={props.isRequired}
+          isDisabled={props.isDisabled}
+          isReadOnly={props.isReadOnly}
+          minValue={props.minValue}
+          maxValue={props.maxValue}
+          defaultValue={typeof field.value === "string" ? field.value : undefined}
+          isInvalid={field.error != null}
+          errorMessage={field.error}
+        />
+        <FieldMarkers name={props.name} kind="string" />
+      </FieldBlur>
+    );
+  }
+
+  const modeProps: Partial<ComponentProps<typeof DatePicker>> = {
+    // `NO_SELECTION` (null, never "" and never `undefined`) when unanswered, so
+    // the date stays CONTROLLED like every other adapter here. This used to be
+    // the one control that could not take it: the vendored body was
+    // `value ? parseDate(value) : undefined`, which collapsed every empty
+    // spelling to `undefined` (react-stately's uncontrolled path) no matter what
+    // was passed, leaving one uncontrolled-to-controlled flip per answered date at
+    // this seam (issue #144). Issues #148 and #549 fixed that upstream, so an
+    // empty value now reaches react-aria as `null`, and a stored value
+    // `parseDate` cannot parse renders unselected instead of throwing during
+    // render.
+    value: typeof field.value === "string" ? field.value : NO_SELECTION,
+    onChange: (s: string) => field.setValue(s === "" ? undefined : s),
+  };
   return (
-    <FieldBlur name={props.name} onBlur={native ? field.blur : commit}>
+    <FieldBlur name={props.name} onBlur={commit}>
       <DatePicker
         key={`${props.name}:${clearedGeneration}`}
         {...props}
@@ -492,7 +534,6 @@ function DatePickerField(props: Readonly<DatePickerProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }
