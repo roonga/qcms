@@ -26,7 +26,7 @@ if (!kitchenSink) throw new Error("v1 kitchen-sink golden not found");
 
 /** The fixture's required date question, and the step that holds it. */
 const DATE_QUESTION = "q_dob";
-const dateStep = kitchenSink.compiled.documents[0] as A2UIStepDocument;
+const dateStep: A2UIStepDocument = kitchenSink.compiled.documents[0];
 
 const NATIVE = { action: "/s/ses_abc/step", submitLabel: "Continue" } as const;
 
@@ -50,12 +50,12 @@ describe("the no-JS date control (issue #920)", () => {
     const { container } = renderNative();
     const fields = postedFields(container);
     expect(fields.length).toBe(1);
-    expect(fields[0]!.type).toBe("date");
+    expect(fields[0].type).toBe("date");
   });
 
   it("renders a control the browser can validate AND focus", () => {
     const { container } = renderNative();
-    const input = postedFields(container)[0]!;
+    const input = postedFields(container)[0];
     // The defect in one assertion: the element carrying the constraint is not
     // hidden, so a browser reporting its validity has somewhere to put the message.
     expect(input.required).toBe(true);
@@ -66,21 +66,21 @@ describe("the no-JS date control (issue #920)", () => {
 
   it("carries the question's ISO day bounds as native min/max", () => {
     const { container } = renderNative();
-    const input = postedFields(container)[0]!;
+    const input = postedFields(container)[0];
     expect(input.getAttribute("min")).toBe("1900-01-01");
     expect(input.getAttribute("max")).toBe("2100-12-31");
   });
 
   it("is labelled by the question's own label, so the browser names it in the report", () => {
     const { container } = renderNative();
-    const input = postedFields(container)[0]!;
+    const input = postedFields(container)[0];
     const label = container.querySelector<HTMLLabelElement>(`label[for="${input.id}"]`);
     expect(label?.textContent).toContain("Date of birth");
   });
 
   it("seeds the stored answer as an uncontrolled default, so it re-posts unchanged", () => {
     const { container } = renderNative({ [DATE_QUESTION]: "1990-05-17" });
-    expect(postedFields(container)[0]!.value).toBe("1990-05-17");
+    expect(postedFields(container)[0].value).toBe("1990-05-17");
   });
 
   it("still tags the field `string` for the BFF decoder", () => {
@@ -99,7 +99,7 @@ describe("the no-JS date control (issue #920)", () => {
         nativeSubmit={NATIVE}
       />,
     );
-    const input = postedFields(container)[0]!;
+    const input = postedFields(container)[0];
     expect(input.getAttribute("aria-invalid")).toBe("true");
     const describedBy = input.getAttribute("aria-describedby") ?? "";
     const described = describedBy

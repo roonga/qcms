@@ -320,7 +320,7 @@ describe("the no-JS missing-required narrowing (issue #920)", () => {
     // and then down again. `q_full_name` is asked first, so its entry is listed first,
     // even though the refusal composition ran second.
     const gap = missingRequiredEntries(stepDoc, ["q_full_name"], VISIBLE);
-    const refusal = errorSummaryEntries(stepDoc, { q_dob: "Too late" } as A2UIErrors, VISIBLE);
+    const refusal = errorSummaryEntries(stepDoc, { q_dob: "Too late" }, VISIBLE);
     expect(orderedEntries([...refusal, ...gap], VISIBLE).map((e) => e.questionId)).toEqual([
       "q_full_name",
       "q_dob",
