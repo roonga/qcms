@@ -179,7 +179,7 @@ jobs:
           fetch-depth: 0
 
       # Reads the pnpm version from the packageManager field in package.json.
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
 
       - uses: actions/setup-node@v7
         with:
@@ -447,7 +447,7 @@ jobs:
         if: env.PLAN_ONLY == 'true'
         run: echo "Diff is entirely under plan/ - reporting api-e2e green without running the suite."
 
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         if: env.PLAN_ONLY != 'true'
 
       - uses: actions/setup-node@v7
@@ -524,7 +524,7 @@ jobs:
         if: env.PLAN_ONLY == 'true'
         run: echo "Diff is entirely under plan/ - reporting browser-e2e green without running the suite."
 
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
         if: env.PLAN_ONLY != 'true'
 
       - uses: actions/setup-node@v7
