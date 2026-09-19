@@ -30,6 +30,7 @@
     "dev:admin": "node scripts/dev-admin.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",
     "qcms:build-images": "node scripts/build-images.mjs",
+    "qcms:scan-images": "node scripts/image-scan.mjs",
     "qcms:drill-restore": "node scripts/drill-restore.mjs",
     "qcms:create-admin": "pnpm --filter qcms-api... build && pnpm --filter qcms-api create-admin",
     "qcms:reset-2fa": "pnpm --filter qcms-api... build && pnpm --filter qcms-api reset-2fa --",

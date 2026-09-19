@@ -86,6 +86,78 @@ reinstall and, with no TTY, aborts with `ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_
 `pnpm install --frozen-lockfile` puts it back. Nothing inside the image is affected,
 because the build stage runs no script after the deploy.
 
+### What is known to be wrong with them, and how to find out
+
+The same SBOM is scanned for vulnerabilities (issue #894). The `scan` job in
+`.github/workflows/images.yml` runs grype over the SPDX document each image's build
+attached, on every push that builds an image and again every Monday on a schedule. It
+pulls no image and holds no registry credential: the SBOM is a workflow artifact, and
+`grype sbom:<file>` reads one directly.
+
+**Where to read it.** The `image-scan-report` artifact on the run, kept 90 days. It
+carries the full grype JSON per image, the SPDX document each report was produced from,
+and a Markdown summary. That summary is also rendered on the run's own page as the job
+summary, and printed in the job log. It has three sections: what is blocking, what is
+reported **with** a fix available, and what is reported **without** one. All three name
+each finding by id, package, version and fix state, and a finding present in all three
+images is one row naming them rather than three.
+
+**The weekly issue.** On the scheduled run, everything at or above `high` - fixable or
+not - also lands in a `security`-labeled issue titled "Image vulnerability scan findings
+(scheduled run)", updated by comment rather than duplicated, as the `pnpm audit` run
+does. Two things about it are worth knowing before you wait on one. A week in which the
+reported set has not moved posts **nothing**: the job compares a digest of that set
+against the last digest **it** posted, which it finds by scanning the issue body and
+every comment for its own marker and taking the last one. So a comment from the job
+means the answer changed rather than that a Monday passed, and your own notes on the
+thread in between do not disturb that. And a week in which the scan failed outright
+posts that fact, so silence never means "the scan broke".
+
+**What turns the job red.** A finding at or above `critical` **that has a published
+fix**, and the job exits `2` when that happens against `1` when the scan could not be
+performed at all. Every finding is counted, kept and named either way; the published-fix
+rule decides only what can fail a job. The reason is in `docs/SECURITY_DESIGN.md`
+section 9, and the short form has to be stated carefully: the pinned base image carries
+seven criticals for which **Debian 12** has no fixed version, so a floor counting them
+would be permanently red and permanently ignored. `wont-fix` and `not-fixed` in the
+report are **grype's** labels for that, not a statement that upstream refuses to fix; all
+six are fixed in Debian 13. What Debian itself has said about them differs per id and is
+tabulated in that section rather than summarised, because the difference matters: three
+carry a bookworm note on the source package in the image (`CVE-2026-5450`,
+`CVE-2026-8376`, `CVE-2026-42496`, all "Minor issue"), `CVE-2026-12087` carries one only
+on a sibling source package the images do not ship, and `CVE-2026-13221` and
+`CVE-2026-57433` carry **none at all** - Debian has not triaged those two for bookworm.
+Whether to accept them, move the base, wait for a point release, or upgrade packages at
+build time is an open Code Owner decision recorded in that section. The job is not a
+required check, so a red scan never blocks a merge.
+
+**Triage, in the order the causes actually occur.**
+
+| The finding is against                                   | It is cleared by                                                                                                                                                                               |
+| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a `deb` package                                          | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.                                 |
+| an `npm` package under `/usr/local/lib/node_modules/npm` | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                                              |
+| an `npm` package in the application tree                 | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                                                    |
+| nothing with a fix available in this distribution        | nothing in this repository, yet. It is reported and not silenced, and `wont-fix` is the scanner's label rather than upstream's verdict; check the Debian security tracker before repeating it. |
+
+**Reproducing a finding locally.** Build the images with their attestations, then scan
+them. grype is not a workspace dependency; install it yourself and point the script at
+it, or leave it on `PATH` and drop the flag.
+
+```sh
+pnpm qcms:build-images -- --output ./dist-images --attestations ./dist-attestations
+pnpm qcms:scan-images -- --attestations ./dist-attestations --report ./dist-image-scan
+```
+
+`--fail-on <severity>` moves the blocking floor and `--notify-on <severity>` the
+reporting floor; `--fail-on-unfixed` widens the **blocking** floor to findings with no
+published fix (it does not change reporting, which always covers both); and
+`--scanner <path>` names a grype binary that is not on `PATH`. Both output directories
+are in `.gitignore`. The scan refuses to pass
+vacuously: an SBOM listing no packages, a report with no vulnerability database behind
+it, or deb packages in the SBOM with no distro in the report each fail the run rather
+than reading as clean.
+
 ### Outbound network the API needs
 
 Two destinations, both from `qcms-api` only, and both worth knowing before you write

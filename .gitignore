@@ -9,6 +9,12 @@ dist/
 # first local image build leaves gigabytes of untracked tree in the working copy - and
 # work selection stops when the checkout is dirty, so it is not merely untidy.
 dist-images/
+# The same trap one step further along (issue #894). `--attestations` and the scan's
+# `--report` default here, `docs/operations.md` tells a reader to write exactly these
+# two paths, and between them a local reproduction leaves about 10 MB of SBOMs and
+# vulnerability reports in the working copy.
+dist-attestations/
+dist-image-scan/
 .turbo/
 coverage/
 .claude/worktrees/

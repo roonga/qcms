@@ -118,6 +118,16 @@ export const JOB_GUARDS = {
     assert: false,
     why: "builds the three release images on every push and publishes them to GHCR on main (issue #763). It needs no test Postgres, and it is outside the Hub assertion for the same build-time reason as full-stack-e2e plus the SBOM scanner image; its own registry traffic goes to ghcr.io on the built-in token, not to the Hub. Documented in the workflow.",
   },
+  "images.yml#scan": {
+    mirror: false,
+    assert: false,
+    why: "runs grype over the SPDX SBOM the build job persisted (issue #894). It starts no container and pulls no image: the SBOM arrives as a workflow artifact and the vulnerability database comes from the scanner's own endpoint, so neither guard applies.",
+  },
+  "images.yml#scan-issue": {
+    mirror: false,
+    assert: false,
+    why: "reads the scan report artifact and files or updates one labeled issue on the scheduled run, the way audit.yml does. No container is started and no registry is contacted.",
+  },
   "mirror-test-images.yml#mirror": {
     mirror: false,
     assert: false,
