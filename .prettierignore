@@ -4,6 +4,9 @@ node_modules/
 dist/
 .turbo/
 coverage/
+# Vitest 5's generated reports and attachments (see `.gitignore`). Their JSON, XML and
+# HTML are tool output, and Prettier walks the working tree rather than the index.
+.vitest/
 pnpm-lock.yaml
 
 # Next.js output (production build in .next, dev server in .next-dev - issue #54),

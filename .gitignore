@@ -11,6 +11,16 @@ dist/
 dist-images/
 .turbo/
 coverage/
+# Where Vitest 5 puts everything it generates that is not a coverage report:
+# `.vitest/attachments/`, `.vitest/blob/`, `.vitest/index.html`, `.vitest/json/` and
+# `.vitest/junit/` ("generated reports are now in the .vitest directory",
+# https://vitest.dev/guide/migration). No committed configuration enables any of those
+# reporters today, so nothing writes here during `pnpm verify`; a hand-run
+# `vitest --reporter=junit` does. Ignored ahead of that rather than after it, because an
+# untracked directory at the repository root is read as source by every gate that derives
+# its corpus from `git ls-files --others` (`scripts/tracked-files.mjs`) and stops work
+# selection, which needs a clean checkout.
+.vitest/
 .claude/worktrees/
 # Claude Code's per-machine settings overlay. `.claude/settings.json` is the shared,
 # tracked harness configuration and stays tracked; the `.local.json` beside it is one
