@@ -50,6 +50,34 @@ const EXPECTED_TABLES = [
  */
 const DRIZZLE_JOURNAL_TABLE = "__drizzle_migrations";
 
+/**
+ * The per-test budget for a body that talks to the container (issue #932).
+ *
+ * Vitest's 5000 ms default is sized for in-process work. Every test in this file issues
+ * real DDL and catalogue queries against a Postgres container that the rest of this
+ * package's Docker-backed files are booting at the same moment, so its wall time tracks
+ * how busy the daemon is rather than how much the assertion asks of it. Declared on the
+ * suite rather than test by test, because that is the honest scope of the claim: it is
+ * true of every body here, including the next one added.
+ *
+ * Measured alone on an idle host by bisecting the per-test budget, which is the only
+ * reading that means anything here. A reporter duration counts the container-booting
+ * `beforeEach` as part of the test (7010 ms reported against a 1.0 s body, measured with
+ * a probe), and that hook is budgeted separately, at CONTAINER_BOOT_TIMEOUT_MS below.
+ * Every body here clears 1500 ms; the two that apply migrations in the body clear
+ * 1000 ms on a warm image and not on a cold one. So the bodies cost roughly 0.3 s to
+ * 1.2 s, and the default left them 4x to 16x of headroom: enough alone, and not enough
+ * during a forced `turbo run test`, where the #936 delta review recorded
+ * `Test timed out in 5000ms` here while the whole file took 107.7 s and was 5/5 green
+ * alone at load 0.44.
+ *
+ * 30 s is about 25x the slowest measured body. It is the figure PR #937 gave the same
+ * class of work in this package (`packages/db/src/testing/harness-deps.test.ts`), and it
+ * stays far below the 240 s hook budget, so a migration that genuinely became
+ * pathological still fails here rather than passing slowly.
+ */
+const MIGRATION_STEP_TIMEOUT_MS = 30_000;
+
 async function publicTables(testDb: TestDb): Promise<Set<string>> {
   const res = await testDb.client.query<{ table_name: string }>(
     `select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'`,
@@ -91,7 +119,7 @@ async function indexExists(testDb: TestDb, name: string): Promise<boolean> {
   return res.rowCount === 1;
 }
 
-describe("@roonga/qcms-db migrations", () => {
+describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, () => {
   describe("migrate from zero", () => {
     let testDb: TestDb;
 
