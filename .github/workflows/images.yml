@@ -285,13 +285,14 @@ jobs:
       contents: read
 
     env:
-      # The scanner, pinned twice over (issue #894, and see #948 on Action pinning).
+      # The scanner, pinned twice over (issue #894; on Action pinning see #948).
       #
-      # A checksum-verified release binary rather than a third-party Action. Actions in
-      # this repository are referenced by tag today and issue #948 asks the Code Owner
-      # whether to move to commit SHAs; installing a binary introduces no new Action at
-      # all, so this change is compatible with either ruling and adds nothing that would
-      # have to be re-pinned under one of them.
+      # A checksum-verified release binary rather than a third-party Action. Third-party
+      # Actions in this repository are pinned by full commit SHA with the version in a
+      # trailing comment (SEC-11, issue #948), and Dependabot's `actions` group moves
+      # those pins; installing a binary introduces no Action at all, so there is no such
+      # pin here and nothing for that group to move. The checksum below is what does the
+      # same job for it, and it is refreshed by hand with the version above.
       #
       # `GRYPE_SHA256` is the SHA-256 of that exact release asset, recorded here rather
       # than read at run time from the publisher's own `checksums.txt` - verifying an

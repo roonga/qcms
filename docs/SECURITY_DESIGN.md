@@ -581,7 +581,7 @@ Promoting either into a required context would turn an upstream publication into
 **Supply chain of the scanner itself.**
 grype is installed as a release binary verified against a SHA-256 recorded in the workflow, not taken from the publisher's own checksums file beside the asset - checking an artifact against a file from the same place proves only that the two agree.
 That is the property the base-image digests give `docker/*.Dockerfile`: the version is legible, the digest is what is enforced.
-No third-party Action is added, so issue #948's open question about pinning Actions by commit SHA is unaffected either way.
+No third-party Action is added, so the commit-SHA pinning rule recorded below (#948) has nothing new to reach here.
 What "verified" means, precisely: the asset was downloaded, hashed locally, and that hash compared against two independent publications of it, the release's `grype_<version>_checksums.txt` and the `digest` the GitHub releases API reports for the asset.
 The keyless cosign signature over `checksums.txt` was **not** checked; no cosign was available, and claiming otherwise would be the kind of overstatement this section exists to avoid.
 Dependabot does not track a digest in a workflow `env`, so a bump is a deliberate edit: hash the new asset, confirm it against those two publications, wait out the repository's 24-hour release-age hold (CONTRIBUTING, "The release-age hold", whose reasoning applies with more force to a binary CI executes), and record the digest in the same commit.
