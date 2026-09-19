@@ -104,7 +104,7 @@ jobs:
 
       - name: Plan-only change, no stack to boot
         if: env.PLAN_ONLY == 'true'
-        run: echo "Diff is entirely under plan/ - reporting full-stack-e2e green without building images."
+        run: echo "Diff is entirely plan and instruction files - reporting full-stack-e2e green without building images."
 
       - uses: pnpm/action-setup@v6
         if: env.PLAN_ONLY != 'true'

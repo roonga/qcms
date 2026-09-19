@@ -1,12 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   ADMIN_ONLY_PREFIXES,
+  FAST_LANE_FILES,
+  FAST_LANE_PREFIXES,
   PLAN_PREFIX,
   changedFiles,
   isAdminOnly,
@@ -91,6 +94,150 @@ describe("plan-only classification", () => {
 });
 
 /**
+ * The instruction tree on the lane (issue #873).
+ *
+ * PR #868 changed `.claude/agents/task-reviewer.md` and `CLAUDE.md` and paid the full
+ * matrix twice, about an hour of wall time, nearly all of it `browser-e2e` on a diff
+ * with no browser, app or package code in it.
+ *
+ * What made that safe to fix is not that the files look like prose. It is that every
+ * gate and test which READS one of them runs inside `check:plan` (asserted lower down),
+ * and that no reader lives in `apps/` or `packages/`, which the lane does not run at
+ * all (asserted lower down too, by a scan rather than by a comment).
+ *
+ * The set covers ALL of `.claude/` by ruling (Code Owner, 2026-09-19, issue #873),
+ * `.claude/settings.json` and hook scripts included. The facts that ruling was made on:
+ * CI inspects the content of none of these files on either lane, the difference is the
+ * wait (about a minute against about 45), agent frontmatter grants tools and picks a
+ * model, and a settings change can rewire permissions and hooks. An intermediate version
+ * of this pull request admitted only Markdown under `.claude/`; the cases that version
+ * needed are kept below as positives, because they now pin that the classification does
+ * not depend on an extension at all.
+ */
+describe("plan-only classification: the instruction tree", () => {
+  it("accepts an agent or skill definition under .claude/", () => {
+    expect(isPlanOnly([".claude/agents/task-reviewer.md", ".claude/skills/task/SKILL.md"])).toBe(
+      true,
+    );
+  });
+
+  it("accepts the settings file and a hook script, per the 2026-09-19 ruling", () => {
+    // These were the intermediate version's refusals. CI inspects the content of none
+    // of them on either lane, so the fast lane changes how long such a change waits for
+    // its four required contexts and nothing else about what is known of it. What IS
+    // still inspected on the lane is tabulated in CONTRIBUTING: Prettier formats
+    // `.claude/settings.json`, `check-lint-coverage` reds a tracked `.mjs` under
+    // `.claude/` that no lint config covers, and no gate at all reads a `.py`.
+    expect(isPlanOnly([".claude/settings.json"])).toBe(true);
+    expect(isPlanOnly([".claude/settings.local.json"])).toBe(true);
+    expect(isPlanOnly([".claude/hooks/on-stop.sh"])).toBe(true);
+    expect(isPlanOnly([".claude/hooks/x.py"])).toBe(true);
+    expect(isPlanOnly([".claude/hooks/probe.mjs"])).toBe(true);
+    expect(isPlanOnly([".claude/agents/task-executor"])).toBe(true);
+  });
+
+  it("accepts a diff mixing agent definitions with the settings file", () => {
+    // The realistic shape: a settings change carried along with the agent edits it goes
+    // with. The intermediate version split this diff down the middle and ran everything.
+    expect(
+      isPlanOnly([
+        ".claude/agents/task-executor.md",
+        ".claude/skills/next-issue/SKILL.md",
+        ".claude/settings.json",
+      ]),
+    ).toBe(true);
+  });
+
+  it("does not classify on an extension, in either direction", () => {
+    // Kept from the intermediate version, which read a `.md` suffix off the whole path.
+    // A directory called `x.md` was the trick it had to survive; an uppercase `.MD` was
+    // a file its gates would not have opened. Under the ruling the prefix decides and
+    // the extension is not consulted, so all of these are on the lane - and the cases
+    // stay because a future reviewer will ask whether one of them still escapes.
+    expect(isPlanOnly([".claude/x.md/evil.sh"])).toBe(true);
+    expect(isPlanOnly([".claude/skills/task.md/settings.json"])).toBe(true);
+    expect(isPlanOnly([".claude/notes.MD"])).toBe(true);
+    expect(isPlanOnly([".claude/notes.markdown"])).toBe(true);
+    expect(isPlanOnly([".claude/hooks/on-stop.md"])).toBe(true);
+  });
+
+  it("accepts the three root instruction files", () => {
+    expect(isPlanOnly(["CLAUDE.md"])).toBe(true);
+    expect(isPlanOnly(["PROJECT_INSTRUCTIONS.md"])).toBe(true);
+    expect(isPlanOnly(["CONTRIBUTING.md"])).toBe(true);
+  });
+
+  it("accepts the diff issue #873 was filed for", () => {
+    expect(isPlanOnly([".claude/agents/task-reviewer.md", "CLAUDE.md"])).toBe(true);
+  });
+
+  it("REJECTS a MIXED diff - .claude/ and CLAUDE.md plus a single source file", () => {
+    // The case the lane exists to get wrong-way-safe, and the source file is what
+    // makes it `false`: the instruction files dominate by count and the single `.ts`
+    // is exactly what the skipped suites check. Named the way the `plan/` sibling
+    // above is named, so the assertion and the title say the same thing (Copilot,
+    // PR #952).
+    expect(
+      isPlanOnly([
+        ".claude/agents/task-executor.md",
+        ".claude/skills/next-issue/SKILL.md",
+        "CLAUDE.md",
+        "packages/core/src/rules.ts",
+      ]),
+    ).toBe(false);
+  });
+
+  it("REJECTS docs/, which several gates outside check:plan read", () => {
+    // Proposed in #873 and deliberately left out. `docs/openapi/*.json` is an API
+    // contract artifact proven by apps/api's `openapi-document.test.ts`, which needs a
+    // build the lane does not do; `docs/SECURITY_DESIGN.md` §3.2 is parsed at RUNTIME
+    // by `apps/api/e2e/security/matrix-coverage.e2e.ts`, which is the `api-e2e`
+    // required context the lane reports green without running. Neither reader can be
+    // moved into `check:plan`, so the whole tree stays code.
+    expect(isPlanOnly(["docs/openapi/admin.json"])).toBe(false);
+    expect(isPlanOnly(["docs/SECURITY_DESIGN.md"])).toBe(false);
+    expect(isPlanOnly(["docs/PORTS.md"])).toBe(false);
+    expect(isPlanOnly(["CLAUDE.md", "docs/features/README.md"])).toBe(false);
+  });
+
+  it("matches the root instruction files by EQUALITY, not as a prefix", () => {
+    // As prefixes these would admit files no gate on the lane has been checked
+    // against, and `apps/api/CONTRIBUTING.md` is read by the scaffolding generator.
+    expect(isPlanOnly(["CLAUDE.md.bak"])).toBe(false);
+    expect(isPlanOnly(["CONTRIBUTING.mdx"])).toBe(false);
+    expect(isPlanOnly(["apps/api/CONTRIBUTING.md"])).toBe(false);
+    expect(isPlanOnly(["apps/admin/CLAUDE.md"])).toBe(false);
+  });
+
+  it("keeps the .claude prefix anchored with its separator", () => {
+    // The whole directory is admitted, so the separator is the only thing standing
+    // between the lane and a sibling path that merely starts with the same letters.
+    expect(FAST_LANE_PREFIXES).toEqual(["plan/", ".claude/"]);
+    expect(FAST_LANE_FILES).toEqual(["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"]);
+    expect(isPlanOnly([".claude-hooks/on-stop.mjs"])).toBe(false);
+    expect(isPlanOnly([".claude-notes/x.md"])).toBe(false);
+    expect(isPlanOnly([".claude-evil/x.ts"])).toBe(false);
+    expect(isPlanOnly([".claudeignore"])).toBe(false);
+    expect(isPlanOnly([".claudeX"])).toBe(false);
+    expect(isPlanOnly([".claude"])).toBe(false);
+    expect(isPlanOnly(["apps/api/.claude/x.ts"])).toBe(false);
+  });
+
+  it("preserves a leading space rather than accepting it as a lane path", () => {
+    // The same defect the NUL parse exists for, asserted on the widened set: a
+    // committed ` CLAUDE.md` is a real path, and a reader that trimmed would wave
+    // through whatever it actually is.
+    expect(isPlanOnly(parsePaths(" CLAUDE.md\0"))).toBe(false);
+    expect(isPlanOnly(parsePaths(" .claude/evil.md\0"))).toBe(false);
+  });
+
+  it("still rejects a diff that also touches the workflow or the classifier", () => {
+    expect(isPlanOnly(["CLAUDE.md", ".github/workflows/ci.yml"])).toBe(false);
+    expect(isPlanOnly([".claude/agents/dev-task.md", "scripts/ci-plan-only.mjs"])).toBe(false);
+  });
+});
+
+/**
  * Admin-only classification (issue #696).
  *
  * The asymmetry is milder than the plan-only lane's but the same shape. A false
@@ -147,10 +294,25 @@ describe("admin-only classification", () => {
   it("keeps every prefix anchored with a trailing separator", () => {
     // `apps/administration/` and `docsite/` are not in scope, and without the
     // separator both would classify as admin-only.
-    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/"]);
+    expect(ADMIN_ONLY_PREFIXES).toEqual(["apps/admin/", "docs/", "plan/", ".claude/"]);
     expect(isAdminOnly(["apps/administration/page.tsx"])).toBe(false);
     expect(isAdminOnly(["docsite/index.html"])).toBe(false);
     expect(isAdminOnly(["apps/admin"])).toBe(false);
+  });
+
+  it("narrows the browser suite for the whole of .claude/, as the fast lane admits it", () => {
+    // `.claude/` is an admin-only prefix because nothing under it renders a portal
+    // surface at any extension, and because the containment invariant below requires it:
+    // the fast lane skips the browser suite for these paths entirely, so the wide lane
+    // must at least be willing to narrow it. An intermediate version of this pull request
+    // held `settings.json` and hook scripts out of both classifications while their
+    // merge window was an open question; the ruling closed it (Code Owner, 2026-09-19,
+    // issue #873).
+    expect(isAdminOnly([".claude/settings.json"])).toBe(true);
+    expect(isAdminOnly([".claude/hooks/on-stop.sh"])).toBe(true);
+    expect(isAdminOnly([".claude/agents/task-reviewer.md"])).toBe(true);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", ".claude/settings.json"])).toBe(true);
+    expect(isAdminOnly(["apps/admin/app/page.tsx", ".claude/agents/dev-task.md"])).toBe(true);
   });
 
   it("preserves a leading space rather than accepting it as an admin path", () => {
@@ -164,6 +326,257 @@ describe("admin-only classification", () => {
     // rather than discovered.
     expect(isPlanOnly(["plan/notes.md"])).toBe(true);
     expect(isAdminOnly(["plan/notes.md"])).toBe(true);
+  });
+
+  it("holds the containment invariant: every fast-lane path is admin-only too", () => {
+    // Not a convenience. A path the NARROW lane lets skip the browser suite entirely
+    // must also be one the WIDE lane lets narrow it, or an admin PR carrying a
+    // `CLAUDE.md` tweak pays for the whole portal suite while the same tweak on its
+    // own pays for none of it. Asserted over the sets rather than over examples, so a
+    // future entry in either list cannot break it quietly.
+    for (const prefix of FAST_LANE_PREFIXES) {
+      expect(isAdminOnly([`${prefix}some/file.md`])).toBe(true);
+      expect(isAdminOnly([`${prefix}some/file.sh`])).toBe(true);
+    }
+    for (const file of FAST_LANE_FILES) {
+      expect(isAdminOnly([file])).toBe(true);
+    }
+    expect(
+      isAdminOnly(["apps/admin/app/page.tsx", "CLAUDE.md", ".claude/skills/task/SKILL.md"]),
+    ).toBe(true);
+  });
+});
+
+/**
+ * The half of the lane that is not in this file: what `check:plan` actually runs.
+ *
+ * The classification above decides which pull requests skip the build, the unit
+ * suites and the three end-to-end jobs. What makes that safe is `check:plan` running
+ * every gate and test that reads a fast-lane path. The two halves are in different
+ * files and nothing but this block ties them together - the same shape of hole
+ * `check:ci-parity` exists for one level up, and the same fix.
+ *
+ * Read from `package.json` rather than restated, so this cannot pass over a lane that
+ * has quietly lost a gate.
+ */
+describe("check:plan covers what the lane skips", () => {
+  const manifest = JSON.parse(
+    readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+  ) as { scripts: Record<string, string> };
+  const checkPlan = manifest.scripts["check:plan"] ?? "";
+  /** The `&&`-chained commands, so an assertion can name the one it means. */
+  const segments = checkPlan.split("&&").map((segment) => segment.trim());
+
+  it("runs the whole check:all gate set, not a hand-picked subset", () => {
+    // Every text gate that reads the fast-lane tree is in `check:all`:
+    // `check:no-em-dash`, `check:paths`, `check:ports`, `check:vendor-pin` and
+    // `check:adr-citations` all scan tracked Markdown outside `plan/`, which is
+    // exactly `.claude/**/*.md` and the three root files. Naming the whole set rather
+    // than those five is what makes a gate added later cover the lane for free - and
+    // `pnpm check:all` costs about 13 seconds against a tree with no build in it.
+    expect(segments).toContain("pnpm check:all");
+  });
+
+  it("prettier-checks every path the lane admits, in the PRETTIER segment", () => {
+    // `pnpm lint` (which the lane skips) is what normally runs `prettier --check .`.
+    //
+    // Anchored to the `prettier --check` command rather than to the whole script,
+    // which is how this assertion was first written and was partly vacuous: `plan`
+    // also appears in `eslint plan`, so deleting it from the Prettier arguments left
+    // the test green (review of PR #952).
+    const prettier = segments.find((segment) => segment.startsWith("prettier --check"));
+    expect(prettier).toBeDefined();
+    for (const target of [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES]) {
+      expect(prettier).toContain(target.replace(/\/$/, ""));
+    }
+  });
+
+  it("runs the tooling test project, which is where the readers of this tree live", () => {
+    // `scripts/agent-scratch.test.ts` asserts that each briefing file names the scratch
+    // helper and that none of them spells the lane override as an unexported prefix;
+    // `scripts/prune-worktrees.test.ts` asserts two skill files name the sweep. Both
+    // are in `pnpm test`, which the lane skips, and both are broken by an ordinary
+    // edit to a file the lane admits. The whole project runs rather than those two
+    // files, so a test added later is covered without anyone updating a list.
+    expect(segments).toContain("pnpm test:tooling:no-build");
+  });
+
+  it("excludes exactly one tooling file from the lane, and says which", () => {
+    // `scripts/sql-capture.test.ts` refuses to run until `packages/db` is built, and
+    // building is the cost the lane exists to avoid. It reads nothing the lane admits.
+    // Any OTHER tooling test that grows a build dependency fails `check:plan` loudly,
+    // which is the direction that can be fixed rather than the one that goes unnoticed.
+    const noBuild = manifest.scripts["test:tooling:no-build"] ?? "";
+    expect(noBuild).toContain("--project tooling");
+    expect(noBuild).toContain("sql-capture.test.ts");
+    expect(noBuild.match(/--exclude/g) ?? []).toHaveLength(2);
+    expect(noBuild).toContain("node_modules");
+  });
+});
+
+/**
+ * The argument the lane rests on, turned from prose into a pin (review of PR #952).
+ *
+ * `check:plan` covers the gates and tests that read a lane path TODAY. What makes that
+ * durable is a second property, which was only ever asserted in a comment: no reader of
+ * a lane path lives in `apps/` or `packages/`, the trees the lane does not run. Those
+ * are the readers the lane could not see, and the reviewer's sweep at 24d2e7af found
+ * none - but nothing failed when the next one was added.
+ *
+ * The scan is deliberately narrow so it is worth keeping green:
+ *
+ *   - **Quoted occurrences only, backticks included.** A needle counts when it sits
+ *     inside a `'`, `"` or backtick string. Template literals are in because that is a
+ *     shape this repository genuinely uses for this kind of read -
+ *     `apps/api/src/openapi-document.test.ts:30` reads its contract artifact that way -
+ *     and the first version of this scan was blind to them (delta review of PR #952).
+ *   - **Lines that OPEN with a comment marker are skipped**, which is what keeps the
+ *     backtick half from drowning in prose: this repository writes paths in running
+ *     commentary with backticks, and all five extra hits the backtick added were JSDoc
+ *     continuation lines. Measured over the tracked tree at the time of writing: three
+ *     hits either way, the same three. Two residuals, both measured, both accepted:
+ *     a backticked lane path in a TRAILING comment on a code line is a false positive
+ *     (loud, and the allowlist is the fix), and a line that OPENS with a comment marker
+ *     and then carries code is skipped whole, so a reader hidden after `// ` on its own
+ *     line is a false negative. Neither is worth a JavaScript parser here; what this
+ *     scan is for is the reader somebody adds in earnest, not one written to evade it.
+ *   - **`plan/` is not a needle**, and it is the only fast-lane prefix left out. It
+ *     predates #873 and its documents are cited in dozens of component comments, many of
+ *     them inside JSX where no comment-marker rule holds (62 such lines when this was
+ *     written). Every other prefix and every root file is a needle, taken from the
+ *     classifier's own lists.
+ *   - **A hit is a question, not a verdict.** The allowed entries below name
+ *     `CONTRIBUTING.md` and `CLAUDE.md` as APP-RELATIVE strip rules - what a scaffolded
+ *     project must not ship - and never read the repository root's copy. They are
+ *     scoped to the exact line text, so a later root read in the same file is still a
+ *     failure rather than something hiding behind an existing reason.
+ */
+describe("no reader of a lane path lives where the lane cannot see it", () => {
+  const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
+  const SOURCE = /\.(?:ts|tsx|mts|cts|js|jsx|mjs|cjs)$/;
+  const COMMENT_OPENER = /^(?:\/\/|\/\*|\*|\{\/\*)/;
+
+  /**
+   * The pattern the scan uses, built once so the self-test below exercises the real one.
+   *
+   * @param needles paths whose quoted appearance is the thing being looked for.
+   */
+  const laneLiteralPattern = (needles: readonly string[]): RegExp =>
+    new RegExp(
+      needles
+        .map(
+          (needle) =>
+            `["'\`][^"'\`]*${needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^"'\`]*["'\`]`,
+        )
+        .join("|"),
+    );
+
+  /**
+   * What the scan looks for: the root instruction files, and every fast-lane directory
+   * except `plan/`.
+   *
+   * Derived rather than listed, so a prefix added to the classifier later becomes a
+   * needle without anyone remembering. `plan/` is subtracted for the reason in the
+   * header above; it is the only subtraction, and it is spelled as one.
+   */
+  const NEEDLES = [
+    ...FAST_LANE_FILES,
+    ...FAST_LANE_PREFIXES.filter((prefix) => prefix !== PLAN_PREFIX),
+  ];
+
+  /** One line that may name a lane path, and why it is not a read of our own copy. */
+  const ALLOWED = [
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.mjs",
+      line: '"CONTRIBUTING.md",',
+      why: "APP_EXCLUDED_PATHS: an app-relative name the scaffold drops, never read from the root",
+    },
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.test.ts",
+      line: '"CONTRIBUTING.md",',
+      why: "asserts the same app-relative strip rule",
+    },
+    {
+      file: "packages/create-qcms-app/scripts/sync-templates.test.ts",
+      line: '"CLAUDE.md",',
+      why: "asserts the same app-relative strip rule",
+    },
+  ];
+
+  const scan = (): { found: string[]; matched: Set<string> } => {
+    const pattern = laneLiteralPattern(NEEDLES);
+    const tracked = execFileSync("git", ["ls-files", "-z", "apps", "packages", "tooling"], {
+      cwd: REPO_ROOT,
+      encoding: "utf8",
+      maxBuffer: 32 * 1024 * 1024,
+    })
+      .split("\0")
+      .filter((file) => file !== "" && SOURCE.test(file));
+
+    const found: string[] = [];
+    const matched = new Set<string>();
+    for (const file of tracked) {
+      const text = readFileSync(path.join(REPO_ROOT, file), "utf8");
+      text.split("\n").forEach((raw, index) => {
+        const line = raw.trim();
+        if (COMMENT_OPENER.test(line)) return;
+        if (!pattern.test(line)) return;
+        const allowed = ALLOWED.find((entry) => entry.file === file && entry.line === line);
+        if (allowed !== undefined) {
+          matched.add(`${allowed.file} ${allowed.line}`);
+          return;
+        }
+        found.push(`${file}:${String(index + 1)}  ${line}`);
+      });
+    }
+    return { found, matched };
+  };
+
+  it("finds no unlisted lane literal under apps/ or packages/", () => {
+    const { found } = scan();
+
+    // The message is the point of the test: whoever trips it has to answer one
+    // question, and the answer decides between three fixes.
+    expect(
+      found,
+      [
+        "A file the fast lane does not run names a fast-lane path in a string literal.",
+        "Ask whether it READS the repository's own copy at that path:",
+        "  - it does      -> it must run on the lane, or the path must leave the lane",
+        "                    (scripts/ci-plan-only.mjs, CONTRIBUTING 'The instruction and plan fast lane')",
+        "  - it does not  -> add it to ALLOWED here with its exact line text and the reason",
+        "Hits:",
+        ...found,
+      ].join("\n"),
+    ).toEqual([]);
+  });
+
+  it("keeps no stale allowlist entry, so each one still stands for something", () => {
+    // An entry whose line has moved or gone is an exemption nobody is watching, and it
+    // would silently cover the next line that happens to match it.
+    const { matched } = scan();
+    for (const entry of ALLOWED) {
+      expect(
+        matched,
+        `${entry.file} no longer has the line '${entry.line}' (${entry.why})`,
+      ).toContain(`${entry.file} ${entry.line}`);
+    }
+  });
+
+  it("would notice a reader added under apps/, quoted or in a template literal", () => {
+    // The scan is only worth having if it can fail, and this exercises the SAME builder
+    // the scan uses rather than a copy of the pattern (delta review of PR #952).
+    // Synthetic lines rather than a write into the tree, so nothing has to be cleaned up.
+    const pattern = laneLiteralPattern(["CLAUDE.md", ".claude/"]);
+    expect(pattern.test('const brief = readFileSync("../../CLAUDE.md", "utf8");')).toBe(true);
+    expect(pattern.test("const brief = readFileSync(`../../CLAUDE.md`, 'utf8');")).toBe(true);
+    expect(pattern.test("const p = new URL(`${root}/.claude/agents/x.md`, base);")).toBe(true);
+    expect(pattern.test("const brief = readFileSync(join(root, 'CLAUDE.md'));")).toBe(true);
+    // And the shapes it must NOT flag: prose, wherever the comment marker opens the line.
+    expect(COMMENT_OPENER.test("// the trap `CLAUDE.md` describes")).toBe(true);
+    expect(
+      COMMENT_OPENER.test("* documented in `apps/api/CONTRIBUTING.md`, not a dependency"),
+    ).toBe(true);
   });
 });
 

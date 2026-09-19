@@ -4,11 +4,14 @@
  * Classify a pull request diff, so a job does the work its diff can actually be
  * observed by and no more. Two classifications, both fail-safe:
  *
- *   - **`plan_only`**: every changed path is under `plan/`. Those changes skip
- *     application build and test jobs, but `check:plan` still runs ESLint and
- *     Prettier over the plan tree along with its security and theme checks.
- *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or
- *     `plan/`, so nothing in the diff can reach a portal-rendered surface. See
+ *   - **`plan_only`**: every changed path is in the fast-lane set - the `plan/`
+ *     scratch tree, MARKDOWN under `.claude/` (the agent and skill definitions, not
+ *     the settings file and not a hook script), and the three root instruction files.
+ *     Those changes skip the application build, the unit suites and all three
+ *     end-to-end jobs, but `check:plan` still runs every gate that reads any of those
+ *     paths. See {@link isPlanOnly}.
+ *   - **`admin_only`**: every changed path is under `apps/admin/`, `docs/` or the
+ *     fast-lane set, so nothing in the diff can reach a portal-rendered surface. See
  *     {@link isAdminOnly}.
  *
  * The file keeps its original name despite now answering two questions. The workflow
@@ -32,8 +35,8 @@
  *   - an empty diff, or a base ref that cannot be resolved;
  *   - anything that throws.
  *
- * Renames are read with `--no-renames`, so a path moved out of `plan/` shows up as
- * a delete under `plan/` PLUS an add outside it, and the PR is correctly code.
+ * Renames are read with `--no-renames`, so a path moved out of the fast-lane set shows
+ * up as a delete inside it PLUS an add outside it, and the PR is correctly code.
  *
  * ## Two properties that are not obvious, and are the reason this file has tests
  *
@@ -42,7 +45,7 @@
  * head checkout (`git show "origin/$GITHUB_BASE_REF:scripts/ci-plan-only.mjs"`).
  * Otherwise a pull request that refactors `isPlanOnly` and introduces a defect
  * answering `true` too readily would be classified by its own broken code: its diff
- * touches only this file, which is not under `plan/`, so a full run is intended -
+ * touches only this file, which is outside the fast-lane set, so a full run is intended -
  * but the broken copy would answer `plan_only=true`, `pnpm test` is one of the steps
  * the fast lane skips, and the very tests written to catch that defect would not
  * run. It would merge in 45 green seconds and every later PR would take the fast
@@ -52,7 +55,7 @@
  *
  * **Paths are read NUL-separated and never trimmed.** This preserves unusual but
  * valid names and prevents a leading space from changing an outside path into a
- * `plan/` path.
+ * fast-lane path.
  *
  * Usage:
  *   node scripts/ci-plan-only.mjs                  # reads GITHUB_* from the env
@@ -68,14 +71,88 @@ import { pathToFileURL } from "node:url";
 // (unlike a shell), so a bare "git" ENOENTs even when git is installed.
 const GIT = process.platform === "win32" ? "git.exe" : "git";
 
-/** The one directory the fast lane covers. Trailing slash: `planning.md` is not it. */
+/** The scratch tree the fast lane started as. Trailing slash: `planning.md` is not it. */
 export const PLAN_PREFIX = "plan/";
+
+/**
+ * Directories the fast lane covers, whatever the file is.
+ *
+ * `plan/` is committed scratch: no tsconfig includes it, no `@source` root reaches it,
+ * nothing imports from it, and the gates that do read it (`check-admin-theme`,
+ * `check:plan`'s ESLint and Prettier) all run on the lane.
+ *
+ * `.claude/` is the agent and skill definitions, `.claude/settings.json` and any hook
+ * script, all of it, by ruling (Code Owner, 2026-09-19, issue #873). The evidence in
+ * front of that ruling, from the reviews of PR #952:
+ *
+ *   - **CI inspects the content of none of these files, on either lane.** A probe of a
+ *     tracked `.claude/hooks/on-stop.sh`, a `.py` beside it, and a `settings.json`
+ *     wiring that hook, emptying `permissions.deny` and setting `defaultMode` to
+ *     `bypassPermissions` passes `pnpm check:plan`, and passed the full suite before
+ *     this lane existed too. What each gate does and does not select for these files is
+ *     tabulated in CONTRIBUTING, "The instruction and plan fast lane".
+ *   - **The difference is the wait**: about a minute for four required contexts instead
+ *     of about 45.
+ *   - Agent frontmatter grants tools and picks a model (`.claude/agents/*.md` carry
+ *     `tools:` and `model:`), and a settings change can rewire permissions and hooks.
+ *
+ * `.claude/worktrees/` and `.claude/settings.local.json` (at any depth) are git-ignored,
+ * so neither reaches a diff unless somebody force-adds it - an ignore rule stops
+ * `git add`, not `git add -f`. Force-added, either takes the lane like any other
+ * `.claude/` path, which is what the ruling asks for. Not "cannot appear in a diff",
+ * which is what this comment used to claim.
+ *
+ * **The separator is what makes each prefix safe.** Without it `plan` would match
+ * `planner.ts` and `.claude` would match a future `.claude-hooks/`.
+ */
+export const FAST_LANE_PREFIXES = [PLAN_PREFIX, ".claude/"];
+
+/**
+ * Repository-root instruction files the fast lane covers, matched by EQUALITY.
+ *
+ * Not prefixes, and that distinction is the whole safety of the list: as a prefix
+ * `CLAUDE.md` would also admit `CLAUDE.md.bak` and `CONTRIBUTING.md` would admit
+ * `CONTRIBUTING.mdx`, neither of which any gate below has been checked against.
+ * Equality also keeps the list anchored at the root, so `apps/api/CONTRIBUTING.md`
+ * - which `packages/create-qcms-app` reads when it decides what an app ships - is
+ * code, as it should be.
+ *
+ * Each of these three is prose addressed to a contributor or an agent. What reads
+ * them is enumerated in CONTRIBUTING, "The instruction and plan fast lane", and
+ * every one of those readers runs in `check:plan`.
+ */
+export const FAST_LANE_FILES = ["CLAUDE.md", "PROJECT_INSTRUCTIONS.md", "CONTRIBUTING.md"];
 
 /** How many changed paths the log prints before it truncates. */
 const LOG_LIMIT = 40;
 
 /**
- * Is every changed path inside `plan/`?
+ * Is this one path in the fast-lane set?
+ *
+ * Two rules, of two deliberately different shapes: a directory prefix carrying its
+ * separator, and equality. Nothing here matches on an extension. An intermediate version
+ * of this file admitted only Markdown under `.claude/`, which is why the tests still
+ * carry the shapes that rule had to get right (`.claude/x.md/evil.sh`, `.claude/x.MD`):
+ * they are all on the lane now, and the cases are kept because they pin that the
+ * classification no longer depends on a suffix at all.
+ *
+ * @param {string} path repo-relative, exactly as git recorded it.
+ * @returns {boolean}
+ */
+export function isFastLanePath(path) {
+  if (FAST_LANE_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
+  return FAST_LANE_FILES.includes(path);
+}
+
+/**
+ * Is every changed path in the fast-lane set?
+ *
+ * The name and the `plan_only` output keep their original spelling on purpose. The
+ * workflow reads this script from the pull request's BASE ref, so the output name is
+ * a contract between two commits: renaming it would make every PR whose base predates
+ * the rename publish the old name, `ci.yml` read an empty string for the new one, and
+ * the lane quietly close until the rename reached `main`. That failure is safe but it
+ * is also pointless, and the same argument is why the file itself is not renamed.
  *
  * An empty list is NOT plan-only. An empty diff means the classification failed to
  * see anything, and "saw nothing" must never read as "saw only prose".
@@ -86,14 +163,22 @@ const LOG_LIMIT = 40;
 export function isPlanOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
-  return paths.every((path) => path.startsWith(PLAN_PREFIX));
+  return paths.every(isFastLanePath);
 }
 
 /**
  * Directories a change can be confined to without any portal-rendered surface moving.
  *
- * `apps/admin/` is the whole point; `docs/` and `plan/` ride along because prose
- * cannot render anything either and an admin PR routinely carries some.
+ * `apps/admin/` is the whole point; `docs/`, `plan/` and `.claude/` ride along because
+ * none of them renders anything and an admin PR routinely carries some.
+ *
+ * The fast-lane directories are spread in rather than retyped, and the root instruction
+ * files reach this classification through {@link isFastLanePath}, so the two lists cannot
+ * answer differently about one path. That pins an invariant a test asserts over the sets:
+ * every path on the fast lane is admin-only too. A path the narrow lane lets skip the
+ * browser suite ENTIRELY must also be one the wide lane lets narrow it, or an admin PR
+ * carrying a `CLAUDE.md` tweak pays for the whole portal suite while the same tweak alone
+ * pays for none of it.
  *
  * What is deliberately NOT here is the condition someone will reach for first,
  * "the diff touches admin". The admin and the portal share `@roonga/qcms-ui` and
@@ -101,7 +186,7 @@ export function isPlanOnly(files) {
  * must run the whole suite. The safe question is what the diff touches OUTSIDE this
  * list, and one path outside it is enough to run everything.
  */
-export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", PLAN_PREFIX];
+export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", ...FAST_LANE_PREFIXES];
 
 /**
  * Can this diff move a portal-rendered surface?
@@ -122,7 +207,9 @@ export const ADMIN_ONLY_PREFIXES = ["apps/admin/", "docs/", PLAN_PREFIX];
 export function isAdminOnly(files) {
   const paths = files.filter((path) => path !== "");
   if (paths.length === 0) return false;
-  return paths.every((path) => ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)));
+  return paths.every(
+    (path) => ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)) || isFastLanePath(path),
+  );
 }
 
 /**
@@ -245,18 +332,20 @@ function main() {
     return;
   }
 
-  const outsidePlan = files.filter((path) => !path.startsWith(PLAN_PREFIX));
+  const fastLaneScope = [...FAST_LANE_PREFIXES, ...FAST_LANE_FILES].join(", ");
+  const outsidePlan = files.filter((path) => !isFastLanePath(path));
   report(
     "plan_only",
     isPlanOnly(files),
     outsidePlan.length === 0
-      ? `${files.length} path(s), all under ${PLAN_PREFIX}`
-      : `${outsidePlan.length} path(s) outside ${PLAN_PREFIX}, first: ${JSON.stringify(outsidePlan[0])}`,
+      ? `${files.length} path(s), all in ${fastLaneScope}`
+      : `${outsidePlan.length} path(s) outside ${fastLaneScope}, first: ${JSON.stringify(outsidePlan[0])}`,
   );
 
-  const adminScope = ADMIN_ONLY_PREFIXES.join(", ");
+  const adminScope = [...ADMIN_ONLY_PREFIXES, ...FAST_LANE_FILES].join(", ");
   const outsideAdmin = files.filter(
-    (path) => !ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)),
+    (path) =>
+      !ADMIN_ONLY_PREFIXES.some((prefix) => path.startsWith(prefix)) && !isFastLanePath(path),
   );
   report(
     "admin_only",
