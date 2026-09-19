@@ -31,7 +31,7 @@
   "devDependencies": {
     "@roonga/qcms-e2e-support": "workspace:*",
     "@tailwindcss/postcss": "^4.3.3",
-    "@types/node": "^26.6.1",
+    "@types/node": "^24.13.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "tailwindcss": "^4.3.3"
