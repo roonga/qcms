@@ -505,6 +505,22 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     expect(await outboxCount(sessionId)).toBe(0);
   });
 
+  it("a submit carrying an undeclared field is accepted, not refused (issue #893)", async () => {
+    // The one request body in this API that stays OPEN. Every other body rejects
+    // an unknown key since #893; this one cannot, because the portal's no-JS path
+    // forwards every posted form field the compiled document did not tag as an
+    // answer control, and because a 400 for one field name beside a 200 for
+    // another would tell a bot which field is the honeypot.
+    const { sessionId, sessionToken } = await completeValidSession();
+
+    const res = await submit(sessionId, sessionToken, { anUndeclaredField: "carried through" });
+
+    expect(res.status).toBe(200);
+    // Not the honeypot field, so nothing is flagged either: an unknown key is
+    // neither a refusal nor a tell.
+    expect((await loadSubmission(sessionId))?.flaggedReason).toBeNull();
+  });
+
   it("a too-fast submit succeeds, is flagged, and withholds the outbox event", async () => {
     // A dedicated app whose config sets a positive min-time threshold (config
     // seam; default is 0/off). Same signing keys, so the session token verifies.
