@@ -4,459 +4,122 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  ACTION_FILES,
+  FULL_SHA,
+  classify,
+  coveredByDependabot,
+  dependabotActionsDirectories,
+  mentionsUsesKey,
+  pinProblems,
+  splitComment,
+  usesReferences,
+} from "./actions-pinned.mjs";
 import { trackedFilesUnder } from "./tracked-files.mjs";
 
 /**
- * Every `uses:` this repository executes is classified, and a third-party one is pinned to
- * a full-length commit SHA (issue #948; Code Owner ruling of 2026-09-19).
+ * Every `uses:` this repository executes is classified, and a third-party one is pinned to a
+ * full-length commit SHA (issue #948; Code Owner ruling of 2026-09-19).
  *
- * A tag is a mutable pointer: the owner of the action's repository can move it to any
- * commit at any time, and a workflow that names one runs whatever it points at on the day
- * it runs. GitHub says so itself: "Pinning an action to a full-length commit SHA is
- * currently the only way to use an action as an immutable release", and "Pinning to a
- * particular SHA helps mitigate the risk of a bad actor adding a backdoor to the action's
- * repository, as they would need to generate a SHA-1 collision for a valid Git object
- * payload" (https://docs.github.com/en/actions/reference/security/secure-use, read
- * 2026-09-19). This repository already made the same argument one layer down, for
- * container base images under SEC-11 (#372), so an Actions reference by tag was an
- * undocumented gap rather than a recorded deviation.
+ * A tag is a mutable pointer: the owner of the action's repository can move it to any commit
+ * at any time, and a workflow that names one runs whatever it points at on the day it runs.
+ * GitHub says so itself: "Pinning an action to a full-length commit SHA is currently the only
+ * way to use an action as an immutable release", and "Pinning to a particular SHA helps
+ * mitigate the risk of a bad actor adding a backdoor to the action's repository, as they
+ * would need to generate a SHA-1 collision for a valid Git object payload"
+ * (https://docs.github.com/en/actions/reference/security/secure-use, read 2026-09-19). This
+ * repository already made the same argument one layer down, for container base images under
+ * SEC-11 (#372), so an Actions reference by tag was an undocumented gap rather than a
+ * recorded deviation.
  *
  * The mutability is not hypothetical here. At the time of #948 six files named
- * `pnpm/action-setup@v6.0.9` and two named `pnpm/action-setup@v6`, and the moving major
- * tag `v6` resolved to the `v6.0.10` commit - so two jobs in this repository were running
- * a different release of the same action from the other six, and nothing in the tree said
+ * `pnpm/action-setup@v6.0.9` and two named `pnpm/action-setup@v6`, and the moving major tag
+ * `v6` resolved to the `v6.0.10` commit - so two jobs in this repository were running a
+ * different release of the same action from the other six, and nothing in the tree said
  * which. That is the whole defect class in one line: the reference did not name what ran.
  *
- * ## The rule, and the carve-out
+ * ## Where the rule lives, and why not here
  *
- * The Code Owner's ruling has three classes, and this guard is the thing that keeps a new
- * `uses:` inside one of them:
+ * `scripts/actions-pinned.mjs`. The three classes, the reader, the Dependabot reach model and
+ * the problem list are all there, and this file drives them over the repository. The split
+ * came out of the #972 review, which found six spellings the first reader walked past: it had
+ * to plant each one in a workflow and call the functions, and they were buried inside a
+ * Vitest file. A reviewer can now drive them with `node` alone.
  *
- *   - **third-party** (any owner but the two below): a 40-character lowercase hex commit
- *     SHA, with the version in a trailing comment.
- *   - **first-party** (`actions/*`, `github/*`, published by GitHub itself): a version tag
- *     is accepted, because the trust argument that motivates a SHA is an argument about a
- *     third party's repository, and GitHub already runs the code that would consume the
- *     pin. What is still refused is no ref at all, which resolves to the action's default
- *     branch.
- *   - **local** (`./.github/actions/...`): neither. A composite action in this repository
- *     is reviewed in the pull request that changes it, like any other first-party file,
- *     and GitHub does not accept a ref on a local reference at all.
+ * ## What this file asserts
  *
- * ## How a bump arrives
+ * The derived inventory, and the bite. The file set comes from git, through
+ * `trackedFilesUnder`, per CONTRIBUTING's rule for a test that asserts a property of every X
+ * in the codebase (issues #635, #641): a directory walk reads a checkout's leftovers as
+ * source and asserts a property of the machine rather than of the repository. Both
+ * `.github/workflows/**` and `.github/actions/**` are in the pattern, because a composite
+ * action can reference a third-party action too.
  *
- * `.github/dependabot.yml`'s `actions` group, weekly. That half is load-bearing rather
- * than incidental, for the reason #372 recorded for base-image digests: a pin with no
- * updater is a dependency that ages quietly, which is worse than the moving tag it
- * replaced. Checked against GitHub's own documentation rather than assumed
- * (https://docs.github.com/en/code-security/reference/supply-chain-security/supported-ecosystems-and-repositories,
- * "GitHub Actions", read 2026-09-19), three sentences of which decide the format asserted
- * below:
- *
- *   - "Dependabot only supports updates to GitHub Actions using the GitHub repository
- *     syntax, such as `actions/checkout@v6` or `actions/checkout@<commit>`. Dependabot
- *     will ignore actions or reusable workflows referenced locally (for example,
- *     `./.github/actions/foo.yml`)." - so a SHA pin is a form the updater moves, and the
- *     local class is outside its reach by design rather than by omission.
- *   - "Dependabot updates the version documentation of GitHub Actions when the comment is
- *     on the same line, such as `actions/checkout@<commit> #<tag or link>` or
- *     `actions/checkout@<tag> #<tag or link>`." - so the trailing comment is machine-read,
- *     not decoration, and it has to be on the same line. That is why a missing or
- *     unreadable comment is a failure here and not a style note.
- *   - "If the commit you use is not associated with any tag, Dependabot will update the
- *     GitHub Actions to the latest commit (which might differ from the latest release)."
- *     - so a SHA that is not a release commit silently opts out of release-based bumps,
- *     which is the other reason the comment is required: it is the claim about which
- *     release the SHA is.
+ * Every rule is proved non-vacuous by mutation. Some mutations edit the model; the ones that
+ * matter most edit workflow **text**, because a defect in how the text becomes the model is
+ * invisible to a mutation of the model - which is exactly how six valid spellings of a `uses`
+ * key survived the first round of this file.
  *
  * ## What this cannot prove
  *
- * That the SHA is the commit the version comment names. Resolving a tag needs the network,
- * and every gate in `pnpm verify` runs offline. So the comment is checked for being a
- * readable tag or link and not for being true; the truth of it is established once, by
- * hand, when the pin is written, and recorded in the pull request that writes it (this
- * one resolved `pnpm/action-setup@v6.0.9` through its annotated tag object
- * `008330803749db0355799c700092d9a85fd074e9` to commit
- * `0ebf47130e4866e96fce0953f49152a61190b271`, confirmed twice: `gh api
- * repos/pnpm/action-setup/git/ref/tags/v6.0.9` plus the tag dereference, and
- * `git ls-remote --tags` reading `refs/tags/v6.0.9^{}`). After that, Dependabot owns the
- * pair and moves both together.
- *
- * ## Why a test rather than a `check:*` script
- *
- * Two reasons, and the second is the deciding one. `scripts/check-dependabot-groups.test.ts`
- * (issue #889) is the closest precedent in the tree - a derived guard over a file in
- * `.github/`, asserting a property nothing else asserts, living in the `tooling` Vitest
- * project because that project runs from the repository root and outside turbo, so it reads
- * the tree as it is. And a new `check:*` in `check:all` must also appear as its own step in
- * `ci.yml`'s `verify` job, which `pnpm check:ci-parity` enforces: that is a workflow edit
- * beyond the `uses:` lines, in a file two other pull requests are changing at the same
- * time. Nothing here needs to run outside `pnpm test`, so the cheaper seam is the right
- * one.
- *
- * ## What is derived and what is written down
- *
- * The file set comes from git, through `trackedFilesUnder`, per CONTRIBUTING's rule for a
- * test that asserts a property of every X in the codebase (issues #635, #641): a directory
- * walk reads a checkout's leftovers as source and asserts a property of the machine rather
- * than of the repository. Both `.github/workflows/**` and `.github/actions/**` are in the
- * pattern, because a composite action can reference a third-party action too, and the
- * inventory has to cover the places a `uses:` can execute rather than the one place they
- * happen to live today. What is written down is only the subject of the guard: the two
- * first-party owners, and the shape of a commit SHA.
- *
- * The reader refuses a `uses:` shape it does not understand instead of skipping it, so the
- * set cannot shrink quietly. Every assertion is a pure function over the read references,
- * and each is proved non-vacuous below by mutating a copy; two cases mutate workflow TEXT
- * instead, because a defect in how the text becomes that model is invisible to a mutation
- * of the model.
+ * That a SHA is the commit its version comment names. Resolving a tag needs the network and
+ * every gate in `pnpm verify` runs offline, so the comment is checked for being a complete
+ * release version and not for being true. That is established once, by hand, when the pin is
+ * written, and recorded in the pull request that writes it. After that Dependabot owns the
+ * pair - for the files its `github-actions` updater actually searches, which is the limit
+ * `coveredByDependabot` models and SEC-11 records.
  */
 
 const REPO_ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-/**
- * The owners whose actions GitHub itself publishes, and the entire carve-out.
- *
- * Any other owner is third-party and must be a SHA, so the default is the strict side: a
- * new owner appearing in a workflow fails this guard until someone pins it, rather than
- * being admitted because nobody added it to a list.
- */
-const FIRST_PARTY_OWNERS = new Set(["actions", "github"]);
-
-/** A full-length commit SHA as git writes one. Lowercase hex, exactly 40. */
-const FULL_SHA = /^[0-9a-f]{40}$/;
-
-/**
- * The trailing comment's first token, in the `#<tag or link>` form GitHub documents.
- *
- * A tag (`v6.0.9`, `6.0.9`) or a URL. `# pinned` and `# see the PR` are refused: the
- * comment is what says which release the SHA is, so a comment that names no version is
- * the same as none.
- */
-const TAG_OR_LINK = /^(?:https?:\/\/\S+|v?\d[A-Za-z0-9._+-]*)$/;
-
-/**
- * The files whose `uses:` lines GitHub executes.
- *
- * Any depth under either directory, which is a superset of what GitHub reads (workflows
- * must sit directly in `.github/workflows/`), because a superset can only ever add a file
- * to the inventory and a tighter pattern can lose one.
- */
-const ACTION_FILES = /^\.github\/(?:workflows|actions)\/.*\.ya?ml$/;
-
-// ---------------------------------------------------------------------------
-// Reading the `uses:` lines.
-//
-// By shape rather than with a YAML parser: no YAML parser is resolvable from this
-// repository, and the established answer is to read the shape rather than add a dependency
-// for a one-property read (`scripts/check-docker-job-guards.mjs` says so in as many words,
-// `scripts/check-ci-parity.mjs` and `scripts/check-dependabot-groups.test.ts` do the same).
-// ---------------------------------------------------------------------------
-
-/** The three classes of the ruling, plus the two shapes that are refusals. */
-type Kind = "first-party" | "third-party" | "local" | "docker" | "unknown";
-
-interface Reference {
-  /** Repository-relative path of the file the reference was read from. */
-  file: string;
-  /** 1-based line number, so a failure names the line to edit. */
-  line: number;
-  /** The `uses:` value with quotes removed, or the whole line body for an unknown shape. */
-  value: string;
-  kind: Kind;
-  /** `owner/repo` for a remote reference; undefined for local, docker and unknown. */
-  action: string | undefined;
-  /** Whatever follows `@`; undefined when the reference names no ref at all. */
-  ref: string | undefined;
-  /** The same-line trailing comment, trimmed; undefined when there is none. */
-  comment: string | undefined;
-}
-
-/** A key whose value is a block scalar: everything indented under it is text, not YAML. */
-const BLOCK_SCALAR = /^(?:-\s+)?[A-Za-z0-9_.-]+:[ \t]*[|>][+-]?\d*[ \t]*$/;
-
-/** A `uses:` key, in either the sequence-item or the plain-key position. */
-const USES_KEY = /^[ \t]*(?:-[ \t]+)?uses:/;
-
-/** The whole line, when it is one this guard understands. */
-const USES_LINE =
-  /^[ \t]*(?:-[ \t]+)?uses:[ \t]+(?:(["'])(.*?)\1|([^\s#]+))[ \t]*(?:#[ \t]*(.*?))?[ \t]*$/;
-
-/** A leading sequence dash, whose width the block-scalar indent has to account for. */
-const SEQUENCE_DASH = /^-[ \t]+/;
-
-/**
- * `owner/repo` or `owner/repo/path`, with no ref attached.
- *
- * Anchored on both sides so a value this guard has not thought about cannot slip through
- * as a plausible-looking action path.
- */
-const ACTION_PATH =
-  /^(?<owner>[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?)\/(?<repo>[A-Za-z0-9._-]+)(?:\/[A-Za-z0-9._\-/]+)?$/;
-
-/**
- * Classify one `uses:` value.
- *
- * @param value the value as written, quotes already removed
- */
-export function classify(value: string): Pick<Reference, "kind" | "action" | "ref"> {
-  const none = { action: undefined, ref: undefined };
-
-  // A Docker container action. None exists in this repository, and this is the explicit
-  // handling rather than a gap: Dependabot cannot track one ("references to Docker
-  // container actions using `docker://` syntax aren't supported", same GitHub page as
-  // above), so a `docker://` tag would be a mutable reference with no updater behind it -
-  // the exact arrangement #372 rejected for base images. If one is ever needed, it is a
-  // decision with a digest and a recorded reason, and this guard learns the rule then.
-  if (value.startsWith("docker://")) return { kind: "docker", ...none };
-
-  if (value.startsWith("./")) {
-    // GitHub does not accept a ref on a local reference, so one here means the author
-    // believes something about this reference that is not true.
-    return value.includes("@") ? { kind: "unknown", ...none } : { kind: "local", ...none };
-  }
-  // `.` or `..` leading anything else: not a form GitHub resolves, and not one to guess at.
-  if (value.startsWith(".")) return { kind: "unknown", ...none };
-
-  const at = value.indexOf("@");
-  const path = at === -1 ? value : value.slice(0, at);
-  const ref = at === -1 ? undefined : value.slice(at + 1);
-  const parsed = ACTION_PATH.exec(path);
-  const owner = parsed?.groups?.["owner"];
-  const repo = parsed?.groups?.["repo"];
-  if (owner === undefined || repo === undefined) return { kind: "unknown", ...none };
-  // An empty or whitespace-bearing ref is not a ref; refuse rather than treat it as absent.
-  if (ref !== undefined && (ref === "" || /\s/.test(ref))) return { kind: "unknown", ...none };
-
-  return {
-    kind: FIRST_PARTY_OWNERS.has(owner) ? "first-party" : "third-party",
-    action: `${owner}/${repo}`,
-    ref,
-  };
-}
-
-/**
- * Every `uses:` reference one workflow or composite action declares.
- *
- * Block scalars are skipped, so a `uses:` written inside a `run: |` shell body is shell
- * text and not an action reference. Anything sitting in the `uses:` key position that this
- * reader cannot parse comes back as `kind: "unknown"` and fails below, which is the
- * "never read past a shape you do not understand" half: the corpus cannot shrink silently.
- *
- * @param file repository-relative path, used only in the messages
- * @param text the file's contents
- */
-export function usesReferences(file: string, text: string): Reference[] {
-  const references: Reference[] = [];
-  const lines = text.split("\n");
-  /** Column of the key that opened the current block scalar, or undefined outside one. */
-  let blockKeyColumn: number | undefined;
-
-  for (const [index, raw] of lines.entries()) {
-    if (raw.trim() === "") continue;
-    const indent = raw.length - raw.trimStart().length;
-    if (blockKeyColumn !== undefined) {
-      if (indent > blockKeyColumn) continue;
-      blockKeyColumn = undefined;
-    }
-
-    const body = raw.trimStart();
-    if (BLOCK_SCALAR.test(body)) {
-      blockKeyColumn = indent + (SEQUENCE_DASH.exec(body)?.[0].length ?? 0);
-      continue;
-    }
-
-    if (!USES_KEY.test(raw)) continue;
-    const line = index + 1;
-    const match = USES_LINE.exec(raw);
-    if (match === null) {
-      references.push({
-        file,
-        line,
-        value: body,
-        kind: "unknown",
-        action: undefined,
-        ref: undefined,
-        comment: undefined,
-      });
-      continue;
-    }
-    const value = match[2] ?? match[3] ?? "";
-    const comment = match[4];
-    references.push({
-      file,
-      line,
-      value,
-      ...classify(value),
-      comment: comment === undefined || comment.trim() === "" ? undefined : comment.trim(),
-    });
-  }
-
-  return references;
-}
-
-// ---------------------------------------------------------------------------
-// The rule.
-// ---------------------------------------------------------------------------
-
-/**
- * Every way the inventory can break the ruling, as one list, so a mutation can be shown to
- * break exactly the assertion it should.
- *
- * @param references every `uses:` read from the derived file set
- */
-export function pinProblems(references: Reference[]): string[] {
-  const problems: string[] = [];
-
-  // An enumeration that found nothing would leave every check below vacuously true, which
-  // is the fail-open direction this whole file is arranged against.
-  if (references.length === 0) {
-    problems.push(
-      "no `uses:` reference was read from .github/workflows/** or .github/actions/**, so " +
-        "this guard would assert nothing. Either the reader broke or the file pattern no " +
-        "longer reaches the workflows.",
-    );
-    return problems;
-  }
-
-  for (const reference of references) {
-    const at = `${reference.file}:${String(reference.line)}`;
-    switch (reference.kind) {
-      case "unknown": {
-        problems.push(
-          `${at}: \`${reference.value}\` is a \`uses:\` shape this guard does not ` +
-            "understand. It is refused rather than skipped, because a reference nobody " +
-            "classified is a reference nobody pinned. Teach this file the shape, or write " +
-            "the reference in one of the three documented forms.",
-        );
-        break;
-      }
-      case "docker": {
-        problems.push(
-          `${at}: \`${reference.value}\` is a Docker container action. Dependabot does not ` +
-            "support `docker://` references, so it would be a mutable pin with no updater " +
-            "behind it - the arrangement #372 rejected for base images. This needs a Code " +
-            "Owner decision and a rule in this file, not a tag.",
-        );
-        break;
-      }
-      case "local": {
-        // Nothing to pin: the action is in this repository and is reviewed in the pull
-        // request that changes it. `pnpm check:docker-job-guards` is what asserts which
-        // jobs reference which local action.
-        break;
-      }
-      case "first-party": {
-        if (reference.ref === undefined) {
-          problems.push(
-            `${at}: \`${reference.value}\` names no ref, so it resolves to the action's ` +
-              "default branch and runs whatever is on it. A first-party action may stay on " +
-              "a version tag, but it must name one.",
-          );
-        }
-        break;
-      }
-      case "third-party": {
-        if (reference.ref === undefined) {
-          problems.push(
-            `${at}: \`${reference.value}\` is a third-party action naming no ref at all, so ` +
-              "it runs the default branch. Pin it to a full 40-character commit SHA with " +
-              "the version in a trailing comment (SEC-11, issue #948).",
-          );
-          break;
-        }
-        if (!FULL_SHA.test(reference.ref)) {
-          problems.push(
-            `${at}: \`${reference.value}\` pins the third-party action ` +
-              `${reference.action ?? "(unknown)"} to \`${reference.ref}\`, which is not a ` +
-              "40-character lowercase hex commit SHA. A tag is mutable and a short SHA is " +
-              "not what GitHub treats as an immutable release. Resolve the tag " +
-              `(\`gh api repos/${reference.action ?? "<owner>/<repo>"}/git/ref/tags/<tag>\`, ` +
-              "dereferencing an annotated tag) and write `uses: owner/repo@<sha> # vX.Y.Z`.",
-          );
-          break;
-        }
-        if (reference.comment === undefined) {
-          problems.push(
-            `${at}: \`${reference.value}\` is pinned but carries no trailing version ` +
-              "comment. Dependabot updates the version documentation only when the comment " +
-              "is on the same line, and the comment is also the only readable statement of " +
-              "which release the SHA is. Write `# vX.Y.Z` after it.",
-          );
-          break;
-        }
-        const token = reference.comment.split(/\s+/)[0] ?? "";
-        if (!TAG_OR_LINK.test(token)) {
-          problems.push(
-            `${at}: the trailing comment \`# ${reference.comment}\` names no version. ` +
-              "Dependabot reads this comment as the version documentation, so it has to be " +
-              "a tag or a link (`# v6.0.9`), not prose.",
-          );
-        }
-        break;
-      }
-    }
-  }
-
-  // One action, one pin. Six files named `pnpm/action-setup@v6.0.9` and two named `@v6`
-  // when #948 was raised, which is how a repository comes to run two releases of one
-  // action without saying so. Dependabot moves every occurrence together, so a divergence
-  // after this point is a hand edit, and it should be a red rather than a discovery.
-  const byAction = new Map<string, Reference[]>();
-  for (const reference of references) {
-    if (reference.kind !== "third-party" || reference.action === undefined) continue;
-    const seen = byAction.get(reference.action);
-    if (seen === undefined) byAction.set(reference.action, [reference]);
-    else seen.push(reference);
-  }
-  for (const [action, group] of byAction) {
-    const pins = new Set(
-      group.map((reference) => `${reference.ref ?? "(none)"} # ${reference.comment ?? "(none)"}`),
-    );
-    if (pins.size > 1) {
-      problems.push(
-        `${action} is referenced at more than one pin: ${[...pins].sort().join(" / ")}. ` +
-          "Two releases of one action running in one repository is the #948 defect itself; " +
-          `the references are at ${group.map((reference) => `${reference.file}:${String(reference.line)}`).join(", ")}.`,
-      );
-    }
-  }
-
-  return problems;
-}
-
-// ---------------------------------------------------------------------------
-// Reading the repository.
-// ---------------------------------------------------------------------------
+const readRepoFile = (relative: string): string => readFileSync(join(REPO_ROOT, relative), "utf8");
 
 const actionFiles = trackedFilesUnder(REPO_ROOT, { match: ACTION_FILES });
-const references = actionFiles.flatMap((file) =>
-  usesReferences(file, readFileSync(join(REPO_ROOT, file), "utf8")),
-);
+const references = actionFiles.flatMap((file) => usesReferences(file, readRepoFile(file)));
+
+/** Dependabot's configured reach, derived from the config rather than written down here. */
+const dependabotDirectories = dependabotActionsDirectories(readRepoFile(".github/dependabot.yml"));
+
+/** The whole rule over the real tree, which every mutation below is measured against. */
+const problemsNow = (refs = references): string[] => pinProblems(refs, dependabotDirectories);
 
 /** References of one class, for the non-vacuity assertions. */
-const of = (kind: Kind): Reference[] => references.filter((reference) => reference.kind === kind);
+const of = (kind: string) => references.filter((reference) => reference.kind === kind);
 
 /** A mutation applied to a copy, so the repository's own inventory is never edited. */
-function mutated(change: (copy: Reference[]) => Reference[]): Reference[] {
-  return change(references.map((reference) => ({ ...reference })));
-}
+const mutated = (change: (copy: typeof references) => typeof references): string[] =>
+  problemsNow(change(references.map((reference) => ({ ...reference }))));
 
-/** The first third-party reference, which every third-party mutation below starts from. */
-const firstThirdParty = (): Reference => {
+/** Put `ref` on every third-party reference in a copy of the inventory. */
+const withThirdPartyRef = (ref: string): string[] =>
+  mutated((copy) =>
+    copy.map((reference) => (reference.kind === "third-party" ? { ...reference, ref } : reference)),
+  );
+
+/** The first third-party reference, which the text mutations below start from. */
+const firstThirdParty = () => {
   const found = of("third-party")[0];
   if (found === undefined) throw new Error("no third-party reference to mutate");
   return found;
 };
 
+/**
+ * A synthetic workflow at a path Dependabot's updater does cover, so a fixture exercises the
+ * pin rules rather than the reach rule.
+ */
+const WORKFLOW_PATH = ".github/workflows/x.yml";
+const workflow = (...steps: string[]): string =>
+  ["name: X", "on: push", "jobs:", "  one:", "    steps:", ...steps].join("\n");
+const readWorkflow = (...steps: string[]) => usesReferences(WORKFLOW_PATH, workflow(...steps));
+
 describe("the action pin inventory", () => {
   it("classifies every `uses:` in the repository and pins each to its class's rule", () => {
-    // The whole guard, over the derived file set. Its inputs are asserted too: a pattern
-    // that matched nothing, or a reader that read nothing, would satisfy the property by
-    // having no subject.
+    // The whole guard, over the derived file set. Its inputs are asserted too: a pattern that
+    // matched nothing, or a reader that read nothing, would satisfy the property by having no
+    // subject.
     expect(actionFiles.length).toBeGreaterThan(0);
     expect(references.length).toBeGreaterThan(0);
-    expect(pinProblems(references)).toStrictEqual([]);
+    expect(problemsNow()).toStrictEqual([]);
   });
 
   it("reaches all three classes, so no branch of the rule is untested by the tree", () => {
@@ -470,40 +133,132 @@ describe("the action pin inventory", () => {
 
   it("derives the file set from git, and reaches composite actions as well as workflows", () => {
     // The inventory covers the places a `uses:` can execute, not the one directory they
-    // happen to live in: a composite action can call a third-party action too, which is
-    // the gap #948 asked to close explicitly.
+    // happen to live in: a composite action can call a third-party action too, which is the
+    // gap #948 asked to close explicitly.
     expect(actionFiles).toContain(".github/workflows/ci.yml");
     expect(actionFiles).toContain(".github/actions/test-postgres-image/action.yml");
     expect(actionFiles.every((file) => ACTION_FILES.test(file))).toBe(true);
   });
 
-  it("has every third-party reference on one SHA with a version comment", () => {
-    // The positive statement of the pin, readable in the failure output rather than only
-    // as an empty problems list.
-    const pins = new Set(
-      of("third-party").map(
-        (reference) =>
-          `${reference.action ?? "?"}@${reference.ref ?? "?"} # ${reference.comment ?? "?"}`,
-      ),
+  it("holds each third-party action at one SHA with one complete version comment", () => {
+    // The property, not today's count (#972 review, Copilot on the previous shape). A second
+    // correctly pinned vendor action must pass here, so nothing below pins the number of
+    // actions or the character set of a repository name.
+    const byAction = new Map<string, Set<string>>();
+    for (const reference of of("third-party")) {
+      const key = (reference.action ?? "?").toLowerCase();
+      const pins = byAction.get(key) ?? new Set<string>();
+      pins.add(`${reference.ref ?? "?"} # ${reference.comment ?? "?"}`);
+      byAction.set(key, pins);
+    }
+
+    expect(byAction.size).toBeGreaterThan(0);
+    for (const [action, pins] of byAction) {
+      expect([...pins], `${action} is referenced at more than one pin`).toHaveLength(1);
+      expect([...pins][0]).toMatch(/^[0-9a-f]{40} # v\d+\.\d+\.\d+/);
+    }
+  });
+});
+
+describe("Dependabot's reach", () => {
+  it("is derived from .github/dependabot.yml and is the repository root today", () => {
+    expect(dependabotDirectories).toStrictEqual([""]);
+  });
+
+  it("covers the workflows directory and not the composite actions", () => {
+    // GitHub's own semantics, quoted in SEC-11: for GitHub Actions a directory reaches
+    // `<directory>/.github/workflows` and a `<directory>/action.yml`, nothing else. So a
+    // third-party action added to a local composite would be a pin with no updater.
+    expect(coveredByDependabot(".github/workflows/ci.yml", dependabotDirectories)).toBe(true);
+    expect(coveredByDependabot("action.yml", dependabotDirectories)).toBe(true);
+    expect(
+      coveredByDependabot(".github/actions/test-postgres-image/action.yml", dependabotDirectories),
+    ).toBe(false);
+  });
+
+  it("honours a `directories` glob, which is how a composite would be brought into reach", () => {
+    const widened = dependabotActionsDirectories(
+      [
+        "version: 2",
+        "updates:",
+        "  - package-ecosystem: github-actions",
+        '    directories: ["/", "/.github/actions/*"]',
+        "    schedule:",
+        "      interval: weekly",
+      ].join("\n"),
     );
-    expect([...pins]).toHaveLength(1);
-    expect([...pins][0]).toMatch(/^[a-z0-9-]+\/[a-z0-9-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/);
+
+    expect(widened).toStrictEqual(["", ".github/actions/*"]);
+    expect(coveredByDependabot(".github/actions/mine/action.yml", widened)).toBe(true);
+    expect(coveredByDependabot(".github/actions/mine/nested/action.yml", widened)).toBe(false);
+  });
+
+  it("reads a block list of directories too", () => {
+    expect(
+      dependabotActionsDirectories(
+        [
+          "version: 2",
+          "updates:",
+          "  - package-ecosystem: github-actions",
+          "    directories:",
+          '      - "/"',
+          "      - /tools",
+          "    schedule:",
+          "      interval: weekly",
+        ].join("\n"),
+      ),
+    ).toStrictEqual(["", "tools"]);
+  });
+
+  it("throws rather than guessing when the config has no actions entry or no directory", () => {
+    expect(() =>
+      dependabotActionsDirectories(
+        "version: 2\nupdates:\n  - package-ecosystem: npm\n    directory: /\n",
+      ),
+    ).toThrow(/no .package-ecosystem: github-actions. entry/);
+    expect(() =>
+      dependabotActionsDirectories(
+        "version: 2\nupdates:\n  - package-ecosystem: github-actions\n    schedule:\n      interval: weekly\n",
+      ),
+    ).toThrow(/neither .directory. nor .directories./);
+    expect(() => dependabotActionsDirectories("version: 2\n")).toThrow(/no .updates:. key/);
+  });
+
+  it("refuses a third-party pin in a file the updater does not search", () => {
+    // Latent today - the two composite actions reference no third-party action - and this is
+    // the check that keeps it latent rather than discovered later by a Dependabot pull request
+    // that moves the workflow copies and leaves the composite behind.
+    const inComposite = usesReferences(
+      ".github/actions/mine/action.yml",
+      [
+        "name: Mine",
+        "runs:",
+        "  using: composite",
+        "  steps:",
+        "    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
+      ].join("\n"),
+    );
+
+    expect(inComposite[0]?.kind).toBe("third-party");
+    expect(pinProblems(inComposite, dependabotDirectories).join("\n")).toContain("does not search");
+    // And it passes once the config reaches it, so the refusal is about the config and not
+    // about the directory's name.
+    expect(pinProblems(inComposite, ["", ".github/actions/*"])).toStrictEqual([]);
+  });
+
+  it("requires the reach model rather than defaulting to permissive", () => {
+    // @ts-expect-error - the second argument is required on purpose.
+    expect(() => pinProblems(references)).toThrow(/dependabotDirectories is required/);
   });
 });
 
 describe("the reader", () => {
-  const workflow = (...steps: string[]): string =>
-    ["name: X", "on: push", "jobs:", "  one:", "    steps:", ...steps].join("\n");
-
   it("reads both the sequence-item and the plain-key spelling, with and without quotes", () => {
-    const read = usesReferences(
-      "x.yml",
-      workflow(
-        "      - uses: actions/checkout@v7",
-        "      - name: named step",
-        '        uses: "actions/setup-node@v7"',
-        "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
-      ),
+    const read = readWorkflow(
+      "      - uses: actions/checkout@v7",
+      "      - name: named step",
+      '        uses: "actions/setup-node@v7"',
+      "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
     );
 
     expect(
@@ -514,21 +269,18 @@ describe("the reader", () => {
       [9, "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271", "third-party"],
     ]);
     expect(read[2]?.comment).toBe("v6.0.9");
-    expect(pinProblems(read)).toStrictEqual([]);
+    expect(problemsNow(read)).toStrictEqual([]);
   });
 
   it("does not read a `uses:` written inside a shell body", () => {
-    // The block-scalar skip. Without it a workflow could be made to look pinned - or
-    // unpinned - by what its scripts echo, and the corpus would include lines GitHub
-    // never resolves.
-    const read = usesReferences(
-      "x.yml",
-      workflow(
-        "      - run: |",
-        "          echo 'uses: evil/action@v1'",
-        "          echo done",
-        "      - uses: actions/checkout@v7",
-      ),
+    // The one skip left, and the reason it stays: a `uses:` inside a `run: |` script is shell
+    // text, not a reference. A blank line inside the body must not end it either.
+    const read = readWorkflow(
+      "      - run: |",
+      "          echo 'uses: evil/action@v1'",
+      "",
+      "          uses: evil/action@v1",
+      "      - uses: actions/checkout@v7",
     );
 
     expect(read.map((reference) => reference.value)).toStrictEqual(["actions/checkout@v7"]);
@@ -536,7 +288,7 @@ describe("the reader", () => {
 
   it("does not read a `uses:` inside a folded description, as a composite action has", () => {
     const read = usesReferences(
-      "action.yml",
+      ".github/actions/mine/action.yml",
       [
         "name: Local",
         "description: >",
@@ -551,11 +303,27 @@ describe("the reader", () => {
     expect(read).toStrictEqual([]);
   });
 
-  it("refuses a `uses:` line it cannot parse rather than skipping it", () => {
-    const read = usesReferences("x.yml", workflow("      - uses:", "      - uses: a b c"));
+  it("does not read the word `uses` out of prose or a trailing comment", () => {
+    const read = readWorkflow(
+      "      # this step uses: nothing",
+      "      - run: pnpm build # uses the mirror",
+      "      - name: a step that uses a thing",
+      "      - uses: actions/checkout@v7",
+    );
 
-    expect(read.map((reference) => reference.kind)).toStrictEqual(["unknown", "unknown"]);
-    expect(pinProblems(read).join("\n")).toContain("does not");
+    expect(read.map((reference) => reference.value)).toStrictEqual(["actions/checkout@v7"]);
+  });
+
+  it("splits a trailing comment without being fooled by a quoted or unspaced hash", () => {
+    expect(splitComment("uses: x # v1.2.3")).toStrictEqual({ code: "uses: x ", comment: "v1.2.3" });
+    expect(splitComment("run: echo a#b")).toStrictEqual({
+      code: "run: echo a#b",
+      comment: undefined,
+    });
+    expect(splitComment(`run: echo "a # b"`)).toStrictEqual({
+      code: `run: echo "a # b"`,
+      comment: undefined,
+    });
   });
 
   it("classifies a reusable-workflow reference by its owner, like any other", () => {
@@ -568,203 +336,228 @@ describe("the reader", () => {
       kind: "first-party",
       action: "github/codeql-action",
       ref: "v4.38.0",
+      why: undefined,
     });
+  });
+
+  it("reads a file with CRLF line ends", () => {
+    const read = usesReferences(
+      WORKFLOW_PATH,
+      workflow("      - uses: actions/checkout@v7").replaceAll("\n", "\r\n"),
+    );
+
+    expect(read.map((reference) => reference.value)).toStrictEqual(["actions/checkout@v7"]);
+  });
+});
+
+/**
+ * The spellings the #972 reviewer planted in `.github/workflows/audit.yml` and got zero
+ * problems from, plus the ones the first reader did refuse, so the whole set is one table.
+ * Each is applied to the real file's text, so the assertion is about the reader and not about
+ * a hand-built model of it.
+ */
+const SPELLINGS: [name: string, replacement: string][] = [
+  ["a flow mapping", "      - { uses: evil/action@v1 }"],
+  ["a flow sequence in a value", "      - name: x\n        with: { uses: evil/action@v1 }"],
+  ["a double-quoted key", '      - "uses": evil/action@v1'],
+  ["a single-quoted key", "      - 'uses': evil/action@v1"],
+  ["a space before the colon", "      - uses : evil/action@v1"],
+  ["a folded scalar value", "      - uses: >-\n          evil/action@v1"],
+  ["a literal scalar value", "      - uses: |-\n          evil/action@v1"],
+  ["an anchored key", "      - &step uses: evil/action@v1"],
+  ["an explicit key", "      - ? uses\n        : evil/action@v1"],
+  ["no value at all", "      - uses:"],
+  ["an aliased value", "      - uses: *step"],
+  ["a tagged value", "      - uses: !!str evil/action@v1"],
+];
+
+describe("every spelling of a `uses` key is parsed or refused, never skipped", () => {
+  const subject = firstThirdParty();
+  const original = readRepoFile(subject.file);
+  const pinnedLine = original
+    .split("\n")
+    .find((line) => line.includes(`${subject.action ?? ""}@${subject.ref ?? ""}`));
+
+  it("has a line to replace, so the cases below are not rewriting nothing", () => {
+    expect(pinnedLine).toBeDefined();
+  });
+
+  for (const [name, replacement] of SPELLINGS) {
+    it(`refuses ${name}`, () => {
+      const text = original.replace(pinnedLine as string, replacement);
+      expect(text).not.toBe(original);
+
+      const problems = pinProblems(usesReferences(subject.file, text), dependabotDirectories);
+      expect(problems.join("\n")).toContain("is refused:");
+      expect(problems.join("\n")).toContain(`${subject.file}:`);
+    });
+  }
+
+  it("leaves a genuine shell body alone in the same file", () => {
+    // The negative control for the whole block: the spellings above must not be refused
+    // because the reader became indiscriminate. `audit.yml` has real `run:` bodies.
+    expect(problemsNow(usesReferences(subject.file, original))).toStrictEqual([]);
+  });
+
+  it("agrees with the token detector about which lines are candidates", () => {
+    expect(mentionsUsesKey("      - uses: actions/checkout@v7")).toBe(true);
+    expect(mentionsUsesKey("      - { uses: evil/action@v1 }")).toBe(true);
+    expect(mentionsUsesKey('      - "uses": evil/action@v1')).toBe(true);
+    expect(mentionsUsesKey("      - uses : evil/action@v1")).toBe(true);
+    expect(mentionsUsesKey("      - &s uses: evil/action@v1")).toBe(true);
+    expect(mentionsUsesKey("      - ? uses")).toBe(true);
+    expect(mentionsUsesKey("      - run: pnpm test")).toBe(false);
+    expect(mentionsUsesKey("      - name: a step that uses a thing")).toBe(false);
+    expect(mentionsUsesKey("      - run: node -e 'x.uses'")).toBe(false);
   });
 });
 
 describe("the rule bites", () => {
   it("fails when the third-party action is put back on a tag", () => {
-    const problems = pinProblems(
-      mutated((copy) =>
-        copy.map((reference) =>
-          reference.kind === "third-party" ? { ...reference, ref: "v6.0.9" } : reference,
-        ),
-      ),
-    );
-
-    expect(problems.join("\n")).toContain("which is not a 40-character lowercase hex commit SHA");
-  });
-
-  it("fails when a third-party tag ref is written into a real workflow's text", () => {
-    // The same defect one layer earlier. A mutation of the model cannot catch a reader
-    // that fails to see the line at all, so this one edits the file's contents.
-    const subject = firstThirdParty();
-    const text = readFileSync(join(REPO_ROOT, subject.file), "utf8");
-    const detuned = text.replace(
-      `${subject.action ?? ""}@${subject.ref ?? ""}`,
-      `${subject.action ?? ""}@v6`,
-    );
-
-    expect(detuned).not.toBe(text);
-    expect(pinProblems(usesReferences(subject.file, detuned)).join("\n")).toContain(
+    expect(withThirdPartyRef("v6.0.9").join("\n")).toContain(
       "which is not a 40-character lowercase hex commit SHA",
     );
   });
 
-  it("fails on a short SHA", () => {
+  it("fails when a third-party tag ref is written into a real workflow's text", () => {
+    // The same defect one layer earlier. A mutation of the model cannot catch a reader that
+    // fails to see the line at all, so this one edits the file's contents.
     const subject = firstThirdParty();
-    const short = (subject.ref ?? "").slice(0, 7);
+    const text = readRepoFile(subject.file).replace(
+      `${subject.action ?? ""}@${subject.ref ?? ""}`,
+      `${subject.action ?? ""}@v6`,
+    );
+
+    expect(
+      pinProblems(usesReferences(subject.file, text), dependabotDirectories).join("\n"),
+    ).toContain("which is not a 40-character lowercase hex commit SHA");
+  });
+
+  it("fails on a short SHA", () => {
+    const short = (firstThirdParty().ref ?? "").slice(0, 7);
 
     expect(short).toHaveLength(7);
-    expect(
-      pinProblems(
-        mutated((copy) =>
-          copy.map((reference) =>
-            reference.kind === "third-party" ? { ...reference, ref: short } : reference,
-          ),
-        ),
-      ).join("\n"),
-    ).toContain(short);
+    expect(withThirdPartyRef(short).join("\n")).toContain(short);
   });
 
   it("fails on an uppercase SHA, which is not what git writes or Dependabot compares", () => {
     const subject = firstThirdParty();
-    expect(
-      pinProblems(
-        mutated((copy) =>
-          copy.map((reference) =>
-            reference.kind === "third-party"
-              ? { ...reference, ref: (reference.ref ?? "").toUpperCase() }
-              : reference,
-          ),
-        ),
-      ).join("\n"),
-    ).toContain("not a 40-character lowercase hex commit SHA");
     expect(subject.ref).toMatch(FULL_SHA);
+    expect(withThirdPartyRef((subject.ref ?? "").toUpperCase()).join("\n")).toContain(
+      "not a 40-character lowercase hex commit SHA",
+    );
   });
 
   it("fails on a new unknown owner, because third-party is the default side", () => {
-    // The property that makes the carve-out safe: nothing has to be added to a list for a
-    // new action to be held to the SHA rule.
-    const read = usesReferences(
-      "x.yml",
-      [
-        "name: X",
-        "on: push",
-        "jobs:",
-        "  one:",
-        "    steps:",
-        "      - uses: some-vendor/setup@v3",
-      ].join("\n"),
-    );
+    // The property that makes the carve-out safe: nothing has to be added to a list for a new
+    // action to be held to the SHA rule.
+    const read = readWorkflow("      - uses: some-vendor/setup@v3");
 
     expect(read[0]?.kind).toBe("third-party");
-    expect(pinProblems(read).join("\n")).toContain("some-vendor/setup");
+    expect(problemsNow(read).join("\n")).toContain("some-vendor/setup");
+  });
+
+  it("fails on an owner that only differs from a first-party one by case", () => {
+    const read = readWorkflow("      - uses: Actions/checkout@v7");
+
+    expect(read[0]?.kind).toBe("third-party");
+    expect(problemsNow(read).join("\n")).toContain("not a 40-character");
   });
 
   it("fails on a `docker://` reference rather than ignoring it", () => {
-    const read = usesReferences(
-      "x.yml",
-      [
-        "name: X",
-        "on: push",
-        "jobs:",
-        "  one:",
-        "    steps:",
-        "      - uses: docker://alpine:3.20",
-      ].join("\n"),
-    );
+    const read = readWorkflow("      - uses: docker://alpine:3.20");
 
     expect(read[0]?.kind).toBe("docker");
-    expect(pinProblems(read).join("\n")).toContain("Dependabot does not support `docker://`");
+    expect(problemsNow(read).join("\n")).toContain("Dependabot does not support `docker://`");
   });
 
   it("fails a first-party reference with no ref at all", () => {
-    const read = usesReferences(
-      "x.yml",
-      [
-        "name: X",
-        "on: push",
-        "jobs:",
-        "  one:",
-        "    steps:",
-        "      - uses: actions/checkout",
-      ].join("\n"),
-    );
+    const read = readWorkflow("      - uses: actions/checkout");
 
     expect(read[0]?.kind).toBe("first-party");
-    expect(pinProblems(read).join("\n")).toContain("names no ref");
+    expect(problemsNow(read).join("\n")).toContain("names no ref");
+  });
+
+  it("fails a first-party reference on a branch, which is not a version tag", () => {
+    // The ruling keeps GitHub's own actions on version tags, which is narrower than "has some
+    // ref" (#972 review, Low). A SHA is accepted, being stricter.
+    expect(problemsNow(readWorkflow("      - uses: actions/checkout@main")).join("\n")).toContain(
+      "which is not a version tag",
+    );
+    expect(problemsNow(readWorkflow("      - uses: actions/checkout@v7"))).toStrictEqual([]);
+    expect(
+      problemsNow(readWorkflow(`      - uses: actions/checkout@${"0".repeat(40)}`)),
+    ).toStrictEqual([]);
   });
 
   it("fails a local reference that carries a ref, which GitHub does not accept", () => {
-    const read = usesReferences(
-      "x.yml",
-      [
-        "name: X",
-        "on: push",
-        "jobs:",
-        "  one:",
-        "    steps:",
-        "      - uses: ./.github/actions/test-postgres-image@v1",
-      ].join("\n"),
-    );
+    const read = readWorkflow("      - uses: ./.github/actions/test-postgres-image@v1");
 
     expect(read[0]?.kind).toBe("unknown");
-    expect(pinProblems(read).join("\n")).toContain("shape this guard does not");
+    expect(problemsNow(read).join("\n")).toContain("cannot carry a ref");
   });
 
-  it("fails a pinned third-party reference whose version comment is missing or prose", () => {
-    const missing = pinProblems(
-      mutated((copy) =>
-        copy.map((reference) =>
-          reference.kind === "third-party" ? { ...reference, comment: undefined } : reference,
-        ),
-      ),
-    );
-    expect(missing.join("\n")).toContain("carries no trailing version comment");
+  it("fails a local reference outside the directories this inventory reads", () => {
+    const read = readWorkflow("      - uses: ./tools/my-action");
 
-    const prose = pinProblems(
-      mutated((copy) =>
-        copy.map((reference) =>
-          reference.kind === "third-party"
-            ? { ...reference, comment: "pinned, see the PR" }
-            : reference,
-        ),
-      ),
-    );
-    expect(prose.join("\n")).toContain("names no version");
+    expect(read[0]?.kind).toBe("unknown");
+    expect(problemsNow(read).join("\n")).toContain("this inventory does not read");
   });
 
-  it("fails when one action is referenced at two different pins", () => {
-    // The #948 inconsistency itself: `@v6.0.9` in six files and `@v6` in two.
-    const problems = pinProblems(
+  it("fails a pinned third-party reference whose version comment is missing, prose or major-only", () => {
+    const strip = (comment: string | undefined): string[] =>
+      mutated((copy) =>
+        copy.map((reference) =>
+          reference.kind === "third-party" ? { ...reference, comment } : reference,
+        ),
+      );
+
+    expect(strip(undefined).join("\n")).toContain("carries no trailing version comment");
+    expect(strip("pinned, see the PR").join("\n")).toContain("complete release version");
+    // The Copilot finding: `# v6` re-admits the moving-major ambiguity the SHA removed.
+    expect(strip("v6").join("\n")).toContain("complete release version");
+    expect(strip("https://github.com/pnpm/action-setup/releases/tag/v6.0.9").join("\n")).toContain(
+      "complete release version",
+    );
+    // A complete version with free text after it is fine, and so is a pre-release.
+    expect(strip("v6.0.9 (the release this SHA is)")).toStrictEqual([]);
+    expect(strip("v6.0.9-rc.1")).toStrictEqual([]);
+  });
+
+  it("fails when one action is referenced at two different pins, whatever the case", () => {
+    // The #948 inconsistency itself: `@v6.0.9` in six files and `@v6` in two. Grouping is
+    // case-insensitive because GitHub resolves `Pnpm/Action-Setup` to the same repository.
+    const split = (action: string): string[] =>
       mutated((copy) => {
         const first = copy.findIndex((reference) => reference.kind === "third-party");
         const subject = copy[first];
         if (subject === undefined) throw new Error("no third-party reference to mutate");
-        copy[first] = {
-          ...subject,
-          ref: "a".repeat(40),
-          comment: "v6.0.10",
-        };
+        copy[first] = { ...subject, action, ref: "a".repeat(40), comment: "v6.0.10" };
         return copy;
-      }),
-    );
+      });
 
-    expect(problems.join("\n")).toContain("referenced at more than one pin");
+    expect(split(firstThirdParty().action ?? "").join("\n")).toContain(
+      "referenced at more than one pin",
+    );
+    expect(split((firstThirdParty().action ?? "").toUpperCase()).join("\n")).toContain(
+      "referenced at more than one pin",
+    );
   });
 
   it("fails on an empty inventory rather than passing vacuously", () => {
-    expect(pinProblems([]).join("\n")).toContain("would assert nothing");
+    expect(pinProblems([], dependabotDirectories).join("\n")).toContain("would assert nothing");
   });
 
   it("is silent on the shapes the ruling allows", () => {
-    // The negative control for the three classes, so the cases above are shown to fail for
-    // the reason claimed and not because the comparator refuses everything.
-    const read = usesReferences(
-      "x.yml",
-      [
-        "name: X",
-        "on: push",
-        "jobs:",
-        "  one:",
-        "    steps:",
-        "      - uses: actions/checkout@v7",
-        "      - uses: github/codeql-action/init@v4.38.0",
-        "      - uses: ./.github/actions/test-postgres-image",
-        "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
-        "      - uses: some-vendor/setup@0000000000000000000000000000000000000000 # https://example.com/releases/v3",
-      ].join("\n"),
+    // The negative control for the three classes, so the cases above are shown to fail for the
+    // reason claimed and not because the comparator refuses everything. The last line is a
+    // second vendor action with uppercase, dot and underscore in its name, which must pass.
+    const read = readWorkflow(
+      "      - uses: actions/checkout@v7",
+      "      - uses: github/codeql-action/init@v4.38.0",
+      "      - uses: ./.github/actions/test-postgres-image",
+      "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
+      `      - uses: Some.Vendor/My_Action@${"0".repeat(40)} # v1.2.3`,
     );
 
     expect(read.map((reference) => reference.kind)).toStrictEqual([
@@ -774,6 +567,6 @@ describe("the rule bites", () => {
       "third-party",
       "third-party",
     ]);
-    expect(pinProblems(read)).toStrictEqual([]);
+    expect(problemsNow(read)).toStrictEqual([]);
   });
 });
