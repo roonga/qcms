@@ -96,8 +96,11 @@ export const PLAN_PREFIX = "plan/";
  *   - Agent frontmatter grants tools and picks a model (`.claude/agents/*.md` carry
  *     `tools:` and `model:`), and a settings change can rewire permissions and hooks.
  *
- * `.claude/worktrees/` and `**`/`.claude/settings.local.json` are git-ignored, so those
- * cannot appear in a diff at all whatever this list says.
+ * `.claude/worktrees/` and `.claude/settings.local.json` (at any depth) are git-ignored,
+ * so neither reaches a diff unless somebody force-adds it - an ignore rule stops
+ * `git add`, not `git add -f`. Force-added, either takes the lane like any other
+ * `.claude/` path, which is what the ruling asks for. Not "cannot appear in a diff",
+ * which is what this comment used to claim.
  *
  * **The separator is what makes each prefix safe.** Without it `plan` would match
  * `planner.ts` and `.claude` would match a future `.claude-hooks/`.

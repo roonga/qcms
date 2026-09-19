@@ -434,9 +434,12 @@ describe("check:plan covers what the lane skips", () => {
  *     backtick half from drowning in prose: this repository writes paths in running
  *     commentary with backticks, and all five extra hits the backtick added were JSDoc
  *     continuation lines. Measured over the tracked tree at the time of writing: three
- *     hits either way, the same three. The residual is a backticked lane path inside a
- *     TRAILING comment on a code line, which would be a false positive; the failure is
- *     loud and the allowlist is the fix.
+ *     hits either way, the same three. Two residuals, both measured, both accepted:
+ *     a backticked lane path in a TRAILING comment on a code line is a false positive
+ *     (loud, and the allowlist is the fix), and a line that OPENS with a comment marker
+ *     and then carries code is skipped whole, so a reader hidden after `// ` on its own
+ *     line is a false negative. Neither is worth a JavaScript parser here; what this
+ *     scan is for is the reader somebody adds in earnest, not one written to evade it.
  *   - **`plan/` is not a needle**, and it is the only fast-lane prefix left out. It
  *     predates #873 and its documents are cited in dozens of component comments, many of
  *     them inside JSX where no comment-marker rule holds (62 such lines when this was

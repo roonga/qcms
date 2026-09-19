@@ -609,7 +609,10 @@ Read from the `protect-main` ruleset: it is `active` over the default branch wit
 It requires **zero approving reviews** (`required_approving_review_count: 0`, `require_code_owner_review: false`, `required_review_thread_resolution: false`), and the repository has **no `CODEOWNERS` file**.
 So the four CI contexts are the only merge gate the platform will enforce; the independent `AGENT-REVIEW` verdict bound to the exact head SHA, and the conductor's merge discipline, are enforced by process (`CONTRIBUTING.md`, "Git and PR rules") and by nothing else.
 The ruling keeps that arrangement, for the reason that on a single-seat repository a required human approval would block every merge on the Code Owner.
-One exception runs the other way: `require_extra_approval_for_unattributed_changes` is `true`, so a commit GitHub cannot attribute to an account does need an approval.
+The ruleset does set `require_extra_approval_for_unattributed_changes` to `true`, and that parameter is **not** an exception to the sentence above.
+GitHub documents it as "Require an additional approval for unattributed Copilot pull requests" (docs.github.com, "Available rules for rulesets", public preview), enabled by default on new and existing rulesets: when Copilot opens a pull request that is not attributed to a person, the ruleset requires one more approval than the number configured, and the page states that it "has no effect if the ruleset requires zero approvals".
+The number configured here is zero, so the parameter enforces no approval on this repository, for Copilot-opened pull requests or any others.
+It is recorded because it is set, and because an earlier version of this paragraph read the field NAME as its consequence ("a commit GitHub cannot attribute needs an approval") and so asserted a platform-enforced approval that does not exist - in the paragraph written to stop exactly that assumption.
 Two consequences worth naming rather than discovering: a change whose diff CI cannot observe is gated by process alone, which is what the `plan_only` fast lane's scope arguments turn on (`CONTRIBUTING.md`, "The instruction and plan fast lane"); and a required context that is renamed or never reports does not fail a pull request, it makes the repository unmergeable, since there are no bypass actors to override it.
 
 ## 10. Assurance plan and traceability - SEC-12
