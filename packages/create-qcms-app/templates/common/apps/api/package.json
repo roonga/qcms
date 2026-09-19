@@ -14,10 +14,10 @@
     "reset-2fa": "node dist/reset-2fa.js"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.53",
-    "@ai-sdk/google": "^4.0.69",
-    "@ai-sdk/openai": "^4.0.66",
-    "@ai-sdk/openai-compatible": "^3.0.48",
+    "@ai-sdk/anthropic": "^4.0.56",
+    "@ai-sdk/google": "^4.0.74",
+    "@ai-sdk/openai": "^4.0.69",
+    "@ai-sdk/openai-compatible": "^3.0.51",
     "@hono/node-server": "^2.1.1",
     "@hono/otel": "^1.1.2",
     "@hono/zod-openapi": "^1.6.3",
@@ -35,10 +35,10 @@
     "@roonga/qcms-csv": "^0.0.0",
     "@roonga/qcms-db": "^0.0.0",
     "@roonga/qcms-observability": "^0.0.0",
-    "ai": "^7.0.100",
+    "ai": "^7.0.105",
     "better-auth": "1.7.5",
     "drizzle-orm": "^0.45.2",
-    "hono": "^4.13.7",
+    "hono": "^4.13.8",
     "pg": "^8.23.0",
     "zod": "^4.6.5"
   },
