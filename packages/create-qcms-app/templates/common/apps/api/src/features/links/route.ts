@@ -14,7 +14,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
-import { errorResponses, withScopes } from "../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import { makeListLinksHandler, makeMintLinksHandler, makeRevokeLinkHandler } from "./handler.js";
 import {
   FormIdParam,
@@ -34,7 +34,7 @@ export const mintLinksRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: MintLinksBody } } },
+    body: jsonBody(MintLinksBody),
   },
   responses: {
     201: {

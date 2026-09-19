@@ -30,7 +30,7 @@ export const WebhookParams = z.object({
 
 /** `POST /admin/forms/:id/webhooks` - configure a webhook. */
 export const CreateWebhookBody = z
-  .object({
+  .strictObject({
     url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
     /** Optional caller-supplied secret; generated server-side when omitted. */
     secret: z.string().min(16).optional().openapi({ example: "whsec_…" }),
@@ -40,7 +40,7 @@ export const CreateWebhookBody = z
 
 /** `PUT /admin/forms/:id/webhooks/:webhookId` - update url/active, rotate secret. */
 export const UpdateWebhookBody = z
-  .object({
+  .strictObject({
     url: z.string().optional().openapi({ example: "https://consumer.example.com/qcms-hook-v2" }),
     active: z.boolean().optional().openapi({ example: false }),
     /** Rotate the secret to a fresh server-generated value (shown once). */

@@ -17,7 +17,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import { sessionCreateLimiter } from "../rate-limits.js";
 import { makeGetSessionHandler, makeStartSessionHandler } from "./handler.js";
 import {
@@ -33,10 +33,7 @@ export const startSessionRoute = createRoute({
   summary: "Start a respondent session (anonymous or via a secure link)",
   tags: ["responses"],
   request: {
-    body: {
-      required: true,
-      content: { "application/json": { schema: StartSessionBody } },
-    },
+    body: jsonBody(StartSessionBody),
   },
   responses: {
     201: {

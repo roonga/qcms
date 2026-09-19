@@ -193,7 +193,7 @@ export type StepResponse = z.infer<typeof StepResponse>;
  * cannot satisfy a required question (issue #128).
  */
 export const SubmitAnswerBody = z
-  .object({
+  .strictObject({
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
     value: z.unknown().openapi({
       description:
