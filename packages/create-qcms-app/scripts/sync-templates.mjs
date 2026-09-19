@@ -193,6 +193,10 @@ const APP_SCRIPT_FRAGMENTS = [
     find: "node ../../scripts/clean-dist.mjs && ",
     why: "removes a stale `dist/` before `tsc`, which is repository hygiene for a tree that gets rebuilt across branches. An adopter's first build has no stale output, and the script it calls is not stamped.",
   },
+  {
+    find: "node ../../scripts/next-build.mjs ",
+    why: "waits out a second `next build` of the same app in the same checkout (issue #925). That collision takes two builds of one app at once, which is what ten agent lanes do to one checkout and not what an adopter's project does; the script it calls is not stamped either.",
+  },
 ];
 
 /** Which script fragments actually fired, so a dead entry can be reported. */
