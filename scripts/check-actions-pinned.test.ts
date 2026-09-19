@@ -37,6 +37,8 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * `v6` resolved to the `v6.0.10` commit - so two jobs in this repository were running a
  * different release of the same action from the other six, and nothing in the tree said
  * which. That is the whole defect class in one line: the reference did not name what ran.
+ * All eight now name the `v6.0.10` commit, which is the release the Code Owner chose as the
+ * single pin because it carries a patched bundled pnpm (SEC-11, issue #948).
  *
  * ## Where the rule lives, and why not here
  *
@@ -235,7 +237,7 @@ describe("Dependabot's reach", () => {
         "runs:",
         "  using: composite",
         "  steps:",
-        "    - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
+        "    - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10",
       ].join("\n"),
     );
 
@@ -258,7 +260,7 @@ describe("the reader", () => {
       "      - uses: actions/checkout@v7",
       "      - name: named step",
       '        uses: "actions/setup-node@v7"',
-      "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
+      "      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10",
     );
 
     expect(
@@ -266,9 +268,9 @@ describe("the reader", () => {
     ).toStrictEqual([
       [6, "actions/checkout@v7", "first-party"],
       [8, "actions/setup-node@v7", "first-party"],
-      [9, "pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271", "third-party"],
+      [9, "pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86", "third-party"],
     ]);
-    expect(read[2]?.comment).toBe("v6.0.9");
+    expect(read[2]?.comment).toBe("v6.0.10");
     expect(problemsNow(read)).toStrictEqual([]);
   });
 
@@ -516,12 +518,12 @@ describe("the rule bites", () => {
     expect(strip("pinned, see the PR").join("\n")).toContain("complete release version");
     // The Copilot finding: `# v6` re-admits the moving-major ambiguity the SHA removed.
     expect(strip("v6").join("\n")).toContain("complete release version");
-    expect(strip("https://github.com/pnpm/action-setup/releases/tag/v6.0.9").join("\n")).toContain(
+    expect(strip("https://github.com/pnpm/action-setup/releases/tag/v6.0.10").join("\n")).toContain(
       "complete release version",
     );
     // A complete version with free text after it is fine, and so is a pre-release.
-    expect(strip("v6.0.9 (the release this SHA is)")).toStrictEqual([]);
-    expect(strip("v6.0.9-rc.1")).toStrictEqual([]);
+    expect(strip("v6.0.10 (the release this SHA is)")).toStrictEqual([]);
+    expect(strip("v6.0.10-rc.1")).toStrictEqual([]);
   });
 
   it("fails when one action is referenced at two different pins, whatever the case", () => {
@@ -532,7 +534,7 @@ describe("the rule bites", () => {
         const first = copy.findIndex((reference) => reference.kind === "third-party");
         const subject = copy[first];
         if (subject === undefined) throw new Error("no third-party reference to mutate");
-        copy[first] = { ...subject, action, ref: "a".repeat(40), comment: "v6.0.10" };
+        copy[first] = { ...subject, action, ref: "a".repeat(40), comment: "v6.1.0" };
         return copy;
       });
 
@@ -556,7 +558,7 @@ describe("the rule bites", () => {
       "      - uses: actions/checkout@v7",
       "      - uses: github/codeql-action/init@v4.38.0",
       "      - uses: ./.github/actions/test-postgres-image",
-      "      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9",
+      "      - uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10",
       `      - uses: Some.Vendor/My_Action@${"0".repeat(40)} # v1.2.3`,
     );
 
