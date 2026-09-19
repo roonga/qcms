@@ -330,8 +330,7 @@ function jsonRequestBodies(doc: OpenApiDocument): Map<string, SchemaNode> {
     for (const [method, operation] of Object.entries(item as Record<string, unknown>)) {
       const schema = (
         operation as
-          | { requestBody?: { content?: Record<string, { schema?: SchemaNode }> } }
-          | undefined
+          { requestBody?: { content?: Record<string, { schema?: SchemaNode }> } } | undefined
       )?.requestBody?.content?.["application/json"]?.schema;
       if (schema) bodies.set(`${method.toUpperCase()} ${path}`, schema);
     }
@@ -342,7 +341,8 @@ function jsonRequestBodies(doc: OpenApiDocument): Map<string, SchemaNode> {
 /** The child nodes of a schema, each with the label the walk reaches it under. */
 function children(node: SchemaNode, label: string): Array<[string, SchemaNode]> {
   const out: Array<[string, SchemaNode]> = [];
-  for (const [key, child] of Object.entries(node.properties ?? {})) out.push([`${label}.${key}`, child]);
+  for (const [key, child] of Object.entries(node.properties ?? {}))
+    out.push([`${label}.${key}`, child]);
   if (node.items) out.push([`${label}[]`, node.items]);
   if (typeof node.additionalProperties === "object") {
     out.push([`${label}[*]`, node.additionalProperties]);
@@ -365,10 +365,9 @@ function reachableObjectSchemas(doc: OpenApiDocument): Map<string, SchemaNode> {
   const found = new Map<string, SchemaNode>();
   const seenComponents = new Set<string>();
 
-  const pending: Array<[string, SchemaNode]> = [...jsonRequestBodies(doc).values()].map((schema) => [
-    "",
-    schema,
-  ]);
+  const pending: Array<[string, SchemaNode]> = [...jsonRequestBodies(doc).values()].map(
+    (schema) => ["", schema],
+  );
   while (pending.length > 0) {
     const [label, node] = pending.pop() as [string, SchemaNode];
     if (node.$ref) {
@@ -421,11 +420,14 @@ describe("every request body rejects unknown keys (issue #893)", () => {
     expect(unknownKeyPolicyViolations(doc)).toEqual([]);
   });
 
-  it.each(WALKED)("%s: walks the request bodies it is supposed to (%d of them)", (_name, doc, count) => {
-    // Pinned so the guard cannot go quiet. A route that loses its body, or a new
-    // route that gains one, moves this number and has to be looked at.
-    expect(jsonRequestBodies(doc).size).toBe(count);
-  });
+  it.each(WALKED)(
+    "%s: walks the request bodies it is supposed to (%d of them)",
+    (_name, doc, count) => {
+      // Pinned so the guard cannot go quiet. A route that loses its body, or a new
+      // route that gains one, moves this number and has to be looked at.
+      expect(jsonRequestBodies(doc).size).toBe(count);
+    },
+  );
 
   it("an open map still says what its values are", () => {
     // The other half of the policy: `additionalProperties: false` belongs on closed

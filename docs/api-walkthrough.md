@@ -209,7 +209,7 @@ list:
 
 - **Maps.** A question definition and a form definition are validated by the kernel,
   not by the transport schema, and an `answers` map is keyed by `questionId`. These
-  publish `additionalProperties` describing their *values*, never `false`.
+  publish `additionalProperties` describing their _values_, never `false`.
 - **`POST /sessions/{id}/submit`.** The only route that accepts an undeclared key.
   Its honeypot field name is deployment configuration and the portal's no-JS path
   forwards every posted form field the compiled document did not tag as an answer

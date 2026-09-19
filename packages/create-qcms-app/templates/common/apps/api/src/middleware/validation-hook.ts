@@ -154,7 +154,10 @@ function refusedKeys(issue: { readonly code: string }): readonly string[] {
 }
 
 /** The reported form of one Zod issue: its location, its rule, and any refused keys. */
-function reportIssue(issue: { readonly code: string; readonly path: readonly PropertyKey[] }): ValidationIssueReport {
+function reportIssue(issue: {
+  readonly code: string;
+  readonly path: readonly PropertyKey[];
+}): ValidationIssueReport {
   const keys = refusedKeys(issue);
   const named = keys.slice(0, MAX_KEYS_PER_ISSUE);
   const omittedKeys = keys.length - named.length;
