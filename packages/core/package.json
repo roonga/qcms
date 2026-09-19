@@ -27,7 +27,7 @@
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-core",
-    "coverage": "vitest run --root ../.. --project @roonga/qcms-core --coverage",
+    "coverage": "vitest run --root ../.. --project @roonga/qcms-core --coverage && node ../../scripts/check-coverage-measured.mjs",
     "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "dependencies": {
