@@ -145,6 +145,8 @@ function formDefinition(
 interface Issue {
   code: string;
   path?: Record<string, unknown>;
+  /** The keys a strict body refused, named since issue #893. */
+  keys?: string[];
 }
 interface ErrBody {
   error: { code: string; message: string; details?: { issues?: Issue[]; target?: string } };
@@ -744,6 +746,93 @@ describe("per-form settings (033 settings panel)", () => {
     expect(Object.keys(body)).toEqual(["error"]);
     expect(body.error.code).toBe("INVALID_REQUEST");
     expect(body.error.details).toMatchObject({ target: "json" });
+  });
+});
+
+/**
+ * Request bodies reject unknown keys (Code Owner, 2026-09-19, issue #893).
+ *
+ * The admin half of the policy on the wire. `docs/openapi/admin.json` now
+ * publishes `additionalProperties: false` on every closed body, and the contract
+ * test in `src/openapi-document.test.ts` holds the document to it; these tests
+ * hold the *server* to the same thing, because neither alone would catch the two
+ * drifting apart - which is precisely how #893 arose.
+ *
+ * `PATCH /admin/forms/{id}/settings` is the endpoint the issue was filed against,
+ * so its example is here verbatim.
+ */
+describe("unknown keys are refused on an admin body (issue #893)", () => {
+  const formId = "frm_unknown_keys";
+
+  beforeAll(async () => {
+    await post("/forms", { formId, slug: "unknown-keys", defaultLocale: "en" });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("refuses #893's own example on the unknown key, not on the empty patch", async () => {
+    // `{"unknownField": 1}` used to answer 400 for the wrong reason: the key was
+    // stripped, the patch became `{}`, and the empty-patch rule fired. A client
+    // generated from the document read `minProperties: 1`, saw one property, and
+    // could not tell why it was refused.
+    const res = await patchSettings(formId, { unknownField: 1 });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.message).toContain('"unknownField"');
+    expect(body.error.details?.issues?.[0]).toMatchObject({
+      code: "unrecognized_keys",
+      keys: ["unknownField"],
+    });
+  });
+
+  it("refuses a real field sent beside an unknown one, which used to answer 200", async () => {
+    // The worse half of the defect, and the one the issue's example hides: this
+    // body was accepted, the unknown key was dropped, and the caller got a
+    // success for a request the server had only partly honoured.
+    const res = await patchSettings(formId, { challengeRequired: true, misspelled: 1 });
+
+    expect(res.status).toBe(400);
+    expect((await res.json()) as ErrBody).toMatchObject({
+      error: { code: "INVALID_REQUEST" },
+    });
+    // And nothing was written: the refusal is at the schema, before the handler.
+    const detail = (await (await get(`/forms/${formId}`)).json()) as SettingsBody;
+    expect(detail.settings.challengeRequired).toBe(false);
+  });
+
+  it("names several unknown keys at once, so one round trip fixes the body", async () => {
+    const res = await patchSettings(formId, { challengeRequired: true, alpha: 1, beta: 2 });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.details?.issues?.[0]?.keys).toEqual(["alpha", "beta"]);
+  });
+
+  it("still accepts an open map keyed by whatever the caller sent", async () => {
+    // The other side of the policy. `answers` is a questionId -> AnswerValue map,
+    // so its keys are the caller's data and closing it would refuse the data
+    // rather than a mistake. An unresolvable id is an ordinary bench outcome, not
+    // a schema refusal - what matters here is that it reached the handler at all.
+    const definition = formDefinition(formId, [["stp_only", []]], []);
+    const res = await bench(formId, {
+      definition,
+      ruleId: "rul_absent",
+      answers: { "an id no schema declares": 1, q_another: "text" },
+    });
+
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as BenchBody).outcome).toBe("unavailable");
+  });
+
+  it("refuses an unknown key on the body that wraps the open map", async () => {
+    // The map is open; the envelope around it is not. Both at once, on one route.
+    const definition = formDefinition(formId, [["stp_only", []]], []);
+    const res = await bench(formId, { definition, ruleId: "rul_absent", answers: {}, extra: true });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("INVALID_REQUEST");
+    expect(body.error.message).toContain('"extra"');
   });
 });
 
