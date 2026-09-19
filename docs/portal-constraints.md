@@ -18,7 +18,7 @@ to a submission that skips the browser), `apps/portal/e2e/no-js-retraction.pw.ts
 (clearing an answer) and `apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read
 those four as the definition of the claim: it held for a form with a required date only
 from issue #920 onward, and for a form with a required multiChoice it still holds only for a
-respondent who checks every box (see the checkbox note under the ruling below).
+respondent who checks every box (issue #974, and the checkbox note under the ruling below).
 
 **A date question renders differently on this path, on purpose** (issue #920). The
 vendored DatePicker is a row of JS-driven spinbutton segments nobody can type into
@@ -41,11 +41,11 @@ limitation only until the second is read with it:
   optional question is clearable on this path. That is the ruling's intended behaviour,
   not a residue of it - the alternative was dropping `required` from the no-JS form and
   leaving the respondent to discover the gap after a round trip.
-- **A required multiChoice group asks for EVERY box without scripting, not one.** Found
-  while observing the numeric branch for #920 and not fixed by it, because it is the same
-  decision class the ruling above settled for dates and needs its own. react-aria encodes
-  "at least one" by putting native `required` on every checkbox in the group and taking it
-  off the moment something is selected
+- **A required multiChoice group asks for EVERY box without scripting, not one**
+  (**issue #974**). Found while observing the numeric branch for #920 and not fixed by it,
+  because it is the same decision class the ruling above settled for dates and needs its
+  own. react-aria encodes "at least one" by putting native `required` on every checkbox in
+  the group and taking it off the moment something is selected
   (`packages/ui/src/components/a2ui/checkbox/Checkbox.tsx`, and the comment there says so).
   Taking it off is a re-render, which is JavaScript, so the server-rendered HTML freezes
   `required` on all of them - and native `required` on a checkbox means _that_ box must be
