@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { A2UIErrors, A2UIStepDocument } from "@roonga/qcms-ui";
 
-import { errorSummaryEntries, missingRequiredEntries } from "./error-summary";
+import {
+  errorSummaryEntries,
+  missingOnStep,
+  missingRequiredEntries,
+  orderedEntries,
+  requiredFieldErrors,
+} from "./error-summary";
 
 /**
  * Issue #21 (WCAG 3.3.1): every error-summary entry used to render the same
@@ -241,5 +247,108 @@ describe("errorSummaryEntries", () => {
     // errors against questions it just served.
     const entries = errorSummaryEntries(labelLessDoc, { q_absent: AUTHORED }, labelLessVisible);
     expect(entries[0]?.message).toBe(AUTHORED);
+  });
+});
+
+/**
+ * The no-JS path's missing-required rendering (issue #920).
+ *
+ * Until this, a respondent with scripting off who left a required question blank got
+ * a silent 303 and a reload of the same step: the API refused the submit, correctly,
+ * and nothing on the page said so. The set these narrow is the API's own
+ * `flowState.missingRequired` (the kernel's, invariant I9), so what is asserted here
+ * is the NARROWING and the WORDING, never whether a question is required.
+ */
+describe("the no-JS missing-required narrowing (issue #920)", () => {
+  it("keeps only questions visible on the step being drawn", () => {
+    // The API's set is flow-wide and cursor-independent, so a required question on a
+    // step ahead would otherwise be accused on a step the respondent is still on.
+    expect(missingOnStep(["q_dob", "q_accident_count"], VISIBLE, {})).toEqual(["q_dob"]);
+  });
+
+  it("leaves a question that already carries the API's own refusal", () => {
+    // Missing an answer by construction, but the kernel's message about the value it
+    // refused says more than "this question needs an answer".
+    expect(missingOnStep(["q_full_name", "q_dob"], VISIBLE, { q_dob: "Too late" })).toEqual([
+      "q_full_name",
+    ]);
+  });
+
+  it("de-duplicates, so a forged repeat cannot draw one question twice", () => {
+    // Every surviving id becomes a React key and a summary anchor, so a repeat would
+    // render the same question twice under the same key. The API's own set never
+    // repeats; a hand-set cookie can.
+    expect(missingOnStep(["q_dob", "q_dob", "q_full_name", "q_dob"], VISIBLE, {})).toEqual([
+      "q_dob",
+      "q_full_name",
+    ]);
+    // First-seen order survives the de-duplication, so the summary still reads in the
+    // API's document order.
+    expect(missingOnStep(["q_full_name", "q_dob", "q_full_name"], VISIBLE, {})).toEqual([
+      "q_full_name",
+      "q_dob",
+    ]);
+  });
+
+  it("is inert for a forged set naming questions that are not on the page", () => {
+    // The re-render context is httpOnly but unsigned, so a respondent can hand the
+    // render any ids they like. The worst that buys is a message beside a question on
+    // their own screen; here, not even that.
+    expect(missingOnStep(["q_not_here", "__proto__"], VISIBLE, {})).toEqual([]);
+    expect(missingOnStep([], VISIBLE, {})).toEqual([]);
+  });
+
+  it("gives the field slot the same wording the summary link uses", () => {
+    // One gap, two places a respondent reads about it; they may not disagree.
+    const missing = ["q_dob"];
+    expect(requiredFieldErrors(stepDoc, missing)).toEqual({
+      q_dob: "This question needs an answer.",
+    });
+    expect(missingRequiredEntries(stepDoc, missing, VISIBLE)).toEqual([
+      { questionId: "q_dob", message: "Date of birth needs an answer." },
+    ]);
+  });
+
+  it("prefers the author's own `required` message in the field slot (ADR-32)", () => {
+    const authoredDoc = {
+      stepId: "stp_about",
+      root: {
+        type: "Form",
+        children: [
+          {
+            type: "DatePicker",
+            props: {
+              name: "q_dob",
+              label: "Date of birth",
+              messages: { required: "We need your date of birth." },
+            },
+          },
+        ],
+      },
+    } as unknown as A2UIStepDocument;
+    expect(requiredFieldErrors(authoredDoc, ["q_dob"])).toEqual({
+      q_dob: "We need your date of birth.",
+    });
+  });
+
+  it("orders a mixed summary the way the fields are asked, not the way it was composed", () => {
+    // A respondent holding one refusal and one gap must not be sent back up the form
+    // and then down again. `q_full_name` is asked first, so its entry is listed first,
+    // even though the refusal composition ran second.
+    const gap = missingRequiredEntries(stepDoc, ["q_full_name"], VISIBLE);
+    const refusal = errorSummaryEntries(stepDoc, { q_dob: "Too late" }, VISIBLE);
+    expect(orderedEntries([...refusal, ...gap], VISIBLE).map((e) => e.questionId)).toEqual([
+      "q_full_name",
+      "q_dob",
+    ]);
+  });
+
+  it("sorts an entry outside the visible set last, and is stable within a rank", () => {
+    const entries = [
+      { questionId: "q_absent", message: "a" },
+      { questionId: "q_dob", message: "b" },
+      { questionId: "q_absent", message: "c" },
+    ];
+    expect(orderedEntries(entries, VISIBLE).map((e) => e.message)).toEqual(["b", "a", "c"]);
   });
 });

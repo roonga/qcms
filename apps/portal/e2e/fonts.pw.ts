@@ -52,6 +52,7 @@ import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/fl
 import { expect, test } from "./support/gates.js";
 import { FONT_FLOORS_PATH, HARNESS_FONT, HARNESS_FONTS } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
+import { starveScripts } from "./support/script-starve.js";
 
 /** The families that carry a self-hosted webfont (System has none by design). */
 const WEBFONTS = FONT_REGISTRY.filter((entry) => entry.family !== null);
@@ -479,4 +480,43 @@ test("numeric controls get tabular figures from --type-numeric", async ({ page }
   const count = page.getByRole("textbox", { name: KS.count });
   await expect(count).toBeVisible();
   expect(await computed(count, "font-feature-settings")).toBe('"tnum"');
+});
+
+test("the no-JS date fallback gets the same tabular figures (issue #920)", async ({ page }) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // The control the test above reads - the segmented date field's spinbuttons - does
+  // not exist on this render. With scripting off a date question is one native
+  // `<input type="date">` (`packages/ui/src/native-date-field.tsx`), and it shows the
+  // same digits through the browser's own control, so it needs the same token or two
+  // renders of one question disagree about whether a day and a month keep their
+  // column. COMPONENT_GUIDELINES item 9 asks for the assertion here rather than for
+  // the selector alone.
+  //
+  // Scripts starved rather than `javaScriptEnabled: false`: every assertion below is a
+  // computed style read through `page.evaluate`, which needs the page scriptable from
+  // the test's side while React never runs. See `support/script-starve.ts`.
+  const starvation = await starveScripts(page);
+  await page.goto(`/f/${kitchenSinkSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+
+  const day = page.locator('[data-qcms-field] input[type="date"]');
+  await expect(day).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this reads the hydrated render",
+  ).toBeGreaterThan(0);
+  // The hydrated render has no such input at all, which is what makes the locator
+  // above evidence of which render is on screen rather than only of a style.
+  await expect(page.locator('[data-qcms-field] [role="spinbutton"]')).toHaveCount(0);
+
+  expect(await computed(day, "font-feature-settings")).toBe('"tnum"');
+
+  // And the TOKEN drives it, not a rule that happens to name this input: move the
+  // token and the computed value follows, the same discipline the test above uses.
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("--type-numeric", '"tnum" 0'),
+  );
+  expect(await computed(day, "font-feature-settings")).toBe('"tnum" 0');
 });

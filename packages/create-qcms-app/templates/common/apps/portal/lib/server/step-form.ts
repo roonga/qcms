@@ -81,6 +81,19 @@ export interface DecodedStepForm {
   readonly answers: readonly DecodedAnswer[];
   /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
+  /**
+   * Every question the posted form ASKED, in document order - the kind-tagged
+   * names, whether or not they carried a value (issue #920).
+   *
+   * `answers` cannot stand in for this: a question left blank contributes no
+   * answer at all, and a blank required question is exactly the case the caller
+   * has to report on. This is a fact about the post rather than about the flow -
+   * "these are the fields that were on the page I submitted" - so reading it moves
+   * no answer state and no rule evaluation into the BFF (R2). The caller uses it
+   * only to narrow the API's own authoritative missing-required set to the step
+   * the respondent was actually looking at.
+   */
+  readonly fields: readonly string[];
 }
 
 const KINDS: ReadonlySet<string> = new Set<NativeFieldKind>(["string", "number", "radio", "multi"]);
@@ -157,6 +170,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
   const { rawByName, kindByName, answered } = partition(entries);
   const answers: DecodedAnswer[] = [];
+  const fields = [...kindByName.keys()];
 
   // Iterate the KIND TAGS, not the posted values. A control can be an answer field
   // and contribute no entry at all - an all-unchecked checkbox group posts nothing,
@@ -186,5 +200,5 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     extras[name] = raws[0] ?? "";
   }
 
-  return { answers, extras };
+  return { answers, extras, fields };
 }

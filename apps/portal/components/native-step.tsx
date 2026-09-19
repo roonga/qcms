@@ -2,7 +2,13 @@ import { A2UIStepRenderer } from "@roonga/qcms-ui";
 import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 
 import { PortalShell } from "@/components/portal-shell";
-import { errorSummaryEntries } from "@/lib/error-summary";
+import {
+  errorSummaryEntries,
+  missingOnStep,
+  missingRequiredEntries,
+  orderedEntries,
+  requiredFieldErrors,
+} from "@/lib/error-summary";
 import { t } from "@/lib/i18n/en";
 import { PORTAL_LOCALE } from "@/lib/i18n/format";
 import { mergeStepValues } from "@/lib/step-values";
@@ -71,7 +77,16 @@ export function NativeStep({
   // (task 048, ADR-32). The route carries the CONSTRAINT rather than the final
   // string because only this render holds the compiled document the messages ride
   // on. A question the author left alone keeps the message the route produced.
-  const errors: A2UIErrors = authoredErrors(stepDocument, context);
+  const refused: A2UIErrors = authoredErrors(stepDocument, context);
+  // Required questions the API reports as still unanswered on the step just posted
+  // (issue #920). The kernel decides required-ness and the API serves the set; this
+  // render only shows it, the way the hydrated flow already shows it.
+  const missing = missingOnStep(
+    context?.missingRequired ?? [],
+    initial.flowState.visibleQuestions,
+    refused,
+  );
+  const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(stepDocument, missing) };
   // The answers the API holds for this step (issue #146) under the just-submitted
   // ones from the no-JS re-render cookie. The cookie has to win, including when it
   // CLEARS a field: see `mergeStepValues`, which owns that three-way behaviour and
@@ -84,9 +99,13 @@ export function NativeStep({
   // #21 and #326). This path once emitted the bare per-field message for a
   // label-less question, which two questions sharing one author message (ADR-32)
   // could collide on.
-  const errorEntries = errorSummaryEntries(
-    stepDocument,
-    errors,
+  const errorEntries = orderedEntries(
+    [
+      ...errorSummaryEntries(stepDocument, refused, initial.flowState.visibleQuestions),
+      // The hydrated flow's own composition, called rather than restated, so both
+      // paths name a missing required question the same way (issue #21, #326).
+      ...missingRequiredEntries(stepDocument, missing, initial.flowState.visibleQuestions),
+    ],
     initial.flowState.visibleQuestions,
   );
 

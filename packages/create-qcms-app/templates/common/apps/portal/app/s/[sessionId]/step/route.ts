@@ -41,6 +41,12 @@ import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-mes
  * decoded `extras` and is forwarded verbatim into the session-submit body, where
  * the API's anti-abuse check reads it - exactly as on the JS path.
  *
+ * A required question left blank is reported rather than silently reloaded (issue
+ * #920). The API already refuses to store an empty answer and refuses to submit a
+ * session with a required gap; what was missing was the respondent being told on
+ * this transport. `missingOnPostedStep` carries the reasoning - it reads the API's
+ * own `flowState.missingRequired` and decides nothing.
+ *
  * Clearing works here too (issue #127). A field the renderer marked as holding an
  * answer, arriving empty, decodes to `null`, and `forwardAnswers` posts that to the
  * same `/answers` endpoint the scripted path posts its clears to, so it becomes the
@@ -186,6 +192,68 @@ async function forwardAnswers(
   return { values, errors, constraints, last, fatal: false };
 }
 
+/**
+ * The questions this post left without a required answer: the API's own
+ * missing-required set, narrowed to the fields the posted form actually asked
+ * (issue #920).
+ *
+ * ## What is and is not decided here
+ *
+ * Nothing about `required` is decided here. `missingRequired` is the kernel's
+ * (`evaluateRules`, invariant I9), served on every projection, and the hydrated
+ * `StepFlow` has always gated Continue and Submit on it. This is the same read for
+ * the other transport: the no-JS round trip has no client state to carry the gate,
+ * so the set travels in the re-render context instead and the step re-renders with
+ * the messages beside the fields. The API refuses the submit either way - a
+ * respondent who defeats the browser's `required` still gets `MISSING_REQUIRED`
+ * from the submission sweep - so what changes is whether they are told, not whether
+ * an empty required answer can be stored (it never could: the answer endpoint
+ * refuses `""` and `[]` outright as `EMPTY_ANSWER_NOT_ALLOWED`).
+ *
+ * ## The two narrowings
+ *
+ * - **To this step.** `missingRequired` is flow-wide and cursor-independent, so
+ *   unfiltered it would also name required questions on steps ahead - reported
+ *   before the respondent has been shown them. The posted form's own kind tags say
+ *   which questions were on the page, which is a fact about the post rather than a
+ *   visibility judgement (`decodeStepForm`). A question a just-changed branch has
+ *   only now revealed was not on the posted form, so it is not reported either: the
+ *   respondent sees it appear, unanswered and unaccused.
+ * - **Around a refusal.** A question the API refused with a 422 is also missing an
+ *   answer, by construction. It already carries the kernel's own message, which
+ *   says more than "this needs an answer", so it keeps it.
+ */
+function missingOnPostedStep(
+  missingRequired: readonly string[],
+  fields: readonly string[],
+  errors: Readonly<Record<string, string>>,
+): readonly string[] {
+  const posted = new Set(fields);
+  return missingRequired.filter((questionId) => {
+    return posted.has(questionId) && !Object.hasOwn(errors, questionId);
+  });
+}
+
+/**
+ * One fresh step read, or `undefined` when the API could not be reached.
+ *
+ * A failure is deliberately NOT fatal to the caller. It costs the round its
+ * missing-required report and its readiness verdict, both of which are the API's to
+ * give, and it costs the respondent nothing else: the refusals and the values they
+ * typed are already in hand and are written regardless. Returning the absence rather
+ * than throwing is what lets the caller keep those two facts apart.
+ */
+async function projectionOrNone(
+  sessionId: string,
+  token: string,
+): Promise<StepResponse | undefined> {
+  try {
+    return await getStep(sessionId, token);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function POST(
   request: Request,
   ctx: { params: Promise<{ sessionId: string }> },
@@ -208,7 +276,7 @@ export async function POST(
   } catch {
     return backToStep(request, sessionId);
   }
-  const { answers, extras } = decodeStepForm(form);
+  const { answers, extras, fields } = decodeStepForm(form);
   const { values, errors, constraints, last, fatal } = await forwardAnswers(
     sessionId,
     token,
@@ -216,26 +284,32 @@ export async function POST(
   );
 
   if (fatal) return backToStep(request, sessionId);
-  if (Object.keys(errors).length > 0) {
-    const context: StepContext = { values, errors, constraints };
+
+  // The authoritative projection: the one the API returned for the last answer
+  // written, or a fresh read when this round wrote none (every field blank, or every
+  // answer refused). Its `missingRequired` and `readyToSubmit` are the API's, never
+  // recomputed here (R2).
+  const projection = last ?? (await projectionOrNone(sessionId, token));
+  const missingRequired =
+    projection === undefined
+      ? []
+      : missingOnPostedStep(projection.flowState.missingRequired, fields, errors);
+
+  // Write the re-render context on EVERY path that returns the respondent to the
+  // step, including the one where the projection could not be read. The refusals and
+  // the values the respondent typed do not depend on that read - only the
+  // missing-required half does - and dropping them to a transient read failure is the
+  // silent reload this route exists to remove (reviewer finding, issue #920). Without
+  // a projection there is also nothing to judge readiness from, so the round ends
+  // here rather than submitting on a guess.
+  if (
+    projection === undefined ||
+    Object.keys(errors).length > 0 ||
+    missingRequired.length > 0 ||
+    !projection.flowState.readyToSubmit
+  ) {
+    const context: StepContext = { values, errors, constraints, missingRequired };
     await writeStepContext(context);
-    return backToStep(request, sessionId);
-  }
-
-  // Authoritative readiness comes from the API's last projection (or a fresh read
-  // when nothing was posted this round). The BFF never computes it (R2).
-  let ready = last?.flowState.readyToSubmit;
-  if (ready === undefined) {
-    try {
-      ready = (await getStep(sessionId, token)).flowState.readyToSubmit;
-    } catch {
-      return backToStep(request, sessionId);
-    }
-  }
-
-  if (!ready) {
-    // More questions are now visible: carry the values so the reload keeps them.
-    await writeStepContext({ values, errors: {}, constraints: {} });
     return backToStep(request, sessionId);
   }
 

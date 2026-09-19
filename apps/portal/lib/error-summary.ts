@@ -50,6 +50,18 @@ import { messagesOf, questionLabels, questionPositions } from "./visible";
  * Both compositions live here, in one module, on purpose. They are the same
  * question asked twice ("what makes an entry distinguishable?"), and answering it
  * independently in each path is exactly how the two answers drifted apart.
+ *
+ * ## The no-JS path reads the same set the hydrated one gates on (issue #920)
+ *
+ * It did not, until #920: the hydrated flow blocked Continue on the API's
+ * `missingRequired` and drew this summary from it, while the no-JS route dropped the
+ * set on the floor and 303'd back to an unchanged step. A respondent with scripting
+ * off who left a required question blank saw a reload and no message - and the same
+ * silence answered a crafted post that skipped the browser's own `required`
+ * altogether. `missingOnStep`, `requiredFieldErrors` and `orderedEntries` below are
+ * what that path needs on top of the two compositions, and all three are narrowings
+ * and wordings: `required` stays the kernel's judgement, served by the API, on both
+ * paths.
  */
 /**
  * One summary link. Shared by both compositions, so it is named for the summary
@@ -144,4 +156,89 @@ export function errorSummaryEntries(
           : t("errorSummary.namedCustom", { label, message: body }),
     };
   });
+}
+
+/**
+ * The required questions a no-JS re-render must report: the API's own
+ * missing-required set, narrowed to the step being drawn and to questions not
+ * already carrying a refusal (issue #920).
+ *
+ * The narrowing to the visible set is what makes a forged re-render context inert.
+ * The context cookie is `httpOnly` but unsigned, so a respondent can hand the render
+ * any list of ids they like; all it can buy is a message beside a question on their
+ * own screen, and the API - which never reads that cookie - still refuses the
+ * submit. The narrowing around refusals is editorial rather than defensive: a
+ * question the API refused is missing an answer by construction, and the kernel's
+ * message about the value it refused says more than "this needs an answer".
+ *
+ * The result is DE-DUPLICATED, which the API's own set never needs: a forged cookie
+ * can repeat an id, and each surviving id becomes a React key and a summary anchor, so
+ * a repeat would draw one question twice under one key. De-duplicating here rather
+ * than at the cookie's schema keeps the guarantee at the seam that produces the keys,
+ * so it holds for any caller rather than only for the one path the cookie takes.
+ *
+ * Decides nothing about `required`. The set arrives from the kernel by way of the
+ * API (`evaluateRules`, invariant I9), exactly as it does on the hydrated path.
+ */
+export function missingOnStep(
+  missingRequired: readonly string[],
+  visibleQuestions: readonly string[],
+  errors: A2UIErrors,
+): readonly string[] {
+  if (missingRequired.length === 0) return [];
+  const visible = new Set(visibleQuestions);
+  return [...new Set(missingRequired)].filter(
+    (questionId) => visible.has(questionId) && !Object.hasOwn(errors, questionId),
+  );
+}
+
+/**
+ * The field-slot message for a question with no answer: the author's wording for the
+ * `required` constraint (ADR-32) if there is one, else the catalogue default.
+ *
+ * Deliberately the same resolution {@link missingRequiredEntries} makes for the
+ * summary link, so the two places one respondent reads about one gap cannot say
+ * different things - which is the drift this module exists to prevent.
+ *
+ * The hydrated path draws the summary alone and this one draws both. That is a
+ * considered difference rather than an oversight: a no-JS respondent gets one render
+ * per POST, with nothing re-validating under them as they type, so the field itself
+ * has to carry the state until the next round trip. Whether the hydrated path should
+ * mark the field too is **issue #967**, so the asymmetry is recorded rather than left
+ * as a remark.
+ */
+export function requiredFieldErrors(
+  document: A2UIStepDocument | null,
+  missing: readonly string[],
+): Readonly<Record<string, string>> {
+  const messages = messagesOf(document);
+  const resolved: Record<string, string> = {};
+  for (const questionId of missing) {
+    resolved[questionId] =
+      authorMessageFor(messages.get(questionId), "required") ?? t("errorSummary.missingRequired");
+  }
+  return resolved;
+}
+
+/**
+ * Put summary entries in the order the fields are asked, rather than in the order
+ * the two compositions above happen to produce them (issue #920).
+ *
+ * Refused answers and unanswered required questions arrive as two document-ordered
+ * lists, and concatenating them interleaves the page badly for a respondent holding
+ * one of each - the summary would send them back up the form and then down again.
+ * `visibleQuestions` is the API's own order for the drawn step, so it is the one
+ * thing both lists can be sorted against. An entry naming a question outside that
+ * set (which neither caller can produce - see the module comment) sorts last, and
+ * the sort is stable within a rank, so equal entries keep their composition's order.
+ */
+export function orderedEntries(
+  entries: readonly ErrorSummaryEntry[],
+  visibleQuestions: readonly string[],
+): readonly ErrorSummaryEntry[] {
+  const order = new Map(visibleQuestions.map((questionId, index) => [questionId, index]));
+  return entries
+    .map((entry, index) => ({ entry, index, rank: order.get(entry.questionId) ?? order.size }))
+    .sort((a, b) => a.rank - b.rank || a.index - b.index)
+    .map((row) => row.entry);
 }

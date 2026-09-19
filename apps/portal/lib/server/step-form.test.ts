@@ -172,3 +172,38 @@ describe("decodeStepForm: a marked field submitted empty is a retraction (issue 
     ]);
   });
 });
+
+/**
+ * The fields the posted form ASKED, whether or not they carried a value (issue
+ * #920). `answers` cannot answer that question: a blank required field contributes
+ * no answer at all, and the caller has to narrow the API's flow-wide
+ * missing-required set to the step the respondent was actually looking at.
+ */
+describe("decodeStepForm reports the questions the form asked (issue #920)", () => {
+  it("lists every kind-tagged field in document order, valued or not", () => {
+    const { fields, answers } = decodeStepForm(
+      form(
+        ["__qk__q_full_name", "string"],
+        ["q_full_name", "Ada Lovelace"],
+        ["__qk__q_dob", "string"],
+        ["q_dob", ""],
+        ["__qk__q_conditions", "multi"],
+        ["website", ""],
+      ),
+    );
+    // The blank date and the all-unchecked group are both asked and both unanswered.
+    expect(fields).toEqual(["q_full_name", "q_dob", "q_conditions"]);
+    expect(answers).toEqual([{ questionId: "q_full_name", value: "Ada Lovelace" }]);
+  });
+
+  it("excludes the honeypot and any other untagged field", () => {
+    // Only the renderer's kind tags name questions; an untagged field is an extra.
+    const { fields, extras } = decodeStepForm(form(["website", "spam"], ["__qk__q_a", "string"]));
+    expect(fields).toEqual(["q_a"]);
+    expect(extras).toEqual({ website: "spam" });
+  });
+
+  it("is empty for a post with no answer fields at all", () => {
+    expect(decodeStepForm(form(["website", ""])).fields).toEqual([]);
+  });
+});

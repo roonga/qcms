@@ -266,6 +266,30 @@ describe("the native transport posts the same clear (issue #127)", { timeout: 30
     expect(posted).toContainEqual(["__qa__q_preexisting_conditions", "1"]);
   });
 
+  it("date: an emptied day input posts empty WITH its answered marker (issue #920)", async () => {
+    const user = userEvent.setup();
+    const serialize = renderNative(stepAbout, { q_dob: "1990-05-17" });
+
+    // The date used to be exempt from this rule by construction, and the exemption was
+    // the control's shape rather than a decision: native mode rendered the vendored
+    // segmented picker, whose form value rode a hidden mirror only JavaScript writes,
+    // so with scripting off the seeded answer was what serialized and no gesture could
+    // empty it. The native day input can be emptied, so the #127 pair now forms for a
+    // date exactly as it does for a text box, and `decodeStepForm` turns it into the
+    // same `null`.
+    expect(serialize()).toContainEqual(["q_dob", "1990-05-17"]);
+    expect(serialize()).toContainEqual(["__qa__q_dob", "1"]);
+
+    await user.clear(screen.getByLabelText(/Date of birth/));
+
+    expect(serialize()).toContainEqual(["q_dob", ""]);
+    expect(serialize()).toContainEqual(["__qa__q_dob", "1"]);
+    // Exactly one field posts under the question's name: the browser never serializes
+    // react-aria's autofill mirror (it is owned by no form), and the mirror is not
+    // rendered on this path at all now.
+    expect(serialize().filter(([name]) => name === "q_dob")).toHaveLength(1);
+  });
+
   it("an unanswered question of either type posts no marker, so its emptiness stays silence", () => {
     const nothing = renderNative(stepHistory, {})();
     expect(nothing.filter(([name]) => name.startsWith("__qa__"))).toEqual([]);

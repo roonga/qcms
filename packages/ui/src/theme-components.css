@@ -177,9 +177,11 @@
    unconditional rather than per-font, and it is a TOKEN so an adopter can turn it
    off in one place instead of hunting selectors.
 
-   Same three anchors the rules above use, so nothing depends on a vendored
-   Tailwind class string: the number field's inner input, the date field's
-   spinbutton segments, and any input the renderer marks numeric.
+   Same anchors the rules above use, so nothing depends on a vendored Tailwind
+   class string: the number field's inner input, the date field's spinbutton
+   segments, the no-JS date fallback's native day input (issue #920, which shows
+   the same digits through the browser's own control), and any input the renderer
+   marks numeric.
    -------------------------------------------------------------------------- */
 [data-qcms-theme-scope]
   [data-qcms-field]
@@ -187,6 +189,7 @@
     [role="group"][data-rac] > input,
     [role="spinbutton"],
     input[type="number"],
+    input[type="date"],
     input[inputmode="numeric"],
     input[inputmode="decimal"]
   ) {
