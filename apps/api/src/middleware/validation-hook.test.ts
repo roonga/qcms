@@ -5,9 +5,16 @@
  * **real** public slice through `app.request()` and pin what reaches the wire:
  * the `ErrorEnvelope` shape every route documents, at 400, with no submitted
  * value in it. The unit tests pin the value-free property against the issue
- * kinds a route schema could produce in future - notably `unrecognized_keys`,
- * whose raw `ZodError` names the keys it was sent, which is the concrete SEC-8
- * echo the hook exists to stop.
+ * kinds a route schema could produce in future.
+ *
+ * Since issue #893 there is one deliberate exception, and the second half of this
+ * file is about holding its edges: an **unrecognized key is named**, because
+ * request bodies now reject unknown keys and a refusal that will not say which key
+ * it means is a refusal a caller cannot act on. A key name is the caller's own
+ * field naming and not a submitted value, so 182's property narrows rather than
+ * reverses - the tests below still prove a submitted value never reaches the wire,
+ * and additionally prove the named keys are bounded in number and length and
+ * stripped of anything that could forge a log line.
  *
  * The admin half of the surface is covered where a real admin session exists:
  * the gate rejects an unauthenticated request before any validator runs, so the
@@ -95,22 +102,23 @@ describe("a public route's schema refusal is an ErrorEnvelope (issue #182)", () 
 });
 
 describe("the envelope details are value-free by construction", () => {
-  it("drops the submitted keys a raw unrecognized_keys issue would have echoed", () => {
+  it("names the refused key but not the value that came with it (#893)", () => {
     const schema = z.strictObject({ keep: z.string() });
-    const parsed = schema.safeParse({ keep: "ok", leaked: "caller-supplied" });
+    const parsed = schema.safeParse({ keep: "ok", misspelled: "SENTINEL-caller-supplied" });
     if (parsed.success) throw new Error("fixture should not parse");
-
-    // The raw error is the pre-fix wire body, and it carries the caller's key.
-    expect(JSON.stringify(parsed.error)).toContain("leaked");
 
     const err = invalidRequest("json", parsed.error);
     expect(err.code).toBe(INVALID_REQUEST);
     expect(err.status).toBe(400);
-    expect(JSON.stringify(err.toEnvelope())).not.toContain("leaked");
+    // The key is what the caller has to change, so it is named - in the message,
+    // where a human reads it, and in `details`, where a client can act on it.
+    expect(err.message).toContain('"misspelled"');
     expect(err.details).toEqual({
       target: "json",
-      issues: [{ path: "(root)", code: "unrecognized_keys" }],
+      issues: [{ path: "(root)", code: "unrecognized_keys", keys: ["misspelled"] }],
     });
+    // The value it arrived with is still nowhere on the wire.
+    expect(JSON.stringify(err.toEnvelope())).not.toContain("SENTINEL");
   });
 
   it("reduces a path segment that does not read as a field name to `*`", () => {
@@ -151,5 +159,105 @@ describe("the envelope details are value-free by construction", () => {
     const details = invalidRequest("json", parsed.error).details as ValidationFailureDetails;
     expect(details.issues).toHaveLength(1);
     expect(details.omitted).toBeUndefined();
+  });
+});
+
+describe("a named key is bounded, because it is attacker-controlled text (#893)", () => {
+  /** The reports for a body that carries `keys` unknown keys at the top level. */
+  function reportFor(body: Record<string, unknown>): ValidationFailureDetails {
+    const parsed = z.strictObject({ keep: z.string().optional() }).safeParse(body);
+    if (parsed.success) throw new Error("fixture should not parse");
+    return invalidRequest("json", parsed.error).details as ValidationFailureDetails;
+  }
+
+  it("names at most five keys per issue and counts the rest", () => {
+    const body: Record<string, unknown> = {};
+    for (let i = 0; i < 9; i += 1) body[`extra${String(i)}`] = i;
+
+    const details = reportFor(body);
+    expect(details.issues[0]?.keys).toHaveLength(5);
+    expect(details.issues[0]?.omittedKeys).toBe(4);
+  });
+
+  it("says in the message how many it did not name, rather than listing them all", () => {
+    const body: Record<string, unknown> = {};
+    for (let i = 0; i < 9; i += 1) body[`extra${String(i)}`] = i;
+
+    const parsed = z.strictObject({ keep: z.string().optional() }).safeParse(body);
+    if (parsed.success) throw new Error("fixture should not parse");
+    expect(invalidRequest("json", parsed.error).message).toContain("and 4 more");
+  });
+
+  it("cuts an over-long key to a fixed size", () => {
+    const details = reportFor({ ["k".repeat(500)]: 1 });
+    const named = details.issues[0]?.keys?.[0] ?? "";
+
+    // 64 characters plus the truncation marker - a key invented to bloat the
+    // response or the log line cannot make either grow.
+    expect(named).toHaveLength(67);
+    expect(named.endsWith("...")).toBe(true);
+  });
+
+  it("removes characters that could forge a line in the log", () => {
+    const details = reportFor({ "one\nwarn: forged​tail": 1 });
+
+    // The newline and the zero-width space are gone; the visible text remains, so
+    // the caller can still recognise the field they sent.
+    expect(details.issues[0]?.keys).toEqual(["onewarn: forgedtail"]);
+  });
+
+  it("keeps the location-only message for a failure that is not an unknown key", () => {
+    const parsed = z.strictObject({ keep: z.string() }).safeParse({ keep: 7 });
+    if (parsed.success) throw new Error("fixture should not parse");
+
+    const err = invalidRequest("json", parsed.error);
+    expect(err.message).toBe("The request does not match this route's schema");
+    expect(err.details).toEqual({
+      target: "json",
+      issues: [{ path: "keep", code: "invalid_type" }],
+    });
+  });
+
+  it("still reduces a record key to `*`, because there the key is content (#182)", () => {
+    // The #893 exception is narrow on purpose. A key a schema *refused* is named;
+    // a key a schema *accepted* as map content is not, and an answer map keyed by
+    // question id is the second kind.
+    const schema = z.strictObject({ answers: z.record(z.string(), z.number()) });
+    const parsed = schema.safeParse({ answers: { "a caller's free text": "no" } });
+    if (parsed.success) throw new Error("fixture should not parse");
+
+    const details = invalidRequest("json", parsed.error).details as ValidationFailureDetails;
+    expect(details.issues).toEqual([{ path: "answers.*", code: "invalid_type" }]);
+  });
+});
+
+describe("a real respondent route refuses an unknown key on the wire (#893)", () => {
+  it("400s an unknown top-level key and names it, in the documented envelope", async () => {
+    // Before #893 this body was accepted: `bogusField` was stripped and the
+    // session started as if the caller had never sent it.
+    const res = await postSessions({ formSlug: "customer-feedback", bogusField: 1 });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as EnvelopeBody;
+    expect(body.error.code).toBe(INVALID_REQUEST);
+    expect(body.error.message).toContain('"bogusField"');
+    const details = body.error.details as ValidationFailureDetails;
+    expect(details.issues).toEqual([
+      { path: "(root)", code: "unrecognized_keys", keys: ["bogusField"] },
+    ]);
+  });
+
+  it("still accepts the declared keys, so the route did not simply get stricter", async () => {
+    // A body of only declared keys must not be collateral damage. This one is
+    // refused by the slice's exclusive-choice rule, not by the key policy, which
+    // is exactly the distinction: the code is `custom`, no key is named.
+    const res = await postSessions({ formSlug: "a", token: "b" });
+
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as EnvelopeBody;
+    expect(body.error.message).toBe("The request does not match this route's schema");
+    expect((body.error.details as ValidationFailureDetails).issues).toEqual([
+      { path: "(root)", code: "custom" },
+    ]);
   });
 });
