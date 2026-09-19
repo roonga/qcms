@@ -374,7 +374,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # imageVersion() needs a real commit for the version stamp
-      - uses: pnpm/action-setup@v6.0.9
+      - uses: pnpm/action-setup@v6.0.10
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -413,6 +413,8 @@ jobs:
       - run: flyctl deploy -a qcms-portal --image "ghcr.io/${{ github.repository_owner }}/qcms-portal:${TAG}"
       - run: flyctl deploy -a qcms-admin  --image "ghcr.io/${{ github.repository_owner }}/qcms-admin:${TAG}"
 ```
+
+**Pin the third-party actions in your own copy.** Three references above are not published by GitHub - `pnpm/action-setup`, `docker/login-action` and `superfly/flyctl-actions` - and they are written here as tags, and `@master` as a branch, only because a version is readable and a forty-character SHA is not. A tag can be moved and a branch moves by definition, so an action referenced that way runs whatever it points at on the day the workflow runs. This repository holds itself to a full commit SHA with the version in a trailing comment for exactly those references, and the reasoning, the resolution recipe and the Dependabot half are in CONTRIBUTING under "Adding a `uses:` to a workflow" and in SEC-11 of `docs/SECURITY_DESIGN.md`. Apply the same treatment here before this workflow is anything but a starting point.
 
 Two notes on the deploy credential:
 

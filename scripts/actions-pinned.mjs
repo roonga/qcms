@@ -56,7 +56,7 @@ export const FULL_SHA = /^[0-9a-f]{40}$/;
  * A SemVer pre-release or build suffix is allowed (`v1.2.3-rc.1`, `v1.2.3+build.4`), because
  * upstream does publish releases in that form and refusing them would force the comment to
  * misname the release it documents. Anything after the first token is free text, so
- * `# v6.0.9 (https://github.com/pnpm/action-setup/releases/tag/v6.0.9)` is fine; a link
+ * `# v6.0.10 (https://github.com/pnpm/action-setup/releases/tag/v6.0.10)` is fine; a link
  * alone is not, for the same reason `v6` is not.
  */
 export const RELEASE_VERSION =
@@ -606,7 +606,7 @@ export function pinProblems(references, dependabotDirectories) {
     }
   }
 
-  // One action, one pin. Six files named `pnpm/action-setup@v6.0.9` and two named `@v6` when
+  // One action, one pin. Six files named `pnpm/action-setup@v6.0.9` and two the moving `@v6` when
   // #948 was raised, which is how a repository comes to run two releases of one action
   // without saying so. Dependabot moves every occurrence together, so a divergence after
   // this point is a hand edit, and it should be a red rather than a discovery. Keyed
