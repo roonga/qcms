@@ -19,7 +19,7 @@ import type { Context } from "hono";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes, type ApiEnv } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes, type ApiEnv } from "../../../openapi.js";
 import { clientAddress } from "../../../client-address.js";
 import { rateLimit } from "../../../rate-limit.js";
 import { FormIdParam } from "../schema.js";
@@ -41,7 +41,7 @@ export const assistRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: AssistBody } } },
+    body: jsonBody(AssistBody),
   },
   responses: {
     // No content schema: the handler returns a raw SSE Response (web
@@ -78,7 +78,7 @@ export const acceptProposalRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: AcceptProposalBody } } },
+    body: jsonBody(AcceptProposalBody),
   },
   responses: {
     200: {
