@@ -178,9 +178,51 @@ curl -s "$API/admin/erasures?formId=frm_auto_quote" \
 # → { "erasures":[{ "sessionId","formId","formVersion","erasedAt","reason" }] }
 ```
 
+## Request bodies reject unknown keys
+
+Send only the keys a route declares. An undeclared key is a `400 INVALID_REQUEST`
+whose message names it, and the published schema says so: every closed request-body
+object in `docs/openapi/admin.json` and `docs/openapi/respondent.json` carries
+`additionalProperties: false`, so a client generated from either document refuses
+the same body the server refuses (issue #893).
+
+```bash
+curl -sX PATCH "$ADMIN/admin/forms/frm_signup/settings" \
+  -H "$TOKEN" -H "$SESSION" -H 'content-type: application/json' \
+  -d '{"challengeRequired":true,"unknownField":1}'
+# → 400
+# { "error": {
+#     "code": "INVALID_REQUEST",
+#     "message": "The request does not match this route's schema: unrecognized key \"unknownField\"",
+#     "details": { "target": "json",
+#                  "issues": [ { "path": "(root)", "code": "unrecognized_keys",
+#                                "keys": ["unknownField"] } ] } } }
+```
+
+Nothing is written on a refusal: the check runs before the handler. The names are
+bounded because they are your input reflected back - at most five keys per issue
+and 64 characters each, with control characters removed - so `details.issues[].keys`
+may carry `omittedKeys` and the message may end `and N more`.
+
+Two kinds of object stay open, because their keys are your data rather than a field
+list:
+
+- **Maps.** A question definition and a form definition are validated by the kernel,
+  not by the transport schema, and an `answers` map is keyed by `questionId`. These
+  publish `additionalProperties` describing their _values_, never `false`.
+- **`POST /sessions/{id}/submit`.** The only route that accepts an undeclared key.
+  Its honeypot field name is deployment configuration and the portal's no-JS path
+  forwards every posted form field the compiled document did not tag as an answer
+  control, so an unknown key here is accepted and ignored.
+
+Pre-1.0 this arrived with no deprecation window (Code Owner, 2026-09-19). A caller
+that was relying on a key being silently dropped now gets a 400 instead of a
+misleading success.
+
 ## Typed failures
 
 Every guard returns the shared error envelope `{ "error": { "code", "message", "details"? } }`
-with a stable code, e.g. `PUBLISH_REJECTED` (422), `INVALID_ANSWER` (422),
-`LINK_EXPIRED` (403), `LINK_CONSUMED` (409), `SESSION_SUBMITTED` (409),
-`FORM_NOT_FOUND` (404). Scenario 5 of the e2e suite exercises these end to end.
+with a stable code, e.g. `INVALID_REQUEST` (400, above), `PUBLISH_REJECTED` (422),
+`INVALID_ANSWER` (422), `LINK_EXPIRED` (403), `LINK_CONSUMED` (409),
+`SESSION_SUBMITTED` (409), `FORM_NOT_FOUND` (404). Scenario 5 of the e2e suite
+exercises these end to end.

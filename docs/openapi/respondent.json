@@ -128,7 +128,8 @@
             "type": "string",
             "description": "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. Verified by the configured provider; ignored when the provider is `none` (task 026)."
           }
-        }
+        },
+        "additionalProperties": false
       },
       "SessionStatusResponse": {
         "type": "object",
@@ -309,7 +310,8 @@
         },
         "required": [
           "questionId"
-        ]
+        ],
+        "additionalProperties": false
       },
       "SubmitResponse": {
         "type": "object",

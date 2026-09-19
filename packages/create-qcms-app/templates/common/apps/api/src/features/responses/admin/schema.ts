@@ -113,7 +113,7 @@ export const ListErasuresQuery = z.object({
 
 /** `POST /admin/forms/:id/responses/:sessionId/erase` - the erasure reason (audit). */
 export const EraseBody = z
-  .object({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
+  .strictObject({ reason: z.string().min(1).openapi({ example: "subject_request" }) })
   .openapi("EraseBody");
 
 // --- responses --------------------------------------------------------------

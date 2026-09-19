@@ -598,6 +598,75 @@ describe("accepting a proposal with new questions", () => {
   );
 });
 
+/**
+ * Unknown keys are refused at every depth of a request body (issue #893).
+ *
+ * `AcceptProposalBody` carries the only NESTED closed objects on the whole request
+ * surface - `newQuestions[]` is `{ definition, slug? }` - so this is where the
+ * nested half of the policy can be driven over HTTP. The two flag-gated assist
+ * bodies also publish in neither committed document, which is why the contract test
+ * walks an all-flags-on composition as well as the two files on disk.
+ */
+describe("unknown keys are refused inside a nested body object (issue #893)", () => {
+  function questionDefinition(id: string, label: string): Record<string, unknown> {
+    return { questionId: id, type: "shortText", label: { en: label } };
+  }
+
+  interface Envelope {
+    error: {
+      code: string;
+      message: string;
+      details?: { issues?: { code: string; path?: string; keys?: string[] }[] };
+    };
+  }
+
+  it(
+    "refuses an unknown key on a newQuestions entry, naming the key and its path",
+    async () => {
+      await post("/forms", { formId: "frm_nested_key", slug: "nested-key", defaultLocale: "en" });
+
+      const res = await post("/forms/frm_nested_key/draft/assist/accept", {
+        definition: draftFor("frm_nested_key", ["q_nested"]),
+        newQuestions: [
+          { definition: questionDefinition("q_nested", "Nested"), unexpectedNested: true },
+        ],
+      });
+
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as Envelope;
+      expect(body.error.code).toBe("INVALID_REQUEST");
+      expect(body.error.message).toContain('"unexpectedNested"');
+      // The path locates the offending entry, so a caller with fifty proposed
+      // questions is told which one to fix rather than that one of them is wrong.
+      expect(body.error.details?.issues?.[0]).toMatchObject({
+        code: "unrecognized_keys",
+        path: "newQuestions.0",
+        keys: ["unexpectedNested"],
+      });
+    },
+    BOOT_TIMEOUT,
+  );
+
+  it(
+    "still accepts the nested entry's own open definition map, keyed by the kernel's names",
+    async () => {
+      await post("/forms", { formId: "frm_nested_ok", slug: "nested-ok", defaultLocale: "en" });
+
+      // `definition` inside the entry is an opaque record: the kernel owns its
+      // shape, so its keys are not the route's business and the accept succeeds.
+      const res = await post("/forms/frm_nested_ok/draft/assist/accept", {
+        definition: draftFor("frm_nested_ok", ["q_nested_ok"]),
+        newQuestions: [
+          { definition: questionDefinition("q_nested_ok", "Nested ok"), slug: "nested-ok-q" },
+        ],
+      });
+
+      expect(res.status).toBe(200);
+    },
+    BOOT_TIMEOUT,
+  );
+});
+
 describe("the assist slice when the flag is none", () => {
   it(
     "404s for an authenticated admin, because the route is not mounted",
