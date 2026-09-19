@@ -72,9 +72,9 @@ describe("jsonBody keeps an openBecause reason honest", () => {
     // The failure mode a bare comment would not catch: someone closes the body
     // and the sentence explaining why it is open survives, now describing
     // nothing. The reason and the schema have to move together.
-    expect(() => jsonBody(z.strictObject({ a: z.string() }), { openBecause: HONEYPOT_REASON })).toThrow(
-      /no longer describes it/,
-    );
+    expect(() =>
+      jsonBody(z.strictObject({ a: z.string() }), { openBecause: HONEYPOT_REASON }),
+    ).toThrow(/no longer describes it/);
   });
 });
 
@@ -95,7 +95,10 @@ describe("the Zod internals the policy check reads (upgrade guard)", () => {
   });
 
   it("still reports the object type through .refine() and .openapi()", () => {
-    const schema = z.strictObject({ a: z.string() }).refine(() => true).openapi("Chained");
+    const schema = z
+      .strictObject({ a: z.string() })
+      .refine(() => true)
+      .openapi("Chained");
     const def = (schema as { _zod?: { def?: { type?: string } } })._zod?.def;
 
     expect(def?.type).toBe("object");

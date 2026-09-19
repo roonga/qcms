@@ -9,7 +9,7 @@ A scaffolded app's route schemas were Zod objects with the default strip policy,
 OpenAPI documents generated from them published no `additionalProperties` at all. The two
 disagreed. `PATCH /admin/forms/{id}/settings` with `{"challengeRequired":true,"unknownField":1}`
 answered 200 and dropped the second key, while a client generated from the document judged
-the body valid; `{"unknownField":1}` answered 400 for the *empty patch* rather than for the
+the body valid; `{"unknownField":1}` answered 400 for the _empty patch_ rather than for the
 key, because the key was stripped before the at-least-one-field rule ran. A misspelled
 field was a success with no effect.
 

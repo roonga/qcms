@@ -613,7 +613,11 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
   }
 
   interface Envelope {
-    error: { code: string; message: string; details?: { issues?: { code: string; path?: string; keys?: string[] }[] } };
+    error: {
+      code: string;
+      message: string;
+      details?: { issues?: { code: string; path?: string; keys?: string[] }[] };
+    };
   }
 
   it(
@@ -652,7 +656,9 @@ describe("unknown keys are refused inside a nested body object (issue #893)", ()
       // shape, so its keys are not the route's business and the accept succeeds.
       const res = await post("/forms/frm_nested_ok/draft/assist/accept", {
         definition: draftFor("frm_nested_ok", ["q_nested_ok"]),
-        newQuestions: [{ definition: questionDefinition("q_nested_ok", "Nested ok"), slug: "nested-ok-q" }],
+        newQuestions: [
+          { definition: questionDefinition("q_nested_ok", "Nested ok"), slug: "nested-ok-q" },
+        ],
       });
 
       expect(res.status).toBe(200);
