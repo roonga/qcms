@@ -52,6 +52,7 @@ import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/fl
 import { expect, test } from "./support/gates.js";
 import { FONT_FLOORS_PATH, HARNESS_FONT, HARNESS_FONTS } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
+import { walkToOptionalNumber } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 
 /** The families that carry a self-hosted webfont (System has none by design). */
@@ -519,4 +520,36 @@ test("the no-JS date fallback gets the same tabular figures (issue #920)", async
     document.documentElement.style.setProperty("--type-numeric", '"tnum" 0'),
   );
   expect(await computed(day, "font-feature-settings")).toBe('"tnum" 0');
+});
+
+test("the no-JS number fallback gets the same tabular figures (issue #18)", async ({ page }) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // The same claim for the other control that changes shape on this path. With
+  // scripting off a number question is one native `<input type="number">`
+  // (`packages/ui/src/native-number-field.tsx`), not the react-aria text box the test
+  // above measures, and it shows the same digits - so it needs the same token, or a
+  // respondent correcting a digit watches the column jump. COMPONENT_GUIDELINES item 9
+  // asks for the assertion rather than for the selector alone; no rule in
+  // `theme-components.css` was added for it, because the tabular selector already
+  // names `input[type="number"]`, and that is the claim worth measuring.
+  const starvation = await starveScripts(page);
+  await walkToOptionalNumber(page, kitchenSinkSlug);
+
+  const km = page.locator('[data-qcms-field] input[type="number"]');
+  await expect(km).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this reads the hydrated render",
+  ).toBeGreaterThan(0);
+  // The hydrated render has no `type="number"` input at all - react-aria's is a text
+  // box - so the locator is evidence of which render is on screen, not only of a style.
+  await expect(page.locator('[data-qcms-field] input[inputmode="numeric"]')).toHaveCount(0);
+
+  expect(await computed(km, "font-feature-settings")).toBe('"tnum"');
+
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("--type-numeric", '"tnum" 0'),
+  );
+  expect(await computed(km, "font-feature-settings")).toBe('"tnum" 0');
 });

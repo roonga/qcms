@@ -14,47 +14,80 @@ including submission (task 044). `docs/COMPONENT_GUIDELINES.md` makes no-JS cove
 binding for any input control, and the claim above is pinned by named specs rather than
 by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to receipt),
 `apps/portal/e2e/no-js-required.pw.ts` (a step holding a required date, and what happens
-to a submission that skips the browser), `apps/portal/e2e/no-js-retraction.pw.ts`
-(clearing an answer) and `apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read
-those four as the definition of the claim: it held for a form with a required date only
-from issue #920 onward, and for a form with a required multiChoice it still holds only for a
-respondent who checks every box (issue #974, and the checkbox note under the ruling below).
+to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.ts` (a
+required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
+`apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer) and
+`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read those six as the definition
+of the claim. It was qualified twice and is now unqualified: a form with a required date
+only completed from issue #920 onward, and a form with a required multiChoice or a
+required number only from issues #974 and #18.
 
-**A date question renders differently on this path, on purpose** (issue #920). The
-vendored DatePicker is a row of JS-driven spinbutton segments nobody can type into
-without scripting, and its form value rode on an `<input type="text" hidden required>` -
-`hidden`, not `type="hidden"`, so the browser tried to report its validity, could not
-focus it, and abandoned the whole step's submission. In native-submit mode the renderer
-emits `@roonga/qcms-ui`'s `NativeDateField` instead: one real `<input type="date">`,
-posting the same ISO day under the same field name. The scripted render is unchanged, no
+**The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
+**JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,
+without rapid feedback.** A respondent without scripting must be able to enter, submit
+and complete every flow; they do not have to be told about a problem before they submit,
+because the API is authoritative and the step reports the API's answer after the round
+trip (issue #964). Every decision below follows from that: browser validation is kept
+where HTML can carry the rule, because it costs the respondent nothing; it is dropped
+where HTML cannot, because keeping it there stops the flow instead of guiding it.
+
+**Two questions render a different control on this path, on purpose**, and for one
+reason in two shapes: the vendored control keeps its form value somewhere a respondent
+without scripting cannot reach. In both cases the scripted render is unchanged, no
 vendored byte moved (ADR-22), and hydration is unaffected because the SSR and the first
 client render both paint native mode before `ProgressiveStep` swaps the whole form
 (issue #121).
+
+- **A date** (issue #920). The vendored DatePicker is a row of JS-driven spinbutton
+  segments nobody can type into without scripting, and its form value rode on an
+  `<input type="text" hidden required>` - `hidden`, not `type="hidden"`, so the browser
+  tried to report its validity, could not focus it, and abandoned the whole step's
+  submission. Native-submit mode emits `@roonga/qcms-ui`'s `NativeDateField` instead: one
+  real `<input type="date">`, posting the same ISO day under the same field name.
+- **A number** (issue #18, Code Owner ruling 2026-09-19). The vendored NumberField's
+  visible box is `<input type="text" inputmode="numeric">` with **no `name`**, and the
+  form value rides a separate `<input type="hidden">` that only JavaScript writes - so
+  typing `3` filled the visible box, left the named field `""`, satisfied the browser
+  (the visible box carries `required` and was non-empty), and the step submitted with the
+  answer discarded. Native-submit mode emits `NativeNumberField`: one real
+  `<input type="number">` under the question's own name, with the compiled `minValue`,
+  `maxValue` and `step` as `min`, `max` and `step`. A question that admits fractions
+  renders `step="any"`, because HTML's default for an omitted `step` is `1` and would
+  refuse them; an integer question renders `step="1"`, so the browser refuses a fraction
+  and the kernel's `NOT_AN_INTEGER` refuses one that reaches it anyway.
 
 **Browser validation is kept, and the API validates the same constraints** (Code Owner
 ruling, 2026-09-13, issue #920). Two consequences follow, and the first reads as a
 limitation only until the second is read with it:
 
-- **A required question cannot be CLEARED without scripting.** HTML `required` refuses
-  the empty submit before the form leaves the page: emptying a required text field, or
-  unchecking the last box of a required group, is blocked by the browser, so only an
-  optional question is clearable on this path. That is the ruling's intended behaviour,
-  not a residue of it - the alternative was dropping `required` from the no-JS form and
-  leaving the respondent to discover the gap after a round trip.
-- **A required multiChoice group asks for EVERY box without scripting, not one**
-  (**issue #974**). Found while observing the numeric branch for #920 and not fixed by it,
-  because it is the same decision class the ruling above settled for dates and needs its
-  own. react-aria encodes "at least one" by putting native `required` on every checkbox in
-  the group and taking it off the moment something is selected
-  (`packages/ui/src/components/a2ui/checkbox/Checkbox.tsx`, and the comment there says so).
-  Taking it off is a re-render, which is JavaScript, so the server-rendered HTML freezes
-  `required` on all of them - and native `required` on a checkbox means _that_ box must be
-  checked. Observed on the kitchen sink's "Which optional cover do you want?": with one of
-  three checked the browser refuses the submit and no POST leaves the page; with all three
-  checked it submits. A respondent who wants one optional cover cannot get past that step,
-  and the step behind it is where the numeric branch lives. It does not affect a group that
-  already holds an answer, because that render emits no `required` at all, which is why
-  `no-js-retraction.pw.ts` (whose group is seeded) has never seen it.
+- **A required question cannot be CLEARED without scripting, except a multiChoice
+  group.** HTML `required` refuses the empty submit before the form leaves the page, so
+  emptying a required text field, date or number is blocked by the browser and only an
+  optional one is clearable on this path. That is the ruling's intended behaviour, not a
+  residue of it - the alternative was dropping `required` from the no-JS form and leaving
+  the respondent to discover the gap after a round trip. The group is the exception
+  because it carries no browser constraint at all; see the next bullet.
+- **A required multiChoice group is the one place browser validation is dropped**
+  (**issue #974**, Code Owner ruling 2026-09-19). HTML has no "at least one of these"
+  constraint. react-aria encodes the rule by putting native `required` on every checkbox
+  in the group and taking it off the moment something is selected
+  (`packages/ui/src/components/a2ui/checkbox/Checkbox.tsx`, and the comment there says
+  so). Taking it off is a re-render, which is JavaScript, so the server-rendered HTML
+  froze `required` on all of them - and native `required` on a checkbox means _that_ box
+  must be checked. Observed on the kitchen sink's "Which optional cover do you want?":
+  with one of three checked the browser refused the submit and no POST left the page;
+  with all three checked it submitted. So the step was impassable, and every step behind
+  it unreachable. In native-submit mode the group's boxes now carry react-aria's ARIA
+  encoding of the rule (`aria-required`) rather than the native one, reached through the
+  `validationBehavior` seam for that group's subtree alone, so the group still marks
+  itself required in its label, in `data-required` and to assistive technology while
+  nothing blocks the submit. A blank group is refused by the API and reported on the step
+  through the missing-required path below. Every other control on the step keeps
+  validating natively, which `packages/ui/src/native-multi-choice.test.tsx` asserts
+  directly. **A required group is therefore also the one required question that can be
+  CLEARED without scripting**, which the bullet above does not cover: unchecking every
+  box submits, and the `__qa__` marker makes it an ADR-33 retraction the API accepts and
+  then reports as missing (`no-js-multi-choice.pw.ts`).
 - **A submission that gets past the browser is still refused, and now says so.** The API
   is authoritative either way: its answer endpoint refuses `""` and `[]` outright
   (`EMPTY_ANSWER_NOT_ALLOWED`) and its submission sweep refuses a session with a visible
@@ -80,36 +113,19 @@ leave the stale answer standing, while the scripted path had retracted it since 
 that currently holds an answer, and the whole-step route reads a marked field arriving
 empty as an ADR-33 retraction, posted to the same answer endpoint with the same `null`
 body the scripted path posts for the same gesture. An unmarked empty field stays silence,
-so nothing is tombstoned for a question nobody answered. One control is exempt by
-construction and not by choice: a NumberField carries its form value in a hidden input
-that JavaScript syncs, so with scripting off the seeded answer is what serializes and it
-cannot be emptied at all - that is issue #18, phase 4.
+so nothing is tombstoned for a question nobody answered.
 
-**What a no-JS respondent now sees on a number question, observed rather than reasoned**
-(issue #18, and the reason it is worth writing down here). On the kitchen sink's numeric
-branch the visible control is `<input type="text" required inputmode="numeric">` carrying
-no `name`, and the form value rides a separate `<input type="hidden" name="q_accident_count">`
-that only JavaScript writes. So typing `3` fills the visible box, leaves the named field at
-`""`, and satisfies the browser - the visible box is non-empty, so the submission goes. The
-field posts blank, the API reports the question missing, and since issue #920 the step comes
-back saying so: "How many? needs an answer." in the summary and "This question needs an
-answer." beside the field. **That message is true of the page it is drawn on**: the field
-re-renders blank, because the API holds nothing for it, so the respondent is being told
-something correct about what is on screen. What is silently lost is the `3` they typed, and
-that loss is #18 rather than #920 - before #920 the same round trip produced the same blank
-field with no message at all, so the report is strictly more information and not a new
-defect. The report is deliberately NOT suppressed for number questions: doing so would hide
-a genuinely blank required number, which is the common case, and would not give the typed
-value back.
-
-The DatePicker was the second such
-control until issue #920 replaced it on this path with a native day input, which a
-respondent can empty; an OPTIONAL date is therefore clearable without scripting now, and
-a required one is refused by the browser like every other required question (see the
-ruling above). No fixture form carries an optional date, so that path is pinned at the
-transport rather than in a browser: `packages/ui/src/clear-paths.test.tsx` for the bytes
-the emptied control posts, `apps/portal/lib/server/step-form.test.ts` for the `null` they
-decode to.
+**No control is exempt from that any more.** Two were, and for the same reason both now
+render a native control on this path (see above). The DatePicker left the list with issue
+#920 and the NumberField with issue #18, so an OPTIONAL date or number can be emptied and
+cleared without scripting, and a required one is refused by the browser like every other
+required question - except a multiChoice group, which carries no browser constraint at
+all (issue #974) and can therefore be cleared while required. The number's clear is
+asserted in a browser on `q_annual_km`, the fixture's optional number
+(`apps/portal/e2e/no-js-number.pw.ts`); no fixture form carries an optional date, so that
+one is pinned at the transport instead: `packages/ui/src/clear-paths.test.tsx` for the
+bytes the emptied control posts, `apps/portal/lib/server/step-form.test.ts` for the
+`null` they decode to.
 
 ## Rule evaluation
 

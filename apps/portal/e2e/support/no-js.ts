@@ -50,3 +50,30 @@ export function countStepPosts(page: Page): () => number {
   });
   return () => posts.length;
 }
+
+/**
+ * Walk the kitchen sink's no-JS render from the entry page to the step holding the
+ * OPTIONAL number (`q_annual_km`, on "Your cover"), answering each step's required
+ * questions on the way.
+ *
+ * Two steps of setup rather than none, because the number is on the last step and
+ * every step before it has a required question. It is worth the walk: the number is
+ * the control the styling assertions are about, and no earlier step carries one that
+ * is not behind a branch.
+ *
+ * The caller decides how scripting is suppressed. With `javaScriptEnabled: false`
+ * this is the respondent's own experience; with `starveScripts` (a page that is
+ * scriptable from the test's side while React never runs) it is the same markup with
+ * computed styles readable, which is what the theming and font assertions need.
+ */
+export async function walkToOptionalNumber(page: Page, slug: string): Promise<void> {
+  await page.goto(`/f/${slug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
+  await page.locator('input[name="q_dob"]').fill("1990-05-17");
+  await submitStep(page);
+  await page.getByText("No", { exact: true }).click();
+  await page.getByText("Breakdown", { exact: true }).click();
+  await submitStep(page);
+}
