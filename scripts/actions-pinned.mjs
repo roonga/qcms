@@ -11,21 +11,39 @@
  *
  * This is a module rather than code inside the test so a reviewer can drive it without
  * Vitest (`node -e 'import("./scripts/actions-pinned.mjs").then(...)'`), which is how the
- * #972 review found six spellings the first reader walked past.
+ * #972 review found the spellings below.
  *
  * ## The reader's default is refusal
  *
  * The first version of this reader recognised one spelling of a `uses:` key and `continue`d
- * past every other line, so "unknown" was reachable only for a line that already looked
- * like the shape it understood. Six valid YAML spellings of a `uses:` key therefore
- * disappeared in silence, each of them able to carry an unpinned third-party action: a flow
- * mapping, a quoted key, a space before the colon, a block-scalar value, an anchored key,
- * and an explicit key. A gate that claims the inventory cannot shrink quietly has to be
- * right about that, so the default is inverted here: a line on which the token `uses`
- * appears in **key position in any spelling** is either parsed as the one canonical form or
- * refused by file and line. Only the canonical form is parsed, deliberately - this
- * repository writes one spelling, and a refusal that names the line and asks for
- * `uses: owner/repo@ref` is cheaper to act on than a parser for six equivalent forms.
+ * past every other line, so "unknown" was reachable only for a line that already looked like
+ * the shape it understood. Nine valid YAML spellings of a `uses:` key therefore disappeared
+ * in silence, each of them able to carry an unpinned third-party action: a flow mapping, a
+ * flow sequence, a double-quoted key, a single-quoted key, a space before the colon, a folded
+ * scalar value, a literal scalar value, an anchored key and an explicit key. A gate that
+ * claims the inventory cannot shrink quietly has to be right about that, so the default
+ * is inverted here: a line the reader recognises as putting `uses` in key position is either
+ * parsed as the one canonical form or refused by file and line. Only the canonical form is
+ * parsed, deliberately - this repository writes one spelling, and a refusal that names the
+ * line and asks for `uses: owner/repo@ref` is cheaper to act on than a parser for nine
+ * equivalent forms.
+ *
+ * ## What "recognises" covers, and what it does not
+ *
+ * The bound matters, because an earlier version of this comment claimed every spelling and
+ * the #972 delta review falsified it in eight lines. What is recognised is: the bare key, a
+ * single- or double-quoted key, any run of explicit-key `?`, anchor, alias and tag before it,
+ * a key after any flow indicator, a space or nothing between the key and its colon, and a
+ * double-quoted key carrying a backslash - which is refused outright rather than decoded,
+ * since YAML turns `"\x75ses"` into `uses` and this reader does not implement that table.
+ * `splitComment` honours `\"` inside a double-quoted scalar, and an explicit key whose quoted
+ * scalar does not close on its line is refused rather than followed.
+ *
+ * What it is NOT is a YAML parser, and it does not claim to see every way the language can
+ * spell a key. It guards against drift and honest mistakes - a contributor writing a form
+ * this repository does not use, a tool rewriting a line - and not against someone
+ * deliberately obfuscating a key to smuggle an unpinned action past it. That is what review
+ * is for, and a by-shape reader cannot be made to replace it.
  *
  * The one thing still skipped is a block scalar's body, because a `uses:` inside a
  * `run: |` shell script is shell text and not a reference. The `uses` test runs **before**
@@ -117,8 +135,8 @@ const BLOCK_SCALAR = /^(?:-[ \t]+)?[A-Za-z0-9_.-]+:[ \t]*[|>][+-]?\d*[ \t]*$/;
 /** The one spelling this reader parses. Everything else that mentions the key is refused. */
 const CANONICAL_USES = /^[ \t]*(?:-[ \t]+)?uses:(?:[ \t]+(\S.*?))?[ \t]*$/;
 
-/** A `uses` key inside a flow mapping or sequence, in key position rather than as a word. */
-const FLOW_USES = /[{[,][ \t]*["']?uses["']?[ \t]*:/;
+/** The flow indicators after which a key can begin. */
+const FLOW_INDICATORS = /[{[,]/g;
 
 /** A leading sequence dash, whose width a block-scalar's key column has to account for. */
 const SEQUENCE_DASH = /^-(?:[ \t]+|$)/;
@@ -133,6 +151,13 @@ const ACTION_PATH =
  * A `#` begins a comment only at the start of the content or after whitespace, and only
  * outside a quoted scalar - so `run: echo a#b` keeps its `#` and `uses: x # v1.2.3` does not.
  *
+ * A backslash escapes the next character inside a DOUBLE-quoted scalar, and the #972 delta
+ * review turned that omission into a hole: in `{ name: "a\" # ", uses: evil/action@v1 }` the
+ * escaped quote closed the string early here, the rest of the line became a comment, and the
+ * `uses` key after it was never seen. Single quotes have no backslash escape in YAML (a
+ * doubled `''` is the only one, and closing then reopening leaves this scan in the same
+ * place), so the escape is honoured for double quotes alone.
+ *
  * @param {string} line
  * @returns {{ code: string; comment: string | undefined }}
  */
@@ -142,6 +167,10 @@ export function splitComment(line) {
   for (let i = 0; i < line.length; i += 1) {
     const char = line[i];
     if (quote !== undefined) {
+      if (quote === '"' && char === "\\") {
+        i += 1;
+        continue;
+      }
       if (char === quote) quote = undefined;
       continue;
     }
@@ -157,25 +186,101 @@ export function splitComment(line) {
 }
 
 /**
- * Does this line put the token `uses` in a YAML key position, in any spelling?
+ * Strip the node properties and explicit-key indicator that may precede a key.
  *
- * Deliberately generous: it strips one sequence dash, an explicit-key `?`, and an anchor or
- * alias, then asks whether the key is `uses` bare or quoted. The generosity is the point -
- * everything it admits and `CANONICAL_USES` does not is a refusal, so a spelling nobody
- * thought about is a red rather than a skipped line.
+ * YAML lets an anchor (`&a`), an alias (`*a`), a tag (`!!str`, `!mytag`) and an explicit-key
+ * `?` sit in front of a key in any combination and order, so this loops rather than trying
+ * each once. The #972 delta review found `- !!str uses:` and `- &a !!str uses:` walking past
+ * a version of this that stripped only an anchor.
+ *
+ * @param {string} text already left-trimmed
+ */
+function stripKeyPrefixes(text) {
+  let rest = text;
+  for (;;) {
+    const prefix =
+      /^\?(?:[ \t]+|$)/.exec(rest) ??
+      /^[&*][A-Za-z0-9_-]+[ \t]+/.exec(rest) ??
+      /^![^\s,{}[\]]*[ \t]+/.exec(rest);
+    if (prefix === null) return rest;
+    rest = rest.slice(prefix[0].length).trimStart();
+  }
+}
+
+/**
+ * A double-quoted scalar this reader will not decode.
+ *
+ * YAML decodes `\x75` to `u`, so `"\x75ses"` is the key `uses` written in a way no textual
+ * comparison catches. Rather than implement YAML's escape table for one key, any
+ * double-quoted key carrying a backslash is treated as a candidate and therefore refused:
+ * the reader says it cannot tell, instead of deciding it is not `uses` (#972 delta review).
+ *
+ * @param {string} text already left-trimmed, positioned at the key
+ */
+function isUndecodableQuotedKey(text) {
+  if (!text.startsWith('"')) return false;
+  const end = /^"(?:[^"\\]|\\.)*"/.exec(text);
+  if (end === null) return text.includes("\\");
+  return end[0].includes("\\");
+}
+
+/**
+ * Is a `uses` key starting here, in one of the spellings this reader knows to look for?
+ *
+ * Used at the head of a line and just after each flow indicator. `requireColon` is the
+ * difference between the two: in block position `- ? uses` is a key with its value on the
+ * next line and there is no colon to demand, while in flow position `[uses, x]` is a
+ * sequence of two scalars and demanding the colon is what keeps it from being read as a key.
+ *
+ * @param {string} text the text from the candidate position onwards
+ * @param {{ requireColon: boolean }} options
+ */
+function startsWithUsesKey(text, options) {
+  const rest = stripKeyPrefixes(text.trimStart());
+  if (isUndecodableQuotedKey(rest)) return true;
+  const key = /^(?:"uses"|'uses'|uses)(?![A-Za-z0-9_-])/.exec(rest);
+  if (key === null) return false;
+  if (!options.requireColon) return true;
+  return /^[ \t]*:/.test(rest.slice(key[0].length));
+}
+
+/**
+ * Does this line put the token `uses` in a YAML key position?
+ *
+ * Deliberately generous within the spellings it knows: it strips one sequence dash, then any
+ * run of explicit-key `?`, anchor, alias and tag, in block position and after each flow
+ * indicator, and asks whether the key is `uses` bare or quoted - or a double-quoted key it
+ * cannot decode, which is a candidate precisely because the reader cannot rule it out. The
+ * generosity is the point: everything it admits and `CANONICAL_USES` does not is a refusal,
+ * so a near-miss of a spelling it knows is a red rather than a skipped line.
+ *
+ * What it does not claim is to see EVERY way YAML can spell a key. The bound, and the reason
+ * it is an acceptable one, are in the file header.
  *
  * @param {string} code a line with its trailing comment already removed
  */
 export function mentionsUsesKey(code) {
-  if (FLOW_USES.test(code)) return true;
+  for (const indicator of code.matchAll(FLOW_INDICATORS)) {
+    if (startsWithUsesKey(code.slice(indicator.index + 1), { requireColon: true })) return true;
+  }
   let rest = code.trimStart();
   const dash = SEQUENCE_DASH.exec(rest);
   if (dash !== null) rest = rest.slice(dash[0].length).trimStart();
-  const explicit = /^\?(?:[ \t]+|$)/.exec(rest);
-  if (explicit !== null) rest = rest.slice(explicit[0].length).trimStart();
-  const anchor = /^[&*][A-Za-z0-9_-]+[ \t]+/.exec(rest);
-  if (anchor !== null) rest = rest.slice(anchor[0].length);
-  return /^(?:"uses"|'uses'|uses)(?![A-Za-z0-9_-])/.test(rest);
+
+  // An explicit key whose quoted scalar does not close on this line folds the key across
+  // lines, so nothing on any single line looks like `uses` (#972 delta review). The reader
+  // cannot follow it, so it refuses the indicator rather than the key.
+  const explicit = /^\?[ \t]+(["'])/.exec(rest);
+  if (explicit !== null) {
+    const quote = explicit[1] ?? '"';
+    const closes =
+      quote === '"'
+        ? /^\?[ \t]+"(?:[^"\\]|\\.)*"/.test(rest)
+        : /^\?[ \t]+'(?:[^']|'')*'/.test(rest);
+    if (!closes) return true;
+  }
+
+  return startsWithUsesKey(rest, { requireColon: false });
 }
 
 /**
@@ -211,6 +316,17 @@ export function classify(value) {
     // something about this reference that is not true.
     if (value.includes("@")) {
       return { kind: "unknown", ...none, why: "a local reference cannot carry a ref" };
+    }
+    // `./.github/actions/../../tools/x` starts with a scanned prefix and lands outside it,
+    // so the prefix test alone is not the containment check it looks like (#972 delta review).
+    if (value.split("/").includes("..")) {
+      return {
+        kind: "unknown",
+        ...none,
+        why:
+          "a local reference containing a `..` segment escapes the directory its prefix " +
+          "names, so where it actually points is not what the path reads as",
+      };
     }
     if (!SCANNED_LOCAL_PREFIXES.some((prefix) => value.startsWith(prefix))) {
       return {

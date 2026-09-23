@@ -44,9 +44,10 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *
  * `scripts/actions-pinned.mjs`. The three classes, the reader, the Dependabot reach model and
  * the problem list are all there, and this file drives them over the repository. The split
- * came out of the #972 review, which found six spellings the first reader walked past: it had
- * to plant each one in a workflow and call the functions, and they were buried inside a
- * Vitest file. A reviewer can now drive them with `node` alone.
+ * came out of the #972 review, which found nine spellings the first reader walked past: it
+ * had to plant each one in a workflow and call the functions, and they were buried inside a
+ * Vitest file. A reviewer can now drive them with `node` alone, which is how the delta review
+ * then found eight more.
  *
  * ## What this file asserts
  *
@@ -59,8 +60,15 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *
  * Every rule is proved non-vacuous by mutation. Some mutations edit the model; the ones that
  * matter most edit workflow **text**, because a defect in how the text becomes the model is
- * invisible to a mutation of the model - which is exactly how six valid spellings of a `uses`
- * key survived the first round of this file.
+ * invisible to a mutation of the model - which is exactly how nine valid spellings of a
+ * `uses` key survived the first round of this file: a flow mapping, a flow sequence, a
+ * double-quoted key, a single-quoted key, a space before the colon, a folded scalar value, a
+ * literal scalar value, an anchored key and an explicit key.
+ *
+ * The eight the #972 DELTA review then found are a separate table below, and a separate
+ * class: nobody writes one by accident. They are refused because each was cheap to refuse.
+ * What the reader claims, and the bound on it, are in `scripts/actions-pinned.mjs`; this file
+ * does not restate the claim, it exercises it.
  *
  * ## What this cannot prove
  *
@@ -373,6 +381,41 @@ const SPELLINGS: [name: string, replacement: string][] = [
   ["a tagged value", "      - uses: !!str evil/action@v1"],
 ];
 
+/**
+ * The adversarial spellings the #972 DELTA review found, which the round-one hardening still
+ * walked past. Separate from the table above because they are a different class: nobody
+ * writes one by accident and Dependabot writes none of them, so these are not drift, they are
+ * a person hiding a key from a by-shape reader. They are refused because each was cheap to
+ * refuse - a few lines in `stripKeyPrefixes`, `splitComment` and the flow scan - and not
+ * because refusing them is what the gate is for. The bound on that claim is in the module
+ * header and in SEC-11.
+ */
+const ADVERSARIAL_SPELLINGS: [name: string, replacement: string][] = [
+  ["a tagged key", String.raw`      - !!str uses: evil/action@v1`],
+  ["an anchored and tagged key", String.raw`      - &a !!str uses: evil/action@v1`],
+  // YAML decodes `\x75` to `u`, so this is the key `uses` written so no textual comparison
+  // sees it. The reader refuses any double-quoted key carrying a backslash rather than
+  // implementing YAML's escape table to decide.
+  ["an escape-encoded double-quoted key", String.raw`      - "\x75ses": evil/action@v1`],
+  ["an explicit key inside a flow mapping", String.raw`      - { ? uses : evil/action@v1 }`],
+  ["an anchored key inside a flow mapping", String.raw`      - { &a uses: evil/action@v1 }`],
+  ["a tagged key inside a flow mapping", String.raw`      - { !!str uses: evil/action@v1 }`],
+  // The escaped quote used to close the string early in `splitComment`, so ` # ` became a
+  // comment and the `uses` key after it was discarded with the rest of the line.
+  [
+    "a flow mapping whose earlier value contains an escaped quote and a hash",
+    String.raw`      - { name: "a\" # ", uses: evil/action@v1 }`,
+  ],
+  [
+    "a double-quoted key folded across two lines under an explicit key",
+    [
+      String.raw`      - ? "us`,
+      String.raw`          es"`,
+      String.raw`        : evil/action@v1`,
+    ].join("\n"),
+  ],
+];
+
 describe("every spelling of a `uses` key is parsed or refused, never skipped", () => {
   const subject = firstThirdParty();
   const original = readRepoFile(subject.file);
@@ -384,7 +427,7 @@ describe("every spelling of a `uses` key is parsed or refused, never skipped", (
     expect(pinnedLine).toBeDefined();
   });
 
-  for (const [name, replacement] of SPELLINGS) {
+  for (const [name, replacement] of [...SPELLINGS, ...ADVERSARIAL_SPELLINGS]) {
     it(`refuses ${name}`, () => {
       const text = original.replace(pinnedLine as string, replacement);
       expect(text).not.toBe(original);
@@ -411,6 +454,14 @@ describe("every spelling of a `uses` key is parsed or refused, never skipped", (
     expect(mentionsUsesKey("      - run: pnpm test")).toBe(false);
     expect(mentionsUsesKey("      - name: a step that uses a thing")).toBe(false);
     expect(mentionsUsesKey("      - run: node -e 'x.uses'")).toBe(false);
+    // The delta-review spellings, at the detector rather than through a whole file.
+    expect(mentionsUsesKey("      - !!str uses: evil/action@v1")).toBe(true);
+    expect(mentionsUsesKey("      - &a !!str uses: evil/action@v1")).toBe(true);
+    expect(mentionsUsesKey(String.raw`      - "\x75ses": evil/action@v1`)).toBe(true);
+    expect(mentionsUsesKey("      - { ? uses : evil/action@v1 }")).toBe(true);
+    expect(mentionsUsesKey("      - { !!str uses: evil/action@v1 }")).toBe(true);
+    // A flow SEQUENCE of scalars is not a key, which is why the flow scan wants the colon.
+    expect(mentionsUsesKey("      - { with: [uses, other] }")).toBe(false);
   });
 });
 
@@ -504,6 +555,15 @@ describe("the rule bites", () => {
 
     expect(read[0]?.kind).toBe("unknown");
     expect(problemsNow(read).join("\n")).toContain("this inventory does not read");
+  });
+
+  it("fails a local reference that climbs out of its prefix with `..`", () => {
+    // The prefix test looks like a containment check and is not one: this path starts with
+    // `./.github/actions/` and lands in `tools/` (#972 delta review, Low).
+    const read = readWorkflow("      - uses: ./.github/actions/../../tools/x");
+
+    expect(read[0]?.kind).toBe("unknown");
+    expect(problemsNow(read).join("\n")).toContain("`..` segment");
   });
 
   it("fails a pinned third-party reference whose version comment is missing, prose or major-only", () => {
