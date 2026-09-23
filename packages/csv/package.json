@@ -29,6 +29,6 @@
     "lint": "node ../../scripts/eslint-workspace.mjs src"
   },
   "devDependencies": {
-    "@types/node": "^24.13.4"
+    "@types/node": "^24.13.6"
   }
 }

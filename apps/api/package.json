@@ -27,10 +27,10 @@
     "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.56",
-    "@ai-sdk/google": "^4.0.74",
-    "@ai-sdk/openai": "^4.0.69",
-    "@ai-sdk/openai-compatible": "^3.0.51",
+    "@ai-sdk/anthropic": "^4.0.58",
+    "@ai-sdk/google": "^4.0.76",
+    "@ai-sdk/openai": "^4.0.71",
+    "@ai-sdk/openai-compatible": "^3.0.53",
     "@hono/node-server": "^2.1.1",
     "@hono/otel": "^1.1.2",
     "@hono/zod-openapi": "^1.6.3",
@@ -48,7 +48,7 @@
     "@roonga/qcms-csv": "workspace:*",
     "@roonga/qcms-db": "workspace:*",
     "@roonga/qcms-observability": "workspace:*",
-    "ai": "^7.0.105",
+    "ai": "^7.0.107",
     "better-auth": "1.7.5",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.13.8",
@@ -56,9 +56,9 @@
     "zod": "^4.6.5"
   },
   "devDependencies": {
-    "@seriousme/openapi-schema-validator": "^2.9.1",
+    "@seriousme/openapi-schema-validator": "^2.10.0",
     "@testcontainers/postgresql": "^12.1.0",
-    "@types/node": "^24.13.4",
+    "@types/node": "^24.13.6",
     "@types/pg": "^8.23.1",
     "otplib": "^13.5.0"
   }

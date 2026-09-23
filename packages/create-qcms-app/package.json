@@ -37,6 +37,6 @@
     "check-templates": "node scripts/sync-templates.mjs --check"
   },
   "devDependencies": {
-    "@types/node": "^24.13.4"
+    "@types/node": "^24.13.6"
   }
 }
