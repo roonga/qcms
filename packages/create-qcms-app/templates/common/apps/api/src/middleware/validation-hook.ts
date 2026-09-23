@@ -36,13 +36,17 @@
  * **value**", and everything else on this page is unchanged - a `z.record` key is
  * still reduced to `*`, because there the key *is* content the schema accepted.
  *
- * Named under bounds, because a key name is attacker-controlled text reflected
- * into a response body and a log line: {@link MAX_KEYS_PER_ISSUE} keys per issue,
- * {@link MAX_KEY_LENGTH} characters each including the truncation marker, control and
- * format characters removed so
- * a caller cannot inject a newline into the log or a zero-width run into the
- * message. With {@link MAX_REPORTED_ISSUES} the whole envelope stays small whatever
+ * Named under bounds, because a key name is attacker-controlled text reflected back
+ * to its sender: {@link MAX_KEYS_PER_ISSUE} keys per issue, {@link MAX_KEY_LENGTH}
+ * characters each including the truncation marker, control and format characters
+ * removed. With {@link MAX_REPORTED_ISSUES} the whole envelope stays small whatever
  * arrives.
+ *
+ * Where it lands is **the client's own 400 and nowhere else**, which is the precise
+ * claim `docs/SECURITY_DESIGN.md` SEC-8 records: the error-envelope middleware logs
+ * `requestId`, `code` and `status` and not the message, and the span keeps only
+ * `exception.type` and `exception.escaped` under the SEC-13 allowlist, so a key name
+ * reaches neither stdout nor an exported trace.
  */
 
 import type { ValidationTargets } from "hono";
@@ -90,11 +94,16 @@ const MAX_KEY_LENGTH = 64;
 const TRUNCATION_MARK = "...";
 
 /**
- * Control, format and line-separator characters, removed from a named key. A key
- * reaches the `warn` log line as well as the response body, so a caller must not
- * be able to put a newline, an ANSI escape or a zero-width run inside it. `\p{C}`
- * covers the C0/C1 controls and the format characters; the two separators are the
- * line breaks outside them.
+ * Control, format and line-separator characters, removed from a named key.
+ *
+ * Defence in depth rather than the thing holding the line, and worth saying which: a
+ * key name does not reach a log today, because the error-envelope middleware logs
+ * `requestId`, `code` and `status` and never the message. The stripping is here
+ * because a key travels as attacker-controlled text into a body someone else will
+ * render, print or grep, and a newline, an ANSI escape or a zero-width run inside it
+ * should never become that someone's problem - including ours, if a future log line
+ * ever does carry it. `\p{C}` covers the C0/C1 controls and the format characters;
+ * the two separators are the line breaks outside them.
  */
 const UNSAFE_IN_KEY = /[\p{C}\p{Zl}\p{Zp}]/gu;
 
@@ -146,7 +155,7 @@ function safePath(path: readonly PropertyKey[]): string {
 }
 
 /**
- * One refused key, stripped of anything unsafe in a log line and cut to length.
+ * One refused key, stripped of anything unsafe to reflect and cut to length.
  *
  * Measured and cut in **code points** rather than UTF-16 code units, so a key
  * ending in an astral character is not left with half of a surrogate pair. That is

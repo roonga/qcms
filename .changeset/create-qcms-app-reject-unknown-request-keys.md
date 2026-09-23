@@ -19,8 +19,10 @@ imported if the body is neither a `z.strictObject` nor explicitly opened with a 
 reason. An undeclared key is a `400 INVALID_REQUEST` whose message names it, and the same
 declaration publishes `additionalProperties: false` in `docs/openapi/*.json`, so the server
 and a generated client can no longer disagree. The named keys are bounded, because they are
-caller input reflected into a response body and a log line: five per issue, 64 characters
-each including the marker that shows a key was cut, control and format characters removed.
+caller input reflected back to its sender: five per issue, 64 characters each including the
+marker that shows a key was cut, control and format characters removed. It lands in the
+client's own 400 and nowhere else - the error envelope logs a request id, a code and a status,
+never the message, and the exported span keeps only the exception type.
 
 Two kinds of schema deliberately stay open. Maps whose keys are caller data - the
 kernel-validated question and form definitions, and the `questionId`-keyed answer maps -
