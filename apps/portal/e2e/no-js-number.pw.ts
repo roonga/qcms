@@ -221,7 +221,7 @@ test("an optional number can be cleared without scripting, and the server lets g
     // The marker is the whole mechanism, and it is emitted only for a question that
     // currently holds an answer (issue #127).
     await expect(page.locator('input[name="__qa__q_annual_km"]')).toHaveCount(1);
-    await expect(km).not.toHaveAttribute("required", /.*/);
+    expect(await km.getAttribute("required")).toBeNull();
 
     // The gesture: empty the box, answer the step's required question, submit.
     await km.fill("");

@@ -161,7 +161,9 @@ test("a blank required group submits and comes back reported, beside the group a
     const stored = await db.latestAnswers(sessionId);
     expect(stored.has(COVER_QUESTION)).toBe(false);
     expect(stored.get("q_at_fault_accident")).toBe(false);
-    await expect(page.getByRole("radio", { name: "No", exact: true })).toBeChecked();
+    await expect(
+      page.locator('input[type="radio"][name="q_at_fault_accident"][value="false"]'),
+    ).toBeChecked();
 
     // And the respondent can finish from here, which is the part the dead end denied
     // them: check one box and the step passes.
