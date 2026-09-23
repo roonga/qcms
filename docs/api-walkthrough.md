@@ -201,7 +201,8 @@ curl -sX PATCH "$ADMIN/admin/forms/frm_signup/settings" \
 
 Nothing is written on a refusal: the check runs before the handler. The names are
 bounded because they are your input reflected back - at most five keys per issue
-and 64 characters each, with control characters removed - so `details.issues[].keys`
+and 64 characters each including the `...` that marks a cut, with control characters
+removed - so `details.issues[].keys`
 may carry `omittedKeys` and the message may end `and N more`.
 
 Two kinds of object stay open, because their keys are your data rather than a field

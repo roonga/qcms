@@ -188,14 +188,31 @@ describe("a named key is bounded, because it is attacker-controlled text (#893)"
     expect(invalidRequest("json", parsed.error).message).toContain("and 4 more");
   });
 
-  it("cuts an over-long key to a fixed size", () => {
+  it("cuts an over-long key to a fixed size, marker included", () => {
     const details = reportFor({ ["k".repeat(500)]: 1 });
     const named = details.issues[0]?.keys?.[0] ?? "";
 
-    // 64 characters plus the truncation marker - a key invented to bloat the
-    // response or the log line cannot make either grow.
-    expect(named).toHaveLength(67);
+    // 64 characters in total, not 64 plus a marker: the cap is the whole answer to
+    // how long a named key can get, so the worst-case envelope size is this number
+    // times the two issue caps and nothing else.
+    expect(named).toHaveLength(64);
     expect(named.endsWith("...")).toBe(true);
+  });
+
+  it("cuts on code points, so an astral key keeps whole characters", () => {
+    // `slice` on UTF-16 units could leave half a surrogate pair at the boundary.
+    // Cosmetic rather than unsafe - a lone surrogate forges nothing through
+    // `JSON.stringify` - but a named key should be one a caller can read back.
+    // The single ASCII character matters: it makes the old 64-code-unit boundary
+    // land in the MIDDLE of a surrogate pair rather than tidily between two.
+    const named = reportFor({ [`a${"\u{1f600}".repeat(200)}`]: 1 }).issues[0]?.keys?.[0] ?? "";
+
+    expect([...named]).toHaveLength(64);
+    expect(named.endsWith("...")).toBe(true);
+    // No unpaired surrogate survived the cut.
+    expect(/[\uD800-\uDFFF]/u.test(named.replaceAll(/[\uD800-\uDBFF][\uDC00-\uDFFF]/gu, ""))).toBe(
+      false,
+    );
   });
 
   it("removes characters that could forge a line in the log", () => {

@@ -38,7 +38,8 @@
  *
  * Named under bounds, because a key name is attacker-controlled text reflected
  * into a response body and a log line: {@link MAX_KEYS_PER_ISSUE} keys per issue,
- * {@link MAX_KEY_LENGTH} characters each, control and format characters removed so
+ * {@link MAX_KEY_LENGTH} characters each including the truncation marker, control and
+ * format characters removed so
  * a caller cannot inject a newline into the log or a zero-width run into the
  * message. With {@link MAX_REPORTED_ISSUES} the whole envelope stays small whatever
  * arrives.
@@ -69,13 +70,23 @@ const ROOT_PATH = "(root)";
 const MAX_KEYS_PER_ISSUE = 5;
 
 /**
- * Cap on the length of a named key, in characters. Far past any field name this
- * API declares, so a real mistake is always shown in full, while a key invented
- * to bloat the response or the log is cut to a fixed size.
+ * Cap on the length of a named key, in characters, **including the truncation
+ * marker**. Far past any field name this API declares, so a real mistake is always
+ * shown in full, while a key invented to bloat the response or the log is cut to a
+ * fixed size.
+ *
+ * The marker counts towards the cap rather than riding on top of it, so this number
+ * is the whole answer to "how long can a named key get" - the one a caller reads in
+ * `docs/api-walkthrough.md` and the one the worst-case envelope arithmetic uses
+ * (`MAX_REPORTED_ISSUES` x `MAX_KEYS_PER_ISSUE` x this). A cap that a marker could
+ * push past would be a cap a reader has to recompute.
+ *
+ * Characters here means code points, so a key of astral characters is 64 of them and
+ * more than 64 bytes. Still bounded, and bounded by the thing a caller can count.
  */
 const MAX_KEY_LENGTH = 64;
 
-/** Marker appended to a key that was cut at {@link MAX_KEY_LENGTH}. */
+/** Marker that replaces the tail of a key cut at {@link MAX_KEY_LENGTH}. */
 const TRUNCATION_MARK = "...";
 
 /**
@@ -134,12 +145,20 @@ function safePath(path: readonly PropertyKey[]): string {
   return path.map(safeSegment).join(".");
 }
 
-/** One refused key, stripped of anything unsafe in a log line and cut to length. */
+/**
+ * One refused key, stripped of anything unsafe in a log line and cut to length.
+ *
+ * Measured and cut in **code points** rather than UTF-16 code units, so a key
+ * ending in an astral character is not left with half of a surrogate pair. That is
+ * cosmetic rather than a safety property - a lone surrogate survives
+ * `JSON.stringify` as an escape and forges nothing - but a refusal that names a key
+ * should name something a caller can read, and `[...key]` costs nothing here.
+ */
 function safeKey(key: unknown): string {
-  const scrubbed = String(key).replace(UNSAFE_IN_KEY, "");
-  return scrubbed.length > MAX_KEY_LENGTH
-    ? `${scrubbed.slice(0, MAX_KEY_LENGTH)}${TRUNCATION_MARK}`
-    : scrubbed;
+  const scrubbed = [...String(key).replace(UNSAFE_IN_KEY, "")];
+  if (scrubbed.length <= MAX_KEY_LENGTH) return scrubbed.join("");
+  const kept = scrubbed.slice(0, MAX_KEY_LENGTH - TRUNCATION_MARK.length).join("");
+  return `${kept}${TRUNCATION_MARK}`;
 }
 
 /**
