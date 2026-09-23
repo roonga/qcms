@@ -41,7 +41,11 @@ const NATIVE = { action: "/s/ses_abc/step", submitLabel: "Continue" } as const;
 
 function renderNative(values?: Record<string, unknown>) {
   return render(
-    <A2UIStepRenderer document={groupStep} values={(values ?? {}) as never} nativeSubmit={NATIVE} />,
+    <A2UIStepRenderer
+      document={groupStep}
+      values={(values ?? {}) as never}
+      nativeSubmit={NATIVE}
+    />,
   );
 }
 
@@ -87,7 +91,9 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
     // attribute. This is what makes the #920 ruling still true everywhere else.
     const { container } = renderNative();
     const radios = [
-      ...container.querySelectorAll<HTMLInputElement>(`input[type="radio"][name="${RADIO_QUESTION}"]`),
+      ...container.querySelectorAll<HTMLInputElement>(
+        `input[type="radio"][name="${RADIO_QUESTION}"]`,
+      ),
     ];
     expect(radios.length).toBe(2);
     expect(radios.every((radio) => radio.required)).toBe(true);

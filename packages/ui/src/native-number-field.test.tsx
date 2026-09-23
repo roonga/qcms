@@ -51,7 +51,10 @@ function postedFields(container: HTMLElement): HTMLInputElement[] {
 
 /** A hand-written step holding one number question with the given compiled props. */
 function numberDocument(props: Readonly<Record<string, unknown>>): A2UIStepDocument {
-  return { stepId: "stp_number", root: { type: "Form", children: [{ type: "NumberField", props }] } };
+  return {
+    stepId: "stp_number",
+    root: { type: "Form", children: [{ type: "NumberField", props }] },
+  };
 }
 
 describe("the no-JS number control (issue #18)", () => {
