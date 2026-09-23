@@ -14,6 +14,11 @@ const REPO_ROOT = fileURLToPath(new URL(".", import.meta.url));
 // The scaffolding CLI's root, resolved the same way API_ROOT is.
 const CREATE_APP_ROOT = fileURLToPath(new URL("packages/create-qcms-app", import.meta.url));
 
+// Where the coverage reports are written, resolved from this file for the same
+// reason API_ROOT is. `scripts/check-coverage-measured.mjs` resolves the same
+// directory from its own location; the two have to agree.
+const COVERAGE_DIR = fileURLToPath(new URL("coverage", import.meta.url));
+
 // Single root Vitest configuration - every package and app is a project here;
 // no per-package runners or configs. (Vitest 4 removed vitest.workspace.ts;
 // test.projects is its replacement - task 001.)
@@ -115,13 +120,40 @@ export default defineConfig({
         },
       },
     ],
-    // Coverage is a root-level concern in Vitest 4 (projects cannot carry
-    // their own). Scope: the kernel (task 009 exit criterion 4 - lines
-    // >= 95% across tasks 002-009, `pnpm --filter @roonga/qcms-core coverage`).
-    // Test files are excluded by Vitest's defaults.
+    // Coverage is still a root-level concern: `coverage` is one of Vitest's
+    // non-project options, so no project can carry its own (Vitest 5 keeps it
+    // in `NonProjectOptions`). Scope: the kernel (task 009 exit criterion 4 -
+    // lines >= 95% across tasks 002-009, `pnpm --filter @roonga/qcms-core
+    // coverage`). Test files are excluded by Vitest's defaults.
+    //
+    // `include` is matched against each file's path RELATIVE TO ITS PROJECT
+    // ROOT. That is a Vitest 5 breaking change - "coverage.include and
+    // coverage.exclude now match precisely", https://vitest.dev/guide/migration
+    // and https://vitest.dev/config/coverage - and it is why this pattern is
+    // `src/**` rather than the repo-relative `packages/core/src/**` it read
+    // under Vitest 4. The old spelling matched nothing once the pattern was
+    // resolved against `packages/core`, so the run reported
+    // `Lines: Unknown% ( 0/0 )` and still exited 0 against the threshold
+    // below: a green that measured no lines at all (PR #970 review).
+    //
+    // The same pattern would resolve against any other project's root if one
+    // were ever run with `--coverage`. The kernel is the only coverage
+    // invocation in this repository, and the guard below is scoped to it.
+    //
+    // That zero-file green cannot recur silently. Vitest has no "fail on an
+    // empty report" option, so `packages/core`'s `coverage` script chains
+    // `scripts/check-coverage-measured.mjs`, which reads the json-summary
+    // written here and fails unless every kernel source file git knows about
+    // was measured.
     coverage: {
       provider: "v8",
-      include: ["packages/core/src/**"],
+      include: ["src/**"],
+      // `text` for whoever is reading the run, `json-summary` for the guard.
+      reporter: ["text", "json-summary"],
+      // Pinned to this file's directory rather than left to default relative to
+      // whatever `--root` an invocation passed, so the guard cannot read a
+      // report some other run left behind.
+      reportsDirectory: COVERAGE_DIR,
       thresholds: {
         lines: 95,
       },
