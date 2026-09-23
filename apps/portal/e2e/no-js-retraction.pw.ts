@@ -27,24 +27,28 @@
  *
  * ## What can be cleared without scripting, and what the browser refuses first
  *
- * Only an **optional** question. The renderer sets the HTML `required` attribute from
- * the question, and react-aria's checkbox group sets it on every box for exactly as
- * long as none is selected, so emptying a required text field or unchecking a required
- * group makes the browser refuse the submission before it leaves the page. The marker is
- * still what makes the optional clear reach the ledger, and it is still the whole of the
- * mechanism, but the required half of the issue's scenario is blocked one layer earlier
- * than the BFF. The Code Owner ruled on that (2026-09-13, issue #920): browser
- * validation stays, so a required question staying unclearable here is the decided
- * behaviour, and the server reports the same constraint for anything that gets past the
- * browser (`no-js-required.pw.ts`).
+ * Only an **optional** question, with one exception the browser cannot police. The
+ * renderer sets the HTML `required` attribute from the question, so emptying a required
+ * text field makes the browser refuse the submission before it leaves the page. The
+ * Code Owner ruled on that (2026-09-13, issue #920): browser validation stays, so a
+ * required question staying unclearable here is the decided behaviour, and the server
+ * reports the same constraint for anything that gets past the browser
+ * (`no-js-required.pw.ts`).
  *
- * The multiChoice half of "the two transports agree" is therefore asserted where both
- * are reachable together rather than here: `packages/ui/src/clear-paths.test.tsx` for
- * what each render mode puts on the wire, and `apps/portal/lib/server/step-form.test.ts`
- * for what the BFF makes of it. Clearing a NUMBER without scripting is still out of
- * scope, and is now the only control in that position: its form value rides a hidden
- * input JavaScript syncs (issue #18, phase 4). The date left that position with #920 -
- * `clear-paths.test.tsx` carries the bytes an emptied native day input posts.
+ * The exception is the multiChoice GROUP. HTML has no "at least one of these"
+ * constraint, so since issue #974 (Code Owner ruling, 2026-09-19) a required group
+ * renders with no `required` on its boxes at all and the API reports a blank one after
+ * the round trip. Unchecking every box of a required group is therefore submittable,
+ * and it is a retraction like any other clear - asserted in a browser by
+ * `no-js-multi-choice.pw.ts`, which is also where the two transports agreeing on a
+ * multiChoice is now proved end to end;
+ * `packages/ui/src/clear-paths.test.tsx` and `apps/portal/lib/server/step-form.test.ts`
+ * still carry the bytes and the decode.
+ *
+ * Every control reaches the marker now. The date left the exempt list with #920, and
+ * the NUMBER left it with #18 (same 2026-09-19 ruling): its form value no longer rides
+ * a JavaScript-synced hidden input, so an optional number can be emptied and cleared
+ * without scripting (`no-js-number.pw.ts`).
  *
  * ## Why the assertion is Postgres
  *
@@ -66,6 +70,7 @@ import {
   fillText,
   startKitchenSink,
 } from "./support/kitchen-sink.js";
+import { submitStep } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
@@ -85,9 +90,9 @@ function sessionIdOf(url: string): string {
  * step, so a step whose required questions are all answered is a step the respondent
  * never sees. Answering the boolean is therefore left to the no-JS half, where it is
  * also what makes the form submittable at all - see the note on constraint validation
- * above. "No" is the answer it gives, which keeps the required NumberField hidden; the
- * NumberField's own visible input carries `required` and is empty and focusable, so a
- * revealed one would block the submission exactly as the date does.
+ * above. "No" is the answer it gives, which keeps the required number question hidden;
+ * a revealed one is a `required` native number input (issue #18), so it would block the
+ * submission exactly as the date does.
  *
  * `answerDetail` decides whether the optional long text is answered before the no-JS
  * half begins, which is the only difference between the two cases below.
@@ -116,22 +121,6 @@ async function resumeWithoutJs(page: Page, from: BrowserContext, sessionId: stri
   await page.context().addCookies(await from.cookies());
   await page.goto(`/s/${sessionId}`);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
-}
-
-/**
- * Submit the step's native form and wait for the page the 303 lands on.
- *
- * The POST and the GET are one navigation chain, so waiting for the served 200 is what
- * makes the assertions that follow read the page the submission produced rather than the
- * one it was made from. Scoped to the step card because the header's appearance controls
- * are a second native form with a submit of their own (issue #195).
- */
-async function submitStep(page: Page): Promise<void> {
-  const served = page.waitForResponse(
-    (response) => response.request().isNavigationRequest() && response.status() === 200,
-  );
-  await page.getByTestId("step-card").locator('form button[type="submit"]').click();
-  await served;
 }
 
 /**

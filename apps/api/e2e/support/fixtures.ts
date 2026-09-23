@@ -105,11 +105,18 @@ export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledFo
  * `q_extra_detail` shown when an optional-cover option is selected). It is the
  * fixture the portal's explicit-navigation e2e drives (ADR-28).
  *
- * The form is VEHICLE-domain throughout (043's neutral-domain rule): the two
+ * It also carries each question type in the state a no-JS browser case needs to
+ * reach: `q_accident_count` is a REQUIRED number and `q_annual_km` an OPTIONAL one,
+ * because on that path browser validation decides which gestures are reachable at
+ * all (a required field cannot be emptied, so the clear needs the optional one -
+ * see `Q_ANNUAL_KM_DEF`).
+ *
+ * The form is VEHICLE-domain throughout (043's neutral-domain rule): the three
  * questions unique to this form (optional-cover multi-choice, extra-detail long
- * text) live in this support directory rather than the shared kernel fixtures,
- * whose bytes are frozen by the golden corpus. The compiled golden is generated
- * from these definitions via the a2ui-compiler and committed alongside them.
+ * text, annual-km number) live in this support directory rather than the shared
+ * kernel fixtures, whose bytes are frozen by the golden corpus. The compiled golden
+ * is generated from these definitions via the a2ui-compiler and committed alongside
+ * them.
  *
  * **`vehicle-` is load-bearing, not decoration (issue #129).** A different form
  * with the same coverage and a DIFFERENT question set - the health-domain
@@ -141,6 +148,27 @@ export const Q_EXTRA_DETAIL_DEF = readFixture("apps/api/e2e/support/fixtures/q-e
 export const Q_COVERAGE_DEF = readFixture(
   "packages/core/fixtures/questions/valid/single-choice.json",
 );
+/**
+ * `q_annual_km` - number, **optional**, integer 0..100000 (stp_cover).
+ *
+ * The one optional number in any fixture form, added for issue #18: the ruling
+ * (2026-09-19) asks for a browser case in which a no-JS respondent CLEARS a number
+ * they answered earlier, and a required one cannot be cleared through the browser -
+ * HTML `required` refuses the empty submit before the form leaves the page, which is
+ * the 2026-09-13 ruling on issue #920 working as intended. So the clear needs an
+ * optional number, and `q_accident_count` is required.
+ *
+ * Deliberately INTEGER (`step: 1` once compiled). A question that admits fractions
+ * would leave the scripted control on react-aria's default format, whose three
+ * fraction digits are what makes `inputMode` disagree between a server render and a
+ * touch client - the open half of issue #945. Adding one to a seeded fixture would
+ * put that mismatch on a page the browser gate reloads under its console gate, which
+ * is making #945 worse rather than leaving it alone.
+ *
+ * Appended to `stp_cover` AFTER `q_coverage_level`, so the single-choice RadioGroup
+ * keeps the tree position `a11y-keyboard.pw.ts` relies on for its issue #144 case.
+ */
+export const Q_ANNUAL_KM_DEF = readFixture("apps/api/e2e/support/fixtures/q-annual-km.json");
 
 /** Repo-relative path of the compiled document (regenerable, see below). */
 export const KITCHEN_SINK_COMPILED_PATH =
@@ -269,6 +297,7 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
       Q_OPTIONAL_COVER_DEF,
       Q_EXTRA_DETAIL_DEF,
       Q_COVERAGE_DEF,
+      Q_ANNUAL_KM_DEF,
     ],
   },
   {

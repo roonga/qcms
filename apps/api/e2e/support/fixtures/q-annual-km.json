@@ -1,0 +1,7 @@
+{
+  "type": "number",
+  "questionId": "q_annual_km",
+  "label": { "en": "About how many kilometres do you drive a year?" },
+  "help": { "en": "Leave this blank if you are not sure" },
+  "constraints": { "min": 0, "max": 100000, "integer": true }
+}

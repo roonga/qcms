@@ -239,6 +239,17 @@
                 ]
               },
               {
+                "type": "NumberField",
+                "props": {
+                  "label": "About how many kilometres do you drive a year?",
+                  "description": "Leave this blank if you are not sure",
+                  "name": "q_annual_km",
+                  "minValue": 0,
+                  "maxValue": 100000,
+                  "step": 1
+                }
+              },
+              {
                 "type": "Honeypot",
                 "props": {
                   "name": "website",

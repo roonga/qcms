@@ -24,7 +24,10 @@
     {
       "stepId": "stp_cover",
       "title": { "en": "Your cover" },
-      "items": [{ "questionId": "q_coverage_level", "version": 1 }]
+      "items": [
+        { "questionId": "q_coverage_level", "version": 1 },
+        { "questionId": "q_annual_km", "version": 1 }
+      ]
     }
   ],
   "rules": [
