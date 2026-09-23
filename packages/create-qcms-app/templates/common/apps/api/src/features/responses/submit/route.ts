@@ -28,20 +28,32 @@ export const submitRoute = createRoute({
   tags: ["responses"],
   request: {
     params: SessionParams,
-    // The one request body in this API that stays OPEN (#893). Two reasons, and
-    // either alone would be enough. Functionally, the no-JS path forwards every
-    // posted form field the compiled document did not tag as an answer control
-    // (`extras` in `apps/portal/lib/server/step-form.ts`), and the honeypot field
-    // name is deployment configuration, so a closed body would refuse a
-    // legitimate submit the moment an operator renamed it. And as a matter of
-    // anti-abuse, refusing an unknown key here would build the oracle this slice
-    // exists to deny: `{"website":"x"}` answering 200 while `{"nickname":"x"}`
-    // answers 400 tells a bot which field is the trap in two requests.
+    // The one request body in this API that stays OPEN (Code Owner, 2026-09-24,
+    // issue #893). It rests on two facts, and deliberately not on a third.
+    //
+    // It has NO SINK. The handler reads exactly one key, the configured honeypot
+    // field; the stored submission and the outbox payload are both built from the
+    // answer ledger rather than from this body; and the body is never logged. So an
+    // undeclared key reaches nothing - not Postgres, not a log line, not a webhook -
+    // and `bodyLimit` caps how much of it can arrive. Closing the body would refuse
+    // input that already goes nowhere.
+    //
+    // And the no-JS path NEEDS it open: it forwards every posted form field the
+    // compiled document did not tag as an answer control (`extras` in
+    // `apps/portal/lib/server/step-form.ts`), so a closed body would refuse
+    // legitimate submissions from a respondent without JavaScript.
+    //
+    // What this is NOT resting on: the honeypot being secret. Its wire name is a
+    // compiler constant (`packages/a2ui-compiler/src/honeypot.ts`), already published
+    // in `docs/openapi/respondent.json` and already present in the served DOM, so
+    // there is no tell for a refusal to leak.
     body: jsonBody(SubmitBody, {
       openBecause:
-        "The honeypot field name is deployment-configured and the no-JS path forwards " +
-        "untagged form fields, so an unknown key must reach the handler rather than be " +
-        "refused - and a refusal would tell a bot which field is the honeypot.",
+        "This body has no sink - the handler reads one key, the stored submission and " +
+        "the outbox payload come from the answer ledger, and the body is never logged - " +
+        "and the no-JS path forwards every posted form field the compiled document did " +
+        "not tag as an answer control, so an undeclared key must reach the handler " +
+        "rather than be refused (Code Owner, 2026-09-24, issue #893).",
     }),
   },
   responses: {

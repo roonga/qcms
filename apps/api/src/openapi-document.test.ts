@@ -304,11 +304,13 @@ const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
   "PreviewDraftBody.answers":
     "A questionId -> AnswerValue map of the author's walk-through state, keyed by question id.",
   SubmitBody:
-    "The one request body that stays open. The honeypot field name is deployment " +
-    "configuration and the portal's no-JS path forwards every posted form field the compiled " +
+    "The one request body that stays open (Code Owner, 2026-09-24, issue #893). It has no " +
+    "sink: the handler reads one key, the stored submission and the outbox payload are built " +
+    "from the answer ledger, and the body is never logged, so an undeclared key reaches " +
+    "nothing. And the portal's no-JS path forwards every posted form field the compiled " +
     "document did not tag as an answer control, so a closed body would refuse legitimate " +
-    "submits. A refusal would also build the oracle this slice exists to deny: a 400 for one " +
-    "field name and a 200 for another tells a bot which field is the trap.",
+    "submissions. It does NOT rest on the honeypot being secret: the field name is a compiler " +
+    "constant already published in the respondent document and already in the served DOM.",
   "AcceptProposalBody.definition":
     "The proposed form definition, opaque exactly as FormDefinitionInput is; unnamed in the " +
     "document because the assist routes are flag-gated and must register no component into a " +

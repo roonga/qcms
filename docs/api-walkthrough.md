@@ -216,6 +216,13 @@ list:
   forwards every posted form field the compiled document did not tag as an answer
   control, so an unknown key here is accepted and ignored.
 
+**Query parameters and headers stay permissive** (Code Owner, 2026-09-24). The policy
+is about request bodies. An unrecognised query parameter or header is still ignored,
+so link decoration and a proxy's own headers travel harmlessly. OpenAPI publishes query
+parameters one at a time and has no per-operation way to say "and no others", so unlike
+a body there would be nowhere in the contract to state a closed policy even if one were
+wanted.
+
 Pre-1.0 this arrived with no deprecation window (Code Owner, 2026-09-19). A caller
 that was relying on a key being silently dropped now gets a 400 instead of a
 misleading success.
