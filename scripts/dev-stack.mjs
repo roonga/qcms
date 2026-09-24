@@ -124,56 +124,117 @@ const FORM_SLUG = process.env.QCMS_DEV_FORM_SLUG ?? "kitchen-sink";
 const KITCHEN_SINK_DEFINITION = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json";
 const KITCHEN_SINK_GOLDEN = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink.a2ui.json";
 
-// The kitchen-sink form pins these library questions (see the ONE vehicle-domain
-// definition named above - the same fixture the portal e2e seeds). Five map to the
-// shared neutral kernel fixtures; the two unique to this form (optional cover, extra
-// detail) live in the e2e support directory (043 neutral-domain rule).
-// q_at_fault_accident is pinned at version 2, so it gets two versions (identical
-// bytes), mirroring the e2e seed.
-const QUESTIONS = [
-  {
-    id: "q_full_name",
+/**
+ * Where each library question's DEFINITION lives, and what slug its library row gets.
+ *
+ * This map is deliberately NOT the list of questions to seed. Which questions the
+ * kitchen sink pins, and at which version, is a fact about
+ * {@link KITCHEN_SINK_DEFINITION}, and it is read from there by
+ * {@link kitchenSinkQuestions} - because a second copy of that list is exactly how
+ * `pnpm dev:portal` broke. A question added to the form json reached the launcher's
+ * `insertFormVersion` but not its seed loop, so every step 500'd on
+ * `pinned question ... is missing (snapshot not self-contained)` on a fresh database,
+ * and nothing in `verify` executes this launcher to notice (the #817 class again, and
+ * CONTRIBUTING's "derive the set" rule).
+ *
+ * What the form json cannot say is where a definition FILE is, so that much is written
+ * here - and {@link kitchenSinkQuestions} refuses to run if this map and the json's
+ * pinned set disagree in either direction, so the two cannot drift apart silently.
+ * `scripts/dev-stack.test.ts` makes that comparison in `verify`.
+ *
+ * Six map to the shared neutral kernel fixtures; the three unique to this form
+ * (optional cover, extra detail, annual km) live in the e2e support directory
+ * (043 neutral-domain rule).
+ */
+const QUESTION_SOURCES = {
+  q_full_name: {
     slug: "full-name",
     path: "packages/core/fixtures/questions/valid/short-text.json",
-    versions: 1,
   },
-  {
-    id: "q_dob",
-    slug: "dob",
-    path: "packages/core/fixtures/questions/valid/date.json",
-    versions: 1,
-  },
-  {
-    id: "q_at_fault_accident",
+  q_dob: { slug: "dob", path: "packages/core/fixtures/questions/valid/date.json" },
+  q_at_fault_accident: {
     slug: "at-fault-accident",
     path: "packages/core/fixtures/questions/valid/boolean.json",
-    versions: 2,
   },
-  {
-    id: "q_accident_count",
+  q_accident_count: {
     slug: "accident-count",
     path: "packages/core/fixtures/questions/valid/number.json",
-    versions: 1,
   },
-  {
-    id: "q_optional_cover",
+  q_optional_cover: {
     slug: "optional-cover",
     path: "apps/api/e2e/support/fixtures/q-optional-cover.json",
-    versions: 1,
   },
-  {
-    id: "q_extra_detail",
+  q_extra_detail: {
     slug: "extra-detail",
     path: "apps/api/e2e/support/fixtures/q-extra-detail.json",
-    versions: 1,
   },
-  {
-    id: "q_coverage_level",
+  q_coverage_level: {
     slug: "coverage-level",
     path: "packages/core/fixtures/questions/valid/single-choice.json",
-    versions: 1,
   },
-];
+  q_annual_km: { slug: "annual-km", path: "apps/api/e2e/support/fixtures/q-annual-km.json" },
+};
+
+/**
+ * The questions this launcher seeds, DERIVED from the form definition's own pinned
+ * items rather than listed again here.
+ *
+ * `versions` is the highest version any step pins, because the seed creates versions
+ * 1..n with identical bytes to mirror the e2e seed - `q_at_fault_accident` is pinned
+ * at 2, so it gets two. Reading the pin instead of writing "2" down is the same
+ * derivation: a repin in the json moves this with it.
+ *
+ * Both directions of disagreement throw, and both throw HERE, at module load, rather
+ * than half way through a seed that has already written rows:
+ *
+ * - a question the json pins with no entry in {@link QUESTION_SOURCES} is the failure
+ *   this function exists to prevent - it used to be a 500 on every step of a freshly
+ *   seeded dev stack, reported nowhere near its cause;
+ * - an entry in {@link QUESTION_SOURCES} the json no longer pins is the same class
+ *   pointing the other way: a stale row seeded into every dev database, and a path in
+ *   {@link FIXTURE_READ_PATHS} kept alive by nothing.
+ *
+ * Exported for `scripts/dev-stack.test.ts`, which runs in `verify` and is therefore
+ * the gate this launcher does not otherwise have.
+ */
+export function kitchenSinkQuestions(
+  definition = readJson(KITCHEN_SINK_DEFINITION),
+  sources = QUESTION_SOURCES,
+) {
+  /** questionId -> the highest version any step pins. */
+  const pinned = new Map();
+  for (const step of definition.steps ?? []) {
+    for (const item of step.items ?? []) {
+      const previous = pinned.get(item.questionId) ?? 0;
+      pinned.set(item.questionId, Math.max(previous, item.version ?? 1));
+    }
+  }
+
+  const unsourced = [...pinned.keys()].filter((id) => sources[id] === undefined);
+  if (unsourced.length > 0) {
+    throw new Error(
+      `${KITCHEN_SINK_DEFINITION} pins ${unsourced.join(", ")}, which QUESTION_SOURCES in ` +
+        `scripts/dev-stack.mjs does not name. Add the definition path and slug there, or the ` +
+        `dev stack seeds a form version whose pinned questions do not exist and every step 500s.`,
+    );
+  }
+  const unpinned = Object.keys(sources).filter((id) => !pinned.has(id));
+  if (unpinned.length > 0) {
+    throw new Error(
+      `QUESTION_SOURCES in scripts/dev-stack.mjs names ${unpinned.join(", ")}, which ` +
+        `${KITCHEN_SINK_DEFINITION} no longer pins. Remove the entry.`,
+    );
+  }
+
+  return [...pinned].map(([id, versions]) => ({
+    id,
+    slug: sources[id].slug,
+    path: sources[id].path,
+    versions,
+  }));
+}
+
+const QUESTIONS = kitchenSinkQuestions();
 
 /**
  * Every repo-relative fixture this launcher reads, derived from the two lists above
@@ -369,7 +430,10 @@ async function seedKitchenSink({ handle, db, core }) {
     semanticsVersion: "1",
   });
 
-  log(`published ${FORM_ID} as slug "${FORM_SLUG}" (7 question types, 2 rules).`);
+  log(
+    `published ${FORM_ID} as slug "${FORM_SLUG}" ` +
+      `(${QUESTIONS.length} pinned questions, ${definition.rules?.length ?? 0} rules).`,
+  );
 }
 
 async function ignoreDuplicate(fn) {
