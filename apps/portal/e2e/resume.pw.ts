@@ -22,8 +22,13 @@
  * Two limits on where a *resumed* step can be asserted, both structural: `/s/:id`
  * serves the first INCOMPLETE step, so the resumed step's gap question is by
  * definition unanswered and cannot be asserted there, and the kitchen-sink
- * singleChoice step holds exactly one question, so it can never be the resumed
- * step at all. Everything else is a scripting choice: the types covered below on
+ * singleChoice step USED TO hold exactly one question, so it could never be the
+ * resumed step at all - the only question on it would be the gap, leaving nothing
+ * answered there to assert. Issue #988 added a second required single choice to
+ * that step, the `Select` `q_body_type`, so the second limit has lifted: a session
+ * whose gap is one of the two now resumes there displaying the other. Nothing below
+ * depends on the old limit, and no case here exercises the state it opened.
+ * Everything else is a scripting choice: the types covered below on
  * the first NAVIGATION out of the resumed step are reachable on a true resume too
  * (leave a different required question as the gap). They are asserted on the
  * navigation because a client that mounted holding nothing is the same defect one

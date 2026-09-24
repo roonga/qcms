@@ -31,6 +31,8 @@ export const KS = {
   count: /how many/i,
   optionalCover: "Which optional cover do you want?",
   extraDetail: "Anything else about your driving history?",
+  bodyType: "What body type is the vehicle?",
+  overnightParking: "Where is the vehicle usually parked overnight?",
 } as const;
 
 /** Wait for one `POST /answers` to be recorded server-side (status 200). */
@@ -181,6 +183,30 @@ export async function chooseSingleChoice(page: Page, label: string): Promise<voi
 }
 
 /**
+ * Choose an option from a `Select` - what a singleChoice question compiles to above
+ * seven options (issue #988) - by the question's id and the option's visible label.
+ *
+ * Driven through the question's own `[data-qcms-field]` wrapper rather than by
+ * accessible name, because the vendored trigger's name is its CURRENT VALUE followed
+ * by the label ("Select an option What body type is the vehicle?"), so it changes as
+ * soon as the first option is chosen. Selecting commits on change, like a radio, so
+ * this waits for the post directly and never blurs (ADR-31).
+ *
+ * The listbox is portalled to the document body, so the option lookup is page-wide
+ * rather than scoped to the field.
+ */
+export async function chooseFromSelect(
+  page: Page,
+  questionId: string,
+  optionLabel: string,
+): Promise<void> {
+  const recorded = answerPosted(page);
+  await page.locator(`[data-qcms-field="${questionId}"] button[aria-haspopup="listbox"]`).click();
+  await page.getByRole("option", { name: optionLabel, exact: true }).click();
+  await recorded;
+}
+
+/**
  * Toggle one checkbox option by its visible label WITHOUT committing the group.
  * A multi-choice commits on group exit (ADR-31), so a toggle posts nothing: only
  * `commitCheckboxGroup` does. The explicit `.focus()` afterwards is what makes
@@ -217,11 +243,12 @@ export async function checkOption(page: Page, label: string): Promise<void> {
 
 /**
  * Fast-forward through the kitchen-sink form's first two steps with valid
- * answers and land on step 3 ("Your cover"), whose only REQUIRED question is the
- * single-choice one; it also holds the optional number `q_annual_km` (issue #18),
- * which needs no answer for the step to complete. The flow spec drives those steps
- * with its own assertions; this is the plain set-up for a spec whose subject is
- * step 3.
+ * answers and land on step 3 ("Your cover"), whose REQUIRED questions are the
+ * single-choice radio group `q_coverage_level` and the single-choice `Select`
+ * `q_body_type` (issue #988); it also holds two optional questions that need no
+ * answer for the step to complete, the number `q_annual_km` (issue #18) and the
+ * Select `q_overnight_parking`. The flow spec drives those steps with its own
+ * assertions; this is the plain set-up for a spec whose subject is step 3.
  *
  * "No" is chosen for the accident question so the number follow-up stays hidden
  * and no extra required question is introduced.

@@ -25,6 +25,7 @@ import {
   KS,
   answerNumber,
   backStep,
+  chooseFromSelect,
   chooseRadio,
   chooseSingleChoice,
   checkOption,
@@ -85,10 +86,15 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
   await expect(page.getByRole("checkbox", { name: "Windscreen", exact: true })).toBeChecked();
   await continueStep(page);
 
-  // --- Step 3: Your cover (single choice) -> Submit --------------------------
+  // --- Step 3: Your cover (single choice, both shapes) -> Submit -------------
+  // TWO single-choice questions, because the compiler renders one shape below its
+  // seven-option threshold and another above it (`SINGLE_CHOICE_SELECT_THRESHOLD`):
+  // `q_coverage_level` is four options and a RadioGroup, `q_body_type` is nine and a
+  // `Select` (issue #988). Both are required, so the walk answers both.
   await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
   await expect(page.getByTestId("primary-action")).toHaveText("Submit");
   await chooseSingleChoice(page, "Standard");
+  await chooseFromSelect(page, "q_body_type", "Wagon");
 
   await page.getByTestId("primary-action").click();
   // Final Submit completes without regressing to an earlier step (guards N).
@@ -107,6 +113,7 @@ test("kitchen-sink: every type via Continue/Back, Submit, and independent DB ver
     expect(latest.get("q_optional_cover")).toEqual(["opt_breakdown", "opt_windscreen"]);
     expect(latest.get("q_extra_detail")).toBe("No claims in 5 years");
     expect(latest.get("q_coverage_level")).toBe("opt_standard");
+    expect(latest.get("q_body_type")).toBe("opt_wagon");
 
     // (b) Append-only: changing an answer adds a row, never updates in place.
     // The primary proof is q_full_name: answered "Ada Lovelace", then changed to

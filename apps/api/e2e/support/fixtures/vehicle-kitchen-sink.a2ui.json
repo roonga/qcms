@@ -250,6 +250,95 @@
                 }
               },
               {
+                "type": "Select",
+                "props": {
+                  "label": "What body type is the vehicle?",
+                  "description": "Pick the closest match",
+                  "name": "q_body_type",
+                  "isRequired": true,
+                  "items": [
+                    {
+                      "label": "Hatchback",
+                      "value": "opt_hatchback"
+                    },
+                    {
+                      "label": "Sedan",
+                      "value": "opt_sedan"
+                    },
+                    {
+                      "label": "Wagon",
+                      "value": "opt_wagon"
+                    },
+                    {
+                      "label": "SUV",
+                      "value": "opt_suv"
+                    },
+                    {
+                      "label": "Ute",
+                      "value": "opt_ute"
+                    },
+                    {
+                      "label": "Van",
+                      "value": "opt_van"
+                    },
+                    {
+                      "label": "People mover",
+                      "value": "opt_people_mover"
+                    },
+                    {
+                      "label": "Coupe",
+                      "value": "opt_coupe"
+                    },
+                    {
+                      "label": "Convertible",
+                      "value": "opt_convertible"
+                    }
+                  ]
+                }
+              },
+              {
+                "type": "Select",
+                "props": {
+                  "label": "Where is the vehicle usually parked overnight?",
+                  "description": "Leave this blank if it varies",
+                  "name": "q_overnight_parking",
+                  "items": [
+                    {
+                      "label": "Locked garage",
+                      "value": "opt_garage"
+                    },
+                    {
+                      "label": "Carport",
+                      "value": "opt_carport"
+                    },
+                    {
+                      "label": "Driveway",
+                      "value": "opt_driveway"
+                    },
+                    {
+                      "label": "On the street",
+                      "value": "opt_street"
+                    },
+                    {
+                      "label": "Shared car park",
+                      "value": "opt_car_park"
+                    },
+                    {
+                      "label": "Secure compound",
+                      "value": "opt_compound"
+                    },
+                    {
+                      "label": "Farm shed",
+                      "value": "opt_farm_shed"
+                    },
+                    {
+                      "label": "Somewhere else",
+                      "value": "opt_elsewhere"
+                    }
+                  ]
+                }
+              },
+              {
                 "type": "Honeypot",
                 "props": {
                   "name": "website",

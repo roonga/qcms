@@ -173,6 +173,11 @@ const QUESTION_SOURCES = {
     path: "packages/core/fixtures/questions/valid/single-choice.json",
   },
   q_annual_km: { slug: "annual-km", path: "apps/api/e2e/support/fixtures/q-annual-km.json" },
+  q_body_type: { slug: "body-type", path: "apps/api/e2e/support/fixtures/q-body-type.json" },
+  q_overnight_parking: {
+    slug: "overnight-parking",
+    path: "apps/api/e2e/support/fixtures/q-overnight-parking.json",
+  },
 };
 
 /**

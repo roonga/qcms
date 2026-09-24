@@ -46,6 +46,7 @@ import {
   KS,
   answerPosted,
   blurActive,
+  chooseFromSelect,
   chooseRadio,
   commitCheckboxGroup,
   continueStep,
@@ -301,7 +302,13 @@ test("singleChoice commits on change, with no blur", async ({ page }) => {
   await continueStep(page);
   await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
 
-  // Nothing is answered on this step yet, so the flow is not ready to submit.
+  // The step's OTHER required single choice: `q_body_type` has nine options, so it
+  // compiles to a `Select` rather than a RadioGroup (issue #988). Answered first, so
+  // the RadioGroup below is the last required question on the step and its own
+  // single click is what flips the flow to ready.
+  await chooseFromSelect(page, "q_body_type", "Wagon");
+
+  // The RadioGroup is still unanswered, so the flow is not ready to submit.
   const announcer = page.getByTestId("flow-announcer");
   await expect(announcer).not.toHaveText(READY_ANNOUNCEMENT);
   await watchFocusOut(page, "[data-qcms-field='q_coverage_level']");

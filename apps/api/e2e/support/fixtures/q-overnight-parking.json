@@ -1,0 +1,16 @@
+{
+  "type": "singleChoice",
+  "questionId": "q_overnight_parking",
+  "label": { "en": "Where is the vehicle usually parked overnight?" },
+  "help": { "en": "Leave this blank if it varies" },
+  "options": [
+    { "optionId": "opt_garage", "label": { "en": "Locked garage" } },
+    { "optionId": "opt_carport", "label": { "en": "Carport" } },
+    { "optionId": "opt_driveway", "label": { "en": "Driveway" } },
+    { "optionId": "opt_street", "label": { "en": "On the street" } },
+    { "optionId": "opt_car_park", "label": { "en": "Shared car park" } },
+    { "optionId": "opt_compound", "label": { "en": "Secure compound" } },
+    { "optionId": "opt_farm_shed", "label": { "en": "Farm shed" } },
+    { "optionId": "opt_elsewhere", "label": { "en": "Somewhere else" } }
+  ]
+}
