@@ -295,6 +295,58 @@ export const AUTHOR_MESSAGES_COMPILED_PATH =
 /** The committed golden compiled A2UI document for the `author-messages` form. */
 export const AUTHOR_MESSAGES_GOLDEN = readFixture(AUTHOR_MESSAGES_COMPILED_PATH) as CompiledForm;
 
+// --- sample-library: the composed stack's seeded form (issue #994) ----------
+
+/**
+ * The **sample-library** form: the one form `pnpm dev:seed` publishes into the
+ * composed stack (`pnpm dev:up`), pinning EVERY question that seed writes.
+ *
+ * It is a separate form from either kitchen sink, and the reason is the question
+ * SET rather than taste. `apps/api/scripts/seed-fixtures.ts` loads
+ * `packages/core/fixtures/questions/valid/` - seven questions, including
+ * `q_preexisting_conditions` and `q_medical_history`, which the vehicle kitchen
+ * sink does not pin and cannot: that form and its directory are vehicle-domain by
+ * task 043's rule, guarded by `scripts/check-fixture-domain.mjs`, so health-domain
+ * questions can never be added to it. The vehicle kitchen sink also pins five
+ * questions the seed does not write at all, which would mean shipping the e2e
+ * support fixtures into the seed image for a form only the composed stack uses.
+ *
+ * The health-domain `packages/core/fixtures/forms/valid/kitchen-sink.json` does pin
+ * exactly these seven, but it is `frm_kitchen_sink` with slug `kitchen-sink` - the
+ * same id and slug `pnpm dev:portal` publishes a DIFFERENT form under. Seeding it
+ * here would rebuild the exact confusion issue #129 spent a rename removing. It also
+ * pins `q_at_fault_accident@2`, a version the seed does not create.
+ *
+ * So the definition is its own committed file, under `apps/api/scripts/` because the
+ * seed script is what reads it and `docker/seed.Dockerfile` is what ships it. Its
+ * compiled document is regenerable through this registry like the other two.
+ *
+ * Health domain, deliberately and consistently with the library it pins: it sits
+ * outside the directory `check-fixture-domain.mjs` scans, and nothing seeds it into
+ * the portal e2e or `pnpm dev:portal` paths that rule exists to protect.
+ *
+ * Coverage: four steps over all seven question types, with one rule that reveals a
+ * QUESTION (`q_accident_count`, on an at-fault answer) and one that reveals a whole
+ * STEP (`stp_detail`, on a pre-existing-condition selection), so both shapes of
+ * conditional visibility are answerable in the composed stack's portal.
+ */
+export const SAMPLE_LIBRARY_DEF = readFixture("apps/api/scripts/fixtures/sample-library-form.json");
+
+/** `q_preexisting_conditions` - multi-choice, required, 1..3 selected (stp_history). */
+export const Q_PREEXISTING_CONDITIONS_DEF = readFixture(
+  "packages/core/fixtures/questions/valid/multi-choice.json",
+);
+/** `q_medical_history` - long text, optional (stp_detail, the conditionally shown step). */
+export const Q_MEDICAL_HISTORY_DEF = readFixture(
+  "packages/core/fixtures/questions/valid/long-text.json",
+);
+
+/** Repo-relative path of the `sample-library` compiled document (regenerable, see below). */
+export const SAMPLE_LIBRARY_COMPILED_PATH = "apps/api/scripts/fixtures/sample-library.a2ui.json";
+
+/** The committed compiled A2UI document `pnpm dev:seed` stores verbatim (ADR-18). */
+export const SAMPLE_LIBRARY_GOLDEN = readFixture(SAMPLE_LIBRARY_COMPILED_PATH) as CompiledForm;
+
 // --- the drift-guard registry (issue #321) ----------------------------------
 
 /**
@@ -358,5 +410,20 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
     regenerable: true,
     form: AUTHOR_MESSAGES_DEF,
     questions: AUTHOR_MESSAGES_QUESTIONS.map((question) => question.definition),
+  },
+  {
+    name: "sample-library",
+    path: SAMPLE_LIBRARY_COMPILED_PATH,
+    regenerable: true,
+    form: SAMPLE_LIBRARY_DEF,
+    questions: [
+      Q_FULL_NAME_DEF,
+      Q_DOB_DEF,
+      Q_ACCIDENT_DEF,
+      Q_ACCIDENT_COUNT_DEF,
+      Q_PREEXISTING_CONDITIONS_DEF,
+      Q_MEDICAL_HISTORY_DEF,
+      Q_COVERAGE_DEF,
+    ],
   },
 ];
