@@ -129,7 +129,20 @@ const SELECT_CLASS = [
   "aria-invalid:border-(--color-danger)",
 ].join(" ");
 
-/** The vendored control's own placeholder wording, so both renderings agree. */
+/**
+ * The unselected option's wording when the compiled node names none.
+ *
+ * It is the VENDORED control's own default, restated here so the two renderings of
+ * one question say the same thing (`components/a2ui/select/Select.tsx` defaults
+ * `placeholder` to this same string, which ADR-22 forbids editing). That makes it a
+ * hardcoded English user-facing string in qcms-owned code, which ADR-27 would
+ * otherwise send to the message catalogue. Neither available fix is this issue's:
+ * the compiler emits no `placeholder` for a singleChoice question, so giving one an
+ * authored or localized placeholder is a compiler and golden-corpus change, and
+ * changing the vendored default is an upstream change. Until one of those happens,
+ * matching the control beside it is the smaller wrong: a respondent who turns
+ * scripting off would otherwise see different words for the same empty state.
+ */
 export const NATIVE_SELECT_PLACEHOLDER = "Select an option";
 
 export function NativeSelectField({
