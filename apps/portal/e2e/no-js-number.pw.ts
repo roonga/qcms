@@ -223,9 +223,12 @@ test("an optional number can be cleared without scripting, and the server lets g
     await expect(page.locator('input[name="__qa__q_annual_km"]')).toHaveCount(1);
     expect(await km.getAttribute("required")).toBeNull();
 
-    // The gesture: empty the box, answer the step's required question, submit.
+    // The gesture: empty the box, answer the step's two required questions, submit.
+    // The second is the nine-option single choice, which compiles to a `Select` and
+    // renders as a real `<select>` on this path since issue #988.
     await km.fill("");
     await page.getByText("Standard", { exact: true }).click();
+    await page.locator('select[name="q_body_type"]').selectOption("opt_wagon");
     await page.getByTestId("step-card").locator('form button[type="submit"]').click();
     await page.waitForURL(/\/done/);
 

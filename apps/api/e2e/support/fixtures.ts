@@ -106,17 +106,24 @@ export const INSURANCE_GOLDEN = readFixture(INSURANCE_GOLDEN_PATH) as CompiledFo
  * fixture the portal's explicit-navigation e2e drives (ADR-28).
  *
  * It also carries each question type in the state a no-JS browser case needs to
- * reach: `q_accident_count` is a REQUIRED number and `q_annual_km` an OPTIONAL one,
- * because on that path browser validation decides which gestures are reachable at
- * all (a required field cannot be emptied, so the clear needs the optional one -
- * see `Q_ANNUAL_KM_DEF`).
+ * reach, in REQUIRED / OPTIONAL pairs where the clear matters: `q_accident_count` is
+ * a required number and `q_annual_km` an optional one, `q_body_type` a required
+ * single choice above the compiler's option threshold and `q_overnight_parking` an
+ * optional one. On that path browser validation decides which gestures are reachable
+ * at all - a required field cannot be emptied, so each clear needs the optional half
+ * of its pair (see `Q_ANNUAL_KM_DEF` and `Q_OVERNIGHT_PARKING_DEF`).
  *
- * The form is VEHICLE-domain throughout (043's neutral-domain rule): the three
+ * The single-choice pair is also the only place any fixture or golden document
+ * compiles a `Select` at all: every other single-choice question has four options,
+ * below `SINGLE_CHOICE_SELECT_THRESHOLD`, which is what kept issue #988's no-JS dead
+ * end unobserved while every gate stayed green over it.
+ *
+ * The form is VEHICLE-domain throughout (043's neutral-domain rule): the five
  * questions unique to this form (optional-cover multi-choice, extra-detail long
- * text, annual-km number) live in this support directory rather than the shared
- * kernel fixtures, whose bytes are frozen by the golden corpus. The compiled golden
- * is generated from these definitions via the a2ui-compiler and committed alongside
- * them.
+ * text, annual-km number, body-type and overnight-parking single choice) live in
+ * this support directory rather than the shared kernel fixtures, whose bytes are
+ * frozen by the golden corpus. The compiled golden is generated from these
+ * definitions via the a2ui-compiler and committed alongside them.
  *
  * **`vehicle-` is load-bearing, not decoration (issue #129).** A different form
  * with the same coverage and a DIFFERENT question set - the health-domain
@@ -169,6 +176,49 @@ export const Q_COVERAGE_DEF = readFixture(
  * keeps the tree position `a11y-keyboard.pw.ts` relies on for its issue #144 case.
  */
 export const Q_ANNUAL_KM_DEF = readFixture("apps/api/e2e/support/fixtures/q-annual-km.json");
+
+/**
+ * `q_body_type` - single choice, **required**, NINE options (stp_cover).
+ *
+ * The first question in any fixture form that compiles to a `Select`. A
+ * `singleChoice` question renders as a `RadioGroup` at seven options or fewer and
+ * as a `Select` above that (`SINGLE_CHOICE_SELECT_THRESHOLD`,
+ * `packages/a2ui-compiler/src/mapping.ts`), and every other single-choice question
+ * in every fixture and in the golden corpus has four - which is exactly why the
+ * no-JS dead end issue #988 records went unobserved while every gate stayed green
+ * over it. Nine rather than eight so the threshold is cleared by more than a
+ * rounding error's worth of options.
+ *
+ * REQUIRED, because the defect's worst shape is the required one: the vendored
+ * control's real `<select>` is unfocusable, so the browser could not report its
+ * validity and abandoned the whole step's submission, which made every step behind
+ * the question unreachable without scripting.
+ *
+ * Appended to `stp_cover` AFTER `q_coverage_level` and `q_annual_km`, for the reason
+ * `Q_ANNUAL_KM_DEF` above records: the single-choice RadioGroup keeps the tree
+ * position `a11y-keyboard.pw.ts` relies on for its issue #144 case.
+ */
+export const Q_BODY_TYPE_DEF = readFixture("apps/api/e2e/support/fixtures/q-body-type.json");
+
+/**
+ * `q_overnight_parking` - single choice, **optional**, eight options (stp_cover).
+ *
+ * The `Select` counterpart of `Q_ANNUAL_KM_DEF`, and it exists for the same reason
+ * (issue #988): the clear case needs an OPTIONAL question, because a required one
+ * cannot be emptied through the browser at all - HTML `required` refuses the empty
+ * submit before the form leaves the page, which is the 2026-09-13 ruling on issue
+ * #920 working as intended.
+ *
+ * What it buys is a gesture that did not exist: `docs/COMPONENT_GUIDELINES.md`
+ * records that a chosen Select option cannot be deselected, which is still true of
+ * the scripted control, and the no-JS rendering's empty-valued placeholder option
+ * can be returned to. So an answered optional single-choice question can be cleared
+ * on this path, and the clear reaches the API as the ADR-33 retraction every other
+ * cleared field produces (issue #127).
+ */
+export const Q_OVERNIGHT_PARKING_DEF = readFixture(
+  "apps/api/e2e/support/fixtures/q-overnight-parking.json",
+);
 
 /** Repo-relative path of the compiled document (regenerable, see below). */
 export const KITCHEN_SINK_COMPILED_PATH =
@@ -298,6 +348,8 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
       Q_EXTRA_DETAIL_DEF,
       Q_COVERAGE_DEF,
       Q_ANNUAL_KM_DEF,
+      Q_BODY_TYPE_DEF,
+      Q_OVERNIGHT_PARKING_DEF,
     ],
   },
   {

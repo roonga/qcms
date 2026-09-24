@@ -52,21 +52,27 @@ export function countStepPosts(page: Page): () => number {
 }
 
 /**
- * Walk the kitchen sink's no-JS render from the entry page to the step holding the
- * OPTIONAL number (`q_annual_km`, on "Your cover"), answering each step's required
- * questions on the way.
+ * Walk the kitchen sink's no-JS render from the entry page to the last step ("Your
+ * cover"), answering each step's required questions on the way.
  *
- * Two steps of setup rather than none, because the number is on the last step and
- * every step before it has a required question. It is worth the walk: the number is
- * the control the styling assertions are about, and no earlier step carries one that
- * is not behind a branch.
+ * Two steps of setup rather than none, because every step before it carries a
+ * required question. It is worth the walk: this step holds the controls the no-JS
+ * assertions are about, and no earlier step carries one that is not behind a branch.
+ *
+ * What is on it, and who cares about which: the OPTIONAL number `q_annual_km`, which
+ * is what the theming and font assertions measure (issue #18); the required
+ * single-choice RadioGroup `q_coverage_level`; and, since issue #988, the
+ * single-choice `Select` pair - required `q_body_type` and optional
+ * `q_overnight_parking` - which is the only place any fixture compiles a `Select` at
+ * all. The walk leaves this step's own questions unanswered, so the caller decides
+ * which of them to drive.
  *
  * The caller decides how scripting is suppressed. With `javaScriptEnabled: false`
  * this is the respondent's own experience; with `starveScripts` (a page that is
  * scriptable from the test's side while React never runs) it is the same markup with
  * computed styles readable, which is what the theming and font assertions need.
  */
-export async function walkToOptionalNumber(page: Page, slug: string): Promise<void> {
+export async function walkToCoverStep(page: Page, slug: string): Promise<void> {
   await page.goto(`/f/${slug}`);
   await page.getByRole("button", { name: "Start" }).click();
   await page.waitForURL(/\/s\/ses_/);

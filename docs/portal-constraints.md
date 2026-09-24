@@ -10,36 +10,27 @@ cites live in `docs/adr/portal.md` and `docs/adr/core.md`.
 ## Operation without JavaScript
 
 **The no-JS path is required.** Every respondent flow completes with scripting disabled,
-including submission (task 044), **except a form carrying a singleChoice question with
-more than seven options** (issue #988, below). `docs/COMPONENT_GUIDELINES.md` makes no-JS
-coverage binding for any input control, and the claim above is pinned by named specs
-rather than by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to
-receipt), `apps/portal/e2e/no-js-required.pw.ts` (a step holding a required date, and
-what happens to a submission that skips the browser),
-`apps/portal/e2e/no-js-multi-choice.pw.ts` (a required multiChoice group),
-`apps/portal/e2e/no-js-number.pw.ts` (a number question),
-`apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer) and
-`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read those six as the definition
-of the claim. Two of its three qualifiers are gone: a form with a required date completed
-only from issue #920 onward, and one with a required multiChoice or a required number only
-from issues #974 and #18. The third, #988, is open.
+including submission (task 044). The claim is unqualified: there is no question shape a
+respondent without scripting cannot answer. `docs/COMPONENT_GUIDELINES.md` makes no-JS
+coverage binding for any input control, and the claim is pinned by named specs rather
+than by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to receipt),
+`apps/portal/e2e/no-js-required.pw.ts` (a step holding a required date, and what happens
+to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.ts` (a
+required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
+`apps/portal/e2e/no-js-select.pw.ts` (a singleChoice question above the compiler's option
+threshold), `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer) and
+`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read those seven as the definition
+of the claim.
 
-**The one question shape that still cannot be answered without scripting** (**issue
-#988**, found while fixing #974 and #18 and filed rather than decided). A `singleChoice`
-question compiles to a RadioGroup at seven options or fewer and to a `Select` above that
-(`SINGLE_CHOICE_SELECT_THRESHOLD`, `packages/a2ui-compiler/src/mapping.ts`), so the
-threshold is what decides whether a form is affected: **a form whose single-choice
-questions all have seven or fewer options is unaffected**, and the six specs above cover
-only such forms. The vendored `Select` does render a real `<select>` carrying the real
-options, but inside a clipped, visually-hidden container that is `aria-hidden="true"`,
-with `tabindex="-1"` on the select itself, behind a visible trigger that is a
-JavaScript-driven `<button aria-haspopup="listbox">`. So a respondent with scripting off
-can neither see nor operate it, and a required one makes the browser try to report
-validity on an unfocusable control and abandon the whole step's submission - the same
-`An invalid form control ... is not focusable` dead end issue #920 documented for the
-DatePicker. No fixture form compiles a `Select`, which is why every gate is green over it.
-It is the same decision class as the two rulings below and is recorded for the Code
-Owner, not answered here.
+**All four of its qualifiers are gone, and each one was a control whose form value the
+respondent could not reach.** A form with a required date completed only from issue #920
+onward; one with a required multiChoice or a required number only from issues #974 and
+#18; and one with a singleChoice question of more than seven options only from issue
+#988. Each of the four was invisible to every gate until a fixture carried the shape: the
+`Select` in particular was green everywhere because no fixture form or golden document
+compiled one, every single-choice question anywhere having four options. The vehicle
+kitchen sink now carries a required/optional `Select` pair (`q_body_type`,
+`q_overnight_parking`).
 
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,
@@ -50,9 +41,9 @@ trip (issue #964). Every decision below follows from that: browser validation is
 where HTML can carry the rule, because it costs the respondent nothing; it is dropped
 where HTML cannot, because keeping it there stops the flow instead of guiding it.
 
-**Two questions render a different control on this path, on purpose**, and for one
-reason in two shapes: the vendored control keeps its form value somewhere a respondent
-without scripting cannot reach. In both cases the scripted render is unchanged, no
+**Three questions render a different control on this path, on purpose**, and for one
+reason in three shapes: the vendored control keeps its form value somewhere a respondent
+without scripting cannot reach. In every case the scripted render is unchanged, no
 vendored byte moved (ADR-22), and hydration is unaffected because the SSR and the first
 client render both paint native mode before `ProgressiveStep` swaps the whole form
 (issue #121).
@@ -74,6 +65,24 @@ client render both paint native mode before `ProgressiveStep` swaps the whole fo
   renders `step="any"`, because HTML's default for an omitted `step` is `1` and would
   refuse them; an integer question renders `step="1"`, so the browser refuses a fraction
   and the kernel's `NOT_AN_INTEGER` refuses one that reaches it anyway.
+- **A single choice of more than seven options** (issue #988). A `singleChoice` question
+  compiles to a RadioGroup at seven options or fewer and to a `Select` above that
+  (`SINGLE_CHOICE_SELECT_THRESHOLD`, `packages/a2ui-compiler/src/mapping.ts`), so the
+  threshold is what decides whether a form meets this control at all. The vendored
+  `Select` is the subtlest of the three, because nothing was missing from the wire: it
+  does render a real `<select>` carrying the real options under the question's own name.
+  It renders it inside a clipped, visually-hidden container that is `aria-hidden="true"`
+  and `tabindex="-1"`, as an autofill and validation mirror, behind a visible trigger
+  that is a JavaScript-driven `<button aria-haspopup="listbox">`. So a respondent with
+  scripting off could neither see nor operate the question, and a required one made the
+  browser try to report validity on an unfocusable control and abandon the whole step's
+  submission - the same `An invalid form control ... is not focusable` dead end the
+  DatePicker had. Native-submit mode emits `NativeSelectField`: one real, visible,
+  focusable `<select>` under the question's own name, carrying the compiled options in
+  authored order, with an empty-valued placeholder option first. Browser validation
+  STAYS here, unlike the multiChoice group below, because HTML can express this rule - a
+  `required` select whose selected option has an empty value is invalid - so an
+  untouched required single choice is refused on the page with no POST.
 
 **Browser validation is kept, and the API validates the same constraints** (Code Owner
 ruling, 2026-09-13, issue #920). Two consequences follow, and the first reads as a
@@ -81,8 +90,8 @@ limitation only until the second is read with it:
 
 - **A required question cannot be CLEARED without scripting, except a multiChoice
   group.** HTML `required` refuses the empty submit before the form leaves the page, so
-  emptying a required text field, date or number is blocked by the browser and only an
-  optional one is clearable on this path. That is the ruling's intended behaviour, not a
+  emptying a required text field, date, number or single-choice select is blocked by the
+  browser and only an optional one is clearable on this path. That is the ruling's intended behaviour, not a
   residue of it - the alternative was dropping `required` from the no-JS form and leaving
   the respondent to discover the gap after a round trip. The group is the exception
   because it carries no browser constraint at all; see the next bullet.
@@ -134,17 +143,30 @@ empty as an ADR-33 retraction, posted to the same answer endpoint with the same 
 body the scripted path posts for the same gesture. An unmarked empty field stays silence,
 so nothing is tombstoned for a question nobody answered.
 
-**No control is exempt from that any more.** Two were, and for the same reason both now
-render a native control on this path (see above). The DatePicker left the list with issue
-#920 and the NumberField with issue #18, so an OPTIONAL date or number can be emptied and
-cleared without scripting, and a required one is refused by the browser like every other
-required question - except a multiChoice group, which carries no browser constraint at
-all (issue #974) and can therefore be cleared while required. The number's clear is
-asserted in a browser on `q_annual_km`, the fixture's optional number
-(`apps/portal/e2e/no-js-number.pw.ts`); no fixture form carries an optional date, so that
+**No control is exempt from that any more.** Three were, and for the same reason all
+three now render a native control on this path (see above). The DatePicker left the list
+with issue #920, the NumberField with issue #18 and the Select with issue #988, so an
+OPTIONAL date, number or single choice can be emptied and cleared without scripting, and
+a required one is refused by the browser like every other required question - except a
+multiChoice group, which carries no browser constraint at all (issue #974) and can
+therefore be cleared while required. The number's clear is asserted in a browser on
+`q_annual_km`, the fixture's optional number (`apps/portal/e2e/no-js-number.pw.ts`), and
+the single choice's on `q_overnight_parking`, the fixture's optional Select
+(`apps/portal/e2e/no-js-select.pw.ts`); no fixture form carries an optional date, so that
 one is pinned at the transport instead: `packages/ui/src/clear-paths.test.tsx` for the
 bytes the emptied control posts, `apps/portal/lib/server/step-form.test.ts` for the
 `null` they decode to.
+
+**The single choice's clear exists only on this path, and that is a real asymmetry.** A
+chosen radio or a chosen option in the vendored `Select` cannot be deselected: react-aria
+emits no change for any gesture a respondent might reach for, and the trigger has no
+clear affordance (`apps/portal/e2e/clear-paths.pw.ts`). The native fallback's
+empty-valued placeholder option CAN be returned to, so with scripting off an answered
+optional single choice can go back to unanswered, and with scripting on it cannot. The
+gesture is safe in both directions - it reaches the API as the same ADR-33 retraction
+every other cleared field produces - and the asymmetry is recorded here rather than
+resolved: making the scripted control clearable is a control-design change, not a no-JS
+one.
 
 ## Rule evaluation
 

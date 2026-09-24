@@ -34,6 +34,7 @@ import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 import { NativeDateField } from "./native-date-field.tsx";
 import { NativeNumberField } from "./native-number-field.tsx";
+import { NativeSelectField } from "./native-select-field.tsx";
 import {
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_ANSWERED_VALUE,
@@ -67,8 +68,8 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  * (see `native-submit.ts`). The default (controlled) branch is byte-identical to
  * 028/029, so the conformance snapshots are undisturbed.
  *
- * TWO adapters render a DIFFERENT control in native mode, for the same reason in
- * two shapes: the vendored control's form value does not live in the element the
+ * THREE adapters render a DIFFERENT control in native mode, for the same reason in
+ * three shapes: the vendored control's form value does not live in the element the
  * respondent operates, so nothing they do without scripting reaches the wire.
  *
  * - **DatePicker** (issue #920): a row of JS-driven spinbutton segments nobody can
@@ -80,8 +81,15 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  *   seeded answer is what posts. Native mode renders `NativeNumberField`, a real
  *   `<input type="number">` carrying the question's own name and its compiled
  *   `min` / `max` / `step`.
+ * - **Select** (issue #988), which a `singleChoice` question compiles to above seven
+ *   options: a real `<select>` with the real options, but clipped inside an
+ *   `aria-hidden` container with `tabindex="-1"`, behind a JS-only trigger button -
+ *   invisible, inoperable, and unfocusable enough that a required one made the
+ *   browser abandon the step's submission. Native mode renders `NativeSelectField`,
+ *   a real visible `<select>` on the same field name, with an empty-valued
+ *   placeholder option.
  *
- * A third, the **CheckboxGroup**, keeps the vendored control and changes one thing
+ * A fourth, the **CheckboxGroup**, keeps the vendored control and changes one thing
  * about it (issue #974): its boxes render with react-aria's ARIA encoding of
  * "required" rather than the native one, because HTML's native encoding of a
  * required group demands EVERY box. See `CheckboxGroupField` below.
@@ -739,26 +747,66 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
 }
 
 type SelectProps = NonNullable<SelectNode["props"]>;
+
+/**
+ * The third adapter whose native-submit rendering is a DIFFERENT control rather than
+ * the same vendored one left uncontrolled (issue #988).
+ *
+ * The subtlest of the three, because nothing is missing from the wire: the vendored
+ * Select DOES render a real `<select>` carrying the real options under the question's
+ * own name. It renders it inside a clipped container that is `aria-hidden="true"`
+ * with `tabindex="-1"` on the select, as an autofill and validation mirror, behind a
+ * visible `<button aria-haspopup="listbox">` only JavaScript can open. So with
+ * scripting off the question can be neither seen nor operated, and a REQUIRED one
+ * made the browser abandon the whole step's submission on an unfocusable invalid
+ * control - the `An invalid form control ... is not focusable` dead end of issue
+ * #920. `NativeSelectField` carries the reasoning, the wire contract, and the
+ * empty-valued placeholder option that keeps browser validation working here (HTML
+ * CAN express "one option chosen" for a select) and gives an OPTIONAL single-choice
+ * question its only clear gesture. The scripted branch below is untouched, and
+ * neither branch edits a vendored byte (ADR-22).
+ */
 function SelectField(props: Readonly<SelectProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
-  const modeProps: Partial<ComponentProps<typeof Select>> = native
-    ? { defaultValue: typeof field.value === "string" ? field.value : undefined }
-    : {
-        // NO_SELECTION (null, never "") when unselected: "" is not a valid option
-        // key and breaks RAC's selection manager, and `undefined` reads as
-        // uncontrolled. See `NO_SELECTION`.
-        value: typeof field.value === "string" ? field.value : NO_SELECTION,
-        // Like the RadioGroup, a Select (singleChoice above the compiler's option
-        // threshold) has **no clear gesture** to audit: the vendored trigger has no
-        // clear button, and RAC does not let a chosen key be deselected. The
-        // upstream `onSelectionChange` is nonetheless typed `Key | null` and the
-        // vendored component narrows it with a cast, so accept the empty case here
-        // and report it as absence: were react-aria ever to emit one, it would
-        // reach the API as an ADR-33 retraction like every other clear, never as a
-        // `null` travelling as though it were an `AnswerValue` (issue #98).
-        onChange: (v: string | null) => field.setValue(v === null || v === "" ? undefined : v),
-      };
+
+  if (native) {
+    return (
+      <FieldBlur name={props.name} onBlur={field.blur}>
+        <NativeSelectField
+          name={props.name}
+          label={props.label}
+          description={props.description}
+          isRequired={props.isRequired}
+          isDisabled={props.isDisabled}
+          items={props.items}
+          placeholder={props.placeholder}
+          disabledKeys={props.disabledKeys}
+          defaultValue={typeof field.value === "string" ? field.value : undefined}
+          isInvalid={field.error != null}
+          errorMessage={field.error}
+        />
+        <FieldMarkers name={props.name} kind="string" />
+      </FieldBlur>
+    );
+  }
+
+  const modeProps: Partial<ComponentProps<typeof Select>> = {
+    // NO_SELECTION (null, never "") when unselected: "" is not a valid option
+    // key and breaks RAC's selection manager, and `undefined` reads as
+    // uncontrolled. See `NO_SELECTION`.
+    value: typeof field.value === "string" ? field.value : NO_SELECTION,
+    // Like the RadioGroup, the VENDORED Select has **no clear gesture** to audit:
+    // its trigger has no clear button, and RAC does not let a chosen key be
+    // deselected. The upstream `onSelectionChange` is nonetheless typed
+    // `Key | null` and the vendored component narrows it with a cast, so accept the
+    // empty case here and report it as absence: were react-aria ever to emit one,
+    // it would reach the API as an ADR-33 retraction like every other clear, never
+    // as a `null` travelling as though it were an `AnswerValue` (issue #98). The
+    // NATIVE rendering above does have one - its placeholder option - and it
+    // produces the same retraction through the `__qa__` marker (issue #127).
+    onChange: (v: string | null) => field.setValue(v === null || v === "" ? undefined : v),
+  };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <Select
@@ -768,7 +816,6 @@ function SelectField(props: Readonly<SelectProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldMarkers name={props.name} kind="string" /> : null}
     </FieldBlur>
   );
 }

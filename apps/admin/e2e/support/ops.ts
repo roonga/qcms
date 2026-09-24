@@ -231,6 +231,21 @@ export async function submitSession(session: {
 const PASS_STRIDE_MS = 7 * 60 * 60 * 1000;
 
 /**
+ * A sweep's safety stop. Every pass either consumes outbox events or pushes a failed
+ * delivery past `now` through its backoff, so the loop terminates on its own; this
+ * turns a future regression that re-arms the queue at a fixed instant into a named
+ * error rather than a hung suite. Well above any real backlog: at a batch of 20 this
+ * is four thousand events.
+ */
+const MAX_SWEEP_PASSES = 200;
+
+/**
+ * The form the planted backlog names. Deliberately a form no spec creates, so the
+ * events it stamps can never fan out to a real endpoint however the suite grows.
+ */
+const BACKLOG_FORM_ID = "frm_e2e_backlog_pin";
+
+/**
  * A composed `Deps` over the run's database, for driving the deliverer.
  *
  * Built once per spec and closed at the end. `createNullLogger` because the pass logs
@@ -248,6 +263,8 @@ export function openDeliverer(): {
    */
   honeypotField: string;
   pass: (at?: Date) => Promise<void>;
+  sweep: (at?: Date) => Promise<number>;
+  plantBacklog: (count: number) => Promise<void>;
   drive: (passes: number) => Promise<void>;
   erasedDeliveries: () => Promise<{ deliveryId: string; sessionId: string }[]>;
   cancelledDeliveries: (
@@ -275,30 +292,132 @@ export function openDeliverer(): {
   // host's future and would not be claimed by a pass driven at `new Date()`.
   let clock = Date.now() + 60 * 60 * 1000;
 
+  /**
+   * How many outbox events a pass at `now` would still find claimable.
+   *
+   * A restatement of `claimDue`'s own predicate (`packages/db/src/queries/outbox.ts`):
+   * undelivered, not dead-lettered, payload intact, and due. It exists because the
+   * pass metrics cannot answer this (see {@link openDeliverer}'s `sweep`), and it has
+   * to move if that predicate does.
+   */
+  async function dueOutboxEvents(now: Date): Promise<number> {
+    const rows = await query<{ due: string }>(
+      `select count(*) as due
+         from outbox
+        where delivered_at is null
+          and dead_lettered_at is null
+          and payload_redacted_at is null
+          and next_attempt_at <= $1`,
+      [now],
+    );
+    return Number(rows.rows[0]?.due ?? 0);
+  }
+
+  /** {@link openDeliverer}'s `sweep`, at an explicit instant. */
+  async function sweepAt(now: Date): Promise<number> {
+    for (let passes = 1; passes <= MAX_SWEEP_PASSES; passes += 1) {
+      const metrics = await runDeliveryPass(deps, { now });
+      const due = await dueOutboxEvents(now);
+      if (due === 0 && metrics.claimed + metrics.materialized === 0) return passes;
+    }
+    throw new Error(
+      `a delivery sweep did not settle in ${String(MAX_SWEEP_PASSES)} passes; ` +
+        `something is re-arming the queue at a fixed instant`,
+    );
+  }
+
   return {
     honeypotField: deps.config.antiAbuse.honeypotField,
-    /** One pass at the current clock, without advancing it. */
+    /**
+     * One pass at the current clock, without advancing it.
+     *
+     * ONE pass, which is the right thing only when the caller knows the work fits a
+     * single batch - a redelivery it queued itself, and nothing else due. A caller
+     * that wants "everything due, attempted once" wants {@link sweep}: see its
+     * docblock for what a single pass silently leaves behind.
+     */
     async pass(at?: Date) {
       await runDeliveryPass(deps, { now: at ?? new Date(clock) });
+    },
+    /**
+     * Run passes at one instant until nothing due is left: **one attempt round for
+     * every due event and delivery, however large the backlog**. Returns how many
+     * passes that took, so a caller can assert the drain was needed rather than hope
+     * it was.
+     *
+     * ## Why a single pass is not this (issue #988)
+     *
+     * A pass claims at most `QCMS_WEBHOOK_BATCH_SIZE` outbox events, **oldest first**
+     * (`claimDue` in `packages/db/src/queries/outbox.ts`; the default is 20,
+     * `apps/api/src/config.ts`). The whole browser suite shares one database and
+     * nothing drains the outbox before the admin specs run, so by then it holds every
+     * `response.submitted` the portal specs produced. Those fan out to nothing - the
+     * portal fixture forms have no endpoint - but they are claimed all the same, and a
+     * single pass spends its whole batch on them.
+     *
+     * That is what makes a single pass a **count-dependent** way to say "deliver what
+     * I just queued": it works while the suite's backlog plus the caller's own events
+     * fit in 20, and stops working the day a spec completes one more session. It was
+     * one event from the edge before issue #988's fixture added three no-JS
+     * submissions, and it tipped: the caller's events landed at positions 21 and 22,
+     * were never materialized, and `a11y-axe.pw.ts`'s sweep saw zero pending rows
+     * instead of two. The cascade reached `responses-ops.pw.ts` too, whose global
+     * dead-letter count then included the evicted events fanning out late.
+     *
+     * ## Why the loop reads the queue rather than the metrics
+     *
+     * `DeliveryPassMetrics` counts delivery rows CREATED and delivery rows CLAIMED,
+     * not outbox events consumed, so a pass that drains 20 events which fan out to no
+     * endpoint reports `materialized: 0, claimed: 0` - indistinguishable from an empty
+     * queue. The backlog this exists to clear is made entirely of such events, so the
+     * loop asks the outbox directly. {@link dueOutboxEvents} restates `claimDue`'s own
+     * predicate and has to move with it.
+     *
+     * One instant throughout, so a delivery that fails is pushed past `now` by its
+     * backoff and is attempted exactly once per sweep, which is what makes the caller's
+     * "pending after one round" assertion mean what it says.
+     */
+    async sweep(at?: Date) {
+      return sweepAt(at ?? new Date(clock));
+    },
+    /**
+     * Plant `count` due outbox events older than anything the caller is about to
+     * create, so a test can prove its own delivery assertion survives a backlog larger
+     * than one claim batch instead of depending on how many sessions the rest of the
+     * suite happened to complete (issue #988).
+     *
+     * They are real `response.submitted` events naming a form that has no webhook
+     * endpoint, which is exactly the shape of the backlog the portal specs leave: the
+     * deliverer claims them, `fanOutEvent` finds no active hook and creates nothing,
+     * and each is consumed. So they cost one claim slot each and leave no delivery
+     * row, no dead letter and nothing for a later spec to count.
+     *
+     * A day in the past, because `claimDue` orders by `next_attempt_at` and these have
+     * to sort ahead of rows the database stamps with its own `now()` - which runs ahead
+     * of this host's clock.
+     */
+    async plantBacklog(count: number) {
+      await query(
+        `insert into outbox (event_type, payload, next_attempt_at)
+         select 'response.submitted',
+                jsonb_build_object('formId', $2::text, 'sessionId', 'ses_backlog'),
+                now() - interval '1 day'
+           from generate_series(1, $1::int)`,
+        [count, BACKLOG_FORM_ID],
+      );
     },
     /**
      * Drive every due delivery through `rounds` attempt rounds. Eleven of them exhaust
      * the ten-attempt retry budget and dead-letter.
      *
-     * The inner loop is what makes this reliable rather than approximately right. A
-     * pass claims at most `QCMS_WEBHOOK_BATCH_SIZE` deliveries (20), and by the time
-     * the whole browser suite has run there are far more outbox events than that
-     * waiting for this form - so a fixed count of passes gives each delivery some
-     * fraction of an attempt and nothing dead-letters. Running until a pass claims
-     * nothing means "every delivery has had its attempt for this round", which is the
-     * property the round count is counting.
+     * One {@link sweep} per round, which is what makes this reliable rather than
+     * approximately right: a round has to mean "every due delivery has had its attempt",
+     * and a fixed number of passes gives each delivery some fraction of one once the
+     * backlog is larger than a batch.
      */
     async drive(rounds: number) {
       for (let round = 0; round < rounds; round += 1) {
-        for (;;) {
-          const metrics = await runDeliveryPass(deps, { now: new Date(clock) });
-          if (metrics.claimed + metrics.materialized === 0) break;
-        }
+        await sweepAt(new Date(clock));
         clock += PASS_STRIDE_MS;
       }
     },

@@ -1,0 +1,18 @@
+{
+  "type": "singleChoice",
+  "questionId": "q_body_type",
+  "label": { "en": "What body type is the vehicle?" },
+  "help": { "en": "Pick the closest match" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_hatchback", "label": { "en": "Hatchback" } },
+    { "optionId": "opt_sedan", "label": { "en": "Sedan" } },
+    { "optionId": "opt_wagon", "label": { "en": "Wagon" } },
+    { "optionId": "opt_suv", "label": { "en": "SUV" } },
+    { "optionId": "opt_ute", "label": { "en": "Ute" } },
+    { "optionId": "opt_van", "label": { "en": "Van" } },
+    { "optionId": "opt_people_mover", "label": { "en": "People mover" } },
+    { "optionId": "opt_coupe", "label": { "en": "Coupe" } },
+    { "optionId": "opt_convertible", "label": { "en": "Convertible" } }
+  ]
+}

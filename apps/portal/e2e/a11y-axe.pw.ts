@@ -29,7 +29,11 @@
  *   it carries no input control, so two things had no axe pass anywhere: the native
  *   day input a date question renders on this transport, whose label, description and
  *   error slot are qcms-owned markup rather than the vendored control's; and the
- *   per-field missing-required message, which only this transport draws.
+ *   per-field missing-required message, which only this transport draws. All three
+ *   steps are scanned now, one per qcms-owned fallback control: the day input
+ *   (#920), the number input and the required checkbox group's ARIA encoding (#18,
+ *   #974), and the native `<select>` a single-choice question above the compiler's
+ *   option threshold falls back to (#988).
  *
  * Each scan records the rule counts it observed as a test annotation, so a report
  * reader can see that both renders were really exercised rather than that one of
@@ -44,7 +48,7 @@ import type { Page } from "@playwright/test";
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, answerCount, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
-import { submitStep } from "./support/no-js.js";
+import { submitStep, walkToCoverStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 import {
   KS,
@@ -249,6 +253,62 @@ test("axe: the no-JS FALLBACK step holding a required group and a native number 
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expect(page.locator('input[type="number"][name="q_accident_count"]')).toBeVisible();
   await expectNoAxeViolations(page, "step 2 missing required (no-JS fallback render)");
+});
+
+test("axe: the no-JS FALLBACK step holding the native single-choice selects is clean", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // The last step, and the control issue #988 changed. A singleChoice question above
+  // the compiler's seven-option threshold is a `Select`, whose no-JS rendering is a
+  // qcms-owned `<select>` with a hand-written label association, description and
+  // error slot (`packages/ui/src/native-select-field.tsx`) - the same markup class
+  // the day and number inputs above are scanned for, and the first one in this suite
+  // whose control is a listbox rather than a text box. Two of them are on this step,
+  // a required one and an optional one.
+  //
+  // What makes the scan worth running rather than assuming: the VENDORED control's
+  // clipped `<select>` mirror is what `aria-hidden-focus` exists to catch, and axe
+  // agrees with it only because react-aria marks it `data-a11y-ignore`. The
+  // replacement has no hidden half at all, so this scan is what says the fallback
+  // did not inherit that exemption by accident.
+  const starvation = await starveScripts(page);
+  await walkToCoverStep(page, kitchenSinkSlug);
+  await expect(page.getByRole("heading", { name: "Your cover" })).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this scans the hydrated render",
+  ).toBeGreaterThan(0);
+
+  // Which render is on screen, asserted rather than assumed: the hydrated one draws
+  // a trigger button and keeps its select clipped inside an aria-hidden container.
+  await expect(page.locator('select[name="q_body_type"]')).toBeVisible();
+  await expect(page.locator('[aria-haspopup="listbox"]')).toHaveCount(0);
+
+  await expectNoAxeViolations(page, "step 3 clean (no-JS fallback render)");
+
+  // The missing-required state. It takes a hand-built post because the ruling KEPT
+  // browser validation here - HTML can express "one option chosen" for a select - so
+  // the browser refuses this submission from the page itself (`no-js-select.pw.ts`).
+  // A client that ignores `required` is how a respondent reaches it.
+  const sessionId = new URL(page.url()).pathname.split("/")[2] ?? "";
+  const posted = await page.request.post(`/s/${sessionId}/step`, {
+    headers: { "sec-fetch-site": "same-origin" },
+    form: {
+      __qk__q_coverage_level: "radio",
+      q_coverage_level: "opt_standard",
+      __qk__q_body_type: "string",
+      q_body_type: "",
+    },
+    maxRedirects: 0,
+  });
+  expect(posted.status()).toBe(303);
+
+  await page.goto(`/s/${sessionId}`);
+  await expect(page.getByTestId("error-summary")).toBeVisible();
+  await expect(page.locator('select[name="q_body_type"][aria-invalid="true"]')).toBeVisible();
+  await expectNoAxeViolations(page, "step 3 missing required (no-JS fallback render)");
 });
 
 test("axe: flow initial, branch-inserted, and branch-removed states have zero violations", async ({

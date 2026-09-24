@@ -24,6 +24,7 @@ import {
   KS,
   answerNumber,
   checkOption,
+  chooseFromSelect,
   chooseRadio,
   chooseSingleChoice,
   continueStep,
@@ -179,8 +180,21 @@ test("error-summary entries land focus on each question type's value control", a
     .toEqual(["TEXTAREA"]);
   await continueStep(page);
 
-  // --- Step 3: singleChoice radio group ------------------------------------
-  await expectMissing(page, ["q_coverage_level"]);
+  // --- Step 3: singleChoice, in both of its compiled shapes -----------------
+  // A singleChoice question renders as a RadioGroup at seven options or fewer and as
+  // a `Select` above that (`SINGLE_CHOICE_SELECT_THRESHOLD`), and the two land focus
+  // on different elements, so both are walked (issue #988).
+  await expectMissing(page, ["q_coverage_level", "q_body_type"]);
   await expectEntryFocuses(page, "q_coverage_level", { tag: "INPUT", type: "radio", role: null });
   await chooseSingleChoice(page, "Standard");
+
+  // The Select's landing point is its TRIGGER BUTTON, and that is the preference
+  // order working rather than failing it. The vendored control does render a real
+  // `<select>` - the preferred value-control tag - but inside an `aria-hidden`
+  // subtree it keeps as an autofill and validation mirror, which `firstFocusableIn`
+  // filters out for the same reason it filters the honeypot. What is left is the one
+  // element a respondent can actually operate on this render.
+  await expectMissing(page, ["q_body_type"]);
+  await expectEntryFocuses(page, "q_body_type", { tag: "BUTTON", type: "button", role: null });
+  await chooseFromSelect(page, "q_body_type", "Wagon");
 });

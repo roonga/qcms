@@ -39,6 +39,7 @@ import { recordOtlpDelivery } from "./support/otlp-delivery.js";
 import {
   KS,
   checkOption,
+  chooseFromSelect,
   chooseRadio,
   chooseSingleChoice,
   continueStep,
@@ -154,8 +155,11 @@ test("a respondent submit produces one connected trace, correlated logs, and no 
   await checkOption(page, "Breakdown");
   await continueStep(page);
 
-  // Step 3: choose cover, then submit and keep the BFF's response headers.
+  // Step 3: answer both required single-choice questions - the RadioGroup and the
+  // `Select` a nine-option question compiles to (issue #988) - then submit and keep
+  // the BFF's response headers.
   await chooseSingleChoice(page, "Standard");
+  await chooseFromSelect(page, "q_body_type", "Wagon");
   const submitted = page.waitForResponse(
     (response) => response.url().includes("/submit") && response.request().method() === "POST",
   );

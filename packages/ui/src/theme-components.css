@@ -73,12 +73,18 @@
    RADIUS + SPACING: the vendored controls consume the token groups.
    -------------------------------------------------------------------------- */
 
-/* Text-entry controls: the free-text input and the long-text textarea. The
-   visually-hidden checkbox/radio inputs and the hidden native-submit inputs are
-   excluded - they draw nothing. */
+/* Text-entry controls: the free-text input, the long-text textarea and the no-JS
+   single-choice fallback's native `<select>` (issue #988), which draws the same
+   box the vendored select's trigger button draws below. The visually-hidden
+   checkbox/radio inputs and the hidden native-submit inputs are excluded - they
+   draw nothing.
+
+   The vendored Select's own hidden `<select>` mirror is matched too and is
+   harmless: it is clipped to 1x1 inside an `aria-hidden` container, so a radius
+   and a min-height on it are never painted. */
 [data-qcms-theme-scope]
   [data-qcms-field]
-  :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea) {
+  :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea, select) {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
   padding-inline: var(--space-control-pad-x);
@@ -296,6 +302,7 @@
     :is(
       input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
       textarea,
+      select,
       [role="group"][data-rac],
       button[data-rac][aria-haspopup]
     ):not([aria-invalid="true"], [data-invalid]) {
@@ -406,6 +413,7 @@
     :is(
       input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
       textarea,
+      select,
       [role="group"][data-rac],
       button[data-rac],
       label[data-rac] > div

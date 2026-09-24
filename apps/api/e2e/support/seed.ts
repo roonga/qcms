@@ -52,11 +52,13 @@ import {
   Q_ACCIDENT_COUNT_DEF,
   Q_ACCIDENT_DEF,
   Q_ANNUAL_KM_DEF,
+  Q_BODY_TYPE_DEF,
   Q_COVERAGE_DEF,
   Q_DOB_DEF,
   Q_EXTRA_DETAIL_DEF,
   Q_FULL_NAME_DEF,
   Q_OPTIONAL_COVER_DEF,
+  Q_OVERNIGHT_PARKING_DEF,
 } from "./fixtures.js";
 
 type Db = TestDb["db"];
@@ -268,8 +270,10 @@ async function seedQuestionVersion(
 }
 
 /**
- * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the six
- * new types, one of which is the optional number issue #18's clear case needs); the two it shares with the insurance form (`q_at_fault_accident`@2,
+ * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the eight
+ * new types, among them the optional number issue #18's clear case needs and the
+ * required/optional single-choice pair above the compiler's option threshold that
+ * issue #988's cases need); the two it shares with the insurance form (`q_at_fault_accident`@2,
  * `q_accident_count`) are seeded by {@link seedKitchenSinkSharedQuestions}, split
  * out so a harness that already seeded the insurance form does not re-create them
  * (a duplicate `questions` primary key).
@@ -305,6 +309,18 @@ export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
     "q_annual_km",
     "annual-km",
     Q_ANNUAL_KM_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(
+    db,
+    "q_body_type",
+    "body-type",
+    Q_BODY_TYPE_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(
+    db,
+    "q_overnight_parking",
+    "overnight-parking",
+    Q_OVERNIGHT_PARKING_DEF as QuestionVersionInput["definition"],
   );
 }
 
