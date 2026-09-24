@@ -94,11 +94,19 @@ double-submit) and the JS experience is unchanged. The whole-step route stays a
 strict proxy (R2): it maps form fields to canonical answers and forwards them; the
 API remains the sole validation and rule authority.
 
-One caveat: the fixture's number follow-up ("How many?") is a react-aria
-NumberField whose editable input needs JavaScript to sync its form value, so a
-no-JS respondent who reaches a numeric question cannot enter it. The no-JS e2e
-therefore drives the boolean branch. A native numeric fallback is a possible
-follow-up (see the task 044 friction note).
+**Two controls render differently on this path**, because their vendored rendering
+keeps the form value somewhere a respondent without scripting cannot reach. A date
+question renders one native `<input type="date">` (issue #920) and a number question
+one native `<input type="number">` carrying the question's own name and its compiled
+`min` / `max` / `step` (issue #18); the scripted render of both is unchanged, and no
+vendored byte moved (ADR-22). A required multi-choice group renders its boxes without
+the native `required` attribute, because HTML's encoding of a required group demands
+every box and would make the step impassable; a blank group is reported by the server
+after the round trip instead (issue #974). All three follow one principle, recorded by
+the Code Owner on #974 (2026-09-19): **JavaScript is assumed, and the no-JS form is a
+fallback that must work functionally, without rapid feedback.**
+
+`docs/portal-constraints.md` is the authoritative statement of what that guarantees.
 
 ## Run the portal for the manual pass
 

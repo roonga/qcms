@@ -2,6 +2,7 @@ import { createRegistry } from "@a2ra/core";
 import type { ComponentRegistry } from "@a2ra/core";
 import { useState } from "react";
 import type { ComponentProps, FocusEvent, ReactNode } from "react";
+import { FormContext } from "react-aria-components";
 
 import { withAuthorMessages } from "./author-messages.ts";
 import {
@@ -32,6 +33,7 @@ import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 import { NativeDateField } from "./native-date-field.tsx";
+import { NativeNumberField } from "./native-number-field.tsx";
 import {
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_ANSWERED_VALUE,
@@ -65,12 +67,24 @@ import { toVSafePattern } from "./v-safe-pattern.ts";
  * (see `native-submit.ts`). The default (controlled) branch is byte-identical to
  * 028/029, so the conformance snapshots are undisturbed.
  *
- * The DatePicker is the one adapter where native mode renders a DIFFERENT control
- * (issue #920): its vendored rendering is a row of JS-driven spinbutton segments a
- * no-JS respondent cannot type into, and the mirror carrying its form value is an
- * unfocusable `hidden` input the browser refuses to submit a required step around.
- * Native mode renders `NativeDateField` instead, a real `<input type="date">` that
- * posts the same ISO day on the same field name. See `native-date-field.tsx`.
+ * TWO adapters render a DIFFERENT control in native mode, for the same reason in
+ * two shapes: the vendored control's form value does not live in the element the
+ * respondent operates, so nothing they do without scripting reaches the wire.
+ *
+ * - **DatePicker** (issue #920): a row of JS-driven spinbutton segments nobody can
+ *   type into, whose value rides an unfocusable `hidden` mirror the browser refuses
+ *   to submit a required step around. Native mode renders `NativeDateField`, a real
+ *   `<input type="date">` posting the same ISO day on the same field name.
+ * - **NumberField** (issue #18): an unnamed visible text box beside a
+ *   JavaScript-synced `<input type="hidden">`, so keystrokes are discarded and the
+ *   seeded answer is what posts. Native mode renders `NativeNumberField`, a real
+ *   `<input type="number">` carrying the question's own name and its compiled
+ *   `min` / `max` / `step`.
+ *
+ * A third, the **CheckboxGroup**, keeps the vendored control and changes one thing
+ * about it (issue #974): its boxes render with react-aria's ARIA encoding of
+ * "required" rather than the native one, because HTML's native encoding of a
+ * required group demands EVERY box. See `CheckboxGroupField` below.
  */
 
 /** Narrows a canonical answer to the multiChoice (OptionId[]) shape. */
@@ -401,15 +415,48 @@ export function numberFieldAdmitsFractions(step: number | undefined): boolean {
   return step === undefined || !Number.isInteger(step);
 }
 
+/**
+ * The second adapter whose native-submit rendering is a DIFFERENT control rather
+ * than the same vendored one left uncontrolled (issue #18, Code Owner ruling
+ * 2026-09-19).
+ *
+ * The vendored NumberField splits one question across an unnamed visible
+ * `<input type="text">` and a JavaScript-synced `<input type="hidden">` that
+ * carries the form value, so with scripting off the respondent's keystrokes are
+ * never serialized and the field posts what the server seeded it with.
+ * `NativeNumberField` carries the reasoning and the wire contract; the scripted
+ * branch below is untouched, and neither branch edits a vendored byte (ADR-22).
+ */
 function NumberFieldField(props: Readonly<NumberFieldProps>) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
-  const modeProps: Partial<ComponentProps<typeof NumberField>> = native
-    ? { defaultValue: typeof field.value === "number" ? field.value : undefined }
-    : {
-        value: typeof field.value === "number" ? field.value : Number.NaN,
-        onChange: (n: number) => field.setValue(Number.isNaN(n) ? undefined : n),
-      };
+
+  if (native) {
+    return (
+      <FieldBlur name={props.name} onBlur={field.blur}>
+        <NativeNumberField
+          name={props.name}
+          label={props.label}
+          description={props.description}
+          isRequired={props.isRequired}
+          isDisabled={props.isDisabled}
+          isReadOnly={props.isReadOnly}
+          minValue={props.minValue}
+          maxValue={props.maxValue}
+          step={props.step}
+          defaultValue={typeof field.value === "number" ? field.value : undefined}
+          isInvalid={field.error != null}
+          errorMessage={field.error}
+        />
+        <FieldMarkers name={props.name} kind="number" />
+      </FieldBlur>
+    );
+  }
+
+  const modeProps: Partial<ComponentProps<typeof NumberField>> = {
+    value: typeof field.value === "number" ? field.value : Number.NaN,
+    onChange: (n: number) => field.setValue(Number.isNaN(n) ? undefined : n),
+  };
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
       <NumberField
@@ -420,7 +467,6 @@ function NumberFieldField(props: Readonly<NumberFieldProps>) {
         isInvalid={field.error != null}
         errorMessage={field.error}
       />
-      {native ? <FieldMarkers name={props.name} kind="number" /> : null}
     </FieldBlur>
   );
 }
@@ -596,6 +642,70 @@ function RadioGroupField(props: RadioGroupProps) {
 type CheckboxGroupProps = NonNullable<CheckboxGroupNode["props"]> & {
   readonly children?: ReactNode;
 };
+
+/**
+ * What a required multi-choice group says about itself in native (no-JS) submit
+ * mode (issue #974, Code Owner ruling 2026-09-19).
+ *
+ * ## The dead end this removes
+ *
+ * HTML has no "at least one of these" constraint. react-aria encodes the rule by
+ * putting native `required` on EVERY checkbox in a required group and taking it off
+ * the moment something is selected (the vendored `Checkbox.tsx` comment says so).
+ * Taking it off is a re-render, which is scripting, so the server-rendered HTML
+ * freezes `required` on all of them - and native `required` on a checkbox means
+ * THAT box must be checked. Observed on the kitchen sink's "Which optional cover do
+ * you want?": one of three checked and Chrome refuses the submit with no POST
+ * leaving the page; all three checked and it submits. Every step behind that one was
+ * unreachable without scripting.
+ *
+ * The ruling: the boxes render without the native attribute, and a group left blank
+ * is reported by the server after the round trip, through the missing-required path
+ * issue #964 built. The principle behind it, recorded on #974, is that JavaScript is
+ * assumed and the no-JS form is a fallback that must work FUNCTIONALLY, without
+ * rapid feedback. Browser validation is unchanged everywhere HTML can carry the
+ * rule (the 2026-09-13 ruling on issue #920 stands); it is dropped here because HTML
+ * cannot carry this one.
+ *
+ * ## Why this seam, and not one of the other three
+ *
+ * `validationBehavior` is the switch react-aria itself provides between the two
+ * encodings of a required field - `required` under `"native"`, `aria-required`
+ * under `"aria"` (`@react-aria/toggle`'s `useToggle`) - and it is resolved PER
+ * CHECKBOX from `props.validationBehavior ?? FormContext ?? "native"`
+ * (`react-aria-components`' `Checkbox`). So:
+ *
+ * - **Passing it to the vendored `CheckboxGroup` does nothing.** The group's value
+ *   reaches `useCheckboxGroupItem`, but the RAC `Checkbox` has already resolved its
+ *   own and passes it explicitly, where it wins. Verified in jsdom, not assumed.
+ * - **Passing it to each `Checkbox`** is not available: the boxes are compiled child
+ *   nodes rendered by `A2Renderer`, and reaching into them would mean cloning
+ *   elements this adapter does not own.
+ * - **Dropping `isRequired` from the group** would take the label's required marker,
+ *   `data-required` and the ARIA encoding with it, leaving a required question that
+ *   never says it is required.
+ *
+ * So the adapter provides RAC's own `FormContext` for this group's subtree alone.
+ * Its scope is the provider's children, which is proved rather than assumed
+ * (`packages/ui/src/native-multi-choice.test.tsx` asserts that the two required
+ * controls beside the group on the same step - a RadioGroup, which reads the same
+ * context, and the native number input - both keep native `required`), so every
+ * other control on the step keeps browser validation exactly as the #920 ruling
+ * left it.
+ *
+ * What the respondent is left with is react-aria's OWN ARIA encoding of the same
+ * rule: the group keeps its label marker and `data-required`, each box carries
+ * `aria-required` for as long as none is selected, and nothing blocks the submit.
+ * The constraint is enforced where it can be - the API's `MISSING_REQUIRED` sweep -
+ * and reported back onto the step.
+ *
+ * Only the value is overridden, not merged with an enclosing `FormContext`: the only
+ * other thing that context carries is `validationErrors`, RAC's server-validation
+ * channel, which the compiler never emits on a `Form` node and which QCMS does not
+ * use - errors reach a control through `useQcmsField`.
+ */
+const NATIVE_GROUP_VALIDATION = { validationBehavior: "aria" } as const;
+
 function CheckboxGroupField(props: CheckboxGroupProps) {
   const field = useQcmsField(props.name);
   const native = useQcmsNativeSubmit();
@@ -607,15 +717,22 @@ function CheckboxGroupField(props: CheckboxGroupProps) {
         value: isStringArray(field.value) ? [...field.value] : [],
         onChange: (values: string[]) => field.setValue(absentIfNoSelection(values)),
       };
+  const group = (
+    <CheckboxGroup
+      key={props.name}
+      {...props}
+      {...modeProps}
+      isInvalid={field.error != null}
+      errorMessage={field.error}
+    />
+  );
   return (
     <FieldBlur name={props.name} onBlur={field.blur}>
-      <CheckboxGroup
-        key={props.name}
-        {...props}
-        {...modeProps}
-        isInvalid={field.error != null}
-        errorMessage={field.error}
-      />
+      {native ? (
+        <FormContext.Provider value={NATIVE_GROUP_VALIDATION}>{group}</FormContext.Provider>
+      ) : (
+        group
+      )}
       {native ? <FieldMarkers name={props.name} kind="multi" /> : null}
     </FieldBlur>
   );

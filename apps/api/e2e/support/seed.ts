@@ -51,6 +51,7 @@ import {
   KITCHEN_SINK_GOLDEN,
   Q_ACCIDENT_COUNT_DEF,
   Q_ACCIDENT_DEF,
+  Q_ANNUAL_KM_DEF,
   Q_COVERAGE_DEF,
   Q_DOB_DEF,
   Q_EXTRA_DETAIL_DEF,
@@ -267,8 +268,8 @@ async function seedQuestionVersion(
 }
 
 /**
- * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the five
- * new types); the two it shares with the insurance form (`q_at_fault_accident`@2,
+ * Seed the questions the kitchen-sink form pins that are UNIQUE to it (the six
+ * new types, one of which is the optional number issue #18's clear case needs); the two it shares with the insurance form (`q_at_fault_accident`@2,
  * `q_accident_count`) are seeded by {@link seedKitchenSinkSharedQuestions}, split
  * out so a harness that already seeded the insurance form does not re-create them
  * (a duplicate `questions` primary key).
@@ -298,6 +299,12 @@ export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
     "q_coverage_level",
     "coverage-level",
     Q_COVERAGE_DEF as QuestionVersionInput["definition"],
+  );
+  await seedQuestionVersion(
+    db,
+    "q_annual_km",
+    "annual-km",
+    Q_ANNUAL_KM_DEF as QuestionVersionInput["definition"],
   );
 }
 

@@ -43,6 +43,7 @@ import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
 import { KS } from "./support/kitchen-sink.js";
+import { countStepPosts, stepSubmit, submitStep } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
@@ -56,20 +57,6 @@ async function startWithoutJs(page: Page, slug: string): Promise<string> {
   await page.waitForURL(/\/s\/ses_/);
   await expect(page.getByRole("heading", { name: "About you" })).toBeVisible();
   return new URL(page.url()).pathname.split("/")[2] ?? "";
-}
-
-/** The step form's own submit (the header's appearance form has one too, #195). */
-function stepSubmit(page: Page) {
-  return page.getByTestId("step-card").locator('form button[type="submit"]');
-}
-
-/** Submit the step and wait for the page the 303 lands on. */
-async function submitStep(page: Page): Promise<void> {
-  const served = page.waitForResponse(
-    (response) => response.request().isNavigationRequest() && response.status() === 200,
-  );
-  await stepSubmit(page).click();
-  await served;
 }
 
 test("a JS-disabled respondent submits a step holding a required date", async ({ page }) => {
@@ -111,18 +98,8 @@ test("the browser still refuses to submit an empty required date, and says so on
   await startWithoutJs(page, kitchenSinkSlug);
 
   // Every whole-step POST this page makes, so "the browser blocked it" is a counted
-  // fact rather than an absence observed for an arbitrary length of time. Scoped to
-  // this route and registered after the entry: anonymous entry is a native form POST
-  // of its own (issue #579), so an unscoped counter starts at one.
-  const posts: string[] = [];
-  page.on("request", (request) => {
-    if (
-      request.method() === "POST" &&
-      /\/s\/ses_[^/]+\/step$/.test(new URL(request.url()).pathname)
-    ) {
-      posts.push(request.url());
-    }
-  });
+  // fact rather than an absence observed for an arbitrary length of time.
+  const postCount = countStepPosts(page);
 
   await page.locator(NAME_FIELD).fill("Ada Lovelace");
 
@@ -136,7 +113,7 @@ test("the browser still refuses to submit an empty required date, and says so on
   await page.locator(DATE_FIELD).fill("1990-05-17");
   await submitStep(page);
   await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
-  expect(posts).toHaveLength(1);
+  expect(postCount()).toBe(1);
 });
 
 test("a crafted post that skips the browser is refused by the API and reported on the step", async ({

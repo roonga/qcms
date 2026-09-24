@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -9,6 +9,7 @@ import {
   apiChildEnv,
   descendantsOf,
   frontendChildEnv,
+  kitchenSinkQuestions,
   reapChildTree,
   stackChildEnvs,
 } from "./dev-stack.mjs";
@@ -136,6 +137,88 @@ describe("every fixture the seed reads still exists", () => {
     expect(existsSync(new URL(relativePath, repoRoot)), `${relativePath} does not exist`).toBe(
       true,
     );
+  });
+});
+
+/**
+ * The seed's question set agrees with the form it publishes, in `verify`.
+ *
+ * The failure this closes, which is the #817 class a second time. The launcher used to
+ * hold its own list of the kitchen sink's questions beside the form definition it
+ * inserts a version of, and the two were only equal by hand. Issue #18's optional
+ * number (`q_annual_km`) was added to
+ * `apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json` and not to the list, so
+ * `pnpm dev:portal` and `pnpm dev:admin` seeded a published form version pinning a
+ * question whose library row did not exist;
+ * `apps/api/src/features/responses/serve-step/handler.ts` resolves every pinned item
+ * and throws `pinned question ... is missing (snapshot not self-contained)`, so every
+ * kitchen-sink step 500'd on a fresh database. Nothing in `verify` or `verify:browser`
+ * executes this launcher, so it reached a PR with every gate green.
+ *
+ * The list is now DERIVED from the json's pinned items (CONTRIBUTING's derived-set
+ * rule), and what remains hand-written is only where each definition file lives. These
+ * cases are the gate on that residue: they fail if the two sets stop agreeing in either
+ * direction, and they prove the guard is live rather than vacuous.
+ */
+describe("the dev seed's questions come from the form it publishes (issue #817 class)", () => {
+  const repoRoot = new URL("../", import.meta.url);
+  const DEFINITION = "apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json";
+
+  /** Every `{questionId, version}` the committed form definition pins, as read here. */
+  function pinnedByTheForm(): Map<string, number> {
+    const definition = JSON.parse(readFileSync(new URL(DEFINITION, repoRoot), "utf8")) as {
+      steps: { items: { questionId: string; version: number }[] }[];
+    };
+    const highest = new Map<string, number>();
+    for (const step of definition.steps) {
+      for (const item of step.items) {
+        highest.set(item.questionId, Math.max(highest.get(item.questionId) ?? 0, item.version));
+      }
+    }
+    return highest;
+  }
+
+  it("seeds exactly the questions the form pins, at the versions it pins them", () => {
+    // Read from the file here rather than through the module, so this is a comparison
+    // of two independent reads and not the derivation agreeing with itself.
+    const expected = pinnedByTheForm();
+    const seeded = new Map(kitchenSinkQuestions().map((q) => [q.id, q.versions]));
+    expect(seeded).toEqual(expected);
+    // Non-vacuity: the fixture really does carry the two shapes that make this
+    // interesting - more than one question, and one pinned above version 1.
+    expect(expected.size).toBeGreaterThan(1);
+    expect([...expected.values()]).toContain(2);
+  });
+
+  it("gives every seeded question a definition file that exists", () => {
+    for (const question of kitchenSinkQuestions()) {
+      expect(existsSync(new URL(question.path, repoRoot)), `${question.path} is missing`).toBe(
+        true,
+      );
+      expect(question.slug).toMatch(/^[a-z0-9-]+$/);
+    }
+  });
+
+  it("refuses a form that pins a question the launcher has no definition path for", () => {
+    // The exact mutation that broke the dev stack, as a unit: a new pinned item with no
+    // entry beside it. It must fail at load rather than mid-seed, and the message must
+    // name the question.
+    expect(() =>
+      kitchenSinkQuestions({ steps: [{ items: [{ questionId: "q_brand_new", version: 1 }] }] }),
+    ).toThrow(/q_brand_new/);
+  });
+
+  it("refuses a definition path for a question the form no longer pins", () => {
+    // The same class pointing the other way: a stale row seeded into every dev database.
+    expect(() =>
+      kitchenSinkQuestions(
+        { steps: [{ items: [{ questionId: "q_kept", version: 1 }] }] },
+        {
+          q_kept: { slug: "kept", path: "packages/core/fixtures/questions/valid/date.json" },
+          q_dropped: { slug: "dropped", path: "packages/core/fixtures/questions/valid/date.json" },
+        },
+      ),
+    ).toThrow(/q_dropped/);
   });
 });
 

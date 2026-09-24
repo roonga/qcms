@@ -34,6 +34,7 @@ import { ACCIDENT_LABEL, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
 import { HARNESS_CORNERS, HARNESS_THEME, PORTAL_PORT } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
+import { walkToOptionalNumber } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 
 /** The four corner presets and the `--radius-control` / `--radius-card` they set. */
@@ -363,9 +364,10 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
   expect(await px(day, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(day, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // The 44px is also WCAG 2.5.8's target floor, and it is the reason this control may
-  // not fall back to a browser default height on the one path where it is the only way
-  // to answer the question.
+  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA), which is the
+  // reason this control may not fall back to a browser default height on the one path
+  // where it is the only way to answer the question. The token's own 44px is the
+  // 2.5.5 (AAA) size, measured above; the floor that binds is what is asserted here.
   const box = await day.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 
@@ -376,4 +378,48 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
   });
   expect(await px(day, "min-height")).toBeCloseTo(60, 0);
   expect(await px(day, "padding-left")).toBeCloseTo(32, 0);
+});
+
+test("the no-JS number fallback's box consumes the same spacing tokens (issue #18)", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // COMPONENT_GUIDELINES item 9's other half for the native number input, and the
+  // same claim the date case above makes: it draws a box of its own, so it has to be
+  // the box the tokens describe rather than one styled by hand. No new rule in
+  // `theme-components.css` was needed - the text-entry-control rule reaches any input
+  // that is not a radio, a checkbox or hidden - and that is exactly what is worth
+  // measuring, because it is a rule this control was never written for. The vendored
+  // NumberField is reached by a DIFFERENT rule (the composite `role="group"` box with
+  // its inner input), so the two renderings agreeing is not something either rule
+  // guarantees on its own.
+  const starvation = await starveScripts(page);
+  await walkToOptionalNumber(page, kitchenSinkSlug);
+
+  const km = page.locator('[data-qcms-field] input[type="number"]');
+  await expect(km).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this measures the hydrated render",
+  ).toBeGreaterThan(0);
+
+  // The shipped Comfortable values: --space-control-h 44px, --space-control-pad-x 0.9rem.
+  expect(await px(km, "min-height")).toBeCloseTo(44, 0);
+  expect(await px(km, "padding-left")).toBeCloseTo(14.4, 0);
+  expect(await px(km, "padding-right")).toBeCloseTo(14.4, 0);
+
+  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA) - the reason this
+  // control may not fall back to a browser default height on the one path where it is
+  // the only way to answer the question. The token's own 44px is the 2.5.5 (AAA) size,
+  // measured above; what is asserted here is the floor that binds.
+  const box = await km.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--space-control-h", "60px");
+    document.documentElement.style.setProperty("--space-control-pad-x", "2rem");
+  });
+  expect(await px(km, "min-height")).toBeCloseTo(60, 0);
+  expect(await px(km, "padding-left")).toBeCloseTo(32, 0);
 });

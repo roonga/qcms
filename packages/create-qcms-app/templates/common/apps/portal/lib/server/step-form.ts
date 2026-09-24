@@ -55,12 +55,16 @@ import {
  * a question holding no answer is a documented API no-op, so a marker on a
  * never-answered field appends nothing.
  *
- * **Number fields are out of scope**, and by construction rather than by exclusion.
- * A react-aria NumberField carries its form value in a hidden input that JavaScript
- * syncs, so with scripting off the respondent's edit never reaches the wire and the
- * seeded answer is what serializes: a marked number never arrives empty, so it can
- * never retract here, and equally cannot be cleared at all without JavaScript. That
- * gap is issue #18 (phase 4), not this seam.
+ * **Number fields reach this rule too, since issue #18.** They used to be out of
+ * scope by construction: a react-aria NumberField carried its form value in a hidden
+ * input that JavaScript syncs, so with scripting off the respondent's edit never
+ * reached the wire and the seeded answer is what serialized - a marked number could
+ * not arrive empty, so it could not retract, and could not be cleared at all. The
+ * renderer now emits a real `<input type="number">` under the question's own name in
+ * native mode (Code Owner ruling, 2026-09-19), so an emptied number arrives empty
+ * beside its marker and decodes to the same `null` retraction as any other cleared
+ * field. Nothing here changed to accommodate it, which is the point: the rule was
+ * always about the post rather than about the control.
  */
 
 /** One decoded answer, ready to POST to the internal API's per-question endpoint. */

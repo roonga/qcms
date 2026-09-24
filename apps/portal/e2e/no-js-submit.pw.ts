@@ -5,18 +5,19 @@
  * `<form method="post">` POST with a full page reload - landing on the completion
  * receipt (submittedAt + contentHash).
  *
- * The fixture's follow-up "How many?" is a react-aria NumberField whose editable
- * input needs JavaScript to sync its form value, so the no-JS completion path is
- * the "No" branch (the boolean is a native radio that serializes without JS):
- * answer -> the branch keeps the follow-up hidden and the flow immediately ready
- * -> submit. This exercises start -> answer -> branch -> submit end to end with no
- * JavaScript in play.
+ * The "No" branch is the path it takes: answer -> the branch keeps the follow-up
+ * hidden and the flow is immediately ready -> submit, which exercises
+ * start -> answer -> branch -> submit end to end with no JavaScript in play in the
+ * fewest round trips. The "Yes" branch used to be unreachable here - the follow-up
+ * "How many?" was a react-aria NumberField whose editable input needed JavaScript to
+ * sync its form value - and since issue #18 it is not: `no-js-number.pw.ts` walks it.
  */
 
 import { expect, test } from "./support/gates.js";
 
 import { ACCIDENT_LABEL, FORM_HEADING } from "./support/flow.js";
 import { readFixtures } from "./support/fixtures.js";
+import { stepSubmit } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
 
@@ -41,10 +42,7 @@ test("a JS-disabled respondent completes and submits the fixture via native form
   // Submit the whole step: a native <button type=submit> POSTs the form to the
   // BFF /step route, which forwards the answer, sees the flow is ready, submits
   // the session, and 303-redirects to the receipt. A full page reload, no JS.
-  // Scoped to the step card: since issue #195 the header's appearance controls are a
-  // second native form on this page, with a `<noscript>`-revealed submit button of
-  // their own, so an unscoped `form button[type="submit"]` now matches two elements.
-  await page.getByTestId("step-card").locator('form button[type="submit"]').click();
+  await stepSubmit(page).click();
 
   await page.waitForURL(/\/done/);
   await expect(page.getByTestId("content-hash")).toHaveText(/^[0-9a-f]{64}$/);

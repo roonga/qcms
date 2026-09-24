@@ -44,6 +44,7 @@ import type { Page } from "@playwright/test";
 import { readFixtures } from "./support/fixtures.js";
 import { COUNT_LABEL, answerCount, chooseAccident, startAnonymousFlow } from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
+import { submitStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 import {
   KS,
@@ -206,6 +207,48 @@ test("axe: the no-JS FALLBACK step, with the native date input, has zero violati
   await expect(page.getByTestId("error-summary")).toBeVisible();
   await expect(page.locator('[data-qcms-field] input[type="date"]')).toBeVisible();
   await expectNoAxeViolations(page, "step 1 missing required (no-JS fallback render)");
+});
+
+test("axe: the no-JS FALLBACK step holding a required group and a native number is clean", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // The step the scan above could not reach, and the two controls issues #974 and #18
+  // changed. The multi-choice group's boxes now carry `aria-required` rather than the
+  // native attribute, which is an ARIA change and therefore exactly the kind axe has
+  // an opinion about; the number question is a qcms-owned `<input type="number">` with
+  // a hand-written label association, description and error slot
+  // (`packages/ui/src/native-number-field.tsx`), the same markup class the day input
+  // above is scanned for. Both are scanned clean and in the state the server's report
+  // puts them in.
+  const starvation = await starveScripts(page);
+  await page.goto(`/f/${kitchenSinkSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await page.locator('input[name="q_full_name"]').fill("Ada Lovelace");
+  await page.locator('input[name="q_dob"]').fill("1990-05-17");
+  await submitStep(page);
+  await expect(page.getByRole("heading", { name: "Driving history" })).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this scans the hydrated render",
+  ).toBeGreaterThan(0);
+
+  const boxes = page.locator('input[type="checkbox"][name="q_optional_cover"]');
+  await expect(boxes).toHaveCount(3);
+  await expect(boxes.first()).toHaveAttribute("aria-required", "true");
+  await expectNoAxeViolations(page, "step 2 clean (no-JS fallback render)");
+
+  // Answer the branch question and submit with the required group still blank. Both
+  // halves of the state arrive in one round trip: the number follow-up appears, and
+  // the server reports the group nobody answered. Before issue #974 this submission
+  // never left the page, so neither state existed to scan.
+  await page.getByText("Yes", { exact: true }).click();
+  await submitStep(page);
+  await expect(page.getByTestId("error-summary")).toBeVisible();
+  await expect(page.locator('input[type="number"][name="q_accident_count"]')).toBeVisible();
+  await expectNoAxeViolations(page, "step 2 missing required (no-JS fallback render)");
 });
 
 test("axe: flow initial, branch-inserted, and branch-removed states have zero violations", async ({

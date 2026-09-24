@@ -67,13 +67,21 @@ export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
  * answer endpoint. It confers no authority the API does not already grant, and a
  * retraction of a question that holds no answer is a documented no-op.
  *
- * ## Out of scope: the NumberField
+ * ## Every control reaches this seam now, the NumberField last (issue #18)
  *
- * A react-aria NumberField carries its form value in a hidden input that JavaScript
- * syncs, so with scripting off a respondent's edit never reaches it and the seeded
- * answer is what serializes. A marked number therefore never arrives empty and can
- * never retract here - the no-JS path cannot clear a number at all. That is issue
- * #18 (phase 4), not this seam.
+ * The NumberField used to be exempt by construction: react-aria carried its form
+ * value in a hidden input that JavaScript syncs, so with scripting off a
+ * respondent's edit never reached the wire and the seeded answer is what
+ * serialized. A marked number could not arrive empty, so it could not retract, and
+ * the no-JS path could not clear a number at all. Native mode now renders
+ * `NativeNumberField`, a real `<input type="number">` under the question's own name
+ * (Code Owner ruling, 2026-09-19), so an emptied number posts empty exactly like an
+ * emptied text box and the rule above covers it with no change.
+ *
+ * What the BROWSER still refuses is unchanged and is the #920 ruling, not this
+ * seam: emptying a REQUIRED number is blocked before the form leaves the page, so
+ * the clear is reachable for an optional one (`q_annual_km` in the vehicle
+ * kitchen-sink fixture).
  */
 export const NATIVE_FIELD_ANSWERED_PREFIX = "__qa__";
 
