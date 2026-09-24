@@ -118,6 +118,8 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Note.** Verified: no tenant concept exists in schema or runtime. The derivative recipe itself is not yet written; no such document exists under `docs/`.
 
+**Note - the workspace reading (Code Owner, 2026-09-25, issue #995).** ADR-41 adds workspaces, and this Note records what they do and do not do to this decision, so a reader does not have to infer it. A workspace is an **authorisation grouping between groups sharing one installation**: one operator, one configuration, one identity store, one database, one deployment, with authorisation between workspaces rather than isolation guarantees. It is not multi-tenancy and does not make this decision partly true. The one schema boundary QCMS has is ADR-40's environment, which separates data planes within a single tenant's own deployment; it is not a tenant boundary either. Multi-tenancy stays out (R7), and the derivative recipe named above stays unwritten.
+
 ### ADR-09 - Route groups are topology controls
 
 **Status:** implemented.
@@ -178,6 +180,45 @@ So this note records a clean tree, checked by CI rather than by reading.
 
 **Decision.** The API is the only application process with a database handle, including better-auth storage. Admin and portal have no database dependencies or credentials and reach data through BFF calls. Auth endpoints are explicitly allowlisted; self-registration is absent.
 
+### ADR-40 - Environments are release states over shared versions
+
+**Status:** decided; not built (task 064). Code Owner ruling of 2026-09-25, issue #995.
+
+**Decision.** A deployment has named **environments**. An environment is a release state over the one immutable version history, never a second copy of it. An installation ships with `test` and `prod`.
+
+A form version is published once and is shared by every environment (ADR-18). What varies per environment is which published version is **released** there. Promotion is a **release record**, never a copy, so `formId`, `questionId` and version numbers stay continuous across environments (R1, R6, ADR-02). Approval is recorded on the release.
+
+**The release record.** One append-only control-plane row per release, naming the environment, the form, the released version, the environment it was promoted from (absent for a first release), the administrator who released it, the approval recorded with it, and the time. The currently released version of a form in an environment is the newest such row for that pair; nothing else decides it. This row is the audit answer to "what was serving in `prod` on that date, and who put it there", which today's `form_versions.published_at` cannot give, because publishing and releasing are now separate acts.
+
+**Releasing never moves an open session.** A session pins the version it resolved at start and stays on it for its lifetime (ADR-07, invariant I4). A release changes only what a session started **after** it resolves, in that environment alone.
+
+**The data plane is isolated by a Postgres schema per environment.** The split is exact:
+
+| Side                                                  | Tables                                                                                                                                                                                                                                               |
+| ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Control plane, one copy, in `public`                  | `questions`, `question_versions`, `forms`, `form_drafts`, `form_versions`, `secure_links`, `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, and the two tables this decision adds: `environments` and `form_releases` |
+| Data plane, one copy per environment, in `env_<name>` | `sessions`, `answers`, `submissions`, `erasure_tombstones`, `outbox`, `webhook_deliveries`, `webhooks`                                                                                                                                               |
+
+Two foreign keys cross from the data plane into the control plane and are what make a shared version history work with no copying: `sessions_form_version_fk` into `public.form_versions`, and `sessions.link_id` into `public.secure_links`. Every other foreign key stays inside its own schema (`answers.session_id`, `submissions.session_id`, `webhook_deliveries.outbox_id` and `.webhook_id`). `erasure_tombstones` keeps its deliberate absence of a foreign key and is per environment because it records a session that lived in one.
+
+**The API selects an environment by search path, not by a predicate.** A connection is opened with `search_path` set to `env_<name>, public`, so every unqualified data-plane statement resolves inside exactly one environment's schema, Postgres enforces the boundary, and there is no per-query filter for a handler to forget. A request is served under exactly one environment for its whole lifetime, chosen before any data-plane statement runs. This is the same mechanism the `reporting` schema already uses (migration 0003), applied to the operational tables.
+
+**Test is reachable through secure links only.** `/f/{slug}` stays the `prod` address, as does `/f/{slug}/v{version}` when ADR-39 lands. No public test address exists. A secure link's server-side row carries the **environment** alongside the ADR-39 target version, so redeeming a link decides both which environment the session lands in and which version it resolves; the environment rides the row and not the token, exactly as the target does, and a signature alone remains insufficient (SEC-2).
+
+**Delivery and operations are per environment.** The outbox, the webhook endpoints and the delivery rows live in the environment's schema, so a `test` submission cannot reach a `prod` endpoint through any code path rather than through a filter that holds. Backup, restore and the restore drill, erasure, response export, the retention sweep and the reporting views are per environment, and the environment name is an allowlisted span and log attribute (SEC-13) so a trace can be told apart from one in another environment. The attribute names a deployment configuration and no respondent, which is why it is allowlistable at all.
+
+**The network layer is part of the design and is the operator's to configure.** QCMS must let an operator put test traffic on a distinct hostname or listener so ingress and firewall rules can restrict it to an allowlisted network, and must scope webhook egress per environment. The control is **SEC-14** (`docs/SECURITY_DESIGN.md` section 5a) and the operator recipe is `docs/deploy-ingress.md`. Defence in depth, in order: network, then link, then schema. TLS, HSTS and routing remain operator-provided ingress (ADR-20); what QCMS owns is the distinguishable listener, the per-environment egress rule set and the link and schema layers behind them.
+
+**An existing installation migrates to one environment named `prod`, carrying its current data.** The migration creates `env_prod`, moves the seven data-plane tables into it with their indexes, constraints and triggers, and writes one release row per form naming its newest published version, so the first release record states what was already serving. `test` is created empty. Nothing is copied, no id changes, and no session is re-pinned.
+
+**Note.** The append-only backstops are per-table, so the split multiplies some of them and leaves others alone. `answers_reject_update` (migration 0001), `answers_reject_delete` (0004), the `answers_retraction_value` CHECK (0009) and the `outbox_redacted_payload_has_no_answers` CHECK (0016) exist once **per environment schema**; `form_versions_reject_update` and `question_versions_freeze_published` (both 0001) stay single, because their tables stay in `public`. A migration that creates an environment and forgets a trigger produces a schema where the ledger is mutable, which is why creating an environment is a migration rather than an insert.
+
+**Note.** SEC-10's role split reaches this. `qcms_app` holds no `CREATE` on `public` and no DDL at all, so it cannot create an environment schema; `ALTER DEFAULT PRIVILEGES` is keyed on (role, schema, object type) with no per-table filter, so each `env_<name>` needs its own `USAGE` and DML grant for `qcms_app` and its own ownership by `qcms_migrate`. The "Least-privilege database roles" recipe in `docs/operations.md` grows a per-environment step, and `apps/api/e2e/security/03-db-least-privilege.e2e.ts` is where that is asserted rather than asserted by reading.
+
+**Note.** `reporting.responses` and `reporting.answers_flat` (migration 0003) read data-plane tables, so they become one view set per environment, and the `qcms_ro` recipe in `docs/reporting-view.md` grows with them. A BI tool pointed at the old view names after this lands reads nothing rather than reading the wrong environment, which is the failure direction to prefer.
+
+**Note.** What this decision does not settle is recorded in `plan/environments-and-workspaces.md` as open questions for the Code Owner, and `webhooks` is the one table in the split above that the ruling does not enumerate. It is placed on the per-environment side because the ruling's own requirement - a test submission can never fire a production endpoint - is a Postgres guarantee only if the deliverer running under `env_test` cannot see a `prod` endpoint row at all. The consequence, that endpoint configuration is authored once per environment rather than shared, is an open question and not a settled one.
+
 ## Identity and security
 
 ### ADR-06 - Separate admin and respondent identity
@@ -187,6 +228,32 @@ So this note records a clean tree, checked by CI rather than by reading.
 **Decision.** Admin authentication uses better-auth with email, password, TOTP, recovery codes, and no self-registration. Respondents use anonymous sessions or secure links at launch. Secure-link token functions stay pure; key storage stays in the shell.
 
 **Note.** The instance is hosted in the API since ADR-35's 2026-07-31 amendment. The shipped instance also enforces a breach-corpus password check (#178) and a sign-in throttle (#374, #390); `docs/SECURITY_DESIGN.md` is authoritative for those controls.
+
+### ADR-41 - Workspaces are an authorisation grouping
+
+**Status:** decided; not built (task 068). Code Owner ruling of 2026-09-25, issue #995.
+
+**Decision.** A **workspace** is a named grouping that owns forms and questions and carries the membership that authorises work on them. It is an authorisation boundary between groups sharing one installation, and it is not tenancy (ADR-04).
+
+**The table.** `workspaces` is control-plane state in `public`: a workspace id, a display name, a slug, whether it is the installation's shared workspace, and whether release to `prod` requires an approver other than the author. One row per group.
+
+**Ownership.** Every form and every question belongs to exactly one workspace; `forms` and `questions` each gain a non-null workspace reference. Ownership follows the identity row, so it is a property of a `formId` or a `questionId` and not of a version, and a published version never changes hands because the identity above it moved.
+
+**The shared workspace is optional and holds org-wide questions.** At most one workspace per installation is marked shared. A form may pin a published question version owned by its **own** workspace or by the shared workspace, and by nowhere else; publish rejects any other pin. This is what lets an organisation keep one canonical "date of birth" question without making every workspace visible to every other.
+
+**Membership and the four roles.** `workspace_members` holds one row per (workspace, administrator) with exactly one role: **owner** (membership and workspace settings, plus everything below), **editor** (author drafts, publish versions), **approver** (approve and release), **viewer** (read forms, versions and responses). An administrator with no membership in a workspace has no access to its forms, questions or responses. This is where RBAC (issue #179) lands, and enforcement is in the API layer, per route group and per route, never in a BFF (R2) and never only in the UI (SEC-3).
+
+**Slugs stay unique per installation.** `forms.slug` and `questions.slug` are unique across the whole installation, not per workspace, so `/f/{slug}` needs no workspace segment, a slug never changes meaning by context, and no address has to be re-pointed when a form's ownership changes.
+
+**Release to prod requires an approver who is not the author.** The approver must be a member of the form's workspace holding `approver` or `owner`, and must not be the administrator who published the version being released. The requirement is per workspace and configurable on the workspace row. The approval is recorded on the ADR-40 release record, which is what makes it auditable rather than procedural.
+
+**What a workspace is not.** Not a tenant: one operator, one configuration, one identity store, one database, one deployment. Not an isolation guarantee: the boundary is an authorisation check in the API, not a schema, and the only schema boundary in this system is ADR-40's environment. Not a routing segment: no URL carries a workspace. Not a configuration scope: deployment flags (ADR-24), themes (ADR-30) and the port allocation (ADR-37) remain installation-wide. An administrator with the installation-wide credential and database access reaches everything, exactly as before.
+
+**Note.** `questions.slug` already carries a unique constraint (`questions_slug_unique`, migration 0000). `forms.slug` does not: `packages/db/src/queries/forms.ts` resolves the public address with `limit(1)` and says so in its own comment, calling uniqueness "an authoring-time concern, not a DB constraint yet". The slug rule above is therefore a constraint task 068 adds, not one it inherits, and adding it on an installation that already has a duplicate is a migration that can fail.
+
+**Note.** The SEC-3 `user.role` claim is unchanged by this decision. It is installation-wide, carries `admin` today, and is declared to better-auth with `input: false` so no request body can set it. A workspace role is a second, narrower fact about the same administrator; how the two compose, and what an administrator with the installation-wide claim and no membership may do, is an open question recorded in `plan/environments-and-workspaces.md`.
+
+**Note.** Nothing in this decision changes the respondent side. Respondent authorization stays structural: a session token authorizes exactly one session and there is no respondent-facing enumeration of anything (SEC-3). A respondent never learns a workspace exists.
 
 ## Deployment and operations
 

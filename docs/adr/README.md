@@ -55,3 +55,5 @@ Each record carries a **Status** line (implemented; amended, with date and task 
 | ADR-37 | Port allocation                         | core   |
 | ADR-38 | Theme scope carrier                     | core   |
 | ADR-39 | Link version targeting                  | portal |
+| ADR-40 | Environments as release states          | core   |
+| ADR-41 | Workspaces as authorisation grouping    | core   |
