@@ -171,9 +171,7 @@ describe("the sample-data loader against a real database", () => {
 
     // An id is permanent: a cleared-then-reseeded question is the same question, and
     // nothing about the reseed may read as an attempt to reuse an id for new meaning.
-    expect(await libraryIds()).toEqual(
-      [...questionIds.map(String), String(HAND_AUTHORED)].sort(),
-    );
+    expect(await libraryIds()).toEqual([...questionIds.map(String), String(HAND_AUTHORED)].sort());
     const summarised = new Set((await listQuestions(db)).map((row) => row.latestStatus));
     expect(summarised).toContain("published");
     expect(summarised).toContain("deprecated");

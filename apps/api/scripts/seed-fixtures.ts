@@ -414,8 +414,8 @@ export async function clear(db: Db): Promise<void> {
       `${drafts.length > 0 ? ", plus the open draft on it" : ""}).`,
   );
   if (clearedQuestions.length > 0) {
-    const removed: QuestionId[] = clearedQuestions.map((row: { questionId: QuestionId }) =>
-      row.questionId,
+    const removed: QuestionId[] = clearedQuestions.map(
+      (row: { questionId: QuestionId }) => row.questionId,
     );
     say(`  questions: ${removed.join(", ")}`);
   }

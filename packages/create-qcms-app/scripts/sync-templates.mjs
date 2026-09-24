@@ -270,6 +270,19 @@ const APP_EXCLUDED_PATHS = new Set([
 const EXCLUDED_APP_DIRECTORIES = new Set(["e2e", "__snapshots__"]);
 
 /**
+ * App-relative directory prefixes dropped wholesale, contents included.
+ *
+ * `scripts/fixtures/` is the sample form `pnpm dev:seed` publishes and its committed
+ * compiled document (issue #994). It is input to `scripts/seed-fixtures.ts`, which
+ * {@link APP_EXCLUDED_PATHS} already drops, so scaffolding the data without the script
+ * that reads it would put two files in an adopter's tree that nothing in that tree
+ * opens. A prefix rather than two path entries, because the drop is about the
+ * directory: a third fixture added beside them belongs to the same excluded script and
+ * would otherwise be stamped into every scaffolded project by default.
+ */
+const EXCLUDED_APP_PREFIXES = ["scripts/fixtures/"];
+
+/**
  * A test runner's configuration or setup file, at any depth in an app.
  *
  * Matched by shape rather than listed, because the list would only ever be as complete
@@ -312,6 +325,7 @@ export function isExcludedAppPath(path) {
   if (TEST_RUNNER_CONFIG.test(path)) return true;
   if (AGENT_INSTRUCTIONS.test(path)) return true;
   if (path.split("/").some((segment) => EXCLUDED_APP_DIRECTORIES.has(segment))) return true;
+  if (EXCLUDED_APP_PREFIXES.some((prefix) => path.startsWith(prefix))) return true;
   return path.endsWith("/README.md");
 }
 
