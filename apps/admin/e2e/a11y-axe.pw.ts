@@ -181,6 +181,15 @@ async function chooseVersion(page: Page, label: string, version: string): Promis
 }
 
 /** WCAG 2.2 AA, the same rule set the portal gate uses. */
+/**
+ * Outbox events the delivery sweep plants ahead of its own, to make the backlog it
+ * has to drain larger than one claim batch whatever else the run left behind
+ * (`QCMS_WEBHOOK_BATCH_SIZE`, default 20; issue #988). Not read from the config on
+ * purpose: a number the test states is what makes it a pin rather than a restatement
+ * of whatever the deployment is set to.
+ */
+const BACKLOG_EVENTS = 25;
+
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 /**
@@ -1140,9 +1149,31 @@ async function sweepDeliveries(
     ]);
   }
 
-  // One pass: the events fan out to the endpoint and each attempt is refused with a
-  // 500, which leaves the rows retryable. That is `pending`, `--color-info-subtle`.
-  await deliverer.pass();
+  // A backlog larger than one claim batch, planted deliberately (issue #988).
+  //
+  // This step used to be implicit and the assertion below used to depend on it being
+  // small. A pass claims at most `QCMS_WEBHOOK_BATCH_SIZE` outbox events oldest-first
+  // (20), the whole browser suite shares one database, and nothing drains the outbox
+  // before this spec - so by here it holds every submission the portal specs made. At
+  // the time this was written that came to seventeen, the two events above sat at
+  // positions eighteen and nineteen of a twenty-row batch, and one pass happened to
+  // reach them. One more completed session anywhere in the portal suite pushed them
+  // out of the batch and this assertion read zero.
+  //
+  // So the backlog is now bigger than a batch on purpose and the sweep below is what
+  // has to cope. These plant no delivery row and no dead letter (see `plantBacklog`),
+  // and the pass count proves the drain was exercised rather than skipped.
+  await deliverer.plantBacklog(BACKLOG_EVENTS);
+
+  // One delivery ROUND: the events fan out to the endpoint and each attempt is refused
+  // with a 500, which leaves the rows retryable. That is `pending`,
+  // `--color-info-subtle`. A round rather than a pass, because the two events this test
+  // cares about are the newest in the queue and a single pass never reaches them.
+  const passes = await deliverer.sweep();
+  expect(
+    passes,
+    "the planted backlog must outlast one claim batch, or this proves nothing",
+  ).toBeGreaterThan(1);
   await page.goto(`/forms/${pub.formId}/webhooks`);
   const deliveries = page.getByTestId("qcms-deliveries-table");
   await expect(deliveries.locator('[data-status="pending"]')).toHaveCount(2);

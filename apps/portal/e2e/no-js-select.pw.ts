@@ -47,6 +47,7 @@ import type { Page } from "@playwright/test";
 import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
 import { expect, test } from "./support/gates.js";
+import { KS } from "./support/kitchen-sink.js";
 import { countStepPosts, stepSubmit, walkToCoverStep } from "./support/no-js.js";
 
 test.use({ javaScriptEnabled: false });
@@ -203,10 +204,10 @@ test("the select is a real named focusable control, and the submit is reachable,
   const bodyType = page.locator(BODY_TYPE);
   await expect(bodyType).toBeVisible();
   await expect(bodyType).toBeEnabled();
-  await expect(page.getByLabel("What body type is the vehicle?")).toHaveAttribute(
-    "name",
-    "q_body_type",
-  );
+  await expect(page.getByLabel(KS.bodyType)).toHaveAttribute("name", "q_body_type");
+  // The optional one is a real labelled control too. It is the question the clear case
+  // above drives, and nothing else asserts that a respondent can find it by its name.
+  await expect(page.getByLabel(KS.overnightParking)).toHaveAttribute("name", "q_overnight_parking");
   // Focusable, which the clipped mirror was not: `tabindex="-1"` is what stopped the
   // browser reporting the validity of a required one.
   await bodyType.focus();
