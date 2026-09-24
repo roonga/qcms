@@ -34,7 +34,7 @@ import { ACCIDENT_LABEL, startAnonymousFlow } from "./support/flow.js";
 import { expect, test } from "./support/gates.js";
 import { HARNESS_CORNERS, HARNESS_THEME, PORTAL_PORT } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
-import { walkToOptionalNumber } from "./support/no-js.js";
+import { walkToCoverStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 
 /** The four corner presets and the `--radius-control` / `--radius-card` they set. */
@@ -395,7 +395,7 @@ test("the no-JS number fallback's box consumes the same spacing tokens (issue #1
   // its inner input), so the two renderings agreeing is not something either rule
   // guarantees on its own.
   const starvation = await starveScripts(page);
-  await walkToOptionalNumber(page, kitchenSinkSlug);
+  await walkToCoverStep(page, kitchenSinkSlug);
 
   const km = page.locator('[data-qcms-field] input[type="number"]');
   await expect(km).toBeVisible();
@@ -422,4 +422,47 @@ test("the no-JS number fallback's box consumes the same spacing tokens (issue #1
   });
   expect(await px(km, "min-height")).toBeCloseTo(60, 0);
   expect(await px(km, "padding-left")).toBeCloseTo(32, 0);
+});
+
+test("the no-JS single-choice select's box consumes the same spacing tokens (issue #988)", async ({
+  page,
+}) => {
+  const { kitchenSinkSlug } = readFixtures();
+
+  // COMPONENT_GUIDELINES item 9 for the native `<select>` a singleChoice question
+  // above the compiler's option threshold falls back to. Unlike the date and number
+  // cases above, this one DID need the rule widened: `theme-components.css`'s
+  // text-entry rule matched inputs and textareas, and a `<select>` is neither, so
+  // before issue #988 this control would have taken the browser's own box on the one
+  // path where it is the only way to answer the question. Measuring it is what says
+  // the widening reached it.
+  //
+  // The vendored Select's box is drawn by a different rule (its trigger BUTTON, via
+  // `button[data-rac][aria-haspopup]`), so the two renderings of one question
+  // agreeing is not something either rule guarantees on its own.
+  const starvation = await starveScripts(page);
+  await walkToCoverStep(page, kitchenSinkSlug);
+
+  const bodyType = page.locator('[data-qcms-field] select[name="q_body_type"]');
+  await expect(bodyType).toBeVisible();
+  expect(
+    starvation.starvedCount(),
+    "the bundle must have been requested and starved, or this measures the hydrated render",
+  ).toBeGreaterThan(0);
+
+  // The shipped Comfortable values: --space-control-h 44px, --space-control-pad-x 0.9rem.
+  expect(await px(bodyType, "min-height")).toBeCloseTo(44, 0);
+  expect(await px(bodyType, "padding-left")).toBeCloseTo(14.4, 0);
+  expect(await px(bodyType, "padding-right")).toBeCloseTo(14.4, 0);
+
+  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA).
+  const box = await bodyType.boundingBox();
+  expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
+
+  await page.evaluate(() => {
+    document.documentElement.style.setProperty("--space-control-h", "60px");
+    document.documentElement.style.setProperty("--space-control-pad-x", "2rem");
+  });
+  expect(await px(bodyType, "min-height")).toBeCloseTo(60, 0);
+  expect(await px(bodyType, "padding-left")).toBeCloseTo(32, 0);
 });

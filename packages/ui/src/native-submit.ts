@@ -67,10 +67,10 @@ export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
  * answer endpoint. It confers no authority the API does not already grant, and a
  * retraction of a question that holds no answer is a documented no-op.
  *
- * ## Every control reaches this seam now, the NumberField last (issue #18)
+ * ## Every control reaches this seam now, the NumberField and the Select last
  *
- * The NumberField used to be exempt by construction: react-aria carried its form
- * value in a hidden input that JavaScript syncs, so with scripting off a
+ * The NumberField used to be exempt by construction (issue #18): react-aria carried
+ * its form value in a hidden input that JavaScript syncs, so with scripting off a
  * respondent's edit never reached the wire and the seeded answer is what
  * serialized. A marked number could not arrive empty, so it could not retract, and
  * the no-JS path could not clear a number at all. Native mode now renders
@@ -78,10 +78,19 @@ export const NATIVE_FIELD_KIND_PREFIX = "__qk__";
  * (Code Owner ruling, 2026-09-19), so an emptied number posts empty exactly like an
  * emptied text box and the rule above covers it with no change.
  *
+ * The Select was exempt for a different reason (issue #988): it had no clear GESTURE
+ * rather than no wire. Its form value did ride a real `<select>` under the question's
+ * own name, but clipped inside an `aria-hidden` container behind a JS-only trigger,
+ * and react-aria will not let a chosen key be deselected in any case. Native mode
+ * renders `NativeSelectField`, a real visible `<select>` whose first option is
+ * empty-valued, so returning to it posts empty beside the marker and reaches this
+ * rule like every other clear. That gesture exists on this path ALONE; the scripted
+ * control still has none.
+ *
  * What the BROWSER still refuses is unchanged and is the #920 ruling, not this
- * seam: emptying a REQUIRED number is blocked before the form leaves the page, so
- * the clear is reachable for an optional one (`q_annual_km` in the vehicle
- * kitchen-sink fixture).
+ * seam: emptying a REQUIRED number or single choice is blocked before the form
+ * leaves the page, so each clear is reachable only for an optional one
+ * (`q_annual_km` and `q_overnight_parking` in the vehicle kitchen-sink fixture).
  */
 export const NATIVE_FIELD_ANSWERED_PREFIX = "__qa__";
 

@@ -52,7 +52,7 @@ import { ACCIDENT_LABEL, chooseAccident, startAnonymousFlow } from "./support/fl
 import { expect, test } from "./support/gates.js";
 import { FONT_FLOORS_PATH, HARNESS_FONT, HARNESS_FONTS } from "./support/harness-config.js";
 import { KS, startKitchenSink } from "./support/kitchen-sink.js";
-import { walkToOptionalNumber } from "./support/no-js.js";
+import { walkToCoverStep } from "./support/no-js.js";
 import { starveScripts } from "./support/script-starve.js";
 
 /** The families that carry a self-hosted webfont (System has none by design). */
@@ -534,7 +534,7 @@ test("the no-JS number fallback gets the same tabular figures (issue #18)", asyn
   // `theme-components.css` was added for it, because the tabular selector already
   // names `input[type="number"]`, and that is the claim worth measuring.
   const starvation = await starveScripts(page);
-  await walkToOptionalNumber(page, kitchenSinkSlug);
+  await walkToCoverStep(page, kitchenSinkSlug);
 
   const km = page.locator('[data-qcms-field] input[type="number"]');
   await expect(km).toBeVisible();
