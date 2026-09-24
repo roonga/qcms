@@ -353,6 +353,123 @@ writes when an admin signs in, which is a sign-in audit record and predates this
 changed with issue #374 is that the stored value is one the deployment vouched for rather than one
 the browser asserted.
 
+## Restricting the test environment
+
+**Status: designed, not built.** ADR-40 makes `test` a release state served from the same
+deployment as `prod`, and **SEC-14** (`docs/SECURITY_DESIGN.md` section 5a) is the control this
+section implements. Nothing here is required by the stack as it ships today, which has one
+environment and one respondent hostname; read it when the environments work lands, or when you
+are sizing the DNS names and firewall rules you will need for it.
+
+The shape is the one this document already uses for portal and admin: **one more hostname**, with
+its own site block or listener rule, and a rule set that differs from the prod one in exactly two
+places - who may reach it inbound, and where it may reach outbound.
+
+### The third hostname
+
+| Hostname        | Serves                                                 | Reachable from                                       |
+| --------------- | ------------------------------------------------------ | ---------------------------------------------------- |
+| the portal name | `prod`: `/f/{slug}` and secure links                   | the internet                                         |
+| the test name   | `test`: secure links only, no `/f/{slug}`              | an allowlisted network, a VPN, or an IAP             |
+| the admin name  | authoring and releases, one for the whole installation | solo: the internet behind SEC-1; enterprise: the VPN |
+
+Two properties make the middle row enforceable, and you want both:
+
+- **The host-based rule at the edge** is the half your firewall can express. A firewall sees an
+  address, a port and a direction, never a route, so a test surface that shared the prod hostname
+  could not be restricted at all.
+- **The app does not serve anonymous entry on a test process.** `/f/{slug}` is not registered
+  there, so it answers `404` rather than refusing an authorization check (ADR-09). This is the
+  half that survives a listener rule somebody adds during an incident and never removes, and it
+  is the same reasoning as invariant 3: the property holds in the shipped files, not in your
+  proxy configuration.
+
+Neither replaces the other. With only the edge rule, one mis-scoped listener puts test on the
+public internet. With only the app rule, test is on the public internet behind link security
+alone, which is one layer thinner than the design asks for.
+
+### Recipe A: the Caddy overlay
+
+Add a third site block for the test name, with the same `(qcms_edge)` snippet the other two use,
+and one matcher the other two must not have: an address matcher that refuses anything outside the
+allowlist before the `reverse_proxy`. **Which matcher depends on what is in front of Caddy, and
+getting it wrong fails in the permissive direction**, so pick it deliberately:
+
+- With **nothing in front of Caddy**, which is the shape this recipe assumes, use `remote_ip`.
+  The Caddy matcher reference defines it as matching "by remote IP address (i.e. the IP address
+  of the immediate peer or the address set via PROXY protocol)", which on this shape is the
+  respondent.
+- With a **CDN or WAF in front** - the "Stacking another proxy" case above, which already
+  requires you to configure the `trusted_proxies` global option - use `client_ip` instead. The
+  same reference says `client_ip` matches the client address as parsed from the forwarded
+  headers, "is best used when the `trusted_proxies` global option is configured", and is what to
+  reach for "if you wish to match the 'real IP' of the client, as parsed from HTTP headers".
+  `remote_ip` there would match the CDN's egress node, so every request would look allowlisted.
+
+The trap is the same one invariant 6 describes one section down, in a different control: an
+address is trustworthy only from the hop that observed it.
+
+Three things move together when this lands: the test hostname (a fourth required value beside
+`QCMS_PORTAL_DOMAIN` and `QCMS_ADMIN_DOMAIN`), its certificate, and
+`QCMS_PORTAL_TRUSTED_PROXY_HOPS` if the test name is fronted differently from the prod one. The
+hop count is per hostname for exactly this reason.
+
+### Recipe B: ECS and ALB
+
+Two shapes work, and they are not equivalent.
+
+**A source-IP condition on a third listener rule.** An ALB listener rule can carry at most one
+`source-ip` condition alongside its `host-header` one, in CIDR form, IPv4 or IPv6, with no
+wildcards (AWS's "Condition types for listener rules"). Two rules then express the policy: the
+test hostname **with** an allowed CIDR forwards to the portal target group, and the test hostname
+alone falls through to a fixed-response refusal. Both halves are needed, because a listener rule
+routes and never denies: a rule that simply does not match hands the request to the listener's
+default action.
+
+Two caveats from the same page, and both matter here. The condition "is not satisfied by the
+addresses in the `X-Forwarded-For` header", and "if a client is behind a proxy, this is the IP
+address of the proxy, not the IP address of the client" - so with CloudFront or any other proxy
+in the path this filters the proxy's address, not the respondent's, and the allowlist means
+something other than what you intended.
+
+**A second, internal-facing balancer** for the test name, on private subnets, reached over the
+VPN or a peered network. This is the cleaner fit for the invariants, because "internet-facing"
+stops being a property you filter after the fact and becomes one the balancer does not have. It
+is also the shape an identity-aware proxy slots into, if one is already in the path.
+
+Give whichever balancer serves the test name a certificate covering that hostname. Do not
+path-split test onto the prod hostname: a path-based split onto one hostname is not a supported
+layout here, for the same cookie-scoping reason it is not supported for admin.
+
+### Egress, which is the half people forget
+
+Webhook delivery is outbound from whichever process mounts `internal` (`docs/deploy-enterprise.md`
+section 1). Under ADR-40 the endpoint rows live inside each environment's schema, so a test
+deliverer cannot read a prod endpoint at all; the egress rule states the same thing where a
+firewall can enforce it.
+
+Write it as an allowlist, not a denylist: the segment a test deliverer runs in permits outbound
+HTTPS to the test endpoint hosts and nothing else, and the prod one permits the prod hosts.
+`QCMS_WEBHOOK_ALLOW_PRIVATE` stays at its `false` default on both unless the deployment genuinely
+posts to on-prem systems. The one outbound exception that belongs to neither environment is
+`api.pwnedpasswords.com`, which the admin-mounted process needs while an administrator password
+is being set (SEC-1); it fails closed, so a segment with no egress at all cannot create the first
+administrator.
+
+### The rule table
+
+It is `docs/SECURITY_DESIGN.md` section 5a, by source, destination, port and environment. That is
+the one copy; this document deliberately does not restate it, for the same reason it does not
+restate the port allocation.
+
+### What this does not buy you
+
+An allowlist keeps strangers off the test surface. It does not stop somebody who is already on
+the allowed network, and it does not care who is holding a leaked test link - a secure link is
+still what starts a test session, and its expiry, one-time consumption and revocation are what
+bound that. Nor does it protect data at rest. SEC-14 states the three layers and the order they
+apply in; this section is only the outermost one.
+
 ## Verifying the routing property
 
 Invariants 3 and 4 hold today by inspection, and inspection is exactly what stops happening the
@@ -407,6 +524,9 @@ more than its removal buys.
 - **ADR-20** and the operability budget: `docs/adr/core.md` and `docs/PROJECT_GOAL.md` §7.
 - **SEC-9** (transport and browser security), plus the body-limit and header controls the edge
   mirrors: `docs/SECURITY_DESIGN.md` §5.
+- **SEC-14** (environment isolation at the network layer) and its firewall rule table, which is
+  the one copy: `docs/SECURITY_DESIGN.md` section 5a. The decision behind it is **ADR-40**, and the
+  build plan is `plan/environments-and-workspaces.md`.
 - The multi-instance deployment, where the API is split by mount and the admin sits behind a VPN:
   `docs/deploy-enterprise.md`.
 - Port allocation, which is the only place QCMS port numbers are written down. The ingress owns
