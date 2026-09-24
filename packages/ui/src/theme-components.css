@@ -84,11 +84,7 @@
    and a min-height on it are never painted. */
 [data-qcms-theme-scope]
   [data-qcms-field]
-  :is(
-    input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]),
-    textarea,
-    select
-  ) {
+  :is(input:not([type="radio"], [type="checkbox"], [type="hidden"], [hidden]), textarea, select) {
   border-radius: var(--radius-control);
   min-height: var(--space-control-h);
   padding-inline: var(--space-control-pad-x);
