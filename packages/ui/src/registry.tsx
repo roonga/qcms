@@ -687,9 +687,11 @@ type CheckboxGroupProps = NonNullable<CheckboxGroupNode["props"]> & {
  *
  * So the adapter provides RAC's own `FormContext` for this group's subtree alone.
  * Its scope is the provider's children, which is proved rather than assumed
- * (`packages/ui/src/native-multi-choice.test.tsx` renders a `required` text input
- * beside the group and asserts it keeps the attribute), so every other control on
- * the step keeps browser validation exactly as the #920 ruling left it.
+ * (`packages/ui/src/native-multi-choice.test.tsx` asserts that the two required
+ * controls beside the group on the same step - a RadioGroup, which reads the same
+ * context, and the native number input - both keep native `required`), so every
+ * other control on the step keeps browser validation exactly as the #920 ruling
+ * left it.
  *
  * What the respondent is left with is react-aria's OWN ARIA encoding of the same
  * rule: the group keeps its label marker and `data-required`, each box carries

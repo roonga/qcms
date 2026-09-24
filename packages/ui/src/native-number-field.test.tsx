@@ -20,7 +20,7 @@ import { loadGoldenForms } from "./test-support/golden.ts";
  * respondent can type into it, and what the browser will validate - which is the
  * whole of what the fix changes. Whether Chrome then refuses `2.5` or `201` is
  * browser behaviour (ADR-23), so it is asserted in
- * `apps/portal/e2e/no-js-required.pw.ts`.
+ * `apps/portal/e2e/no-js-number.pw.ts`.
  */
 
 const kitchenSink = loadGoldenForms().find((f) => f.version === "v1" && f.form === "kitchen-sink");

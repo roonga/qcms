@@ -132,10 +132,12 @@ describe("a required multi-choice group with no scripting (issue #974)", () => {
     expect(field?.textContent).toContain("This question needs an answer.");
   });
 
-  it("leaves the scripted render byte-for-byte alone", () => {
-    // The ruling changes the no-JS render and nothing else, so the scripted group's
-    // markup is compared whole rather than attribute by attribute - the same
-    // discipline `native-date-field.test.tsx` applies to the DatePicker.
+  it("leaves the scripted render's required encoding alone", () => {
+    // The ruling changes the no-JS render and nothing else. What is checked here is
+    // the one pair of attributes the fix moves, on the render it must NOT move them
+    // on: the scripted boxes keep the native attribute and gain no `aria-required`.
+    // A whole-markup comparison would need the base's own output to diff against,
+    // which a single-head suite does not have.
     const before = render(<A2UIStepRenderer document={groupStep} />);
     const scripted = before.container.querySelector<HTMLElement>(
       `[data-qcms-field="${GROUP_QUESTION}"]`,

@@ -10,17 +10,36 @@ cites live in `docs/adr/portal.md` and `docs/adr/core.md`.
 ## Operation without JavaScript
 
 **The no-JS path is required.** Every respondent flow completes with scripting disabled,
-including submission (task 044). `docs/COMPONENT_GUIDELINES.md` makes no-JS coverage
-binding for any input control, and the claim above is pinned by named specs rather than
-by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to receipt),
-`apps/portal/e2e/no-js-required.pw.ts` (a step holding a required date, and what happens
-to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.ts` (a
-required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
+including submission (task 044), **except a form carrying a singleChoice question with
+more than seven options** (issue #988, below). `docs/COMPONENT_GUIDELINES.md` makes no-JS
+coverage binding for any input control, and the claim above is pinned by named specs
+rather than by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to
+receipt), `apps/portal/e2e/no-js-required.pw.ts` (a step holding a required date, and
+what happens to a submission that skips the browser),
+`apps/portal/e2e/no-js-multi-choice.pw.ts` (a required multiChoice group),
+`apps/portal/e2e/no-js-number.pw.ts` (a number question),
 `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer) and
 `apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read those six as the definition
-of the claim. It was qualified twice and is now unqualified: a form with a required date
-only completed from issue #920 onward, and a form with a required multiChoice or a
-required number only from issues #974 and #18.
+of the claim. Two of its three qualifiers are gone: a form with a required date completed
+only from issue #920 onward, and one with a required multiChoice or a required number only
+from issues #974 and #18. The third, #988, is open.
+
+**The one question shape that still cannot be answered without scripting** (**issue
+#988**, found while fixing #974 and #18 and filed rather than decided). A `singleChoice`
+question compiles to a RadioGroup at seven options or fewer and to a `Select` above that
+(`SINGLE_CHOICE_SELECT_THRESHOLD`, `packages/a2ui-compiler/src/mapping.ts`), so the
+threshold is what decides whether a form is affected: **a form whose single-choice
+questions all have seven or fewer options is unaffected**, and the six specs above cover
+only such forms. The vendored `Select` does render a real `<select>` carrying the real
+options, but inside a clipped, visually-hidden container that is `aria-hidden="true"`,
+with `tabindex="-1"` on the select itself, behind a visible trigger that is a
+JavaScript-driven `<button aria-haspopup="listbox">`. So a respondent with scripting off
+can neither see nor operate it, and a required one makes the browser try to report
+validity on an unfocusable control and abandon the whole step's submission - the same
+`An invalid form control ... is not focusable` dead end issue #920 documented for the
+DatePicker. No fixture form compiles a `Select`, which is why every gate is green over it.
+It is the same decision class as the two rulings below and is recorded for the Code
+Owner, not answered here.
 
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,

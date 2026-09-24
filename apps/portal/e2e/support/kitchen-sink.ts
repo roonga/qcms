@@ -217,9 +217,11 @@ export async function checkOption(page: Page, label: string): Promise<void> {
 
 /**
  * Fast-forward through the kitchen-sink form's first two steps with valid
- * answers and land on step 3 ("Your cover"), whose only question is the
- * single-choice one. The flow spec drives those steps with its own assertions;
- * this is the plain set-up for a spec whose subject is step 3.
+ * answers and land on step 3 ("Your cover"), whose only REQUIRED question is the
+ * single-choice one; it also holds the optional number `q_annual_km` (issue #18),
+ * which needs no answer for the step to complete. The flow spec drives those steps
+ * with its own assertions; this is the plain set-up for a spec whose subject is
+ * step 3.
  *
  * "No" is chosen for the accident question so the number follow-up stays hidden
  * and no extra required question is introduced.

@@ -364,9 +364,10 @@ test("the no-JS date fallback's box consumes the same spacing tokens (issue #920
   expect(await px(day, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(day, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // The 44px is also WCAG 2.5.8's target floor, and it is the reason this control may
-  // not fall back to a browser default height on the one path where it is the only way
-  // to answer the question.
+  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA), which is the
+  // reason this control may not fall back to a browser default height on the one path
+  // where it is the only way to answer the question. The token's own 44px is the
+  // 2.5.5 (AAA) size, measured above; the floor that binds is what is asserted here.
   const box = await day.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 
@@ -408,9 +409,10 @@ test("the no-JS number fallback's box consumes the same spacing tokens (issue #1
   expect(await px(km, "padding-left")).toBeCloseTo(14.4, 0);
   expect(await px(km, "padding-right")).toBeCloseTo(14.4, 0);
 
-  // 44px is also WCAG 2.5.8's target floor, and the reason this control may not fall
-  // back to a browser default height on the one path where it is the only way to
-  // answer the question.
+  // And the rendered box clears WCAG 2.5.8's 24px target floor (AA) - the reason this
+  // control may not fall back to a browser default height on the one path where it is
+  // the only way to answer the question. The token's own 44px is the 2.5.5 (AAA) size,
+  // measured above; what is asserted here is the floor that binds.
   const box = await km.boundingBox();
   expect(box?.height ?? 0).toBeGreaterThanOrEqual(24);
 
