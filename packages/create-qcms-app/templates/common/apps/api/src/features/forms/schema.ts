@@ -94,7 +94,7 @@ const OpaqueDefinition = z
 
 /** `POST /admin/forms` - the identity to create with its empty first draft. */
 export const CreateFormBody = z
-  .object({
+  .strictObject({
     formId: z.string().min(1).openapi({ example: "frm_signup" }),
     slug: z.string().min(1).openapi({ example: "signup" }),
     defaultLocale: z.string().min(1).openapi({ example: "en" }),
@@ -103,7 +103,7 @@ export const CreateFormBody = z
 
 /** `PUT /admin/forms/:id/draft` and `POST .../draft/validate` - a full definition. */
 export const DraftBody = z
-  .object({
+  .strictObject({
     definition: OpaqueDefinition,
     /**
      * Set when this save is accepting an agent-assisted proposal (041, ADR-25).
@@ -126,7 +126,7 @@ export const DraftBody = z
  * echoed back in a response or an error message.
  */
 export const PreviewConditionBody = z
-  .object({
+  .strictObject({
     definition: OpaqueDefinition,
     ruleId: z.string().min(1).openapi({ example: "rul_at_fault" }),
     answers: z
@@ -149,7 +149,7 @@ export const PreviewConditionBody = z
  * because the first render of the pane has no answers yet.
  */
 export const PreviewDraftBody = z
-  .object({
+  .strictObject({
     definition: OpaqueDefinition,
     answers: z
       .record(z.string(), z.unknown())
@@ -179,7 +179,7 @@ const MAX_MIN_SUBMIT_MS = 60 * 60 * 1000;
  * things.
  */
 export const UpdateFormSettingsBody = z
-  .object({
+  .strictObject({
     challengeRequired: z.boolean().optional().openapi({ example: true }),
     minSubmitMs: z
       .number()

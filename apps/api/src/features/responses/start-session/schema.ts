@@ -15,7 +15,7 @@ import { z } from "@hono/zod-openapi";
  * `token` (secure-link entry) must be present.
  */
 export const StartSessionBody = z
-  .object({
+  .strictObject({
     formSlug: z.string().min(1).optional().openapi({
       description: "Public form slug for anonymous entry.",
       example: "customer-feedback",

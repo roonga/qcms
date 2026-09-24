@@ -20,7 +20,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
-import { errorResponses, withScopes } from "../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
   makeCloseFormHandler,
   makeCreateFormHandler,
@@ -65,7 +65,7 @@ export const createFormRoute = createRoute({
   summary: "Create a form identity with an empty first draft (admin)",
   tags,
   request: {
-    body: { required: true, content: { "application/json": { schema: CreateFormBody } } },
+    body: jsonBody(CreateFormBody),
   },
   responses: {
     201: {
@@ -123,7 +123,7 @@ export const putDraftRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: DraftBody } } },
+    body: jsonBody(DraftBody),
   },
   responses: {
     200: {
@@ -143,7 +143,7 @@ export const validateDraftRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: DraftBody } } },
+    body: jsonBody(DraftBody),
   },
   responses: {
     200: {
@@ -162,7 +162,7 @@ export const previewConditionRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: PreviewConditionBody } } },
+    body: jsonBody(PreviewConditionBody),
   },
   responses: {
     200: {
@@ -193,7 +193,7 @@ export const previewDraftRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: PreviewDraftBody } } },
+    body: jsonBody(PreviewDraftBody),
   },
   responses: {
     200: {
@@ -215,7 +215,7 @@ export const updateFormSettingsRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: UpdateFormSettingsBody } } },
+    body: jsonBody(UpdateFormSettingsBody),
   },
   responses: {
     200: {

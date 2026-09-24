@@ -15,7 +15,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
-import { errorResponses, withScopes } from "../../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import { submitPerSessionLimiter } from "../rate-limits.js";
 import { makeSubmitHandler } from "./handler.js";
 import { SessionParams, SubmitBody, SubmitResponse } from "./schema.js";
@@ -28,10 +28,33 @@ export const submitRoute = createRoute({
   tags: ["responses"],
   request: {
     params: SessionParams,
-    body: {
-      required: true,
-      content: { "application/json": { schema: SubmitBody } },
-    },
+    // The one request body in this API that stays OPEN (Code Owner, 2026-09-24,
+    // issue #893). It rests on two facts, and deliberately not on a third.
+    //
+    // It has NO SINK. The handler reads exactly one key, the configured honeypot
+    // field; the stored submission and the outbox payload are both built from the
+    // answer ledger rather than from this body; and the body is never logged. So an
+    // undeclared key reaches nothing - not Postgres, not a log line, not a webhook -
+    // and `bodyLimit` caps how much of it can arrive. Closing the body would refuse
+    // input that already goes nowhere.
+    //
+    // And the no-JS path NEEDS it open: it forwards every posted form field the
+    // compiled document did not tag as an answer control (`extras` in
+    // `apps/portal/lib/server/step-form.ts`), so a closed body would refuse
+    // legitimate submissions from a respondent without JavaScript.
+    //
+    // What this is NOT resting on: the honeypot being secret. Its wire name is a
+    // compiler constant (`packages/a2ui-compiler/src/honeypot.ts`), already published
+    // in `docs/openapi/respondent.json` and already present in the served DOM, so
+    // there is no tell for a refusal to leak.
+    body: jsonBody(SubmitBody, {
+      openBecause:
+        "This body has no sink - the handler reads one key, the stored submission and " +
+        "the outbox payload come from the answer ledger, and the body is never logged - " +
+        "and the no-JS path forwards every posted form field the compiled document did " +
+        "not tag as an answer control, so an undeclared key must reach the handler " +
+        "rather than be refused (Code Owner, 2026-09-24, issue #893).",
+    }),
   },
   responses: {
     200: {

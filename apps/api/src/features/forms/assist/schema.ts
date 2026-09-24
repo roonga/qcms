@@ -12,13 +12,13 @@ import { z } from "@hono/zod-openapi";
 import { SavedDraftResponse } from "../schema.js";
 
 /** One turn the client replays. The whole conversation is the whole memory. */
-export const AssistTurnBody = z.object({
+export const AssistTurnBody = z.strictObject({
   role: z.enum(["user", "assistant"]),
   content: z.string().min(1).max(8_000),
 });
 
 export const AssistBody = z
-  .object({
+  .strictObject({
     /**
      * The conversation so far, oldest first, ending with the new user turn.
      * Capped: this is not a chat product, it is one authoring task, and an
@@ -56,7 +56,7 @@ const OpaqueQuestionDefinition = z.record(z.string(), z.unknown());
  * can accept a proposal without inventing library naming on the author's behalf.
  */
 export const AcceptProposalBody = z
-  .object({
+  .strictObject({
     definition: OpaqueQuestionDefinition,
     /**
      * The proposal's NEW question definitions, in the order the agent proposed
@@ -65,7 +65,7 @@ export const AcceptProposalBody = z
      */
     newQuestions: z
       .array(
-        z.object({
+        z.strictObject({
           definition: OpaqueQuestionDefinition,
           slug: z.string().min(1).max(200).optional(),
         }),

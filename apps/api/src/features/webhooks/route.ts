@@ -14,7 +14,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
-import { errorResponses, withScopes } from "../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
   makeCreateWebhookHandler,
   makeDeactivateWebhookHandler,
@@ -41,7 +41,7 @@ export const createWebhookRoute = createRoute({
   tags,
   request: {
     params: FormIdParam,
-    body: { required: true, content: { "application/json": { schema: CreateWebhookBody } } },
+    body: jsonBody(CreateWebhookBody),
   },
   responses: {
     201: {
@@ -77,7 +77,7 @@ export const updateWebhookRoute = createRoute({
   tags,
   request: {
     params: WebhookParams,
-    body: { required: true, content: { "application/json": { schema: UpdateWebhookBody } } },
+    body: jsonBody(UpdateWebhookBody),
   },
   responses: {
     200: {

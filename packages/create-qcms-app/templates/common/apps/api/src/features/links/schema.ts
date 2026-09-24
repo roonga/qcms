@@ -41,7 +41,7 @@ export const FormLinkParams = z.object({
  * ISO datetime (validated against the request clock in-handler).
  */
 export const MintLinksBody = z
-  .object({
+  .strictObject({
     expiresAt: z.string().openapi({ example: "2026-12-31T23:59:59.000Z" }),
     oneTime: z.boolean().default(false).openapi({ example: true }),
     count: z.number().int().min(1).max(MAX_LINK_BATCH).default(1).openapi({ example: 1 }),

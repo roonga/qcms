@@ -22,7 +22,7 @@ import { createRoute } from "@hono/zod-openapi";
 
 import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
-import { errorResponses, withScopes } from "../../openapi.js";
+import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
   makeCreateQuestionHandler,
   makeCreateVersionHandler,
@@ -55,7 +55,7 @@ export const createQuestionRoute = createRoute({
   summary: "Create a question with its first draft version (admin)",
   tags,
   request: {
-    body: { required: true, content: { "application/json": { schema: CreateQuestionBody } } },
+    body: jsonBody(CreateQuestionBody),
   },
   responses: {
     201: {
@@ -91,7 +91,7 @@ export const editVersionRoute = createRoute({
   tags,
   request: {
     params: VersionParam,
-    body: { required: true, content: { "application/json": { schema: EditVersionBody } } },
+    body: jsonBody(EditVersionBody),
   },
   responses: {
     200: {

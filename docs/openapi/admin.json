@@ -161,7 +161,8 @@
         "required": [
           "slug",
           "definition"
-        ]
+        ],
+        "additionalProperties": false
       },
       "QuestionDefinitionInput": {
         "type": "object",
@@ -179,7 +180,8 @@
         },
         "required": [
           "definition"
-        ]
+        ],
+        "additionalProperties": false
       },
       "ListQuestionsResponse": {
         "type": "object",
@@ -376,7 +378,8 @@
           "formId",
           "slug",
           "defaultLocale"
-        ]
+        ],
+        "additionalProperties": false
       },
       "ListFormsResponse": {
         "type": "object",
@@ -610,7 +613,8 @@
         },
         "required": [
           "definition"
-        ]
+        ],
+        "additionalProperties": false
       },
       "FormDefinitionInput": {
         "type": "object",
@@ -707,7 +711,8 @@
           "definition",
           "ruleId",
           "answers"
-        ]
+        ],
+        "additionalProperties": false
       },
       "PreviewDraftResponse": {
         "type": "object",
@@ -787,7 +792,8 @@
         },
         "required": [
           "definition"
-        ]
+        ],
+        "additionalProperties": false
       },
       "FormSettingsResponse": {
         "type": "object",
@@ -825,6 +831,7 @@
             "example": 3000
           }
         },
+        "additionalProperties": false,
         "minProperties": 1,
         "description": "A partial patch. At least one of `challengeRequired` or `minSubmitMs` must be present: an all-absent body is refused at the schema with a 400 `INVALID_REQUEST` envelope."
       },
@@ -1129,7 +1136,8 @@
         },
         "required": [
           "reason"
-        ]
+        ],
+        "additionalProperties": false
       },
       "ErasuresResponse": {
         "type": "object",
@@ -1254,7 +1262,8 @@
         },
         "required": [
           "expiresAt"
-        ]
+        ],
+        "additionalProperties": false
       },
       "LinkListResponse": {
         "type": "object",
@@ -1402,7 +1411,8 @@
         },
         "required": [
           "url"
-        ]
+        ],
+        "additionalProperties": false
       },
       "WebhookListResponse": {
         "type": "object",
@@ -1521,7 +1531,8 @@
             "minLength": 16,
             "example": "whsec_…"
           }
-        }
+        },
+        "additionalProperties": false
       },
       "DeactivatedWebhookResponse": {
         "type": "object",
