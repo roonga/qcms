@@ -51,7 +51,7 @@
  * `down --volumes --remove-orphans`, so a silently adopted seat 0 would not merely
  * read another lane's stack, it would delete it.
  *
- * Usage:  pnpm dev:up  |  pnpm dev:seed  |  pnpm dev:down
+ * Usage:  pnpm dev:up  |  pnpm dev:seed  |  pnpm dev:seed:clear  |  pnpm dev:seed:reset  |  pnpm dev:down
  */
 
 import { closeSync, fchmodSync, fstatSync, openSync, readFileSync, writeFileSync } from "node:fs";
@@ -691,7 +691,25 @@ export function up() {
 }
 
 /**
- * Load the sample question library into the running stack (`pnpm dev:seed`).
+ * What each seeding subcommand tells the developer it is about to do. Pure and
+ * exported so `dev-compose.test.ts` can assert that all three exist and that none of
+ * them names a credential (SEC-8).
+ *
+ * @param {"seed" | "clear" | "reset"} mode
+ * @param {string} name the Compose project being written to.
+ * @returns {string}
+ */
+export function seedNoticeLine(mode, name) {
+  return {
+    seed: `seeding the sample question library and form into project ${name} ...`,
+    clear: `clearing the seeded questions and form from project ${name} ...`,
+    reset: `clearing and reseeding the sample data in project ${name} ...`,
+  }[mode];
+}
+
+/**
+ * Run the sample-data loader against the running stack: `pnpm dev:seed`,
+ * `pnpm dev:seed:clear`, `pnpm dev:seed:reset`.
  *
  * The Questions screen's empty state has told developers to "run pnpm
  * qcms:seed-fixtures against a development database" since task 032, and against
@@ -699,15 +717,26 @@ export function up() {
  * stack's Postgres is deliberately unpublished. `scripts/compose-seed.mjs` runs it
  * inside the network instead; this function is the part that knows the stack.
  *
+ * All three modes take the same door, and for `clear` that is a control rather than a
+ * convenience (issue #994). A command that deletes sample data must be unable to
+ * reach any database but this stack's, and the way that is guaranteed here is that it
+ * has no way to name one: the URL is composed from this stack's own variables and
+ * dials `postgres:5432`, a name that resolves only on this Compose network.
+ *
  * It preflights like `up` rather than filling placeholders like `down`, because the
  * database credential is read for real here: a missing `QCMS_DB_PASSWORD` should say
  * so up front instead of surfacing as an authentication failure from Postgres.
  *
  * Seeding an already-seeded stack is the expected second case and reports what it
  * skipped, so this needs no idempotence machinery of its own (R6, and the loader's
- * own docstring).
+ * own docstring). A `clear` that cannot proceed - because the seeded form has been
+ * answered, and the answer ledger is append-only and immutable by trigger - comes back
+ * as a non-zero exit carrying the loader's own explanation, which `seedFixtures`
+ * writes through before throwing.
+ *
+ * @param {"seed" | "clear" | "reset"} [mode]
  */
-export function seed() {
+export function seed(mode = "seed") {
   const envFile = envFileState();
   preflight(envFile);
 
@@ -722,11 +751,12 @@ export function seed() {
     }),
   );
 
-  log(`seeding the sample question library into project ${project} ...`);
+  log(seedNoticeLine(mode, project));
   seedFixtures({
     compose: composeArgs(envFile.exists),
     databaseUrl: databaseUrlFor({ ...envFile.values, ...process.env }),
     environment,
+    mode,
   });
 }
 
@@ -772,23 +802,49 @@ function describe(error) {
   return String(error);
 }
 
+/**
+ * Every subcommand this file answers to, and what each one does.
+ *
+ * A table rather than an `if` chain since issue #994 took the count from three to five:
+ * the chain had already grown a nested ternary whose only job was to name the command
+ * back to the seat guard, and a fourth arm would have had to be added in two places that
+ * could disagree. Exported so `dev-compose.test.ts` asserts the usage line names exactly
+ * the subcommands that exist.
+ *
+ * @type {Record<string, () => void>}
+ */
+export const SUBCOMMANDS = {
+  up,
+  seed: () => {
+    seed("seed");
+  },
+  "seed:clear": () => {
+    seed("clear");
+  },
+  "seed:reset": () => {
+    seed("reset");
+  },
+  down,
+};
+
+/** The usage line, derived from {@link SUBCOMMANDS} rather than written out again. */
+export function usageLine() {
+  return `Usage: node scripts/dev-compose.mjs <${Object.keys(SUBCOMMANDS).join("|")}>`;
+}
+
 function main() {
-  const command = process.argv[2];
-  // Before anything is spawned, and for both subcommands. A silent fallback to seat
+  const command = process.argv[2] ?? "";
+  const run = Object.hasOwn(SUBCOMMANDS, command) ? SUBCOMMANDS[command] : undefined;
+  if (run === undefined) throw new UsageError(usageLine());
+  // Before anything is spawned, and for every subcommand. A silent fallback to seat
   // 0 from a worktree would pick another lane's Compose project name, and `down`
-  // deletes what it finds under it (issue #296).
+  // deletes what it finds under it (issue #296) - as, now, does `seed:clear`.
   try {
-    assertPortSeatChosen(
-      REPOSITORY_ROOT,
-      `pnpm dev:${command === "up" ? "up" : command === "seed" ? "seed" : "down"}`,
-    );
+    assertPortSeatChosen(REPOSITORY_ROOT, `pnpm dev:${command}`);
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error));
   }
-  if (command === "up") up();
-  else if (command === "seed") seed();
-  else if (command === "down") down();
-  else throw new UsageError("Usage: node scripts/dev-compose.mjs <up|seed|down>");
+  run();
 }
 
 // Only when run as a command, so the pure helpers above can be imported by

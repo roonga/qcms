@@ -14,6 +14,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   COMPOSE_FILES,
+  SUBCOMMANDS,
   SUPPLIED_VARIABLES,
   devStackBannerLines,
   devStackEnvironmentOverrides,
@@ -25,7 +26,9 @@ import {
   requiredVariables,
   requiredVariablesIn,
   seatPorts,
+  seedNoticeLine,
   teardownPlaceholders,
+  usageLine,
 } from "./dev-compose.mjs";
 import { composeProjectName, localStackProjectName, stablePort } from "./ports.mjs";
 
@@ -405,5 +408,47 @@ describe("pinNoticeLines", () => {
   it("never prints the secret", () => {
     const text = pinNoticeLines({ source: "file", tightenedFrom: "644" }).join("\n");
     expect(text).not.toMatch(/=[A-Za-z0-9_-]{20,}/);
+  });
+});
+
+describe("SUBCOMMANDS (issue #994)", () => {
+  it("answers to the three seeding commands as well as up and down", () => {
+    // The set, not a sample: `usageLine` is derived from these keys, and
+    // `package.json` below is asserted against them, so an added subcommand that
+    // nobody wired up anywhere shows here first.
+    expect(Object.keys(SUBCOMMANDS)).toEqual(["up", "seed", "seed:clear", "seed:reset", "down"]);
+  });
+
+  it("derives the usage line from the table rather than restating it", () => {
+    // The chain this replaced named its subcommands twice - once to dispatch and
+    // once in the usage string - and a fourth arm would have had to be added in both.
+    for (const command of Object.keys(SUBCOMMANDS)) expect(usageLine()).toContain(command);
+  });
+
+  it("is what package.json's dev:* scripts invoke, with no orphan on either side", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+    ) as { scripts: Record<string, string> };
+    const wired = Object.entries(manifest.scripts)
+      .filter(([, command]) => command.startsWith("node scripts/dev-compose.mjs "))
+      .map(([name, command]) => [name, command.split(" ").at(-1)] as const);
+
+    // A subcommand with no script is unreachable by the documented command, and a
+    // script naming a subcommand that does not exist dies on the usage error.
+    expect(wired.map(([, subcommand]) => subcommand).sort()).toEqual(
+      Object.keys(SUBCOMMANDS).sort(),
+    );
+    for (const [name, subcommand] of wired) expect(name).toBe(`dev:${String(subcommand)}`);
+  });
+});
+
+describe("seedNoticeLine", () => {
+  it("says which of the three things is about to happen, and names the project", () => {
+    expect(seedNoticeLine("seed", "qcms-local-stack-s3")).toContain("qcms-local-stack-s3");
+    expect(seedNoticeLine("seed", "p")).toMatch(/seeding/u);
+    // "clearing" rather than "seeding": a developer watching output should be able to
+    // tell a destructive run from a loading one without reading the next line.
+    expect(seedNoticeLine("clear", "p")).toMatch(/clearing/u);
+    expect(seedNoticeLine("reset", "p")).toMatch(/clearing and reseeding/u);
   });
 });

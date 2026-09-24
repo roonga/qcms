@@ -26,6 +26,8 @@
     "dev:up": "node scripts/dev-compose.mjs up",
     "dev:down": "node scripts/dev-compose.mjs down",
     "dev:seed": "node scripts/dev-compose.mjs seed",
+    "dev:seed:clear": "node scripts/dev-compose.mjs seed:clear",
+    "dev:seed:reset": "node scripts/dev-compose.mjs seed:reset",
     "dev:portal": "node scripts/dev-portal.mjs",
     "dev:admin": "node scripts/dev-admin.mjs",
     "artifacts": "node scripts/serve-artifacts.mjs",

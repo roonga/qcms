@@ -111,3 +111,56 @@ describe("buildSeedRun", () => {
     expect(run.argv.slice(0, other.length)).toEqual(other);
   });
 });
+
+describe("buildSeedRun modes (issue #994)", () => {
+  it("defaults to seed, so the container's own entrypoint needs no argument", () => {
+    const run = buildSeedRun({ compose: COMPOSE, databaseUrl: URL_WITH_SECRET, environment: {} });
+    expect(run.argv.slice(-2)).toEqual(["seed", "seed"]);
+  });
+
+  it("appends the subcommand after the service name, where Compose passes it through", () => {
+    // `docker compose run SERVICE ARGS...` replaces the image's CMD and leaves its
+    // ENTRYPOINT alone, so the loader's path stays in `docker/seed.Dockerfile` and
+    // this file never names a path inside the image (issue #817's lesson).
+    for (const mode of ["seed", "clear", "reset"] as const) {
+      const run = buildSeedRun({
+        compose: COMPOSE,
+        databaseUrl: URL_WITH_SECRET,
+        environment: {},
+        mode,
+      });
+      expect(run.argv.at(-2)).toBe("seed");
+      expect(run.argv.at(-1)).toBe(mode);
+      expect(run.argv.join(" ")).not.toContain("/app/seed");
+    }
+  });
+
+  it("keeps the credential out of argv on the destructive modes too", () => {
+    // The #440 control is not a property of the loading path: a `clear` run assembles
+    // the same URL and must put it in the same place.
+    for (const mode of ["clear", "reset"] as const) {
+      const run = buildSeedRun({
+        compose: COMPOSE,
+        databaseUrl: URL_WITH_SECRET,
+        environment: { PATH: "/usr/bin" },
+        mode,
+      });
+      expect(run.argv.join(" ")).not.toContain("s3cr3t-not-real");
+      expect(run.environment.DATABASE_URL).toBe(URL_WITH_SECRET);
+    }
+  });
+
+  it("refuses a mode it does not know rather than passing it to the container", () => {
+    // The container would reject it too, but only after a build and a boot; and an
+    // argv this file did not vet is an argv it cannot claim anything about.
+    expect(() =>
+      buildSeedRun({
+        compose: COMPOSE,
+        databaseUrl: URL_WITH_SECRET,
+        environment: {},
+        // @ts-expect-error - the point of the test is the runtime guard.
+        mode: "drop",
+      }),
+    ).toThrow(/unknown seed mode/u);
+  });
+});
