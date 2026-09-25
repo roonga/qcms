@@ -391,35 +391,37 @@ The network layer states the same rule a second time, in the only vocabulary an 
 
 Ports are the allocation in `docs/PORTS.md` (R8, ADR-37) plus the two standard web ports the ingress owns, which that document records as the one thing deliberately outside the allocation. `3000/tcp` is the images' own in-container listening port and `5432/tcp` is Postgres's own; neither is a QCMS allocation, and neither is published to a host by any shipped file (ADR-20).
 
-| #   | Source                          | Destination                   | Destination port         | Environment   | Rule                                                                             |
-| --- | ------------------------------- | ----------------------------- | ------------------------ | ------------- | -------------------------------------------------------------------------------- |
-| 1   | internet                        | ingress, prod portal hostname | 443/tcp, 80/tcp redirect | prod          | allow                                                                            |
-| 2   | internet                        | ingress, test portal hostname | any                      | test          | **deny**                                                                         |
-| 3   | allowlisted network, VPN or IAP | ingress, test portal hostname | 443/tcp                  | test          | allow                                                                            |
-| 4   | allowlisted network or VPN      | ingress, admin hostname       | 443/tcp                  | control plane | allow; solo may leave this public behind SEC-1, enterprise must not (B4)         |
-| 5   | ingress                         | portal container              | 3000/tcp                 | prod and test | allow from the ingress only                                                      |
-| 6   | ingress                         | admin container               | 3000/tcp                 | control plane | allow from the ingress only                                                      |
-| 7   | portal and admin containers     | API container                 | 3000/tcp                 | all           | allow on the internal network only; the ingress is never a source (invariant 4)  |
-| 8   | API container                   | Postgres                      | 5432/tcp                 | all           | allow                                                                            |
-| 9   | internet                        | API container, Postgres       | any                      | all           | **deny**, and there is no route to deny in the first place (ADR-20, invariant 4) |
-| 10  | API process serving prod        | prod webhook endpoint hosts   | 443/tcp                  | prod          | allow, to the prod endpoint hosts only                                           |
-| 11  | API process serving test        | test webhook endpoint hosts   | 443/tcp                  | test          | allow, to the test endpoint hosts only                                           |
-| 12  | API process serving test        | prod webhook endpoint hosts   | any                      | test          | **deny** (the second statement of the schema guarantee, in egress vocabulary)    |
-| 13  | API process mounting `admin`    | `api.pwnedpasswords.com`      | 443/tcp                  | control plane | allow, or set the documented offline knob (SEC-1, B6)                            |
-| 14  | anything                        | anything not listed above     | any                      | all           | **deny** by default                                                              |
+| #   | Source                          | Destination                         | Destination port         | Environment   | Rule                                                                             |
+| --- | ------------------------------- | ----------------------------------- | ------------------------ | ------------- | -------------------------------------------------------------------------------- |
+| 1   | internet                        | ingress, prod portal hostname       | 443/tcp, 80/tcp redirect | prod          | allow                                                                            |
+| 2   | internet                        | ingress, test portal hostname       | any                      | test          | **deny**                                                                         |
+| 3   | allowlisted network, VPN or IAP | ingress, test portal hostname       | 443/tcp                  | test          | allow                                                                            |
+| 4   | allowlisted network or VPN      | ingress, admin hostname             | 443/tcp                  | control plane | allow; solo may leave this public behind SEC-1, enterprise must not (B4)         |
+| 5   | ingress                         | portal container                    | 3000/tcp                 | prod and test | allow from the ingress only                                                      |
+| 6   | ingress                         | admin container                     | 3000/tcp                 | control plane | allow from the ingress only                                                      |
+| 7   | portal and admin containers     | API container                       | 3000/tcp                 | all           | allow on the internal network only; the ingress is never a source (invariant 4)  |
+| 8   | API container                   | Postgres                            | 5432/tcp                 | all           | allow                                                                            |
+| 9   | internet                        | API container, Postgres             | any                      | all           | **deny**, and there is no route to deny in the first place (ADR-20, invariant 4) |
+| 10  | API process serving prod        | prod webhook endpoint hosts         | 443/tcp                  | prod          | allow, to the prod endpoint hosts only                                           |
+| 11  | API process serving test        | test webhook endpoint hosts         | 443/tcp                  | test          | allow, to the test endpoint hosts only                                           |
+| 12  | API process serving test        | prod webhook endpoint hosts         | any                      | test          | **deny** (the second statement of the schema guarantee, in egress vocabulary)    |
+| 13  | API process mounting `admin`    | `api.pwnedpasswords.com`            | 443/tcp                  | control plane | allow, or set the documented offline knob (SEC-1, B6)                            |
+| 14  | any source                      | prod hostname, path under `/<env>/` | 443/tcp                  | prod          | **deny** at L7; prod serves unprefixed paths only                                |
+| 15  | any source                      | non-prod hostname, unprefixed path  | 443/tcp                  | non-prod      | **deny** at L7; that environment serves only its own `/<env>/` prefix            |
+| 16  | anything                        | anything not listed above           | any                      | all           | **deny** by default                                                              |
 
-Rows 5 to 8 are the existing topology restated per environment rather than anything new: they are invariants 3 and 4 of `docs/deploy-ingress.md`, which `scripts/compose-config.test.ts` already asserts against the merged Compose configuration.
+Rows 5 to 8 are the existing topology restated per environment rather than anything new: they are invariants 3 and 4 of `docs/deploy-ingress.md`, which `scripts/compose-config.test.ts` already asserts against the merged Compose configuration. Rows 14 and 15 are the path handle, and they are a pair rather than two independent rules: each closes the direction the other leaves open, so an operator who writes only the first still serves every non-prod address unprefixed on its own hostname.
 
 ### What this layer does not protect against
 
 Stated plainly, because a control trusted past its reach is how the other gaps in this document happened.
 
 - **An insider already on the allowed network.** Reaching the test hostname is not reaching a test response. A session still requires a valid secure link whose server-side row agrees (SEC-2), and there is no anonymous entry to test at all. That is the **link layer's** job, and it is the one that holds here.
-- **A leaked test link.** The network rule does not care who holds a token. Expiry, one-time consumption, revocation on the `secure_links` row and the whole-form closed state are what bound it (SEC-2, ADR-39), and a link authorizes exactly one form in exactly one environment.
+- **A leaked test link.** The network rule does not care who holds a token, and the `/test/` prefix makes such a link legible without making it safe. Expiry, one-time consumption, revocation on the `secure_links` row and the whole-form closed state are what bound it (SEC-2, ADR-39), and a link authorizes exactly one form in exactly one environment.
 - **A defect that queries the wrong environment.** Neither the network nor the link can see one. The **schema layer** does: a connection resolves to one environment's search path, so a handler that forgot a filter has no filter to forget (ADR-40).
 - **Anything at rest.** Backups, erasure, retention and the SEC-10 role split are unchanged by every row of the table above, and they are per environment for the same reason the schemas are.
 
-**Defence in depth, in order.** The **network** decides who can reach the test surface. The **link** decides who may start a session on it. The **schema** decides what any statement, from any caller, can touch. Each is sufficient on its own for the property it holds, none substitutes for the other two, and the order matters because it is the order in which a request meets them.
+**Defence in depth, in order.** The **network** decides who can reach the non-prod surface, by hostname first and by path prefix second. The **link** decides who may start a session on it. The **schema** decides what any statement, from any caller, can touch. Each is sufficient on its own for the property it holds, none substitutes for the other two, and the order matters because it is the order in which a request meets them.
 
 ## 6. Secrets management - SEC-8
 

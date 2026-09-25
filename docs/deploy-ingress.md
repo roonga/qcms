@@ -365,19 +365,36 @@ The shape is the one this document already uses for portal and admin: **one more
 its own site block or listener rule, and a rule set that differs from the prod one in exactly two
 places - who may reach it inbound, and where it may reach outbound.
 
+**And one thing this document's existing recipes have no analogue for: a path prefix.** Every
+address under a non-prod environment carries the environment's name as its first path segment, and
+`prod` carries none, so a test secure link reads `/test/l/<token>`. The hostname is the primary
+handle, because it is the one a firewall, a security group and a DNS split can act on without
+reading HTTP; the prefix is a second handle at L7, and it is also what lets the person holding a
+link see that it is not production. Write both: the rules below pair them, and a rule set with only
+the hostname still serves every non-prod address unprefixed on that hostname.
+
 ### The third hostname
 
-| Hostname        | Serves                                                 | Reachable from                                       |
-| --------------- | ------------------------------------------------------ | ---------------------------------------------------- |
-| the portal name | `prod`: `/f/{slug}` and secure links                   | the internet                                         |
-| the test name   | `test`: secure links only, no `/f/{slug}`              | an allowlisted network, a VPN, or an IAP             |
-| the admin name  | authoring and releases, one for the whole installation | solo: the internet behind SEC-1; enterprise: the VPN |
+| Hostname        | Serves                                                                             | Reachable from                                       |
+| --------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| the portal name | `prod`: `/f/{slug}` and secure links, all unprefixed                               | the internet                                         |
+| the test name   | `test`: secure links only, every address under `/test/`, and no `/f/{slug}` at all | an allowlisted network, a VPN, or an IAP             |
+| the admin name  | authoring and releases, one for the whole installation                             | solo: the internet behind SEC-1; enterprise: the VPN |
+
+One more environment means one more row, because the environment set is configurable and its name
+is its prefix. `/test/f/{slug}` is **not** a route: there is no anonymous entry to a non-prod
+environment at all, so the only addresses that exist under a prefix are the secure-link and session
+ones.
 
 Two properties make the middle row enforceable, and you want both:
 
-- **The host-based rule at the edge** is the half your firewall can express. A firewall sees an
-  address, a port and a direction, never a route, so a test surface that shared the prod hostname
-  could not be restricted at all.
+- **The host-based rule at the edge** is the half your network-layer firewall can express. A
+  firewall sees an address, a port and a direction, never a route, so a test surface that shared the
+  prod hostname could not be restricted at that layer at all.
+- **The path rule is the L7 half**, and it is a pair: deny `/<env>/` on the prod hostname, and deny
+  an unprefixed path on a non-prod one. Each direction closes what the other leaves open. It
+  survives things the host rule does not, such as a wildcard certificate or a hostname somebody
+  later consolidated onto.
 - **The app is meant not to serve anonymous entry on a test surface.** `/f/{slug}` would not be
   registered there, so it would answer `404` rather than refusing an authorization check
   (ADR-09), which is the half that survives a listener rule somebody adds during an incident and
@@ -386,16 +403,19 @@ Two properties make the middle row enforceable, and you want both:
   before this half exists. `docs/SECURITY_DESIGN.md` section 5a lists the three pieces. Plan the
   hostname and the firewall rule now; do not assume the in-app half is behind you.
 
-Neither replaces the other. With only the edge rule, one mis-scoped listener puts test on the
-public internet. With only the app rule, test is on the public internet behind link security
-alone, which is one layer thinner than the design asks for. Since the app half is not built yet,
-the edge rule is currently the whole of this layer, which is the more reason to get it right.
+None of the three replaces another. With only the host rule, a path somebody routes onto the wrong
+hostname is served. With only the path rule, the whole non-prod surface is on the public internet
+behind link security alone. With only the app rule, an operator has no way to keep strangers off the
+surface in the first place. Since the app half is not built yet, the two edge rules are currently
+the whole of this layer, which is the more reason to get them right.
 
 ### Recipe A: the Caddy overlay
 
 Add a third site block for the test name, with the same `(qcms_edge)` snippet the other two use,
-and one matcher the other two must not have: an address matcher that refuses anything outside the
-allowlist before the `reverse_proxy`. **Which matcher depends on what is in front of Caddy, and
+and two matchers the other two must not have: an address matcher that refuses anything outside the
+allowlist before the `reverse_proxy`, and a path matcher that refuses anything not under `/test/`.
+Add the mirror of the second to the **portal** site block: refuse a request whose path begins with
+an environment prefix, so the prod hostname serves unprefixed paths only. **Which matcher depends on what is in front of Caddy, and
 getting it wrong fails in the permissive direction**, so pick it deliberately:
 
 - With **nothing in front of Caddy**, which is the shape this recipe assumes, use `remote_ip`.
@@ -421,13 +441,15 @@ hop count is per hostname for exactly this reason.
 
 Two shapes work, and they are not equivalent.
 
-**A source-IP condition on a third listener rule.** An ALB listener rule can carry at most one
-`source-ip` condition alongside its `host-header` one, in CIDR form, IPv4 or IPv6, with no
-wildcards (AWS's "Condition types for listener rules"). Two rules then express the policy: the
-test hostname **with** an allowed CIDR forwards to the portal target group, and the test hostname
-alone falls through to a fixed-response refusal. Both halves are needed, because a listener rule
-routes and never denies: a rule that simply does not match hands the request to the listener's
-default action.
+**A source-IP condition on a third listener rule.** An ALB listener rule takes "zero or one of each
+of the following conditions: `host-header`, `http-request-method`, `path-pattern`, and `source-ip`"
+(AWS's "Condition types for listener rules"), and a source IP must be a CIDR, IPv4 or IPv6, with no
+wildcards. Three conditions on one rule therefore express the whole inbound policy: the test
+hostname **and** an allowed CIDR **and** a path under `/test/*` forwards to the portal target group,
+and the test hostname alone falls through to a fixed-response refusal. Both rules are needed,
+because a listener rule routes and never denies: a rule that simply does not match hands the request
+to the listener's default action. Give the prod hostname the mirror, a rule matching an environment
+prefix that returns a fixed-response refusal ahead of the forward.
 
 Two caveats from the same page, and both matter here. The condition "is not satisfied by the
 addresses in the `X-Forwarded-For` header", and "if a client is behind a proxy, this is the IP
