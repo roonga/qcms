@@ -364,8 +364,8 @@ pnpm dev:seed:reset     # clear, then seed again
 **An id is not a record of who wrote it, so the derived set says what to look at and content says what to remove.** A question qualifies only when its slug is the one the seed uses and each of its one or two versions holds the committed fixture's kernel-parsed bytes; the form qualifies only when its slug is `sample-library` and its single published version is the committed form. Anything else under one of those ids is left in place and named:
 
 ```
-Cleared 6 question(s) (11 version(s)) and 0 form(s) (0 version(s)).
-  removed: q_at_fault_accident, q_dob, q_preexisting_conditions, ...
+Cleared 6 question(s) (10 version(s)) and 0 form(s) (0 version(s)).
+  removed: q_at_fault_accident, q_dob, q_preexisting_conditions, q_accident_count, q_full_name, q_coverage_level
   LEFT ALONE: q_medical_history - version 1 is not the committed fixture's content
 Rows this seed did not write were left in place, including the ones named above.
 ```
