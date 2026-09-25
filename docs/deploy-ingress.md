@@ -378,15 +378,18 @@ Two properties make the middle row enforceable, and you want both:
 - **The host-based rule at the edge** is the half your firewall can express. A firewall sees an
   address, a port and a direction, never a route, so a test surface that shared the prod hostname
   could not be restricted at all.
-- **The app does not serve anonymous entry on a test process.** `/f/{slug}` is not registered
-  there, so it answers `404` rather than refusing an authorization check (ADR-09). This is the
-  half that survives a listener rule somebody adds during an incident and never removes, and it
-  is the same reasoning as invariant 3: the property holds in the shipped files, not in your
-  proxy configuration.
+- **The app is meant not to serve anonymous entry on a test surface.** `/f/{slug}` would not be
+  registered there, so it would answer `404` rather than refusing an authorization check
+  (ADR-09), which is the half that survives a listener rule somebody adds during an incident and
+  never removes. **It is designed and not built:** anonymous and secure-link entry are one API
+  route today, so task 066 has to split them and mount each environment's surface separately
+  before this half exists. `docs/SECURITY_DESIGN.md` section 5a lists the three pieces. Plan the
+  hostname and the firewall rule now; do not assume the in-app half is behind you.
 
 Neither replaces the other. With only the edge rule, one mis-scoped listener puts test on the
 public internet. With only the app rule, test is on the public internet behind link security
-alone, which is one layer thinner than the design asks for.
+alone, which is one layer thinner than the design asks for. Since the app half is not built yet,
+the edge rule is currently the whole of this layer, which is the more reason to get it right.
 
 ### Recipe A: the Caddy overlay
 
@@ -406,8 +409,8 @@ getting it wrong fails in the permissive direction**, so pick it deliberately:
   reach for "if you wish to match the 'real IP' of the client, as parsed from HTTP headers".
   `remote_ip` there would match the CDN's egress node, so every request would look allowlisted.
 
-The trap is the same one invariant 6 describes one section down, in a different control: an
-address is trustworthy only from the hop that observed it.
+The trap is the same one "The forwarded client address" describes above, in a different control:
+an address is trustworthy only from the hop that observed it.
 
 Three things move together when this lands: the test hostname (a fourth required value beside
 `QCMS_PORTAL_DOMAIN` and `QCMS_ADMIN_DOMAIN`), its certificate, and
