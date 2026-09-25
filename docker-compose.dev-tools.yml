@@ -164,7 +164,14 @@ services:
     restart: unless-stopped
 
   # One-shot, and behind a profile so it runs only when it is asked for: the sample
-  # question library, loaded into this stack's database (`pnpm dev:seed`).
+  # question library and the one published form over it, loaded into this stack's
+  # database (`pnpm dev:seed`), removed again (`pnpm dev:seed:clear`), or both in turn
+  # (`pnpm dev:seed:reset`).
+  #
+  # All three are this one service with a different subcommand appended after the
+  # service name, and that is what keeps a command which DELETES sample data incapable
+  # of reaching any database but this stack's: it is handed a URL naming
+  # `postgres:5432`, a host that resolves on this Compose network and nowhere else.
   #
   # WHY A PROFILE. `dev-tools-role` above runs on every `up` because creating a
   # read-only role is idempotent and cheap. Seeding is idempotent too - the loader

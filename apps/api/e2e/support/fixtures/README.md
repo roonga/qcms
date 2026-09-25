@@ -32,10 +32,25 @@ Only this side could move. The golden corpus is append-only (ADR-18) and
 
 **The seeded form's slug is still `kitchen-sink`.** That slug is the dev and
 manual-test URL (`/f/kitchen-sink`, quoted in `docs/DEVELOPER_GUIDE.md` and
-`docs/a11y-manual-pass-checklist.md`) rather than a fixture-file identifier, and
-nothing in the health-domain corpus is ever seeded into a database, so the two
-never collide there. The hazard issue #129 records is between the two compiled
-**documents**, and that is what the file names now separate.
+`docs/a11y-manual-pass-checklist.md`) rather than a fixture-file identifier, and no
+health-domain FORM is ever seeded under it, so the two never collide there. The
+hazard issue #129 records is between the two compiled **documents**, and that is
+what the file names now separate.
+
+## A third form, deliberately not in this directory
+
+`sample-library` (`apps/api/scripts/fixtures/sample-library-form.json`) is the one
+form `pnpm dev:seed` publishes into the composed stack. It pins exactly the seven
+questions that seed writes - the whole of `packages/core/fixtures/questions/valid`,
+including the two health-domain ones - so it could never live here:
+`scripts/check-fixture-domain.mjs` fails the build on those terms in any `.json` in
+this directory, which is the 043 rule working as intended. It lives beside the seed
+script that reads it and the Dockerfile that ships it, and it is registered in
+`COMPILED_FIXTURES` here like the other two, so the same drift guard covers it.
+
+Its form id and slug are its own (`frm_sample_library`, `sample-library`), for the
+reason this document's first section exists: reusing `frm_kitchen_sink` would put a
+third form under a name two others already answer to.
 
 ## Regenerating a compiled document
 

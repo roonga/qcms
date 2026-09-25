@@ -331,21 +331,81 @@ Bring it down with the matching command, which removes the containers, the netwo
 pnpm dev:down
 ```
 
-### Sample data: `pnpm dev:seed`
+### Sample data: `pnpm dev:seed`, `pnpm dev:seed:clear`, `pnpm dev:seed:reset`
 
-A freshly created stack has an empty question library, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead, load the sample insurance library the kernel already ships as fixtures:
+A freshly created stack has an empty question library and no form, which is the right default: the empty state is a screen worth reviewing, and it is what every list screen's empty-state copy is written against. When you want content instead:
 
 ```sh
 pnpm dev:seed
 ```
 
-It is safe to re-run and reports what it skipped (`Seeded 0 question(s); 7 already present.`). A question that exists is left exactly as it is, because an id is permanent (R6) and a re-run must never look like an attempt to reuse one. The loader goes through the kernel rather than inserting rows, so what lands is what the compiler can render; it seeds **questions only**, not forms.
+That loads the sample question library the kernel ships as fixtures (`packages/core/fixtures/questions/valid`) **and publishes one form over every question in it**, so the admin has a form to open and the portal has something a respondent can answer:
 
-**Why this is a command rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@roonga/qcms-core`, `@roonga/qcms-db`, drizzle and `pg`.
+```
+Seeded 7 question(s); 0 already present.
+Published frm_sample_library v1 as slug "sample-library" (4 steps, 7 pinned questions, 2 rules). Open it at /f/sample-library.
+```
+
+The form is `apps/api/scripts/fixtures/sample-library-form.json`, four steps over all seven question types, with one rule that reveals a **question** (the accident count, once you answer that there was an at-fault accident) and one that reveals a whole **step** (the follow-up detail step, once you select a pre-existing condition). Its compiled A2UI document is committed beside it and stored verbatim, exactly as the published portal serves it (ADR-18); `apps/api/e2e/support/fixture-drift.test.ts` recompiles it on every `pnpm verify` and fails if the compiler and the committed bytes ever disagree.
+
+It is safe to re-run and reports what it skipped (`Seeded 0 question(s); 7 already present.`, `published no new version`). A question or form that exists is left exactly as it is, because an id is permanent (R6) and a re-run must never look like an attempt to reuse one. The loader goes through the kernel rather than inserting rows, so what lands is what the compiler can render.
+
+**The seed publishes the form before it arranges the library's statuses, and that order is forced rather than chosen.** The publish path refuses a form that pins an unpublished question version, and refuses a _new_ pin of a deprecated one, so every question is created and published first, the form goes out over those pins, and only then does the last question get deprecated and the middle ones get a second draft version opened on top. That arrangement is what makes the library list show all three status badges at once.
+
+To take the sample data away again, leaving anything you authored by hand in that stack alone:
+
+```sh
+pnpm dev:seed:clear     # remove the seeded questions, the seeded form and its versions
+pnpm dev:seed:reset     # clear, then seed again
+```
+
+`clear` knows its own rows by **deriving** them from the same committed fixtures the seed writes from: the question ids in `packages/core/fixtures/questions/valid` and the `formId` in the committed form definition. There is no manifest table and no id prefix, deliberately - a manifest would mean a migration in the published `@roonga/qcms-db` schema, so a table in every adopter's production database for a development-only script, and it would have to survive its own `clear` for `reset` to restore the same ids. Deriving the set gives that for free: **a reseeded question comes back under the id it had** (R6), which `reset` depends on.
+
+**An id is not a record of who wrote it, so the derived set says what to look at and content says what to remove.** A question qualifies only when its slug is the one the seed uses and each of its one or two versions holds the committed fixture's kernel-parsed bytes; the form qualifies only when its slug is `sample-library` and its single published version is the committed form. Anything else under one of those ids is left in place and named:
+
+```
+Cleared 6 question(s) (10 version(s)) and 0 form(s) (0 version(s)).
+  removed: q_at_fault_accident, q_dob, q_preexisting_conditions, q_accident_count, q_full_name, q_coverage_level
+  LEFT ALONE: q_medical_history - version 1 is not the committed fixture's content
+Rows this seed did not write were left in place, including the ones named above.
+```
+
+So the true boundary is:
+
+- A question or form you created under **your own id** always survives, which is the ordinary case.
+- A question you created under a **corpus id** survives too, and stops `dev:seed` publishing the form at all (see below).
+- A **version you opened on a seeded question** keeps the whole question: three versions where the seed writes at most two means the rows are no longer only the seed's, so none of them is removed.
+- An **open draft on the seeded form** does go with the form, because a draft cannot outlive the form it belongs to; the report names it when there was one.
+- A row that is **byte-identical** to what the seed writes is indistinguishable from what the seed wrote, and is removed. Nothing can tell those apart, which is why the closing line claims only that rows the seed did not write were left in place.
+
+One boundary this does not police: a form of your own may pin a seeded question, and a form version holds its pins as JSON with no foreign key to `question_versions`, so `clear` can leave your form serving frozen bytes with no library rows behind them. The served document is self-contained (ADR-18) and keeps working; the library entries behind it do not come back until the next `dev:seed`.
+
+**`dev:seed` refuses to publish its form over content it did not write.** `insertFormVersion` is a storage door and validates no pin, so on a stack where somebody already used a corpus id the seed would otherwise publish a snapshot describing the fixture question while the pin resolves to theirs - and, if their version is a draft, store exactly the state `UNPUBLISHED_QUESTION_PIN` exists to prevent. Instead the questions load, the form does not, and the command exits non-zero naming each pin.
+
+**`clear` refuses once the seeded form has been answered, and that is the honest answer rather than a limitation to work around.** The answer ledger is append-only and immutable by trigger: `answers_reject_delete` (migration 0004) rejects every `DELETE` on `answers` outside the sanctioned erasure and retention doors, and a respondent session holds the form version it is pinned to by foreign key. So there is no way to take the form away that does not either break a trigger or leave a half-cleared state no code path produces. The command counts what is in the way, names it, deletes nothing, and exits non-zero:
+
+```
+Refusing to clear: frm_sample_library is referenced by rows this seed did not create.
+
+  - 1 respondent session(s)
+  - 3 answer ledger row(s)
+...
+NOTHING WAS DELETED. For a stack with no respondent data, drop this one and start again:
+
+  pnpm dev:down && pnpm dev:up && pnpm dev:seed
+```
+
+Secure links and webhooks authored against the seeded form block it the same way and for the same reason: they are hand-authored rows, and this script deletes none of those.
+
+**The refusal is a decision, not a gap.** The Code Owner ruled on 2026-09-25 (issue #994) that it stays and that there is no `--force` erasing the sessions through the sanctioned erasure door: a sample-data script opening the GDPR path on respondent rows is not worth the thirty seconds `pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is already in the refusal text. If a force is ever wanted it comes back as its own issue with its own security note.
+
+**Why these are commands rather than `DATABASE_URL=... pnpm qcms:seed-fixtures`.** That is the documented way to seed the `7S20` dev database, and it cannot reach this stack: the composed topology's Postgres is deliberately unpublished, and `scripts/compose-config.test.ts` asserts it stays that way with the toolbox overlay layered on. So the loader runs **inside** the network, as a one-shot container built from the API image (`docker/seed.Dockerfile`), which is the one image whose dependency tree already has `@roonga/qcms-core`, `@roonga/qcms-db`, drizzle and `pg`. All three commands take that one door with a different subcommand, which is what makes a command that _deletes_ sample data incapable of reaching any database but this stack's: it is handed a URL naming `postgres:5432`, a host that resolves on this Compose network and nowhere else. The database URL travels in the docker CLI's environment and never in an argv (issue #440).
 
 Two shapes were rejected and both for reasons that bite elsewhere in this repo. A **bind mount of the checkout** breaks the canonical dev-container seat: Compose drives the host daemon (ADR-29), so a repository path is resolved on the host's filesystem where it does not exist, and Docker silently creates an empty directory there. **Baking the loader into the API image** would put a sample-data writer and the fixture corpus into the deployed artifact; `apps/api/package.json` ships `files: ["dist"]`, and the seeding image is a separate Dockerfile so it stays that way.
 
-The service is behind a Compose `seed` profile, so `dev:up` neither builds nor runs it, and `pnpm dev:seed` is the only thing that reaches it.
+The service is behind a Compose `seed` profile, so `dev:up` neither builds nor runs it, and the three `dev:seed*` commands are the only things that reach it.
+
+**The seeded form is not the kitchen sink `pnpm dev:portal` publishes, and the difference is the question set.** `pnpm dev:portal` and `pnpm dev:admin` seed `frm_kitchen_sink` (slug `kitchen-sink`) into the `7S20` dev database from `apps/api/e2e/support/fixtures/vehicle-kitchen-sink-form.json`, which pins five questions this seed does not write and is vehicle-domain by task 043's rule. The composed stack's form pins exactly the seven questions this seed does write. Two different forms, two different databases, two different ids and slugs: the naming keeps them apart on purpose (issue #129).
 
 **What `dev:up` does beyond `docker compose up`**, because each piece is a step that used to be manual and easy to get wrong:
 

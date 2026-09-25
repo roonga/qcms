@@ -43,7 +43,11 @@ FROM ${QCMS_API_IMAGE}
 # checkout. Rooting that tree under `/app` is the other half: node resolves bare
 # specifiers by walking up from the importing file, so `/app/seed/apps/api/scripts/`
 # reaches `/app/node_modules` without a copy of its own.
+#
+# `apps/api/scripts/fixtures` is the sample form the loader publishes (issue #994) and
+# its committed compiled A2UI document, read from the same relative position.
 COPY apps/api/scripts/seed-fixtures.ts /app/seed/apps/api/scripts/seed-fixtures.ts
+COPY apps/api/scripts/fixtures /app/seed/apps/api/scripts/fixtures
 COPY packages/core/fixtures/questions /app/seed/packages/core/fixtures/questions
 
 # Inherited from the API image and wrong here: this container runs once and exits, so
@@ -52,4 +56,15 @@ COPY packages/core/fixtures/questions /app/seed/packages/core/fixtures/questions
 HEALTHCHECK NONE
 
 USER node
-CMD ["node", "/app/seed/apps/api/scripts/seed-fixtures.ts"]
+
+# AN ENTRYPOINT RATHER THAN A CMD, so the subcommand is the only thing a caller has to
+# pass (issue #994). `docker compose run seed clear` replaces CMD and leaves ENTRYPOINT
+# alone, so the loader's path lives here and nowhere else - `scripts/compose-seed.mjs`
+# appends `seed`, `clear` or `reset` and never names a path inside this image.
+#
+# `CMD []` is load-bearing, not tidiness. The API image this one starts FROM carries
+# `CMD ["node", "dist/serve.js"]`, and an inherited CMD is appended to an ENTRYPOINT as
+# arguments: without this line, a bare run would invoke the loader with `node` and
+# `dist/serve.js` as its subcommand.
+ENTRYPOINT ["node", "/app/seed/apps/api/scripts/seed-fixtures.ts"]
+CMD []

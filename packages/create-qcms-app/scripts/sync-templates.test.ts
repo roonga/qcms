@@ -47,6 +47,9 @@ describe("the strip rules", () => {
     "app/(shell)/AGENTS.md",
     ".env.example",
     "scripts/seed-fixtures.ts",
+    // Input to the dropped seed script: data with no reader in a scaffolded tree.
+    "scripts/fixtures/sample-library-form.json",
+    "scripts/fixtures/sample-library.a2ui.json",
   ])("drops %j", (path) => {
     expect(isExcludedAppPath(path)).toBe(true);
   });

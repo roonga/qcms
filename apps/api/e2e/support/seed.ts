@@ -15,10 +15,12 @@
  * `verify:browser` as well as `verify`.** The portal AND admin Playwright suites
  * seed through it: `apps/portal/e2e/support/api-server.ts` calls these helpers in
  * the browser harness's global setup, and every admin spec reads the forms they
- * leave behind. `scripts/dev-stack.mjs` does not import this file but mirrors its
- * publish pipeline verbatim for `pnpm dev:seed`, so a change to what "seeded"
- * means belongs in both. Issue #275 is the worked example: a one-line correction
- * here was green under `verify` and red in the admin browser suite.
+ * leave behind. Two other files do not import this one but mirror its publish
+ * pipeline: `scripts/dev-stack.mjs` for `pnpm dev:portal` and `pnpm dev:admin`, and
+ * `apps/api/scripts/seed-fixtures.ts` for `pnpm dev:seed` against the composed stack.
+ * A change to what "seeded" means belongs in all three. Issue #275 is the worked
+ * example: a one-line correction here was green under `verify` and red in the admin
+ * browser suite.
  */
 
 import {

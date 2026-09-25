@@ -154,6 +154,23 @@ status badges, a multi-version timeline, a frozen version and a deprecated versi
 exist without anyone clicking through the lifecycle first. It is idempotent: a question
 that already exists is left alone, because an id is permanent (R6).
 
+**It also publishes one form over that corpus** (issue #994): `frm_sample_library` at slug
+`sample-library`, four steps covering every question type, one rule revealing a question
+and one revealing a whole step. So this command puts a form in the Forms list and something
+answerable at `/f/sample-library`, not only a library. It refuses to publish when one of
+the corpus ids already holds content it did not write, and says which.
+
+That form does not collide with `frm_kitchen_sink`, which `pnpm dev:portal` and
+`pnpm dev:admin` seed into the same `7S20` database - different id, different slug, on
+purpose (issue #129). Worth knowing: `sample-library` is **health domain** because the
+corpus it pins is, so this is the one path by which health-domain example content reaches
+the dev portal. Task 043's neutral-domain rule and `scripts/check-fixture-domain.mjs` cover
+`apps/api/e2e/support/fixtures/`, which this form is deliberately outside of.
+
+The two companion subcommands (`clear`, `reset`) exist too - `node scripts/seed-fixtures.ts
+clear` - and `docs/DEVELOPER_GUIDE.md`'s "Sample data" section is where all three and their
+boundaries are documented.
+
 It is a **development** tool. It writes the database directly, which is why it lives in
 `apps/api` rather than here: the admin never touches a domain table (R2).
 
