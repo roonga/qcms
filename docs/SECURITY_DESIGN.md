@@ -349,9 +349,9 @@ Recorded here because the vendor-pin gate (#483/#606) forces the version prose i
 
 ## 5a. Environment isolation at the network layer - SEC-14
 
-**Status: designed, not built.** The decision is ADR-40 (environments) and ADR-41 (workspaces), taken by the Code Owner on 2026-09-25 (issue #995); the build is phase A of `plan/environments-and-workspaces.md`. This section is the control; the operator recipe that implements it is the "Restricting the test environment" section of `docs/deploy-ingress.md`.
+**Status: designed, not built.** The decision is ADR-40 (environments) and ADR-41 (workspaces), taken by the Code Owner on 2026-09-25 and completed on 2026-09-26 (issue #995); the build is phase A of `plan/environments-and-workspaces.md`. This section is the control; the operator recipe that implements it is the "Restricting the test environment" section of `docs/deploy-ingress.md`.
 
-ADR-40 makes `test` a release state served from the same deployment as `prod`, over the same immutable versions. A respondent reaching a test form reaches real serving code and writes real rows, in `env_test` rather than `env_prod`. Two layers already cover that - a test session can be started only by redeeming a secure link (SEC-2), and the search path decides which schema any statement can touch at all - and this control adds the third, outermost one: an operator must be able to decide **who can reach the test surface over the network in the first place**, before either of the other two is asked a question.
+ADR-40 makes `test` a release state served from the same deployment as `prod`, over the same immutable versions. A respondent reaching a test form reaches real serving code and writes real rows, in `data_test` rather than `data_prod`. Two layers already cover that - a test session can be started only by redeeming a secure link (SEC-2), and the search path decides which schema any statement can touch at all - and this control adds the third, outermost one: an operator must be able to decide **who can reach the test surface over the network in the first place**, before either of the other two is asked a question.
 
 ### The listener, and why the product needs two mechanisms for it
 
@@ -361,7 +361,7 @@ ADR-40 makes `test` a release state served from the same deployment as `prod`, o
 
 **That mechanism has to be built, and this section says so rather than implying it already holds.** Today anonymous and secure-link entry are one API route, `POST /sessions` on the `public` group, discriminated by a body refine ("Provide exactly one of `formSlug` or `token`"), and `/f/{slug}` is a portal page rather than an API group. Three things are therefore missing, all of them task 066's:
 
-1. **Each environment's respondent surface as its own mountable group.** This is also the leaning on record for ADR-40's process shape: one API process, one connection pool per environment, each environment's surface mounted under its own prefix. An operator who does not mount `test` gets a `404` for the whole surface, which is straight ADR-09.
+1. **Each environment's respondent surface as its own mountable group**, under the `/<env>/` prefix. ADR-40's process shape is settled: one API process, one connection pool per environment, one application database role per pool. An operator who does not mount a non-prod environment gets a `404` for its whole surface, which is straight ADR-09.
 2. **Anonymous entry split from secure-link entry**, so the two entry modes can ride different mount decisions. Without the split, "no anonymous entry to test" is a handler refusal, which is a `403`-shaped fact and exactly what ADR-09 exists to stop a control resting on. The split changes ADR-09's Note that four groups ride three mount flags, and that Note now points here.
 3. **The portal not serving its `/f` segment on the test host**, which is a portal routing decision and not an API mount at all.
 
@@ -383,7 +383,7 @@ The admin's own exposure is unchanged and is ADR-20's: in the solo topology the 
 
 ### Egress is per environment
 
-Webhook delivery is outbound from the process that mounts `internal` (boundary B5, SEC-6). ADR-40 puts the `webhooks`, `outbox` and `webhook_deliveries` tables inside each environment's schema, so a deliverer running under `env_test`'s search path cannot read a `prod` endpoint row: the in-product guarantee is a Postgres one, not a filter.
+Webhook delivery is outbound from the process that mounts `internal` (boundary B5, SEC-6). ADR-40 puts the `webhooks`, `outbox` and `webhook_deliveries` tables inside each environment's schema, so a deliverer running under `data_test`'s search path cannot read a `prod` endpoint row: the in-product guarantee is a Postgres one, not a filter.
 
 The network layer states the same rule a second time, in the only vocabulary an egress firewall has. The segment (or the security group, or the egress policy) that a test-environment deliverer runs under permits outbound HTTPS to the **test** endpoint hosts and nothing else; the prod one permits the prod hosts. `QCMS_WEBHOOK_ALLOW_PRIVATE` stays `false` on both unless the deployment genuinely posts to on-prem systems. The point of the duplication is the failure mode it covers: a defect that let a test deliverer claim a prod outbox row would be invisible to the schema and to the link, and an egress rule refuses the request anyway.
 
@@ -418,7 +418,7 @@ Stated plainly, because a control trusted past its reach is how the other gaps i
 
 - **An insider already on the allowed network.** Reaching the test hostname is not reaching a test response. A session still requires a valid secure link whose server-side row agrees (SEC-2), and there is no anonymous entry to test at all. That is the **link layer's** job, and it is the one that holds here.
 - **A leaked test link.** The network rule does not care who holds a token, and the `/test/` prefix makes such a link legible without making it safe. Expiry, one-time consumption, revocation on the `secure_links` row and the whole-form closed state are what bound it (SEC-2, ADR-39), and a link authorizes exactly one form in exactly one environment.
-- **A defect that queries the wrong environment.** Neither the network nor the link can see one. The **schema layer** does: a connection resolves to one environment's search path, so a handler that forgot a filter has no filter to forget (ADR-40).
+- **A defect that queries the wrong environment.** Neither the network nor the link can see one. The **schema layer** does, and twice over (ADR-40): a connection resolves to one environment's search path, so a handler that forgot a filter has no filter to forget, and that connection's role is granted `control` plus its own `data_<env>` and nothing else, so a schema-qualified statement naming another environment fails on permission. Resolution and privilege are separate mechanisms and both are present.
 - **Anything at rest.** Backups, erasure, retention and the SEC-10 role split are unchanged by every row of the table above, and they are per environment for the same reason the schemas are.
 
 **Defence in depth, in order.** The **network** decides who can reach the non-prod surface, by hostname first and by path prefix second. The **link** decides who may start a session on it. The **schema** decides what any statement, from any caller, can touch. Each is sufficient on its own for the property it holds, none substitutes for the other two, and the order matters because it is the order in which a request meets them.
