@@ -22,27 +22,27 @@ Use each task's `Depends on` header and the active queue below. Two additional c
 
 ## Active queue
 
-| #   | Work                                     | Stage | Status                                                                                       |
-| --- | ---------------------------------------- | ----- | -------------------------------------------------------------------------------------------- |
-| 030 | Manual portal screen-reader pass         | 7     | awaiting human execution                                                                     |
-| 041 | Agent-assisted form building             | 8a    | done (PR #454); controls gated and verified, output quality tunes post-merge behind the flag |
-| 049 | Named custom-theme editor                | 9     | Phase 4; does not gate launch                                                                |
-| 063 | Public and secure link version targeting | 9     | Phase 4; does not gate launch                                                                |
-| 037 | `create-qcms-app` CLI                    | 8b    | done (PR #451)                                                                               |
-| 040 | Security review and hardening            | 8b    | in review; provenance verification and Code Owner sign-off remain                            |
-| 038 | External launch validation               | 8b    | todo; blocked by 030 and 040                                                                 |
-| 061 | Forced password change after bootstrap   | 8b    | todo; does not gate launch                                                                   |
-| 039 | Phase-4 backlog publication              | 9     | todo; after 038                                                                              |
-| 064 | Environment model and prod migration     | 9     | **drafted for Code Owner review** (issue #995); Phase 4; blocked on open questions Q1 to Q3  |
-| 065 | Release records and promotion            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064                      |
-| 066 | Environment-scoped secure links          | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064, 065; see 063        |
-| 067 | Per-environment delivery and operations  | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064, 065                 |
-| 068 | Workspace model and ownership            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; independent of phase A              |
-| 069 | Workspace membership and RBAC            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 068; blocked on Q12      |
-| 070 | Approver-not-author release approval     | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 065, 069                 |
+| #   | Work                                     | Stage | Status                                                                                                            |
+| --- | ---------------------------------------- | ----- | ----------------------------------------------------------------------------------------------------------------- |
+| 030 | Manual portal screen-reader pass         | 7     | awaiting human execution                                                                                          |
+| 041 | Agent-assisted form building             | 8a    | done (PR #454); controls gated and verified, output quality tunes post-merge behind the flag                      |
+| 049 | Named custom-theme editor                | 9     | Phase 4; does not gate launch                                                                                     |
+| 063 | Public and secure link version targeting | 9     | Phase 4; does not gate launch                                                                                     |
+| 037 | `create-qcms-app` CLI                    | 8b    | done (PR #451)                                                                                                    |
+| 040 | Security review and hardening            | 8b    | in review; provenance verification and Code Owner sign-off remain                                                 |
+| 038 | External launch validation               | 8b    | todo; blocked by 030 and 040                                                                                      |
+| 061 | Forced password change after bootstrap   | 8b    | todo; does not gate launch                                                                                        |
+| 039 | Phase-4 backlog publication              | 9     | todo; after 038                                                                                                   |
+| 064 | Environment model and prod migration     | 9     | **drafted for Code Owner review** (issue #995); Phase 4; Q1 and Q3 answered; blocked on Q17 and Q2's confirmation |
+| 065 | Release records and promotion            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064                                           |
+| 066 | Environment-scoped secure links          | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064, 065; see 063; amends ADR-09's Note       |
+| 067 | Per-environment delivery and operations  | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 064, 065                                      |
+| 068 | Workspace model and ownership            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; independent of phase A                                   |
+| 069 | Workspace membership and RBAC            | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 068; Q12 answered                             |
+| 070 | Approver-not-author release approval     | 9     | **drafted for Code Owner review** (issue #995); Phase 4; depends on 065, 069                                      |
 
 Tasks 049 and 063 are demand-ordered Phase 4 work. Do not dispatch them before launch validation.
 
-**064 to 070 are drafted, not executable.** They are the task breakdown of ADR-40 and ADR-41 (issue #995, Code Owner rulings of 2026-09-25), and `plan/environments-and-workspaces.md` holds their deliverables, exit criteria, dependencies and gates. They have no work-order file in this directory yet, deliberately: this directory holds executable work orders only, and sixteen open questions in section 6 of that plan are the Code Owner's to answer first. The four marked blocking there decide the shape of 064 and 069, so writing a work order before they are answered would be inventing the decision. Phase A is 064 to 067 and phase B is 068 to 070; the two phases land independently, environments first. Do not dispatch any of them before launch validation, and note that 063 and 066 change the same `secure_links` row.
+**064 to 070 are drafted, not executable.** They are the task breakdown of ADR-40 and ADR-41 (issue #995, Code Owner rulings of 2026-09-25), and `plan/environments-and-workspaces.md` holds their deliverables, exit criteria, dependencies and gates. They have no work-order file in this directory yet, deliberately: this directory holds executable work orders only, and the open questions in section 7 of that plan are the Code Owner's to answer first. Three of the original blockers are answered, and section 6 of that plan records each with its answer; what remains blocking is **Q17**, whether there is one application database role per installation or one per environment, and the **confirmation of Q2**, the API's process shape, on which 064 may proceed provisionally from the recorded leaning. Phase A is 064 to 067 and phase B is 068 to 070; the two phases land independently, environments first. Do not dispatch any of them before launch validation. Two cross-task facts: 063 and 066 change the same `secure_links` row, and 066 amends ADR-09's Note, which now carries a forward pointer saying so.
 
 The builder component contract is retained separately as `033-component-contract.md`; it is a current implementation contract, not a work order.
