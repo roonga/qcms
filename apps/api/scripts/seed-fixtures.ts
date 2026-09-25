@@ -21,7 +21,10 @@ import {
   forms,
   getForm,
   getQuestion,
+  getQuestionVersion,
   insertFormVersion,
+  listFormVersions,
+  listQuestionVersions,
   publishQuestionVersion,
   questionVersions,
   questions,
@@ -116,9 +119,19 @@ import pg from "pg";
  * non-negotiable: a reseeded question comes back under the id it had, and deriving the set
  * from the fixtures guarantees that by construction.
  *
- * What a derived set cannot distinguish is a row somebody hand-authored under a seeded id.
- * R6 already forbids that (an id is never reused with a different meaning), and `clear`
- * prints every id it removed, so the case is visible rather than silent.
+ * The derived set names IDS, though, and an id is not a record of authorship. That
+ * difference was measured rather than argued about (issue #994 review): a question an
+ * operator authored under a corpus id before seeding was deleted by `clear`, and so was an
+ * operator's extra version on a seeded question. So the id set says what to LOOK at, and
+ * {@link recogniseQuestion} decides what to remove, by content: a question whose slug is
+ * the seed's and whose one or two versions carry the fixture's kernel-parsed bytes is this
+ * seed's; anything else is left in place and named in the report. Same test for the form.
+ *
+ * The limit that remains is stated rather than hidden, here and in the output: a row
+ * byte-identical to what the seed writes is indistinguishable from one the seed wrote, so
+ * recreating a seeded question exactly and then clearing takes it. Nothing claims
+ * otherwise - the closing line says rows this seed did not write were left in place, which
+ * is the guarantee the recognition can actually deliver.
  *
  * ## What `clear` refuses to do
  *
@@ -135,6 +148,13 @@ import pg from "pg";
  * authored against the seeded form block it the same way and for the same reason - they
  * are hand-authored rows, and this script deletes none of those. Nothing here weakens a
  * trigger or opens the erasure guard.
+ *
+ * THE CODE OWNER RULED ON THIS (2026-09-25, issue #994): the refusal stays, and there is
+ * no `--force` that would erase the sessions through the sanctioned door. A sample-data
+ * script opening the GDPR erasure path on respondent rows is not a trade worth the thirty
+ * seconds `pnpm dev:down && pnpm dev:up && pnpm dev:seed` costs, and that escape is
+ * already in the refusal text. If a force is ever wanted it is its own issue with its own
+ * security note, not a flag on this one.
  *
  * Usage:
  *
@@ -212,6 +232,42 @@ function say(line: string): void {
 }
 
 /**
+ * The most versions this seed ever writes for one question: the published v1 and, for the
+ * middle of the corpus, one draft on top ({@link arrangeQuestionStates}).
+ *
+ * A number rather than a per-question count because the per-question count depends on
+ * where the fixture fell in the run that wrote it, which the database does not record. A
+ * cap is the part that is true of every run, and it is enough to catch the case it exists
+ * for: a version an operator opened on a seeded question.
+ */
+const MAX_SEEDED_VERSIONS = 2;
+
+/**
+ * A JSON value in key-sorted form, so two documents can be compared for content.
+ *
+ * Needed because the comparison crosses Postgres: `jsonb` normalises an object's key order
+ * on the way in, so `JSON.stringify` of a stored definition and of the fixture it came
+ * from differ as strings while describing the same document. Sorting both sides makes the
+ * comparison about content, which is what {@link recogniseQuestion} is asking.
+ */
+function canonicalJson(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+  // ASCII code-unit order, not `localeCompare`: a canonical form has to be the same on
+  // every machine, and `localeCompare` is locale-dependent (the reason
+  // `sonarjs/no-alphabetical-sort` is off workspace-wide).
+  const byKey = (left: readonly [string, unknown], right: readonly [string, unknown]): number => {
+    if (left[0] === right[0]) return 0;
+    return left[0] < right[0] ? -1 : 1;
+  };
+  const members = Object.entries(value)
+    .filter(([, member]) => member !== undefined)
+    .sort(byKey)
+    .map(([key, member]) => `${JSON.stringify(key)}:${canonicalJson(member)}`);
+  return `{${members.join(",")}}`;
+}
+
+/**
  * Create every fixture question, each with a published version 1.
  *
  * Published, and published BEFORE the form: see the ordering note in the module
@@ -262,22 +318,101 @@ async function arrangeQuestionStates(db: Db, created: readonly Fixture[]): Promi
 }
 
 /**
+ * Every pin in the committed form that this seed must not publish over, with the reason.
+ *
+ * `insertFormVersion` is a STORAGE door, not the publish path: it validates no pin, which
+ * is right for a helper whose callers have already run `compileDraft`. This seed has not,
+ * so the check the real publish path makes has to be made here, or a stack where a corpus
+ * id was already taken by somebody else's question ends up with a published form whose
+ * snapshot describes the corpus content while its pins resolve to theirs - and, if their
+ * version is a draft, with the exact state `UNPUBLISHED_QUESTION_PIN` exists to prevent
+ * (`apps/api/src/features/forms/handler.ts`).
+ *
+ * `deprecated` is accepted alongside `published` for the reason `deprecatedPinGate` gives:
+ * a deprecated version is real, immutable, published-once content. It is also the state a
+ * re-seed meets after an operator deletes the form by hand, since the corpus's last
+ * question is deprecated by {@link arrangeQuestionStates}.
+ */
+async function unpublishablePins(db: Db, definition: FormDefinition): Promise<string[]> {
+  const byId = new Map(
+    readQuestionFixtures().map((fixture) => [
+      String(fixture.definition.questionId),
+      canonicalJson(fixture.definition),
+    ]),
+  );
+  const reasons: string[] = [];
+
+  for (const step of definition.steps) {
+    for (const item of step.items) {
+      const pin = `${String(item.questionId)}@${String(item.version)}`;
+      const row = await getQuestionVersion(db, item.questionId, item.version);
+      if (row === undefined) {
+        reasons.push(`${pin} does not exist`);
+        continue;
+      }
+      if (row.status === "draft") {
+        reasons.push(`${pin} is a draft, and a published form may not pin an unpublished version`);
+        continue;
+      }
+      if (canonicalJson(row.definition) !== byId.get(String(item.questionId))) {
+        reasons.push(`${pin} holds content this seed did not write`);
+      }
+    }
+  }
+  return reasons;
+}
+
+/** The text a refused publish prints, pure so the test asserts what a developer reads. */
+export function publishRefusalMessage(formId: string, reasons: readonly string[]): string {
+  return [
+    `Refusing to publish ${formId}: ${String(reasons.length)} pinned question version(s) are not this seed's.`,
+    "",
+    ...reasons.map((reason) => `  - ${reason}`),
+    "",
+    "The sample questions were loaded and are untouched. The form was NOT published, because",
+    "its committed snapshot describes the fixture corpus: publishing it over somebody else's",
+    "content would serve a document that does not match what the library holds, and over a",
+    "draft it would store the state the real publish path rejects as UNPUBLISHED_QUESTION_PIN.",
+    "",
+    "Rename or remove the conflicting question(s), or start from a stack with none of them:",
+    "",
+    "  pnpm dev:down && pnpm dev:up && pnpm dev:seed",
+  ].join("\n");
+}
+
+/** A seed that loaded its questions and could not publish its form. */
+export class PublishRefused extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PublishRefused";
+  }
+}
+
+/**
  * Publish the sample form over the seeded library, once.
  *
  * `getForm` is the idempotence check rather than a version count: the form identity is
  * what a re-run must not duplicate, and a form that exists already carries the version
  * this seed would publish. Never a second version - republishing identical bytes grows a
  * timeline that says a change happened when none did.
+ *
+ * Returns the refusal message when the pins are not this seed's, rather than throwing:
+ * {@link seed} still has the library states to arrange, and a seed that stops half way
+ * through leaves a stack no re-run repairs (a second run skips every question it already
+ * created, so the arranging never happens).
  */
-async function seedForm(db: Db): Promise<void> {
+async function seedForm(db: Db): Promise<string | undefined> {
   const { definition, compiled } = readFormFixture();
   const formId = definition.formId;
 
   const existing = await getForm(db, formId);
   if (existing !== undefined) {
     say(`Form ${formId} already present (slug "${existing.slug}"); published no new version.`);
-    return;
+    return undefined;
   }
+
+  const reasons = await unpublishablePins(db, definition);
+  if (reasons.length > 0) return publishRefusalMessage(String(formId), reasons);
 
   await createForm(db, { formId, slug: FORM_SLUG, defaultLocale: definition.defaultLocale });
   const version = await insertFormVersion(db, {
@@ -295,6 +430,7 @@ async function seedForm(db: Db): Promise<void> {
       `(${String(definition.steps.length)} steps, ${String(pins)} pinned questions, ` +
       `${String(definition.rules.length)} rules). Open it at /f/${FORM_SLUG}.`,
   );
+  return undefined;
 }
 
 /** Everything this seed writes, derived from the committed fixtures it writes from. */
@@ -303,6 +439,104 @@ export function seededIds(): { questionIds: QuestionId[]; formId: FormId } {
     questionIds: readQuestionFixtures().map((fixture) => fixture.definition.questionId),
     formId: readFormFixture().definition.formId,
   };
+}
+
+/** One id the derived set names, and whether the rows under it are this seed's to remove. */
+export interface Recognition {
+  readonly id: string;
+  /** Rows exist under this id. */
+  readonly present: boolean;
+  /** Every row under it is one this seed writes, so `clear` may remove it. */
+  readonly mine: boolean;
+  /** When it is not this seed's, what differs. Named in the report, never guessed at. */
+  readonly why?: string;
+}
+
+/**
+ * Whether the rows under a fixture's id are the ones this seed wrote.
+ *
+ * THE POINT OF THIS FUNCTION is that the derived set is the fixture CORPUS, not a record
+ * of authorship, and until issue #994's review those were treated as the same thing. They
+ * are not, and the difference was measurable in two ways: an operator who authored a
+ * question under a corpus id BEFORE seeding had it deleted by `clear` (the seed correctly
+ * skipped it, then `clear` removed it anyway), and an operator's extra version on a seeded
+ * question went with the question.
+ *
+ * Recognition by CONTENT closes both without a manifest table. What the seed writes is
+ * fully determined by the committed fixtures - a question row whose slug is
+ * `slugOf(questionId)`, with one or two versions whose definition is the fixture's
+ * kernel-parsed bytes - so anything that does not match that shape is not something this
+ * seed produced, whoever produced it, and `clear` leaves it and names it.
+ *
+ * The honest limit, stated rather than hidden: a row that is byte-identical to what the
+ * seed writes is indistinguishable FROM what the seed writes. Recreate a seeded question
+ * exactly and `clear` will take it. Everything the two measured cases covered differs in
+ * content or in version count, so both are caught; an exact duplicate is not, and the
+ * printed guarantee is worded to claim only what this can deliver.
+ */
+async function recogniseQuestion(db: Db, fixture: Fixture): Promise<Recognition> {
+  const questionId = fixture.definition.questionId;
+  const id = String(questionId);
+
+  const row = await getQuestion(db, questionId);
+  if (row === undefined) return { id, present: false, mine: false };
+  if (row.slug !== slugOf(id)) {
+    return { id, present: true, mine: false, why: `its slug is "${row.slug}", not the seed's` };
+  }
+
+  const versions = await listQuestionVersions(db, questionId);
+  if (versions.length === 0 || versions.length > MAX_SEEDED_VERSIONS) {
+    return {
+      id,
+      present: true,
+      mine: false,
+      why: `it has ${String(versions.length)} version(s); this seed writes at most ${String(MAX_SEEDED_VERSIONS)}`,
+    };
+  }
+  const expected = canonicalJson(fixture.definition);
+  const foreign = versions.find((version) => canonicalJson(version.definition) !== expected);
+  if (foreign !== undefined) {
+    return {
+      id,
+      present: true,
+      mine: false,
+      why: `version ${String(foreign.version)} is not the committed fixture's content`,
+    };
+  }
+  return { id, present: true, mine: true };
+}
+
+/**
+ * Whether the seeded form's rows are this seed's, by the same content test.
+ *
+ * The open draft is deliberately NOT part of the test. A draft is a working copy of the
+ * form it belongs to and cannot outlive it (`form_drafts.form_id` references `forms`), so
+ * it goes when the form goes - and the report says so when there was one, rather than
+ * letting an operator discover it.
+ */
+async function recogniseForm(db: Db): Promise<Recognition> {
+  const { definition } = readFormFixture();
+  const id = String(definition.formId);
+
+  const row = await getForm(db, definition.formId);
+  if (row === undefined) return { id, present: false, mine: false };
+  if (row.slug !== FORM_SLUG) {
+    return { id, present: true, mine: false, why: `its slug is "${row.slug}", not the seed's` };
+  }
+
+  const versions = await listFormVersions(db, definition.formId);
+  if (versions.length !== 1) {
+    return {
+      id,
+      present: true,
+      mine: false,
+      why: `it has ${String(versions.length)} published version(s); this seed publishes exactly 1`,
+    };
+  }
+  if (canonicalJson(versions[0]?.definition) !== canonicalJson(definition)) {
+    return { id, present: true, mine: false, why: "version 1 is not the committed fixture's form" };
+  }
+  return { id, present: true, mine: true };
 }
 
 /** One reason `clear` will not remove the seeded form, and how many rows say so. */
@@ -380,54 +614,132 @@ export class ClearRefused extends Error {
   }
 }
 
+/** What one `clear` did, so the report is rendered from facts rather than assembled inline. */
+export interface ClearOutcome {
+  readonly questions: number;
+  readonly versions: number;
+  readonly forms: number;
+  readonly formVersions: number;
+  /** An open draft on the seeded form went with it; it cannot outlive the form. */
+  readonly draft: boolean;
+  /** The ids removed, in corpus order. */
+  readonly removed: readonly string[];
+  /** Ids in the derived set whose rows were NOT this seed's, with the reason. */
+  readonly left: readonly Recognition[];
+}
+
 /**
- * Remove exactly what the seed wrote: its questions and their versions, its form, the
- * form's versions, and the draft the form may be carrying.
+ * What a completed `clear` prints. Pure and exported so the guarantee in the last line is
+ * asserted rather than reviewed - it is the line issue #994's review found to be false.
  *
- * The draft is the one row here an operator may have authored, and it goes with the form
- * because it cannot outlive it (`form_drafts.form_id` references `forms`). It is a working
- * copy of a seeded form and the next seed restores what it was a copy of, so this is
- * stated rather than silent: the report names it when there was one.
+ * The old closing sentence was "Nothing else was touched: hand-authored questions and
+ * forms are still there", printed unconditionally, and two measured cases broke it. What
+ * replaces it claims only what {@link recogniseQuestion} can deliver: rows this seed did
+ * not write were left in place. An exact byte-for-byte recreation of a seeded row is
+ * indistinguishable from the seed's own and is not excepted from that sentence, because
+ * the sentence is about what the seed WROTE rather than about who typed it.
  */
-export async function clear(db: Db): Promise<void> {
-  const { questionIds, formId } = seededIds();
+export function clearReportLines(outcome: ClearOutcome): string[] {
+  const lines = [
+    `Cleared ${String(outcome.questions)} question(s) (${String(outcome.versions)} version(s)) ` +
+      `and ${String(outcome.forms)} form(s) (${String(outcome.formVersions)} version(s))` +
+      (outcome.draft ? ", plus the open draft on it, which cannot outlive the form" : "") +
+      ".",
+  ];
+  if (outcome.removed.length > 0) lines.push(`  removed: ${outcome.removed.join(", ")}`);
+  for (const entry of outcome.left) {
+    lines.push(`  LEFT ALONE: ${entry.id} - ${entry.why ?? "not this seed's"}`);
+  }
+  lines.push(
+    outcome.left.length > 0
+      ? "Rows this seed did not write were left in place, including the ones named above."
+      : "Rows this seed did not write were left in place.",
+  );
+  return lines;
+}
+
+/**
+ * Remove the rows this seed wrote, and only those: its questions and their versions, its
+ * form, the form's versions, and the draft the form may be carrying.
+ *
+ * Every id in the derived set is recognised by content first ({@link recogniseQuestion},
+ * {@link recogniseForm}) and skipped when the rows under it are not what this seed writes.
+ * The report then says exactly what happened, including what it left and why, because the
+ * sentence this used to end on ("Nothing else was touched") was a guarantee `clear` could
+ * break: it broke for a question an operator authored under a corpus id and for an
+ * operator's extra version on a seeded question, and printing the reassurance is what made
+ * either silent.
+ */
+export async function clear(db: Db): Promise<ClearOutcome> {
+  const fixtures = readQuestionFixtures();
+  const formId = readFormFixture().definition.formId;
 
   const blockers = await clearBlockers(db, formId);
   if (blockers.length > 0) throw new ClearRefused(refusalMessage(formId, blockers));
 
-  const drafts = await db.delete(formDrafts).where(eq(formDrafts.formId, formId)).returning();
-  const versions = await db.delete(formVersions).where(eq(formVersions.formId, formId)).returning();
-  const clearedForms = await db.delete(forms).where(eq(forms.formId, formId)).returning();
-  const clearedVersions = await db
-    .delete(questionVersions)
-    .where(inArray(questionVersions.questionId, questionIds))
-    .returning();
-  const clearedQuestions = await db
-    .delete(questions)
-    .where(inArray(questions.questionId, questionIds))
-    .returning();
-
-  say(
-    `Cleared ${String(clearedQuestions.length)} seeded question(s) ` +
-      `(${String(clearedVersions.length)} version(s)) and ` +
-      `${String(clearedForms.length)} seeded form(s) (${String(versions.length)} version(s)` +
-      `${drafts.length > 0 ? ", plus the open draft on it" : ""}).`,
+  const recognised = await Promise.all(
+    fixtures.map(async (fixture) => recogniseQuestion(db, fixture)),
   );
-  if (clearedQuestions.length > 0) {
-    const removed: QuestionId[] = clearedQuestions.map(
-      (row: { questionId: QuestionId }) => row.questionId,
+  const form = await recogniseForm(db);
+  const mine: QuestionId[] = fixtures
+    .map((fixture) => fixture.definition.questionId)
+    .filter((questionId) =>
+      recognised.some((entry) => entry.id === String(questionId) && entry.mine),
     );
-    say(`  questions: ${removed.join(", ")}`);
+  const left = [...recognised, form].filter((entry) => entry.present && !entry.mine);
+
+  let removedFormVersions = 0;
+  let draft = false;
+  if (form.mine) {
+    draft =
+      (await db.delete(formDrafts).where(eq(formDrafts.formId, formId)).returning()).length > 0;
+    removedFormVersions = (
+      await db.delete(formVersions).where(eq(formVersions.formId, formId)).returning()
+    ).length;
+    await db.delete(forms).where(eq(forms.formId, formId));
   }
-  say("Nothing else was touched: hand-authored questions and forms are still there.");
+
+  let questionRows = 0;
+  let versionRows = 0;
+  if (mine.length > 0) {
+    versionRows = (
+      await db
+        .delete(questionVersions)
+        .where(inArray(questionVersions.questionId, mine))
+        .returning()
+    ).length;
+    questionRows = (
+      await db.delete(questions).where(inArray(questions.questionId, mine)).returning()
+    ).length;
+  }
+
+  const outcome: ClearOutcome = {
+    questions: questionRows,
+    versions: versionRows,
+    forms: form.mine ? 1 : 0,
+    formVersions: removedFormVersions,
+    draft,
+    removed: mine.map(String),
+    left,
+  };
+  for (const line of clearReportLines(outcome)) say(line);
+  return outcome;
 }
 
-/** Load the sample library and publish the sample form (`pnpm dev:seed`). */
+/**
+ * Load the sample library and publish the sample form (`pnpm dev:seed`).
+ *
+ * The states are arranged even when the form could not be published, so a refused publish
+ * still leaves a coherent library: a second run would skip every question it created and
+ * never get back to the arranging. The refusal is raised afterwards, so the exit code says
+ * the run did not do all of what it set out to.
+ */
 export async function seed(db: Db): Promise<void> {
   const fixtures = readQuestionFixtures();
   const created = await seedQuestions(db, fixtures);
-  await seedForm(db);
+  const refusal = await seedForm(db);
   await arrangeQuestionStates(db, created);
+  if (refusal !== undefined) throw new PublishRefused(refusal);
 }
 
 /** `clear` then `seed`: every question comes back under the id it had (R6). */
@@ -464,7 +776,7 @@ async function main(): Promise<void> {
 
 /** What to print for a failure: a refusal is an answer, not a crash, so it keeps no stack. */
 function describe(error: unknown): string {
-  if (error instanceof ClearRefused) return error.message;
+  if (error instanceof ClearRefused || error instanceof PublishRefused) return error.message;
   if (error instanceof Error) return error.stack ?? error.message;
   return String(error);
 }

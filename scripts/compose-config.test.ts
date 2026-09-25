@@ -65,10 +65,13 @@ const DEV_TOOLS_SERVICES = ["lgtm", "pgweb", "dev-tools-role", "seed"] as const;
  * The overlay services that are behind a profile, and so are absent even from the
  * overlay's own default invocation.
  *
- * `seed` loads the sample question library (`pnpm dev:seed`). It is profiled rather
+ * `seed` loads the sample question library and publishes one form over it
+ * (`pnpm dev:seed`), and removes them again (`pnpm dev:seed:clear`,
+ * `pnpm dev:seed:reset`) - one service, three subcommands. It is profiled rather
  * than one-shot-on-every-up like `dev-tools-role`, because an empty library is a
  * legitimate state to want: it is the state every screen's empty-state copy is
- * reviewed against.
+ * reviewed against. A container that can DELETE sample data is a second reason not
+ * to run one on every `up` (issue #994).
  */
 const PROFILED_SERVICES = ["seed"] as const;
 
