@@ -1,10 +1,24 @@
 # Swapping admin identity for an external IdP
 
-**Status:** pointer, not an implementation (task 031; seam locations updated by task 056).
-Launch ships better-auth with email + password and TOTP 2FA (SEC-1). This page records
-**where** the seams are, so an operator who must use their own identity provider can see
-the shape of the work before starting it, and so a future task does not have to
-rediscover it.
+**Status:** pointer, not an implementation (task 031; seam locations updated by task 056;
+scope widened by issue #995, Q32). Launch ships better-auth with email + password and TOTP
+2FA (SEC-1). This page records **where** the seams are, so an operator who must use their
+own identity provider can see the shape of the work before starting it, and so a future
+task does not have to rediscover it.
+
+**Read this first, because it changes the size of the job.** The Code Owner ruled on
+2026-09-26 that **authorisation lives in better-auth's `organization` and `team` tables**
+(issue #995, Q32; ADR-41): a workspace is an organisation row, a grant is a team whose
+additional fields carry a role and its environment and form scope, and QCMS evaluates the
+plugin's own statements in its API middleware. So **leaving better-auth now means migrating
+authorisation too**, not only the thing that issues sessions. The three seams below are
+still the three seams, and a fourth has joined them. That is decided and not built: the
+tables arrive with task 069.
+
+**And the likely direction is not a swap at all.** Enterprise single sign-on is planned as
+**better-auth's own SSO plugins** rather than as a replacement of the library (phase C in
+`plan/environments-and-workspaces.md`), so the realistic path for an adopter with an
+identity provider is to configure a plugin rather than to execute this page.
 
 Task 056 moved the better-auth instance from the admin app into the API (ADR-35 as amended
 2026-07-31). The three seams below are unchanged in _kind_ - what changed is which
@@ -32,9 +46,13 @@ worth knowing before you touch anything:
 
 `better-auth` is on CONTRIBUTING's accepted-with-noted-risk list precisely because of
 this: the noted risk is a young, VC-funded project pivoting to a hosted auth cloud, and
-the recorded exit path is this page.
+the recorded exit path is this page. **Reason 2 still holds and reason 1 is narrower than
+it was**: authorisation is still enforced in the API layer and never in a BFF, so the
+admin app still decides nothing, but since Q32 the API evaluates the library's own
+statements over the library's own tables, so "replacing the thing that issues credentials"
+is no longer the whole of a swap. Seam 4 below is the part that grew.
 
-## The three seams
+## The seams
 
 ### 1. The session verifier (API side)
 
@@ -92,6 +110,23 @@ token introspection.
 account. Under an IdP the first admin is whoever the IdP says, so the command becomes
 unnecessary - but it must not simply be deleted while the better-auth path still exists in
 any supported composition.
+
+### 4. Authorisation, which is the seam issue #995 added
+
+This one is new and it is the largest. Since Q32, `organization`, `member`, `invitation`,
+`team` and `teamMember` are where workspaces, membership, roles and scope live, and the
+roles are better-auth access-control statements that QCMS evaluates through the library's
+own authorize function. Replacing the library therefore means carrying four things across:
+the organisation rows and their `isShared`, `requireSecondApprover` and `archivedAt` fields;
+the member rows that hold `owner`; the team rows whose additional fields hold a role and its
+`environments` and `forms` scope; and the statement evaluation the middleware calls.
+
+What does **not** move is the model. The two role families, the environment and form scopes,
+the administer-only installation claim, the two-person switch and the access audit are QCMS
+decisions recorded in ADR-41, and the permissions matrix in
+`plan/environments-and-workspaces.md` is the specification a replacement would have to
+satisfy. So the work is a data migration and a re-implementation of one evaluation
+function, against a written specification, rather than a redesign.
 
 ## What a swap must not change
 
