@@ -1,7 +1,7 @@
 # QCMS - Security Design
 
 **Status:** authoritative · companion to `ARCHITECTURE.md` (§5.1, §7, §8)
-**Decisions here are numbered SEC-1…SEC-14** and carry ADR weight; conflicts are flagged, not silently overridden.
+**Decisions here are numbered SEC-1…SEC-15** and carry ADR weight; conflicts are flagged, not silently overridden.
 **Delivery:** every control maps to implementation or active work in the traceability matrix (§10).
 
 ---
@@ -355,7 +355,9 @@ ADR-40 makes `test` a release state served from the same deployment as `prod`, o
 
 ### The listener, and why the product needs two mechanisms for it
 
-**At the edge, test traffic has its own hostname or listener.** It is a separate Caddy site block or a separate ALB host-based listener rule, on its own DNS name, exactly as portal and admin already are two hostnames (`docs/deploy-ingress.md`, invariant 3 and Recipe B's listener rules). That is the only layer an ingress or a firewall can act on, because a firewall sees an address, a port and a direction and never a route.
+**At the edge, non-prod traffic has its own hostname or listener.** It is a separate Caddy site block or a separate ALB host-based listener rule, on its own DNS name, exactly as portal and admin already are two hostnames (`docs/deploy-ingress.md`, invariant 3 and Recipe B's listener rules). **The host is the primary handle**, because a network-layer firewall, a security group and a DNS split can all act on it without reading HTTP at all: a firewall sees an address, a port and a direction, never a route.
+
+With more than one non-prod environment an operator may give **each one its own hostname** or put them all on **one shared non-prod hostname**, told apart by the path prefix below. Both satisfy the address rule. One hostname per environment is the one to prefer where the environments have different audiences, because a source-address allowlist is per listener, so a shared hostname can carry only one allowlist and every per-environment distinction then rests on L7 alone. `docs/deploy-ingress.md` carries the comparison and the recommendation.
 
 **In the app, test has no anonymous entry to serve, and the absence is meant to be structural rather than checked.** `/f/{slug}` is the `prod` address. The mechanism is ADR-09's: what is not mounted does not exist, so a request for anonymous entry against the test surface answers `404` and not `403`. Secure-link redemption and the session routes behind it are what the test surface does mount.
 
@@ -552,6 +554,33 @@ That is documented rather than hidden, and it is why the ids are pseudonymous by
 Hashing ids at the exporter was considered and deferred (Phase 4) as unnecessary given the above.
 
 **Verified by:** unit tests over the span, log and stdout controls (unknown attributes dropped, URL query stripped, exception content gone from the exported record, direct identifiers masked, token rewritten) plus traced e2e runs for Portal and Admin. The respondent test submits a known answer value through the real stack and asserts it appears in **no** captured OTLP payload or server log; both tests require BFF and API records to share a trace and request id.
+
+## 8b. Access audit for response data - SEC-15
+
+**Status: designed, not built.** Decided by the Code Owner on 2026-09-26 (issue #995, recorded as Q31 in `plan/environments-and-workspaces.md`), after testing the workspace and environment design as a government organisation holding sensitive personal data. Task 069 builds it, with ADR-41's membership model.
+
+**The gap it closes.** Every control in this document so far governs **whether** somebody may read a response: the session and link model (SEC-2), the authorization model (SEC-3), the workspace and environment scopes and the two role families (ADR-41), the schema and role boundaries (ADR-40, SEC-10), the network layer (SEC-14). Nothing records **that they did**. An operator asked "who has looked at this person's answers" can answer it today only from whatever their log shipper happened to keep, which is not a record and is not readable by the workspace that owns the form.
+
+**The control.** Every **response read, export and erasure** writes one row to an append-only table in the `control` schema, carrying:
+
+| Field       | What it is                                                                     |
+| ----------- | ------------------------------------------------------------------------------ |
+| actor       | the administrator's account, or the IdP subject where single sign-on is in use |
+| workspace   | the workspace that owns the form                                               |
+| environment | the environment whose data was read                                            |
+| form        | the form                                                                       |
+| kind        | read, export or erasure                                                        |
+| time        | when                                                                           |
+
+It is readable by that **workspace's owners** and by the **installation administrator**, and by nobody else. That readership is the point: an audit only the operator can see does not answer a department's own question about its own data.
+
+**What it does not carry, and that is deliberate.** No answer value, no respondent identifier and no `LocalizedText` content: the row records the **act**, not its subject matter, so the audit of a read never becomes a second copy of what was read. The same reasoning ADR-17's tombstone uses, one table over: existence without content.
+
+**Precedent shape: `two_factor_resets`** (issue #432). That table is the model for three properties rather than one. It is **append-only** and written by the act it records. It carries **no foreign key** to the account it names, because an audit row that cascades away with the thing it describes is not an audit row. And its **write privilege is narrowed against the credential that serves traffic**, which is what makes the row worth anything against an attacker who reaches that credential: the same question has to be answered here, and it is harder, because unlike a break-glass reset these rows are written by the application on an ordinary request. Task 069 decides how, and the shipped answer is asserted rather than described.
+
+**Relationship to the two role families.** SEC-15 is what makes Q27's separation checkable after the fact rather than only enforceable in advance. ADR-41 says an owner reads no response without a handler row; SEC-15 is how anybody finds out whether a handler row was used, and by whom, and for which form.
+
+**Relationship to SEC-13.** Telemetry is an export and its contents are an allowlist (§8a), so **no audit field crosses into a span or an OTLP log** beyond what that allowlist already names. The audit lives in Postgres, under the operator's own retention and the erasure model of ADR-17, which is the reason it can carry a direct identifier at all.
 
 ## 9. Supply chain and release security - SEC-11
 
@@ -758,5 +787,6 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 | Review + disclosure (SEC-12)                        | §10      | **040 (`docs/security-review-2026-08-14.md`, `SECURITY.md`)**, 038 gate                                                                                                                                                                                                                                          |
 | Telemetry privacy / redaction allowlist (SEC-13)    | §8a      | 054, 062 · **not re-verified by 040**                                                                                                                                                                                                                                                                            |
 | Environment isolation at the network layer (SEC-14) | §5a      | **#995 (designed, not built): ADR-40, ADR-41, the operator recipe in `docs/deploy-ingress.md`, and phase A of `plan/environments-and-workspaces.md`**                                                                                                                                                            |
+| Access audit for response data (SEC-15)             | §8b      | **#995 (designed, not built): ADR-41's membership model and task 069; `two_factor_resets` (#432) is the precedent shape**                                                                                                                                                                                        |
 
 **Consistency notes against existing docs:** `ARCHITECTURE.md` §5.1's table gains the internal service token implicitly (SEC-4) - no contradiction; 017's config schema grows `QCMS_SESSION_KEYS`, `QCMS_INTERNAL_TOKEN`, `QCMS_APP_KEY` and 010 generalizes to purpose-tagged tokens - **task files 010/017/018 were corrected in place (2026-07-19)** per the staleness rule (`AGENTIC_DEVELOPMENT.md` §1.1); 018's session token is ratified as SEC-2. If a conflict between a task file and this document is discovered later, this document wins and the task file is corrected in the same change.
