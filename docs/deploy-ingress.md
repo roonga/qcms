@@ -381,12 +381,34 @@ the hostname still serves every non-prod address unprefixed on that hostname.
 | the test name   | `test`: secure links only, every address under `/test/`, and no `/f/{slug}` at all | an allowlisted network, a VPN, or an IAP             |
 | the admin name  | authoring and releases, one for the whole installation                             | solo: the internet behind SEC-1; enterprise: the VPN |
 
-One more environment means one more row, because the environment set is configurable and its name
-is its prefix. `/test/f/{slug}` is **not** a route: there is no anonymous entry to a non-prod
-environment at all, so the only addresses that exist under a prefix are the secure-link and session
-ones.
+`/test/f/{slug}` is **not** a route: there is no anonymous entry to a non-prod environment at all,
+so the only addresses that exist under a prefix are the secure-link and session ones.
 
-Two properties make the middle row enforceable, and you want both:
+### One non-prod hostname, or one per environment
+
+The environment set is configurable, so with `dev`, `test` and `prod` there are two ways to front
+the two non-prod environments, and both satisfy the address rule, because the `/<env>/` prefix is on
+the path either way:
+
+| Shape                                                                  | What you configure                                                         | What it buys                                                                                           |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **One hostname per environment** (`dev.`, `test.`, plus the prod name) | One DNS record, one certificate name and one allowlist per environment     | A **different allowlist per environment**, expressed at the network layer, which is the primary handle |
+| **One shared non-prod hostname**, environments told apart by the path  | One DNS record and one certificate for every non-prod environment together | Fewer names to provision; every per-environment distinction then rests on the L7 path rules alone      |
+
+**Prefer one hostname per environment** when the environments have different audiences, which is the
+usual reason for having them: `dev` open to the office network, `test` to a QA VPN, and nothing else
+reachable from either. A source-address allowlist is per listener, so one shared non-prod hostname
+can only have one allowlist, and telling `dev` from `test` then happens entirely in path rules at
+L7. That is the layer where a mistake fails in the permissive direction, which is what SEC-14 says
+about the path handle generally.
+
+**One shared non-prod hostname is fine** when the non-prod environments have the same audience, for
+instance a solo operator who is the only person who reaches any of them. It costs one name instead of
+N, and the paired path rules below still keep prod's and non-prod's addresses apart.
+
+Either way the prod hostname is its own, and it serves unprefixed paths only.
+
+Two properties make a non-prod row enforceable, and you want both:
 
 - **The host-based rule at the edge** is the half your network-layer firewall can express. A
   firewall sees an address, a port and a direction, never a route, so a test surface that shared the
