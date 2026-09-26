@@ -353,6 +353,170 @@ writes when an admin signs in, which is a sign-in audit record and predates this
 changed with issue #374 is that the stored value is one the deployment vouched for rather than one
 the browser asserted.
 
+## Restricting the test environment
+
+**Status: designed, not built.** ADR-40 makes `test` a release state served from the same
+deployment as `prod`, and **SEC-14** (`docs/SECURITY_DESIGN.md` section 5a) is the control this
+section implements. Nothing here is required by the stack as it ships today, which has one
+environment and one respondent hostname; read it when the environments work lands, or when you
+are sizing the DNS names and firewall rules you will need for it.
+
+The shape is the one this document already uses for portal and admin: **one more hostname**, with
+its own site block or listener rule, and a rule set that differs from the prod one in exactly two
+places - who may reach it inbound, and where it may reach outbound.
+
+**And one thing this document's existing recipes have no analogue for: a path prefix.** Every
+address under a non-prod environment carries the environment's name as its first path segment, and
+`prod` carries none, so a test secure link reads `/test/l/<token>`. The hostname is the primary
+handle, because it is the one a firewall, a security group and a DNS split can act on without
+reading HTTP; the prefix is a second handle at L7, and it is also what lets the person holding a
+link see that it is not production. Write both: the rules below pair them, and a rule set with only
+the hostname still serves every non-prod address unprefixed on that hostname.
+
+### The third hostname
+
+| Hostname        | Serves                                                                             | Reachable from                                       |
+| --------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| the portal name | `prod`: `/f/{slug}` and secure links, all unprefixed                               | the internet                                         |
+| the test name   | `test`: secure links only, every address under `/test/`, and no `/f/{slug}` at all | an allowlisted network, a VPN, or an IAP             |
+| the admin name  | authoring and releases, one for the whole installation                             | solo: the internet behind SEC-1; enterprise: the VPN |
+
+`/test/f/{slug}` is **not** a route: there is no anonymous entry to a non-prod environment at all,
+so the only addresses that exist under a prefix are the secure-link and session ones.
+
+### One non-prod hostname, or one per environment
+
+The environment set is configurable, so with `dev`, `test` and `prod` there are two ways to front
+the two non-prod environments, and both satisfy the address rule, because the `/<env>/` prefix is on
+the path either way:
+
+| Shape                                                                  | What you configure                                                         | What it buys                                                                                           |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **One hostname per environment** (`dev.`, `test.`, plus the prod name) | One DNS record, one certificate name and one allowlist per environment     | A **different allowlist per environment**, expressed at the network layer, which is the primary handle |
+| **One shared non-prod hostname**, environments told apart by the path  | One DNS record and one certificate for every non-prod environment together | Fewer names to provision; every per-environment distinction then rests on the L7 path rules alone      |
+
+**Prefer one hostname per environment** when the environments have different audiences, which is the
+usual reason for having them: `dev` open to the office network, `test` to a QA VPN, and nothing else
+reachable from either. A source-address allowlist is per listener, so one shared non-prod hostname
+can only have one allowlist, and telling `dev` from `test` then happens entirely in path rules at
+L7. That is the layer where a mistake fails in the permissive direction, which is what SEC-14 says
+about the path handle generally.
+
+**One shared non-prod hostname is fine** when the non-prod environments have the same audience, for
+instance a solo operator who is the only person who reaches any of them. It costs one name instead of
+N, and the paired path rules below still keep prod's and non-prod's addresses apart.
+
+Either way the prod hostname is its own, and it serves unprefixed paths only.
+
+Two properties make a non-prod row enforceable, and you want both:
+
+- **The host-based rule at the edge** is the half your network-layer firewall can express. A
+  firewall sees an address, a port and a direction, never a route, so a test surface that shared the
+  prod hostname could not be restricted at that layer at all.
+- **The path rule is the L7 half**, and it is a pair: deny `/<env>/` on the prod hostname, and deny
+  an unprefixed path on a non-prod one. Each direction closes what the other leaves open. It
+  survives things the host rule does not, such as a wildcard certificate or a hostname somebody
+  later consolidated onto.
+- **The app is meant not to serve anonymous entry on a test surface.** `/f/{slug}` would not be
+  registered there, so it would answer `404` rather than refusing an authorization check
+  (ADR-09), which is the half that survives a listener rule somebody adds during an incident and
+  never removes. **It is designed and not built:** anonymous and secure-link entry are one API
+  route today, so task 066 has to split them and mount each environment's surface separately
+  before this half exists. `docs/SECURITY_DESIGN.md` section 5a lists the three pieces. Plan the
+  hostname and the firewall rule now; do not assume the in-app half is behind you.
+
+None of the three replaces another. With only the host rule, a path somebody routes onto the wrong
+hostname is served. With only the path rule, the whole non-prod surface is on the public internet
+behind link security alone. With only the app rule, an operator has no way to keep strangers off the
+surface in the first place. Since the app half is not built yet, the two edge rules are currently
+the whole of this layer, which is the more reason to get them right.
+
+### Recipe A: the Caddy overlay
+
+Add a third site block for the test name, with the same `(qcms_edge)` snippet the other two use,
+and two matchers the other two must not have: an address matcher that refuses anything outside the
+allowlist before the `reverse_proxy`, and a path matcher that refuses anything not under `/test/`.
+Add the mirror of the second to the **portal** site block: refuse a request whose path begins with
+an environment prefix, so the prod hostname serves unprefixed paths only. **Which matcher depends on what is in front of Caddy, and
+getting it wrong fails in the permissive direction**, so pick it deliberately:
+
+- With **nothing in front of Caddy**, which is the shape this recipe assumes, use `remote_ip`.
+  The Caddy matcher reference defines it as matching "by remote IP address (i.e. the IP address
+  of the immediate peer or the address set via PROXY protocol)", which on this shape is the
+  respondent.
+- With a **CDN or WAF in front** - the "Stacking another proxy" case above, which already
+  requires you to configure the `trusted_proxies` global option - use `client_ip` instead. The
+  same reference says `client_ip` matches the client address as parsed from the forwarded
+  headers, "is best used when the `trusted_proxies` global option is configured", and is what to
+  reach for "if you wish to match the 'real IP' of the client, as parsed from HTTP headers".
+  `remote_ip` there would match the CDN's egress node, so every request would look allowlisted.
+
+The trap is the same one "The forwarded client address" describes above, in a different control:
+an address is trustworthy only from the hop that observed it.
+
+Three things move together when this lands: the test hostname (a fourth required value beside
+`QCMS_PORTAL_DOMAIN` and `QCMS_ADMIN_DOMAIN`), its certificate, and
+`QCMS_PORTAL_TRUSTED_PROXY_HOPS` if the test name is fronted differently from the prod one. The
+hop count is per hostname for exactly this reason.
+
+### Recipe B: ECS and ALB
+
+Two shapes work, and they are not equivalent.
+
+**A source-IP condition on a third listener rule.** An ALB listener rule takes "zero or one of each
+of the following conditions: `host-header`, `http-request-method`, `path-pattern`, and `source-ip`"
+(AWS's "Condition types for listener rules"), and a source IP must be a CIDR, IPv4 or IPv6, with no
+wildcards. Three conditions on one rule therefore express the whole inbound policy: the test
+hostname **and** an allowed CIDR **and** a path under `/test/*` forwards to the portal target group,
+and the test hostname alone falls through to a fixed-response refusal. Both rules are needed,
+because a listener rule routes and never denies: a rule that simply does not match hands the request
+to the listener's default action. Give the prod hostname the mirror, a rule matching an environment
+prefix that returns a fixed-response refusal ahead of the forward.
+
+Two caveats from the same page, and both matter here. The condition "is not satisfied by the
+addresses in the `X-Forwarded-For` header", and "if a client is behind a proxy, this is the IP
+address of the proxy, not the IP address of the client" - so with CloudFront or any other proxy
+in the path this filters the proxy's address, not the respondent's, and the allowlist means
+something other than what you intended.
+
+**A second, internal-facing balancer** for the test name, on private subnets, reached over the
+VPN or a peered network. This is the cleaner fit for the invariants, because "internet-facing"
+stops being a property you filter after the fact and becomes one the balancer does not have. It
+is also the shape an identity-aware proxy slots into, if one is already in the path.
+
+Give whichever balancer serves the test name a certificate covering that hostname. Do not
+path-split test onto the prod hostname: a path-based split onto one hostname is not a supported
+layout here, for the same cookie-scoping reason it is not supported for admin.
+
+### Egress, which is the half people forget
+
+Webhook delivery is outbound from whichever process mounts `internal` (`docs/deploy-enterprise.md`
+section 1). Under ADR-40 the endpoint rows live inside each environment's schema, so a test
+deliverer cannot read a prod endpoint at all; the egress rule states the same thing where a
+firewall can enforce it.
+
+Write it as an allowlist, not a denylist: the segment a test deliverer runs in permits outbound
+HTTPS to the test endpoint hosts and nothing else, and the prod one permits the prod hosts.
+`QCMS_WEBHOOK_ALLOW_PRIVATE` stays at its `false` default on both unless the deployment genuinely
+posts to on-prem systems. The one outbound exception that belongs to neither environment is
+`api.pwnedpasswords.com`, which the admin-mounted process needs while an administrator password
+is being set (SEC-1); it fails closed, so a segment with no egress at all cannot create the first
+administrator.
+
+### The rule table
+
+It is `docs/SECURITY_DESIGN.md` section 5a, by source, destination, port and environment. That is
+the one copy; this document deliberately does not restate it, for the same reason it does not
+restate the port allocation.
+
+### What this does not buy you
+
+An allowlist keeps strangers off the test surface. It does not stop somebody who is already on
+the allowed network, and it does not care who is holding a leaked test link - a secure link is
+still what starts a test session, and its expiry, one-time consumption and revocation are what
+bound that. Nor does it protect data at rest. SEC-14 states the three layers and the order they
+apply in; this section is only the outermost one.
+
 ## Verifying the routing property
 
 Invariants 3 and 4 hold today by inspection, and inspection is exactly what stops happening the
@@ -407,6 +571,9 @@ more than its removal buys.
 - **ADR-20** and the operability budget: `docs/adr/core.md` and `docs/PROJECT_GOAL.md` §7.
 - **SEC-9** (transport and browser security), plus the body-limit and header controls the edge
   mirrors: `docs/SECURITY_DESIGN.md` §5.
+- **SEC-14** (environment isolation at the network layer) and its firewall rule table, which is
+  the one copy: `docs/SECURITY_DESIGN.md` section 5a. The decision behind it is **ADR-40**, and the
+  build plan is `plan/environments-and-workspaces.md`.
 - The multi-instance deployment, where the API is split by mount and the admin sits behind a VPN:
   `docs/deploy-enterprise.md`.
 - Port allocation, which is the only place QCMS port numbers are written down. The ingress owns
