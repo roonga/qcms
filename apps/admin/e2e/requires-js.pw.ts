@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin } from "./support/flow.js";
+import { ADMIN_BASE_URL } from "./support/harness-config.js";
 
 /**
  * The admin requires JavaScript and stops at a message without it (Code Owner,
@@ -28,10 +29,18 @@ import { enrollNewAdmin } from "./support/flow.js";
  *
  * A session cannot be established with scripting off any more, which is the requirement
  * rather than an obstacle: the sign-in form is hidden, so there is no form to post. So the
- * session is made in a SCRIPTED context through the real screens and its cookies are moved
- * onto the scriptless one, which is the shape `apps/portal/e2e/no-js-retraction.pw.ts`
- * already uses for the mirror-image case. The assertion still runs on the injected `page`
- * fixture, so the console and server-log gates still watch the page under test.
+ * session is made through the real screens with scripting ON and its cookies are moved onto
+ * a scriptless context, the shape `apps/portal/e2e/no-js-retraction.pw.ts` already uses for
+ * the mirror-image case.
+ *
+ * **Which half gets the fixture is not arbitrary, and getting it backwards cost a red.** The
+ * sign-in walk goes on the injected `page`, because it needs the project's `use` - `baseURL`,
+ * and the hydration marker `fillStable` waits for before typing into a react-aria field - and
+ * a context created from the `browser` fixture inherits none of it. The scriptless half is
+ * the hand-made one, because all it does is navigate and assert, and it passes its own
+ * `baseURL` for the same reason. What it gives up is the console gate, which watches the
+ * injected page only; with scripting off there is no console to watch. The server-log gate
+ * is per test and still covers every request this one makes.
  *
  * `/questions` is asserted to still BE `/questions` after the navigation, before anything
  * else. Without that, a session that failed to transfer would land on `/sign-in`, the
@@ -121,37 +130,52 @@ test.describe("without JavaScript", () => {
     ).toBe(0);
   });
 
-  test("an authenticated shell route shows the message and no shell", async ({ page, browser }) => {
-    test.setTimeout(240_000);
+});
 
-    const scripted = await browser.newContext();
-    try {
-      await enrollNewAdmin(await scripted.newPage(), EMAIL);
-      await page.context().addCookies((await scripted.storageState()).cookies);
-    } finally {
-      await scripted.close();
-    }
+test("an authenticated shell route shows the message and no shell", async ({ page, browser }) => {
+  test.setTimeout(240_000);
 
-    await page.goto("/questions");
-    // FIRST, because everything after it would also hold on `/sign-in`.
-    await expect(page, "the transferred session is real, not a bounce to sign-in").toHaveURL(
-      /\/questions$/,
-    );
-    await expectOnlyTheMessage(page);
+  // The SESSION is made on the injected `page`, so `test.use` is not what switches scripting
+  // off here and this test sits outside the block above. The sign-in walk needs the project's
+  // `use` - `baseURL` above all, plus the hydration marker `fillStable` waits for - and a
+  // hand-made context inherits none of it. Doing it the other way round cost a red: the
+  // scriptless half needs no fixture at all, because all it does is navigate and assert.
+  await enrollNewAdmin(page, EMAIL);
 
-    // The shell, by the three things it puts on screen that the sign-in route does not.
-    await expect(page.locator("header")).toBeHidden();
-    await expect(page.locator("main#main-content")).toBeHidden();
-    await expect(page.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
-    await expect(page.getByRole("table", { name: "Question library" })).toHaveCount(0);
-
-    // And the sign-out fallback form goes with the rest of it, which is the one
-    // consequence of this gate that retires a shipped affordance rather than chrome (the
-    // Code Owner's 2026-07-31 no-JS sign-out decision). The form and the `/sign-out` route
-    // are still there for the scripted menu item to submit; nothing reveals them.
-    await expect(page.locator("form.qcms-signout-fallback")).toBeHidden();
-    await expect(page.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  const scriptless = await browser.newContext({
+    javaScriptEnabled: false,
+    // Passed explicitly, for the reason above: a context created from the `browser` fixture
+    // carries no project option, so a relative `goto` would have nothing to resolve against.
+    baseURL: ADMIN_BASE_URL,
   });
+  try {
+    await scriptless.addCookies((await page.context().storageState()).cookies);
+    const scriptlessPage = await scriptless.newPage();
+
+    await scriptlessPage.goto("/questions");
+    // FIRST, because everything after it would also hold on `/sign-in`.
+    await expect(
+      scriptlessPage,
+      "the transferred session is real, not a bounce to sign-in",
+    ).toHaveURL(/\/questions$/);
+    await expectOnlyTheMessage(scriptlessPage);
+
+    // The shell, by the four things it puts on screen that the sign-in route does not.
+    await expect(scriptlessPage.locator("header")).toBeHidden();
+    await expect(scriptlessPage.locator("main#main-content")).toBeHidden();
+    await expect(scriptlessPage.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
+    await expect(scriptlessPage.getByRole("table", { name: "Question library" })).toHaveCount(0);
+
+    // And the sign-out fallback form goes with the rest of it, which is the one consequence
+    // of this gate that retires a shipped affordance rather than chrome (the Code Owner's
+    // 2026-07-31 no-JS sign-out decision). The form and the `/sign-out` route are still
+    // there for the scripted menu item to submit; nothing reveals them.
+    await expect(scriptlessPage.locator("form.qcms-signout-fallback")).toBeAttached();
+    await expect(scriptlessPage.locator("form.qcms-signout-fallback")).toBeHidden();
+    await expect(scriptlessPage.getByRole("button", { name: "Sign out" })).toHaveCount(0);
+  } finally {
+    await scriptless.close();
+  }
 });
 
 test("with JavaScript the message is absent and the sign-in form is the page", async ({ page }) => {

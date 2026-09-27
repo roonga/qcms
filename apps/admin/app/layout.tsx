@@ -111,18 +111,6 @@ export default async function AdminRootLayout({ children }: { readonly children:
         </noscript>
       </head>
       <body>
-        {/* First in the body so that a reader with scripting off meets the message
-            before anything else in document order, which is the order a screen reader
-            walks whatever a stylesheet does to the rest. `role="alert"` sits on the
-            panel rather than the full-height centring wrapper, so the announced region
-            is the two strings and not a page-sized box; the `<h1>` is what a heading
-            walk finds, since this really is the page's only content in that state. */}
-        <div className="qcms-requires-js">
-          <div role="alert" className="qcms-requires-js__panel">
-            <h1 className="qcms-requires-js__title">{t("requiresJs.title")}</h1>
-            <p className="qcms-requires-js__body">{t("requiresJs.body")}</p>
-          </div>
-        </div>
         {/* Renders nothing. It stamps `data-qcms-hydrated` on `<html>` from a mount
             effect, which is the only truthful moment for the browser suite to wait
             for before it types into a server-rendered form (issue #210): react-aria's
@@ -135,6 +123,27 @@ export default async function AdminRootLayout({ children }: { readonly children:
           {t("action.skipToContent")}
         </a>
         {children}
+        {/* LAST in the body, and that position is measured rather than chosen for looks.
+            Document order does not matter to the reader this is for: in the state where it
+            is visible it is the only thing in the accessibility tree, because the rule
+            above takes every sibling out of it. What document order does matter to is the
+            app's own suite, which reads `page.locator("h1").first()` on two screens - and
+            with this block first, `.first()` was this heading on every page in the app.
+            Nothing the scripted app presents comes after it now.
+
+            `role="alert"` on the panel rather than on the full-height centring wrapper, so
+            the announced region is the two strings and not a page-sized box. The `<h1>` is
+            what a heading walk finds, since this is the page's only content in that state -
+            which also means the app still has exactly one level-1 heading in the
+            accessibility tree, one of the two always being `display: none`. A spec that
+            spelled that invariant as a DOM count rather than a role query was corrected
+            with this change (`e2e/forms-publish.pw.ts`). */}
+        <div className="qcms-requires-js">
+          <div role="alert" className="qcms-requires-js__panel">
+            <h1 className="qcms-requires-js__title">{t("requiresJs.title")}</h1>
+            <p className="qcms-requires-js__body">{t("requiresJs.body")}</p>
+          </div>
+        </div>
       </body>
     </html>
   );

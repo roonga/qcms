@@ -95,4 +95,16 @@ describe("the root layout's JavaScript-required gate", () => {
     expect(html).toContain("skip-link");
     expect(html).toContain('id="main-content"');
   });
+
+  it("puts the message after everything else in the body", async () => {
+    const html = await markup();
+    // Position, asserted because it is load-bearing rather than cosmetic and because the
+    // browser suite is where it was found. Document order does not matter to the reader
+    // this is for - in the state where the message shows, every sibling is out of the
+    // accessibility tree - but it matters to any locator that reads document order, and the
+    // admin suite reads `page.locator("h1").first()` on two screens. With this block first
+    // in the body, `.first()` was this heading on every page in the app.
+    expect(html.indexOf('class="qcms-requires-js"')).toBeGreaterThan(html.indexOf("main-content"));
+    expect(html.trimEnd()).toMatch(/<\/div><\/body><\/html>$/);
+  });
 });
