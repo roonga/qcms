@@ -42,8 +42,8 @@ import type { DraftStep } from "./types.ts";
  * HAS is a stable DOM id on the builder - {@link stepAnchorId}, minted so an issue can be
  * a link that moves focus to the step it names - and the validation panel already ships
  * links of exactly that shape. So a step's rail item is the builder's URL with that
- * fragment: a real anchor, no JavaScript, opens in a new tab, and lands on the step it
- * names. No new route, no new scope, no new pattern.
+ * fragment: a real anchor, middle-clickable, openable in a new tab, and landing on the step
+ * it names. No new route, no new scope, no new pattern.
  */
 
 /**

@@ -16,7 +16,8 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * `plan/admin-design-contracts.md` §2 (CONFIRMED 2026-08-20):
  *
  * > Row action: the row's identifying cell carries a real anchor (open-in-new-tab and
- * > middle-click work); whole-row `onRowAction` click is retired with the kit-table migration.
+ * > middle-click work); whole-row `onRowAction` click is retired with the kit-table
+ * > migration.
  * > [...] Compact width: every table states which columns drop at `--bp-compact` and
  * > resets its `min-width` there so the scroll container is the fallback, not the
  * > default experience.

@@ -352,8 +352,8 @@ table.lib-table { width: 100%; min-width: 720px; border-collapse: collapse; font
 .lib-table td { padding: 0.4rem 0.75rem; height: var(--admin-table-row-h); vertical-align: middle;
   font-variant-numeric: tabular-nums; }
 
-/* The identifier cell is a real <a>, so open-in-new-tab and no-JS both work and the row's
-   destination is named by the control rather than by the whole row. History, not a live
+/* The identifier cell is a real <a>, so open-in-new-tab and middle-click both work and the
+   row's destination is named by the control rather than by the whole row. History, not a live
    warning: when this POC was drawn the shipped lists routed through the vendored kit
    Table's onRowAction, which is what this diverged from; issue #570 gave the shipped
    tables real anchors and retired that handler on 2026-08-22 (PR #624). */

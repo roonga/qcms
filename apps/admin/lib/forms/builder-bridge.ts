@@ -34,7 +34,6 @@ import type { DraftForm } from "./types.ts";
  * `undefined`, and the rail renders the steps the SERVER gave it as plain anchors. That is
  * the honest first paint: the slot already loaded the form's steps to render them, so the
  * reader sees the real list immediately, and it becomes interactive when the page hydrates.
- * A reader with no JavaScript keeps that anchored list rather than a dead menu.
  */
 /**
  * `choose` rather than `select`, and the name is load-bearing rather than a preference:

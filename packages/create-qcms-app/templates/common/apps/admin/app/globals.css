@@ -974,11 +974,11 @@ button {
    to give a hover affordance to the four tables whose whole row navigated or
    chose through the vendored kit's `onRowAction`. §2 settled that the other way:
    the row's identifying cell carries a real anchor, so open-in-new-tab and
-   middle-click work, and the picker (which has no address to link to) carries a named button
-   per row instead. All four are hand-authored now, the handler is gone from the
-   app, and the modifier goes with it. Nothing here may reintroduce a whole-row
-   hover: promising a click that does nothing is worse than promising none, and
-   the control in the row says where it goes.
+   middle-click work, and the picker (which has no address to link to) carries a
+   named button per row instead. All four are hand-authored now, the handler is
+   gone from the app, and the modifier goes with it. Nothing here may reintroduce
+   a whole-row hover: promising a click that does nothing is worse than promising
+   none, and the control in the row says where it goes.
 
    The positional `nth-child` rules that gave those four tables their
    `tabular-nums` are gone for the same reason, replaced by the `.qcms-cell--num`
@@ -2791,11 +2791,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* A native `<details>`, open by default, at every width. It is the only way to
-   get a disclosure that works with no JavaScript, announces its own state and
-   needs no override to look like a plain sidebar above the boundary - which is
-   also what the POCs draw. Above `--bp-sidebar` the chevron goes and the summary
-   stops advertising itself as a control; it remains one, so an operator who
-   wants the width back can still take it. */
+   get a disclosure whose keyboard operation and announced state come from the
+   browser and that needs no override to look like a plain sidebar above the
+   boundary - which is also what the POCs draw. Above `--bp-sidebar` the chevron
+   goes and the summary stops advertising itself as a control; it remains one, so
+   an operator who wants the width back can still take it. */
 .qcms-rail__summary {
   display: flex;
   align-items: center;
@@ -2870,14 +2870,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    The rail is shut below `--bp-sidebar` and open above it (Code Owner decision,
    2026-08-23), and `open` is an attribute no media query can set, so the browser
    decides it in `components/rail-disclosure.tsx`. The server cannot know the
-   viewport, so the first HTML is `open` - the safe answer, and the one a reader
-   with no JavaScript keeps - which on a phone would paint an expanded rail for
-   the frame before hydration. This hides the body for exactly that frame: the
-   disclosure publishes `data-ready` once it has read the media query, and from
-   then on the element's own state is what shows or hides the rows.
+   viewport, so the first HTML is `open` - the safe answer - which on a phone
+   would paint an expanded rail for the frame before hydration. This hides the
+   body for exactly that frame: the disclosure publishes `data-ready` once it has
+   read the media query, and from then on the element's own state is what shows or
+   hides the rows.
 
-   Scoped below the boundary, so a wide viewport paints the sidebar open with no
-   dependence on script at all. */
+   Scoped below the boundary, so a wide viewport paints the sidebar open and this
+   rule never applies there. */
 @media (width < 64rem) {
   .qcms-rail__disclosure:not([data-ready]) .qcms-rail__body {
     display: none;

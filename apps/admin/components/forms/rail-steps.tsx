@@ -31,11 +31,11 @@ import { textOf } from "@/lib/questions/definition";
  *
  * ## Two states, and the first one is not a placeholder
  *
- * Before the builder hydrates - and for a reader with no JavaScript at all - this renders
- * the steps the SERVER resolved, as ordinary anchors to `#step-{id}`. That is a real, usable
- * list rather than a skeleton: the slot had already loaded those steps in order to render
- * them, the anchors land on the step they name, and `lib/forms/issues.ts` mints the same
- * fragment the validation panel's focus links use.
+ * Before the builder hydrates, this renders the steps the SERVER resolved, as ordinary
+ * anchors to `#step-{id}`. That is a real, usable list rather than a skeleton: the slot had
+ * already loaded those steps in order to render them, the anchors land on the step they
+ * name, and `lib/forms/issues.ts` mints the same fragment the validation panel's focus links
+ * use.
  *
  * Once the builder publishes (`lib/forms/builder-bridge.ts`), the rows become buttons that
  * select a step in place and the menus appear. The list does not move or reorder as it
@@ -236,7 +236,7 @@ export function RailSteps({
 }
 
 /**
- * The pre-hydration list, and the whole of it for a scriptless reader.
+ * The pre-hydration list.
  *
  * Deliberately the same markup the other seven form screens' steps use, so the rail does
  * not change shape when the builder takes it over.

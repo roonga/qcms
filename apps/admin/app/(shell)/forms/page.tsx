@@ -119,7 +119,8 @@ export default async function FormsPage({
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
           {/* A GET form, so a filtered library is a URL: shareable, bookmarkable, and
-              still operable with JavaScript off even though the builder is not. */}
+              undone by the back button. Apply is a plain navigation rather than a
+              handler this screen has to hydrate. */}
           <form method="get" className="qcms-filters">
             <fieldset className="qcms-fieldset qcms-fieldset--flat">
               <legend className="qcms-visually-hidden">{t("forms.filter.legend")}</legend>

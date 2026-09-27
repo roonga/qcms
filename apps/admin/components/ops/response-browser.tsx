@@ -35,9 +35,9 @@ import type { ReadState } from "@/lib/read-state";
  * ## The export is an anchor, not a fetch
  *
  * `<a href download>` hands the transfer to the browser, so a large export streams to
- * disk instead of being buffered into this tab's memory as a blob first. It also
- * works with scripting disabled, and it keeps answer values out of the client bundle's
- * hands entirely: nothing in this component ever holds the exported bytes.
+ * disk instead of being buffered into this tab's memory as a blob first. It also keeps
+ * answer values out of the client bundle's hands entirely: nothing in this component ever
+ * holds the exported bytes.
  *
  * ## A failed read is not an empty page
  *
@@ -287,8 +287,8 @@ export function ResponseBrowser({
                           and the column's two jobs are recognising a row against a ticket
                           and getting the exact value into a search box. The whole value is
                           still in this cell's markup and still in the detail route's
-                          heading, so neither the announcement nor the no-JS path loses it
-                          (`components/entity-id.tsx`). */}
+                          heading, so neither the announcement nor a copy taken by hand
+                          loses it (`components/entity-id.tsx`). */}
                       <EntityId
                         kind="session"
                         value={row.sessionId}

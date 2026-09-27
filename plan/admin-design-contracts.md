@@ -155,11 +155,14 @@ Three consequences, named so they are not re-derived:
   the sign-in form, the 2FA challenge and enrollment screens, and both recovery screens are
   each hidden and unsubmittable with scripting off.
 
-- **§2's row-action clause loses its no-JS half.** It read "a real anchor (open-in-new-tab
-  and no-JS work)" and now reads "(open-in-new-tab and middle-click work)". The element is
-  unchanged and so is the argument for it: both of those are the browser acting on an `href`,
-  which a row that merely reacts to a click does not have. Only the justification that
-  expired is removed.
+- **§2's row-action and identifying-column clauses lose their no-JS halves**, and each says
+  so where it stands rather than only here. The row-action clause read "a real anchor
+  (open-in-new-tab and no-JS work)" and now reads "(open-in-new-tab and middle-click work)";
+  the element is unchanged and so is the argument for it, because both of those are the
+  browser acting on an `href` and a row that merely reacts to a click has none. The
+  identifying column still requires the whole id in the markup, for selection, screen-reader
+  announcement and in-page search rather than for a scriptless reader. The comments that
+  quote either clause verbatim were corrected with them.
 
 ## Reading a multi-screen POC
 
@@ -304,9 +307,16 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
   commit on the branch that proposed it.
 
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
-  and middle-click work); whole-row `onRowAction` click is retired with the kit-table
-  migration. Rows with an author-controlled order get the grip menu; rows without
-  one get a plain trailing menu or inline actions, never a grip.
+  and middle-click work); whole-row `onRowAction` click is retired with the
+  kit-table migration. Rows with an author-controlled order get the grip menu; rows
+  without one get a plain trailing menu or inline actions, never a grip.
+
+  The clause read "open-in-new-tab and no-JS work" until the 2026-08-22 standing
+  correction above, which removed the no-JS half's justification, and the 2026-09-27
+  ruling above settles it outright: there is no scriptless operator to make the claim
+  to. The anchor's other two reasons are the ones that carried the clause, and they
+  carry it unchanged.
+
 - Sortable headers, selection column and skeleton state ship only where a screen
   needs them (none does today); when one does, it uses the frozen card's shape
   (`aria-sort` headers, leading checkbox column) rather than inventing its own.
@@ -331,10 +341,13 @@ and flagged. They are governed now.
     be mistaken for a whole id; `ses_45cf6345…` can.
   - The copy control's accessible name carries the entity and the value ("Copy
     session id ses_45cf6345"), not a bare "Copy" repeated down the column.
-  - The control is JS-only, and that is acceptable **because** the detail route
-    carries the full id without JS - which it does since #510 headed those routes
-    with their own entity. If a future table's detail route does not, the prefix
-    rule still holds and the full id goes somewhere reachable without JS.
+  - The control is a convenience, and that is acceptable **because** the full id is
+    in the markup either way: in the identifying cell, and in the detail route's
+    heading since #510 headed those routes with their own entity. So it can be
+    selected and copied by hand, read out by a screen reader, and found by the
+    browser's own in-page search. If a future table's detail route does not carry
+    it, the prefix rule still holds and the full id goes somewhere a reader can
+    still reach it.
   - This prevents long identifiers from breaking into one-character columns and
     clipping row actions on compact screens.
 - **A timestamp column renders date, a clock without seconds, and the zone.** Seconds
@@ -460,9 +473,9 @@ recollection:
   perfectly well be another form in the same deployment: the harm the anti-truncation clause
   exists to prevent, reached from the other direction. The form library renders it whole.
 
-**Where an abbreviated id's remainder goes.** The clause "the full id goes somewhere
-reachable without JS" had no answer for the two tables with no detail route at all - secure
-links and webhooks. It has one now, and it is in the cell rather than beside it: the
+**Where an abbreviated id's remainder goes.** The clause "the full id goes somewhere a
+reader can still reach it" had no answer for the two tables with no detail route at all -
+secure links and webhooks. It has one now, and it is in the cell rather than beside it: the
 characters the column does not show are rendered inside `.qcms-visually-hidden`, in the
 server HTML. They cost no width, assistive technology reads the row by its whole id rather
 than by a prefix that identifies nothing, and a selection copies the value rather than the
@@ -499,9 +512,10 @@ which reason survives:
   Enter alone. #624 presses Space in its e2e test deliberately, so a regression back to a
   link-shaped thing fails on a keystroke rather than on review.
 - **"Open in a new tab"** - does not apply. There is nothing to open.
-- **"Works without JS"** - does not apply, and never did. A modal dialog inside the builder,
-  opened by a scripted control, over a draft held in client state, does not survive scripting
-  being off by construction.
+- **"Works without JS"** - not one of the clause's reasons at all: there is no no-JS
+  requirement in the admin (standing correction, 2026-08-22, above). It would not have
+  applied here in any case. A modal dialog inside the builder, opened by a scripted control,
+  over a draft held in client state, does not survive scripting being off by construction.
 
 **This is not a general licence to prefer buttons.** The test is whether the row has an
 address. If it does, §2's anchor clause applies unchanged, and the two shipped tables that

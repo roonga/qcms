@@ -22,9 +22,7 @@ import { textOf } from "@/lib/questions/definition";
  * ## What it says before the builder publishes
  *
  * "Form details", which is the screen the builder opens on, so the crumb is right from the
- * first paint rather than correcting itself a frame later. A reader with no JavaScript sees
- * the same thing, and for them it is simply true: without the bridge nothing can change the
- * screen, so the form's details are all there is.
+ * first paint rather than correcting itself a frame later.
  */
 export function BuilderBreadcrumb({
   formId,

@@ -7,16 +7,12 @@ import { stripTags } from "./test-support/markup.ts";
 /**
  * What an identifying cell actually renders (issue #582).
  *
- * `renderToStaticMarkup` is the SERVER HTML: no hydration, no handlers. So the assertions
- * below are about what the document itself carries rather than what a handler would supply,
- * which matters here more than usual - §2 accepts a JS-only copy control **because** the
- * whole id is READABLE from the cell rather than only copyable, and the links and webhooks
- * tables have no detail route to carry it. This file is where that premise is checked.
- *
- * That premise never depended on scripting being off, and it does not now: the admin
- * requires JavaScript (Code Owner, 2026-09-27, `plan/admin-design-contracts.md`). An id an
- * operator can only reach by pressing a copy button is one they cannot read, compare or
- * quote, which is the defect §2 is guarding against with scripting fully on.
+ * `renderToStaticMarkup` IS the served HTML: no hydration, no handlers. So the assertions
+ * below read the markup itself rather than a proxy for it, which matters here more than
+ * usual - §2 treats the copy control as a convenience **because** the whole id is in the
+ * markup anyway, selectable, announced and findable by in-page search, and the links and
+ * webhooks tables have no detail route to carry it. This file is where that premise is
+ * checked.
  */
 
 const SESSION = "ses_45cf634512ab9f0e77c1d2e3f4a5b6c7";
