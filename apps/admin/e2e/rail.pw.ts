@@ -347,40 +347,45 @@ test("559 leaves a screen with no rail exactly as wide as it was", async ({ page
   expect(offset.right, "and the column is left-anchored rather than centred").toBeGreaterThan(0);
 });
 
-test.describe("without JavaScript", () => {
-  test.use({ javaScriptEnabled: false });
+/*
+ * This was a `without JavaScript` block and is CONVERTED (Code Owner, 2026-09-27: the admin
+ * requires JavaScript and stops at a message without it,
+ * `plan/admin-design-contracts.md`). `e2e/requires-js.pw.ts` now asserts that a scriptless
+ * operator never reaches this screen at all.
+ *
+ * It made two claims and they part company under that ruling. The anchors claim SURVIVES
+ * and is kept below, because scripting was never what it rested on: it is
+ * `plan/admin-design-contracts.md` §7's "a row that navigates is an anchor", whose live half
+ * after the 2026-08-22 correction is that an anchor is what open-in-new-tab and middle-click
+ * act on. A rail built out of buttons would fail it with scripting fully on. The disclosure
+ * claim is DROPPED, because "it opens and closes with nothing loaded" is the half that was
+ * about scripting, and the scripted behaviour it would become is already the subject of
+ * "559 collapses into a disclosure that works from the keyboard and says which state it is
+ * in" above.
+ */
+test("559 gives every rail row a real destination, which is what anchors-not-buttons buys", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(linksPath());
 
-  test("559 leaves the whole rail working, which is what anchors-not-buttons buys", async ({
-    page,
-  }) => {
-    test.setTimeout(300_000);
-    await signInWithTotp(page, EMAIL, totpSecret);
-    await page.setViewportSize({ width: 390, height: 900 });
-    await page.goto(linksPath());
-
-    // Every row is a real anchor with a real destination, so middle-click, open-in-new-tab
-    // and a scriptless browser all work. A rail built out of buttons would be inert here.
-    const hrefs = await page
-      .locator(".qcms-rail__link")
-      .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-    // NINE: the form's own row, its two steps, and the seven sibling screens. Rules is one
-    // of the seven since issue #669 gave it a route; it used to be a row `rail-steps.tsx`
-    // drew itself, carrying `#rules` because it switched a selection the builder made, and
-    // it is an ordinary sibling link now.
-    expect(hrefs).toHaveLength(9);
-    expect(
-      hrefs.filter((href) => href.endsWith("/rules")),
-      "the rules row points at the rules route",
-    ).toHaveLength(1);
-    expect(hrefs.every((href) => href.startsWith("/forms/"))).toBe(true);
-
-    // And the disclosure is the browser's own, so it opens and closes with nothing loaded.
-    const disclosure = page.locator("details.qcms-rail__disclosure");
-    await page.locator("summary.qcms-rail__summary").click();
-    await expect(disclosure).not.toHaveAttribute("open", "");
-    await page.locator("summary.qcms-rail__summary").click();
-    await expect(disclosure).toHaveAttribute("open", "");
-  });
+  // Every row is a real anchor with a real destination, so middle-click and open-in-new-tab
+  // work. A rail built out of buttons would be inert to both.
+  const hrefs = await page
+    .locator(".qcms-rail__link")
+    .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
+  // NINE: the form's own row, its two steps, and the seven sibling screens. Rules is one
+  // of the seven since issue #669 gave it a route; it used to be a row `rail-steps.tsx`
+  // drew itself, carrying `#rules` because it switched a selection the builder made, and
+  // it is an ordinary sibling link now.
+  expect(hrefs).toHaveLength(9);
+  expect(
+    hrefs.filter((href) => href.endsWith("/rules")),
+    "the rules row points at the rules route",
+  ).toHaveLength(1);
+  expect(hrefs.every((href) => href.startsWith("/forms/"))).toBe(true);
 });
 
 const scrollState = async (

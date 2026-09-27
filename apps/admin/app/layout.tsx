@@ -47,30 +47,82 @@ export const viewport: Viewport = {
  *
  * The skip link is the same structure as the portal's, so the keyboard walkthrough
  * and the axe gate inherited from task 030 start from a known-good shape.
+ *
+ * THIS LAYOUT IS ALSO WHERE THE APP STOPS WITHOUT JAVASCRIPT - see `REQUIRES_JS_CSS`.
  */
+
+/**
+ * The scripting gate (Code Owner, 2026-09-27: the admin requires JavaScript and stops at
+ * a message without it, recorded in `plan/admin-design-contracts.md`).
+ *
+ * This is the first place every admin route passes through, sign-in included, so it is the
+ * only place the check has to be made once. Below it there is nothing to check: no screen
+ * in this app has a scriptless mode to fall back to.
+ *
+ * ## The mechanism, and why it is this one
+ *
+ * A `<noscript><style>` in `<head>`, hiding every child of `<body>` except the message.
+ * Three properties made it the simplest thing that works:
+ *
+ * - **It needs no nonce and no CSP change.** `lib/server/csp.ts` grants
+ *   `style-src 'self' 'unsafe-inline'` because Tailwind injects a stylesheet, so an inline
+ *   `<style>` is already allowed. The alternative directions both cost more than they
+ *   return: a hash would have to be recomputed by hand on every edit to the rule, and the
+ *   nonce is threaded for `script-src` only and deliberately never reaches React
+ *   (`lib/server/csp.ts` explains why the admin avoids that propagation entirely).
+ * - **Nothing script-shaped is involved**, so the app's `script-src` stays free of any
+ *   allowance of our own. A gate written as `document.documentElement.classList.add(...)`
+ *   would be the one thing that cannot run in the case it exists for.
+ * - **No flash with scripting ON.** The message is `display: none` from `globals.css`, a
+ *   stylesheet in `<head>`, so it is hidden before the first paint rather than by client
+ *   code after it. The `<noscript>` rule is never applied at all in that case, because the
+ *   browser does not parse `<noscript>` content as CSS when scripting is enabled.
+ *
+ * `display: none` on the hidden half rather than `visibility` or an offscreen shift,
+ * because the requirement is that nothing else is usable: `display: none` removes the
+ * subtree from the tab order and from the accessibility tree together, so the sign-in
+ * form behind the message is neither focusable nor announced.
+ *
+ * `!important` on both rules, which is not a specificity fight. Next injects the
+ * `globals.css` link into the same `<head>`, and the relative order of that link and this
+ * element is Next's business rather than ours: an override that must win whatever the
+ * sheet order is says so, rather than depending on it.
+ *
+ * What this REPLACED is worth naming, because two comments elsewhere still describe it.
+ * The block used to hide the two topbar menu triggers and reveal the plain POST sign-out
+ * form beside them (task 032, and the Code Owner's 2026-07-31 sign-out decision). Both
+ * rules are dead now: the whole shell is hidden, so there is no topbar to correct. The
+ * form itself stays in `components/account-menu.tsx` - the scripted menu item submits it
+ * with `requestSubmit()`, which is why there is one sign-out path in the app and not two.
+ */
+const REQUIRES_JS_CSS =
+  "body>:not(.qcms-requires-js){display:none!important}" +
+  ".qcms-requires-js{display:flex!important}";
+
 export default async function AdminRootLayout({ children }: { readonly children: ReactNode }) {
   const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
 
   return (
     <html lang="en" className={mode ?? undefined}>
       <head>
-        {/* Hidden with CSS rather than by not rendering it, so a scripted operator
-            gets no hydration boundary and no layout shift. `style-src` already
-            allows inline styles, so no nonce is involved.
-            Task 032: both topbar triggers are popup menus, which need JavaScript to
-            open, so both go. Sign-out does not - ending a session has to stay
-            possible with scripts off (Code Owner decision, 2026-07-31), so the same
-            rule reveals the plain POST form the account menu submits when it is
-            scripted (`components/account-menu.tsx`). The appearance control has no
-            such fallback and needs none: the sheet's `prefers-color-scheme` block
-            still paints the page correctly, and a preference is not a session. */}
+        {/* The scripting gate. See `REQUIRES_JS_CSS` above for the whole argument. */}
         <noscript>
-          <style>
-            {".qcms-appearance,.qcms-avatar{display:none}.qcms-signout-fallback{display:block}"}
-          </style>
+          <style>{REQUIRES_JS_CSS}</style>
         </noscript>
       </head>
       <body>
+        {/* First in the body so that a reader with scripting off meets the message
+            before anything else in document order, which is the order a screen reader
+            walks whatever a stylesheet does to the rest. `role="alert"` sits on the
+            panel rather than the full-height centring wrapper, so the announced region
+            is the two strings and not a page-sized box; the `<h1>` is what a heading
+            walk finds, since this really is the page's only content in that state. */}
+        <div className="qcms-requires-js">
+          <div role="alert" className="qcms-requires-js__panel">
+            <h1 className="qcms-requires-js__title">{t("requiresJs.title")}</h1>
+            <p className="qcms-requires-js__body">{t("requiresJs.body")}</p>
+          </div>
+        </div>
         {/* Renders nothing. It stamps `data-qcms-hydrated` on `<html>` from a mount
             effect, which is the only truthful moment for the browser suite to wait
             for before it types into a server-rendered form (issue #210): react-aria's

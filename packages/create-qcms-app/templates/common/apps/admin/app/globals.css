@@ -730,12 +730,19 @@ button {
 }
 
 /*
- * The no-JS sign-out fallback (Code Owner decision, 2026-07-31).
+ * The sign-out fallback form (Code Owner decision, 2026-07-31).
  *
- * Rendered on every page and hidden here; the `<noscript>` block in `app/layout.tsx`
- * reveals it and hides both menu triggers. `display: none` does not stop
+ * Rendered on every page and hidden here. `display: none` does not stop
  * `requestSubmit()`, so the scripted account menu submits this very form - one
  * sign-out path in the app, not two.
+ *
+ * NOTHING REVEALS IT ANY MORE (Code Owner, 2026-09-27). The `<noscript>` block in
+ * `app/layout.tsx` used to show it and hide the two menu triggers; that block now hides
+ * the whole app behind the JavaScript-required message, so the shell this form sits in is
+ * never on screen without scripting. The form and the `/sign-out` route stay because the
+ * scripted path is what submits it, and the styling below stays with it rather than being
+ * swept: whether the no-JS sign-out affordance should come back in some other shape is a
+ * Code Owner call, not a tidy-up.
  */
 .qcms-signout-fallback {
   display: none;
@@ -754,6 +761,54 @@ button {
 }
 .qcms-signout-fallback__button:hover {
   background-color: var(--color-ghost-hover);
+}
+
+/*
+ * THE JAVASCRIPT-REQUIRED MESSAGE (Code Owner, 2026-09-27).
+ *
+ * The admin requires JavaScript and stops at this message without it
+ * (`plan/admin-design-contracts.md`, "Standing correction"). The gate itself - the rule
+ * that hides everything else - is the `<noscript>` block in `app/layout.tsx`, which is
+ * also where the mechanism is argued. What lives here is the two halves that must NOT be
+ * inline: the default, which hides the message, and its appearance.
+ *
+ * The default belongs in this sheet rather than in the layout because it is what makes the
+ * scripted path flash-free: this file is a stylesheet in `<head>`, so the message is
+ * hidden before the first paint, where an inline rule inside `<noscript>` is not read at
+ * all when scripting is on and could not hide anything.
+ *
+ * Colours are tokens only, so light, dark and high-contrast are the theme's answer rather
+ * than three rules here (`app/theme.css` redefines the same names under `.dark` and
+ * `.hc`, and `scripts/check-admin-theme.mjs` refuses a literal in this file anyway).
+ * `--color-text` on `--color-surface` for the body copy as well as the heading: this is
+ * the one instruction the reader has, and the muted pair is for text beside something
+ * louder rather than for the only sentence on a page.
+ */
+.qcms-requires-js {
+  display: none;
+  min-block-size: 100dvh;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+.qcms-requires-js__panel {
+  max-inline-size: 34rem;
+  padding: var(--admin-section-pad);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+}
+.qcms-requires-js__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+}
+.qcms-requires-js__body {
+  margin-block: 0.75rem 0;
+  margin-inline: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 /*

@@ -116,6 +116,33 @@ What this invalidates, named so it is not re-derived:
   handler is a control only a mouse understands, and it cannot be opened in a new tab.
   Neither depends on scripting being off.
 
+**Carried further, 2026-09-27 (Code Owner): the admin now REQUIRES JavaScript, and stops at
+a message without it.** The 2026-08-22 correction said no-JS is not a requirement here; this
+says the opposite thing is, which is the stronger statement and settles every question the
+correction left open by removing the case rather than arguing about it.
+`apps/admin/app/layout.tsx` is where it is enforced, because every admin route renders
+through that layout, sign-in included. With scripting disabled an operator gets one
+catalogued message (`requiresJs.title` / `requiresJs.body`, ADR-27) saying the admin needs
+JavaScript and to enable it and reload; nothing else is visible or focusable, including the
+sign-in form and the whole shell. The mechanism is a `<noscript><style>` block, which needs
+no CSP change: `apps/admin/lib/server/csp.ts` already grants `style-src 'unsafe-inline'` for
+Tailwind, and nothing script-shaped is introduced.
+
+Three consequences, named so they are not re-derived:
+
+- **No-JS is still a portal requirement and is untouched.** The scope in
+  `docs/PROJECT_GOAL.md` is the browsers a **respondent** runs, and `apps/portal` and
+  `@roonga/qcms-ui` are unchanged by this.
+- **The auth route handlers stay.** ADR-35 / SEC-1 keep the auth flow as named server routes
+  rather than client JavaScript, and that is an argument about the endpoint set, not about
+  scripting. They are now simply unreachable from the UI.
+- **The 2026-07-31 no-JS sign-out affordance is dead as a UI path.** The plain POST form in
+  `apps/admin/components/account-menu.tsx` is still what the scripted menu item submits, so
+  the form and the `/sign-out` route stay; what is gone is the `<noscript>` rule that used to
+  reveal the form and hide the two menu triggers, because the shell it sits in is never on
+  screen without scripting. Whether a scriptless way to end a session should exist in some
+  other shape is left open rather than answered here.
+
 ## Reading a multi-screen POC
 
 **Added 2026-09-06 under the Code Owner decision of 2026-09-05 (issue #678).** This is a

@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { enrollNewAdmin } from "./support/flow.js";
 import {
   addStep,
   createForm,
@@ -15,8 +15,7 @@ import {
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
- * Issue 570: the converted tables' rows are reachable without a mouse and without
- * JavaScript.
+ * Issue 570: the converted tables' rows are reachable without a mouse.
  *
  * `plan/admin-design-contracts.md` §2 asks the row's identifying cell for "a real anchor
  * (open-in-new-tab and no-JS work)". `app/(shell)/table-anchors.test.tsx` proves the anchor
@@ -24,15 +23,19 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * string. This spec makes it about a browser, which is the layer ADR-23 assigns to
  * behaviour a browser is the only thing that performs.
  *
- * ## The two claims, and the two ways they are made
+ * ## The claim, and the way it is made
  *
- * **Without JavaScript.** The `without JavaScript` block runs with scripting switched off
- * for the whole context, follows a link in each of the three navigating tables and asserts
- * the destination. This is the claim the defect was about: before this change a whole-row
- * click handler was the only route into a question or a form, and a handler is not a link
- * however much it behaves like one for a mouse user. The auth screens have always been
- * native forms (issue 031's decision, restated by the 2026-07-31 sign-out ruling), so the
- * whole loop below - sign in, list, open - runs with no client JavaScript whatsoever.
+ * **It used to be made two ways.** A `without JavaScript` block ran with scripting switched
+ * off for the whole context and followed a link in each of the three navigating tables. It
+ * is deleted, and the note where it stood says why: the admin requires JavaScript now (Code
+ * Owner, 2026-09-27), and the keyboard walk below already asserts the same three `href`s and
+ * the same three destinations.
+ *
+ * The defect the spec exists for is untouched by that. Before issue 570 a whole-row click
+ * handler was the only route into a question or a form, and a handler is not a link however
+ * much it behaves like one for a mouse user: it cannot be opened in a new tab, it cannot be
+ * middle-clicked, and it has no address to read. All three are true with scripting fully on,
+ * which is why the claim outlives the ruling and the scriptless walk does not.
  *
  * **From the keyboard.** Tabbing to the control rather than focusing it directly, because
  * `focus()` proves only that a node accepts focus and a keyboard author has the document's
@@ -61,8 +64,6 @@ const SEEDED_FORM_ID = "frm_auto_quote";
 
 const PICKER_SLUG = `anchors570-pick-${RUN}`;
 
-/** Set by the first test, which enrolls the account every later test signs in with. */
-let totpSecret = "";
 /** The form the picker test opens, built by the first test. */
 let pickerFormId = "";
 
@@ -91,7 +92,9 @@ async function tabTo(page: Page, target: Locator, budget = 60): Promise<void> {
 
 test("every converted table's row control is in the document's own tab order", async ({ page }) => {
   test.setTimeout(300_000);
-  totpSecret = await enrollNewAdmin(page, EMAIL);
+  // Enrolled rather than signed in: enforced 2FA sends a fresh account to enrollment, and
+  // this file has one test, so the secret it returns has no later reader.
+  await enrollNewAdmin(page, EMAIL);
 
   // A form can only pin PUBLISHED versions (022), so the library is authored first.
   await createDraft(page, PICKER_SLUG, "Short text");
@@ -158,32 +161,22 @@ test("every converted table's row control is in the document's own tab order", a
   await expect(page).toHaveURL(new RegExp(`/versions/1$`));
 });
 
-test.describe("without JavaScript", () => {
-  test.use({ javaScriptEnabled: false });
-
-  test("the three navigating tables open their rows with scripting off", async ({ page }) => {
-    test.setTimeout(240_000);
-    await signInWithTotp(page, EMAIL, totpSecret);
-
-    // The question library. Nothing on this page has hydrated, and nothing needs to: the
-    // route is in the server HTML, which is exactly what `onRowAction` never put there.
-    await page.goto(`/questions?q=${PICKER_SLUG}`);
-    await expect(page.getByRole("table", { name: "Question library" })).toBeVisible();
-    await page.getByRole("link", { name: `Open question ${questionIdFor(PICKER_SLUG)}` }).click();
-    await expect(page).toHaveURL(new RegExp(questionIdFor(PICKER_SLUG)));
-
-    // The form library.
-    await page.goto("/forms");
-    await expect(page.getByRole("table", { name: "Form library" })).toBeVisible();
-    await page.getByRole("link", { name: `Open form anchors570-form-${RUN}` }).click();
-    await expect(page).toHaveURL(new RegExp(pickerFormId));
-
-    // The version history. Its rows were never the control, but its view links were a
-    // separate list beside the table; the claim here is that folding them into the rows
-    // did not cost the no-JS path that list already had.
-    await page.goto(`/forms/${SEEDED_FORM_ID}/versions`);
-    await expect(page.getByRole("table", { name: "Published versions" })).toBeVisible();
-    await page.getByRole("link", { name: "View v1" }).click();
-    await expect(page).toHaveURL(/\/versions\/1$/);
-  });
-});
+/*
+ * A `without JavaScript` block stood here and is DELETED (Code Owner, 2026-09-27: the admin
+ * requires JavaScript and stops at a message without it,
+ * `plan/admin-design-contracts.md`). It signed in with scripting off and clicked a row link
+ * in each of the three navigating tables, asserting each destination.
+ *
+ * Its claim is kept and nothing is converted, because the test above already makes the
+ * whole of it with scripting on: for each of the three tables it asserts the row control is
+ * an `<a>` carrying the exact `href` the route resolves to, and then activates it and
+ * asserts the destination. The scriptless walk added the same three destinations a second
+ * time. What the deleted block uniquely reached - a browser following an anchor with no
+ * bundle loaded - is now unreachable by construction, since `e2e/requires-js.pw.ts` asserts
+ * a scriptless operator never gets past the message.
+ *
+ * The surviving argument for an anchor is the one the 2026-08-22 correction left standing:
+ * open-in-new-tab and middle-click are the browser acting on an `href`, and a row that
+ * reacts to a click has none to act on. That is `href`-shaped rather than scripting-shaped,
+ * and it is what the assertions above check.
+ */
