@@ -3595,18 +3595,34 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* THE EDITOR'S PANEL ROWS, nested under the selected version (Code Owner,
-   2026-09-27). The nested-group rule above already removes the indent and says at
-   length why there is neither an indent nor a tree line; what is left here is the
-   separation from the version row that owns them, so the pair reads as a row and
-   its contents rather than as five more versions.
+   2026-09-27).
+
+   INDENTED, WHICH THE FORM RAIL'S NESTED GROUP DELIBERATELY IS NOT, and the
+   difference is worth stating because the rule above says at length why that one
+   has neither an indent nor a tree line. Its reason is that a step row carries an
+   ordinal - "1.", "2.", "3." at the start of every row, where an indent would have
+   been - so a second device saying the same thing cost a 240px column the width of
+   a step title twice over.
+
+   Neither half of that holds here. A panel row has no ordinal, and its parent is
+   not the same KIND of row: a version row is an anchor that goes to another
+   address, a panel row is a button that switches this one. Without the indent the
+   selected version and the open panel wear the same mark at the same depth,
+   directly above one another, and the pair reads as two current things rather than
+   as "this version, showing this panel". The indent is on the group so each row's
+   own accent edge still lands on its own box.
+
+   Written at a higher specificity than the general nested-group reset above, which
+   zeroes exactly this, rather than by weakening that rule: it is right for the tree
+   it was written for.
 
    NO `data-rail-group` ON THIS LIST, deliberately, and the attribute is the reason
    the class exists: the rule above keyed off `[data-rail-group]` removes a current
-   row's accent edge, which is right in the form rail's stacked tree and wrong in a
-   flat list of one kind of row. This rail keeps its edge, exactly as the comment on
-   that rule says it does. */
-.qcms-question-rail__panels {
+   row's accent edge, which is right in the form rail's stacked tree and wrong here.
+   This rail keeps its edge, exactly as the comment on that rule says it does. */
+.qcms-question-rail__panels.qcms-rail__group {
   margin-block: var(--admin-rail-row-gap) 0.375rem;
+  margin-inline-start: 0.75rem;
 }
 
 /* One panel row: the shared rail link geometry on a `<button>`, stacked, which is
