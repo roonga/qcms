@@ -36,17 +36,6 @@ import type { AdminSession } from "./session.ts";
  * leaves its screen's own 404 or error alert to speak, and a validation that fails gets a
  * rail with no badges rather than one quietly claiming every step is clean. The screen has
  * already read the same form for itself, so a rail is never the only thing on a page.
- *
- * ## One screen asks for the siblings only, and then there is nothing to validate
- *
- * The builder's rail carries §7's sibling group and no children (issue 561). The
- * derivation is §7's own: a step item is `/forms/{id}#step-{stepId}`,
- * which is a cross-route link everywhere else and a bare same-page fragment on the
- * builder, and §7 says the rail "never carries same-page section switches". With no step
- * rows there is no badge, and with no badge the dry-run validation buys nothing - so
- * {@link loadFormRail} skips it rather than paying for a verdict nothing renders. That is
- * this module doing the job its own note above claims: being the one place the rail's cost
- * is decided.
  */
 
 /** What a rail needs about one form, once its reads have landed. */

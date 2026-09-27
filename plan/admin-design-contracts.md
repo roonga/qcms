@@ -47,9 +47,9 @@ to the drawing."_ **That is no longer the rule.** Where `plan/admin-shell-poc/*.
 contract here disagree, the POC is the approved design and this document is what changes.
 
 The Code Owner's example, and the case that prompted the ruling: `question-editor-poc.html`
-draws a rail carrying a `.rail-lifecycle` **action block** (`:589-598`). §7 says the rail
-never carries actions. That §7 clause was overruled during the POC work, and the ruling
-stands generally rather than only for that screen.
+draws a rail carrying a `.rail-lifecycle` **action block** (`:589-598`), which §7 then
+forbade. That clause was overruled during the POC work, the ruling stands generally rather
+than only for that screen, and §7 no longer carries it.
 
 **A blocker this seat raised and then withdrew.** I first recorded that "the POC wins" was
 underdetermined because the eleven POCs contradict each other, citing four rail contracts and
@@ -861,8 +861,7 @@ closes with it.
 - The rail carries **navigation within one form's subtree**: the form's children
   (its steps, with per-step issue badges) and the form's sibling screens
   (Builder, **Rules**, Preview, Versions, Links, Responses, Webhooks). A question's
-  version list counts as children on the question detail screen. ~~That is the whole
-  contract: two groups, in that order, with one divider.~~
+  version list counts as children on the question detail screen.
 
   **Rules is the seventh, added 2026-09-06 with the build below (issue #669).** It
   sits directly after the Builder row and the steps nested under it, which is where
@@ -889,28 +888,21 @@ closes with it.
   alone: it is a same-page view switch, and on the other seven form screens the
   Builder row is already the link that reaches those panels.
 
-- ~~The rail never carries actions (no lifecycle buttons - those belong in the
-  main column), never carries same-page section switches~~, and never carries a
-  route the audit rejected (Validation stays on the builder page,
+- The rail **may carry actions and same-page switches** (Code Owner, 2026-08-25).
+  It never carries a route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
-
-  **Both struck clauses are retired, 2026-08-25 (Code Owner).** The actions half
-  had already been overruled during the POC work - this document says so in its
-  own preamble - and leaving it written here while citing the preamble against it
-  is what made it a source of confusion rather than a rule. It is deleted rather
-  than annotated again.
 
   Two rails already carry actions and both are the approved design: the question
   detail rail's lifecycle block (`question-editor-poc.html`), and the form
   builder's step rows, which `admin-shell-poc.html` draws with a rename, move and
   remove menu on each and an add-step control under them.
 
-  The same-page half goes with it, for the same reason and by the same authority:
-  the builder's step rows select a step on the screen the reader is already on.
-  That is what the drawing has always shown.
+  Same-page switches are what the builder's rail is for: its step rows select a
+  step, and its Form details row selects the form's own panels, on the screen the
+  reader is already on. That is what the drawing has always shown.
 
   **Rule editing DOES move to its own route, unlike Validation. Ruled 2026-09-05
-  (Code Owner), issue #669.** The struck clause above rejects one route, and that
+  (Code Owner), issue #669.** The clause above rejects one route, and that
   rejection stands: Validation stayed a **selection on the builder page** (issue
   #659, built as #719), because its entries are focus-moving anchors into the
   builder's own controls and the same list is reused verbatim for a refused
@@ -1089,50 +1081,6 @@ child route rendered, a sibling rail needs a **parallel route slot**, and the sh
 has to understand one. #559 taught four files about it rather than filtering it out, which is
 the standard for the next two rails as well.
 
-**Amendment, 2026-08-22 (blocking #561): on the builder, the rail carries the
-sibling-screens group only.**
-
-PR #621 made Links its reference screen and declined to answer what the rail does on the
-**builder**, which already renders a step list that is an _editor_ - buttons, same-page
-selection, add, rename, reorder, remove. Adding §7's children group there would put two step
-lists on one screen disagreeing about what a step row is. #561 wires all eight screens
-including the builder, so this cannot stay open.
-
-**§7 already decides it, and the derivation matters more than the answer.** A step item links
-to `/forms/{formId}#step-{stepId}`. On every other form-subtree screen that is a cross-route
-link. **On the builder it is the same route** - a bare fragment - which is precisely what §7's
-existing clause bars:
-
-> The rail never carries actions [...] **never carries same-page section switches** [...]
-
-So the children group is not merely redundant on the builder, it is **already forbidden**. No
-new rule is needed and none is invented here.
-
-> **REVERSED, 2026-08-25 (Code Owner).** The clause this rests on is retired above, so its
-> conclusion goes with it. **The builder carries its steps like every other screen in the
-> subtree**, and they are nested inside the Form row rather than stacked above the six
-> sections - which is what `admin-shell-poc.html` has drawn all along, complete with the
-> per-step menu and the add-step control.
->
-> The reasoning below was sound from the clause it cited and is kept for the record, but
-> the outcome it produced was a builder with its steps in a second list inside the page,
-> beside a rail that had none: one screen with two step lists and no single place that
-> owned them.
-
-- **The builder's rail renders one group**: Builder / Preview / Versions / Links / Responses /
-  Webhooks, with Builder marked active.
-- **There is therefore no divider on that screen.** §7's "two groups, in that order, with one
-  divider" describes the rail's contents where both groups exist. A missing divider on the
-  builder is the rule working, not a defect, and a reviewer should not read it as one.
-- **The builder's existing step editor remains the single step list**, and keeps its buttons.
-  It is content, not navigation, which is why §7 never reached it.
-- **One shared component still.** Omitting a group is _data_ passed to the rail, not a
-  per-screen copy of it, so the "no per-screen copies" clause is untouched.
-
-**What this does not settle.** Whether the builder's step editor should eventually _look_
-like the rail's step group, or move, is a builder-layout question and remains open. It is not
-answered by making it a second rail, and nothing here licenses that.
-
 ### 7a. Settings keeps a rail, as a written exception
 
 **[Code Owner ruling, 2026-08-20 - decision C1 closed]** Settings keeps its rail.
@@ -1149,9 +1097,9 @@ here, with its boundary defined. Two honest notes before the contract:
    something had to be drawn, because "Settings has a rail" without a scope is
    precisely the silent third contract the condition forbids.
 2. **This is a genuinely different pattern, not the same rail on another screen.**
-   The form-subtree rail (§7) carries navigation between _routes_ and explicitly
-   never carries same-page section switches. A Settings rail can only carry
-   same-page section switches, because Settings is one route. So the exception is
+   The form-subtree rail (§7) carries navigation between _routes_, plus same-page
+   switches on a screen that has panels to select. A Settings rail can only carry same-page section
+   links, because Settings is one route. So the exception is
    not "the rail also appears on Settings" - it is a second, narrower component
    that happens to occupy the same grid column.
 

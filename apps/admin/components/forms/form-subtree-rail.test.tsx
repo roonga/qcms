@@ -14,8 +14,8 @@ import type { RailCurrent } from "../../lib/forms/subtree-rail.ts";
  *
  * - **Anchors, not buttons.** §7 says so, and the reason is not styling: an anchor can be
  *   middle-clicked, opened in a new tab and followed with JavaScript disabled, and a
- *   button can do none of those. It is asserted by counting `<button>`, which is also how
- *   "the rail never carries actions" is asserted - the two clauses have the same tell.
+ *   button can do none of those. It is asserted by counting `<button>`. The builder's
+ *   interactive step rows are buttons by design, and live in `rail-steps.tsx`, not here.
  * - **One divider between two groups**, and none when there is only one group.
  * - **A disclosure that is a real one.** A native `<details open>` gives the collapsed
  *   state its keyboard operation and its announced state for free; something rebuilt out
