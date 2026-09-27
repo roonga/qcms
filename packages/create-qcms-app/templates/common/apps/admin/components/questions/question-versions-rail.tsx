@@ -76,8 +76,10 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  * (`docs/admin-constraints.md`: an anchor navigates, a button acts).
  *
  * This component stays a **server** component: the panel rows are a client child and the
- * actions arrive as a slot, so nothing here ships JavaScript of its own and the version list,
- * the details and the back link are all rendered once, on the server, from the address.
+ * actions arrive as a slot, so the version list, the details and the back link are resolved
+ * once, on the server, from the address. That buys a correct FIRST PAINT rather than reach -
+ * the admin requires JavaScript (Code Owner, 2026-09-27) - and it is what lets the marked row
+ * and the rendered panel agree before anything has hydrated.
  */
 export function QuestionVersionsRail({
   questionId,

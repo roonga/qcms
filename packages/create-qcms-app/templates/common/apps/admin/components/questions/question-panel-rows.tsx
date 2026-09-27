@@ -25,11 +25,11 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * The version rows they nest under stay anchors for the same rule read the other way: a version
  * is a different address (`?v=3`) and middle-clicking one has to work.
  *
- * **JavaScript is required and there is no fallback** (Code Owner, 2026-09-27), which is the
- * Settings rail's position and `docs/admin-constraints.md`'s: the POCs are the design and
- * "JavaScript is available and a design may depend on it". Nothing here renders a dead anchor
- * for a reader who has none, and the editor beside it required JavaScript before this change
- * anyway - it posts its document as one serialized field.
+ * **The admin requires JavaScript** (Code Owner, 2026-09-27), so there is no fallback here and
+ * none is wanted. Nothing renders a dead anchor for a reader who has none. That is a property
+ * of the app rather than a concession this component negotiated: the Settings rail already
+ * switches its panels the same way, and `docs/admin-constraints.md` puts the POCs in charge of
+ * the design.
  *
  * ## Why the rows exist before the editor has published anything
  *

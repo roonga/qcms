@@ -41,14 +41,12 @@ import { PANEL_PARAM, type QuestionPanel, type QuestionPanelId } from "./panels.
  * Nothing here mutates the document. The editor remains its single owner, which is R2's shape
  * applied inside the client.
  *
- * ## JavaScript is required here, by design
+ * ## JavaScript is required here, because the admin requires it
  *
- * There is no scriptless fallback and none is wanted (Code Owner, 2026-09-27).
- * `docs/admin-constraints.md` is explicit on both halves: the POCs are the design, and
- * "JavaScript is available and a design may depend on it". The no-script floor is the
- * respondent portal's constraint, not this app's - and the question editor already required
- * JavaScript before this change, because it posts its document as one serialized field
- * (`components/questions/question-editor.tsx`).
+ * **The admin requires JavaScript (Code Owner, 2026-09-27)**, so a store that only a hydrated
+ * client can read costs this screen nothing, and there is no scriptless fallback to write. The
+ * no-script floor is the respondent portal's constraint and has never been this app's; on this
+ * side `docs/admin-constraints.md` puts the POCs in charge of the design.
  *
  * ## `choose`, not `select`
  *

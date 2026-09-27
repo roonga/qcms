@@ -67,11 +67,13 @@ import { OptionGridEditor } from "./option-grid-editor";
  * server side to `JSON.parse` and forward, and keeps the kernel the only thing that has
  * ever decided what a question is.
  *
- * The trade is that editing needs JavaScript. That is a deliberate, narrow concession:
- * 031's credential screens still work with JavaScript off (a respondent or an operator
- * must always be able to sign in), but an authoring tool with a live option list and a
- * per-type constraint panel is not a form that degrades meaningfully, and the operator
- * audience is internal (ARCHITECTURE §6).
+ * **This costs nothing in reach: the admin requires JavaScript** (Code Owner, 2026-09-27).
+ * The sentence here used to offer 031's credential screens as the counterweight - "those
+ * still work with JavaScript off" - which read as though a no-script floor were a property
+ * this app trades against screen by screen. It is not one, and it never was the reason those
+ * screens are plain-form POSTs: they are named route handlers so that **credentials never
+ * pass through client JavaScript at all** (ADR-35, SEC-1). That is a security boundary rather
+ * than a degradation budget, and it is unaffected by what this editor needs.
  *
  * ## ONE PANEL AT A TIME, CHOSEN FROM THE RAIL (Code Owner, 2026-09-27)
  *
