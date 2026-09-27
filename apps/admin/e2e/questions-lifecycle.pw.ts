@@ -1,5 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -587,8 +589,14 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   const label = page.locator('[data-option-index="0"] .qcms-opt-cell--label');
   const id = page.locator('[data-option-index="0"] .qcms-opt-cell--id');
 
-  // Wide: three columns, so the ID sits to the RIGHT of the label on the same line.
+  // SETTLE AFTER EACH RESIZE BEFORE MEASURING. The fold is a CONTAINER query on the grid, so
+  // it re-resolves when the column's width changes, and `setViewportSize` resolves on the
+  // resize rather than on the frame that reflowed from it. This screen got taller than the
+  // viewport at 390 when the editor became one panel under a collapsed rail, which is what
+  // made the unsettled read start returning a box from the frame in between - the ID above
+  // the label rather than folded under it, on a grid that folds correctly once it has.
   await page.setViewportSize({ width: 1280, height: 800 });
+  await settleTransitions(page);
   const wideLabel = await label.boundingBox();
   const wideId = await id.boundingBox();
   expect(wideLabel).not.toBeNull();
@@ -601,6 +609,7 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   // is a CONTAINER query on the grid, not a viewport media query, so the same DOM reflows
   // and no option id is ever rendered twice.
   await page.setViewportSize({ width: 390, height: 844 });
+  await settleTransitions(page);
   const tightLabel = await label.boundingBox();
   const tightId = await id.boundingBox();
   expect(tightLabel).not.toBeNull();
