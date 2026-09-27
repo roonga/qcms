@@ -8,7 +8,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { appearanceTrigger, enrollNewAdmin, openMenu, signInWithTotp } from "./support/flow.js";
 import { chooseOption } from "./support/forms.js";
-import { createDraft } from "./support/questions.js";
+import { createDraft, openPanel } from "./support/questions.js";
 
 /**
  * The preview theme island (task 058, ADR-38), driven through the browser.
@@ -201,6 +201,11 @@ function typeScaleOf(target: Locator): Promise<Record<string, string>> {
  */
 async function openPreview(page: Page, name: string, typeLabel = "Multiple choice"): Promise<void> {
   await createDraft(page, `e2e-island-${name}-${RUN}`, typeLabel);
+  // THE PREVIEW IS A PANEL NOW (Code Owner, 2026-09-27). It was a card above the editor, on
+  // screen whatever the author was doing; it is the last row of the question rail, and the
+  // column shows one panel at a time. Every case in this file reaches the island through
+  // here, so this is the only line that moved.
+  await openPanel(page, "preview");
   await expect(island(page)).toBeVisible();
   await settleTransitions(page);
 }

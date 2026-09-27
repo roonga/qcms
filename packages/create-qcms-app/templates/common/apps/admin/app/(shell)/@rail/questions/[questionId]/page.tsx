@@ -67,7 +67,7 @@ export default async function QuestionDetailRail({
   const selected = selectVersion(rail.versions, query["v"]);
   if (selected === undefined) return null;
   const latest = rail.versions[rail.versions.length - 1];
-  const panels = questionPanels(selected.definition);
+  const panels = questionPanels(selected.definition, { withPreview: true });
 
   return (
     <QuestionVersionsRail

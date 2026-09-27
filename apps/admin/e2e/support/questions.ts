@@ -25,14 +25,16 @@ export function field(page: Page, name: string): Locator {
 
 /** The panels of the question editor, as the rail addresses them. */
 export type QuestionPanelName =
-  "content" | "options" | "constraints" | "messages" | "booleanLabels";
+  "content" | "options" | "constraints" | "messages" | "booleanLabels" | "preview";
 
 /**
  * Open one panel of the question editor from the rail (Code Owner, 2026-09-27).
  *
- * The detail screen shows the preview and **one** panel of the selected version, chosen from
- * rows in the rail beside it (`lib/questions/panels.ts`). So a step that fills a constraint, an
- * option or a message names the panel it is working in first, exactly as an author does.
+ * The detail screen shows **one** panel of the selected version, chosen from rows in the rail
+ * beside it (`lib/questions/panels.ts`). So a step that fills a constraint, an option or a
+ * message names the panel it is working in first, exactly as an author does - and so does one
+ * that reads the preview, which is the last row rather than a card above the editor (Code
+ * Owner, 2026-09-27).
  *
  * `/questions/new` needs none of this and must not call it: the creation screen has no rail and
  * shows every panel at once, because creation is one pass through a short document.

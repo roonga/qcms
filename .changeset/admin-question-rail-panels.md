@@ -40,6 +40,16 @@ address names. Six consequences worth reading before changing any of it:
   type is now stated **once**, with its locked status, beside the question's other permanent facts
   (R6); the second statement of it inside the version card is deleted, and
   `questions.editor.typeLocked` with it.
+- **The preview is the last panel rather than a card above the editor** (Code Owner,
+  2026-09-27). It held the top of the column permanently for a question that is only asked at
+  the end. It is a row like the others now, opening on the same screen, and it is the one panel
+  that shows the STORED version rather than the document being typed - which it says out loud,
+  and only while the two differ. It renders outside the `<form>`, because a compiled respondent
+  view carries live controls of its own and every one of them inside the editor's form would be
+  posted with the document.
+- **The rail is styled like the form builder's** (Code Owner, 2026-09-27): the same `qcms-rail*`
+  and `qcms-rail-steps*` row geometry, current-row mark, child nesting, issue badge and
+  control block. Six classes of a look of its own are deleted with it.
 - **Save stays in the column, as a sticky footer of the version card.** It is deliberately not
   moved into the rail, which collapses to a shut disclosure on a narrow viewport - a save an author
   has to expand a navigation to reach is worse than one they have to scroll to. `ManualSaveNote`

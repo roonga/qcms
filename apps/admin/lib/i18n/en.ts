@@ -386,6 +386,9 @@ export const messages = {
   "questions.panel.constraintTo": "to {value}",
   "questions.panel.constraintPattern": "pattern",
   "questions.panel.constraintInteger": "whole numbers",
+  // The Preview row is last and is the one panel that is not a set of fields, so its digest
+  // says what it is for rather than what is in it.
+  "questions.panel.previewDigest": "As a respondent sees it",
 
   "questions.options.legend": "Options",
   "questions.options.note":
@@ -418,6 +421,10 @@ export const messages = {
   "questions.preview.note":
     "Rendered by the same engine that serves a respondent, so this is exactly what they will see. Nothing typed here is saved.",
   "questions.preview.unavailable": "This version could not be rendered. {message}",
+  // Shown only while the editor is holding an edit the stored version does not have: the
+  // preview is compiled by the API from what was saved, so it cannot show what was typed.
+  "questions.preview.stale":
+    "This preview is the version that was last saved. Save the draft to see your latest changes here.",
 
   // The preview theme island (task 058, ADR-38). Two controls above every preview,
   // shared by the question preview, the draft preview and the published version view.

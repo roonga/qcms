@@ -190,10 +190,11 @@ describe("the question rail's markup", () => {
     const rows = [...html.matchAll(/data-rail-panel="([^"]+)"/gu)].map((match) => match[1]);
     // One set of rows, not one per version: the editor is showing one version.
     expect(rows).toStrictEqual(PANELS.map((panel) => panel.id));
-    // Nested INSIDE the selected row, between it and the next version's row.
+    // Nested INSIDE the selected row, between it and the next version's row - the same shape
+    // the builder's steps take inside its Form row.
     const selectedRow = html.indexOf('data-rail-version="2"');
     const olderRow = html.indexOf('data-rail-version="1"');
-    const panels = html.indexOf('data-rail-panels=""');
+    const panels = html.indexOf('data-rail-group="panels"');
     expect(selectedRow).toBeLessThan(panels);
     expect(panels).toBeLessThan(olderRow);
   });
@@ -215,10 +216,27 @@ describe("the question rail's markup", () => {
     expect(await render()).not.toContain("aria-controls");
   });
 
-  it("keeps the panel list out of the form rail's group attribute", async () => {
-    // `[data-rail-group]` is what `app/globals.css` keys the "no accent edge" rule off, and
-    // this rail keeps its edge: it is a flat list of one kind of row.
-    expect(await render()).not.toContain("data-rail-group");
+  it("wears the form builder's row and group classes, on the 2026-09-27 ruling", async () => {
+    // The Code Owner's direction is that this rail is styled like the builder's, so what is
+    // asserted is the shared vocabulary rather than a look of its own: rows are
+    // `.qcms-rail__link`, groups carry `data-rail-group`, and the six question-only classes
+    // that used to draw a header row, a dashed lifecycle rule and two bespoke two-line rows
+    // are gone.
+    const html = await render();
+    expect(html).toContain('data-rail-group="versions"');
+    expect(html).toContain('data-rail-group="panels"');
+    expect(html).toContain('class="qcms-rail__link qcms-rail__link--stacked"');
+    expect(html).toContain('class="qcms-rail__row"');
+    expect(html).toContain('class="qcms-rail__sub"');
+    for (const retired of [
+      "qcms-question-rail__label",
+      "qcms-question-rail__title",
+      "qcms-question-rail__version",
+      "qcms-question-rail__panel-row",
+      "qcms-question-rail__panel-digest",
+    ]) {
+      expect(html, `${retired} has a builder equivalent now`).not.toContain(retired);
+    }
   });
 
   it("marks one version row and one panel row current, and no more", async () => {

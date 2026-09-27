@@ -174,6 +174,43 @@ describe("what a panel row says about itself", () => {
   });
 });
 
+describe("the preview panel", () => {
+  it("is absent unless the caller says there is a saved version to show", () => {
+    // `/questions/new` has no rail to reach a panel from and nothing stored for the API to
+    // compile, so a Preview row there would open a panel with nothing in it.
+    expect(ids(definition("shortText"))).not.toContain("preview");
+    expect(
+      questionPanels(definition("shortText"), { withPreview: true }).map((panel) => panel.id),
+    ).toContain("preview");
+  });
+
+  it("is last, after everything the author can edit", () => {
+    const panels = questionPanels(
+      definition("boolean", { required: true, yesLabel: { en: "Agree" } }),
+      { withPreview: true },
+    );
+    expect(panels.map((one) => one.id)).toStrictEqual([
+      "content",
+      "messages",
+      "booleanLabels",
+      "preview",
+    ]);
+  });
+
+  it("carries no fields, so a refusal can never open it", () => {
+    const panels = questionPanels(definition("shortText", { required: true }), {
+      withPreview: true,
+    });
+    const preview = panels.find((one) => one.id === "preview");
+    expect(preview?.fields).toStrictEqual([]);
+    expect(renderedQuestionFields(panels).has("preview")).toBe(false);
+    // Even an issue at a path nothing renders leaves it alone: it has nothing to count.
+    const counts = panelIssueCounts(panels, [issue(["label"]), issue(["nowhere"])]);
+    expect(counts.has("preview")).toBe(false);
+    expect(firstPanelWithIssue(panels, counts)).toBe("content");
+  });
+});
+
 describe("the fields each panel is able to show", () => {
   it("puts every rendered field in exactly one panel", () => {
     const panels = questionPanels(

@@ -41,13 +41,14 @@ import type { QuestionPanel, QuestionPanelId } from "@/lib/questions/panels";
  * its live list instead, so a digest follows the document as it is typed rather than the last
  * save - add an option and "8 options" becomes "9 options" here.
  *
- * ## Why there is no `data-rail-group`
+ * ## The builder's classes, on the builder's instruction
  *
- * The form-subtree rail emits that attribute, and `app/globals.css` keys a rule off it that
- * REMOVES the active row's accent edge - correct there, where a screen row, a selection row and
- * a step ordinal all mark the same place at once, and wrong here. The stylesheet's own comment
- * says so: "the settings and question rails keep their edge: they are flat lists of one kind of
- * row". `data-rail-panels` is this list's hook, deliberately outside that selector.
+ * **Code Owner, 2026-09-27: this rail wears the form builder's styling.** So a panel row is a
+ * `.qcms-rail__link` with `data-rail-item`, the list is a `.qcms-rail__group` with
+ * `data-rail-group`, and the badge is the same `.qcms-tag--draft` count the builder's step rows
+ * carry. `data-rail-group` also opts this list into the builder's marker treatment - a tint and
+ * a heavier weight, no accent edge - which is the right answer for a nested tree where a parent
+ * row and a child row are both current at once, and which is why the rule exists there.
  */
 export function QuestionPanelRows({
   panels,
@@ -71,7 +72,7 @@ export function QuestionPanelRows({
     <ul
       className="qcms-rail__group qcms-question-rail__panels"
       aria-label={t("questions.rail.panels")}
-      data-rail-panels=""
+      data-rail-group="panels"
     >
       {rows.map((panel) => {
         const issueCount = counts?.get(panel.id) ?? 0;
@@ -79,7 +80,8 @@ export function QuestionPanelRows({
           <li key={panel.id}>
             <button
               type="button"
-              className="qcms-rail__link qcms-question-rail__panel"
+              className="qcms-rail__link qcms-rail__link--stacked qcms-question-rail__panel"
+              data-rail-item={`panel:${panel.id}`}
               // NO `aria-controls`, and that is a correction rather than an omission. The
               // Settings rail's rows carry one, because that screen renders all three of its
               // panels and hides the two it is not showing - so every id a row names is in the
@@ -100,7 +102,7 @@ export function QuestionPanelRows({
                 chooseQuestionPanel(panel.id);
               }}
             >
-              <span className="qcms-question-rail__panel-row">
+              <span className="qcms-rail__row">
                 <span>{panel.label}</span>
                 {issueCount > 0 && (
                   // The builder's step badge, on the same tag and with the same rule behind it:
@@ -114,8 +116,9 @@ export function QuestionPanelRows({
               </span>
               {/* The digest, under the name, where a version row puts its published date: the
                   two kinds of row in this rail then have the same two-line shape rather than
-                  one being a line and the other a block. */}
-              <span className="qcms-question-rail__panel-digest">{panel.digest}</span>
+                  one being a line and the other a block. `.qcms-rail__sub` is that one
+                  treatment, shared with the version rows. */}
+              <span className="qcms-rail__sub">{panel.digest}</span>
             </button>
           </li>
         );

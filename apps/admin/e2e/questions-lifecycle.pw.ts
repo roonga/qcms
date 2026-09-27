@@ -675,6 +675,7 @@ test("a long label-derived option id renders whole at both gate widths", async (
 test("the version preview renders the real control for the type", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("preview"), "Long text");
+  await openPanel(page, "preview");
 
   // The preview is compiled by the API and drawn by the shared renderer, so what appears
   // here is literally the control a respondent gets: a long-text question compiles to a
@@ -711,6 +712,7 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // Multiple choice, because the checkbox is the control the defect was found on and the
   // one whose frozen state is most obviously wrong to a human.
   await createDraft(page, slugFor("interactive"), "Multiple choice");
+  await openPanel(page, "preview");
 
   const preview = page.locator(".qcms-preview");
   const yes = preview.getByRole("checkbox", { name: "Yes, always", exact: true });
@@ -757,6 +759,12 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // POSITIVE CONTROL: the recorder above is armed. Saving the draft is the same screen's
   // one deliberate trip to the server, so if this list were also empty the assertion
   // above would be measuring a listener that never fires.
+  //
+  // Save lives with the editing panels rather than with the preview - a panel with nothing
+  // to save says nothing (contract §6) - so the panel switch comes first. It is deliberately
+  // AFTER the assertion above: switching a panel is a `replaceState` and no request, which
+  // this ordering also happens to prove.
+  await openPanel(page, "content");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   expect(requests.length, "the request recorder sees traffic when traffic exists").toBeGreaterThan(
@@ -768,7 +776,8 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // ticks must not reappear under v2's controls, whichever navigation kind Next chooses.
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
-  await page.waitForURL(/\?v=2$/);
+  await page.waitForURL(/\?v=2/);
+  await openPanel(page, "preview");
   await expect(preview.getByRole("checkbox", { name: "Yes, always" })).not.toBeChecked();
 });
 
@@ -1085,6 +1094,7 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
 
   // The preview is compiled by the API and drawn by the shared renderer, so it is where the
   // resolved pair shows: the override for one label, the lexicon for the other.
+  await openPanel(page, "preview");
   const preview = page.locator(".qcms-preview");
   await expect(preview.getByText("I was at fault", { exact: true })).toBeVisible();
   await expect(preview.getByText("No", { exact: true })).toBeVisible();

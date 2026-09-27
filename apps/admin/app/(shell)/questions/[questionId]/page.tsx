@@ -96,6 +96,10 @@ export default async function QuestionDetailPage({
   const isFrozen = selected.status !== "draft";
 
   const preview = await getPreview(session, questionId, selected.version);
+  // Derived once and handed to both the panel resolver and the editor, so the address and the
+  // rendered panel cannot be read off two different lists. `withPreview` is what puts the
+  // Preview row last; the rail's slot passes the same flag for the same reason.
+  const panels = questionPanels(selected.definition, { withPreview: true });
 
   return (
     // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single
@@ -126,27 +130,6 @@ export default async function QuestionDetailPage({
 
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
-          <div className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-(--color-text)">
-              {t("questions.preview.title")}
-            </h2>
-            {preview.ok ? (
-              <QuestionPreview
-                preview={preview.data}
-                resetKey={selected.version}
-                defaultTheme={previewPortalTheme()}
-              />
-            ) : (
-              <Alert variant="warning">
-                {t("questions.preview.unavailable", { message: preview.message })}
-              </Alert>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      <div className="qcms-card">
-        <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
             <h2 className="text-base font-semibold text-(--color-text)">
               {t("questions.editor.heading", { version: selected.version })}
@@ -171,7 +154,25 @@ export default async function QuestionDetailPage({
               initialDefinition={selected.definition}
               version={selected.version}
               isFrozen={isFrozen}
-              addressedPanel={panelFromParams(query, questionPanels(selected.definition))}
+              addressedPanel={panelFromParams(query, panels)}
+              // THE PREVIEW AS A SLOT (Code Owner, 2026-09-27). It was a card of its own above
+              // the editor, on screen whatever the author was doing; it is the last panel row
+              // in the rail now, and the column shows one panel at a time. Compiling it is a
+              // server read, so what crosses into the client editor is the finished subtree -
+              // the same seam the rail takes its lifecycle actions through.
+              preview={
+                preview.ok ? (
+                  <QuestionPreview
+                    preview={preview.data}
+                    resetKey={selected.version}
+                    defaultTheme={previewPortalTheme()}
+                  />
+                ) : (
+                  <Alert variant="warning">
+                    {t("questions.preview.unavailable", { message: preview.message })}
+                  </Alert>
+                )
+              }
             />
           </div>
         </Card>

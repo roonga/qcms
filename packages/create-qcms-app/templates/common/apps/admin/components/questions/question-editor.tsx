@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
 import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
 import { ManualSaveNote } from "@/components/save-model";
@@ -129,6 +129,7 @@ export function QuestionEditor({
   version,
   isFrozen = false,
   addressedPanel,
+  preview,
 }: {
   readonly mode: "create" | "edit";
   readonly action: (state: MutationState, formData: FormData) => Promise<MutationState>;
@@ -143,6 +144,15 @@ export function QuestionEditor({
    * to switch them from and creation is one pass through a short document.
    */
   readonly addressedPanel?: QuestionPanelId;
+  /**
+   * The saved version's preview, rendered by the server, or absent where there is none.
+   *
+   * A slot rather than an import, the same seam the rail takes its lifecycle actions through:
+   * compiling a preview is a server read (`getPreview`) and this is a client component, so
+   * what crosses is the finished subtree. `/questions/new` passes nothing, which is also what
+   * keeps a Preview row off the one screen with no saved version to show.
+   */
+  readonly preview?: ReactNode;
 }) {
   const [state, formAction, isPending] = useActionState(action, IDLE_MUTATION);
   // Seeded from the rejected submission when there is one, so a refusal that arrived via
@@ -152,6 +162,10 @@ export function QuestionEditor({
   const [definition, setDefinition] = useState<QuestionDefinitionView>(
     state.submitted?.definition ?? initialDefinition,
   );
+  // WHAT THE SERVER LAST STORED, for the one panel that shows it rather than the document
+  // being typed. Seeded from the version this editor mounted on and moved forward by a save
+  // that landed, so "the preview is behind" is a fact about this session rather than a guess.
+  const [saved, setSaved] = useState(state.submitted?.definition ?? initialDefinition);
   // And the same restoration when the form was hydrated, where the component is not
   // remounted and the initialiser above never runs again. Adjusting state during render
   // (rather than in an effect) is React's documented answer for "derive from a prop that
@@ -164,6 +178,7 @@ export function QuestionEditor({
       setSlug(state.submitted.slug);
       setDefinition(state.submitted.definition);
     }
+    if (state.status === "saved") setSaved(definition);
   }
 
   const isCreate = mode === "create";
@@ -183,7 +198,10 @@ export function QuestionEditor({
   // Memoized on the state objects rather than recomputed, so the rail is woken when the
   // document or the verdict changes and not when React re-renders this form for any other
   // reason. `definition` and `issueList` are both stable between edits.
-  const panels = useMemo(() => questionPanels(definition), [definition]);
+  const panels = useMemo(
+    () => questionPanels(definition, { withPreview: preview !== undefined }),
+    [definition, preview],
+  );
   const counts = useMemo(() => panelIssueCounts(panels, issueList), [panels, issueList]);
   const leftover = unplacedIssues(issueList, renderedQuestionFields(panels));
 
@@ -254,6 +272,36 @@ export function QuestionEditor({
     if (section === null) return;
     (firstInvalidControl(section) ?? section).focus();
   }, [focusPanel]);
+
+  // THE PREVIEW PANEL IS NOT PART OF THE FORM, and that is structural rather than tidy. It is
+  // a compiled respondent view with live controls of its own - a theme picker, a mode picker
+  // and the question's own control - and every one of those inside this `<form>` would be
+  // posted with the document, or would block the native submit on a constraint the editor
+  // never set. So the panel renders INSTEAD of the form rather than inside it.
+  //
+  // The document survives the switch: it lives in this component's state, not in the DOM, so
+  // walking to Preview and back returns to exactly what was typed. There is no Save footer
+  // here either, by contract §6's own rule - a panel with nothing to save says nothing.
+  if (preview !== undefined && open === "preview" && addressedPanel !== undefined) {
+    return (
+      <section
+        id={panelAnchorId("preview")}
+        tabIndex={-1}
+        className="qcms-question-panel flex flex-col gap-4"
+        data-question-panel="preview"
+      >
+        {/* SAID ONLY WHEN IT IS TRUE (Code Owner, 2026-09-27). The preview is compiled by the
+            API from the STORED version, so an author who has typed a new label and not saved
+            is looking at the old one. Standing text would be noise on the common case (a
+            frozen version, or a draft opened and not touched); this appears exactly when the
+            document in the editor and the document behind the preview have diverged. */}
+        {hasUnsavedEdits(definition, saved) && (
+          <Alert variant="warning">{t("questions.preview.stale")}</Alert>
+        )}
+        {preview}
+      </section>
+    );
+  }
 
   return (
     <form
@@ -381,6 +429,18 @@ export function QuestionEditor({
   );
 }
 
+/**
+ * Whether the editor is holding something the preview cannot be showing yet.
+ *
+ * Compared through {@link forWire}, which is what a save actually sends, so whitespace an
+ * author is part-way through typing and a constraint they set and cleared again both read as
+ * "no change" - the same normalisation the API would apply. Comparing the raw drafts would
+ * announce a stale preview for an edit that is not one.
+ */
+function hasUnsavedEdits(draft: QuestionDefinitionView, saved: QuestionDefinitionView): boolean {
+  return JSON.stringify(forWire(draft)) !== JSON.stringify(forWire(saved));
+}
+
 /** What every panel body is handed. Assembled once, because five of them want overlapping cuts. */
 interface PanelBodyProps {
   readonly panel: QuestionPanel;
@@ -451,6 +511,11 @@ function PanelBody(props: PanelBodyProps) {
           onChange={onPatch}
         />
       );
+    // Never reached: the preview is not a set of fields, so it returns above this switch,
+    // outside the `<form>`. The branch exists because `QUESTION_PANELS` is exhaustive here and
+    // that exhaustiveness is what makes a sixth panel a type error rather than a blank column.
+    case "preview":
+      return null;
   }
 }
 

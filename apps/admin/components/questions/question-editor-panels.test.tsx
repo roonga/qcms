@@ -147,6 +147,79 @@ describe("which panel the column shows", () => {
   });
 });
 
+describe("the preview panel", () => {
+  const PREVIEW = <div data-testid="stub-preview">the compiled respondent view</div>;
+
+  function withPreview(panel: "content" | "preview") {
+    return render(
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={idle()}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel={panel}
+          preview={PREVIEW}
+        />
+        <QuestionPanelRows panels={[]} selected={panel} />
+      </>,
+    );
+  }
+
+  it("renders the slot the server handed in, and nothing of the form with it", () => {
+    withPreview("preview");
+    expect(screen.getByTestId("stub-preview")).toBeTruthy();
+    // Not inside the `<form>`: the preview carries live controls of its own, and every one of
+    // them inside the editor's form would be posted with the document.
+    expect(screen.queryByRole("button", { name: "Save draft" })).toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
+  });
+
+  it("is the last row of the rail, after everything the author can edit", () => {
+    withPreview("content");
+    const labels = screen.getAllByRole("button").map((node) => node.textContent ?? "");
+    const rows = labels.filter((text) =>
+      /^(Content|Constraints|Validation messages|Preview)/u.test(text),
+    );
+    expect(rows[rows.length - 1]).toContain("Preview");
+  });
+
+  it("says nothing about being behind until the editor is actually holding an edit", async () => {
+    withPreview("preview");
+    expect(screen.queryByText(/last saved/u)).toBeNull();
+
+    // Edit from the Content panel, then come back. The document lives in the component rather
+    // than in the DOM, so walking between panels does not lose it - and the preview is now
+    // showing a version the editor no longer matches.
+    fireEvent.click(screen.getByRole("button", { name: /^Content/u }));
+    const label = await screen.findByRole("textbox", { name: "Label" });
+    fireEvent.change(label, { target: { value: "Accidents in the last three years" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+
+    await waitFor(() => {
+      expect(screen.getByText(/last saved/u)).toBeTruthy();
+    });
+    expect(screen.getByTestId("stub-preview")).toBeTruthy();
+  });
+
+  it("never appears where there is no saved version to show", () => {
+    // `/questions/new` passes no preview, so the row is not in the rail and the panel does not
+    // exist - there is nothing stored for the API to compile.
+    render(
+      <QuestionEditor
+        mode="create"
+        action={idle()}
+        initialSlug=""
+        initialDefinition={NUMBER_DEFINITION}
+        version={1}
+      />,
+    );
+    expect(screen.queryByTestId("stub-preview")).toBeNull();
+    expect(document.querySelector('[data-question-panel="preview"]')).toBeNull();
+  });
+});
+
 describe("the rail row and the column, in two React trees", () => {
   function bothTrees(addressedPanel: "content" | "constraints" = "content") {
     return render(

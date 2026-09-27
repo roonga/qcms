@@ -51,6 +51,22 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  * §7 records both as general rules now** rather than as this screen's exception. The clause
  * that forbade them was retired on 2026-08-25.
  *
+ * ## The builder's rail is the look, and this file borrows its classes rather than its shape
+ *
+ * **Code Owner, 2026-09-27: this rail wears the same styling as the form builder's.** So the
+ * rows here are `.qcms-rail__link` with `data-rail-item`, the groups are `.qcms-rail__group`
+ * with `data-rail-group`, the nested panels sit inside the selected version's `<li>` exactly
+ * as the builder's steps sit inside its Form row, the badges are the builder's
+ * `.qcms-tag--draft` count, and the lifecycle controls wear `.qcms-rail-steps__add` - the
+ * treatment its Add step control already had. Six classes went with that change and the
+ * stylesheet says which; what is left of `qcms-question-rail__*` is the four things this rail
+ * has and the builder does not: the mono question id in its summary, the collapsed-only
+ * version indicator, the details group, and the back link above the disclosure.
+ *
+ * The visible "VERSIONS / 3 versions, v2 published" header row went with them. The builder
+ * names a group with `aria-label` on the list rather than with a visible heading, and the
+ * digest is what `RailFrame` puts in the summary as a count tag - so that is where it is now.
+ *
  * ## Anchors for the versions, buttons for the panels and the actions
  *
  * Which version is selected and which panel is open are both facts about the address, so both
@@ -189,15 +205,6 @@ export function QuestionVersionsRail({
               </>
             )}
           </dl>
-          {/* A labelled row rather than a heading, and that is a choice about heading order
-              rather than an oversight: the rail renders before `<main>` in document order, so
-              a heading here would sit above the screen's `<h1>` and be a `heading-order`
-              violation on this screen in all three modes (`e2e/a11y-axe.pw.ts` says so). The
-              POC draws this row rather than a heading for its own version of that reason. */}
-          <div className="qcms-question-rail__label">
-            <span className="qcms-question-rail__title">{t("questions.detail.versions")}</span>
-            <span className="qcms-question-rail__digest">{digest}</span>
-          </div>
           {actions}
           {/* Named after the question, because a screen reader listing landmarks on this
               screen otherwise sees "navigation" beside "navigation" and cannot tell the rail
@@ -210,21 +217,33 @@ export function QuestionVersionsRail({
               them - the builder's rail nests its steps inside the Form row for the same
               reason. A `<nav>` that also contains the switches for the thing it navigated to
               is what the form builder's rail already is. */}
+          {/* The digest, as one muted line above the list rather than as the uppercase header
+              row with a right-aligned count this rail used to draw. `RailFrame` puts a rail's
+              count in the summary as a tag, and that tag is the builder's amber ISSUE count -
+              the wrong thing to borrow for a neutral "3 versions, v2 published". What the two
+              rails genuinely share is the muted secondary treatment, so this takes that and
+              nothing else. */}
+          <p className="qcms-rail__sub qcms-question-rail__digest">{digest}</p>
           <nav aria-label={t("questions.rail.label", { questionId })}>
             {/* An unordered list, though versions are numbered: the ordinal is on every row
                 already and is the version number itself, so an `<ol>` would have a screen
                 reader read a position that disagrees with the label beside it as soon as the
                 newest-first order puts version 4 in position 1. */}
-            <ul className="qcms-rail__group">
+            <ul
+              className="qcms-rail__group"
+              aria-label={t("questions.detail.versions")}
+              data-rail-group="versions"
+            >
               {items.map((item) => (
                 <li key={item.key}>
                   <Link
                     href={item.href}
-                    className="qcms-rail__link qcms-question-rail__version"
+                    className="qcms-rail__link qcms-rail__link--stacked"
+                    data-rail-item={item.key}
                     data-rail-version={item.version}
                     {...(item.isCurrent ? { "aria-current": "page" as const } : {})}
                   >
-                    <span className="qcms-question-rail__version-row">
+                    <span className="qcms-rail__row">
                       <span>{t("questions.detail.version", { version: item.version })}</span>
                       <StatusTag status={item.status} />
                     </span>
@@ -232,7 +251,7 @@ export function QuestionVersionsRail({
                         of TABLES onto the operator's zone, and this is a rail. The same
                         note is on the details group above, which is the other surface that
                         can now disagree with a table about which day an instant fell on. */}
-                    <span className="qcms-question-rail__version-date">
+                    <span className="qcms-rail__sub">
                       {item.publishedAt === null
                         ? t("questions.detail.unpublished")
                         : t("questions.detail.publishedAt", { date: formatDay(item.publishedAt) })}

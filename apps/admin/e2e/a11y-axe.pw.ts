@@ -46,6 +46,7 @@ import {
   field,
   fillDate,
   grip,
+  openPanel,
   optionIds,
   pendingRow,
 } from "./support/questions.js";
@@ -518,7 +519,15 @@ test("the question library, its editor and a question's detail have zero violati
     page.waitForURL(/\/questions\/q_/),
     page.getByRole("button", { name: "Create draft" }).click(),
   ]);
-  await expectNoViolations(page, "question detail with preview");
+  await expectNoViolations(page, "question detail, editor panel");
+
+  // THE PREVIEW IS ITS OWN PANEL NOW (Code Owner, 2026-09-27), reached from the last row of
+  // the rail rather than standing above the editor. It carries a compiled respondent view in
+  // a theme of its own, so it is a different contrast question in every mode from the panel
+  // above, and a first-render-only sweep would never reach it.
+  await openPanel(page, "preview");
+  await expectNoViolations(page, "question detail, preview panel");
+  await openPanel(page, "content");
 
   // The confirmation dialog is analysed open: a focus-trapped alertdialog is exactly the
   // state a first-render-only gate would miss.

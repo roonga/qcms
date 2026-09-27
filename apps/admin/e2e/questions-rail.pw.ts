@@ -257,7 +257,7 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
   const rail = page.getByTestId("qcms-question-rail");
   // ONE SET OF ROWS, UNDER THE SELECTED VERSION. The editor shows one version, so rows under
   // every version would be rows that cannot do what they say.
-  await expect(rail.locator("[data-rail-panel]")).toHaveCount(2);
+  await expect(rail.locator("[data-rail-panel]")).toHaveCount(3);
   const selectedRow = rail.locator(
     `.qcms-question-rail__version[data-rail-version="${String(fixture.draftVersion)}"]`,
   );
@@ -266,12 +266,18 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
     "the panels are the selected row's own children",
   ).toHaveCount(1);
 
-  // The fixture is a short-text question, so Content and Constraints and nothing else: no
-  // options to list, and no message key until a constraint or `required` gives it one.
+  // The fixture is a short-text question, so Content, Constraints and Preview and nothing
+  // else: no options to list, and no message key until a constraint or `required` gives it
+  // one. Preview is LAST, after everything the author can edit.
   await expect(rail.locator('[data-rail-panel="content"]')).toBeVisible();
   await expect(rail.locator('[data-rail-panel="constraints"]')).toBeVisible();
+  await expect(rail.locator('[data-rail-panel="preview"]')).toBeVisible();
   await expect(rail.locator('[data-rail-panel="options"]')).toHaveCount(0);
   await expect(rail.locator('[data-rail-panel="messages"]')).toHaveCount(0);
+  await expect(rail.locator("[data-rail-panel]").last()).toHaveAttribute(
+    "data-rail-panel",
+    "preview",
+  );
 
   // FIRST PAINT, BEFORE ANY PRESS: the marked row and the rendered panel are two trees reading
   // one address through one function, so they agree with nothing having hydrated.
@@ -433,4 +439,41 @@ test("2026-09-27 opens the same panels on a frozen version, read-only", async ({
   await expect(field(page, "Shortest answer")).toBeDisabled();
   // And nothing to save, so contract §6's read-only clause applies: no footer at all.
   await expect(page.locator(".qcms-question-editor__footer")).toHaveCount(0);
+});
+
+test("2026-09-27 makes the preview the last panel, showing what was last saved", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // NOT ON SCREEN UNTIL IT IS ASKED FOR. The preview was a card above the editor whatever the
+  // author was doing; it is a panel like the others now, so the column shows one thing.
+  await expect(page.locator(".qcms-preview")).toHaveCount(0);
+
+  await openPanel(page, "preview");
+  await expect(page.locator(".qcms-preview")).toBeVisible();
+  // Its own theme and mode controls come with it (task 058's island), and the editing fields
+  // do not: the column shows the selected panel and nothing else.
+  await expect(page.getByTestId("qcms-preview-switcher")).toBeVisible();
+  await expect(field(page, "Label")).toHaveCount(0);
+  await expect(
+    page.getByRole("main").getByRole("button", { name: "Save draft" }),
+    "a panel with nothing to save says nothing (contract 6)",
+  ).toHaveCount(0);
+
+  // IT SHOWS WHAT WAS SAVED, AND SAYS SO WHEN THAT IS BEHIND. The preview is compiled by the
+  // API from the stored version, so an edit that has not been saved cannot be in it - which
+  // is a sentence the panel only carries while it is true.
+  await expect(page.getByText(/last saved/u)).toHaveCount(0);
+  await openPanel(page, "content");
+  await field(page, "Label").fill("Edited but not saved");
+  await openPanel(page, "preview");
+  await expect(page.getByText(/last saved/u)).toBeVisible();
+  // And the document survived the walk between panels: it lives in the editor's state rather
+  // than in the DOM the panel switch replaced.
+  await openPanel(page, "content");
+  await expect(field(page, "Label")).toHaveValue("Edited but not saved");
 });

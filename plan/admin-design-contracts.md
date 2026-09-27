@@ -959,6 +959,13 @@ closes with it.
   per-panel issue badge after a refused save - the builder's step-badge device on
   a second screen.
 
+  **Preview is the last of those rows.** It was a card standing above the editor,
+  on screen whatever the author was doing, so it held the top of the column
+  permanently for a question that is only asked at the end. It is a panel like the
+  others now, opened on the same screen rather than at a route of its own, and it
+  is the one panel that shows the STORED version rather than the document being
+  typed - which the panel says out loud, and only while the two differ.
+
   The same amendment moves the question's own details into that rail (slug,
   created day, and the **type stated once** with its locked status) and the "Back
   to questions" link to the top of it, above the disclosure so it survives the
@@ -967,10 +974,22 @@ closes with it.
   below `--bp-sidebar` and a save an author has to expand a navigation to reach is
   worse than one they have to scroll to.
 
+  **This rail is STYLED like the form builder's** (Code Owner, 2026-09-27). It
+  takes the same `qcms-rail*` and `qcms-rail-steps*` classes: the same row
+  geometry and typography, the same current-row mark, the same nesting of children
+  inside their parent's row, the same issue badge, and the same full-track control
+  block for its lifecycle buttons that the builder's Add step control wears. Six
+  classes of a look of its own went with that: a labelled header row and its
+  right-aligned digest, the lifecycle block's dashed rule, and two bespoke
+  two-line row treatments. Four remain, for the four things this rail has and the
+  builder does not - the mono question id in its summary, the collapsed-only
+  version indicator, the details group, and the back link above the disclosure.
+
   So three rails now answer "what does a rail carry" three ways: routes (§7),
   same-page panels (§7a), and both at once here. They remain three components for
   the reason §7a gives - a flag would be the seam along which the three contracts
-  get unified.
+  get unified - and they now look like one family, which is what the styling
+  ruling settles.
 
 - The rail **may carry actions and same-page switches** (Code Owner, 2026-08-25).
   It never carries a route the audit rejected (Validation stays on the builder page,

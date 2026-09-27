@@ -37,10 +37,17 @@ import type { DefinitionIssue, QuestionDefinitionView } from "./types.ts";
  * The panels, in the order the editor stacked their sections and the rail lists their rows.
  *
  * Content first because it is the only one every type has, and the one an author reaches for
- * without being sent there. The other four keep the order the single column had, which is
- * the order task 048 argued for at the time: a message field only exists for a constraint
- * above it, so an author reads the constraint and then the sentence a respondent gets when
- * they miss it.
+ * without being sent there. The next four keep the order the single column had, which is the
+ * order task 048 argued for at the time: a message field only exists for a constraint above
+ * it, so an author reads the constraint and then the sentence a respondent gets when they
+ * miss it.
+ *
+ * PREVIEW IS LAST (Code Owner, 2026-09-27), and it is the one panel that is not a set of
+ * fields. It used to be a card above the editor, on screen whatever the author was doing, so
+ * it took the top of the column permanently for a question that is only asked at the end -
+ * "what does this look like to a respondent". Last in the list is where that question sits,
+ * and it is the only row whose panel shows the SAVED version rather than the document being
+ * typed, which the panel itself says when the two differ.
  */
 export const QUESTION_PANELS = [
   "content",
@@ -48,6 +55,7 @@ export const QUESTION_PANELS = [
   "constraints",
   "messages",
   "booleanLabels",
+  "preview",
 ] as const;
 
 /** One panel of the question editor. */
@@ -113,7 +121,10 @@ export const DEFAULT_QUESTION_PANEL: QuestionPanelId = "content";
  * a row now. `constraints-editor.tsx` and `messages-editor.tsx` record the same call at their
  * own end, because each of them is the half that stopped rendering.
  */
-export function questionPanels(definition: QuestionDefinitionView): readonly QuestionPanel[] {
+export function questionPanels(
+  definition: QuestionDefinitionView,
+  options: { readonly withPreview?: boolean } = {},
+): readonly QuestionPanel[] {
   const panels: QuestionPanel[] = [
     panel("content", t("questions.panel.content"), contentDigest(definition), [
       "label",
@@ -173,6 +184,17 @@ export function questionPanels(definition: QuestionDefinitionView): readonly Que
         "yesLabel",
         "noLabel",
       ]),
+    );
+  }
+
+  // ONLY WHERE THERE IS A SAVED VERSION TO PREVIEW. `/questions/new` passes nothing: it has
+  // no rail to reach a panel from, and there is no stored version for the API to compile, so
+  // a Preview row there would open a panel with nothing in it. It carries no fields either,
+  // which is why it contributes nothing to `renderedQuestionFields` and can never be the
+  // panel a refused save opens.
+  if (options.withPreview === true) {
+    panels.push(
+      panel("preview", t("questions.preview.title"), t("questions.panel.previewDigest"), []),
     );
   }
 
