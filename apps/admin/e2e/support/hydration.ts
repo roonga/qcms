@@ -142,8 +142,10 @@ export async function waitForHydration(
  *
  * Because the window is not "before hydration", it is "hydration lands **between** the
  * typing and the submit". Type into the server render and never hydrate, and the value is
- * intact and the native form POST succeeds - the screen works with no JavaScript at all,
- * which is the whole point of it. Hydrate first and the typing goes through React. Only
+ * intact and the native form POST succeeds, because that post is the screen's real
+ * mechanism rather than a fallback: the credential reaches a named server route without
+ * passing through client JavaScript (ADR-35 / SEC-1). Hydrate first and the typing goes
+ * through React. Only
  * the interleaving loses: the value is typed, the attaching commit overwrites it with
  * react-aria's empty state, and the Enter that follows submits an empty `required` field.
  * A regression test therefore has to schedule that interleaving rather than hope for it.

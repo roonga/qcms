@@ -162,7 +162,7 @@ export function accountTrigger(page: Page): Locator {
  * The wait is the same mechanism `fillStable` carries for the same class (issue #210), and
  * it costs nothing on a page that has already hydrated - the marker is an attribute on
  * `<html>`, so the check returns on its first poll - and returns immediately on a page
- * whose scripts will never run, which is what the no-JS blocks need.
+ * whose scripts will never run, so it cannot turn such a page into a timeout.
  *
  * ## Why NOT a retry around the press
  *

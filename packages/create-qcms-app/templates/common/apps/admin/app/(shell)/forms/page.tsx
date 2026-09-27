@@ -43,8 +43,9 @@ export function generateMetadata(): Metadata {
  * - **The state is the URL.** A filtered library is a link an author can send and a page
  *   that survives a reload, and nothing about the current view lives in component state.
  * - **A native GET form.** The toolbar is `<form method="get">` over the vendored
- *   controls, which serialize into hidden native inputs, so Apply works with JavaScript
- *   off. Nothing here is an event handler.
+ *   controls, which serialize into hidden native inputs, so Apply is a submission the
+ *   browser performs rather than a handler this app writes. Nothing here is an event
+ *   handler, which is what keeps the two properties either side of this one true.
  * - **One request either way.** Filters change the query string, never the number of
  *   round trips; `lib/server/request-reads.test.ts` counts them.
  *

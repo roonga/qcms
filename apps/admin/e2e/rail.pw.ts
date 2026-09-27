@@ -20,7 +20,7 @@ import {
  * that is what this file is: the 240px track appearing at `--bp-sidebar` and not one pixel
  * below it, the disclosure being operable from the keyboard, a long title behaving the way
  * this change says it behaves, the badge arriving from a real API verdict, N2's
- * viewport-fill, and the whole thing working with no JavaScript at all.
+ * viewport-fill, and every row being an anchor with a real destination.
  *
  * ## The 1023 / 1024 pair
  *

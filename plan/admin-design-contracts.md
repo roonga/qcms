@@ -128,7 +128,7 @@ sign-in form and the whole shell. The mechanism is a `<noscript><style>` block, 
 no CSP change: `apps/admin/lib/server/csp.ts` already grants `style-src 'unsafe-inline'` for
 Tailwind, and nothing script-shaped is introduced.
 
-Three consequences, named so they are not re-derived:
+Four consequences, named so they are not re-derived:
 
 - **No-JS is still a portal requirement and is untouched.** The scope in
   `docs/PROJECT_GOAL.md` is the browsers a **respondent** runs, and `apps/portal` and

@@ -306,8 +306,9 @@ test.describe("without JavaScript", () => {
 
   test("the wait returns at once on a page whose scripts will never run", async ({ page }) => {
     // React is never coming, so there is nothing to wait for AND nothing at risk: no commit
-    // will overwrite what was typed. A wait that blocked here would turn every no-JS spec
-    // into a timeout, which is exactly what it did before this was pinned.
+    // will overwrite what was typed. A wait that blocked here would spend its whole budget
+    // on a page that will never satisfy it, which is exactly what it did before this was
+    // pinned, across the three scripting-disabled blocks the suite had then.
     //
     // The budget is the assertion. Passing no timeout would let this "pass" after the suite
     // default, which is the failure being guarded against; a budget far below any plausible
