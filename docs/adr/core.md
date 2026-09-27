@@ -287,7 +287,7 @@ The workspace half is not symmetry for its own sake. A schema per environment al
 
 ### ADR-41 - Workspaces are an authorisation grouping
 
-**Status:** decided; not built (task 068). Code Owner rulings of 2026-09-25 and 2026-09-26, issue #995. Nothing here is open.
+**Status:** decided; not built (task 068). Code Owner rulings of 2026-09-25, 2026-09-26 and 2026-09-27 (Q37 to Q39), issue #995. Nothing here is open.
 
 **Decision.** A **workspace** is a named grouping that owns forms and questions and carries the membership that authorises work on them. It is an authorisation boundary between groups sharing one installation, and it is not tenancy (ADR-04).
 

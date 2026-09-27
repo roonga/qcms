@@ -5,7 +5,7 @@
 
 ## Ground rules
 
-The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…37 / SEC-1…13 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
+The reference documents in `docs/` are authoritative; the discipline rules R1–R8 and decisions ADR-01…41 / SEC-1…15 are not relitigated in PRs - a PR that violates them is not mergeable regardless of quality. Conflicts with a decision are raised as an issue proposing a new ADR, never resolved silently in code. The launch cut-line (R7) applies to contributions: out-of-scope features become `phase-4` issues, not PRs.
 
 **Record a ruling at the artifact it changes, not only in the amendment** (issue #631).
 Everyone works to the contracts as they stand on `origin/main`, and that rule is right: `main` is the one state every seat and every executor can independently check.
