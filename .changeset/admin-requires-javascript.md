@@ -57,11 +57,27 @@ holding a session with no way to end it would be a defect, so the reason it cann
 that they cannot sign IN either - is a named claim in the spec rather than a remark in a
 comment.
 
-**Two contract clauses lose a justification that expired.** §2's row-action clause read "a
-real anchor (open-in-new-tab and no-JS work)" and now reads "(open-in-new-tab and
-middle-click work)": the element and the argument for it are unchanged, since both of those
-are the browser acting on an `href` and a row that merely reacts to a click has none. The
-five comments that quoted the clause were corrected with it.
+**The wording sweep lands with the gate rather than after it.** Two §2 clauses lose a
+justification that expired, and each records the change where it stands. The row-action
+clause read "a real anchor (open-in-new-tab and no-JS work)" and now reads
+"(open-in-new-tab and middle-click work)": the element and the argument for it are
+unchanged, since both of those are the browser acting on an `href` and a row that merely
+reacts to a click has none. The identifying-column clause still requires the whole id in the
+markup, now for selection, screen-reader announcement and in-page search.
+`plan/admin-ux-audit.md` §4.1 drops its "Works without JS" column for the same reason.
+
+About two dozen comments came with them, in three groups that are worth separating because
+they were wrong in three different ways. The ones that gave "works with JavaScript off" as
+the REASON for an element choice now give the reason that survives. The ones describing the
+FIRST FRAME BEFORE REACT ATTACHES were never about scripting at all and now say what they
+mean - the rail's server-resolved step list, the breadcrumb's pre-hydration answer, the
+disclosure's initial `open` state. And the ones about the auth flow now name ADR-35 / SEC-1:
+a credential, a TOTP code and a recovery code reaching a named server route without passing
+through client JavaScript is a property of where the secret goes, not of scripting being
+off, which is why that flow is untouched by a ruling about scripting.
+
+Comments and documents only in that half, no behaviour change. Left alone deliberately:
+the question-detail files, which another lane is rewriting.
 
 **Four existing specs contradicted the requirement and each one was read rather than
 swept.** `auth-2fa.pw.ts`'s scriptless sign-out walk and `table-anchors.pw.ts`'s scriptless

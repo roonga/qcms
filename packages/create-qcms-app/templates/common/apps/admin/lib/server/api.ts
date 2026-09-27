@@ -143,7 +143,8 @@ const FORWARDED_AUTH_HEADERS = [
  * **This app's own responses carry `Referrer-Policy: no-referrer`** (`lib/server/csp.ts`,
  * SEC-9), and a browser that is told not to send a referrer sends `Origin: null` on a
  * form POST as well - along with no `Referer` at all. So the origin better-auth would see
- * on every single legitimate no-JS sign-in is the literal string `null`, which it refuses
+ * on every single legitimate sign-in, which is a plain form POST, is the literal string
+ * `null`, which it refuses
  * `403 MISSING_OR_NULL_ORIGIN`. Measured, not theorized: it is what the admin Playwright
  * suite reported the first time this hop ran.
  *

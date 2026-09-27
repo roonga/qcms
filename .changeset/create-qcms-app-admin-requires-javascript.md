@@ -28,6 +28,13 @@ the reason SEC-1 gives. The scaffolded sign-in, 2FA and recovery screens are unt
 their plain forms exist so a credential never passes through client JavaScript (ADR-35 /
 SEC-1), which no ruling about scripting changes.
 
+**The scaffolded comments came with it.** The generated admin carried about two dozen
+comments giving "works with JavaScript off" as the reason for an element choice, describing
+the frame before React attaches as a no-JS state, or presenting the auth flow's native form
+POSTs as no-JS support. Each now says what it means, which matters more in a template than
+in our own tree: an adopter reads these comments as the rationale for code they own, and a
+reason that is no longer true is worse than no comment at all.
+
 **The scaffolded portal is unchanged, and the asymmetry is deliberate.** No-JS is a
 respondent requirement, so the portal templates keep every scriptless path they have; the
 admin is an internal authoring tool and now requires scripting. An adopter reading both

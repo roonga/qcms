@@ -47,7 +47,7 @@ export function BuilderBreadcrumb({
  * lookup. They were two, which is how a screen ends up answering to two names - the crumb
  * read "Form details" while the reader was looking at a step.
  *
- * `undefined` is the pre-hydration and no-JavaScript answer, and it is not a fallback: the
+ * `undefined` is the answer for the frame before React attaches, and it is not a fallback: the
  * builder opens on the form's details, and without the bridge nothing can change that, so
  * "Form details" is simply true.
  */
