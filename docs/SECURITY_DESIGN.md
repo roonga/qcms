@@ -381,7 +381,7 @@ QCMS enforces none of this and cannot: it terminates no TLS and owns no ingress 
 
 A draft is not a published version, so it has no portal address in any environment. The admin's live preview is `POST /forms/{id}/draft/preview` on the **admin** route group, behind the SEC-4 internal-token gate and the admin-auth gate, and it writes nothing: it compiles in memory and returns the documents. The portal serves only stored compiled snapshots (ADR-18), so there is no code path by which an unpublished definition reaches a respondent hostname, in `test` or in `prod`.
 
-The admin's own exposure is unchanged and is ADR-20's: in the solo topology the admin is a public hostname protected by TLS plus better-auth with TOTP (boundary B4, SEC-1); in the enterprise topology it is on the VPN or private network and is never routed from the internet (`docs/deploy-enterprise.md` section 2). Environments add nothing to the admin's reachability, because there is one admin for the installation and it is control plane in both senses: it edits `public` and it is the surface that decides releases.
+The admin's own exposure is unchanged and is ADR-20's: in the solo topology the admin is a public hostname protected by TLS plus better-auth with TOTP (boundary B4, SEC-1); in the enterprise topology it is on the VPN or private network and is never routed from the internet (`docs/deploy-enterprise.md` section 2). Environments add nothing to the admin's reachability, because there is one admin for the installation and it is control plane in both senses: it edits the control-plane tables (`public` today, `control` under ADR-40) and it is the surface that decides releases.
 
 ### Egress is per environment
 
@@ -578,7 +578,7 @@ It is readable by that **workspace's owners** and by the **installation administ
 
 **Precedent shape: `two_factor_resets`** (issue #432). That table is the model for three properties rather than one. It is **append-only** and written by the act it records. It carries **no foreign key** to the account it names, because an audit row that cascades away with the thing it describes is not an audit row. And its **write privilege is narrowed against the credential that serves traffic**, which is what makes the row worth anything against an attacker who reaches that credential: the same question has to be answered here, and it is harder, because unlike a break-glass reset these rows are written by the application on an ordinary request. Task 069 decides how, and the shipped answer is asserted rather than described.
 
-**Relationship to the two role families.** SEC-15 is what makes Q27's separation checkable after the fact rather than only enforceable in advance. ADR-41 says an owner reads no response without a handler row; SEC-15 is how anybody finds out whether a handler row was used, and by whom, and for which form.
+**Relationship to the two role families.** SEC-15 is what makes Q27's separation checkable after the fact rather than only enforceable in advance. ADR-41 says a `forms.owner` reads no response without a `responses.viewer` grant of their own; SEC-15 is how anybody finds out whether such a grant was used, and by whom, and for which form.
 
 **Relationship to SEC-13.** Telemetry is an export and its contents are an allowlist (§8a), so **no audit field crosses into a span or an OTLP log** beyond what that allowlist already names. The audit lives in Postgres, under the operator's own retention and the erasure model of ADR-17, which is the reason it can carry a direct identifier at all.
 

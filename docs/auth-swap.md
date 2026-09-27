@@ -116,10 +116,13 @@ any supported composition.
 This one is new and it is the largest. Since Q32, `organization`, `member`, `invitation`,
 `team` and `teamMember` are where workspaces, membership, roles and scope live, and the
 roles are better-auth access-control statements that QCMS evaluates through the library's
-own authorize function. Replacing the library therefore means carrying four things across:
-the organisation rows and their `isShared`, `requireSecondApprover` and `archivedAt` fields;
-the member rows that hold `owner`; the team rows whose additional fields hold a role and its
-`environments` and `forms` scope; and the statement evaluation the middleware calls.
+own authorize function. Replacing the library therefore means carrying five things across:
+the organisation rows and their `isShared`, `requireSecondApprover`, `archivedAt` and
+`seedNewEditorsWithTestData` fields; the member rows that hold `forms.owner`; the team rows
+whose additional fields hold a role and its `environments` and `forms` scope; the team's
+`externalGroupId`, which carries a unique constraint and is the key a directory mapping joins
+on (Q39), so a swap that dropped it would strand every group-derived grant; and the statement
+evaluation the middleware calls.
 
 What does **not** move is the model. The two role families, the environment and form scopes,
 the administer-only installation claim, the two-person switch and the access audit are QCMS
