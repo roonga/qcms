@@ -80,10 +80,20 @@ export function QuestionPanelRows({
             <button
               type="button"
               className="qcms-rail__link qcms-question-rail__panel"
-              // `aria-controls` names the section this row opens, the same wiring the Settings
-              // rail's rows carry. The id is minted by `panelAnchorId`, so the two ends of the
-              // relationship cannot be spelled differently.
-              aria-controls={panel.anchorId}
+              // NO `aria-controls`, and that is a correction rather than an omission. The
+              // Settings rail's rows carry one, because that screen renders all three of its
+              // panels and hides the two it is not showing - so every id a row names is in the
+              // document. This editor renders ONE panel, so four of the five ids would point at
+              // nothing, which `aria-valid-attr-value` reports as an invalid attribute value in
+              // every mode (caught by `e2e/a11y-axe.pw.ts`, and it is right to: an
+              // `aria-controls` that resolves to nothing is a promise to an assistive technology
+              // that the document cannot keep).
+              //
+              // Nothing is lost by dropping it. `aria-current="page"` is the whole of the
+              // accessible statement about which panel is open, set by React from the same value
+              // the panel renders from, so a screen reader hears it on the row it just activated.
+              // `panelAnchorId` still mints the section's id, because the refused-save path looks
+              // the open panel up by it to move focus inside.
               aria-current={panel.id === open ? "page" : undefined}
               data-rail-panel={panel.id}
               onClick={() => {

@@ -198,13 +198,21 @@ describe("the question rail's markup", () => {
     expect(panels).toBeLessThan(olderRow);
   });
 
-  it("wires each panel row to the section it opens, by the id that module mints", async () => {
+  it("names each panel row and digests what is in it", async () => {
     const html = await render();
     for (const panel of PANELS) {
-      expect(html).toContain(`aria-controls="${panel.anchorId}"`);
       expect(html).toContain(`>${panel.label}</span>`);
       expect(html).toContain(`>${panel.digest}</span>`);
     }
+  });
+
+  it("carries no aria-controls, because four of the five ids are not in the document", async () => {
+    // The Settings rail's rows carry one and may: that screen renders all three panels and
+    // hides two. This editor renders ONE, so every row but the open one would name an element
+    // that is not there, which `aria-valid-attr-value` reports in all three modes
+    // (`e2e/a11y-axe.pw.ts` caught exactly that). `aria-current="page"` is the whole of the
+    // accessible statement about which panel is open.
+    expect(await render()).not.toContain("aria-controls");
   });
 
   it("keeps the panel list out of the form rail's group attribute", async () => {
