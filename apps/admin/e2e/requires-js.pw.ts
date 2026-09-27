@@ -129,7 +129,6 @@ test.describe("without JavaScript", () => {
       "nothing on the page takes focus, so Tab leaves the body",
     ).toBe(0);
   });
-
 });
 
 test("an authenticated shell route shows the message and no shell", async ({ page, browser }) => {
