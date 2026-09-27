@@ -129,6 +129,56 @@ test.describe("without JavaScript", () => {
       "nothing on the page takes focus, so Tab leaves the body",
     ).toBe(0);
   });
+
+  /*
+   * THE PAIRING THE SIGN-OUT DECISION RESTS ON (Code Owner, 2026-09-27).
+   *
+   * The scriptless sign-out affordance is deleted, so a scriptless operator holding a
+   * session with no way to end it would be a real defect. The reason it cannot arise is that
+   * they cannot get a session in the first place, and that is a claim about FIVE screens
+   * rather than one: sign-in is only the first step of an enforced-2FA loop, and the
+   * challenge, enrollment, recovery-code entry and the recovery-code display each carry
+   * their own native form posting its own credential to its own named route (ADR-35 / SEC-1
+   * keep them that way, and that decision is untouched - it is about a credential never
+   * passing through client JavaScript, not about no-JS support).
+   *
+   * Each is visited DIRECTLY rather than walked to, which is the only way to reach them at
+   * all here and is also the stronger check: a screen that is unreachable only because the
+   * step before it is unreachable would pass a walk while still being submittable to anyone
+   * who typed its address. Every one of them serves the message instead.
+   *
+   * The routes are visited unauthenticated, so each would ordinarily redirect to `/sign-in`
+   * and a test that asserted only the message would pass on the redirect. So the form is
+   * asserted where it is served and the redirect is accepted where it happens: either way
+   * there is no form on screen, which is the claim.
+   */
+  test("no auth screen can be reached or submitted with scripting off", async ({ page }) => {
+    for (const route of [
+      "/sign-in",
+      "/two-factor/challenge",
+      "/two-factor/enroll",
+      "/two-factor/recovery",
+      "/two-factor/recovery-codes",
+    ]) {
+      await page.goto(route);
+      await expectOnlyTheMessage(page);
+
+      // Nothing submittable is announced or painted on any of them: no form, no field, no
+      // control. Counted rather than asserted with `toBeHidden()`, because a route may serve
+      // several forms or none and `toBeHidden()` is strict about how many it resolved -
+      // `:visible` plus a count of zero says the same thing for any number of them.
+      await expect(page.locator("form:visible"), `${route} paints no form`).toHaveCount(0);
+      await expect(page.locator("input:visible"), `${route} paints no field`).toHaveCount(0);
+      await expect(page.getByRole("textbox"), `${route} announces no field`).toHaveCount(0);
+      await expect(page.getByRole("button"), `${route} announces no control`).toHaveCount(0);
+
+      // And nothing takes focus, so there is no keyboard route into a hidden field either.
+      await page.keyboard.press("Tab");
+      expect(await page.locator(":focus").count(), `${route} puts nothing in the tab order`).toBe(
+        0,
+      );
+    }
+  });
 });
 
 test("an authenticated shell route shows the message and no shell", async ({ page, browser }) => {
@@ -165,12 +215,20 @@ test("an authenticated shell route shows the message and no shell", async ({ pag
     await expect(scriptlessPage.getByRole("navigation", { name: "Primary" })).toHaveCount(0);
     await expect(scriptlessPage.getByRole("table", { name: "Question library" })).toHaveCount(0);
 
-    // And the sign-out fallback form goes with the rest of it, which is the one consequence
-    // of this gate that retires a shipped affordance rather than chrome (the Code Owner's
-    // 2026-07-31 no-JS sign-out decision). The form and the `/sign-out` route are still
-    // there for the scripted menu item to submit; nothing reveals them.
-    await expect(scriptlessPage.locator("form.qcms-signout-fallback")).toBeAttached();
-    await expect(scriptlessPage.locator("form.qcms-signout-fallback")).toBeHidden();
+    // And there is NO way to sign out, which is the one consequence of this gate that
+    // retired a shipped affordance rather than chrome: a `<noscript>` rule used to reveal a
+    // plain POST button here so a scriptless operator could end a session (Code Owner,
+    // 2026-07-31), and that decision is superseded (Code Owner, 2026-09-27). Asserted in
+    // both directions - nothing announced, nothing painted - because the POST form itself is
+    // still served for `requestSubmit()` to use, and a check for the form alone would not
+    // notice a button coming back inside it.
+    const signOutForm = scriptlessPage.locator('form[action="/sign-out"]');
+    await expect(
+      signOutForm,
+      "the POST form the scripted menu submits is still served",
+    ).toBeAttached();
+    await expect(signOutForm).toBeHidden();
+    await expect(signOutForm.locator("button")).toHaveCount(0);
     await expect(scriptlessPage.getByRole("button", { name: "Sign out" })).toHaveCount(0);
   } finally {
     await scriptless.close();

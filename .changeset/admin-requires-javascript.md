@@ -33,15 +33,35 @@ is a requirement, which settles the same questions by removing the case. No-JS r
 respondent runs, and neither `apps/portal` nor `@roonga/qcms-ui` changes here.
 `plan/admin-design-contracts.md` carries the dated ruling.
 
-**What is now unreachable and is deliberately still there.** The auth route handlers stay
-(ADR-35 / SEC-1 keep that flow as named server routes rather than client JavaScript, which
-is an argument about the endpoint set and not about scripting). The plain POST sign-out form
-in `components/account-menu.tsx` and the `/sign-out` route stay, because the scripted menu
-item is what submits that form - one sign-out path in the app, not two. What is gone is the
-`<noscript>` rule that used to reveal that form and hide the two topbar menu triggers (the
-2026-07-31 no-JS sign-out decision), because the shell it sits in is never on screen without
-scripting. Whether a scriptless way to end a session should exist in another shape is left
-for the Code Owner rather than answered here.
+**The auth route handlers stay exactly as they are** (Code Owner, 2026-09-27). Sign-in, the
+2FA challenge and enrollment, and both recovery screens keep their plain forms posting to
+named server routes, because ADR-35 / SEC-1 are about a credential, a TOTP code and a
+recovery code never passing through client JavaScript - not about no-JS support. That reason
+is untouched, so the handlers are untouched. What changes is that nothing reaches them with
+scripting off, and the spec says so about all five screens by visiting each directly rather
+than walking to it: a screen that is unreachable only because the step before it is
+unreachable would still be submittable to anyone who typed its address.
+
+**The no-JS sign-out affordance is REMOVED** (Code Owner, 2026-09-27, superseding the
+decision of 2026-07-31). That decision kept a plain POST sign-out button rendered on every
+page, which a `<noscript>` rule revealed while hiding the two topbar menu triggers, so a
+scriptless operator could still end a session. It was a control nothing could show once the
+shell it sat in stopped being reachable, so the button, its CSS and the `<noscript>` rules
+are all gone. The POST form itself stays in `components/account-menu.tsx`, carrying `hidden`
+instead of a class, because `requestSubmit()` on it is how the scripted menu item signs out
+and sign-out is a POST rather than a GET for the reason SEC-1 always gave; `/sign-out` is
+unchanged.
+
+**The pairing those two decisions depend on is asserted, not assumed.** A scriptless operator
+holding a session with no way to end it would be a defect, so the reason it cannot arise -
+that they cannot sign IN either - is a named claim in the spec rather than a remark in a
+comment.
+
+**Two contract clauses lose a justification that expired.** §2's row-action clause read "a
+real anchor (open-in-new-tab and no-JS work)" and now reads "(open-in-new-tab and
+middle-click work)": the element and the argument for it are unchanged, since both of those
+are the browser acting on an `href` and a row that merely reacts to a click has none. The
+five comments that quoted the clause were corrected with it.
 
 **Four existing specs contradicted the requirement and each one was read rather than
 swept.** `auth-2fa.pw.ts`'s scriptless sign-out walk and `table-anchors.pw.ts`'s scriptless

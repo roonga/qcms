@@ -16,7 +16,7 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  * `plan/admin-design-contracts.md` §2 (CONFIRMED 2026-08-20):
  *
  * > Row action: the row's identifying cell carries a real anchor (open-in-new-tab and
- * > no-JS work); whole-row `onRowAction` click is retired with the kit-table migration.
+ * > middle-click work); whole-row `onRowAction` click is retired with the kit-table migration.
  * > [...] Compact width: every table states which columns drop at `--bp-compact` and
  * > resets its `min-width` there so the scroll container is the fallback, not the
  * > default experience.
@@ -27,17 +27,19 @@ import type { QuestionDefinitionView, QuestionListItem } from "../../lib/questio
  *
  * ## Why this layer, and what it can and cannot prove
  *
- * `renderToStaticMarkup` IS the no-JavaScript render: it is the server HTML with no
- * hydration, no event handlers and no client bundle. So an anchor carrying a resolvable
- * `href` in this string is the no-JS claim itself rather than a proxy for it, and it is
- * also the open-in-new-tab claim, because middle-click and "open in new tab" are the
- * browser acting on that attribute. The same is true in the other direction: a whole-row
- * click handler leaves NOTHING in this string, which is exactly why the defect was
- * invisible to every test that shipped before this one.
+ * `renderToStaticMarkup` is the SERVER HTML: no hydration, no event handlers, no client
+ * bundle. So an anchor carrying a resolvable `href` in this string is the open-in-new-tab
+ * and middle-click claim itself rather than a proxy for it, because both of those are the
+ * browser acting on that attribute and nothing else. The same is true in the other
+ * direction: a whole-row click handler leaves NOTHING in this string, which is exactly why
+ * the defect was invisible to every test that shipped before this one.
  *
- * What this layer cannot see is a browser actually following the anchor with scripting
- * switched off, and a keyboard walking to it. Those are covered by
- * `apps/admin/e2e/table-anchors.pw.ts`.
+ * No no-JS claim is made or wanted. The admin requires JavaScript (Code Owner, 2026-09-27,
+ * `plan/admin-design-contracts.md`), and §2's clause was reworded with that ruling; what
+ * survives is an argument about the element, which this layer is the right place for.
+ *
+ * What this layer cannot see is a keyboard walking to the anchor and a browser following
+ * it. That is covered by `apps/admin/e2e/table-anchors.pw.ts`.
  *
  * ## The completion test, asserted rather than remembered
  *

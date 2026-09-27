@@ -14,11 +14,11 @@ import type { QuestionListItem } from "@/lib/questions/types";
  * anchor, so the whole row became the control through `onRowAction` and a
  * `useRouter().push`. ADR-22's single-stack rule was the reason for not hand-rolling a
  * table to get around it, and what the trade cost was named honestly at the time:
- * open-in-new-tab, and operation with JavaScript off.
+ * open-in-new-tab, and middle-click.
  *
  * `plan/admin-design-contracts.md` §2 (CONFIRMED 2026-08-20) settles it the other way:
  *
- * > the row's identifying cell carries a real anchor (open-in-new-tab and no-JS work);
+ * > the row's identifying cell carries a real anchor (open-in-new-tab and middle-click work);
  * > whole-row `onRowAction` click is retired with the kit-table migration.
  *
  * So the markup is hand-authored now, and the ADR-22 worry the old note raised does not
@@ -34,7 +34,9 @@ import type { QuestionListItem } from "@/lib/questions/types";
  *
  *  - The component is no longer a client component. Navigation is an `<a href>`, so there
  *    is no router to reach for, and the server HTML this page emits carries the route to
- *    every question in it. That is the no-JS requirement, met by construction.
+ *    every question in it. That is what makes open-in-new-tab and middle-click work, which
+ *    is what §2 asks for; it is not a no-JS claim, and the admin makes none since the Code
+ *    Owner's 2026-09-27 ruling that it requires JavaScript.
  *  - Cells take a `className`, so the numeric columns opt in as columns
  *    (`qcms-cell--num`) instead of by `nth-child` index, and the compact-width drops §2
  *    requires of every table become expressible here at all.

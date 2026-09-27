@@ -18,6 +18,16 @@ Content-Security-Policy exactly as generated - `lib/server/csp.ts` already grant
 no script of any kind is added, which keeps the scaffolded `script-src` free of an
 allowance the template would then have to explain.
 
+**One scaffolded affordance is removed with it.** The generated
+`components/account-menu.tsx` carried a plain POST sign-out button that a `<noscript>` rule
+revealed, so an adopter's scriptless operator could still end a session. It is gone, because
+the shell it sat in is no longer reachable without scripting (Code Owner, 2026-09-27,
+superseding 2026-07-31). The `hidden` POST form and the `/sign-out` route behind it stay:
+that is what the scripted menu item submits, and sign-out is a POST rather than a GET for
+the reason SEC-1 gives. The scaffolded sign-in, 2FA and recovery screens are untouched -
+their plain forms exist so a credential never passes through client JavaScript (ADR-35 /
+SEC-1), which no ruling about scripting changes.
+
 **The scaffolded portal is unchanged, and the asymmetry is deliberate.** No-JS is a
 respondent requirement, so the portal templates keep every scriptless path they have; the
 admin is an internal authoring tool and now requires scripting. An adopter reading both

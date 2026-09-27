@@ -18,7 +18,7 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * Issue 570: the converted tables' rows are reachable without a mouse.
  *
  * `plan/admin-design-contracts.md` §2 asks the row's identifying cell for "a real anchor
- * (open-in-new-tab and no-JS work)". `app/(shell)/table-anchors.test.tsx` proves the anchor
+ * (open-in-new-tab and middle-click work)". `app/(shell)/table-anchors.test.tsx` proves the anchor
  * is in the server HTML with a resolvable `href`, which is the same statement made about a
  * string. This spec makes it about a browser, which is the layer ADR-23 assigns to
  * behaviour a browser is the only thing that performs.

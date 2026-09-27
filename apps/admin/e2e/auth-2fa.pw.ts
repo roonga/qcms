@@ -392,7 +392,11 @@ test("the account menu names the operator and routes to the password screen", as
  *
  * Every step of it is now unreachable rather than broken: the sign-in form is hidden
  * before the first keystroke, so there is no session to end and no topbar to correct.
- * `e2e/requires-js.pw.ts` asserts that directly, the fallback form included.
+ * **And the control it pressed no longer exists**: the 2026-07-31 decision is superseded
+ * (Code Owner, 2026-09-27) and the fallback button is deleted from
+ * `components/account-menu.tsx`, which keeps only the `hidden` POST form the scripted menu
+ * item submits. `e2e/requires-js.pw.ts` asserts that there is no way to sign out with
+ * scripting off, in both directions.
  *
  * Nothing it covered is lost. Sign-out and its server-side invalidation are the second
  * half of "the session persists across navigation and reload, then sign-out ends it"

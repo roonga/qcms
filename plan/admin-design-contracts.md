@@ -133,15 +133,33 @@ Three consequences, named so they are not re-derived:
 - **No-JS is still a portal requirement and is untouched.** The scope in
   `docs/PROJECT_GOAL.md` is the browsers a **respondent** runs, and `apps/portal` and
   `@roonga/qcms-ui` are unchanged by this.
-- **The auth route handlers stay.** ADR-35 / SEC-1 keep the auth flow as named server routes
-  rather than client JavaScript, and that is an argument about the endpoint set, not about
-  scripting. They are now simply unreachable from the UI.
-- **The 2026-07-31 no-JS sign-out affordance is dead as a UI path.** The plain POST form in
-  `apps/admin/components/account-menu.tsx` is still what the scripted menu item submits, so
-  the form and the `/sign-out` route stay; what is gone is the `<noscript>` rule that used to
-  reveal the form and hide the two menu triggers, because the shell it sits in is never on
-  screen without scripting. Whether a scriptless way to end a session should exist in some
-  other shape is left open rather than answered here.
+- **The auth route handlers stay exactly as they are** (Code Owner, 2026-09-27). ADR-35 /
+  SEC-1 keep sign-in, the 2FA challenge and enrollment, and both recovery screens as plain
+  forms posting to named server routes, and the reason is that a credential, a TOTP code and
+  a recovery code never pass through client JavaScript - not no-JS support. That reason is
+  untouched by this ruling, so the handlers are untouched too. What changes is that nothing
+  reaches them with scripting off.
+- **The no-JS sign-out decision of 2026-07-31 is SUPERSEDED** (Code Owner, 2026-09-27). That
+  decision kept a plain POST sign-out button rendered on every page, revealed by a
+  `<noscript>` rule while the two topbar menu triggers were hidden, so a scriptless operator
+  could still end a session. It is deleted: the shell it sat in is never on screen without
+  scripting, so it was a control nothing could show. What remains in
+  `apps/admin/components/account-menu.tsx` is the `hidden` POST form itself, because
+  `requestSubmit()` on it is how the scripted menu item signs out, and the `/sign-out` route
+  behind it is unchanged. Sign-out stays a POST rather than a GET for the reason SEC-1 always
+  gave; only the scriptless affordance is gone.
+
+  **The pairing this depends on is asserted rather than assumed.** A scriptless operator with
+  no way to sign out would be a defect, so the reason it cannot arise -
+  that they cannot sign IN either - is a named claim in `apps/admin/e2e/requires-js.pw.ts`:
+  the sign-in form, the 2FA challenge and enrollment screens, and both recovery screens are
+  each hidden and unsubmittable with scripting off.
+
+- **§2's row-action clause loses its no-JS half.** It read "a real anchor (open-in-new-tab
+  and no-JS work)" and now reads "(open-in-new-tab and middle-click work)". The element is
+  unchanged and so is the argument for it: both of those are the browser acting on an `href`,
+  which a row that merely reacts to a click does not have. Only the justification that
+  expired is removed.
 
 ## Reading a multi-screen POC
 
@@ -286,7 +304,7 @@ One family, reconciled with the frozen card (`plan/admin-theme/ds-table.html`):
   commit on the branch that proposed it.
 
 - Row action: the row's identifying cell carries a real anchor (open-in-new-tab
-  and no-JS work); whole-row `onRowAction` click is retired with the kit-table
+  and middle-click work); whole-row `onRowAction` click is retired with the kit-table
   migration. Rows with an author-controlled order get the grip menu; rows without
   one get a plain trailing menu or inline actions, never a grip.
 - Sortable headers, selection column and skeleton state ship only where a screen

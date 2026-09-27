@@ -88,12 +88,15 @@ export const viewport: Viewport = {
  * element is Next's business rather than ours: an override that must win whatever the
  * sheet order is says so, rather than depending on it.
  *
- * What this REPLACED is worth naming, because two comments elsewhere still describe it.
- * The block used to hide the two topbar menu triggers and reveal the plain POST sign-out
- * form beside them (task 032, and the Code Owner's 2026-07-31 sign-out decision). Both
- * rules are dead now: the whole shell is hidden, so there is no topbar to correct. The
- * form itself stays in `components/account-menu.tsx` - the scripted menu item submits it
- * with `requestSubmit()`, which is why there is one sign-out path in the app and not two.
+ * What this REPLACED, because the replacement retired a shipped affordance rather than
+ * only chrome. The block used to hide the two topbar menu triggers and reveal a plain POST
+ * sign-out button beside them, so that a scriptless operator could still end a session
+ * (task 032, and the Code Owner's 2026-07-31 sign-out decision). Both rules are dead here:
+ * the whole shell is hidden, so there is no topbar to correct and no button worth showing.
+ * That 2026-07-31 decision is superseded as of 2026-09-27 and the button is deleted with
+ * it; `plan/admin-design-contracts.md` records the supersession. What stays in
+ * `components/account-menu.tsx` is the POST form itself, `hidden`, because
+ * `requestSubmit()` on it is how the scripted menu item signs out.
  */
 const REQUIRES_JS_CSS =
   "body>:not(.qcms-requires-js){display:none!important}" +

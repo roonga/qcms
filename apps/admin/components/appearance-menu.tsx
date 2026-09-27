@@ -66,11 +66,14 @@ import { t } from "@/lib/i18n/en";
  * a screen reader reads. Nothing about the keyboard contract changed - it was always
  * `MenuTrigger`'s, one layer down.
  *
- * WITHOUT JAVASCRIPT the whole control is hidden (the `<noscript>` rule in
- * `app/layout.tsx`), because a menu an operator can focus but not open is worse than
- * no control at all. The OS-following default still applies, and it is a server
- * render, so a no-JS operator still gets a correct page. Sign-out is the case that
- * does NOT get this treatment: see `account-menu.tsx`.
+ * WITHOUT JAVASCRIPT there is no page for this control to be on (Code Owner, 2026-09-27:
+ * the admin requires JavaScript and stops at one message without it,
+ * `plan/admin-design-contracts.md`). A `<noscript>` rule in `app/layout.tsx` used to hide
+ * this control specifically, because a menu an operator can focus but not open is worse
+ * than no control at all; that rule is gone because the whole app is hidden instead. The
+ * reasoning is unchanged and it was never load-bearing here anyway - a preference is not a
+ * session, and the mode still paints correctly from the token sheet's own
+ * `prefers-color-scheme` block with no client code involved.
  */
 
 /** The check glyph on the chosen row. U+2713. */
