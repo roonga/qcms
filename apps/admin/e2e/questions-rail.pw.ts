@@ -523,10 +523,15 @@ test("2026-09-27 makes the preview the last panel, showing what was last saved",
   // do not: the column shows the selected panel and nothing else.
   await expect(page.getByTestId("qcms-preview-switcher")).toBeVisible();
   await expect(field(page, "Label")).toHaveCount(0);
+  // SAVE IS STILL THERE (Code Owner, 2026-09-28). This assertion read the other way round while
+  // the button lived inside the editor's column, where the preview panel replaced it and left the
+  // screen with no way to save what was typed on another panel. The button is in the screen's
+  // heading row now, above the card rather than inside it, so it is on every panel - which is the
+  // whole point of moving it, and what the position test next door pins.
   await expect(
     page.getByRole("main").getByRole("button", { name: "Save draft" }),
-    "a panel with nothing to save says nothing (contract 6)",
-  ).toHaveCount(0);
+    "the preview panel is still a draft's screen, and a draft can be saved from it",
+  ).toBeVisible();
 
   // IT SHOWS WHAT WAS SAVED, AND SAYS SO WHEN THAT IS BEHIND. The preview is compiled by the
   // API from the stored version, so an edit that has not been saved cannot be in it - which
