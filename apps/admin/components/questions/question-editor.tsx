@@ -241,6 +241,10 @@ export function QuestionEditor({
     [],
   );
 
+  // The sticky bar's real height, published for the scroll padding. See the hook.
+  const footer = useRef<HTMLDivElement | null>(null);
+  useStickyFooterInset(footer, !isFrozen && !isCreate);
+
   // THE REFUSED SAVE, IN TWO PASSES. Sending focus needs the panel to be on screen, and
   // choosing the panel is a render, so the panel is chosen here and focused in the effect
   // below - which React runs after the render that put it there.
@@ -416,30 +420,99 @@ export function QuestionEditor({
           that autosaves, and putting it beside a Save button is the confusion
           `plan/admin-ux-audit.md` §4.6 describes rather than the fix for it. */}
       {!isFrozen && (
-        // STICKY ON THE DETAIL SCREEN, IN FLOW ON THE CREATION SCREEN, and the difference is
-        // not a taste. The sticky footer answers "Save is below a panel taller than the
-        // viewport", which is the version card's problem: that screen shows ONE panel beside a
-        // 240px rail, so the button lands clear of the viewport's own bottom-left corner.
+        // ONLY THE BUTTON IS STICKY, and the note stays in flow above it.
         //
-        // `/questions/new` has no rail and shows every panel at once, so a pinned footer put
-        // the primary action flush into that corner - which is where `next dev` paints its own
-        // tools indicator, and the indicator then owns the hit test. Every admin browser spec
-        // reaches this screen through `createDraft`, so one unclickable button there is the
-        // whole suite. The creation screen keeps the plain block it always had, which is also
-        // what contract §6 describes for a single pass through a short document.
-        <div className={isCreate ? "flex flex-col gap-2" : "qcms-question-editor__footer"}>
+        // The note is four lines of prose at 390, so a bar carrying both was 153px tall there
+        // against a 112px `scroll-padding-block-end` - and a control tabbed to near the bottom
+        // of the option grid landed UNDER it: focused, invisible, and not clickable where a
+        // pointer would aim. That is WCAG 2.2 SC 2.4.11 (Focus Not Obscured) failing, and
+        // `plan/admin-mobile-stance.md`'s "no interactive element that cannot be reached" with
+        // it. At 640 the same bar was 113px against the same 112px, which is the defect one
+        // pixel from being invisible.
+        //
+        // Shrinking what sticks is the fix rather than growing the padding to match: a bar that
+        // is one control tall obscures a strip the size of the control it holds, whatever the
+        // prose around it does, in any locale. `useStickyFooterInset` below then measures even
+        // that and publishes it, so the padding cannot be smaller than the bar by construction.
+        //
+        // The note does NOT move in DOM order - it is still before the button, so a linear read
+        // reaches it on the way to the control (issue 518, contract §6). It is a sibling of the
+        // bar rather than its child because the bar's containing block has to be this tall
+        // `<form>`: a sticky element only sticks while its own parent is in view, so wrapping
+        // the two in a short div would have quietly stopped it sticking at all.
+        <>
           <ManualSaveNote
             messageKey={isCreate ? "questions.create.manualModel" : "questions.editor.manualModel"}
           />
-          <div>
+          {/* STICKY ON THE DETAIL SCREEN, IN FLOW ON THE CREATION SCREEN, and the difference is
+              not a taste. Sticky answers "Save is below a panel taller than the viewport", which
+              is the version card's problem: that screen shows ONE panel beside a 240px rail.
+              `/questions/new` has no rail and shows every panel at once, so a pinned bar put the
+              primary action flush into the viewport's bottom-left corner - which is where
+              `next dev` paints its own tools indicator, and the indicator then owns the hit
+              test. Every admin browser spec reaches that screen through `createDraft`, so one
+              unclickable button there is the whole suite. */}
+          <div
+            ref={footer}
+            className={isCreate ? "flex" : "qcms-question-editor__footer"}
+            data-testid="qcms-question-save"
+          >
             <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
               {isCreate ? t("questions.create.submit") : t("questions.editor.save")}
             </Button>
           </div>
-        </div>
+        </>
       )}
     </form>
   );
+}
+
+/**
+ * Publish the sticky save bar's measured height, so the scroll padding can never be smaller
+ * than the thing it is compensating for.
+ *
+ * ## Why this is measured rather than written down
+ *
+ * `scroll-padding-block-end` is what stops the browser scrolling a control to the viewport
+ * edge and leaving it under a sticky element (WCAG 2.2 SC 2.4.11). It was a constant, and a
+ * constant is a guess about a box whose height depends on the viewport, the operator's font
+ * size and the length of a translated button label. The guess was wrong by 41px at 390 and by
+ * one pixel at 640, which is how this was found.
+ *
+ * The bar is one control tall now, so a constant would very likely be right. "Very likely" is
+ * the part this removes: the padding is the bar's own height plus a little air, re-measured
+ * whenever the bar changes size, so the two cannot drift apart at a width nobody tested.
+ *
+ * ## Where the value goes, and why it is cleared
+ *
+ * On `<html>`, because `scroll-padding` belongs to the scrolling container and the rule that
+ * reads it is `html:has(.qcms-question-editor__footer)`. Cleared on unmount so a screen with no
+ * such bar does not inherit a reserve from one the reader has left; the CSS fallback is a
+ * token-derived value that holds for the frame before this first runs.
+ *
+ * `ResizeObserver` rather than a resize listener: the bar's height changes with the panel
+ * beside it and with a font-size change, neither of which is a window resize.
+ */
+function useStickyFooterInset(ref: { current: HTMLDivElement | null }, enabled: boolean): void {
+  useEffect(() => {
+    const element = ref.current;
+    if (!enabled || element === null) return undefined;
+    const root = document.documentElement;
+    const publish = (): void => {
+      // Rounded up, and 8px of air, so focus lands clear of the bar rather than against it.
+      root.style.setProperty(
+        "--qcms-save-footer-h",
+        `${String(Math.ceil(element.getBoundingClientRect().height) + 8)}px`,
+      );
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(element);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--qcms-save-footer-h");
+    };
+  }, [enabled]);
 }
 
 /**

@@ -624,6 +624,93 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   await page.setViewportSize({ width: 1280, height: 800 });
 });
 
+test("at 390 nothing the keyboard reaches ends up under the sticky save bar", async ({ page }) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  /*
+   * WCAG 2.2 SC 2.4.11 (Focus Not Obscured), and `plan/admin-mobile-stance.md`'s "at 390 ... no
+   * interactive element that cannot be reached".
+   *
+   * A sticky element sits over the content behind it, so every control the keyboard can reach
+   * has to be scrolled clear of it rather than under it. `app/globals.css` does that with
+   * `scroll-padding-block-end`, and the value used to be a constant: at 390 the bar was 153px
+   * tall, because the manual-save note wrapped to four lines inside it, against 112px of
+   * padding. Tabbing through the option grid then left the focused control invisible under the
+   * bar - still focused, still announced, and not where a pointer would find it.
+   *
+   * Both halves are asserted, because either alone would pass the wrong build. The NUMBER is the
+   * invariant the fix rests on (the padding can never be smaller than the bar); the WALK is what
+   * that invariant is for, and it would catch a bar that grew for some reason this file has not
+   * thought of.
+   *
+   * The option grid is the panel to walk: it is the tallest one, and its rows carry three
+   * focusable controls each - the insert point, the grip and the label - so it reaches the
+   * bottom of the viewport with plenty of stops.
+   */
+  await createDraft(page, slugFor("focus-390"), "Single choice");
+  await openPanel(page, "options");
+  await addOption(page, "Wagon");
+  await addOption(page, "Convertible");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await settleTransitions(page);
+
+  const bar = page.locator(".qcms-question-editor__footer");
+  await expect(bar).toBeVisible();
+
+  const reserve = await page.evaluate(() => {
+    const element = document.querySelector(".qcms-question-editor__footer");
+    return {
+      bar: element === null ? 0 : element.getBoundingClientRect().height,
+      padding: Number.parseFloat(getComputedStyle(document.documentElement).scrollPaddingBottom),
+    };
+  });
+  expect(
+    reserve.padding,
+    "the scroll padding must never be smaller than the bar it compensates for",
+  ).toBeGreaterThanOrEqual(reserve.bar);
+
+  // THE SAVE BUTTON IS PRESSABLE WHERE A POINTER AIMS. Two things have owned this point
+  // before: `next dev`'s tools indicator in the viewport's bottom-left corner, and the option
+  // grid's own insert affordance, which outranked the bar in the stacking order.
+  const saveOwnsItsCentre = await page.evaluate(() => {
+    const element = document.querySelector(".qcms-question-editor__footer");
+    const button = element?.querySelector("button") ?? null;
+    if (element === null || button === null) return { ok: false, hit: "missing" };
+    const box = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { ok: hit !== null && element.contains(hit), hit: hit?.tagName ?? "none" };
+  });
+  expect(saveOwnsItsCentre.ok, `Save's own centre is owned by ${saveOwnsItsCentre.hit}`).toBe(true);
+
+  // And the walk. Start above the grid so the tab order runs down through it and into the bar.
+  await field(page, "Option 1 label").focus();
+  for (let step = 0; step < 24; step += 1) {
+    await page.keyboard.press("Tab");
+    const obscured = await page.evaluate(() => {
+      const active = document.activeElement;
+      const bottomBar = document.querySelector(".qcms-question-editor__footer");
+      if (active === null || bottomBar === null || active === document.body) return null;
+      const box = active.getBoundingClientRect();
+      // A zero-sized or off-screen element has no centre worth hit-testing.
+      if (box.width === 0 || box.height === 0) return null;
+      if (box.top < 0 || box.top > window.innerHeight) return null;
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      if (hit === null) return null;
+      // The bar covering its OWN controls is the bar working, not the defect.
+      if (active.contains(hit)) return null;
+      return bottomBar.contains(hit)
+        ? (active.getAttribute("aria-label") ?? active.textContent ?? active.tagName)
+        : null;
+    });
+    expect(
+      obscured,
+      "a focused control must not sit under the sticky save bar (SC 2.4.11)",
+    ).toBeNull();
+  }
+});
+
 test("a long label-derived option id renders whole at both gate widths", async ({ page }) => {
   test.setTimeout(120_000);
 

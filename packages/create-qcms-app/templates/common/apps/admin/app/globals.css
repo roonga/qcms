@@ -2175,35 +2175,93 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
    The background is the surface rather than a tint: this is the card continuing, not
    a new band. The border above it is what says the content ends here. */
-/* WHAT THE STICKY FOOTER COVERS, AND THE ONE LINE THAT UNCOVERS IT. A sticky
+/* WHAT THE STICKY SAVE BAR COVERS, AND THE ONE LINE THAT UNCOVERS IT. A sticky
    element sits over whatever is behind it, and the browser's own "scroll this into
    view" puts a control flush against the viewport edge - which is underneath this.
    So tabbing to a control near the bottom, or a script scrolling one into view,
    landed it under the Save button: reachable by the keyboard, invisible, and not
-   clickable at the point a pointer would aim for.
+   clickable at the point a pointer would aim for. That is WCAG 2.2 SC 2.4.11
+   (Focus Not Obscured), and `plan/admin-mobile-stance.md`'s "no interactive element
+   that cannot be reached" with it.
 
    `scroll-padding-block-end` on the scroll container is the browser's own answer:
-   it tells every scroll-into-view to stop short by that much. `:has()` scopes it
-   to the screens that actually have this footer, so no other route pays for it.
-   The value is the footer's own height with a little air - a control is never less
-   than `--admin-control-h` tall and the block adds its padding and border. */
+   it tells every scroll-into-view to stop short by that much. `:has()` scopes it to
+   the screens that actually have the bar, so no other route pays for it.
+
+   THE VALUE IS MEASURED, NOT WRITTEN DOWN (issue found at 390). It was `7rem`, and
+   `7rem` is a guess about a box whose height depends on the viewport, the operator's
+   font size and the length of a translated label. The guess was wrong by 41px at 390,
+   where the manual-save note wrapped to four lines and made the bar 153px, and wrong
+   by one pixel at 640. The note is out of the bar now - so what sticks is one control
+   - and `useStickyFooterInset` in `components/questions/question-editor.tsx` measures
+   even that and publishes it here, air included.
+
+   The fallback is what holds for the frame before that hook first runs, and it is
+   derived from the same tokens the bar is built from rather than typed: one control,
+   the bar's block padding on both sides, its border, and the same air. */
 html:has(.qcms-question-editor__footer) {
-  scroll-padding-block-end: 7rem;
+  scroll-padding-block-end: var(
+    --qcms-save-footer-h,
+    calc(var(--admin-control-h) + 1.5rem + 1px + 8px)
+  );
 }
 
 .qcms-question-editor__footer {
   --qcms-card-pad: 1rem;
   position: sticky;
   inset-block-end: 0;
-  z-index: 1;
+  /* ABOVE THE OPTION GRID'S OWN STACKING BAND, BELOW THE APP FRAME. This was `1`,
+     which put it inside the band the grid uses for its row internals - the insert
+     affordance is 2 and the row menu is 3 - so at 390, where the bar spans the
+     column, an insert button painted over the Save button and `elementFromPoint` at
+     its centre returned `.qcms-opt-insert`. A primary action that a decoration
+     swallows presses for is the same defect class as one the dev badge covers.
+
+     10 sits above that band and below the topbar's 20 and the skip link's 50, which
+     is the right order: this is chrome over the CONTENT, not over the app frame.
+
+     The trade, stated rather than discovered: a row menu opened on the very last row
+     can now be partly covered by the bar instead of covering it. That is the milder
+     failure - the menu is dismissible and the scroll padding above already lifts a
+     focused row clear of the bar before its menu opens - where the other one made
+     the screen's primary action unpressable. */
+  z-index: 10;
   display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
   margin-inline: calc(-1 * var(--qcms-card-pad));
   margin-block-end: calc(-1 * var(--qcms-card-pad));
   padding: 0.75rem var(--qcms-card-pad);
   border-block-start: 1px solid var(--color-border);
   background-color: var(--color-surface);
+}
+
+/* THE ACTION FILLS THE BAR WHILE THE COLUMN IS FULL WIDTH, which is below
+   `--bp-sidebar` - and the boundary is that one rather than `--bp-compact` because
+   it is the rail that decides this. At and above `--bp-sidebar` the rail is a 240px
+   sidebar and the content column starts beside it; below it the rail collapses to a
+   disclosure and the column runs to the screen's leading edge, taking this bar and
+   its button with it.
+
+   Two reasons to fill it there, one of them about a tool rather than the design. A
+   full-width primary action is the ordinary treatment at that width; it also moves
+   the button's CENTRE away from the viewport's bottom-left corner, which is where
+   `next dev` paints its tools indicator and where that indicator owns the hit test.
+   The harness runs the admin in dev mode, so a control whose centre sits under the
+   badge is a control no test can press - the fault that cost the whole admin suite
+   once already, on `/questions/new`. Measured at 640 before this rule moved: the
+   button sat at x 37..152 and `elementFromPoint` at its centre returned
+   `NEXTJS-PORTAL`.
+
+   At `--bp-sidebar` and above the button takes its own width again: the column is
+   inset by the rail, the corner is far away, and a 600px-wide Save button would read
+   as a banner rather than as a control. */
+.qcms-question-editor__footer > button {
+  flex: 1 1 auto;
+  justify-content: center;
+}
+@variant sidebar {
+  .qcms-question-editor__footer > button {
+    flex: 0 0 auto;
+  }
 }
 :root.hc .qcms-question-editor__footer {
   border-block-start-color: var(--color-border-strong);

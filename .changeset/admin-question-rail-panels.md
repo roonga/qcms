@@ -50,10 +50,21 @@ address names. Six consequences worth reading before changing any of it:
 - **The rail is styled like the form builder's** (Code Owner, 2026-09-27): the same `qcms-rail*`
   and `qcms-rail-steps*` row geometry, current-row mark, child nesting, issue badge and
   control block. Six classes of a look of its own are deleted with it.
-- **Save stays in the column, as a sticky footer of the version card.** It is deliberately not
-  moved into the rail, which collapses to a shut disclosure on a narrow viewport - a save an author
-  has to expand a navigation to reach is worse than one they have to scroll to. `ManualSaveNote`
-  travels with it (issue 518, `plan/admin-design-contracts.md` §6).
+- **Save stays in the column, as a sticky bar at the foot of the version card.** It is
+  deliberately not moved into the rail, which collapses to a shut disclosure on a narrow viewport
+  - a save an author has to expand a navigation to reach is worse than one they have to scroll
+    to. `ManualSaveNote` travels with it (issue 518, `plan/admin-design-contracts.md` §6).
+
+  **Only the button is sticky; the note stays in flow above it.** A bar carrying both was 153px
+  tall at 390, where that note wraps to four lines, against a 112px `scroll-padding-block-end`,
+  and tabbing through the option grid left the focused control under it: WCAG 2.2 SC 2.4.11
+  (Focus Not Obscured), and `plan/admin-mobile-stance.md`'s "no interactive element that cannot
+  be reached" with it. At 640 the same bar was 113px against the same 112px. What sticks is one
+  control now, and the padding is that control's MEASURED height rather than a constant, so the
+  two cannot drift apart at a width nobody tested. Two more things moved with it: the bar
+  outranks the option grid's own stacking band, whose insert affordance had been swallowing
+  presses aimed at Save, and below `--bp-sidebar` - where the rail collapses and the column runs
+  to the screen's edge - the action fills the bar so its centre is clear of the corner.
 
 `/questions/new` is unchanged and keeps no rail: it shows every panel at once, because creation is
 one pass through a short document and there is nothing there to switch them with.
