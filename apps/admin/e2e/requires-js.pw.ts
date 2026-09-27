@@ -92,10 +92,18 @@ test.describe("without JavaScript", () => {
 
     // NOT PAINTED. A CSS locator rather than a role or label locator, because those match
     // nothing here and `toBeHidden()` is satisfied by an empty result - the assertion has
-    // to be able to see the element in order to say it is hidden.
-    await expect(page.locator('input[name="email"]')).toBeHidden();
-    await expect(page.locator('input[name="password"]')).toBeHidden();
-    await expect(page.locator('form[action="/sign-in/submit"]')).toBeHidden();
+    // to be able to see the element in order to say it is hidden. `toBeAttached()` first,
+    // for the same reason one level down: a selector that has gone stale would otherwise
+    // report the form hidden by finding nothing at all.
+    for (const selector of [
+      'form[action="/sign-in/submit"]',
+      'input[name="email"]',
+      'input[name="password"]',
+    ]) {
+      const element = page.locator(selector);
+      await expect(element, `${selector} is still served`).toBeAttached();
+      await expect(element, `${selector} is not painted`).toBeHidden();
+    }
 
     // NOT ANNOUNCED. `display: none` takes the subtree out of the accessibility tree, so
     // the role engine finds nothing: a screen reader is not offered a form that cannot be

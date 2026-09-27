@@ -1,6 +1,5 @@
 ---
 "qcms-admin": minor
-"create-qcms-app": minor
 ---
 
 The admin requires JavaScript, and says so instead of serving a shell that cannot work
