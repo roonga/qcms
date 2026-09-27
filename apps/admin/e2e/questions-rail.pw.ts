@@ -260,7 +260,9 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
   await expect(rail.locator("[data-rail-panel]")).toHaveCount(3);
   const selectedRow = rail.locator(`[data-rail-version="${String(fixture.draftVersion)}"]`);
   await expect(
-    selectedRow.locator("xpath=following-sibling::ul[@data-rail-panels]"),
+    // `data-rail-group="panels"` is the builder's own group attribute, which this list took
+    // with the rest of that rail's styling on 2026-09-27.
+    selectedRow.locator('xpath=following-sibling::ul[@data-rail-group="panels"]'),
     "the panels are the selected row's own children",
   ).toHaveCount(1);
 
