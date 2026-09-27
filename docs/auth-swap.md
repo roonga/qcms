@@ -16,7 +16,7 @@ still the three seams, and a fourth has joined them. That is decided and not bui
 tables arrive with task 069.
 
 **And the likely direction is not a swap at all.** Enterprise single sign-on is planned as
-**better-auth's own SSO plugins** rather than as a replacement of the library (phase C in
+**better-auth's own SSO plugins** rather than as a replacement of the library (track C in
 `plan/environments-and-workspaces.md`), so the realistic path for an adopter with an
 identity provider is to configure a plugin rather than to execute this page.
 

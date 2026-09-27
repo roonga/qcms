@@ -373,13 +373,18 @@ reading HTTP; the prefix is a second handle at L7, and it is also what lets the 
 link see that it is not production. Write both: the rules below pair them, and a rule set with only
 the hostname still serves every non-prod address unprefixed on that hostname.
 
-### The third hostname
+### The third hostname, beside the portal and the admin
 
-| Hostname        | Serves                                                                             | Reachable from                                       |
-| --------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| the portal name | `prod`: `/f/{slug}` and secure links, all unprefixed                               | the internet                                         |
-| the test name   | `test`: secure links only, every address under `/test/`, and no `/f/{slug}` at all | an allowlisted network, a VPN, or an IAP             |
-| the admin name  | authoring and releases, one for the whole installation                             | solo: the internet behind SEC-1; enterprise: the VPN |
+The first two are the ones this document already provisions: `QCMS_PORTAL_DOMAIN`, the respondent
+portal's public name, and `QCMS_ADMIN_DOMAIN`, the authoring admin's (invariant 3, and the variable
+table above). The test name is the third, and it is a second **respondent** name rather than a
+second admin: there is one admin for the whole installation and it serves every environment.
+
+| Hostname                               | Serves                                                                             | Reachable from                                       |
+| -------------------------------------- | ---------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| the portal name (`QCMS_PORTAL_DOMAIN`) | `prod`: `/f/{slug}` and secure links, all unprefixed                               | the internet                                         |
+| the test name                          | `test`: secure links only, every address under `/test/`, and no `/f/{slug}` at all | an allowlisted network, a VPN, or an IAP             |
+| the admin name (`QCMS_ADMIN_DOMAIN`)   | authoring and releases, one for the whole installation                             | solo: the internet behind SEC-1; enterprise: the VPN |
 
 `/test/f/{slug}` is **not** a route: there is no anonymous entry to a non-prod environment at all,
 so the only addresses that exist under a prefix are the secure-link and session ones.
