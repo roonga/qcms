@@ -134,9 +134,8 @@ describe("what a panel row says about itself", () => {
 
   it("digests the constraints that carry a value, and says so when none does", () => {
     const digest = (type: QuestionType, constraints: Record<string, unknown>) =>
-      questionPanels(definition(type, { constraints })).find(
-        (panel) => panel.id === "constraints",
-      )?.digest;
+      questionPanels(definition(type, { constraints })).find((panel) => panel.id === "constraints")
+        ?.digest;
     expect(digest("number", { min: 0, max: 200 })).toBe("min 0, max 200");
     expect(digest("number", {})).toBe("None set");
     // An unticked boolean constraint is not a constraint, which is how the kernel reads it too.

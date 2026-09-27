@@ -1,6 +1,5 @@
 ---
 "qcms-admin": minor
-"create-qcms-app": minor
 ---
 
 The question detail screen shows one editor panel at a time, chosen from the rail (Code Owner,

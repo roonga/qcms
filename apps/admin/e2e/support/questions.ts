@@ -25,11 +25,7 @@ export function field(page: Page, name: string): Locator {
 
 /** The panels of the question editor, as the rail addresses them. */
 export type QuestionPanelName =
-  | "content"
-  | "options"
-  | "constraints"
-  | "messages"
-  | "booleanLabels";
+  "content" | "options" | "constraints" | "messages" | "booleanLabels";
 
 /**
  * Open one panel of the question editor from the rail (Code Owner, 2026-09-27).

@@ -205,8 +205,7 @@ export function QuestionEditor({
   // this component's.
   usePublishQuestionPanels(
     useMemo(
-      () =>
-        addressedPanel === undefined ? undefined : { panels, issueCounts: counts },
+      () => (addressedPanel === undefined ? undefined : { panels, issueCounts: counts }),
       [addressedPanel, panels, counts],
     ),
   );

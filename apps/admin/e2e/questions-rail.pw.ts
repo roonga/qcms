@@ -275,10 +275,7 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
 
   // FIRST PAINT, BEFORE ANY PRESS: the marked row and the rendered panel are two trees reading
   // one address through one function, so they agree with nothing having hydrated.
-  await expect(rail.locator('[data-rail-panel="content"]')).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
+  await expect(rail.locator('[data-rail-panel="content"]')).toHaveAttribute("aria-current", "page");
   await expect(field(page, "Label")).toBeVisible();
   await expect(field(page, "Shortest answer")).toHaveCount(0);
 
@@ -368,9 +365,9 @@ test("2026-09-27 keeps Save in the column, reachable without scrolling to the en
   // NOT IN THE RAIL, deliberately: the rail collapses to a shut disclosure below
   // `--bp-sidebar`, so a Save button inside it would be a save an author has to expand a
   // navigation to reach. It is the version card's sticky footer instead.
-  await expect(page.getByTestId("qcms-question-rail").getByRole("button", { name: "Save draft" })).toHaveCount(
-    0,
-  );
+  await expect(
+    page.getByTestId("qcms-question-rail").getByRole("button", { name: "Save draft" }),
+  ).toHaveCount(0);
   const save = page.getByRole("main").getByRole("button", { name: "Save draft" });
   await expect(save).toBeVisible();
   // The manual save model travels with it (issue 518, contract §6).
@@ -389,7 +386,9 @@ test("2026-09-27 keeps Save in the column, reachable without scrolling to the en
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
-test("2026-09-27 badges the panel a refused save names, and lands focus in it", async ({ page }) => {
+test("2026-09-27 badges the panel a refused save names, and lands focus in it", async ({
+  page,
+}) => {
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.setViewportSize({ width: 1280, height: 900 });

@@ -174,9 +174,9 @@ describe("the rail row and the column, in two React trees", () => {
       expect(screen.getByRole("textbox", { name: "Smallest value" })).toBeTruthy();
     });
     expect(screen.queryByRole("textbox", { name: "Label" })).toBeNull();
-    expect(
-      screen.getByRole("button", { name: /^Constraints/u }).getAttribute("aria-current"),
-    ).toBe("page");
+    expect(screen.getByRole("button", { name: /^Constraints/u }).getAttribute("aria-current")).toBe(
+      "page",
+    );
   });
 
   it("writes the chosen panel into the address, so a reload keeps it", () => {

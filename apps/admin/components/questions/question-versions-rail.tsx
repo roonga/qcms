@@ -185,9 +185,7 @@ export function QuestionVersionsRail({
             {type !== undefined && (
               <>
                 <dt>{t("questions.detail.type")}</dt>
-                <dd>
-                  {t("questions.detail.typeLocked", { type: t(`questions.type.${type}`) })}
-                </dd>
+                <dd>{t("questions.detail.typeLocked", { type: t(`questions.type.${type}`) })}</dd>
               </>
             )}
           </dl>

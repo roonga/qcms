@@ -129,7 +129,11 @@ export function questionPanels(definition: QuestionDefinitionView): readonly Que
       panel(
         "options",
         t("questions.options.legend"),
-        tPlural("questions.panel.optionsDigestOne", "questions.panel.optionsDigest", options.length),
+        tPlural(
+          "questions.panel.optionsDigestOne",
+          "questions.panel.optionsDigest",
+          options.length,
+        ),
         options.map((_option, index) => `options.${String(index)}.label`),
       ),
     );
@@ -292,10 +296,7 @@ function contentDigest(definition: QuestionDefinitionView): string {
  * field's own label is on the control the row opens, which is where an author reads the long
  * form.
  */
-function constraintsDigest(
-  definition: QuestionDefinitionView,
-  owned: readonly string[],
-): string {
+function constraintsDigest(definition: QuestionDefinitionView, owned: readonly string[]): string {
   const constraints = (definition.constraints ?? {}) as Readonly<Record<string, unknown>>;
   const parts: string[] = [];
   for (const field of owned) {
@@ -309,11 +310,7 @@ function constraintsDigest(
 }
 
 /** One constraint, in the shortest phrase that still says which bound it is. */
-function constraintPart(
-  definition: QuestionDefinitionView,
-  field: string,
-  value: unknown,
-): string {
+function constraintPart(definition: QuestionDefinitionView, field: string, value: unknown): string {
   if (field === "pattern") return t("questions.panel.constraintPattern");
   if (field === "integer") return t("questions.panel.constraintInteger");
   // A DATE BOUND READS AS A RANGE, NOT AS AN EXTREME. "min Jan 1, 2030" is the same fact as
