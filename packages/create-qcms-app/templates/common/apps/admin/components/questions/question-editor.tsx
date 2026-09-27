@@ -414,7 +414,18 @@ export function QuestionEditor({
           that autosaves, and putting it beside a Save button is the confusion
           `plan/admin-ux-audit.md` §4.6 describes rather than the fix for it. */}
       {!isFrozen && (
-        <div className="qcms-question-editor__footer">
+        // STICKY ON THE DETAIL SCREEN, IN FLOW ON THE CREATION SCREEN, and the difference is
+        // not a taste. The sticky footer answers "Save is below a panel taller than the
+        // viewport", which is the version card's problem: that screen shows ONE panel beside a
+        // 240px rail, so the button lands clear of the viewport's own bottom-left corner.
+        //
+        // `/questions/new` has no rail and shows every panel at once, so a pinned footer put
+        // the primary action flush into that corner - which is where `next dev` paints its own
+        // tools indicator, and the indicator then owns the hit test. Every admin browser spec
+        // reaches this screen through `createDraft`, so one unclickable button there is the
+        // whole suite. The creation screen keeps the plain block it always had, which is also
+        // what contract §6 describes for a single pass through a short document.
+        <div className={isCreate ? "flex flex-col gap-2" : "qcms-question-editor__footer"}>
           <ManualSaveNote
             messageKey={isCreate ? "questions.create.manualModel" : "questions.editor.manualModel"}
           />
