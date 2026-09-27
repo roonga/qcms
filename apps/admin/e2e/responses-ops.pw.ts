@@ -710,10 +710,17 @@ async function danglingAriaControls(page: Page): Promise<readonly string[]> {
  * different defects that a check on either half alone would let through: a skipped level
  * is a hole in the outline a screen-reader user navigates by, and a repeated subject is
  * the same thing said twice at two levels, which is what #510 removed from this screen.
+ *
+ * `:visible`, since the admin requires JavaScript (Code Owner, 2026-09-27). Every page now
+ * carries the JavaScript-required message's `<h1>`, kept hidden by `globals.css`
+ * (`app/layout.tsx`), so a bare tag query returns an outline with one entry in it that no
+ * operator can ever hear. The subject here is the outline a screen reader navigates, which
+ * is the visible one - and that hidden heading is only ever visible in the state where it is
+ * the ONLY visible one, so this can never hide a real entry.
  */
 async function headingOutline(page: Page): Promise<readonly string[]> {
   return page
-    .locator("h1, h2, h3, h4, h5, h6")
+    .locator("h1:visible, h2:visible, h3:visible, h4:visible, h5:visible, h6:visible")
     .evaluateAll((nodes) =>
       nodes.map((node) => `${node.tagName.toLowerCase()}: ${(node.textContent ?? "").trim()}`),
     );

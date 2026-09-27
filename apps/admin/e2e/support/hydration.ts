@@ -72,9 +72,10 @@ export interface HydrationWaitOptions {
  * flag: with scripting on its content is left as raw text, and with scripting off it is
  * parsed as real elements. So a `<noscript>` with element children means "this page will
  * never run its own scripts", which is a browser fact rather than a framework detail, and
- * `app/layout.tsx` already ships one for product reasons (the appearance and account
- * triggers are hidden when they cannot open). Measured in both modes: scripting on reports
- * `childElementCount` 0, scripting off reports 1 with a `<style>` child.
+ * `app/layout.tsx` already ships one for product reasons (the JavaScript-required gate,
+ * Code Owner 2026-09-27; before that, hiding the two topbar menu triggers). Measured in both
+ * modes: scripting on reports `childElementCount` 0, scripting off reports 1 with a
+ * `<style>` child.
  *
  * Playwright's own `page.evaluate` is NOT a discriminator here and was tried first: it runs
  * in an isolated world that stays available with `javaScriptEnabled: false`, so it returns
@@ -99,17 +100,22 @@ async function scriptingDisabled(page: Page): Promise<boolean> {
  *
  * ## The no-JavaScript case, which this has to get right
  *
- * The admin's auth loop is a real `<form method="post">` and works with scripts off
- * entirely; `auth-2fa.pw.ts`, `rail.pw.ts` and `table-anchors.pw.ts` each have a
- * `test.use({ javaScriptEnabled: false })` block that proves it. React never attaches
- * there, so the marker never appears, and a wait for it is not merely useless but wrong:
- * it turns those specs into minutes of timeout. It is also unnecessary, because the defect
- * the wait exists for cannot happen without React - nothing is ever going to overwrite what
- * was typed.
+ * On a page whose scripts will never run, React never attaches, so the marker never
+ * appears and a wait for it is not merely useless but wrong: it turns such a spec into
+ * minutes of timeout. It is also unnecessary, because the defect the wait exists for cannot
+ * happen without React - nothing is ever going to overwrite what was typed.
  *
  * So the wait asks the document first and returns immediately when scripting is off. That
- * is a real hazard this shipped with before the full browser suite caught it: three no-JS
- * blocks went red on nothing but this.
+ * is a real hazard this shipped with before the full browser suite caught it: the three
+ * `javaScriptEnabled: false` blocks the admin suite had then went red on nothing but this.
+ *
+ * **Who still needs it, now that the admin requires JavaScript** (Code Owner, 2026-09-27;
+ * `plan/admin-design-contracts.md`). The auth loop is still a native form, but a scriptless
+ * operator never reaches it: `app/layout.tsx` hides the app behind one message, which
+ * `e2e/requires-js.pw.ts` asserts. So no spec types into a scriptless screen any more, and
+ * the early return protects the next one somebody writes rather than a shipped path - it is
+ * what makes such a spec fail on its own claim instead of on this helper's timeout.
+ * `hydration-wait.pw.ts` keeps it tested for that reason.
  */
 export async function waitForHydration(
   page: Page,
@@ -136,8 +142,10 @@ export async function waitForHydration(
  *
  * Because the window is not "before hydration", it is "hydration lands **between** the
  * typing and the submit". Type into the server render and never hydrate, and the value is
- * intact and the native form POST succeeds - the screen works with no JavaScript at all,
- * which is the whole point of it. Hydrate first and the typing goes through React. Only
+ * intact and the native form POST succeeds, because that post is the screen's real
+ * mechanism rather than a fallback: the credential reaches a named server route without
+ * passing through client JavaScript (ADR-35 / SEC-1). Hydrate first and the typing goes
+ * through React. Only
  * the interleaving loses: the value is typed, the attaching commit overwrites it with
  * react-aria's empty state, and the Enter that follows submits an empty `required` field.
  * A regression test therefore has to schedule that interleaving rather than hope for it.

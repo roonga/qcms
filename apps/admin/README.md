@@ -208,8 +208,11 @@ It is a **development** tool. It writes the database directly, which is why it l
   itself: no `@roonga/qcms-core` value import, no domain-table access, and API calls only
   through `lib/server/api.ts`.
 - **Auth flows are native form POSTs** to route handlers, not client fetches or server
-  actions. The whole sign-in and 2FA loop therefore works before hydration and with
-  JavaScript off, and no credential passes through client JavaScript.
+  actions, so no credential, TOTP code or recovery code passes through client JavaScript
+  (ADR-35 / SEC-1). That is the reason, and it is about where the secret goes rather than
+  about scripting: the whole sign-in and 2FA loop works before hydration, and the app itself
+  requires JavaScript and hides those screens without it (Code Owner, 2026-09-27,
+  `plan/admin-design-contracts.md`).
 - **`components/kit.tsx`** is the single `"use client"` boundary over `@roonga/qcms-ui/kit` (the
   vendored a2-react-aria components, ADR-22). It is a re-export with no wrappers: admin
   screens and rendered A2UI steps use literally the same components. Admin screens are

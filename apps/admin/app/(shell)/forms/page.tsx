@@ -43,8 +43,9 @@ export function generateMetadata(): Metadata {
  * - **The state is the URL.** A filtered library is a link an author can send and a page
  *   that survives a reload, and nothing about the current view lives in component state.
  * - **A native GET form.** The toolbar is `<form method="get">` over the vendored
- *   controls, which serialize into hidden native inputs, so Apply works with JavaScript
- *   off. Nothing here is an event handler.
+ *   controls, which serialize into hidden native inputs, so Apply is a submission the
+ *   browser performs rather than a handler this app writes. Nothing here is an event
+ *   handler, which is what keeps the two properties either side of this one true.
  * - **One request either way.** Filters change the query string, never the number of
  *   round trips; `lib/server/request-reads.test.ts` counts them.
  *
@@ -119,7 +120,8 @@ export default async function FormsPage({
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
           {/* A GET form, so a filtered library is a URL: shareable, bookmarkable, and
-              still operable with JavaScript off even though the builder is not. */}
+              undone by the back button. Apply is a plain navigation rather than a
+              handler this screen has to hydrate. */}
           <form method="get" className="qcms-filters">
             <fieldset className="qcms-fieldset qcms-fieldset--flat">
               <legend className="qcms-visually-hidden">{t("forms.filter.legend")}</legend>

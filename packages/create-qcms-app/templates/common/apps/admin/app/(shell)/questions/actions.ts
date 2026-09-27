@@ -20,9 +20,10 @@ import { requireAdminSession } from "@/lib/server/session";
  *
  * ## Why server actions rather than the route handlers task 031 used
  *
- * 031's screens are credential transitions, and every one of them is a full-page POST
- * that has to work with JavaScript off. The editor is the opposite kind of screen: it
- * holds a live document (an option list being reordered, a constraint being typed) and
+ * 031's screens are credential transitions, and every one of them is a full-page POST that
+ * keeps the flow out of client JavaScript for that flow's own reason (ADR-35 / SEC-1, not a
+ * general admin rule). The editor is the opposite kind of screen: it holds a live document
+ * (an option list being reordered, a constraint being typed) and
  * its failure mode is a validation error that has to land on a field **without throwing
  * the author's unsaved work away**. A redirect-back-with-an-error-code round trip cannot
  * do that: the page re-renders from the stored draft, and the edit that caused the error

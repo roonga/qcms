@@ -26,9 +26,8 @@ import { FormRailSlot } from "./rail-slot";
  * anything publish, which is why the flag that used to say so was removed rather than
  * kept in step with the truth by hand.
  *
- * Until the builder publishes - and for a reader with no JavaScript - the rows are the same
- * anchors the other seven screens show, pointing at the fragment `lib/forms/issues.ts`
- * mints for issue focus.
+ * Until the builder publishes, the rows are the same anchors the other seven screens show,
+ * pointing at the fragment `lib/forms/issues.ts` mints for issue focus.
  */
 export default function FormBuilderRail({
   params,

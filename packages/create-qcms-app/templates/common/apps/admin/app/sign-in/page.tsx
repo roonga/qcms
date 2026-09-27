@@ -16,8 +16,12 @@ import { currentAdminSession, SHELL_HOME_PATH } from "@/lib/server/session";
  * no self-registration path exists in any composition, and the first admin is
  * created by `pnpm qcms:create-admin`. The absence is the feature.
  *
- * The form is a native POST to `/sign-in/submit`, so the credential never passes
- * through client JavaScript and the screen works before hydration. Failures come
+ * The form is a native POST to `/sign-in/submit`, and the reason is where the credential
+ * goes: it never passes through client JavaScript (ADR-35 / SEC-1). That is not a no-JS
+ * claim - the admin requires JavaScript and hides this form without it (Code Owner,
+ * 2026-09-27, `plan/admin-design-contracts.md`) - and it is untouched by that ruling,
+ * because moving the post into a `fetch` would put a credential in the client bundle's
+ * reach and republish the endpoint set. Failures come
  * back as an opaque `?error=1` marker that renders one fixed sentence: an unknown
  * email and a wrong password are indistinguishable here and in the API's logs.
  *

@@ -54,6 +54,18 @@ export const messages = {
   // name a tab. The id is what the address bar already shows and what R6 makes permanent.
   "title.formSection": "{section}: {formId}",
 
+  // The whole page an operator with scripting disabled ever sees (Code Owner,
+  // 2026-09-27). The admin requires JavaScript, so `app/layout.tsx` hides the app and
+  // reveals this rather than serving a shell full of controls that cannot open.
+  //
+  // The body names the remedy and not the cause: enabling JavaScript is the only action
+  // available to this reader, and the reload is spelled out because nothing on the page
+  // can notice the setting changing. No-JS remains a PORTAL requirement and is untouched
+  // (`docs/PROJECT_GOAL.md` scopes it to the browsers a respondent runs).
+  "requiresJs.title": "JavaScript is required",
+  "requiresJs.body":
+    "QCMS needs JavaScript to run. Turn on JavaScript in your browser settings, then reload this page.",
+
   "action.skipToContent": "Skip to content",
   "action.signIn": "Sign in",
   "action.signOut": "Sign out",

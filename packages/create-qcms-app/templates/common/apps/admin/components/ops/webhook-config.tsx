@@ -283,10 +283,10 @@ export function WebhookConfig({
                           amendment's example list names only `ses_` and `lnk_`.
 
                           This table has no detail route, so the clause "the full id goes
-                          somewhere reachable without JS" is answered by the cell itself
-                          rather than by a link: the remainder is rendered visually hidden,
-                          in the server HTML, where assistive technology reads it and a
-                          selection copies it. */}
+                          somewhere a reader can still reach it" is answered by the cell
+                          itself rather than by a link: the remainder is rendered visually
+                          hidden, in the server HTML, where assistive technology reads it
+                          and a selection copies it. */}
                       <EntityId kind="webhook" value={hook.webhookId} />
                     </th>
                     <td>

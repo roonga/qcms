@@ -15,8 +15,8 @@ import { INTERNAL_TOKEN_HEADER } from "./config.ts";
  * 2. **`Origin: null` is replaced with this app's own origin, and a real origin never
  *    is.** This app sends `Referrer-Policy: no-referrer`, so a browser posting a form
  *    here sends `Origin: null` and no `Referer`, which better-auth refuses `403
- *    MISSING_OR_NULL_ORIGIN`. The substitution is what makes the no-JS auth flow work
- *    at all, and its whole safety argument is that it is conditional - see
+ *    MISSING_OR_NULL_ORIGIN`. The substitution is what makes the plain-form auth flow
+ *    work at all, and its whole safety argument is that it is conditional - see
  *    `forwardedOrigin` in `api.ts`. A test that only covered the substitution would pass
  *    for an unconditional one, so the foreign-origin case is asserted beside it.
  * 3. **The client address is asserted, never relayed.** `x-forwarded-for` and

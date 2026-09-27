@@ -129,7 +129,7 @@ describe("the form library sends its filters to the API rather than applying the
 });
 
 describe("the toolbar is a native GET form whose values come back from the URL", () => {
-  it("submits by navigation, so the three controls work with JavaScript off", async () => {
+  it("submits by navigation, so Apply needs no handler this screen hydrates", async () => {
     const markup = await renderForms({});
 
     // A GET form with no `action`: it submits to the route it is on, which is what makes

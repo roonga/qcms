@@ -38,13 +38,20 @@
  *    the bundle is let in. Remove the wait from `openMenu` and the press lands on the inert
  *    button, nothing re-issues it, and the last assertion reds.
  *
- * 5. **It must not fire where React is never coming.** The auth loop is a native form and
- *    works with scripts off entirely, which three specs prove in
- *    `test.use({ javaScriptEnabled: false })` blocks. The marker cannot appear there, so a
- *    wait for it is minutes of timeout on a page that was never at risk. The last test pins
- *    that the wait returns immediately instead. This is not hypothetical: the first version
- *    of this change reddened all three of those blocks, and only the full browser suite
- *    caught it.
+ * 5. **It must not fire where React is never coming.** The marker cannot appear on a page
+ *    whose scripts will never run, so a wait for it is minutes of timeout rather than a
+ *    failure that names itself. The last test pins that the wait returns immediately
+ *    instead. This is not hypothetical: the first version of this change reddened all three
+ *    of the `javaScriptEnabled: false` blocks the admin suite had then, and only the full
+ *    browser suite caught it.
+ *
+ *    **What that wait now protects is the helper rather than a shipped path** (Code Owner,
+ *    2026-09-27: the admin requires JavaScript and stops at a message without it,
+ *    `plan/admin-design-contracts.md`). The auth loop is still a native form, but nothing
+ *    reaches it with scripting off, so no spec in this app types into a scriptless screen
+ *    any more. The early return is kept and kept tested because it is what makes the next
+ *    scriptless spec somebody writes fail on its own claim instead of on this helper's
+ *    timeout, and because `fillStable` and `openMenu` call it unconditionally.
  *
  * The mechanism, for whoever debugs this next, because nothing about the failure named it:
  * react-aria's `TextField` received neither `value` nor `defaultValue`, so it rendered a
@@ -299,8 +306,9 @@ test.describe("without JavaScript", () => {
 
   test("the wait returns at once on a page whose scripts will never run", async ({ page }) => {
     // React is never coming, so there is nothing to wait for AND nothing at risk: no commit
-    // will overwrite what was typed. A wait that blocked here would turn every no-JS spec
-    // into a timeout, which is exactly what it did before this was pinned.
+    // will overwrite what was typed. A wait that blocked here would spend its whole budget
+    // on a page that will never satisfy it, which is exactly what it did before this was
+    // pinned, across the three scripting-disabled blocks the suite had then.
     //
     // The budget is the assertion. Passing no timeout would let this "pass" after the suite
     // default, which is the failure being guarded against; a budget far below any plausible
@@ -313,9 +321,13 @@ test.describe("without JavaScript", () => {
       "with scripting off the wait must return immediately, not time out",
     ).toBeLessThan(NO_SCRIPT_BUDGET_MS);
 
-    // And the page really is the no-JS one: the server-rendered form is here and usable,
-    // which is what makes skipping the wait correct rather than merely convenient.
-    await expect(page.getByLabel("Email")).toBeAttached();
-    await expect(page.getByRole("button", { name: "Sign in" })).toBeAttached();
+    // And the page really is the scriptless one. This used to assert the server-rendered
+    // sign-in form was here and usable, which is what made skipping the wait correct rather
+    // than merely convenient. The admin stops at the JavaScript-required message now (Code
+    // Owner, 2026-09-27), so the observation moves to the thing that IS on screen - and the
+    // claim it supports is unchanged either way: React is never coming, so the wait has
+    // nothing to wait for.
+    await expect(page.getByRole("heading", { name: "JavaScript is required" })).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeHidden();
   });
 });

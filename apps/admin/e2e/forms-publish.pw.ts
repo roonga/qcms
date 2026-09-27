@@ -325,12 +325,23 @@ test("history renders the stored compiled document and never previews (exit crit
   // chrome named the version at all. The form stays in the breadcrumb as context.
   await expect(page.locator("h1").first()).toHaveText("Version 1");
 
-  // Issue #537: and it is the ONLY `<h1>`. The stored document supplies a form-title
-  // heading of its own, which used to render here untouched and give the page two
+  // Issue #537: and it is the ONLY top-level heading. The stored document supplies a
+  // form-title heading of its own, which used to render here untouched and give the page two
   // top-level headings - two competing answers to "what is this page" for anyone
   // navigating by heading level. The embedded document is demoted a level instead, so the
   // form title is still shown, one rank down, under the heading that names the page.
-  await expect(page.locator("h1"), "an embedded document must not claim the page").toHaveCount(1);
+  //
+  // A ROLE QUERY rather than `locator("h1")` (Code Owner, 2026-09-27). The admin requires
+  // JavaScript now, and the message it stops at is an `<h1>` that every page carries while
+  // `globals.css` keeps it hidden (`app/layout.tsx`), so the DOM count is 2 on every screen
+  // in the app while the ANNOUNCED count is still 1: `display: none` takes a subtree out of
+  // the accessibility tree, and Playwright's role engine with it. The invariant this line is
+  // about was always the announced one - "two competing answers for anyone navigating by
+  // heading level" - so this is the spelling it should have had, rather than a concession.
+  await expect(
+    page.getByRole("heading", { level: 1 }),
+    "an embedded document must not claim the page",
+  ).toHaveCount(1);
   const versionView = page.getByTestId("qcms-version-view");
   await expect(versionView.locator("h1")).toHaveCount(0);
   // Demoted, not dropped: the document's own headings are still on the page, one rank

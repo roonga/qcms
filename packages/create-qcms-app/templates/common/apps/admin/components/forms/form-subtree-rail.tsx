@@ -43,8 +43,8 @@ import { t } from "@/lib/i18n/en";
  *
  * A server component, and it needs to be nothing else: which item is current is a fact
  * about the route that renders it, so it arrives as a prop instead of being read from the
- * pathname in the browser. Nothing here ships to the client or waits for hydration, and
- * the rail is entirely operable with JavaScript disabled.
+ * pathname in the browser. Nothing here ships to the client or waits for hydration, so the
+ * rail is complete and operable in the first paint.
  */
 export function FormSubtreeRail({
   formId,

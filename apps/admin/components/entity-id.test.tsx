@@ -7,11 +7,12 @@ import { stripTags } from "./test-support/markup.ts";
 /**
  * What an identifying cell actually renders (issue #582).
  *
- * `renderToStaticMarkup` IS the no-JavaScript render: server HTML, no hydration, no
- * handlers. So the assertions below are the no-JS claims themselves rather than proxies for
- * them, which matters here more than usual - §2 accepts a JS-only copy control **because**
- * the whole id is reachable without JavaScript, and the links and webhooks tables have no
- * detail route to carry it. This file is where that premise is checked.
+ * `renderToStaticMarkup` IS the served HTML: no hydration, no handlers. So the assertions
+ * below read the markup itself rather than a proxy for it, which matters here more than
+ * usual - §2 treats the copy control as a convenience **because** the whole id is in the
+ * markup anyway, selectable, announced and findable by in-page search, and the links and
+ * webhooks tables have no detail route to carry it. This file is where that premise is
+ * checked.
  */
 
 const SESSION = "ses_45cf634512ab9f0e77c1d2e3f4a5b6c7";

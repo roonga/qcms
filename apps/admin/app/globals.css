@@ -730,30 +730,62 @@ button {
 }
 
 /*
- * The no-JS sign-out fallback (Code Owner decision, 2026-07-31).
- *
- * Rendered on every page and hidden here; the `<noscript>` block in `app/layout.tsx`
- * reveals it and hides both menu triggers. `display: none` does not stop
- * `requestSubmit()`, so the scripted account menu submits this very form - one
- * sign-out path in the app, not two.
+ * The `.qcms-signout-fallback` rules stood here and are DELETED (Code Owner,
+ * 2026-09-27). They styled a visible submit button that a `<noscript>` rule revealed so a
+ * scriptless operator could still end a session (Code Owner decision, 2026-07-31). The
+ * admin requires JavaScript now, so no scriptless operator reaches the topbar at all and
+ * that button was a control nothing could show. `components/account-menu.tsx` keeps the
+ * POST form itself, because `requestSubmit()` on it is how the scripted menu item signs
+ * out, and it carries the `hidden` attribute rather than a class: there is no styling left
+ * to write for something that is never on screen.
  */
-.qcms-signout-fallback {
+
+/*
+ * THE JAVASCRIPT-REQUIRED MESSAGE (Code Owner, 2026-09-27).
+ *
+ * The admin requires JavaScript and stops at this message without it
+ * (`plan/admin-design-contracts.md`, "Standing correction"). The gate itself - the rule
+ * that hides everything else - is the `<noscript>` block in `app/layout.tsx`, which is
+ * also where the mechanism is argued. What lives here is the two halves that must NOT be
+ * inline: the default, which hides the message, and its appearance.
+ *
+ * The default belongs in this sheet rather than in the layout because it is what makes the
+ * scripted path flash-free: this file is a stylesheet in `<head>`, so the message is
+ * hidden before the first paint, where an inline rule inside `<noscript>` is not read at
+ * all when scripting is on and could not hide anything.
+ *
+ * Colours are tokens only, so light, dark and high-contrast are the theme's answer rather
+ * than three rules here (`app/theme.css` redefines the same names under `.dark` and
+ * `.hc`, and `scripts/check-admin-theme.mjs` refuses a literal in this file anyway).
+ * `--color-text` on `--color-surface` for the body copy as well as the heading: this is
+ * the one instruction the reader has, and the muted pair is for text beside something
+ * louder rather than for the only sentence on a page.
+ */
+.qcms-requires-js {
   display: none;
-}
-.qcms-signout-fallback__button {
-  display: inline-flex;
+  min-block-size: 100dvh;
   align-items: center;
-  min-block-size: var(--admin-control-h);
-  padding-inline: var(--admin-control-pad-x);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-control);
-  background-color: var(--color-ghost);
-  color: var(--color-text);
-  font-size: 0.85rem;
-  cursor: pointer;
+  justify-content: center;
+  padding: 1rem;
 }
-.qcms-signout-fallback__button:hover {
-  background-color: var(--color-ghost-hover);
+.qcms-requires-js__panel {
+  max-inline-size: 34rem;
+  padding: var(--admin-section-pad);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background-color: var(--color-surface);
+}
+.qcms-requires-js__title {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1.25rem;
+}
+.qcms-requires-js__body {
+  margin-block: 0.75rem 0;
+  margin-inline: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  line-height: 1.5;
 }
 
 /*
@@ -941,12 +973,12 @@ button {
 /* NO ROW IS THE CONTROL ANY MORE (§2, issue 570). A `--rowaction` modifier used
    to give a hover affordance to the four tables whose whole row navigated or
    chose through the vendored kit's `onRowAction`. §2 settled that the other way:
-   the row's identifying cell carries a real anchor, so open-in-new-tab and no-JS
-   work, and the picker (which has no address to link to) carries a named button
-   per row instead. All four are hand-authored now, the handler is gone from the
-   app, and the modifier goes with it. Nothing here may reintroduce a whole-row
-   hover: promising a click that does nothing is worse than promising none, and
-   the control in the row says where it goes.
+   the row's identifying cell carries a real anchor, so open-in-new-tab and
+   middle-click work, and the picker (which has no address to link to) carries a
+   named button per row instead. All four are hand-authored now, the handler is
+   gone from the app, and the modifier goes with it. Nothing here may reintroduce
+   a whole-row hover: promising a click that does nothing is worse than promising
+   none, and the control in the row says where it goes.
 
    The positional `nth-child` rules that gave those four tables their
    `tabular-nums` are gone for the same reason, replaced by the `.qcms-cell--num`
@@ -2759,11 +2791,11 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 
 /* A native `<details>`, open by default, at every width. It is the only way to
-   get a disclosure that works with no JavaScript, announces its own state and
-   needs no override to look like a plain sidebar above the boundary - which is
-   also what the POCs draw. Above `--bp-sidebar` the chevron goes and the summary
-   stops advertising itself as a control; it remains one, so an operator who
-   wants the width back can still take it. */
+   get a disclosure whose keyboard operation and announced state come from the
+   browser and that needs no override to look like a plain sidebar above the
+   boundary - which is also what the POCs draw. Above `--bp-sidebar` the chevron
+   goes and the summary stops advertising itself as a control; it remains one, so
+   an operator who wants the width back can still take it. */
 .qcms-rail__summary {
   display: flex;
   align-items: center;
@@ -2838,14 +2870,14 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
    The rail is shut below `--bp-sidebar` and open above it (Code Owner decision,
    2026-08-23), and `open` is an attribute no media query can set, so the browser
    decides it in `components/rail-disclosure.tsx`. The server cannot know the
-   viewport, so the first HTML is `open` - the safe answer, and the one a reader
-   with no JavaScript keeps - which on a phone would paint an expanded rail for
-   the frame before hydration. This hides the body for exactly that frame: the
-   disclosure publishes `data-ready` once it has read the media query, and from
-   then on the element's own state is what shows or hides the rows.
+   viewport, so the first HTML is `open` - the safe answer - which on a phone
+   would paint an expanded rail for the frame before hydration. This hides the
+   body for exactly that frame: the disclosure publishes `data-ready` once it has
+   read the media query, and from then on the element's own state is what shows or
+   hides the rows.
 
-   Scoped below the boundary, so a wide viewport paints the sidebar open with no
-   dependence on script at all. */
+   Scoped below the boundary, so a wide viewport paints the sidebar open and this
+   rule never applies there. */
 @media (width < 64rem) {
   .qcms-rail__disclosure:not([data-ready]) .qcms-rail__body {
     display: none;

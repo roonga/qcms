@@ -19,8 +19,12 @@ export function generateMetadata(): Metadata {
  * Recovery-code entry (task 031; screen contract state `2FA-recovery-entry`).
  *
  * A separate route rather than a toggle on the challenge screen, for the same reason
- * the rest of this flow is route-based: it works without JavaScript, it is
- * linkable, and each state is one server-rendered page a test can land on directly.
+ * the rest of this flow is route-based (ADR-35 / SEC-1): a recovery code is posted by a
+ * plain form to a named server route, so it never passes through client JavaScript, each
+ * state is one server-rendered page a test can land on directly, and each is linkable.
+ * That reason is about where the credential goes, not about scripting being off - the admin
+ * requires JavaScript and this screen is unreachable without it (Code Owner, 2026-09-27,
+ * `plan/admin-design-contracts.md`), which changes nothing here.
  * The "use your authenticator app instead" link back makes the pair navigable in both
  * directions, which the screen contract's two states imply.
  *

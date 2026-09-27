@@ -30,12 +30,11 @@ import { useEffect, useState, type ReactNode } from "react";
  *
  * ## Why there is no flash, and what is true before hydration
  *
- * The server cannot know the viewport, so the first HTML is `open` - the safe answer, and
- * the one a reader with no JavaScript keeps. On a narrow viewport that would paint an
- * expanded rail for the frame before hydration, so `app/globals.css` hides the body below
- * the boundary until this component has run, keyed off `data-ready`. The two together mean:
- * a narrow viewport paints shut and stays shut, a wide one paints open and stays open, and
- * a scriptless reader gets the whole rail rather than a summary they cannot expand.
+ * The server cannot know the viewport, so the first HTML is `open` - the safe answer. On a
+ * narrow viewport that would paint an expanded rail for the frame before hydration, so
+ * `app/globals.css` hides the body below the boundary until this component has run, keyed
+ * off `data-ready`. The two together mean: a narrow viewport paints shut and stays shut, and
+ * a wide one paints open and stays open.
  *
  * The window between first paint and hydration is the one moment the attribute and the
  * picture disagree on a narrow viewport, and it is the trade this file makes rather than
@@ -48,10 +47,9 @@ import { useEffect, useState, type ReactNode } from "react";
  * round: the toggle is about the width the reader is at.
  */
 export function RailDisclosure({ children }: { readonly children: ReactNode }) {
-  // Open until the browser has answered, which is the server's answer and the one a reader
-  // with no JavaScript keeps. `ready` is the separate fact - whether the media query has
-  // been read yet - because the two stopped being the same thing once a reader could
-  // toggle `open` themselves.
+  // Open until the browser has answered, which is the server's answer. `ready` is the
+  // separate fact - whether the media query has been read yet - because the two stopped
+  // being the same thing once a reader could toggle `open` themselves.
   const [open, setOpen] = useState(true);
   const [ready, setReady] = useState(false);
   // Whether the rail is a permanent sidebar rather than a disclosure. Above the boundary it

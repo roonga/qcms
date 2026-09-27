@@ -4,7 +4,6 @@ import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admi
 import { ADMIN_BASE_URL } from "./support/harness-config.js";
 import {
   accountTrigger,
-  appearanceTrigger,
   fillStable,
   openMenu,
   readSetupKey,
@@ -383,30 +382,23 @@ test("the account menu names the operator and routes to the password screen", as
   await expect(page.getByLabel("Current password")).toBeVisible();
 });
 
-test.describe("without JavaScript", () => {
-  test.use({ javaScriptEnabled: false });
-
-  test("sign-out still works, and the menu triggers are gone", async ({ page }) => {
-    // The Code Owner's 2026-07-31 decision, and the reason a `<noscript>` block exists
-    // at all: a menu cannot open without scripts, so moving sign-out into one would
-    // have removed the ability to END A SESSION on a machine where scripts are
-    // blocked. The auth screens were always native forms, so the whole loop below runs
-    // with no client JavaScript whatsoever.
-    await signInWithTotp(page, EMAIL, totpSecret);
-
-    // Both triggers are hidden by the noscript rule: a control an operator can focus
-    // but never open is worse than no control at all.
-    await expect(appearanceTrigger(page)).toBeHidden();
-    await expect(accountTrigger(page)).toBeHidden();
-
-    // And the fallback is the same POST the scripted menu item submits, not a second
-    // sign-out path with its own behaviour to get wrong.
-    const fallback = page.getByRole("button", { name: "Sign out" });
-    await expect(fallback).toBeVisible();
-    await Promise.all([page.waitForURL(/\/sign-in/), fallback.click()]);
-
-    // Server-side invalidation, exactly as in the scripted path.
-    await page.goto("/questions");
-    await expect(page).toHaveURL(/\/sign-in$/);
-  });
-});
+/*
+ * A `without JavaScript` block stood here and is DELETED (Code Owner, 2026-09-27: the
+ * admin requires JavaScript and stops at a message without it,
+ * `plan/admin-design-contracts.md`). It signed in with scripting off, asserted that the
+ * two topbar menu triggers were hidden, and then ended the session through the plain POST
+ * form the `<noscript>` rule used to reveal - the Code Owner's 2026-07-31 sign-out
+ * decision, made when a scriptless operator could still reach the shell.
+ *
+ * Every step of it is now unreachable rather than broken: the sign-in form is hidden
+ * before the first keystroke, so there is no session to end and no topbar to correct.
+ * **And the control it pressed no longer exists**: the 2026-07-31 decision is superseded
+ * (Code Owner, 2026-09-27) and the fallback button is deleted from
+ * `components/account-menu.tsx`, which keeps only the `hidden` POST form the scripted menu
+ * item submits. `e2e/requires-js.pw.ts` asserts that there is no way to sign out with
+ * scripting off, in both directions.
+ *
+ * Nothing it covered is lost. Sign-out and its server-side invalidation are the second
+ * half of "the session persists across navigation and reload, then sign-out ends it"
+ * above, which runs with scripting on and always did.
+ */

@@ -17,9 +17,10 @@ import { serverLogger } from "./logger.ts";
  * operational value backwards:
  *
  *   - The portal's line makes an **accepted risk observable**. A measured floor of
- *     around 1.6% of browsers send no Fetch Metadata and are refused on the no-JS form
- *     path; accepting that population was a decision, and being unable to see it was
- *     not part of the decision.
+ *     around 1.6% of browsers send no Fetch Metadata and are refused on the portal's
+ *     scriptless form path; accepting that population was a decision, and being unable to
+ *     see it was not part of the decision. That population is a PORTAL one: no-JS is a
+ *     respondent requirement, and the admin requires JavaScript (Code Owner, 2026-09-27).
  *   - This line is **attack detection**. Every route it covers is an authentication
  *     route: sign-in, sign-out, the TOTP challenge, TOTP enrolment, recovery-code
  *     confirmation and the password change. A burst of refusals against

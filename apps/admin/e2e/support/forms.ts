@@ -106,8 +106,8 @@ export async function openRail(page: Page): Promise<void> {
   if ((await disclosure.count()) === 0) return;
   // WAIT FOR THE WIDTH TO HAVE BEEN DECIDED before reading `open`, or this races
   // hydration and does nothing. The server ships the rail open - that is the safe answer,
-  // and the one a scriptless reader keeps - so an early read always sees `open` and returns,
-  // and the media query then shuts it a moment later. `data-ready` is the attribute
+  // and the one the first painted frame carries - so an early read always sees `open` and
+  // returns, and the media query then shuts it a moment later. `data-ready` is the attribute
   // `components/rail-disclosure.tsx` sets once it has read the query, which is exactly the
   // moment this can trust what it sees.
   await expect(disclosure).toHaveAttribute("data-ready", "");

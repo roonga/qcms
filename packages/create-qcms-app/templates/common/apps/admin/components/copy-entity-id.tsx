@@ -29,13 +29,13 @@ import { t } from "@/lib/i18n/en";
  * BESIDE the anchor rather than inside it - interactive content cannot nest - which is
  * what `EntityId` composes for its callers.
  *
- * ## JS-only, and the dependency §2 asks to keep visible
+ * ## A convenience, and the dependency §2 asks to keep visible
  *
- * A clipboard write needs script. §2 accepts that **because** the full id is reachable
- * without it: the detail routes head themselves with their own entity's whole id since
- * #510, and for the two tables with no detail route at all (links, webhooks) the whole
- * value is in the cell's own server-rendered markup - see `components/entity-id.tsx`.
- * Neither of those may become conditional on JavaScript.
+ * §2 accepts a one-click copy **because** the full id is in the markup anyway, where a
+ * selection, a screen reader and an in-page search all reach it: the detail routes head
+ * themselves with their own entity's whole id since #510, and for the two tables with no
+ * detail route at all (links, webhooks) the whole value is in the cell's own markup - see
+ * `components/entity-id.tsx`. Neither of those may shrink to the prefix.
  */
 export function CopyEntityId({
   kind,

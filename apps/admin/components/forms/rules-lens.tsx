@@ -29,7 +29,7 @@ import type { ReadState } from "@/lib/read-state";
  *
  * - each rule's sentence is an anchor to `/forms/{formId}/rules#rule-{ruleId}`, which is
  *   the route AND the fragment, so it lands on the rule whether it is followed as a link,
- *   opened in a new tab, or reached with JavaScript off;
+ *   middle-clicked, or opened in a new tab;
  * - "Edit rules" is the same route without a fragment;
  * - "Add rule" is that route plus `#new-rule`, which `RulesEditor` reads on arrival and
  *   opens its wizard on - the same shape the rail's own Add step already uses.

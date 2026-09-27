@@ -22,9 +22,7 @@ import { textOf } from "@/lib/questions/definition";
  * ## What it says before the builder publishes
  *
  * "Form details", which is the screen the builder opens on, so the crumb is right from the
- * first paint rather than correcting itself a frame later. A reader with no JavaScript sees
- * the same thing, and for them it is simply true: without the bridge nothing can change the
- * screen, so the form's details are all there is.
+ * first paint rather than correcting itself a frame later.
  */
 export function BuilderBreadcrumb({
   formId,
@@ -49,7 +47,7 @@ export function BuilderBreadcrumb({
  * lookup. They were two, which is how a screen ends up answering to two names - the crumb
  * read "Form details" while the reader was looking at a step.
  *
- * `undefined` is the pre-hydration and no-JavaScript answer, and it is not a fallback: the
+ * `undefined` is the answer for the frame before React attaches, and it is not a fallback: the
  * builder opens on the form's details, and without the bridge nothing can change that, so
  * "Form details" is simply true.
  */

@@ -32,25 +32,30 @@ import { initialsFor } from "@/lib/initials";
  * again: `header` renders outside `role="menu"` and brings its own rule with it, and
  * an item with an `href` is a real anchor exactly as the hand-composed one was.
  *
- * SIGN-OUT SURVIVES WITHOUT JAVASCRIPT (Code Owner decision, 2026-07-31)
- * Sign-out was a plain `<form method="post">` before this task and worked with
- * JavaScript off; a menu is JavaScript by definition, so moving it inside one would
- * have taken away the ability to END A SESSION on a machine where scripts are
- * blocked. `docs/COMPONENT_GUIDELINES.md` step 7 allows wiring the no-JS path or
- * recording an explicit exception, and the decision was to wire it: that form is
- * still rendered, on every page, and `<noscript>` reveals it while hiding the two
- * menu triggers (`app/layout.tsx`). Nothing is deferred and no exception is
- * recorded. The appearance control staying JavaScript-only is a different case and
- * is accepted: a preference is not a session.
+ * SIGN-OUT IS A POST, AND THAT IS WHAT THE FORM BELOW IS FOR
+ * `requestSubmit()` on a real `<form method="post">` is a navigation-producing POST
+ * to `/sign-out`, which is the route SEC-1's server-side session invalidation
+ * covers. A GET link would have let a prefetch or a crawler end someone's session,
+ * which is why it was never one, and a `fetch` would put a state change in client
+ * JavaScript for no gain. So the form stays even though nothing in it is ever on
+ * screen: it is the mechanism, not an affordance.
  *
- * The scripted path submits that same form rather than fetching. `requestSubmit()`
- * is a real navigation-producing POST to the same route the no-JS button posts to,
- * so there is exactly one sign-out path in this app and it is the one SEC-1's
- * server-side session invalidation already covers. A GET link would have let a
- * prefetch or a crawler end someone's session, which is why it was never one.
+ * `hidden` rather than a CSS class. The attribute takes the element out of the
+ * accessibility tree and out of the tab order, and neither `hidden` nor
+ * `display: none` stops `requestSubmit()`. There is no styling left to carry,
+ * because there is nothing left to look at.
  *
- * The form is hidden with CSS rather than by not rendering it, so nothing has to
- * know whether scripts ran, and `display: none` does not stop `requestSubmit()`.
+ * THE NO-JS FALLBACK BUTTON IS GONE (Code Owner, 2026-09-27)
+ * This form used to carry a visible submit button that a `<noscript>` rule in
+ * `app/layout.tsx` revealed while hiding the two menu triggers, so that a scriptless
+ * operator could still END A SESSION (Code Owner decision, 2026-07-31). The admin
+ * requires JavaScript now and stops at one message without it
+ * (`plan/admin-design-contracts.md`), so no scriptless operator reaches this topbar
+ * at all and the button was a control nothing could ever show. That 2026-07-31
+ * decision is superseded rather than quietly dropped; the record says so.
+ *
+ * The appearance control staying JavaScript-only was always a different case and is
+ * unaffected: a preference is not a session.
  */
 
 export function AccountMenu({ email, name }: { readonly email: string; readonly name?: string }) {
@@ -93,11 +98,7 @@ export function AccountMenu({ email, name }: { readonly email: string; readonly 
           { id: "sign-out", label: t("action.signOut") },
         ]}
       />
-      <form ref={signOutForm} method="post" action="/sign-out" className="qcms-signout-fallback">
-        <button type="submit" className="qcms-signout-fallback__button">
-          {t("action.signOut")}
-        </button>
-      </form>
+      <form ref={signOutForm} method="post" action="/sign-out" hidden />
     </div>
   );
 }
