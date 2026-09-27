@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (384 files common to both shapes)
+### Scaffolded paths (383 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 373   |
-| `apps/admin/`                                                        | 226   |
+| `apps/`                                                              | 372   |
+| `apps/admin/`                                                        | 225   |
 | `apps/admin/app/`                                                    | 67    |
 | `apps/admin/app/(shell)/`                                            | 51    |
 | `apps/admin/app/(shell)/@rail/`                                      | 21    |
@@ -242,14 +242,13 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (384)</summary>
+<summary>Every scaffolded file (383)</summary>
 
 ```
 .dockerignore
 .env.example
 .gitignore
 .npmrc
-apps/admin/.fold.mjs
 apps/admin/.gitignore
 apps/admin/app/(shell)/@rail/default.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/links/page.tsx
