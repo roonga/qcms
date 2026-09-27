@@ -1,4 +1,3 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -7,8 +6,8 @@ import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
 import { pageMetadata } from "@/lib/page-title";
+import { panelFromParams, questionPanels } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
@@ -57,6 +56,22 @@ export async function generateMetadata({
  * `selectVersion` and the ISO day formatter live in `lib/questions/version-rail.ts` rather
  * than here, because the rail beside this column has to answer the same question about the
  * same address. Two copies of that rule would be two answers the first time either changed.
+ *
+ * ## And so is which PANEL of the editor is open (Code Owner, 2026-09-27)
+ *
+ * The column is a preview and **one panel** of the selected version's editor, not the whole
+ * form stacked: `lib/questions/panels.ts` says why, and the rail's rows under the selected
+ * version are what switch between them. `panelFromParams` is the `selectVersion` of that
+ * question, asked here and in the slot beside it about the same `?panel=`.
+ *
+ * ## What left this column, and why it is not repeated here
+ *
+ * The back link and the meta strip (slug, created, type) both moved into the rail on
+ * 2026-09-27. They were the two things in this column that were not the question's content: a
+ * link to another route above the `<h1>`, and a paragraph of facts about the question sitting
+ * above one panel of one version of it. The rail is where this screen's navigation and this
+ * question's identity live, and stating either in both places would be two surfaces to keep
+ * equal - the same rule that kept the version list out of this column in issue 650.
  */
 
 export default async function QuestionDetailPage({
@@ -94,33 +109,20 @@ export default async function QuestionDetailPage({
     // that was missing. It is here rather than in the measure table because it is one
     // element on one screen; see that table's doc for why the two layers live apart.
     <div className="qcms-editor-column flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Link href="/questions" className="qcms-text-link">
-          {t("questions.backToList")}
-        </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="qcms-question-id">{detail.data.questionId}</h1>
-          <StatusTag status={selected.status} />
-        </div>
-        {/* STILL UTC, and named rather than left to be discovered (issue #582). The Code
-            Owner's 2026-09-11 ruling moved day columns onto the operator's own zone, and it
-            was about TABLES: this line is a detail route's meta strip, and a server
-            component with no hydration swap to hang the operator zone on. The consequence
-            is visible and accepted for now: the library table can name 3 Aug where this
-            line names 2 Aug for an operator east of UTC, because they are the same instant
-            read on two clocks. Extending the ruling here is a decision, not a detail. */}
-        <p className="text-sm text-(--color-text-muted)">
-          {t("questions.detail.slug")}: {detail.data.slug} · {t("questions.detail.created")}:{" "}
-          {formatDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}
-          {t(`questions.type.${selected.definition.type}`)}
-        </p>
+      {/* The id and its status, and nothing else. The back link above this and the meta strip
+          below it are the rail's now (see this file's doc): what is left is the heading a
+          screen needs, which is the name of the thing the screen is about. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="qcms-question-id">{detail.data.questionId}</h1>
+        <StatusTag status={selected.status} />
       </div>
 
-      {/* The version list and the lifecycle actions used to sit here, in two cards of this
-          column. They are the rail's now (issue 650), which is where the screen's POC draws
-          them: `app/(shell)/@rail/questions/[questionId]/page.tsx`. They are not repeated
-          here, because a navigation rendered twice on one screen is two lists that can
-          disagree and two sets of links to walk. */}
+      {/* The version list, the lifecycle actions, the back link and the question's own details
+          all used to sit in this column. They are the rail's now - the first two since issue
+          650, which is where the screen's POC draws them, and the last two since 2026-09-27
+          (Code Owner). None of them is repeated here, because a navigation or a fact rendered
+          twice on one screen is two surfaces that can disagree:
+          `app/(shell)/@rail/questions/[questionId]/page.tsx`. */}
 
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
@@ -169,6 +171,7 @@ export default async function QuestionDetailPage({
               initialDefinition={selected.definition}
               version={selected.version}
               isFrozen={isFrozen}
+              addressedPanel={panelFromParams(query, questionPanels(selected.definition))}
             />
           </div>
         </Card>
