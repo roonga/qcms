@@ -538,11 +538,16 @@ test("the question library, its editor and a question's detail have zero violati
 test("the message and boolean-label fields have zero violations (048)", async ({ page }) => {
   // Task 048, exit criteria 4 and 5. This is a NEW case rather than an extension of the
   // sweep above, and deliberately so: every state that sweep visits carries no constraint
-  // and is not required, so the message panel renders its "nothing to write for yet" note
-  // and not one message input. The panel's own two risks are only reachable here - a
+  // and is not required, so it has no message field at all - and since 2026-09-27 no message
+  // panel either, because a panel is absent rather than empty while it has nothing to hold
+  // (`lib/questions/panels.ts`). The panel's own two risks are only reachable here - a
   // placeholder's contrast against its field in each of the three modes (the thing high
   // contrast is likeliest to get wrong), and nine same-shaped inputs whose accessible names
-  // have to distinguish them from one another and from the constraint controls above.
+  // have to distinguish them from one another and from the constraint controls beside them.
+  //
+  // It runs on `/questions/new` throughout, which is the one screen with no rail and therefore
+  // every panel on screen at once. The detail screen's panel rows are analysed by the sweep
+  // above, which reaches that screen and renders the rail with them in it.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 

@@ -557,6 +557,22 @@ function ContentPanel({
 }
 
 /**
+ * What to focus inside a composite control that reports itself invalid, in the order a reader
+ * would want it: the field they type into, then a date segment, then anything else focusable.
+ *
+ * THE ORDER IS THE WHOLE POINT and a single selector list cannot express it, because
+ * `querySelector` answers in DOM order rather than in selector order. A vendored `NumberField`
+ * is a `group` whose first focusable descendant is its **decrement stepper**, so the obvious
+ * one-liner sent focus to a minus button beside the field that was at fault rather than into
+ * the field. That reads as the focus move not working.
+ */
+const INVALID_TARGETS = [
+  'input:not([type="hidden"]), textarea, select',
+  '[role="spinbutton"]',
+  'button, [tabindex="0"], [tabindex]',
+] as const;
+
+/**
  * The control a refused save should land on inside a panel, or `null` when none says it is
  * invalid.
  *
@@ -565,13 +581,16 @@ function ContentPanel({
  * rendered DOM which field the kernel objected to - rather than mapping a kernel path back
  * onto a selector here, which would be a third copy of the panel-to-fields relationship.
  *
- * The second hop is for the composite controls. A `DatePicker` carries the flag on its
- * `group`, which is not focusable, so what gets focused is the first segment inside it. Same
- * for a `NumberField`'s wrapper.
+ * The second hop is for the composite controls, which carry the flag on a wrapper that cannot
+ * take focus: a `NumberField` on its `group`, a `DatePicker` on the group holding its segments.
  */
 function firstInvalidControl(root: HTMLElement): HTMLElement | null {
   const flagged = root.querySelector<HTMLElement>('[aria-invalid="true"]');
   if (flagged === null) return null;
-  if (flagged.matches("input, textarea, select, button")) return flagged;
-  return flagged.querySelector<HTMLElement>("input, textarea, select, button, [tabindex]");
+  if (flagged.matches('input:not([type="hidden"]), textarea, select')) return flagged;
+  for (const selector of INVALID_TARGETS) {
+    const found = flagged.querySelector<HTMLElement>(selector);
+    if (found !== null) return found;
+  }
+  return null;
 }

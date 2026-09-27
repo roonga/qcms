@@ -947,6 +947,31 @@ closes with it.
   alone: it is a same-page view switch, and on the other seven form screens the
   Builder row is already the link that reaches those panels.
 
+  **Amended 2026-09-27 (Code Owner): the QUESTION detail rail also carries
+  same-page panel switches, and a details group.** Its version rows are `?v=` on
+  the route the reader is already standing on, and nested under the selected one
+  are rows that choose which panel of that version's editor the column shows -
+  Content, Options, Constraints, Validation messages, Yes and no labels, each
+  present only when the document has fields for it. Which rows exist is derived
+  from the same functions the editor renders from
+  (`apps/admin/lib/questions/panels.ts`), so the rail cannot offer a row the
+  editor has nothing to open, and each row carries a short digest plus a
+  per-panel issue badge after a refused save - the builder's step-badge device on
+  a second screen.
+
+  The same amendment moves the question's own details into that rail (slug,
+  created day, and the **type stated once** with its locked status) and the "Back
+  to questions" link to the top of it, above the disclosure so it survives the
+  collapse. What does NOT move is Save: it stays a sticky footer of the version
+  card in the content column, because the rail collapses to a shut disclosure
+  below `--bp-sidebar` and a save an author has to expand a navigation to reach is
+  worse than one they have to scroll to.
+
+  So three rails now answer "what does a rail carry" three ways: routes (§7),
+  same-page panels (§7a), and both at once here. They remain three components for
+  the reason §7a gives - a flag would be the seam along which the three contracts
+  get unified.
+
 - The rail **may carry actions and same-page switches** (Code Owner, 2026-08-25).
   It never carries a route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
@@ -954,7 +979,8 @@ closes with it.
   Two rails already carry actions and both are the approved design: the question
   detail rail's lifecycle block (`question-editor-poc.html`), and the form
   builder's step rows, which `admin-shell-poc.html` draws with a rename, move and
-  remove menu on each and an add-step control under them.
+  remove menu on each and an add-step control under them. The question detail
+  rail's panel rows joined the same-page half on 2026-09-27, amended above.
 
   Same-page switches are what the builder's rail is for: its step rows select a
   step, and its Form details row selects the form's own panels, on the screen the

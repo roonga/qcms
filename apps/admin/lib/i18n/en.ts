@@ -283,7 +283,6 @@ export const messages = {
     "This editor does not save automatically. Your changes are stored when you select Save draft, and leaving this page first discards them.",
   "questions.editor.saved": "Draft saved.",
   "questions.editor.constraints": "Constraints",
-  "questions.editor.noConstraints": "This type has no constraints to set.",
   "questions.editor.frozen":
     "This version is frozen: its content can never change again. Create a new version to make an edit.",
 
@@ -327,8 +326,6 @@ export const messages = {
   "questions.editor.messages": "Validation messages",
   "questions.message.note":
     "Optional. Leave a field blank and the respondent sees the default shown inside it. A field appears only for a constraint this question carries, so clearing the constraint clears its message too.",
-  "questions.message.none":
-    "There is nothing to write a message for yet. Require an answer, or set a constraint above, and a field appears for it.",
 
   "questions.message.label.required": "Message when no answer is given",
   "questions.message.label.minLength": "Message when the answer is too short",

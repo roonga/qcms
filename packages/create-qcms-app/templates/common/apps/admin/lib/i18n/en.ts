@@ -278,13 +278,11 @@ export const messages = {
   "questions.editor.help": "Help text",
   "questions.editor.helpHint": "Optional. Shown under the control.",
   "questions.editor.required": "An answer is required",
-  "questions.editor.typeLocked": "Type is locked to {type}.",
   "questions.editor.save": "Save draft",
   "questions.editor.manualModel":
     "This editor does not save automatically. Your changes are stored when you select Save draft, and leaving this page first discards them.",
   "questions.editor.saved": "Draft saved.",
   "questions.editor.constraints": "Constraints",
-  "questions.editor.noConstraints": "This type has no constraints to set.",
   "questions.editor.frozen":
     "This version is frozen: its content can never change again. Create a new version to make an edit.",
 
@@ -328,8 +326,6 @@ export const messages = {
   "questions.editor.messages": "Validation messages",
   "questions.message.note":
     "Optional. Leave a field blank and the respondent sees the default shown inside it. A field appears only for a constraint this question carries, so clearing the constraint clears its message too.",
-  "questions.message.none":
-    "There is nothing to write a message for yet. Require an answer, or set a constraint above, and a field appears for it.",
 
   "questions.message.label.required": "Message when no answer is given",
   "questions.message.label.minLength": "Message when the answer is too short",
@@ -362,6 +358,34 @@ export const messages = {
   "questions.booleanLabel.no": "Label for the negative choice",
   "questions.booleanLabel.defaultYes": "Yes",
   "questions.booleanLabel.defaultNo": "No",
+
+  // THE EDITOR'S PANELS, AND THE DIGEST EACH RAIL ROW CARRIES UNDER ITS NAME (Code Owner,
+  // 2026-09-27; `lib/questions/panels.ts`). Only Content needs a name of its own here: the
+  // other four rows read the legend their own section already carries
+  // (`questions.options.legend`, `questions.editor.constraints`, `questions.editor.messages`,
+  // `questions.editor.booleanLabels`), because a rail must not give a place a second name
+  // (`apps/admin/app/(shell)/AGENTS.md`).
+  //
+  // The digests are deliberately terse: they sit under a panel's name in a 240px track, so
+  // "min 0, max 200" is what fits where "Smallest value 0, largest value 200" would not. The
+  // long form is on the control the row opens. A bound is written as a phrase rather than
+  // assembled from a symbol and a number in the component, so a locale can reorder it (ADR-27).
+  "questions.panel.content": "Content",
+  "questions.panel.contentRequired": "Required",
+  "questions.panel.contentOptional": "Optional",
+  "questions.panel.optionsDigestOne": "{count} option",
+  "questions.panel.optionsDigest": "{count} options",
+  "questions.panel.messagesDigestOne": "{count} message",
+  "questions.panel.messagesDigest": "{count} messages",
+  "questions.panel.constraintsNone": "None set",
+  "questions.panel.constraintMin": "min {value}",
+  "questions.panel.constraintMax": "max {value}",
+  // A date bound reads as a range rather than an extreme, which is how its own fields are
+  // labelled ("Earliest date", "Latest date").
+  "questions.panel.constraintFrom": "from {value}",
+  "questions.panel.constraintTo": "to {value}",
+  "questions.panel.constraintPattern": "pattern",
+  "questions.panel.constraintInteger": "whole numbers",
 
   "questions.options.legend": "Options",
   "questions.options.note":
@@ -421,6 +445,13 @@ export const messages = {
   "questions.detail.slug": "Slug",
   "questions.detail.type": "Type",
   "questions.detail.created": "Created",
+  // The type, stated once, in the rail's details group (Code Owner, 2026-09-27). It replaces
+  // `questions.editor.typeLocked` ("Type is locked to {type}."), which said the same thing a
+  // second time at the top of the version card: R6 makes the type permanent, so the rail
+  // states it where it states the question's other permanent facts, and the editor states
+  // nothing. A parenthesis rather than a sentence, because it is the value half of a
+  // label-and-value pair now rather than a line of prose.
+  "questions.detail.typeLocked": "{type} (locked)",
   "questions.detail.deprecatedNote":
     "This version is deprecated: no new form can pin it. Forms that already pin it keep working exactly as they are, and no answer already collected changes.",
 
@@ -433,6 +464,12 @@ export const messages = {
   "questions.rail.digest": "{count} versions, v{version} published",
   "questions.rail.digestNoneOne": "{count} version, none published",
   "questions.rail.digestNone": "{count} versions, none published",
+  // The panel rows nested under the selected version (Code Owner, 2026-09-27). The list's
+  // name, and the badge a refused save puts on a row - the same count the builder's step rows
+  // carry, worded the same way, because they are one device on two screens.
+  "questions.rail.panels": "Editor panels",
+  "questions.rail.issuesOne": "1 issue",
+  "questions.rail.issues": "{count} issues",
 
   "questions.action.publish": "Publish version {version}",
   "questions.action.newVersion": "New version",

@@ -23,6 +23,42 @@ export function field(page: Page, name: string): Locator {
   return page.getByRole("textbox", { name, exact: true });
 }
 
+/** The panels of the question editor, as the rail addresses them. */
+export type QuestionPanelName =
+  | "content"
+  | "options"
+  | "constraints"
+  | "messages"
+  | "booleanLabels";
+
+/**
+ * Open one panel of the question editor from the rail (Code Owner, 2026-09-27).
+ *
+ * The detail screen shows the preview and **one** panel of the selected version, chosen from
+ * rows in the rail beside it (`lib/questions/panels.ts`). So a step that fills a constraint, an
+ * option or a message names the panel it is working in first, exactly as an author does.
+ *
+ * `/questions/new` needs none of this and must not call it: the creation screen has no rail and
+ * shows every panel at once, because creation is one pass through a short document.
+ *
+ * Two things this helper absorbs rather than leaving to each caller:
+ *
+ * - **The rail may be shut.** Below `--bp-sidebar` it collapses to its summary, and this suite
+ *   runs cases at 390px on purpose. The summary is pressed first when the disclosure is closed.
+ * - **The rows are React's.** A press before the attach goes nowhere and the panel never opens,
+ *   which is issue #815's shape on a new control.
+ */
+export async function openPanel(page: Page, panel: QuestionPanelName): Promise<void> {
+  await waitForHydration(page);
+  const disclosure = page.locator("details.qcms-rail__disclosure");
+  if ((await disclosure.getAttribute("open")) === null) {
+    await page.locator("summary.qcms-rail__summary").click();
+  }
+  const row = page.locator(`[data-rail-panel="${panel}"]`);
+  await row.click();
+  await expect(row).toHaveAttribute("aria-current", "page");
+}
+
 /** Pick a question type in the creation form's `Select`. */
 export async function chooseType(page: Page, label: string): Promise<void> {
   // The picker is a vendored `Select`: server-rendered as a bare button, opened only by

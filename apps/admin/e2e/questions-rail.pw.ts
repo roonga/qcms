@@ -4,6 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, signInWithTotp } from "./support/flow.js";
+import { field, openPanel, setNumericConstraint } from "./support/questions.js";
 import { createQuestionRailFixture, type QuestionRailFixture } from "./support/question-rail.js";
 
 /**
@@ -18,6 +19,17 @@ import { createQuestionRailFixture, type QuestionRailFixture } from "./support/q
  * below it, the collapsed-only version indicator, the marked row agreeing with the editor
  * beside it, the version list no longer being on this screen twice, and the lifecycle
  * actions still working from where the POC puts them.
+ *
+ * ## The panel rows, the details group and the back link (Code Owner, 2026-09-27)
+ *
+ * The rail also switches which panel of the editor the column shows, states the question's own
+ * details, and carries the way back. `lib/questions/panels.test.ts` pins which panels a document
+ * has and `components/questions/question-versions-rail.test.tsx` pins the markup;
+ * `components/questions/question-editor-panels.test.tsx` drives the switch and the refused-save
+ * focus in jsdom. What is left for a browser is what those three cannot see: the row and the
+ * column being **two server-rendered trees agreeing on first paint**, a reload landing back on
+ * the panel the address names, and the switch working while the rail is a shut disclosure at
+ * 390px.
  *
  * ## The 1023 / 1024 pair
  *
@@ -232,4 +244,194 @@ test("650 keeps the lifecycle actions working from the rail the POC puts them in
     rail.getByRole("button", { name: `Deprecate version ${String(fixture.publishedVersion)}` }),
   ).toBeVisible();
   await expect(rail.getByRole("button", { name: "New version" })).toBeVisible();
+});
+
+test("2026-09-27 nests the editor's panels under the selected version, and switches the column", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  const rail = page.getByTestId("qcms-question-rail");
+  // ONE SET OF ROWS, UNDER THE SELECTED VERSION. The editor shows one version, so rows under
+  // every version would be rows that cannot do what they say.
+  await expect(rail.locator("[data-rail-panel]")).toHaveCount(2);
+  const selectedRow = rail.locator(
+    `.qcms-question-rail__version[data-rail-version="${String(fixture.draftVersion)}"]`,
+  );
+  await expect(
+    selectedRow.locator("xpath=following-sibling::ul[@data-rail-panels]"),
+    "the panels are the selected row's own children",
+  ).toHaveCount(1);
+
+  // The fixture is a short-text question, so Content and Constraints and nothing else: no
+  // options to list, and no message key until a constraint or `required` gives it one.
+  await expect(rail.locator('[data-rail-panel="content"]')).toBeVisible();
+  await expect(rail.locator('[data-rail-panel="constraints"]')).toBeVisible();
+  await expect(rail.locator('[data-rail-panel="options"]')).toHaveCount(0);
+  await expect(rail.locator('[data-rail-panel="messages"]')).toHaveCount(0);
+
+  // FIRST PAINT, BEFORE ANY PRESS: the marked row and the rendered panel are two trees reading
+  // one address through one function, so they agree with nothing having hydrated.
+  await expect(rail.locator('[data-rail-panel="content"]')).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  await expect(field(page, "Label")).toBeVisible();
+  await expect(field(page, "Shortest answer")).toHaveCount(0);
+
+  await openPanel(page, "constraints");
+  await expect(field(page, "Shortest answer")).toBeVisible();
+  await expect(field(page, "Label"), "one panel at a time").toHaveCount(0);
+  await expect(rail.locator('[data-rail-panel="content"]')).not.toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+
+  // THE ADDRESS FOLLOWED, so a reload keeps the panel rather than dropping the author back on
+  // Content. Replaced rather than pushed: the panels are one screen's worth of one question.
+  await expect(page).toHaveURL(/panel=constraints/u);
+  await page.reload();
+  await expect(field(page, "Shortest answer")).toBeVisible();
+
+  // And a digest that follows the live document: setting a bound grows a Validation messages
+  // row without a save or a round trip.
+  await setNumericConstraint(page, "Shortest answer", "4");
+  await expect(rail.locator('[data-rail-panel="messages"]')).toBeVisible();
+  await expect(rail.locator('[data-rail-panel="constraints"]')).toContainText("min 4");
+});
+
+test("2026-09-27 switches a panel while the rail is a shut disclosure at 390px", async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  // Below `--bp-sidebar` the rail opens shut, so the rows are behind a summary. This is the
+  // width at which "the rail carries the panel switch" is most easily got wrong, and the
+  // editor's own refused-save path is written not to depend on the rail for exactly this
+  // reason.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(detailPath());
+  await expect(page.locator("details.qcms-rail__disclosure")).not.toHaveAttribute("open", "");
+
+  await openPanel(page, "constraints");
+  await expect(field(page, "Shortest answer")).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+test("2026-09-27 states the question's details in the rail and the way back above them", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  const rail = page.getByTestId("qcms-question-rail");
+  const details = rail.locator(".qcms-question-rail__details");
+  await expect(details).toContainText("Slug");
+  await expect(details).toContainText(`e2e-qrail-${RUN}`);
+  await expect(details).toContainText("Created");
+  // Stated once, with its locked status, and never inside the editor it constrains (R6).
+  await expect(details).toContainText("Short text (locked)");
+  await expect(page.getByRole("main")).not.toContainText("Type is locked to");
+  // And not left behind in the column either: a fact rendered twice is two surfaces to keep
+  // equal, which is the rule that kept the version list out of this column in issue 650.
+  await expect(page.getByRole("main")).not.toContainText("Slug:");
+
+  // The way back is in the rail and ABOVE the disclosure, so it survives the collapse: inside
+  // the body it would be reachable only by expanding a navigation first.
+  const back = rail.getByRole("link", { name: "Back to questions" });
+  await expect(back).toBeVisible();
+  const backBottom = await back.evaluate((element) => element.getBoundingClientRect().bottom);
+  const disclosureTop = await page
+    .locator("details.qcms-rail__disclosure")
+    .evaluate((element) => element.getBoundingClientRect().top);
+  expect(backBottom).toBeLessThanOrEqual(disclosureTop);
+  await expect(page.getByRole("main").getByRole("link", { name: "Back to questions" })).toHaveCount(
+    0,
+  );
+
+  await page.setViewportSize({ width: 390, height: 900 });
+  await expect(back, "still the first thing on screen with the rail shut").toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+test("2026-09-27 keeps Save in the column, reachable without scrolling to the end", async ({
+  page,
+}) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 700 });
+  await page.goto(detailPath());
+
+  // NOT IN THE RAIL, deliberately: the rail collapses to a shut disclosure below
+  // `--bp-sidebar`, so a Save button inside it would be a save an author has to expand a
+  // navigation to reach. It is the version card's sticky footer instead.
+  await expect(page.getByTestId("qcms-question-rail").getByRole("button", { name: "Save draft" })).toHaveCount(
+    0,
+  );
+  const save = page.getByRole("main").getByRole("button", { name: "Save draft" });
+  await expect(save).toBeVisible();
+  // The manual save model travels with it (issue 518, contract §6).
+  await expect(page.getByTestId("qcms-manual-save-note")).toBeVisible();
+
+  const stuck = await page
+    .locator(".qcms-question-editor__footer")
+    .evaluate((element) => getComputedStyle(element).position);
+  expect(stuck, "sticky rather than the last thing in a tall form").toBe("sticky");
+
+  // Still on screen from the top of the form, which is the whole point of the move.
+  await page.evaluate(() => {
+    window.scrollTo(0, 0);
+  });
+  await expect(save).toBeInViewport();
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
+test("2026-09-27 badges the panel a refused save names, and lands focus in it", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath());
+
+  // A refusal the kernel addresses by path: shortest above longest is
+  // MIN_LENGTH_ABOVE_MAX_LENGTH at ["constraints","minLength"]. Written from the CONTENT panel,
+  // so the interesting half is reachable - the editor has to move the author to a panel they
+  // were not looking at.
+  await openPanel(page, "constraints");
+  await setNumericConstraint(page, "Shortest answer", "10");
+  await setNumericConstraint(page, "Longest answer", "5");
+  await openPanel(page, "content");
+
+  await page.getByRole("main").getByRole("button", { name: "Save draft" }).click();
+
+  const rail = page.getByTestId("qcms-question-rail");
+  await expect(rail.locator('[data-rail-panel="constraints"] [data-rail-issues]')).toHaveText(
+    "1 issue",
+  );
+  await expect(
+    rail.locator('[data-rail-panel="content"] [data-rail-issues]'),
+    "a panel with nothing refused carries no all-clear either",
+  ).toHaveCount(0);
+  // The author was moved to the panel that has to be fixed, and focus is on the field rather
+  // than merely an error beside it.
+  await expect(field(page, "Shortest answer")).toBeFocused();
+  await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
+  await expect(page).toHaveURL(/panel=constraints/u);
+});
+
+test("2026-09-27 opens the same panels on a frozen version, read-only", async ({ page }) => {
+  await signInWithTotp(page, EMAIL, totpSecret);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}&panel=constraints`));
+
+  // The same rows and the same panels, which is the rule this screen has applied to the editor
+  // since task 032: an author sees the identical layout whether or not they can type in it.
+  await expect(
+    page.getByTestId("qcms-question-rail").locator('[data-rail-panel="constraints"]'),
+  ).toHaveAttribute("aria-current", "page");
+  await expect(field(page, "Shortest answer")).toBeDisabled();
+  // And nothing to save, so contract §6's read-only clause applies: no footer at all.
+  await expect(page.locator(".qcms-question-editor__footer")).toHaveCount(0);
 });
