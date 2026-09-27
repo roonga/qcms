@@ -148,20 +148,18 @@ test("650 marks the row the address selects, and the editor beside it shows that
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(detailPath());
 
-  const marked = page.locator('.qcms-question-rail__version[aria-current="page"]');
-  await expect(marked, "exactly one row is current").toHaveCount(1);
+  // Scoped to the version rows: the rail marks a PANEL row current too, and the topbar marks
+  // the area's nav link, so an unscoped `[aria-current]` is three different statements.
+  const marked = page.locator('[data-rail-version][aria-current="page"]');
+  await expect(marked, "exactly one version row is current").toHaveCount(1);
   await expect(marked).toHaveAttribute("data-rail-version", String(fixture.draftVersion));
 
   // The rail and the screen are two React trees rendered from one URL. This is the assertion
   // that they read it through the same function: a click on a row moves both.
-  await page
-    .locator(
-      `.qcms-question-rail__version[data-rail-version="${String(fixture.publishedVersion)}"]`,
-    )
-    .click();
+  await page.locator(`[data-rail-version="${String(fixture.publishedVersion)}"]`).click();
   await page.waitForURL(new RegExp(`\\?v=${String(fixture.publishedVersion)}$`, "u"));
   await expect(
-    page.locator('.qcms-question-rail__version[aria-current="page"]'),
+    page.locator('[data-rail-version][aria-current="page"]'),
     "the rail follows the address",
   ).toHaveAttribute("data-rail-version", String(fixture.publishedVersion));
   await expect(
@@ -182,8 +180,7 @@ test("650 spells out each version's status and digests the group above them", as
   await expect(rail.locator(".qcms-question-rail__digest")).toHaveText(
     `3 versions, v${String(fixture.publishedVersion)} published`,
   );
-  const row = (version: number) =>
-    rail.locator(`.qcms-question-rail__version[data-rail-version="${String(version)}"]`);
+  const row = (version: number) => rail.locator(`[data-rail-version="${String(version)}"]`);
   await expect(row(fixture.draftVersion).locator(".qcms-tag")).toHaveAttribute(
     "data-status",
     "draft",
@@ -230,7 +227,10 @@ test("650 keeps the lifecycle actions working from the rail the POC puts them in
     .locator(".qcms-question-rail__lifecycle")
     .evaluate((element) => element.getBoundingClientRect().bottom);
   const listTop = await rail
+    // `.first()` because the rail now nests a second group inside the selected version's row -
+    // the editor's panels - and the one this is about is the version list itself.
     .locator(".qcms-rail__group")
+    .first()
     .evaluate((element) => element.getBoundingClientRect().top);
   expect(actionsBottom).toBeLessThanOrEqual(listTop);
 
@@ -258,9 +258,7 @@ test("2026-09-27 nests the editor's panels under the selected version, and switc
   // ONE SET OF ROWS, UNDER THE SELECTED VERSION. The editor shows one version, so rows under
   // every version would be rows that cannot do what they say.
   await expect(rail.locator("[data-rail-panel]")).toHaveCount(3);
-  const selectedRow = rail.locator(
-    `.qcms-question-rail__version[data-rail-version="${String(fixture.draftVersion)}"]`,
-  );
+  const selectedRow = rail.locator(`[data-rail-version="${String(fixture.draftVersion)}"]`);
   await expect(
     selectedRow.locator("xpath=following-sibling::ul[@data-rail-panels]"),
     "the panels are the selected row's own children",
