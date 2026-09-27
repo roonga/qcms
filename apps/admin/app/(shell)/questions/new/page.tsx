@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { Card } from "@/components/kit";
 import { QuestionEditor } from "@/components/questions/question-editor";
+import { QuestionSave } from "@/components/questions/question-save";
 import { t } from "@/lib/i18n/en";
 import { pageMetadata } from "@/lib/page-title";
 import { blankDefinition } from "@/lib/questions/definition";
@@ -37,7 +38,18 @@ export default async function NewQuestionPage() {
         <Link href="/questions" className="qcms-text-link">
           {t("questions.backToList")}
         </Link>
-        <h1 className="text-xl font-semibold text-(--color-text)">{t("questions.create.title")}</h1>
+        {/* The same heading row the detail screen carries, so the action is in the same place on
+            both (Code Owner, 2026-09-28). This screen has no version and no panels, so the row
+            is the title and the button; `QuestionSave` renders nothing until the editor below
+            has published a save state, which it does on mount. */}
+        <div className="qcms-question-head">
+          <div className="qcms-question-head__id">
+            <h1 className="text-xl font-semibold text-(--color-text)">
+              {t("questions.create.title")}
+            </h1>
+          </div>
+          <QuestionSave mode="create" />
+        </div>
       </div>
       <div className="qcms-card">
         <Card padding="md" radius="md" border>

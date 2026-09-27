@@ -69,7 +69,16 @@ interface ScreenRow {
   readonly why: string;
 }
 
-const QUESTION_EDITOR = "components/questions/question-editor.tsx";
+/**
+ * The question screens state their model in the SAVE CONTROL, not in the editor (Code Owner,
+ * 2026-09-28).
+ *
+ * Both used to live at the foot of `question-editor.tsx`. The control moved to the screen's one
+ * heading row, because inside the editor it sat wherever the selected panel left it - 367px of
+ * travel between panels at 1440, and absent altogether on Preview - and §6 asks for the statement
+ * to be NEAR THE BUTTON, so the sentence went with it.
+ */
+const QUESTION_SAVE = "components/questions/question-save.tsx";
 
 /**
  * Every authenticated and unauthenticated screen in the admin, with its save model.
@@ -289,13 +298,13 @@ const SCREENS: readonly ScreenRow[] = [
   {
     route: "app/(shell)/questions/new/page.tsx",
     model: "manual",
-    statedBy: QUESTION_EDITOR,
+    statedBy: QUESTION_SAVE,
     why: "The question editor in create mode: a whole document held on screen and stored only by pressing Create draft. This is the screen an author reaches after learning the builder autosaves.",
   },
   {
     route: "app/(shell)/questions/[questionId]/page.tsx",
     model: "manual",
-    statedBy: QUESTION_EDITOR,
+    statedBy: QUESTION_SAVE,
     why: "The question editor in edit mode. Same document, same explicit press. The lifecycle actions moved to this screen's rail in issue 650 and are inventoried on that slot's own row; they are discrete operations and report no save state either way.",
   },
   {
@@ -559,8 +568,10 @@ describe("every manual screen states its model", () => {
   });
 
   it("wires both editor modes to a sentence of their own", () => {
-    const editor = source(QUESTION_EDITOR);
-    expect(editor).toContain("questions.create.manualModel");
-    expect(editor).toContain("questions.editor.manualModel");
+    // One control serves the creation screen and the detail screen, and each mode names its own
+    // sentence: creation warns about losing what was written, editing about losing changes.
+    const control = source(QUESTION_SAVE);
+    expect(control).toContain("questions.create.manualModel");
+    expect(control).toContain("questions.editor.manualModel");
   });
 });

@@ -270,17 +270,21 @@ export const messages = {
   "questions.create.typeNote":
     "Locked once the question exists. A different type is a different answer shape, so changing it means creating a new question rather than editing this one (R6).",
   "questions.create.submit": "Create draft",
+  // TIGHTENED FOR THE HEADING ROW (Code Owner, 2026-09-28). The note sits under the screen's
+  // heading now, beside the button rather than above a column, so the clause naming the control
+  // ("Nothing is stored until you select Create draft") was the button repeating itself two
+  // inches away. What is left is §6's opening vocabulary, which every manual screen shares, and
+  // the part an author cannot see from the controls: that leaving loses the work.
   "questions.create.manualModel":
-    "This editor does not save automatically. Nothing is stored until you select Create draft, and leaving this page first discards what you have written.",
+    "This editor does not save automatically. Leaving this page discards what you have written.",
 
-  "questions.editor.heading": "Version {version}",
   "questions.editor.label": "Label",
   "questions.editor.help": "Help text",
   "questions.editor.helpHint": "Optional. Shown under the control.",
   "questions.editor.required": "An answer is required",
   "questions.editor.save": "Save draft",
   "questions.editor.manualModel":
-    "This editor does not save automatically. Your changes are stored when you select Save draft, and leaving this page first discards them.",
+    "This editor does not save automatically. Leaving this page discards unsaved changes.",
   "questions.editor.saved": "Draft saved.",
   "questions.editor.constraints": "Constraints",
   "questions.editor.frozen":
@@ -445,6 +449,11 @@ export const messages = {
   "preview.island.mode.dark": "Dark",
   "preview.island.mode.hc": "High contrast",
 
+  // `questions.editor.heading` ("Version {version}") stood here until 2026-09-28. It headed the
+  // version card, which was the third place that number appeared on this screen: the rail marks
+  // the version's row, the collapsed rail summary repeats it at 390, and the card said it again
+  // directly underneath. The screen's one `<h1>` composes the question id with
+  // `questions.detail.version` below, and the card opens on its panel.
   "questions.detail.versions": "Versions",
   "questions.detail.version": "Version {version}",
   "questions.detail.publishedAt": "Published {date}",

@@ -365,3 +365,24 @@ function booleanDigest(definition: QuestionDefinitionView): string {
     no === "" ? t("questions.booleanLabel.defaultNo") : no
   }`;
 }
+
+/**
+ * The panels of one saved version, and which of them the address opens, resolved together.
+ *
+ * The detail screen's page and its rail slot are two React trees rendered from one URL, and both
+ * need both answers. They used to compute them as two lines each, which is two places for the
+ * `withPreview` flag to disagree and two runs of identical code for the duplication gate to
+ * notice. One call each is also the honest statement of what the seam is: "the two trees read the
+ * same address through the same function" is a single function now rather than a convention.
+ *
+ * `withPreview` is fixed rather than a parameter, because both callers are the detail screen,
+ * where there is always a stored version to compile. `/questions/new` has neither a rail nor a
+ * saved version and calls {@link questionPanels} directly.
+ */
+export function questionPanelState(
+  definition: QuestionDefinitionView,
+  params: Readonly<Record<string, string | string[] | undefined>>,
+): { readonly panels: readonly QuestionPanel[]; readonly panel: QuestionPanelId } {
+  const panels = questionPanels(definition, { withPreview: true });
+  return { panels, panel: panelFromParams(params, panels) };
+}

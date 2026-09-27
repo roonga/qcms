@@ -969,10 +969,38 @@ closes with it.
   The same amendment moves the question's own details into that rail (slug,
   created day, and the **type stated once** with its locked status) and the "Back
   to questions" link to the top of it, above the disclosure so it survives the
-  collapse. What does NOT move is Save: it stays a sticky footer of the version
-  card in the content column, because the rail collapses to a shut disclosure
-  below `--bp-sidebar` and a save an author has to expand a navigation to reach is
-  worse than one they have to scroll to.
+  collapse. What does NOT move into the rail is Save: it stays in the content
+  column, because the rail collapses to a shut disclosure below `--bp-sidebar` and
+  a save an author has to expand a navigation to reach is worse than one they have
+  to scroll to.
+
+  **Amended 2026-09-28 (Code Owner): Save sits in the screen's one heading row,
+  and §6's statement sits with it.** It was the last thing in the editor's column,
+  then a sticky bar at the column's foot, then the version card's own header. The
+  first two put the control where the selected PANEL left it - measured at 1440,
+  y=481 on Validation messages, 565 on Content, 848 on Options, and no control at
+  all on Preview - and 367px of travel between panels is a button a reader has to
+  find again each time. The third stopped it moving and said "Version 2" a third
+  time, under a rail row and a collapsed rail summary that had each said it
+  already.
+
+  So the screen has **one** heading row. It reads `{questionId} · Version {n}`,
+  carries the version's status tag once, and ends with Save; the version card
+  opens directly on its panel and carries no heading of its own. The row holds one
+  control's height whether or not a control is in it, so the heading does not move
+  as a reader walks from a draft to a frozen version, and Save's box is identical
+  on every panel at 1440 and at 390 (`apps/admin/e2e/questions-rail.pw.ts`).
+
+  Two consequences worth recording, because both are the kind of thing a later
+  pass would undo. The button is **outside** the form it submits - the heading row
+  is not in the card - so it finds the form by id and calls `requestSubmit()`, and
+  reads the action's pending state across the same module seam the rail's rows use;
+  the vendored `Button` forwards no `form` attribute and ADR-22 keeps it that way.
+  And a sticky control was tried and withdrawn: pinning it to the viewport put it
+  under the option grid's own stacking band, under the corner `next dev` paints its
+  badge in, and - because the §6 note wrapped to four lines inside it at 390 - over
+  the control a reader had just tabbed to, which is WCAG 2.2 SC 2.4.11. A control in
+  normal flow needs none of the machinery those three cost.
 
   **This rail is STYLED like the form builder's** (Code Owner, 2026-09-27). It
   takes the same `qcms-rail*` and `qcms-rail-steps*` classes: the same row

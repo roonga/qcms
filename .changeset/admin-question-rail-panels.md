@@ -50,21 +50,28 @@ address names. Six consequences worth reading before changing any of it:
 - **The rail is styled like the form builder's** (Code Owner, 2026-09-27): the same `qcms-rail*`
   and `qcms-rail-steps*` row geometry, current-row mark, child nesting, issue badge and
   control block. Six classes of a look of its own are deleted with it.
-- **Save stays in the column, as a sticky bar at the foot of the version card.** It is
-  deliberately not moved into the rail, which collapses to a shut disclosure on a narrow viewport
-  - a save an author has to expand a navigation to reach is worse than one they have to scroll
-    to. `ManualSaveNote` travels with it (issue 518, `plan/admin-design-contracts.md` §6).
+- **Save sits in the screen's one heading row**, which reads `{questionId} · Version {n}`, carries
+  the version's status tag once and ends with the button; `ManualSaveNote` is under it (issue 518,
+  contract §6), before it in DOM order. The version card carries no heading of its own now and
+  opens directly on its panel.
 
-  **Only the button is sticky; the note stays in flow above it.** A bar carrying both was 153px
-  tall at 390, where that note wraps to four lines, against a 112px `scroll-padding-block-end`,
-  and tabbing through the option grid left the focused control under it: WCAG 2.2 SC 2.4.11
-  (Focus Not Obscured), and `plan/admin-mobile-stance.md`'s "no interactive element that cannot
-  be reached" with it. At 640 the same bar was 113px against the same 112px. What sticks is one
-  control now, and the padding is that control's MEASURED height rather than a constant, so the
-  two cannot drift apart at a width nobody tested. Two more things moved with it: the bar
-  outranks the option grid's own stacking band, whose insert affordance had been swallowing
-  presses aimed at Save, and below `--bp-sidebar` - where the rail collapses and the column runs
-  to the screen's edge - the action fills the bar so its centre is clear of the corner.
+  It took three tries to get there, and the two that were withdrawn are why the third is written
+  the way it is. At the foot of the editor's column and then as a sticky bar there, the control
+  sat wherever the selected PANEL left it - measured at 1440: y=481 on Validation messages, 565 on
+  Content, 848 on Options, and no control at all on Preview - so it travelled 367px between
+  panels. Sticky also cost three separate defects: it sat inside the option grid's own stacking
+  band, so the grid's insert affordance swallowed presses aimed at Save; it put the button in the
+  viewport's bottom-left corner, where `next dev` paints its tools indicator and the harness runs
+  the admin in dev mode; and because the §6 note wrapped to four lines inside it at 390 it covered
+  the control a reader had just tabbed to, which is WCAG 2.2 SC 2.4.11 (Focus Not Obscured). In
+  the card's header it stopped moving but said "Version 2" a third time, under a rail row and a
+  collapsed rail summary that had each said it already.
+
+  The heading row holds one control's height whether or not a control is in it, so the heading
+  does not move between a draft and a frozen version either. The button is outside the form it
+  submits, so it finds the form by id and calls `requestSubmit()` and reads the action's pending
+  state across the same module seam the rail's rows use: the vendored `Button` forwards no `form`
+  attribute and ADR-22 keeps it byte-identical to upstream.
 
 `/questions/new` is unchanged and keeps no rail: it shows every panel at once, because creation is
 one pass through a short document and there is nothing there to switch them with.

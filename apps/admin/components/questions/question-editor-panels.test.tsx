@@ -6,6 +6,7 @@ import type { DefinitionIssue, QuestionDefinitionView } from "@/lib/questions/ty
 
 import { QuestionEditor } from "./question-editor";
 import { QuestionPanelRows } from "./question-panel-rows";
+import { QuestionSave } from "./question-save";
 
 /**
  * One panel at a time, and where a refused save puts the author (Code Owner, 2026-09-27).
@@ -71,6 +72,19 @@ function idle() {
 }
 
 /**
+ * The screen's Save control, which lives in the heading row rather than inside the editor.
+ *
+ * Rendered as a sibling for the same reason `RailStandIn` below is: it is a second React tree
+ * reading the editor's state through `lib/questions/editor-bridge.ts`, and a test that mocked it
+ * would prove the module works and say nothing about the component the app renders. It also
+ * submits through `requestSubmit()` on the form it finds by id, which is the wiring every refusal
+ * case below exercises end to end.
+ */
+function SaveStandIn() {
+  return <QuestionSave mode="edit" />;
+}
+
+/**
  * Press Save and let the action settle.
  *
  * `act` wrapped around the press rather than awaited inside it: the form action, the state it
@@ -95,14 +109,17 @@ beforeEach(() => {
 describe("which panel the column shows", () => {
   it("renders the panel the address names, and none of the others", () => {
     render(
-      <QuestionEditor
-        mode="edit"
-        action={idle()}
-        initialSlug="accident-count"
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-        addressedPanel="constraints"
-      />,
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={idle()}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="constraints"
+        />
+        <SaveStandIn />
+      </>,
     );
     expect(screen.getByRole("group", { name: "Constraints" })).toBeTruthy();
     // `textbox` rather than `spinbutton`, which is the vendored `NumberField` rather than a
@@ -207,13 +224,16 @@ describe("the preview panel", () => {
     // `/questions/new` passes no preview, so the row is not in the rail and the panel does not
     // exist - there is nothing stored for the API to compile.
     render(
-      <QuestionEditor
-        mode="create"
-        action={idle()}
-        initialSlug=""
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-      />,
+      <>
+        <QuestionEditor
+          mode="create"
+          action={idle()}
+          initialSlug=""
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+        />
+        <SaveStandIn />
+      </>,
     );
     expect(screen.queryByTestId("stub-preview")).toBeNull();
     expect(document.querySelector('[data-question-panel="preview"]')).toBeNull();
@@ -300,17 +320,20 @@ describe("the rail row and the column, in two React trees", () => {
 describe("where a refused save puts the author", () => {
   it("opens the first panel with an issue and focuses the offending control", async () => {
     render(
-      <QuestionEditor
-        mode="edit"
-        action={refusing([
-          issue(["constraints", "max"], "Largest value must be above the smallest."),
-          issue(["label"], "A label is required."),
-        ])}
-        initialSlug="accident-count"
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-        addressedPanel="constraints"
-      />,
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={refusing([
+            issue(["constraints", "max"], "Largest value must be above the smallest."),
+            issue(["label"], "A label is required."),
+          ])}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="constraints"
+        />
+        <SaveStandIn />
+      </>,
     );
     await save();
 
@@ -327,14 +350,17 @@ describe("where a refused save puts the author", () => {
 
   it("stays on a panel it is already showing and still moves focus into it", async () => {
     render(
-      <QuestionEditor
-        mode="edit"
-        action={refusing([issue(["constraints", "max"], "Largest value is out of range.")])}
-        initialSlug="accident-count"
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-        addressedPanel="constraints"
-      />,
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={refusing([issue(["constraints", "max"], "Largest value is out of range.")])}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="constraints"
+        />
+        <SaveStandIn />
+      </>,
     );
     await save();
 
@@ -346,16 +372,19 @@ describe("where a refused save puts the author", () => {
 
   it("focuses the error summary when no panel can show what was refused", async () => {
     render(
-      <QuestionEditor
-        mode="edit"
-        // No path at all, which is how the kernel reports a cross-field rule, and how any code
-        // this screen has never seen arrives.
-        action={refusing([issue([], "This question cannot be stored as written.")])}
-        initialSlug="accident-count"
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-        addressedPanel="constraints"
-      />,
+      <>
+        <QuestionEditor
+          mode="edit"
+          // No path at all, which is how the kernel reports a cross-field rule, and how any code
+          // this screen has never seen arrives.
+          action={refusing([issue([], "This question cannot be stored as written.")])}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="constraints"
+        />
+        <SaveStandIn />
+      </>,
     );
     await save();
 
@@ -384,6 +413,7 @@ describe("where a refused save puts the author", () => {
           addressedPanel="content"
         />
         <RailStandIn selected="content" />
+        <SaveStandIn />
       </>,
     );
     await save();
@@ -410,14 +440,17 @@ describe("where a refused save puts the author", () => {
     // Below `--bp-sidebar` the rail is a shut `<details>`, so the panel switch and the focus
     // move cannot depend on it. Nothing but the editor is rendered here.
     render(
-      <QuestionEditor
-        mode="edit"
-        action={refusing([issue(["label"], "A label is required.")])}
-        initialSlug="accident-count"
-        initialDefinition={NUMBER_DEFINITION}
-        version={1}
-        addressedPanel="constraints"
-      />,
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={refusing([issue(["label"], "A label is required.")])}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="constraints"
+        />
+        <SaveStandIn />
+      </>,
     );
     await save();
 

@@ -2,8 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
-import { ManualSaveNote } from "@/components/save-model";
+import { Alert, Checkbox, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import {
   blankDefinition,
@@ -13,10 +12,12 @@ import {
   textOf,
 } from "@/lib/questions/definition";
 import {
+  QUESTION_FORM_ID,
   chooseQuestionPanel,
   resetQuestionPanel,
   useQuestionPanel,
   usePublishQuestionPanels,
+  usePublishQuestionSave,
 } from "@/lib/questions/editor-bridge";
 import { IDLE_MUTATION, type MutationState } from "@/lib/questions/editor-state";
 import {
@@ -130,6 +131,7 @@ export function QuestionEditor({
   initialDefinition,
   version,
   isFrozen = false,
+  isDeprecated = false,
   addressedPanel,
   preview,
 }: {
@@ -139,6 +141,8 @@ export function QuestionEditor({
   readonly initialDefinition: QuestionDefinitionView;
   readonly version: number;
   readonly isFrozen?: boolean;
+  /** A deprecated version says so above its fields; see the header block below. */
+  readonly isDeprecated?: boolean;
   /**
    * The panel `?panel=` names, resolved on the server, or absent on a screen with no rail.
    *
@@ -219,6 +223,14 @@ export function QuestionEditor({
   const chosen = useQuestionPanel(addressedPanel ?? DEFAULT_QUESTION_PANEL);
   const open = panels.some((panel) => panel.id === chosen) ? chosen : DEFAULT_QUESTION_PANEL;
   const shown = addressedPanel === undefined ? panels : panels.filter((panel) => panel.id === open);
+  // THE PREVIEW IS NOT A PANEL OF THE FORM. It is a compiled respondent view with live controls
+  // of its own - a theme picker, a mode picker and the question's own control - and every one of
+  // those inside this `<form>` would be posted with the document, or would block the native
+  // submit on a constraint the editor never set. So it renders as a SIBLING of the form rather
+  // than inside it, and the form stays mounted underneath it: that is what keeps the header's
+  // Save button working while the preview is the panel on screen (Code Owner, 2026-09-28).
+  const editing = shown.filter((panel) => panel.id !== "preview");
+  const showPreview = open === "preview" && preview !== undefined && addressedPanel !== undefined;
 
   // Hand the rail this document's panels and the counts its badges are drawn from. Nothing
   // else crosses: the selection lives in the module both trees read, and the document stays
@@ -228,6 +240,13 @@ export function QuestionEditor({
       () => (addressedPanel === undefined ? undefined : { panels, issueCounts: counts }),
       [addressedPanel, panels, counts],
     ),
+  );
+
+  // Hand the heading row's Save button this action's pending state. `undefined` while the
+  // version is frozen: there is nothing to save, so contract §6 asks for no control at all
+  // rather than a disabled one, and the button renders nothing.
+  usePublishQuestionSave(
+    useMemo(() => (isFrozen ? undefined : { isPending }), [isFrozen, isPending]),
   );
 
   // Forget the reader's chosen panel as this editor goes away. Module state outlives a route,
@@ -240,10 +259,6 @@ export function QuestionEditor({
     },
     [],
   );
-
-  // The sticky bar's real height, published for the scroll padding. See the hook.
-  const footer = useRef<HTMLDivElement | null>(null);
-  useStickyFooterInset(footer, !isFrozen && !isCreate);
 
   // THE REFUSED SAVE, IN TWO PASSES. Sending focus needs the panel to be on screen, and
   // choosing the panel is a render, so the panel is chosen here and focused in the effect
@@ -279,240 +294,143 @@ export function QuestionEditor({
     (firstInvalidControl(section) ?? section).focus();
   }, [focusPanel]);
 
-  // THE PREVIEW PANEL IS NOT PART OF THE FORM, and that is structural rather than tidy. It is
-  // a compiled respondent view with live controls of its own - a theme picker, a mode picker
-  // and the question's own control - and every one of those inside this `<form>` would be
-  // posted with the document, or would block the native submit on a constraint the editor
-  // never set. So the panel renders INSTEAD of the form rather than inside it.
-  //
-  // The document survives the switch: it lives in this component's state, not in the DOM, so
-  // walking to Preview and back returns to exactly what was typed. There is no Save footer
-  // here either, by contract §6's own rule - a panel with nothing to save says nothing.
-  if (preview !== undefined && open === "preview" && addressedPanel !== undefined) {
-    return (
-      <section
-        id={panelAnchorId("preview")}
-        tabIndex={-1}
-        className="qcms-question-panel flex flex-col gap-4"
-        data-question-panel="preview"
-      >
-        {/* SAID ONLY WHEN IT IS TRUE (Code Owner, 2026-09-27). The preview is compiled by the
-            API from the STORED version, so an author who has typed a new label and not saved
-            is looking at the old one. Standing text would be noise on the common case (a
-            frozen version, or a draft opened and not touched); this appears exactly when the
-            document in the editor and the document behind the preview have diverged. */}
-        {hasUnsavedEdits(definition, saved) && (
-          <Alert variant="warning">{t("questions.preview.stale")}</Alert>
-        )}
-        {preview}
-      </section>
-    );
-  }
-
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-5"
-      // React 19 resets a form automatically once its action resolves. That is right for an
-      // uncontrolled form (the inputs are the state, so clearing them is the point) and
-      // wrong for this one, which is fully controlled: `definition` above is the single
-      // source of truth and every visible control is driven from it, so a reset does not
-      // clear the document - it desynchronizes the controls from the document that owns
-      // them. react-aria honours the cancellation explicitly (`useFormReset` skips its work
-      // when the reset event is `defaultPrevented`), so this is the vendored stack's own
-      // opt-out rather than a workaround pushed past it.
-      //
-      // Left un-prevented, every constraint control silently reverted to its mount-time
-      // value the moment "Draft saved." appeared: the date panel visibly blanked, and the
-      // numeric panel dropped its bounds without even a warning, because the reset arrives
-      // as an `onChange` and this editor believes its own controls. The next save would
-      // then have persisted the emptied document over the one just stored.
-      //
-      // `onResetCapture`, not `onReset`, and that is the fix rather than a detail of it.
-      // react-aria subscribes with `addEventListener` on the form itself, so its handler
-      // runs in the target phase; React delegates both props to the root container, where
-      // capture runs before the target and bubble runs after it. Cancelling in the bubble
-      // phase sets `defaultPrevented` a beat too late for react-aria to read, which looks
-      // exactly like the fix not working.
-      onResetCapture={(event) => {
-        event.preventDefault();
-      }}
-    >
-      {/* The whole document, as one field. See the note above on why. The hidden fields are
+    <>
+      <form
+        id={QUESTION_FORM_ID}
+        action={formAction}
+        className="flex flex-col gap-5"
+        // React 19 resets a form automatically once its action resolves. That is right for an
+        // uncontrolled form (the inputs are the state, so clearing them is the point) and
+        // wrong for this one, which is fully controlled: `definition` above is the single
+        // source of truth and every visible control is driven from it, so a reset does not
+        // clear the document - it desynchronizes the controls from the document that owns
+        // them. react-aria honours the cancellation explicitly (`useFormReset` skips its work
+        // when the reset event is `defaultPrevented`), so this is the vendored stack's own
+        // opt-out rather than a workaround pushed past it.
+        //
+        // Left un-prevented, every constraint control silently reverted to its mount-time
+        // value the moment "Draft saved." appeared: the date panel visibly blanked, and the
+        // numeric panel dropped its bounds without even a warning, because the reset arrives
+        // as an `onChange` and this editor believes its own controls. The next save would
+        // then have persisted the emptied document over the one just stored.
+        //
+        // `onResetCapture`, not `onReset`, and that is the fix rather than a detail of it.
+        // react-aria subscribes with `addEventListener` on the form itself, so its handler
+        // runs in the target phase; React delegates both props to the root container, where
+        // capture runs before the target and bubble runs after it. Cancelling in the bubble
+        // phase sets `defaultPrevented` a beat too late for react-aria to read, which looks
+        // exactly like the fix not working.
+        onResetCapture={(event) => {
+          event.preventDefault();
+        }}
+      >
+        {/* ONE HEADING ROW ON THIS SCREEN, AND IT IS THE PAGE'S (Code Owner, 2026-09-28).
+          
+          This card carried an `<h2>Version 2</h2>` of its own, which was the third place that
+          number appeared: the rail marks the version's row, the collapsed rail summary repeats it
+          at 390, and the card said it again directly underneath. The card opens on its panel now,
+          and the screen's `<h1>` carries the question and the version together, with the status
+          tag once and Save at the end of the row (`components/questions/question-save.tsx`).
+          
+          What stayed here are the two sentences that are about this VERSION rather than about the
+          screen: they belong above the fields they constrain, and they are the first thing in the
+          card for the same reason the heading is the first thing on the screen. */}
+        {isDeprecated && (
+          <p className="text-sm text-(--color-warning-fg)">
+            {t("questions.detail.deprecatedNote")}
+          </p>
+        )}
+        {isFrozen && (
+          <p className="text-sm text-(--color-text-muted)">{t("questions.editor.frozen")}</p>
+        )}
+
+        {/* The whole document, as one field. See the note above on why. The hidden fields are
           outside the panels on purpose: a panel is what the author is looking at, and what
           gets POSTed is the document rather than the panel. */}
-      <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
-      <input type="hidden" name="questionId" value={questionId} />
-      <input type="hidden" name="version" value={String(version)} />
-      {/* In creation the slug is a real field; here it is carried so a rejected save can
+        <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
+        <input type="hidden" name="questionId" value={questionId} />
+        <input type="hidden" name="version" value={String(version)} />
+        {/* In creation the slug is a real field; here it is carried so a rejected save can
           echo the whole submission back intact. */}
-      {!isCreate && <input type="hidden" name="slug" value={slug} />}
+        {!isCreate && <input type="hidden" name="slug" value={slug} />}
 
-      {state.status === "error" && (
-        // A FOCUSABLE WRAPPER, because the summary is a focus destination now: when a refusal
-        // names nothing any panel renders, this is where the author is sent. `tabIndex={-1}`
-        // so it is reachable when something sends focus to it and never a stop on the way
-        // past - the device `stepAnchorId`'s span uses in the builder's rail.
-        <div ref={summary} tabIndex={-1} data-testid="qcms-question-errors">
-          <Alert variant="error" {...optionalProp("title", state.message)}>
-            {leftover.length > 0 && (
-              <ul className="flex flex-col gap-1">
-                {leftover.map((issue) => (
-                  <li key={`${issue.code}:${(issue.path ?? []).join(".")}`}>
-                    {issue.path === undefined || issue.path.length === 0
-                      ? issue.message
-                      : `${issue.path.join(" / ")}: ${issue.message}`}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Alert>
-        </div>
-      )}
-      {state.status === "saved" && <Alert variant="success">{t("questions.editor.saved")}</Alert>}
-
-      {shown.map((panel) => (
-        // ONE SECTION PER PANEL, CARRYING THE ID THE RAIL ROW CONTROLS. A plain `<section>`
-        // with no accessible name, deliberately: naming it would make it a `region` landmark,
-        // and five landmarks inside one card is five entries in a screen reader's landmark
-        // list for what is one form. The panel's own name is its fieldset's legend, inside.
-        //
-        // `tabIndex={-1}` because it is the fallback focus destination when a refusal names a
-        // panel but no control inside it reports itself invalid.
-        <section
-          key={panel.id}
-          id={panel.anchorId}
-          tabIndex={-1}
-          className="qcms-question-panel"
-          data-question-panel={panel.id}
-        >
-          <PanelBody
-            panel={panel}
-            definition={definition}
-            issues={issues}
-            isFrozen={isFrozen}
-            isCreate={isCreate}
-            slug={slug}
-            questionId={questionId}
-            onSlug={(next) => {
-              setSlug(next);
-              patch({ questionId: questionIdFromSlug(next) });
-            }}
-            onType={changeType}
-            onPatch={patch}
-          />
-        </section>
-      ))}
-
-      {/* THE SAVE STAYS IN THIS COLUMN, AS A STICKY FOOTER (Code Owner, 2026-09-27). It is not
-          moved into the rail, and that is the decision rather than an omission: below
-          `--bp-sidebar` the rail collapses to a shut `<details>`, so a Save button inside it
-          would be a save an author has to expand a navigation to reach. Sticky is what answers
-          the problem moving it was meant to answer - the option grid and the constraint panel
-          are both taller than a viewport, and the button was below them.
-
-          The manual save model, stated where the author will meet it (issue 518;
-          `plan/admin-design-contracts.md` §6). It sits before the button in DOM order so a
-          linear read reaches it on the way to the control, and it is deliberately not on
-          the frozen branch: a frozen version has no Save button, and contract §6 says a
-          screen with nothing to save says nothing. There is no companion "Saved 14:02"
-          strip here, by the same rule - the builder's ambient chrome is for the one screen
-          that autosaves, and putting it beside a Save button is the confusion
-          `plan/admin-ux-audit.md` §4.6 describes rather than the fix for it. */}
-      {!isFrozen && (
-        // ONLY THE BUTTON IS STICKY, and the note stays in flow above it.
-        //
-        // The note is four lines of prose at 390, so a bar carrying both was 153px tall there
-        // against a 112px `scroll-padding-block-end` - and a control tabbed to near the bottom
-        // of the option grid landed UNDER it: focused, invisible, and not clickable where a
-        // pointer would aim. That is WCAG 2.2 SC 2.4.11 (Focus Not Obscured) failing, and
-        // `plan/admin-mobile-stance.md`'s "no interactive element that cannot be reached" with
-        // it. At 640 the same bar was 113px against the same 112px, which is the defect one
-        // pixel from being invisible.
-        //
-        // Shrinking what sticks is the fix rather than growing the padding to match: a bar that
-        // is one control tall obscures a strip the size of the control it holds, whatever the
-        // prose around it does, in any locale. `useStickyFooterInset` below then measures even
-        // that and publishes it, so the padding cannot be smaller than the bar by construction.
-        //
-        // The note does NOT move in DOM order - it is still before the button, so a linear read
-        // reaches it on the way to the control (issue 518, contract §6). It is a sibling of the
-        // bar rather than its child because the bar's containing block has to be this tall
-        // `<form>`: a sticky element only sticks while its own parent is in view, so wrapping
-        // the two in a short div would have quietly stopped it sticking at all.
-        <>
-          <ManualSaveNote
-            messageKey={isCreate ? "questions.create.manualModel" : "questions.editor.manualModel"}
-          />
-          {/* STICKY ON THE DETAIL SCREEN, IN FLOW ON THE CREATION SCREEN, and the difference is
-              not a taste. Sticky answers "Save is below a panel taller than the viewport", which
-              is the version card's problem: that screen shows ONE panel beside a 240px rail.
-              `/questions/new` has no rail and shows every panel at once, so a pinned bar put the
-              primary action flush into the viewport's bottom-left corner - which is where
-              `next dev` paints its own tools indicator, and the indicator then owns the hit
-              test. Every admin browser spec reaches that screen through `createDraft`, so one
-              unclickable button there is the whole suite. */}
-          <div
-            ref={footer}
-            className={isCreate ? "flex" : "qcms-question-editor__footer"}
-            data-testid="qcms-question-save"
-          >
-            <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
-              {isCreate ? t("questions.create.submit") : t("questions.editor.save")}
-            </Button>
+        {state.status === "error" && (
+          // A FOCUSABLE WRAPPER, because the summary is a focus destination now: when a refusal
+          // names nothing any panel renders, this is where the author is sent. `tabIndex={-1}`
+          // so it is reachable when something sends focus to it and never a stop on the way
+          // past - the device `stepAnchorId`'s span uses in the builder's rail.
+          <div ref={summary} tabIndex={-1} data-testid="qcms-question-errors">
+            <Alert variant="error" {...optionalProp("title", state.message)}>
+              {leftover.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {leftover.map((issue) => (
+                    <li key={`${issue.code}:${(issue.path ?? []).join(".")}`}>
+                      {issue.path === undefined || issue.path.length === 0
+                        ? issue.message
+                        : `${issue.path.join(" / ")}: ${issue.message}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Alert>
           </div>
-        </>
-      )}
-    </form>
-  );
-}
+        )}
+        {state.status === "saved" && <Alert variant="success">{t("questions.editor.saved")}</Alert>}
 
-/**
- * Publish the sticky save bar's measured height, so the scroll padding can never be smaller
- * than the thing it is compensating for.
- *
- * ## Why this is measured rather than written down
- *
- * `scroll-padding-block-end` is what stops the browser scrolling a control to the viewport
- * edge and leaving it under a sticky element (WCAG 2.2 SC 2.4.11). It was a constant, and a
- * constant is a guess about a box whose height depends on the viewport, the operator's font
- * size and the length of a translated button label. The guess was wrong by 41px at 390 and by
- * one pixel at 640, which is how this was found.
- *
- * The bar is one control tall now, so a constant would very likely be right. "Very likely" is
- * the part this removes: the padding is the bar's own height plus a little air, re-measured
- * whenever the bar changes size, so the two cannot drift apart at a width nobody tested.
- *
- * ## Where the value goes, and why it is cleared
- *
- * On `<html>`, because `scroll-padding` belongs to the scrolling container and the rule that
- * reads it is `html:has(.qcms-question-editor__footer)`. Cleared on unmount so a screen with no
- * such bar does not inherit a reserve from one the reader has left; the CSS fallback is a
- * token-derived value that holds for the frame before this first runs.
- *
- * `ResizeObserver` rather than a resize listener: the bar's height changes with the panel
- * beside it and with a font-size change, neither of which is a window resize.
- */
-function useStickyFooterInset(ref: { current: HTMLDivElement | null }, enabled: boolean): void {
-  useEffect(() => {
-    const element = ref.current;
-    if (!enabled || element === null) return undefined;
-    const root = document.documentElement;
-    const publish = (): void => {
-      // Rounded up, and 8px of air, so focus lands clear of the bar rather than against it.
-      root.style.setProperty(
-        "--qcms-save-footer-h",
-        `${String(Math.ceil(element.getBoundingClientRect().height) + 8)}px`,
-      );
-    };
-    publish();
-    const observer = new ResizeObserver(publish);
-    observer.observe(element);
-    return () => {
-      observer.disconnect();
-      root.style.removeProperty("--qcms-save-footer-h");
-    };
-  }, [enabled]);
+        {editing.map((panel) => (
+          // ONE SECTION PER PANEL, CARRYING THE ID THE RAIL ROW CONTROLS. A plain `<section>`
+          // with no accessible name, deliberately: naming it would make it a `region` landmark,
+          // and five landmarks inside one card is five entries in a screen reader's landmark
+          // list for what is one form. The panel's own name is its fieldset's legend, inside.
+          //
+          // `tabIndex={-1}` because it is the fallback focus destination when a refusal names a
+          // panel but no control inside it reports itself invalid.
+          <section
+            key={panel.id}
+            id={panel.anchorId}
+            tabIndex={-1}
+            className="qcms-question-panel"
+            data-question-panel={panel.id}
+          >
+            <PanelBody
+              panel={panel}
+              definition={definition}
+              issues={issues}
+              isFrozen={isFrozen}
+              isCreate={isCreate}
+              slug={slug}
+              questionId={questionId}
+              onSlug={(next) => {
+                setSlug(next);
+                patch({ questionId: questionIdFromSlug(next) });
+              }}
+              onType={changeType}
+              onPatch={patch}
+            />
+          </section>
+        ))}
+      </form>
+      {showPreview && (
+        <section
+          id={panelAnchorId("preview")}
+          tabIndex={-1}
+          className="qcms-question-panel flex flex-col gap-4"
+          data-question-panel="preview"
+        >
+          {/* SAID ONLY WHEN IT IS TRUE (Code Owner, 2026-09-27). The preview is compiled by the
+              API from the STORED version, so an author who has typed a new label and not saved
+              is looking at the old one. Standing text would be noise on the common case (a
+              frozen version, or a draft opened and not touched); this appears exactly when the
+              document in the editor and the document behind the preview have diverged. */}
+          {hasUnsavedEdits(definition, saved) && (
+            <Alert variant="warning">{t("questions.preview.stale")}</Alert>
+          )}
+          {preview}
+        </section>
+      )}
+    </>
+  );
 }
 
 /**

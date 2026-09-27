@@ -1,6 +1,6 @@
 import { LifecycleActions } from "@/components/questions/lifecycle-actions";
 import { QuestionVersionsRail } from "@/components/questions/question-versions-rail";
-import { panelFromParams, questionPanels } from "@/lib/questions/panels";
+import { questionPanelState } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
 import { loadQuestionRail } from "@/lib/server/question-rail";
 import { requireAdminSession } from "@/lib/server/session";
@@ -67,7 +67,7 @@ export default async function QuestionDetailRail({
   const selected = selectVersion(rail.versions, query["v"]);
   if (selected === undefined) return null;
   const latest = rail.versions[rail.versions.length - 1];
-  const panels = questionPanels(selected.definition, { withPreview: true });
+  const { panels, panel } = questionPanelState(selected.definition, query);
 
   return (
     <QuestionVersionsRail
@@ -77,7 +77,7 @@ export default async function QuestionDetailRail({
       versions={rail.versions}
       selected={selected.version}
       panels={panels}
-      panel={panelFromParams(query, panels)}
+      panel={panel}
       actions={
         <LifecycleActions
           action={lifecycleAction}

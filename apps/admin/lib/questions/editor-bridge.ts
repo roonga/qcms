@@ -58,6 +58,23 @@ import { PANEL_PARAM, type QuestionPanel, type QuestionPanelId } from "./panels.
  * coarse security check is to stay clear of it rather than to carve an exemption into it.
  */
 
+/**
+ * The editor's `<form>` id, so a control outside that form can still submit it.
+ *
+ * Save sits in the screen's heading row now (Code Owner, 2026-09-28), which is outside the card
+ * and therefore outside the form. The vendored `Button` takes `onPress` and forwards no `form`
+ * attribute (ADR-22 keeps it byte-identical to upstream), so the button finds the form by this id
+ * and calls `requestSubmit()` on it - which runs the browser's own validation and fires the
+ * submit event React's form action is listening for, exactly as an in-form submit button would.
+ */
+export const QUESTION_FORM_ID = "qcms-question-editor";
+
+/** What the editor publishes about its save, for the button that lives outside it. */
+export interface QuestionSaveSnapshot {
+  /** True while the action is in flight, so the button outside the form can disable itself. */
+  readonly isPending: boolean;
+}
+
 /** What the editor publishes about its panels, or `undefined` while none is mounted. */
 export interface QuestionPanelsSnapshot {
   /** The panels the live document has, already ordered, named and digested. */
@@ -71,6 +88,9 @@ let chosen: QuestionPanelId | undefined;
 
 /** The editor's live panels, or `undefined` when no editor is mounted. */
 let published: QuestionPanelsSnapshot | undefined;
+
+/** The editor's save state, or `undefined` when there is no editor or nothing to save. */
+let save: QuestionSaveSnapshot | undefined;
 
 /**
  * The subscribers, held as an immutable array that is replaced rather than mutated.
@@ -100,6 +120,10 @@ function getChosen(): QuestionPanelId | undefined {
 
 function getPublished(): QuestionPanelsSnapshot | undefined {
   return published;
+}
+
+function getSave(): QuestionSaveSnapshot | undefined {
+  return save;
 }
 
 /** The server has neither a chosen panel nor a mounted editor, by construction. */
@@ -189,4 +213,27 @@ export function usePublishQuestionPanels(next: QuestionPanelsSnapshot | undefine
 /** The editor's live panels, or `undefined` when no editor is mounted. */
 export function useQuestionPanels(): QuestionPanelsSnapshot | undefined {
   return useSyncExternalStore(subscribe, getPublished, getNothing);
+}
+
+/**
+ * Publish the editor's save state for the button in the screen's heading row.
+ *
+ * `undefined` on a frozen version, which has nothing to save: the heading row then renders no
+ * button and no model note, which is contract §6's read-only clause ("a screen with nothing to
+ * save says nothing") rather than a disabled control.
+ */
+export function usePublishQuestionSave(next: QuestionSaveSnapshot | undefined): void {
+  useEffect(() => {
+    save = next;
+    emit();
+    return () => {
+      save = undefined;
+      emit();
+    };
+  }, [next]);
+}
+
+/** The editor's save state, or `undefined` when no editor is mounted or nothing can be saved. */
+export function useQuestionSave(): QuestionSaveSnapshot | undefined {
+  return useSyncExternalStore(subscribe, getSave, getNothing);
 }

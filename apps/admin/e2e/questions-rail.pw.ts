@@ -162,13 +162,13 @@ test("650 marks the row the address selects, and the editor beside it shows that
     page.locator('[data-rail-version][aria-current="page"]'),
     "the rail follows the address",
   ).toHaveAttribute("data-rail-version", String(fixture.publishedVersion));
+  // The screen's ONE heading names the question and the version together (Code Owner,
+  // 2026-09-28). The card's own "Version N" `<h2>` is gone: it was the third place that number
+  // appeared, under a rail row and a collapsed summary that had each said it already.
   await expect(
-    page.getByRole("heading", {
-      name: `Version ${String(fixture.publishedVersion)}`,
-      exact: true,
-    }),
-    "and so does the editor",
-  ).toBeVisible();
+    page.getByRole("heading", { level: 1 }),
+    "and so does the screen's heading",
+  ).toContainText(`Version ${String(fixture.publishedVersion)}`);
 });
 
 test("650 spells out each version's status and digests the group above them", async ({ page }) => {
@@ -361,34 +361,97 @@ test("2026-09-27 states the question's details in the rail and the way back abov
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
-test("2026-09-27 keeps Save in the column, reachable without scrolling to the end", async ({
+test("2026-09-28 keeps Save in the screen's heading row, in one place on every panel", async ({
   page,
 }) => {
+  test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
-  await page.setViewportSize({ width: 1280, height: 700 });
-  await page.goto(detailPath());
 
-  // NOT IN THE RAIL, deliberately: the rail collapses to a shut disclosure below
-  // `--bp-sidebar`, so a Save button inside it would be a save an author has to expand a
-  // navigation to reach. It is the version card's sticky footer instead.
-  await expect(
-    page.getByTestId("qcms-question-rail").getByRole("button", { name: "Save draft" }),
-  ).toHaveCount(0);
-  const save = page.getByRole("main").getByRole("button", { name: "Save draft" });
-  await expect(save).toBeVisible();
-  // The manual save model travels with it (issue 518, contract §6).
-  await expect(page.getByTestId("qcms-manual-save-note")).toBeVisible();
+  /*
+   * The reason the button is in the header at all (Code Owner, 2026-09-28).
+   *
+   * It was the last thing in the column, then a sticky bar at its foot, then the version card's
+   * own header. The first two put it where the PANEL decided: measured at 1440 before this moved,
+   * y=481 on Validation messages, 565 on Content, 848 on Options, and no button at all on
+   * Preview. A control that travels 367px when a reader switches panels is one they have to find
+   * again each time. The third stopped it moving but repeated "Version 2" under a rail row and a
+   * collapsed summary that had each said it already.
+   *
+   * So what is asserted is the property rather than a coordinate: the same box on every panel, at
+   * both widths the mobile stance names, Preview included - and the heading it sits beside not
+   * moving between a draft and a frozen version, which is the other way this row could jump.
+   */
+  const panels = ["content", "constraints", "preview"] as const;
+  for (const [width, height] of [
+    [1440, 900],
+    [390, 844],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    const boxes: Record<string, string> = {};
+    for (const panel of panels) {
+      await page.goto(detailPath(`?v=${String(fixture.draftVersion)}&panel=${panel}`));
+      const save = page.getByRole("main").getByRole("button", { name: "Save draft" });
+      await expect(save, `Save is on the ${panel} panel too`).toBeVisible();
+      const box = await save.boundingBox();
+      boxes[panel] = JSON.stringify(box);
+    }
+    expect(
+      new Set(Object.values(boxes)).size,
+      `Save must not move between panels at ${String(width)}: ${JSON.stringify(boxes)}`,
+    ).toBe(1);
 
-  const stuck = await page
-    .locator(".qcms-question-editor__footer")
-    .evaluate((element) => getComputedStyle(element).position);
-  expect(stuck, "sticky rather than the last thing in a tall form").toBe("sticky");
+    // NOT STICKY, and nothing overflows the width the mobile stance measures.
+    const layout = await page.evaluate(() => {
+      const button = [...document.querySelectorAll("main button")].find(
+        (candidate) => candidate.textContent?.trim() === "Save draft",
+      );
+      return {
+        position: button === undefined ? "" : getComputedStyle(button).position,
+        overflowX: document.documentElement.scrollWidth - window.innerWidth,
+      };
+    });
+    expect(layout.position).toBe("static");
+    expect(layout.overflowX, `nothing overflows at ${String(width)}`).toBeLessThanOrEqual(0);
+  }
 
-  // Still on screen from the top of the form, which is the whole point of the move.
-  await page.evaluate(() => {
-    window.scrollTo(0, 0);
+  // THE HEADING DOES NOT MOVE WHEN THE BUTTON IS NOT THERE. A frozen version publishes no save
+  // state, so the row renders neither control nor note; without a minimum on the row the heading
+  // rose as a reader walked from a draft to a published version, by 5px at 390.
+  for (const [width, height] of [
+    [1440, 900],
+    [390, 844],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    const headingTop = async (version: number): Promise<number | undefined> => {
+      await page.goto(detailPath(`?v=${String(version)}&panel=content`));
+      const heading = page.getByRole("main").getByRole("heading", { level: 1 });
+      await expect(heading).toBeVisible();
+      return (await heading.boundingBox())?.y;
+    };
+    const draft = await headingTop(fixture.draftVersion);
+    const frozen = await headingTop(fixture.publishedVersion);
+    await expect(
+      page.getByRole("main").getByRole("button", { name: "Save draft" }),
+      "a frozen version has nothing to save, so it says nothing (contract 6)",
+    ).toHaveCount(0);
+    expect(frozen, `the heading must not move between versions at ${String(width)}`).toBe(draft);
+  }
+
+  await page.goto(detailPath(`?v=${String(fixture.draftVersion)}&panel=content`));
+  // The manual save model travels with the button and stays before it (issue 518, contract §6).
+  const note = page.getByTestId("qcms-manual-save-note");
+  await expect(note).toBeVisible();
+  const order = await page.evaluate(() => {
+    const noteElement = document.querySelector('[data-testid="qcms-manual-save-note"]');
+    const button = [...document.querySelectorAll("main button")].find(
+      (candidate) => candidate.textContent?.trim() === "Save draft",
+    );
+    if (noteElement === null || button === undefined) return 0;
+    // eslint-disable-next-line no-bitwise
+    return noteElement.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING;
   });
-  await expect(save).toBeInViewport();
+  expect(order, "the save note reads before the button").toBeGreaterThan(0);
+
   await page.setViewportSize({ width: 1280, height: 900 });
 });
 
@@ -437,8 +500,9 @@ test("2026-09-27 opens the same panels on a frozen version, read-only", async ({
     page.getByTestId("qcms-question-rail").locator('[data-rail-panel="constraints"]'),
   ).toHaveAttribute("aria-current", "page");
   await expect(field(page, "Shortest answer")).toBeDisabled();
-  // And nothing to save, so contract §6's read-only clause applies: no footer at all.
-  await expect(page.locator(".qcms-question-editor__footer")).toHaveCount(0);
+  // And nothing to save, so contract §6's read-only clause applies: no button and no note.
+  await expect(page.getByRole("main").getByRole("button", { name: "Save draft" })).toHaveCount(0);
+  await expect(page.getByTestId("qcms-manual-save-note")).toHaveCount(0);
 });
 
 test("2026-09-27 makes the preview the last panel, showing what was last saved", async ({
