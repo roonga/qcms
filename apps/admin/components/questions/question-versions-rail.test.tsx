@@ -37,18 +37,18 @@ import type {
  *   all three modes (`e2e/a11y-axe.pw.ts` says so). The POC draws the group's name as a
  *   labelled row rather than a heading for its own version of that reason, and the details
  *   group added in 2026-09 is a description list for the same one.
- * - **`rail-frame.tsx` is not imported.** The `<details>` chrome is restated locally, which
- *   is a decision recorded in the component's own doc; asserting the absence of the import
- *   would be asserting a file's text, so what is asserted instead is the thing the local
- *   copy exists for - the collapsed-only version indicator, which `RailFrame`'s summary has
- *   no place for.
+ * - **The summary is the question id alone** (Code Owner, 2026-09-29). It carried a
+ *   collapsed-only "/ Version 2" from issue 650, which earned its place while that line was the
+ *   whole rail at 390; the screen's `<h1>` names the version now, one row under it, so the two
+ *   said the same thing twice. `e2e/questions-rail.pw.ts` asserts the other half of that trade -
+ *   that the heading really does carry the version - because deleting the indicator is only
+ *   right while it does.
  *
  * ## Why this layer
  *
  * `renderToStaticMarkup` is the highest layer that can see the whole rail at once without a
  * browser (ADR-23). What genuinely needs one - the 240px track appearing at `--bp-sidebar`,
- * the collapsed-only indicator appearing only below it, the disclosure opening from the
- * keyboard, a panel row actually switching the column - is
+ * the disclosure opening from the keyboard, a panel row actually switching the column - is
  * `apps/admin/e2e/questions-rail.pw.ts`, because every one of those is a computed style or an
  * interaction rather than markup.
  *
@@ -135,8 +135,14 @@ describe("the question rail's markup", () => {
     expect(html).toContain("q_smoking_status</span>");
   });
 
-  it("names the selected version in the summary, which is what the collapsed rail shows", async () => {
-    expect(await render(2)).toContain("Version 2");
+  it("collapses to the question id alone, with no version beside it", async () => {
+    // Issue 650's collapsed-only "/ Version 2" is retired (Code Owner, 2026-09-29): the screen's
+    // `<h1>` names the version, one row under this summary, so at 390 the two said the same thing
+    // twice. The summary now reads like the form rail's - the thing the rail belongs to.
+    const html = await render(2);
+    const summary = html.slice(html.indexOf("<summary"), html.indexOf("</summary>"));
+    expect(summary).toContain("q_smoking_status");
+    expect(summary, "the version is the heading's job now").not.toContain("Version");
   });
 
   it("is a navigation landmark named after the question it belongs to", async () => {

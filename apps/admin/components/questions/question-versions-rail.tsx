@@ -27,12 +27,16 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  * unified, and the next change to any of them would have to be argued as a change to all three.
  *
  * **`components/rail-frame.tsx` is not widened for this.** No base component, no widened
- * props type, no variant flag, no shared module. One thing stayed local rather than being
- * pushed into the shared file and it is named here so a reader does not have to diff to find
- * it: the `<details>` chrome below is restated rather than taken from `RailFrame`, because
- * the POC's summary carries a collapsed-only "which version" indicator and `RailFrame`'s
- * summary takes a text line and an issue-count tag and nothing else. That is the same trade
- * the Settings rail made for the same reason.
+ * props type, no variant flag, no shared module. The `<details>` chrome below is restated
+ * rather than taken from `RailFrame`, which is the same trade the Settings rail made.
+ *
+ * That restatement earned itself when the summary carried a collapsed-only "which version"
+ * indicator `RailFrame` had no place for. **The indicator is retired (Code Owner,
+ * 2026-09-29)** and the summary is now a text line and nothing else, which is exactly what
+ * `RailFrame` takes - so the local copy is down to the digest line under it and the details
+ * group, and folding this rail onto `RailFrame` is a smaller change than it was. It is not
+ * made here: this branch has moved this screen enough, and a shared-chrome change reaches
+ * three rails.
  *
  * ## What it carries, top to bottom
  *
@@ -60,8 +64,10 @@ import { latestPublishedVersion, versionRailItems } from "@/lib/questions/versio
  * `.qcms-tag--draft` count, and the lifecycle controls wear `.qcms-rail-steps__add` - the
  * treatment its Add step control already had. Six classes went with that change and the
  * stylesheet says which; what is left of `qcms-question-rail__*` is the four things this rail
- * has and the builder does not: the mono question id in its summary, the collapsed-only
- * version indicator, the details group, and the back link above the disclosure.
+ * has and the builder does not: the mono question id in its summary, the digest line above the
+ * version list, the details group, and the back link above the disclosure. (There were five
+ * until 2026-09-29, when the collapsed-only version indicator was retired: the screen's `<h1>`
+ * names the version now, one row under the summary, so at 390 the two said the same thing.)
  *
  * The visible "VERSIONS / 3 versions, v2 published" header row went with them. The builder
  * names a group with `aria-label` on the list rather than with a visible heading, and the
@@ -151,20 +157,19 @@ export function QuestionVersionsRail({
           the summary stops advertising itself as a control; it remains one. */}
       <RailDisclosure>
         <summary className="qcms-rail__summary">
-          {/* The question's own id, in the id style, because that is what this rail belongs
-              to and what an author pastes into a ticket. It is the one line that truncates. */}
+          {/* The question's own id, and NOTHING ELSE (Code Owner, 2026-09-29). In the id style,
+              because that is what this rail belongs to and what an author pastes into a ticket,
+              and it is the one line that truncates.
+
+              A collapsed-only "/ Version 2" stood beside it from issue 650 until 2026-09-29.
+              Its reason was that below `--bp-sidebar`, shut, this line is the whole rail, so
+              which version is showing was the one thing a reader could not otherwise get. That
+              stopped being true when the screen's `<h1>` started naming the version
+              (2026-09-28): the indicator then sat directly above a heading that said the same
+              thing, which at 390 is two lines of the same fact. The form rail's summary shows
+              just the form; this one shows just the question. */}
           <span className="qcms-rail__summary-text qcms-question-rail__summary-id">
             {questionId}
-          </span>
-          {/* Collapsed-only, and only below `--bp-sidebar`: above it the rail is a permanent
-              sidebar and the marked row is right there, so this would repeat it. Below it,
-              closed, this line is the whole rail, and which version is showing is the one
-              thing a reader needs from it. `app/globals.css` owns both conditions. */}
-          <span className="qcms-question-rail__summary-version">
-            <span className="qcms-question-rail__summary-sep" aria-hidden="true">
-              {"/"}
-            </span>
-            {t("questions.detail.version", { version: selected })}
           </span>
           <span className="qcms-rail__chevron" aria-hidden="true">
             {"›"}

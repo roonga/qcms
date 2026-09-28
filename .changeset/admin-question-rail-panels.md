@@ -68,7 +68,11 @@ address names. Six consequences worth reading before changing any of it:
   collapsed rail summary that had each said it already.
 
   The heading row holds one control's height whether or not a control is in it, so the heading
-  does not move between a draft and a frozen version either. The button is outside the form it
+  does not move between a draft and a frozen version either. And because the heading now names
+  the version, the rail's collapsed summary stops doing so: issue 650's collapsed-only
+  "/ Version 2" is retired with its CSS, since at 390 it sat one row above an `<h1>` saying the
+  same thing. The summary reads like the form rail's - the thing the rail belongs to - and the
+  version is named once per width. The button is outside the form it
   submits, so it finds the form by id and calls `requestSubmit()` and reads the action's pending
   state across the same module seam the rail's rows use: the vendored `Button` forwards no `form`
   attribute and ADR-22 keeps it byte-identical to upstream.

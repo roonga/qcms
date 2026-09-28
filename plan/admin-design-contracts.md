@@ -991,6 +991,17 @@ closes with it.
   as a reader walks from a draft to a frozen version, and Save's box is identical
   on every panel at 1440 and at 390 (`apps/admin/e2e/questions-rail.pw.ts`).
 
+  **The rail's collapsed summary shows the question id and nothing else, from
+  2026-09-29 (Code Owner).** Issue 650 gave it a collapsed-only "/ Version 2"
+  beside the id, shown below `--bp-sidebar` while the disclosure was shut, on the
+  reasoning that in that state this line IS the whole rail and the selected
+  version was the one thing a reader could not otherwise get. The heading above
+  names the version now, one row up, so at 390 the two sat stacked saying the
+  same thing. The indicator is retired with its two CSS rules and their
+  `@variant sidebar` override, and the summary reads like the form rail's: the
+  thing the rail belongs to. The pair is a single decision rather than two, so it
+  is written here as one: the version is named ONCE per width, by the `<h1>`.
+
   Two consequences worth recording, because both are the kind of thing a later
   pass would undo. The button is **outside** the form it submits - the heading row
   is not in the card - so it finds the form by id and calls `requestSubmit()`, and

@@ -110,35 +110,51 @@ test("650 puts a 240px version rail beside the column at --bp-sidebar, and above
   );
 });
 
-test("650 shows which version is selected in the summary only while the rail is shut and narrow", async ({
+test("2026-09-29 collapses to the question id alone, with the version on the heading", async ({
   page,
 }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
-  const indicator = page.locator(".qcms-question-rail__summary-version");
 
-  // SHUT ON ARRIVAL at this width since 2026-08-23, which is why this reads the other way
-  // round from the order the POC's own description implies: the indicator is the first
-  // thing on screen rather than something a reader has to collapse the rail to see. That
-  // makes it carry more weight than it used to, not less.
+  /*
+   * The retirement of issue 650's collapsed-only "/ Version 2" indicator (Code Owner,
+   * 2026-09-29).
+   *
+   * That indicator earned its place while this line was the whole rail at 390 and the selected
+   * version was the one thing a reader could not otherwise get. The screen's `<h1>` names the
+   * version since 2026-09-28, directly under the summary, so at 390 the two sat stacked saying
+   * the same thing. The summary shows what the rail belongs to and nothing else, the way the form
+   * rail's does.
+   *
+   * Both halves are asserted, because deleting the indicator is only right while the heading
+   * carries the version: a later change that took it out of the `<h1>` would leave a shut rail at
+   * 390 naming no version at all, and this is where that would be caught.
+   */
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}`));
+
   const disclosure = page.locator("details.qcms-rail__disclosure");
   await expect(disclosure, "a narrow viewport opens on the summary alone").not.toHaveAttribute(
     "open",
     "",
   );
-  await expect(indicator, "shut, this line is the whole rail").toBeVisible();
-  await expect(indicator).toHaveText(`/Version ${String(fixture.publishedVersion)}`);
 
-  await page.locator("summary.qcms-rail__summary").click();
-  await expect(disclosure).toHaveAttribute("open", "");
-  await expect(indicator, "open, the list below already says which row is current").toBeHidden();
+  const summary = page.locator("summary.qcms-rail__summary");
+  await expect(summary, "the summary is the question id").toContainText(fixture.questionId);
+  await expect(
+    summary,
+    "and says nothing about the version, which the heading below it carries",
+  ).not.toContainText("Version");
 
-  // Above the boundary the rail is a permanent sidebar, so the same indicator would only
-  // repeat the marked row that is already on screen.
+  // The heading is where the version is read at this width, and it is one row above.
+  await expect(page.getByRole("main").getByRole("heading", { level: 1 })).toContainText(
+    `Version ${String(fixture.publishedVersion)}`,
+  );
+
+  // Above the boundary nothing about the summary changes: it was never the version's home there
+  // either, because the marked row is on screen.
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(detailPath(`?v=${String(fixture.publishedVersion)}`));
-  await expect(indicator).toBeHidden();
+  await expect(summary).not.toContainText("Version");
 });
 
 test("650 marks the row the address selects, and the editor beside it shows that version", async ({

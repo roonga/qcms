@@ -3535,37 +3535,19 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* The question id, in the mono face it is written in everywhere else, because it
    is a machine identifier an author pastes into a ticket. Truncation comes from
-   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse. */
+   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse.
+
+   IT IS THE WHOLE SUMMARY NOW (Code Owner, 2026-09-29). A collapsed-only
+   "/ Version 2" sat beside it from issue 650, shown only below `--bp-sidebar`
+   while the disclosure was shut, because at that width and in that state this
+   line was the whole rail and the selected version was the one thing a reader
+   could not otherwise get. The screen's `<h1>` names the version since
+   2026-09-28, directly under this line, so the indicator became the same fact
+   twice in two stacked rows at 390. Its two rules and their `@variant sidebar`
+   override went with it, and the summary reads like the form rail's: the thing
+   the rail belongs to, and nothing else. */
 .qcms-question-rail__summary-id {
   font-family: var(--font-mono);
-}
-
-/* The collapsed-only "which version" indicator. Hidden by default and hidden
-   again above `--bp-sidebar`, where the rail is a permanent sidebar and the
-   marked row is on screen anyway; visible only below the boundary while the
-   disclosure is shut, when this line is the whole rail. The two `display: none`
-   rules are written at the same specificity as the rule between them so source
-   order settles it, which is why the second one restates the whole selector. */
-.qcms-question-rail__summary-version {
-  display: none;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 0.375rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  white-space: nowrap;
-  color: var(--color-text-muted);
-}
-.qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
-  display: inline-flex;
-}
-@variant sidebar {
-  .qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
-    display: none;
-  }
-}
-.qcms-question-rail__summary-sep {
-  font-weight: 400;
 }
 
 /* THE WAY BACK, ABOVE THE DISCLOSURE (Code Owner, 2026-09-27). Outside the
