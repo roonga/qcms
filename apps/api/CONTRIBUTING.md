@@ -4,7 +4,7 @@ This app is the Hono **composition root** (task 017). It owns the middleware,
 mount flags, health/ready, config, and the in-process schedulers. Feature work
 lands as **vertical slices** (018–026) that mount into this shell. This document
 is the contract those slices conform to. It complements the root `CONTRIBUTING.md`
-and `PROJECT_INSTRUCTIONS.md` (R1–R7, SEC-1…12) - where they overlap, those win.
+and `PROJECT_INSTRUCTIONS.md` (R1–R8, SEC-1…15) - where they overlap, those win.
 
 ## Folder layout
 

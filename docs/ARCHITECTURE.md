@@ -374,4 +374,4 @@ Layout rules: golden/fixture directories live with the package that owns their m
 
 ---
 
-_Companion documents: `PROJECT_GOAL.md` (vision and scope) · `adr/` (ADR-01…39) · `SECURITY_DESIGN.md` (SEC-1…13) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._
+_Companion documents: `PROJECT_GOAL.md` (vision and scope) · `adr/` (ADR-01…41) · `SECURITY_DESIGN.md` (SEC-1…15) · `IMPLEMENTATION_PLAN.md` (staged delivery) · `DOMAIN_SCHEMA.md` (domain model and rule semantics)._
