@@ -6,7 +6,7 @@
  * The em dash (U+2014) is banned in QCMS prose, comments, and UI strings: it
  * reads as an AI-generated tell and QCMS is public. Use a colon, comma,
  * parentheses, a period, or a spaced hyphen ( - ) instead. The en dash
- * (U+2013) is allowed for numeric ranges (e.g. "R1-R7"); the hyphen (-) is
+ * (U+2013) is allowed for numeric ranges (e.g. "R1-R8"); the hyphen (-) is
  * always fine.
  *
  * Deny-by-default over tracked prose/source/config: .md .ts .tsx .js .jsx .mjs
