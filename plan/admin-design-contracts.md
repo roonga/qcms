@@ -1021,8 +1021,10 @@ closes with it.
   classes of a look of its own went with that: a labelled header row and its
   right-aligned digest, the lifecycle block's dashed rule, and two bespoke
   two-line row treatments. Four remain, for the four things this rail has and the
-  builder does not - the mono question id in its summary, the collapsed-only
-  version indicator, the details group, and the back link above the disclosure.
+  builder does not - the mono question id in its summary, the digest line above
+  the version list, the details group, and the back link above the disclosure.
+  (There were five until 2026-09-29, when the collapsed-only version indicator was
+  retired; the amendment below records it.)
 
   So three rails now answer "what does a rail carry" three ways: routes (§7),
   same-page panels (§7a), and both at once here. They remain three components for

@@ -172,6 +172,20 @@ export function QuestionEditor({
   // being typed. Seeded from the version this editor mounted on and moved forward by a save
   // that landed, so "the preview is behind" is a fact about this session rather than a guess.
   const [saved, setSaved] = useState(state.submitted?.definition ?? initialDefinition);
+  /**
+   * THE DOCUMENT THAT WAS ACTUALLY POSTED, captured as the submit event fires.
+   *
+   * `setSaved(definition)` on the render the result lands on was wrong, and wrong in the one
+   * case this exists for: a save takes a round trip, an author can type during it, and
+   * `definition` by then is the NEWER document rather than the one the server stored. Recording
+   * that made `hasUnsavedEdits` false, which hid the preview's "this is the last saved version"
+   * notice over a preview that was genuinely behind - the exact state the notice is for.
+   *
+   * A ref rather than state because nothing renders from it, and captured on `submit` rather
+   * than read out of the result because that is the moment the payload is fixed: the hidden
+   * `definition` field is serialized from whatever this render held, and so is this.
+   */
+  const submitted = useRef<QuestionDefinitionView | undefined>(undefined);
   // And the same restoration when the form was hydrated, where the component is not
   // remounted and the initialiser above never runs again. Adjusting state during render
   // (rather than in an effect) is React's documented answer for "derive from a prop that
@@ -184,7 +198,9 @@ export function QuestionEditor({
       setSlug(state.submitted.slug);
       setDefinition(state.submitted.definition);
     }
-    if (state.status === "saved") setSaved(definition);
+    // `?? definition` for the pre-hydration full POST, where no client submit event ever fired:
+    // that path re-renders the whole screen from the server anyway, so the two agree there.
+    if (state.status === "saved") setSaved(submitted.current ?? definition);
   }
 
   const isCreate = mode === "create";
@@ -300,6 +316,13 @@ export function QuestionEditor({
         id={QUESTION_FORM_ID}
         action={formAction}
         className="flex flex-col gap-5"
+        // Fires before the action runs, on a real submit event - including the one
+        // `requestSubmit()` dispatches from the heading row's button, which is how this screen
+        // saves. See `submitted` above for why the document is pinned here rather than read
+        // when the result arrives.
+        onSubmit={() => {
+          submitted.current = definition;
+        }}
         // React 19 resets a form automatically once its action resolves. That is right for an
         // uncontrolled form (the inputs are the state, so clearing them is the point) and
         // wrong for this one, which is fully controlled: `definition` above is the single

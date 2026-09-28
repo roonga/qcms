@@ -220,6 +220,73 @@ describe("the preview panel", () => {
     expect(screen.getByTestId("stub-preview")).toBeTruthy();
   });
 
+  it("keeps the stale notice for an edit made WHILE the save was in flight", async () => {
+    /*
+     * The regression this exists for. A save is a round trip, an author can type during it, and
+     * the editor used to record "what the server stored" as whatever the document happened to be
+     * on the render the result landed on. That is the newer document, not the one that was
+     * posted, so `hasUnsavedEdits` went false and the preview's notice vanished over a preview
+     * that was genuinely one edit behind - the exact state the notice is for.
+     *
+     * The action is held open deliberately: a save that resolves instantly cannot express this,
+     * which is why no existing case caught it.
+     */
+    let settle: ((state: MutationState) => void) | undefined;
+    const holding = vi.fn<(state: MutationState, formData: FormData) => Promise<MutationState>>(
+      () =>
+        new Promise<MutationState>((resolve) => {
+          settle = resolve;
+        }),
+    );
+
+    render(
+      <>
+        <QuestionEditor
+          mode="edit"
+          action={holding}
+          initialSlug="accident-count"
+          initialDefinition={NUMBER_DEFINITION}
+          version={1}
+          addressedPanel="content"
+          preview={PREVIEW}
+        />
+        <QuestionPanelRows panels={[]} selected="content" />
+        <SaveStandIn />
+      </>,
+    );
+
+    // Nothing typed yet, so the preview is not behind.
+    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+    await waitFor(() => {
+      expect(screen.getByTestId("stub-preview")).toBeTruthy();
+    });
+    expect(screen.queryByText(/last saved/u)).toBeNull();
+
+    // Save, and edit before it comes back.
+    fireEvent.click(screen.getByRole("button", { name: /^Content/u }));
+    const label = await screen.findByRole("textbox", { name: "Label" });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+      await Promise.resolve();
+    });
+    expect(holding, "the save is in flight").toHaveBeenCalledTimes(1);
+    fireEvent.change(label, { target: { value: "Typed while the save was in flight" } });
+
+    // Now let the save land. It stored the OLD document; the editor holds the new one.
+    await act(async () => {
+      settle?.({ status: "saved", issues: [] });
+      await Promise.resolve();
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /^Preview/u }));
+    await waitFor(() => {
+      expect(
+        screen.getByText(/last saved/u),
+        "the preview is behind by the edit made during the save, and must say so",
+      ).toBeTruthy();
+    });
+  });
+
   it("never appears where there is no saved version to show", () => {
     // `/questions/new` passes no preview, so the row is not in the rail and the panel does not
     // exist - there is nothing stored for the API to compile.

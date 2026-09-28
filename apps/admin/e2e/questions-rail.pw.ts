@@ -16,9 +16,9 @@ import { createQuestionRailFixture, type QuestionRailFixture } from "./support/q
  * `lib/questions/version-rail.test.ts`). What is left is everything that is a computed
  * style, a measured box, a navigation or a thing rendered by two React trees at once, and
  * that is what this file is: the 240px track appearing at `--bp-sidebar` and not one pixel
- * below it, the collapsed-only version indicator, the marked row agreeing with the editor
- * beside it, the version list no longer being on this screen twice, and the lifecycle
- * actions still working from where the POC puts them.
+ * below it, the collapsed summary carrying the question id and nothing else, the marked row
+ * agreeing with the editor beside it, the version list no longer being on this screen twice,
+ * and the lifecycle actions still working from where the POC puts them.
  *
  * ## The panel rows, the details group and the back link (Code Owner, 2026-09-27)
  *

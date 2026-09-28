@@ -2156,25 +2156,6 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   outline: none;
 }
 
-/* THE SAVE, STICKY, AT THE FOOT OF THE VERSION CARD (Code Owner, 2026-09-27). The
-   note and the button were the last thing in the form, below an option grid or a
-   constraint panel that is taller than a viewport, so reaching Save meant scrolling
-   past everything the author had just written.
-
-   Sticky rather than fixed: it belongs to this card, so it stops where the card
-   does rather than floating over the screen once the form is scrolled past. The
-   negative margins and the matching padding bleed its background out to the card's
-   own edges - the card's padding is outside this element, so without them the
-   fields behind it would show through a gutter on each side as it passes over them.
-
-   `1rem` is the kit `Card`'s `padding="md"`, which is `p-4`
-   (`packages/ui/src/components/a2ui/card/card.styles.ts`), and NOT
-   `--admin-section-pad`, which is 1.25rem: this bleed cancels the box it is inside
-   rather than restating a house spacing step, so it is written as the value it is
-   cancelling with the source named.
-
-   The background is the surface rather than a tint: this is the card continuing, not
-   a new band. The border above it is what says the content ends here. */
 /* THE SCREEN'S ONE HEADING ROW, AND THE SAVE BUTTON IN IT (Code Owner, 2026-09-28).
 
    Save was the last thing in the editor's column, then a sticky bar at its foot,
