@@ -666,6 +666,19 @@ you run it, and on Compose the `db-roles` one-shot runs on every `up`, so withou
 line the audit table would quietly regain the DML pass on the next boot after it was
 created. Both copies are idempotent.
 
+**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-30, issue #995).**
+That decision replaces the single `qcms_app` with a control-only role and one role per
+environment, and adds a second migrate-only audit table, the SEC-15 access audit.
+So when task 064 rewrites this recipe to grant per named schema, the revoke here becomes
+a loop over **every `qcms_app%` role** rather than a line naming one, and it takes back
+two tables rather than one: `two_factor_resets`, and `UPDATE` and `DELETE` on the SEC-15
+audit, which each environment role may only `INSERT` into.
+It is in three places for three different reasons, and all three are needed: in the
+baseline migration, so a fresh database is correct with no post-migrate step; here, so a
+`db-roles` re-run does not re-grant what the migration took back; and in the
+environment-create command, because that command creates roles neither of the other two
+has ever seen.
+
 **If you renamed the application role, this revoke is yours to carry.**
 All three copies name `qcms_app` as a literal, so on a deployment that calls it something
 else the migration's guard is false, the revoke never runs, and your application role

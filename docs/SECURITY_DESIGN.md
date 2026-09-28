@@ -557,7 +557,7 @@ Hashing ids at the exporter was considered and deferred (Phase 4) as unnecessary
 
 ## 8b. Access audit for response data - SEC-15
 
-**Status: designed, not built.** Decided by the Code Owner on 2026-09-26 (issue #995, recorded as Q31 in `plan/environments-and-workspaces.md`), after testing the workspace and environment design as a government organisation holding sensitive personal data. Task 069 builds it, with ADR-41's membership model.
+**Status: designed, not built.** Decided by the Code Owner on 2026-09-26 (issue #995, recorded as Q31 in `plan/environments-and-workspaces.md`), after testing the workspace and environment design as a government organisation holding sensitive personal data, and its write privilege settled on 2026-09-30 (Q40). Task 069 builds it, with ADR-41's membership model.
 
 **The gap it closes.** Every control in this document so far governs **whether** somebody may read a response: the session and link model (SEC-2), the authorization model (SEC-3), the workspace and environment scopes and the two role families (ADR-41), the schema and role boundaries (ADR-40, SEC-10), the network layer (SEC-14). Nothing records **that they did**. An operator asked "who has looked at this person's answers" can answer it today only from whatever their log shipper happened to keep, which is not a record and is not readable by the workspace that owns the form.
 
@@ -576,7 +576,16 @@ It is readable by that **workspace's owners** and by the **installation administ
 
 **What it does not carry, and that is deliberate.** No answer value, no respondent identifier and no `LocalizedText` content: the row records the **act**, not its subject matter, so the audit of a read never becomes a second copy of what was read. The same reasoning ADR-17's tombstone uses, one table over: existence without content.
 
-**Precedent shape: `two_factor_resets`** (issue #432). That table is the model for three properties rather than one. It is **append-only** and written by the act it records. It carries **no foreign key** to the account it names, because an audit row that cascades away with the thing it describes is not an audit row. And its **write privilege is narrowed against the credential that serves traffic**, which is what makes the row worth anything against an attacker who reaches that credential: the same question has to be answered here, and it is harder, because unlike a break-glass reset these rows are written by the application on an ordinary request. Task 069 decides how, and the shipped answer is asserted rather than described.
+**Precedent shape: `two_factor_resets`** (issue #432). That table is the model for three properties rather than one. It is **append-only** and written by the act it records. It carries **no foreign key** to the account it names, because an audit row that cascades away with the thing it describes is not an audit row. And its **write privilege is narrowed against the credential that serves traffic**, which is what makes the row worth anything against an attacker who reaches that credential.
+
+**The privilege answer, ruled rather than left to the task (Code Owner, 2026-09-30).** The harder half of the precedent is that unlike a break-glass reset these rows are written by the application on an ordinary request, so the writing credential cannot simply be excluded. The shape is:
+
+- **The row is written by the environment's own role, `qcms_app_<env>`, in the same transaction as the read it records.** A read runs under the environment pool (ADR-40), so an audit row written on the control pool would be a second connection and a second transaction, and a read that succeeded while its audit write failed would leave no record of itself. Commit or fail together is the only version of this control that is worth having.
+- **That role holds `INSERT` on this table and nothing else on it.** No `SELECT`, no `UPDATE`, no `DELETE`: it may add a row and may not read, change or remove one.
+- **`qcms_app_control` holds the reads**, because the audit is read by workspace owners and the installation administrator through the authoring surface, and it holds **no `UPDATE` and no `DELETE`** here either. Only `qcms_migrate` can alter an audit row, which is the same split `two_factor_resets` already has.
+- **The revokes cover every `qcms_app%` role**, not the shipped names alone, and they are applied in three places: the baseline migration, the least-privilege recipe in `docs/operations.md`, and the environment-create command whenever it creates a role, since that command creates roles the other two never saw. `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the table list per role, which is the assertion that fails when somebody widens a grant.
+
+Task 069 builds the table and the writes; the privileges above are task 064's, with the roles.
 
 **Relationship to the two role families.** SEC-15 is what makes Q27's separation checkable after the fact rather than only enforceable in advance. ADR-41 says a `forms.owner` reads no response without a `responses.viewer` grant of their own; SEC-15 is how anybody finds out whether such a grant was used, and by whom, and for which form.
 
