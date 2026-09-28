@@ -36,7 +36,7 @@
     "@roonga/qcms-db": "^0.0.0",
     "@roonga/qcms-observability": "^0.0.0",
     "ai": "^7.0.114",
-    "better-auth": "1.7.5",
+    "better-auth": "1.7.6",
     "drizzle-orm": "^0.45.3",
     "hono": "^4.13.9",
     "pg": "^8.23.0",
