@@ -1,10 +1,12 @@
 # Repeating groups and table input
 
-**Status:** proposed, nothing decided, nothing built. This is a design document written at the Code Owner's request against `origin/main` at `c1988256`. It proposes **one** new kernel concept, the **repeating group**, and argues that all three of the capabilities asked for (a looping question, a looping page or step, and a table input) are presentations of it rather than three mechanisms. Section 10 carries **twenty-three numbered questions**, each with a recommendation, the options and what each option costs; seven of them are ADR-sized and section 10 drafts the ADR text a ruling would produce. Nothing in `docs/adr/`, `docs/SECURITY_DESIGN.md` or `docs/features/README.md` is edited by this document: every change to those is proposed here and made by the task that lands it.
+**Status:** **ruled 2026-09-30 by the Code Owner; decided, not built.** This is the design document written at the Code Owner's request against `origin/main` at `c1988256`. It states **one** new kernel concept, the **repeating group**, and argues that all three of the capabilities asked for (a looping question, a looping page or step, and a table input) are presentations of it rather than three mechanisms. Section 10 carried **twenty-three numbered questions**; every one of them is now answered, and each carries its ruling beside the recommendation it was put with. Five rulings differ from the recommendation (Q1, Q4 by consequence of Q14, Q7, Q14 and Q17) and this document is rewritten to the rulings rather than annotated over the recommendations; each rewritten section keeps a one-line note of what was recommended, so a later reader can see what was weighed.
 
-**This is Phase 4 work.** It is not on `docs/PROJECT_GOAL.md` section 5's exclusion list, which means it is **new scope** rather than an early scratch of a deferred itch, and R7's cut-line rule ("an itch is written down as an issue, not scratched") applies to it exactly as it applies to the listed items. Nothing here gates launch and nothing here is dispatched before task 038. Q1 asks the Code Owner to confirm that placement.
+The records the rulings produce are **not drafted here any more**: ADR-42 lives in `docs/adr/core.md`, ADR-43 in `docs/adr/portal.md`, SEC-16 in `docs/SECURITY_DESIGN.md`, the nine amendments in the ADRs they amend, and the ledger rows in `docs/features/README.md`. This document is the working record behind them.
 
-**Concept pages (published separately).** Three HTML concept pages accompany this document: `portal-passengers.html`, the respondent view of the airline passenger loop; `portal-table-input.html`, the respondent view of the assets table beside the same data as stacked cards; and `admin-authoring.html`, the admin group settings, the column editor and the rules editor with instances. They are **concepts to react to, not approved designs**, and they are deliberately **not committed to the repository**, so that nothing mistakes them for `plan/admin-shell-poc/*.html`, which are the approved-design POCs. Each page opens with a caption naming the questions in section 10 it illustrates and the recommendation it shows.
+**This is launch scope (Q1, ruled 2026-09-30).** It was written as Phase 4 work and recommended as such; the Code Owner ruled it into launch instead, which **moves the cut-line** rather than sitting inside it. `docs/PROJECT_GOAL.md` section 5 now enumerates repeating groups among what launch includes, `docs/IMPLEMENTATION_PLAN.md` carries the work as stage 8c, and tasks 071 to 077 are sequenced for launch rather than after task 038. It is deliberately **not** recorded in `docs/features/039-phase4-backlog.md`, which is the Phase 4 itch ledger and is the wrong home for launch scope.
+
+**Concept pages (published separately).** Three HTML concept pages accompany this document: `portal-passengers.html`, the respondent view of the airline passenger loop; `portal-table-input.html`, the respondent view of the assets table beside the same data as stacked cards; and `admin-authoring.html`, the admin group settings, the column editor and the rules editor with instances. They are **concepts to react to, not approved designs**, and they are deliberately **not committed to the repository**, so that nothing mistakes them for `plan/admin-shell-poc/*.html`, which are the approved-design POCs. Each page opens with a caption naming the questions in section 10 it illustrates and the recommendation it shows. **One of them is superseded in part:** the passenger concept lays two fields side by side inside an instance card, and the Q12 ruling makes the stacked presentation one input per row at every width, so read that page's layout as drawn before the ruling and section 4.4 as what ships.
 
 ---
 
@@ -54,11 +56,15 @@ The two are the same object with one field different. That is the whole argument
 
 ---
 
-## 2. Model options, and the recommendation
+## 2. Model options, and the model that was ruled
 
-### 2.1 The recommendation in one paragraph
+### 2.1 The model in one paragraph
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q2, Q3)._
 
 Add exactly one concept to the kernel: a **repeating group**, a named, ordered set of pinned question refs that lives inside a `Step`'s item list and is answered once per **instance**. An instance carries a stable, opaque, session-scoped id that is minted once and never reused or renumbered; the ordinal a respondent reads ("Passenger 2") is its position in the live roster and is presentation only. A **looping question** is a repeating group with one member. A **looping step** is a repeating group whose presentation paginates its span into one step view per instance. A **table** is a repeating group whose presentation lays instances out as rows and members as columns. One model, one answer-addressing scheme, one storage grain, one rules reach, one export shape, three presentations.
+
+Two properties of that sentence are rulings in their own right and are easy to lose. **The group declares its own maximum, and that maximum is the only bound there is** (Q4 as amended by Q14): `max` is required on every count source that is not `fixed`, and there is no installation-wide ceiling above it, so the payload, the tab-stop count, the POST size and the evaluator's per-instance walk are bounded per form and nowhere else. And **the rules reach is three operators, not two** (Q7): `anyInstance`, `instanceCount` and `everyInstance`, the last of which is **false over an empty group** by decision.
 
 ### 2.2 Option set for the container
 
@@ -76,37 +82,48 @@ Add exactly one concept to the kernel: a **repeating group**, a named, ordered s
 | **T1. A distinct `table` question type**    | An eighth member of the `QuestionDefinition` union, whose answer is a matrix in one `AnswerValue` | **Rejected, and this is the load-bearing call of the document.** It costs a new `AnswerValue` member, which is the first structured value in a union whose doc says the wire form is the raw JSON value. It breaks "empty is absence" per cell, because `isBlankAnswerValue` is deliberately type-blind and has no reading of "all cells empty". It makes the whole table one ledger row, so a per-cell retraction (ADR-33) is inexpressible, per-cell validation cannot report `{code, constraint, message}` against a cell, and a partial table cannot be stored. It breaks the CSV and reporting grain, which is one row per question. And it grows eight exhaustive `never`-guarded switches across core, the compiler, the renderer and the admin's parallel list. |
 | **T2. A presentation of a repeating group** | `presentation: "table"` on the group; rows are instances, columns are member questions            | **Recommended.** Every cell is an ordinary question with an ordinary `AnswerValue`, so per-cell validation, per-cell retraction, "empty is absence" per cell, the rules DSL, the ledger grain, the export grain and the reporting view all work unchanged. The table is then a **layout**, and `@roonga/qcms-ui` gains a layout component rather than an input control.                                                                                                                                                                                                                                                                                                                                                                                                 |
 
-T2's cost, named honestly: an author who thinks "table question" has to learn that a table is a group with columns, and the column set is constrained to the cell types Q12 settles. That is a vocabulary cost in the admin, which section 6 spends on labelling rather than on a second model.
+T2's cost, named honestly: an author who thinks "table question" has to learn that a table is a group with columns, and the column set is constrained to the five cell types Q12 settles. That is a vocabulary cost in the admin, which section 6 spends on labelling rather than on a second model.
 
 **What T2 buys that is easy to miss.** `docs/COMPONENT_GUIDELINES.md` opens by splitting work into ADR-sized ("a new question type, the kernel's closed set grows") and checklist-sized ("a new rendering for an existing type"). Under T2 **no question type is added**: the kernel's closed set of seven is unchanged, `AnswerValue` is unchanged, and no new adapter translates a raw control value to a canonical `AnswerValue`. The kernel change (the container) is ADR-sized because `FormDefinition` and the rules DSL grow; the rendering change is checklist-sized, and the parts of the thirteen-item checklist that bind are the ones about behaviour rather than registration: the no-JS path, the focus targets, the theming tokens, the lint coverage and the controlled-adapter contract. Items 1 to 3 (vendoring, registry entry, the ADR-31 commit moment) do not bind a layout container, and item 4's clear path binds the cells, which already have one.
 
 ### 2.4 Count source
+
+_Ruled 2026-09-30 (Code Owner): all three sources ship, and the Q14 ruling amends the second half of this section. The plan recommended `max` required on `open` alone; the ruling makes it **required on `fromAnswer` too**, because with no installation-wide ceiling the group's own `max` is the only bound that exists._
 
 Three sources, all wanted, one schema:
 
 ```ts
 const RepeatCount = z.discriminatedUnion("source", [
   z.object({ source: z.literal("fixed"), count: z.number().int().min(1) }),
-  z.object({ source: z.literal("fromAnswer"), questionId: QuestionId }),
+  z.object({
+    source: z.literal("fromAnswer"),
+    questionId: QuestionId,
+    min: z.number().int().min(0),
+    max: z.number().int().min(1), // required
+  }),
   z.object({
     source: z.literal("open"),
     min: z.number().int().min(0),
-    max: z.number().int().min(1),
+    max: z.number().int().min(1), // required
   }),
 ]);
 ```
 
-- **`fixed`** is the degenerate case and is what a looping question with a known count uses.
-- **`fromAnswer`** points at a `number` question that must appear **strictly before** the group in document order, which is the same rule `analyzeRuleGraph` already enforces for rule references (ADR-16, I10) and is refused at publish with a new code rather than a new mechanism.
+- **`fixed`** is the degenerate case and is what a looping question with a known count uses. **A fixed count is its own bound**, so it carries no `max`: the number is the maximum.
+- **`fromAnswer`** points at a `number` question that must appear **strictly before** the group in document order, which is the same rule `analyzeRuleGraph` already enforces for rule references (ADR-16, I10) and is refused at publish with a new code rather than a new mechanism. **`max` is required.** The count question is answered by the respondent, so without a `max` the respondent chooses the size of the loop, which is the same unbounded write path an open-ended group with no maximum is.
 - **`open`** is add and remove, and `max` is **required** on it. An open-ended group with no maximum is an unbounded write path into an append-only ledger, which section 8 treats as an abuse control and not as an authoring convenience.
 
-`min` and `max` apply to all three sources as validation bounds; for `fixed` they are derived from the count and for `fromAnswer` they bound what the count question may produce, so a count answer of 400 against `max: 9` is refused at the count question rather than discovered at the loop.
+Publish refuses a missing `max` on either bounded source with `REPEAT_MAX_MISSING`. `min` and `max` apply as validation bounds; for `fixed` they are derived from the count and for `fromAnswer` they bound what the count question may produce, so a count answer of 400 against `max: 9` is refused at the count question rather than discovered at the loop.
 
 ### 2.5 Nesting
 
-**Recommend a hard depth of one: a repeating group may not contain a repeating group.** The kernel refuses it at parse. The reasons are cost and comprehensibility in that order: a nested group makes an instance address a path rather than a pair, makes the evaluator's per-instance walk quadratic in instances, makes the no-JS field name a path, makes the CSV grain a tree, and makes an error summary say "Passenger 2, Bag 3: weight is required" before anyone has read whether that sentence is usable. Nothing in either sample use case needs it. Q13 asks the Code Owner to confirm, and records what lifting the cap later would cost.
+_Ruled 2026-09-30 (Code Owner), as recommended (Q13)._
+
+**A hard depth of one: a repeating group may not contain a repeating group.** The kernel refuses it at parse. The reasons are cost and comprehensibility in that order: a nested group makes an instance address a path rather than a pair, makes the evaluator's per-instance walk quadratic in instances, makes the no-JS field name a path, makes the CSV grain a tree, and makes an error summary say "Passenger 2, Bag 3: weight is required" before anyone has read whether that sentence is usable. Nothing in either sample use case needs it. Q13 records what lifting the cap later would cost.
 
 ### 2.6 Per-instance labels
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q6)._
 
 The group carries `instanceLabel: LocalizedText` with a single `{n}` placeholder, "Passenger {n}". `{n}` is the **live ordinal**, one-based, recomputed after a removal, so removing passenger 2 of three leaves headings "Passenger 1" and "Passenger 2" and not "Passenger 1" and "Passenger 3". The stable instance id never appears to a respondent. Publish validates that the template is present for the default locale and, per ADR-11 and the `LOCALE_INCOMPLETE` check, for every locale the form declares; a template with no `{n}` is allowed (a group of one), a template with an unknown placeholder is refused.
 
@@ -141,11 +158,11 @@ const Step = z.object({
 });
 ```
 
-The union is discriminable without a tag because the two shapes have disjoint required keys (`questionId` against `groupId`), so every form definition that exists today parses unchanged. Q2's ruling decides whether to carry an explicit `kind` discriminator anyway; the recommendation is not to, because adding one would be the one change in this section that is not additive.
+The union is discriminable without a tag because the two shapes have disjoint required keys (`questionId` against `groupId`), so every form definition that exists today parses unchanged. No explicit `kind` discriminator is carried, because adding one would be the one change in this section that is not additive.
 
 **`DUPLICATE_QUESTION_IN_FORM` stays exactly as it is**, and is extended to reach inside groups: a `questionId` is pinned at most once in a form whether it sits in a step or in a group. A question is therefore either repeated or not, in a given form, and the refinement's stated reason (unambiguous answer keying) holds under the new key as it did under the old.
 
-New publish-time codes, all in the existing `PublishError` union and all reported alongside the others rather than short-circuiting: `DUPLICATE_GROUP_ID`, `REPEAT_COUNT_BACKWARD_REF` (a `fromAnswer` source whose question does not precede the group), `REPEAT_COUNT_NOT_A_NUMBER` (it is not a `number` question), `REPEAT_NESTING_NOT_ALLOWED`, `REPEAT_MAX_ABOVE_CEILING`, `REPEAT_MIN_ABOVE_MAX`, `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`, and for the table presentation `TABLE_COLUMN_TYPE_NOT_ALLOWED`.
+New publish-time codes, all in the existing `PublishError` union and all reported alongside the others rather than short-circuiting: `DUPLICATE_GROUP_ID`, `REPEAT_COUNT_BACKWARD_REF` (a `fromAnswer` source whose question does not precede the group), `REPEAT_COUNT_NOT_A_NUMBER` (it is not a `number` question), `REPEAT_NESTING_NOT_ALLOWED`, `REPEAT_MAX_MISSING` (a `fromAnswer` or `open` source with no `max`, Q4 as amended by Q14), `REPEAT_MIN_ABOVE_MAX`, `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`, and for the table presentation `TABLE_COLUMN_TYPE_NOT_ALLOWED`. **There is no `REPEAT_MAX_ABOVE_CEILING`**: the Q14 ruling removed the installation-wide ceiling this document recommended, so publish checks that a `max` is declared and coherent with `min`, and never that it is small enough.
 
 ### 3.2 Addressing an instance's answer
 
@@ -183,40 +200,50 @@ Omitted, it is the empty map, so every existing caller compiles and every existi
 
 ### 3.4 The rules DSL
 
+_Ruled 2026-09-30 (Code Owner): **three** new operators, not the two this document recommended. `everyInstance` ships, and its reading over an empty group is defined as **false**._
+
 Two things happen, and only one of them grows the closed operator set.
 
 **Scope is implicit, by position.** A rule whose `show` target is a question inside group G is evaluated **once per live instance of G**. Inside that evaluation, a reference to a question that is also inside G resolves to **that instance's** answer; a reference to a question outside G resolves normally. No syntax changes for this case, so the airline's "this passenger is an infant, show this passenger's fare basis" rule is written exactly as an ordinary rule is written today. The admin states the scope on the rule rather than making the author encode it (section 6).
 
-**Two new operators**, for the outside-in direction, which has no implicit reading:
+**Three new operators**, for the outside-in direction, which has no implicit reading:
 
 ```ts
-| { op: "anyInstance"; groupId: GroupId; condition: Condition }
+| { op: "anyInstance";   groupId: GroupId; condition: Condition }
+| { op: "everyInstance"; groupId: GroupId; condition: Condition }
 | { op: "instanceCount"; groupId: GroupId; compare: "equals" | "gt" | "gte" | "lt" | "lte"; value: number }
 ```
 
 `anyInstance` is true when its nested condition holds for at least one live instance, with references inside that condition resolving per instance. `instanceCount` compares the live instance count, reusing the **names** of the existing comparison operators as a field rather than introducing a second comparison vocabulary.
 
-**Three operators were considered and one was cut.** `everyInstance` is not proposed, for two reasons. It is expressible as `not(anyInstance(not(c)))`, combined with `instanceCount gte 1` when the author does not want the vacuous reading. And its vacuous reading is a trap: "every passenger holds a passport" is true of a group with no passengers, which is the opposite of what an author writing that sentence means. Leaving it out makes the author write the count check they meant. Q7 puts the choice to the Code Owner.
+**`everyInstance` over an empty group is FALSE, and that is a decision rather than an implementation detail.** The recommendation in this document was to cut the operator precisely because its vacuous reading is a trap: read as classical universal quantification, "every passenger holds a passport" is true of a group with no passengers, which is the opposite of what an author writing that sentence means. The Code Owner ruled the operator in and ruled the trap out at the same time, by defining the empty case as false. Four consequences follow and every one of them has to be written down in the place that would otherwise assume the classical reading:
 
-**What the new operators cost, which is more than two union members.** ADR-03's own Note names the machinery: `packages/core/src/visibility-rule.test.ts` pins the thirteen operators as a hand-edited list checked against the `Condition` union in both directions, and `apps/admin/lib/forms/condition.ts` ties the admin's parallel copy to the same union through a type-only import, "so neither side can move alone". Two new operators therefore mean a deliberate edit to that test, a matching edit to the admin's list, a changeset, and this ADR conversation. ADR-03 also says new operators are versioned core changes, and its second Note records that there is still no DSL version constant, so "versioned" stays a review convention.
+1. **It is not `not(anyInstance(not c))`.** Over an empty group that expression is true and `everyInstance` is false, so the two are equivalent only when at least one instance is live. Nothing in the evaluator, the admin or a golden scenario may treat one as a rewrite of the other.
+2. **The evaluator states it as a base case**, not as a fold: an empty roster short-circuits to false before the per-instance walk begins. `everyInstance` over a non-empty roster is the ordinary conjunction over live instances.
+3. **The rule sentence says so.** `lib/forms/rule-sentence.ts` renders it as "every passenger ... (and there is at least one passenger)", because the sentence an author reads is where the non-vacuous reading has to be visible; a sentence reading only "every passenger holds a passport" would invite the classical reading back.
+4. **The golden corpus carries the empty case explicitly**, beside the ordinary all-match and one-mismatch cases, and the admin test bench lets an author evaluate a rule against zero instances so the reading is discoverable rather than documented.
 
-**Depth.** `CONDITION_MAX_DEPTH` stays 8 and `anyInstance`'s nested condition counts toward it, which `conditionDepth` reaches by recursing into the new node like it recurses into `not`.
+**What the new operators cost, which is more than three union members.** ADR-03's own Note names the machinery: `packages/core/src/visibility-rule.test.ts` pins the thirteen operators as a hand-edited list checked against the `Condition` union in both directions, and `apps/admin/lib/forms/condition.ts` ties the admin's parallel copy to the same union through a type-only import, "so neither side can move alone". Three new operators therefore mean a deliberate edit to that test, taking its list to **sixteen**, a matching edit to the admin's list, a changeset, and ADR-03's amendment. ADR-03 also says new operators are versioned core changes, and its second Note records that there is still no DSL version constant, so "versioned" stays a review convention.
+
+**Depth.** `CONDITION_MAX_DEPTH` stays 8 and the nested condition of `anyInstance` and `everyInstance` counts toward it, which `conditionDepth` reaches by recursing into the new nodes like it recurses into `not`.
 
 **Forward-only (ADR-16, I10) with a group in it.** `documentOrder` expands a group into a contiguous span of its member questions, in order. Three rules follow, all enforced by `analyzeRuleGraph` with existing error codes where the existing code fits:
 
 1. A rule targeting inside G may read questions before G and questions earlier **within the same instance**. A reference to a later position inside the instance is `RULE_BACKWARD_TARGET` exactly as it is today.
-2. A rule using `anyInstance` or `instanceCount` over G reads **the whole of G**, so its targets must appear strictly after G's whole span. This is the existing rule applied to a span rather than a position.
+2. A rule using `anyInstance`, `everyInstance` or `instanceCount` over G reads **the whole of G**, so its targets must appear strictly after G's whole span. This is the existing rule applied to a span rather than a position.
 3. A `fromAnswer` count source is a read of its count question by the whole group, so the count question must precede the group's span. `REPEAT_COUNT_BACKWARD_REF`.
 
 No rule may read a **different** instance of the same group. That is not a restriction the design chose so much as one the forward pass requires: instance order is a roster order and not a document order, so "the previous passenger's answer" has no forward-only reading.
 
-**Cost bound, stated because a loop is where a forward pass stops being obviously cheap.** One pass still. The outer walk is over steps; a group's span is walked once per live instance. Condition evaluations are bounded by `rules x max(instances)`, with no nesting (section 2.5) and a hard instance ceiling (Q14). At the recommended ceiling of 100 instances and the depth cap of 8, the worst case is small and bounded at publish rather than at runtime, which is the property ADR-16 exists to protect.
+**Cost bound, stated because a loop is where a forward pass stops being obviously cheap.** One pass still. The outer walk is over steps; a group's span is walked once per live instance. Condition evaluations are bounded by `rules x max(instances)`, with no nesting (section 2.5) and with `max(instances)` taken from **the group's own `max`** and from nothing else: the Q14 ruling removed the installation-wide ceiling this document recommended, so the bound is **per form** and is whatever its author declared. That preserves the property ADR-16 exists to protect, which is that the cost is bounded at publish rather than discovered at runtime, and it changes who sets the bound: at a `max` of 9 the worst case is trivial, and at a `max` of 5000 it is the author's declared cost, visible in the form version and refusable at review. Section 8 is where that trade is stated in full.
 
 ### 3.5 `FlowState`, and the one place additivity is awkward
 
+_Ruled 2026-09-30 (Code Owner), as recommended (Q8): parallel optional fields now, and the tidy-up is recorded as the first job of multi-version evaluation._
+
 `FlowState` is a `z.object` and it is what every golden scenario's `expected` block asserts with `toEqual`. Widening `visibleSteps` from `StepId[]` to `{stepId, instanceId}[]`, or `missingRequired` from `QuestionId[]` to `{questionId, instanceId}[]`, would fail all forty-four committed scenarios and would need the `SEMANTICS_VERSION` bump that cannot be taken.
 
-**Recommendation: every new field is optional and is omitted entirely when the form holds no repeating group.** The existing five fields keep their exact shapes and their exact contents for a form with no group.
+**Every new field is optional and is omitted entirely when the form holds no repeating group.** The existing five fields keep their exact shapes and their exact contents for a form with no group.
 
 | Field                                         | Today                    | With groups                                                                                         |
 | --------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------- |
@@ -229,9 +256,11 @@ No rule may read a **different** instance of the same group. That is not a restr
 | `answeredRequiredInstances` _(new, optional)_ | absent                   | the same shape                                                                                      |
 | `rosters` _(new, optional)_                   | absent                   | `{groupId, instances: InstanceId[]}[]`, the live roster the evaluation used                         |
 
-This is the ugliest part of the design and the plan says so rather than hiding it: two parallel arrays exist because one of them cannot change shape. The alternative is honest and is put to the Code Owner as **Q8**: build multi-version evaluation first, bump `SEMANTICS_VERSION` to 2, and widen the fields properly. That is a larger, separate piece of work with its own value (it unblocks every future semantics change, which ADR-16's Note calls out as the standing limitation), and it would make this design cleaner. The recommendation is to take the parallel fields now and record the tidy-up as the first thing multi-version evaluation buys.
+This is the ugliest part of the design and the plan says so rather than hiding it: two parallel arrays exist because one of them cannot change shape. The alternative was put to the Code Owner as **Q8**: build multi-version evaluation first, bump `SEMANTICS_VERSION` to 2, and widen the fields properly. That is a larger, separate piece of work with its own value, since it unblocks every future semantics change, which ADR-16's Note calls out as the standing limitation, and it would make this design cleaner. **The ruling takes the parallel fields now and records the tidy-up as the first job of multi-version evaluation**, which ADR-16's amendment carries so that the debt has a named creditor rather than a hope.
 
 ### 3.6 Removal, and why it reuses a semantic that already exists
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q5)._
 
 A removed instance is **not deleted**. Its answers stay in the append-only ledger, and the roster records that it was removed. For every purpose downstream of the ledger it behaves exactly like a **hidden** question does under invariant I6: excluded from all subsequent condition evaluation, excluded from the locked submission, excluded from the reporting view, not counted against completeness. The audit story is the one ADR-33 and I6 already tell: the ledger shows what was answered and when it changed, and the locked set shows what the answer set was at submission.
 
@@ -267,9 +296,11 @@ The renderer clones the template once per live instance, in roster order, and re
 
 **`name` is a contract shared by ten places, and instance-qualified names touch all of them.** It is set by the compiler's `baseControlProps`, passed straight through by every adapter, and read by `documentForVisible`'s pruning ("a node is a question control iff it carries a string `name` prop"), `commitMoments`, the `FieldBlur` wrapper's `id` and `data-qcms-field`, the adapter's `key`, the `__qk__` and `__qa__` field markers, the BFF decoder, the `qcms_step_ctx` cookie's three question-keyed records, and the error summary's `#` anchors. The plan's answer is that **the qualified name is the field's whole identity everywhere below the API**, so none of those ten places learns about instances; each keeps keying on one opaque string.
 
-**The separator.** `ins_7k2/q_passport` uses `/`, which no branded id may contain, so the encoding parses without a schema. It is a legal HTML `id` and a legal fragment, and it needs `CSS.escape` in a selector, which the shared jsdom setup already polyfills for react-aria. Q15 puts the choice to the Code Owner, with `__` as the alternative that needs no escaping and no new rule about what a branded id may hold.
+**The separator.** `ins_7k2/q_passport` uses `/`, which no branded id may contain, so the encoding parses without a schema. It is a legal HTML `id` and a legal fragment, and it needs `CSS.escape` in a selector, which the shared jsdom setup already polyfills for react-aria. `__` was the alternative, needing no escaping but adding a rule about what a branded id may hold and reading like the `__qk__` and `__qa__` marker prefixes; Q15 ruled for `/`.
 
 ### 4.2 The no-JS path
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q9): named `__qop` submit buttons carrying `formnovalidate`, with instance-qualified field names._
 
 This is the hardest part of the design, because nothing in the portal handles a non-submit action button today, and the no-JS claim in `docs/portal-constraints.md` is unqualified with an empty exception list.
 
@@ -286,11 +317,13 @@ The whole-step POST therefore carries every field on the step **plus at most one
 
 **No repeated field names.** The decoder's `partition()` already accumulates a repeated name into a `string[]`, but only the `multi` kind consumes more than `raws[0]`, and relying on duplicate-name ordering would couple the wire to DOM order, which a removal reorders. The HTML standard is firm that entries are built "in tree order" and that order survives serialisation, but it is firm **per name only**: an unchecked checkbox and an unselected radio contribute no entry at all, so one column's list runs short of another's and positional zipping across columns is unsafe. The spec offers no indexing mechanism, which makes indexed names an application convention either way. Every instance's field therefore carries a unique qualified name, and the decoder needs no ordering rule at all.
 
-**One call per answer is not acceptable at nine passengers.** `forwardAnswers` makes one `POST /sessions/{id}/answers` per decoded answer, sequentially, and each one takes a per-session advisory lock and re-evaluates the flow. Nine passengers times six questions is fifty-four round trips for one Continue. Q20 proposes a batch answer endpoint for this reason; it is an internal contract with no stability promise, and the batch is also what makes the roster operation and the answers one transaction.
+**One call per answer is not acceptable at nine passengers.** `forwardAnswers` makes one `POST /sessions/{id}/answers` per decoded answer, sequentially, and each one takes a per-session advisory lock and re-evaluates the flow. Nine passengers times six questions is fifty-four round trips for one Continue. Q20 ruled for a batch answer endpoint for this reason; it is an internal contract with no stability promise, and the batch is also what makes the roster operation and the answers one transaction. **The same ruling puts the fix for issue #968 in the same work**, because the batch is where the answer path's lock ordering is decided.
 
-**The re-render cookie will not hold.** `qcms_step_ctx` is one JSON cookie, 15 seconds, carrying `values`, `errors`, `constraints` and `missingRequired`, all keyed by question. Browsers cap a cookie at roughly 4 KB. A nine-passenger step with an error on each instance exceeds that, and a cookie that silently fails to set produces a re-render with the respondent's answers missing, which is the worst failure this document can name. Q21 proposes that a repeat form's re-render take `values` and `missingRequired` from the API's own projection (it already returns both) and keep only the 422 constraint errors in the cookie, with a hard cap and a documented overflow behaviour.
+**The re-render cookie will not hold.** `qcms_step_ctx` is one JSON cookie, 15 seconds, carrying `values`, `errors`, `constraints` and `missingRequired`, all keyed by question. Browsers cap a cookie at roughly 4 KB. A nine-passenger step with an error on each instance exceeds that, and a cookie that silently fails to set produces a re-render with the respondent's answers missing, which is the worst failure this document can name. Q21 ruled that a repeat form's re-render takes `values` and `missingRequired` from the API's own step projection, which already returns both, and that the cookie keeps only the 422 constraint errors, capped, with a defined behaviour on overflow: the oldest entries are dropped, the re-render says that some messages could not be carried, and the respondent reaches the full report by pressing Continue again.
 
 ### 4.3 Accessibility
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q11): the APG focus destinations, a status region on the JS path, and a fragment landing on the no-JS path._
 
 The floor is WCAG 2.2 AA and the portal's manual screen-reader pass (task 030) is a Code Owner human gate. Section 13 records the sources.
 
@@ -307,7 +340,19 @@ The floor is WCAG 2.2 AA and the portal's manual screen-reader pass (task 030) i
 - **On input (3.2.2)** decides one small thing. An explicit **Add another** button is outside the criterion, because activating a button is not changing a setting. A count `<select>` that submitted on change would be inside it, which is one more reason the count question is an ordinary question answered with an ordinary Continue.
 - **Two of the new 2.2 criteria do not bear, and are listed so a reviewer does not look for them.** 3.3.8 Accessible Authentication applies to authentication steps only. 3.2.6 Consistent Help governs help mechanisms repeated across a page set and its Understanding is explicit that it is "distinct from ... instructional text in a form"; it binds the step chrome's ordering across re-renders and nothing inside the group.
 
-### 4.4 The table presentation
+### 4.4 The stacked presentation
+
+_Ruled 2026-09-30 (Code Owner), Q12, first half: the stacked presentation renders **one input per row** and allows **every** question type._
+
+The stacked presentation is one instance card after another, and inside a card it is **one input per row: a single column, with no two fields side by side at any width**. That is a ruling and not a default, so it is stated here in the terms an implementer and a reviewer both need:
+
+- **No two-up layout at any breakpoint.** Not at a desktop width, not in the admin preview, not in a card that happens to hold two short fields. The passenger concept page draws given names beside surname, and that layout is superseded; the card is a single column from 390px to the widest viewport the portal renders at.
+- **Why it is a rule rather than taste.** Two reasons, and the first decides it. A side-by-side pair inside a repeated card makes the reading order and the tab order diverge from the visual order the moment a rule hides one of the pair in one instance and not in another, which is exactly what per-instance branching does (section 1.1, the infant fare basis). And a single column is the layout the phone already gets, so one column everywhere is one layout to prove rather than two, which is the same reasoning `playwright.config.ts` encodes by running every spec on the Pixel 7 project.
+- **Every question type is allowed**, including `longText` and `multiChoice`. That is the asymmetry with the table presentation and it is deliberate: a stacked card gives a control a full row, so nothing about a textarea or a checkbox group is cramped in it. An author refused a column type in a table is pointed at this presentation, by name, at the point of refusal.
+
+### 4.5 The table presentation
+
+_Ruled 2026-09-30 (Code Owner), as recommended: a native `<table>` and never `role="grid"` (Q10), and five cell types (Q12, second half)._
 
 **Use a native `<table>`, not `role="grid"`.** Three of the four reasons are citable and the fourth is this product's own.
 
@@ -316,7 +361,7 @@ The floor is WCAG 2.2 AA and the portal's manual screen-reader pass (task 030) i
 3. **APG's two optimal cell designs exclude a text input.** The optimal pairs are a cell holding one widget that does not need arrow keys (link, button, menubutton, toggle button, radio button, switch, checkbox) with focus on the widget, or a cell holding text or one graphic with focus on the cell. A text field is "editable content", which APG routes through an Enter/F2/Escape edit mode, and it warns that cells outside the two patterns "add complexity for authors or users or both". A four-column assets table is three text-ish columns.
 4. **A phone has no grid.** The table reflows to cards at 390px, and a keyboard model that exists only above the reflow width is two interaction models for one question.
 
-**What the table pattern costs, stated as APG states it**, so that nobody reads it later as a defect: "Since a table is not a widget, each widget contained in a table is a separate stop in the page tab sequence", and a grid is what you reach for when "the number of widgets is large". A four-column table of ten rows is forty tab stops. That is the documented, expected behaviour of the choice, and the mitigation is the group's `max` rather than a different pattern. Q10 puts the whole trade to the Code Owner and section 13 carries the sources.
+**What the table pattern costs, stated as APG states it**, so that nobody reads it later as a defect: "Since a table is not a widget, each widget contained in a table is a separate stop in the page tab sequence", and a grid is what you reach for when "the number of widgets is large". A four-column table of ten rows is forty tab stops. That is the documented, expected behaviour of the choice, and the mitigation is the group's `max` rather than a different pattern. **After the Q14 ruling that is the whole of the mitigation**: with no installation-wide ceiling, the tab-stop count of a table is `columns x max` for whatever `max` its author declared, and nothing in core refuses a large one. Section 13 carries the sources.
 
 Structure:
 
@@ -330,13 +375,13 @@ Structure:
 - A `<tfoot>` row for a column total, which is computed presentation and is never an input and never an answer.
 - Above the reflow width the table lives in its own `overflow-x: auto` box, which is the only element on a portal page permitted to scroll horizontally.
 
-The table presentation constrains the column types (Q12): recommended `shortText`, `number`, `date`, `boolean` and `singleChoice`. `longText` and `multiChoice` are refused at publish with `TABLE_COLUMN_TYPE_NOT_ALLOWED`, because neither fits a cell and the phone card reflow makes both worse, and an author who wants them has the stacked presentation.
+The table presentation constrains the column types to **five** (Q12, ruled as recommended): `shortText`, `number`, `date`, `boolean` and `singleChoice`. `longText` and `multiChoice` are refused at publish with `TABLE_COLUMN_TYPE_NOT_ALLOWED`, because neither fits a cell and the phone card reflow makes both worse. **The admin points at the stacked presentation by name** at the point of refusal, in the library picker and in the publish error alike, because the stacked presentation allows all seven types (section 4.4) and an author refused here has somewhere to go.
 
 **A vendored `Table` already exists** in `packages/ui/src/components/a2ui/table/` and is exported from the admin Kit, but it is not in the renderer registry and is a read-only display table. It is the right starting point for the markup and the style map, and it is not an input grid.
 
 **One implementation trap, found while building the concept pages rather than reasoned about.** A visually hidden label positioned with `position: absolute` inside an `overflow-x: auto` box resolves against the initial containing block when no ancestor is positioned, so it lands past the viewport edge and widens the **document**, producing exactly the horizontal page scroll the portal forbids. It cost 136 unexplained pixels on one concept page. The fix is one declaration, `position: relative` on the scroll box and on any button carrying a hidden label, and it is worth a paragraph here because this design puts a hidden label in **every** cell, so the trap is structural rather than incidental. A second one from the same build: when an instance card's border is on the `<fieldset>`, the `<legend>` renders in the fieldset's legend slot and cuts the border; `float: left; width: 100%` puts the heading inside the card while `<legend>` stays the fieldset's accessible name.
 
-### 4.5 Mobile
+### 4.6 Mobile
 
 `playwright.config.ts` runs **every** spec on the Pixel 7 project, so mobile is not a viewport a repeat spec opts into. The stacked presentation is already one card per instance and needs nothing. The table reflows to cards. The `perInstanceStep` presentation is the one that is best on a phone and the one to recommend to an author with a wide group.
 
@@ -356,6 +401,8 @@ One nullable column: `instance_id text NULL`. The current-value rule becomes lat
 **The value is never touched.** Migration 0009's own rationale is the precedent and it is worth quoting to anyone tempted otherwise: a sentinel inside the `value` JSON was rejected because "it could collide with author-supplied content and would force every reader to sniff for it". An instance index encoded inside `value`, or inside `question_id`, is the same mistake.
 
 ### 5.2 The roster
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q16): a new append-only table, `answer_group_instances`._
 
 A new append-only table in the data plane:
 
@@ -377,7 +424,7 @@ The live roster is every `instance_id` whose latest event is `added`, ordered by
 
 - `migrations.test.ts`'s `EXPECTED_TABLES` is an **exact** set since issue #861, so the new table is added there or the suite fails.
 - `eraseSession` gains a delete of this table inside the same transaction and behind the same door, and `purgeExpired` gains the same. An erasure that leaves a roster behind leaves the shape of a respondent's family.
-- ADR-40's per-environment generator grows: the twelve guards become **fifteen** (two triggers plus one CHECK) and the seven foreign keys become **eight**. That is a Note on ADR-40 and a line in task 064's table, proposed here and written by whichever task lands second.
+- ADR-40's per-environment generator grows: the twelve guards become **fifteen** (two triggers plus one CHECK) and the seven foreign keys become **eight**. That Note is **on ADR-40 now**, written with this ruling; task 072 writes the table and task 064's generator emits it per environment when that Phase 4 track runs. Ordering between the two does not matter, because repetition is launch scope and environments are not, so whichever lands second carries the other's shape.
 - The two trigger functions stay single in `control`, as ADR-40 already specifies for the answer ledger's pair.
 
 ### 5.3 Submission and the locked set
@@ -392,7 +439,7 @@ Ordering is document order for questions and roster order for instances, and `ca
 
 `prepareSubmission` gains `REPEAT_COUNT_OUT_OF_RANGE` and reports `MISSING_REQUIRED` per `(instance, question)`.
 
-**Issue #968 is amplified and should be closed first.** That open issue records that the required-answer sweep runs before the session lock, so a concurrent retraction can leave the ledger and the submission out of step. A repeat multiplies the window by the number of fields a step posts, and the no-JS path posts a whole step at once. The task breakdown makes closing #968 a dependency rather than a discovery.
+**Issue #968 is amplified and is closed in the same work.** That open issue records that the required-answer sweep runs before the session lock, so a concurrent retraction can leave the ledger and the submission out of step. A repeat multiplies the window by the number of fields a step posts, and the no-JS path posts a whole step at once. The Q20 ruling puts the fix in **task 073**, beside the batch answer endpoint, because that endpoint is where the answer path's locking is decided; it is a deliverable and an exit criterion of that task rather than a prerequisite scheduled elsewhere.
 
 ### 5.4 The webhook and the outbox, including the redacted form
 
@@ -400,22 +447,34 @@ Ordering is document order for questions and roster order for instances, and `ca
 
 So the payload's `answers` becomes `LockedAnswer[]` with the optional `instanceId`, exactly as the locked set is. Nothing else in the envelope changes, the HMAC signing is unchanged, and `docs/webhooks.md` gains an example.
 
-**The redacted payload carries nothing new.** No instance ids, no roster, and **no counts**. A count is not an answer, but "how many dependants", "how many liabilities" and "how many passengers" are disclosive on their own, and the CHECK's guarantee is cheapest to keep as "the payload after redaction holds no respondent-derived value of any kind". Q19 records it as a decision rather than an omission.
+**The redacted payload carries nothing new** (Q19, ruled 2026-09-30 as recommended). No instance ids, no roster, and **no counts**. A count is not an answer, but "how many dependants", "how many liabilities" and "how many passengers" are disclosive on their own, and the CHECK's guarantee is cheapest to keep as "the payload after redaction holds no respondent-derived value of any kind". That is a decision rather than an omission, and SEC-16 records it beside the rest of the repeat bounds so the next person to add a field to that payload reads the rule rather than the absence.
 
 ### 5.5 CSV export
 
 `questionIdsInDocumentOrder` is built on a premise the code states out loud: "A questionId is pinned at most once across a form (a parse invariant), so the result is duplicate-free." That premise survives (section 3.1 keeps the refinement), but one column per question does not: an open-ended group has no column count until the data is read, and a column set that depends on the data rather than on the form version is not a contract a consumer can bind to.
 
-**Recommendation: keep the wide file, add one long file per group.**
+_Ruled 2026-09-30 (Code Owner): **both shapes ship.** The plan recommended the long shape alone; the ruling keeps it as the **default** and adds the indexed wide shape as an **export option** the person taking the export chooses._
+
+**The long shape is the default.**
 
 - `responses.csv` is unchanged for every question outside a group, with the same metadata columns, the same document order, the same BOM and CRLF, and the same golden byte test.
 - One extra file per repeating group, named for the group: `session_id, instance_ordinal, instance_id, <one column per member question in document order>`, one row per `(session, live instance)`.
 - A form with at least one group exports as a zip of those files; a form with none exports exactly the single file it exports today, so no existing adopter's pipeline moves.
 - `@roonga/qcms-csv`'s formula-injection guard (issue #470) and the `;` join for multiChoice apply unchanged in the new files.
 
-The alternative, indexed wide columns (`q_passport__1` through `q_passport__9`), is recorded in Q17 with what it costs: the column count becomes the group's `max` rather than its data, an open-ended group with `max: 500` produces 500 mostly-empty columns, and a group whose `max` is raised in a later form version silently changes the header of an export somebody automated.
+**The wide shape is an option on the same route.** The export request carries a shape parameter beside the `version` parameter CSV already requires; the default is long and the alternative is indexed wide columns, `q_passport__1` through `q_passport__<max>`, folded back into the single `responses.csv` so that a form with groups exports as one flat file and not as a zip. Every column of an instance beyond a session's live count is empty, and the formula-injection guard and the multiChoice join apply there too.
+
+**What the wide option costs, and it is documented rather than discovered.** This is the reason the plan recommended against it, and the reason it is a named option rather than the default:
+
+- **The header depends on each version's `max`, not on the data.** A group with `max: 500` produces 500 columns per member question whether any session filled two of them or none, so a four-question group at that bound is 2000 columns before the metadata.
+- **The header changes when `max` changes.** Raise a group's `max` in a later form version and that version's wide export has more columns than the previous version's, silently, from the consumer's point of view. The export route already requires a `version` parameter for CSV precisely because the column set depends on the version's shape, so the mechanism that makes this survivable already exists: a wide export is pinned to one version and a consumer who automates one must pin the version they bound their pipeline to. **That sentence is documented on the export screen and in `docs/` beside the route**, not only here.
+- **It is per version and not per export.** Two versions of the same form can produce two different wide headers for the same group, which a long export cannot do, because a long file's header is the member question list rather than the member question list times a bound.
+
+Under the Q14 ruling there is no installation-wide ceiling above `max`, so nothing in core stops an author declaring the 500 that produces those 2000 columns. That makes the documentation above load-bearing rather than cautionary, and it is why the long shape is the default the export screen offers first.
 
 ### 5.6 Reporting view
+
+_Ruled 2026-09-30 (Code Owner), as recommended (Q18): a nested array per group in `reporting.responses.answers`, and `jsonb_object_agg` must stop collapsing duplicates._
 
 The current SQL is the sharpest single collision in the whole design:
 
@@ -436,7 +495,7 @@ Two locked answers for one `questionId` is exactly what a repeated question prod
 
 - **Erasure already reaches everything**, because it is session-scoped: it deletes the session's answers and submission behind the `qcms.allow_answer_delete` door, cancels undelivered deliveries, redacts delivery snippets and outbox payloads, and writes a tombstone. Repetition adds one table to the delete list (5.2) and nothing else. The tombstone shape is unchanged: it records existence, not content, and it has no idea how many passengers there were.
 - **Retention purge** gains the same table.
-- **What genuinely changes is the volume.** A nine-passenger booking holds nine names, nine dates of birth and nine passport numbers in one session, so one erasure request and one retention miss are both nine times as consequential. That is an argument for the caps in section 8 and for nothing else in the model.
+- **What genuinely changes is the volume.** A nine-passenger booking holds nine names, nine dates of birth and nine passport numbers in one session, so one erasure request and one retention miss are both nine times as consequential. That is an argument for the per-form bound of section 8 and for nothing else in the model.
 - **SEC-13 redaction is unchanged and already correct.** The span and log allowlists permit branded ids as pseudonymous correlators and delete everything unlisted, so `ins_` joins `q_`, `frm_`, `stp_` and `ses_` as a permitted correlator and no value follows it. The logger's own test asserts that `answer` and `answerValue` fields do not survive; nothing about a repeat changes what that asserts.
 
 ---
@@ -451,7 +510,7 @@ A question does not know it is repeated. `QUESTION_TYPES` is unchanged, `Constra
 
 `DraftStep.items` widens from `DraftPin[]` to a union with a draft group, mirroring the kernel. The pure mutations in `apps/admin/lib/forms/draft.ts` gain the group operations (`addGroup`, `removeGroup`, `addPinToGroup`, `movePinWithinGroup`, `setGroupCount`, `setGroupPresentation`), following the file's existing shape: the component holds the draft and every mutation is a pure function tested on its own.
 
-The group panel carries, in this order: name and group id, the member question list (the same ownership grid the step editor already draws, so form-owned cells get controls and library-owned cells are text), the count source as a three-way radio with a question picker for `fromAnswer`, `min` and `max`, the instance label template with a live preview, and the presentation as a three-way radio.
+The group panel carries, in this order: name and group id, the member question list (the same ownership grid the step editor already draws, so form-owned cells get controls and library-owned cells are text), the count source as a three-way radio with a question picker for `fromAnswer`, `min` and `max`, the instance label template with a live preview, and the presentation as a three-way radio. **`max` is a required field on `fromAnswer` and on `open`** and the panel says so where the author sets it rather than leaving the refusal to publish; a `fixed` count shows no `max` at all, because the count is the bound.
 
 `step-editor.tsx` and `lib/forms/pin-grid.ts` gain group boundaries in the grid. `rail-steps.tsx` and `lib/forms/subtree-rail.ts` gain a group node in the rail tree.
 
@@ -462,7 +521,7 @@ Under T2 there is no table question, so the "column editor" is the group's membe
 ### 6.4 The rules editor and the test bench
 
 - **Scope is shown, not authored.** When a rule's target sits inside a group, the editor states it on the rule: a chip reading "evaluated per passenger", using the group's label. The author writes an ordinary condition. `lib/forms/rule-sentence.ts` gains the sentence forms.
-- **The two new operators get structured editors.** `anyInstance` is a group picker plus a nested condition, reusing the existing nested-condition editor and its depth accounting. `instanceCount` is a group picker, a comparison picker and a number.
+- **All three new operators get structured editors.** `anyInstance` and `everyInstance` are each a group picker plus a nested condition, reusing the existing nested-condition editor and its depth accounting. `instanceCount` is a group picker, a comparison picker and a number. **The `everyInstance` sentence states its own reading** ("every passenger ..., and there is at least one passenger"), because the empty-group case is false by decision (Q7) and an author reading the bare sentence would supply the classical reading instead.
 - **`apps/admin/lib/forms/condition.ts` moves in the same change or the admin fails to typecheck.** ADR-03's Note records why: the admin's parallel operator list is tied to the kernel's `Condition` union by a type-only import, which R2 permits because it is erased at compile time, and a new operator in core therefore breaks the admin's build. This is a feature and it is the reason the admin work cannot lag the kernel work by a PR.
 - **`rule-targets.ts` and `eligibleTargets`** gain the forward-only rule over a span rather than a position (section 3.4).
 - **The test bench** posts `{draft, ruleId, answers}` to the draft-preview endpoint and is evaluated server side. It gains an instance dimension: the author adds hypothetical instances, fills per-instance answers, and reads a per-instance match or no-match. That is the surface where an author finds out that a rule they wrote reads the whole group rather than one instance.
@@ -492,7 +551,7 @@ Under T2 there is no table question, so the "column editor" is the group's membe
 
 **Golden corpora, both of them, appended and never edited.**
 
-- `packages/core/golden/evaluator/`: new scenario files for per-instance visibility, `anyInstance`, `instanceCount`, a removed instance's answers excluded, a shrinking `fromAnswer` count, and `min`/`max` at submit. Each needs a corpus-local form and, where a new question shape is wanted, a corpus-local question. **No existing `expected` block is edited**, which section 3 makes possible and `CORPUS.md` makes mandatory.
+- `packages/core/golden/evaluator/`: new scenario files for per-instance visibility, `anyInstance`, `instanceCount`, `everyInstance` over a matching, a mismatching and an **empty** group, a removed instance's answers excluded, a shrinking `fromAnswer` count, and `min`/`max` at submit. Each needs a corpus-local form and, where a new question shape is wanted, a corpus-local question. **No existing `expected` block is edited**, which section 3 makes possible and `CORPUS.md` makes mandatory.
 - `packages/a2ui-compiler/golden/`: the documented spec-bump procedure opens a new generation for the `A2UI_SPEC_VERSION` move, carrying the seven existing forms across unchanged plus new repeat and table forms. The append-only guard covers both trees and the `check:golden-append-only` script is what enforces it on every run.
 
 **The template mirror.** `packages/create-qcms-app/templates/common/apps/api/src/features/responses/serve-step/handler.ts` is a byte-identical vendored copy of the API's answer write path, and `pnpm check:templates` fails when the two drift. Every task touching that handler carries the mirror.
@@ -501,19 +560,39 @@ Under T2 there is no table question, so the "column editor" is the group's membe
 
 ## 8. Security and abuse
 
-The controls are SEC-numbered where they extend an existing one and named as new where they do not. Nothing here edits `docs/SECURITY_DESIGN.md`; each item names the section a task would extend.
+_Rewritten to the Q14 ruling of 2026-09-30. **The plan recommended two installation-wide ceilings, 100 instances per group and 200 per session, as core constants. The Code Owner ruled both out.** There is **no installation-wide ceiling**: bounds come solely from each group's author-set `max`, which Q4 as amended makes required on every count source that is not `fixed`, and which publish and the API both enforce. The request-size and rate limits that already exist are kept as they are; no global cap is invented._
 
-1. **Unbounded instance counts are the new abuse surface, and the design closes it at four levels.** `max` is required on an open-ended group (section 2.4), publish refuses a `max` above a core ceiling (`REPEAT_MAX_ABOVE_CEILING`, recommended 100 per group, Q14), the API refuses an add that would exceed the group's `max`, and a per-session total instance ceiling bounds a form that carries several groups. Without all four, an open-ended group is an authenticated-by-nothing insert loop into an append-only ledger, which is the one write path a respondent controls the size of.
-2. **Payload size.** A whole-step POST with 100 instances times 6 fields is 600 fields and their two marker companions each. The step route needs a field-count limit and a body-size limit, refused with the existing error envelope rather than by the runtime. This extends the ADR-12 abuse baseline rather than adding a mechanism.
-3. **Rate limits.** The answer endpoint is already rate limited per session and per IP. The roster operation is a distinct, cheaper-to-repeat action ("add" in a loop) and needs its own limit; under ADR-40 rate limits stay installation-wide (finding F6), so this is one more typed setting and not a per-environment one.
-4. **Ledger growth per session** is now respondent-controlled rather than author-controlled. Retention is the backstop and is unchanged, but the sweep's cost model changes, which is worth measuring rather than asserting.
-5. **The honeypot is per step and stays per step.** The compiler emits one decoy node per step document (ADR-12, the ADR-01 Note). A repeat must not clone it, which is a real risk given that expansion is a template clone: the honeypot node sits outside the `RepeatGroup` template, and a test should assert that a ten-instance step carries exactly one decoy.
-6. **PII volume, not PII kind.** Section 5.7. The erasure path already reaches it; the caps are what keep the volume bounded.
+**The control, in one sentence.** A repeating group's size is bounded by its own `max`, declared by the author in the form version, refused at publish if absent, and enforced by the API on every add. That is the whole ceiling. SEC-16 in `docs/SECURITY_DESIGN.md` is the normative statement of it.
+
+### 8.1 What a per-form bound does and does not buy
+
+**What it buys.** The bound is in the form version, so it is immutable once published (R1), visible to anyone reading the version, refusable at author review, and different for a nine-passenger booking and a twenty-holding portfolio without a setting anybody has to tune. A per-form bound is also the only bound that can be right: the plan's recommended 100 would have refused a legitimate large portfolio and permitted a hundred-passenger booking, which is the shape of every number chosen for all forms at once.
+
+**What it does not buy, stated plainly because the ruling removes a control this document recommended.** With no installation-wide ceiling:
+
+- **The payload is bounded per form.** A whole-step POST for a group of `max` instances and `m` member questions carries `max x m` fields plus their two marker companions each. At `max: 9` that is small; at `max: 5000` it is not, and nothing in core refuses the author who wrote 5000.
+- **The tab-stop count in a table (Q10) is bounded per form.** A native `<table>` puts every cell in the page tab sequence, so the count is `columns x max` and the mitigation is the author's `max`. That makes an accessibility property an authoring decision, which is worth stating rather than discovering.
+- **The POST size is bounded per form**, and so is the field count, subject to the ordinary request limits below.
+- **The evaluator's cost is bounded per form.** Condition evaluations are `rules x max(instances)` (section 3.4), with `max(instances)` taken from the group's `max`. One forward pass, still, and its worst case is the author's declared one.
+- **A session's total is bounded per form, by summation.** A form with four groups can hold the sum of their four maxima in live instances, and no per-session total stands above that sum.
+
+None of those is a hole; each is a bound that moved from the installation to the form. The consequence a reviewer should hold onto is that **an author's `max` is now a security-relevant field**, and the place it is reviewed is form review rather than a core constant.
+
+### 8.2 The controls that do exist
+
+1. **`max` is required and enforced twice.** Publish refuses a `fromAnswer` or `open` group with no `max` (`REPEAT_MAX_MISSING`); the API refuses an add that would exceed the group's `max`, and refuses a `fromAnswer` count above it at the count question rather than at the loop. A `fixed` count is its own bound and needs no second number.
+2. **Request-size and rate limits are kept exactly as they are.** The step route runs under the limits the ADR-12 abuse baseline and the deployment already impose; the answer endpoint is already rate limited per session and per IP, and every one of those limits is per process, with the replica-count property §8 of `docs/SECURITY_DESIGN.md` records. Nothing here raises, lowers or re-scopes them, and nothing here adds a new global cap dressed as a limit.
+3. **The roster operation gets its own rate limit.** Adding an instance is a distinct action that is cheap to repeat, so it is limited like the answer write rather than riding it. Under ADR-40 rate limits stay installation-wide (finding F6), so this is one more typed setting and not a per-environment one. This is a limit on the **rate** of a bounded operation, not a second ceiling on its size.
+4. **Ledger growth per session is respondent-controlled within the author's bound.** Retention is the backstop and is unchanged; the sweep's cost model changes with the volume, which is worth measuring rather than asserting.
+5. **The honeypot is per step and stays per step.** The compiler emits one decoy node per step document (ADR-12, the ADR-01 Note). A repeat must not clone it, which is a real risk given that expansion is a template clone: the decoy sits outside the `RepeatGroup` template, and a test asserts that a ten-instance step carries exactly one.
+6. **PII volume, not PII kind.** Section 5.7. The erasure path already reaches every table; what the bound governs is how much there is to erase.
 7. **SEC-13 needs one addition and no exception**: `ins_` joins the permitted branded-id prefixes in the span and log allowlists as a pseudonymous correlator. No value, no count and no label follows it.
 8. **The origin belt (SEC-9)** already covers the step POST and covers the roster operation with it, because the roster operation _is_ a step POST.
 9. **Erasure's completeness claim** is only as good as its table list, and the list is hand-kept. Adding a table to the data plane without adding it to `eraseSession` is a silent gap, which is why section 12 makes it an exit criterion with an assertion rather than a deliverable with a checkbox.
 
----
+### 8.3 Where this is recorded
+
+**SEC-16, "repeating-group bounds"**, in `docs/SECURITY_DESIGN.md`: the per-form `max` rule, the deliberate absence of a global ceiling and what that leaves bounded per form, the `ins_` id prefix as a permitted correlator, and the abuse bounds above. It is a new control number rather than a paragraph inside an existing one because it is a statement about what is **not** controlled as much as about what is, and that is the kind of thing a reader has to be able to cite.
 
 ## 9. Out of scope, and why
 
@@ -529,127 +608,99 @@ The controls are SEC-numbered where they extend an existing one and named as new
 
 ---
 
-## 10. Open questions for the Code Owner
+## 10. The twenty-three questions, and the rulings
 
-Twenty-three, each with a recommendation. **Seven are ADR-sized** and are marked; section 10.1 drafts the ADR text a ruling on them would produce. The rest are decisions inside a design, and a ruling on them lands in a task rather than in the record.
+**All twenty-three were ruled by the Code Owner on 2026-09-30.** The table gives the ruling beside the recommendation the question was put with, and flags the **five that differ**. Each entry below then states the ruling, what it changes, and, where it differs, one line naming what was recommended instead. Seven of the questions were ADR-sized and the records they produced are named in Q23; nothing is drafted here any more.
 
-| #   | Question                                                                          | Recommendation                                                            |
-| --- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Q1  | Is repetition in scope, and where?                                                | **Phase 4, after task 038.**                                              |
-| Q2  | One primitive with three presentations, or three mechanisms? **ADR**              | **One.**                                                                  |
-| Q3  | Is the table a presentation or a distinct question type? **ADR**                  | **A presentation.**                                                       |
-| Q4  | Which count sources ship, and is `max` required on open-ended?                    | **All three; `max` required.**                                            |
-| Q5  | What happens to a removed instance's answers?                                     | **Excluded, never deleted; reuse I6.**                                    |
-| Q6  | The instance label template and the ordinal.                                      | **`{n}` is the live ordinal; the id is never shown.**                     |
-| Q7  | How many new rule operators? **ADR**                                              | **Two: `anyInstance` and `instanceCount`.**                               |
-| Q8  | `FlowState`: parallel optional fields, or multi-version evaluation first? **ADR** | **Parallel optional fields now.**                                         |
-| Q9  | The no-JS add and remove mechanism.                                               | **Named submit buttons carrying `formnovalidate`.**                       |
-| Q10 | Table semantics: native `<table>` or `role="grid"`? **ADR**                       | **Native `<table>`.**                                                     |
-| Q11 | Focus and announcement after add and remove.                                      | **Follow APG: the following instance; no live region on the no-JS path.** |
-| Q12 | Which question types may be table columns?                                        | **shortText, number, date, boolean, singleChoice.**                       |
-| Q13 | Nesting depth. **ADR**                                                            | **One. A group may not contain a group.**                                 |
-| Q14 | Instance ceiling per group and per session.                                       | **100 per group, 200 per session, both in core.**                         |
-| Q15 | The separator in a qualified answer key.                                          | **`/`.**                                                                  |
-| Q16 | Roster storage: a new table, or inside `answers`? **ADR**                         | **A new append-only table.**                                              |
-| Q17 | CSV export shape.                                                                 | **Long, one extra file per group, zipped.**                               |
-| Q18 | How `reporting.responses.answers` represents a group.                             | **One key per group id holding an ordered array.**                        |
-| Q19 | Does the redacted outbox payload carry instance counts?                           | **No.**                                                                   |
-| Q20 | Does the answer endpoint gain a batch form?                                       | **Yes.**                                                                  |
-| Q21 | The `qcms_step_ctx` cookie under N instances.                                     | **Take `values` and `missingRequired` from the API; cap the rest.**       |
-| Q22 | How the ADR-28 cursor addresses a per-instance step page.                         | **`(stepId, instanceId)`, in `visibleStepViews`.**                        |
-| Q23 | Which ADRs are created and which are amended.                                     | **Two new, nine amended or noted.**                                       |
+| #   | Question                                                                          | Recommended                                                    | Ruled 2026-09-30                                                                        |
+| --- | --------------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Q1  | Is repetition in scope, and where?                                                | Phase 4, after task 038                                        | **DIFFERS: into launch scope.** The cut-line moves.                                     |
+| Q2  | One primitive with three presentations, or three mechanisms? **ADR**              | One                                                            | As recommended: one primitive, three presentations.                                     |
+| Q3  | Is the table a presentation or a distinct question type? **ADR**                  | A presentation                                                 | As recommended: a presentation, not a question type.                                    |
+| Q4  | Which count sources ship, and is `max` required on open-ended?                    | All three; `max` required on `open`                            | **DIFFERS by consequence of Q14:** all three, and `max` required on `fromAnswer` too.   |
+| Q5  | What happens to a removed instance's answers?                                     | Excluded, never deleted; reuse I6                              | As recommended.                                                                         |
+| Q6  | The instance label template and the ordinal.                                      | `{n}` is the live ordinal; the id is never shown               | As recommended.                                                                         |
+| Q7  | How many new rule operators? **ADR**                                              | Two: `anyInstance` and `instanceCount`                         | **DIFFERS: three.** `everyInstance` ships, and is **false** over an empty group.        |
+| Q8  | `FlowState`: parallel optional fields, or multi-version evaluation first? **ADR** | Parallel optional fields now                                   | As recommended; the tidy-up is the first job of multi-version evaluation.               |
+| Q9  | The no-JS add and remove mechanism.                                               | Named submit buttons carrying `formnovalidate`                 | As recommended: `__qop`, `formnovalidate`, instance-qualified names.                    |
+| Q10 | Table semantics: native `<table>` or `role="grid"`? **ADR**                       | Native `<table>`                                               | As recommended: a native `<table>`, never `role="grid"`.                                |
+| Q11 | Focus and announcement after add and remove.                                      | APG destinations; no live region on the no-JS path             | As recommended, plus a fragment landing on the no-JS path.                              |
+| Q12 | Which question types may be table columns?                                        | shortText, number, date, boolean, singleChoice                 | As recommended, and the stacked presentation is **one input per row**, all seven types. |
+| Q13 | Nesting depth. **ADR**                                                            | One. A group may not contain a group                           | As recommended: depth one, refused at parse.                                            |
+| Q14 | Instance ceiling per group and per session.                                       | 100 per group, 200 per session, both core constants            | **DIFFERS: no installation-wide ceiling. Per-form `max` only.**                         |
+| Q15 | The separator in a qualified answer key.                                          | `/`                                                            | As recommended: `/`.                                                                    |
+| Q16 | Roster storage: a new table, or inside `answers`? **ADR**                         | A new append-only table                                        | As recommended: `answer_group_instances`.                                               |
+| Q17 | CSV export shape.                                                                 | Long, one extra file per group, zipped                         | **DIFFERS: both shapes.** Long is the default; wide indexed columns are an option.      |
+| Q18 | How `reporting.responses.answers` represents a group.                             | One key per group id holding an ordered array                  | As recommended; `jsonb_object_agg` must stop collapsing duplicates.                     |
+| Q19 | Does the redacted outbox payload carry instance counts?                           | No                                                             | As recommended: no ids, no roster, no counts.                                           |
+| Q20 | Does the answer endpoint gain a batch form?                                       | Yes                                                            | As recommended, and **issue #968 is fixed in the same work**.                           |
+| Q21 | The `qcms_step_ctx` cookie under N instances.                                     | Take `values` and `missingRequired` from the API; cap the rest | As recommended, with defined overflow behaviour.                                        |
+| Q22 | How the ADR-28 cursor addresses a per-instance step page.                         | `(stepId, instanceId)`, in `visibleStepViews`                  | As recommended: the cursor indexes `visibleStepViews`.                                  |
+| Q23 | Which ADRs are created and which are amended.                                     | Two new, nine amended or noted                                 | As recommended, **plus a new SEC-16**.                                                  |
 
-**Q1. Is repetition in scope, and where?** Nothing in the record rules it in or out. It is absent from `docs/PROJECT_GOAL.md` section 5's exclusion list, absent from ARCHITECTURE section 12's reserved seams, and there is no open or closed issue about repeating groups, loops, matrices, rosters or a table question type. **Recommendation: Phase 4, dispatched after task 038, recorded in the ledger and in `docs/features/039-phase4-backlog.md` the way the file-upload question type already is** ("versioned core change + storage story ... recorded so it's a decision, not an omission"). _Options:_ rule it out and close the question; take it into launch (which would move a cut-line the document says is enforced at review). _Consequence of doing nothing:_ the next author who needs six passengers authors thirty-six questions, and that form is then a published version nobody can refactor (R1).
+**Q1. Is repetition in scope, and where? Ruled: INTO LAUNCH SCOPE.** _Recommended: Phase 4, dispatched after task 038 and recorded in `docs/features/039-phase4-backlog.md` beside the file-upload question type._ The Code Owner ruled it into launch instead, and that **moves the launch cut-line** rather than fitting inside it, so the move is recorded at every place the cut-line or the launch scope is enumerated rather than only here: `docs/PROJECT_GOAL.md` section 5 lists repeating groups among what launch includes, `docs/IMPLEMENTATION_PLAN.md` carries the work as **stage 8c**, between admin authoring and distribution, and the ledger in `docs/features/README.md` carries 071 to 077 as launch-scope rows sequenced before task 038 rather than after it. It is **not** recorded in `039-phase4-backlog.md`, which is the Phase 4 itch ledger: putting launch scope there would make the one document whose job is to hold deferred work hold something that is not deferred. Section 12 re-sequences the tasks against their real dependencies, including issue #968 (Q20). _Consequence of the ruling:_ launch validation (038) now has a repeating-group walk in it, and the stage-8c work is on the critical path to the launch gate.
 
-**Q2. One primitive with three presentations, or three mechanisms? (ADR-sized.)** **Recommendation: one.** A looping question is a group of one, a looping step is a presentation, a table is a presentation. _Options:_ three separate kernel concepts, which triples the addressing, storage, export and rules work and gives an author three things to learn that behave differently at the edges. _Consequence:_ under one primitive, a decision about instance ids or the no-JS mechanism is taken once; under three it is taken three times and drifts.
+**Q2. One primitive with three presentations, or three mechanisms? (ADR-sized.) Ruled: one,** as recommended. A looping question is a group of one, a looping step is a presentation, a table is a presentation. _Recorded in:_ ADR-42. _Consequence:_ a decision about instance ids or the no-JS mechanism is taken once rather than three times.
 
-**Q3. Is the table a presentation, or a distinct question type? (ADR-sized.)** **Recommendation: a presentation.** Section 2.3 has the full cost of the alternative. The short version: a distinct type adds an `AnswerValue` member, breaks per-cell "empty is absence", per-cell validation and per-cell retraction, breaks the CSV and reporting grain, and lights up eight exhaustive switches plus the eight registration sites of `scripts/component-registration.test.ts`. _Options:_ a distinct `table` type, which is what an author asking for a "table question" will describe; a presentation, which is what the kernel can carry. _Consequence:_ the vocabulary cost of the recommendation is paid once in the admin's labelling; the cost of the alternative is paid forever in every layer below it.
+**Q3. Is the table a presentation, or a distinct question type? (ADR-sized.) Ruled: a presentation,** as recommended. Section 2.3 has the full cost of the alternative: a distinct type adds an `AnswerValue` member, breaks per-cell "empty is absence", per-cell validation and per-cell retraction, breaks the CSV and reporting grain, and lights up eight exhaustive switches plus the eight registration sites of `scripts/component-registration.test.ts`. _Recorded in:_ ADR-42, which states it as the "why not a table question type" clause. _Consequence:_ the vocabulary cost is paid once in the admin's labelling; the alternative's cost would be paid forever in every layer below it.
 
-**Q4. Which count sources ship, and is `max` required on open-ended?** **Recommendation: all three, with `max` required on `open` and publish refusing its absence.** _Options:_ ship `fixed` and `fromAnswer` first and add `open` later, which is a sequencing choice the task breakdown takes rather than a scope one; leave `max` optional, which makes an open group an unbounded respondent-controlled insert loop. _Consequence:_ a required `max` is one more field an author sets and the only thing standing between a form and section 8's first abuse case.
+**Q4. Which count sources ship, and is `max` required? Ruled: all three ship, and `max` is REQUIRED on both `fromAnswer` and `open`.** _Recommended: all three, with `max` required on `open` alone._ The difference is a consequence of the Q14 ruling rather than a separate call: with no installation-wide ceiling, a group's own `max` is the only bound that exists, so a `fromAnswer` group without one lets the respondent's answer to the count question set the size of the loop. Publish refuses a missing `max` on either source with `REPEAT_MAX_MISSING`. **A fixed count is its own bound** and carries no `max`. _Consequence:_ a required `max` is one more field an author sets, and after Q14 it is the only thing standing between a form and section 8's first abuse case.
 
-**Q5. What happens to a removed instance's answers?** **Recommendation: excluded exactly as a hidden question's answers are excluded (I6), never deleted.** _Options:_ delete them, which would be a third whole-session-adjacent delete path where ADR-17 says there are two, and which would lose the audit answer to "what was answered and when it changed"; exclude them, which reuses a semantic the kernel already has and already tests. _Consequence:_ a respondent who removes passenger 3 and adds one back gets a **new** instance with no answers, while the removed one's answers stay in the ledger and in no export. A respondent who lowers a count and raises it again gets the **same** instance with its answers intact, because nothing was removed.
+**Q5. What happens to a removed instance's answers? Ruled: excluded exactly as a hidden question's answers are excluded (I6), never deleted,** as recommended. _Consequence:_ a respondent who removes passenger 3 and adds one back gets a **new** instance with no answers, while the removed one's answers stay in the ledger and in no export. A respondent who lowers a count and raises it again gets the **same** instance with its answers intact, because nothing was removed.
 
-**Q6. The instance label template and the ordinal.** **Recommendation: `instanceLabel: LocalizedText` with one `{n}` placeholder, `{n}` being the one-based live ordinal, recomputed after a removal; the `ins_` id is never shown to a respondent.** _Options:_ a stable ordinal that leaves a gap after a removal ("Passenger 1, Passenger 3"), which reads as a bug; no template, so the label is "Passengers 2", which is what a generic plural gives. _Consequence:_ the ordinal is presentation, so an export's `instance_ordinal` column is the ordinal **at submission** and the `instance_id` is what joins.
+**Q6. The instance label template and the ordinal. Ruled: `instanceLabel` with a single `{n}` placeholder, `{n}` being the one-based live ordinal recomputed after a removal; the `ins_` id is never shown to a respondent.** As recommended. _Consequence:_ the ordinal is presentation, so an export's `instance_ordinal` column is the ordinal **at submission** and the `instance_id` is what joins.
 
-**Q7. How many new rule operators? (ADR-sized, ADR-03.)** **Recommendation: two, `anyInstance` and `instanceCount`.** _Options:_ three, adding `everyInstance`, whose vacuous truth over an empty group is a trap ("every passenger holds a passport" is true of no passengers) and which is expressible as `not(anyInstance(not(c)))`; one, dropping `instanceCount` and making authors express a count through a count question, which does not work for an open-ended group that has none; zero, by letting the existing comparison operators take a `groupId` in place of a `questionId`, which changes seven node shapes instead of adding two and breaks the admin's parallel copy in seven places. _Consequence:_ each operator costs an edit to `visibility-rule.test.ts`'s hand-spelled list, a matching edit to `apps/admin/lib/forms/condition.ts`, a structured editor, a sentence in `rule-sentence.ts`, a `checkValue` branch in `rule-graph.ts` and a golden scenario.
+**Q7. How many new rule operators? (ADR-sized, ADR-03.) Ruled: THREE, `anyInstance`, `instanceCount` and `everyInstance`, and `everyInstance` over an empty group is FALSE.** _Recommended: two, cutting `everyInstance` because its vacuous truth over an empty group is a trap and because it is expressible as `not(anyInstance(not c))`._ The ruling takes the operator and rules out the trap with it: the empty case is defined as false, **deliberately not vacuous truth**, so `everyInstance` is **not** equivalent to `not(anyInstance(not c))` when the group is empty. That non-equivalence is the part that has to be written down everywhere it would otherwise be assumed away, and it is:
 
-**Q8. `FlowState`: parallel optional fields, or multi-version evaluation first? (ADR-sized, ADR-16.)** **Recommendation: parallel optional fields now, and record the tidy-up as the first thing multi-version evaluation buys.** Section 3.5 has the table. _Options:_ build multi-version evaluation, bump `SEMANTICS_VERSION` to 2 and widen `visibleSteps`, `missingRequired` and `answeredRequired` properly, which is cleaner, unblocks every future semantics change, and is a separate piece of work with its own risk; take the parallel fields, which is additive, passes all forty-four golden scenarios unedited, and leaves `FlowState` carrying two arrays that mean nearly the same thing. _Consequence:_ this is the one place the design is ugly, and the plan would rather say so than produce a `FlowState` that looks tidy and cannot ship.
+- **ADR-03's amendment** states the operator set and the empty-group reading as part of the decision.
+- **The evaluator semantics** (section 3.4) make the empty roster a base case that short-circuits to false, never a fold whose identity is true.
+- **The golden scenarios** append the empty-group case beside all-match and one-mismatch, so the reading is pinned by a committed expectation rather than by prose.
+- **The rule sentence** reads "every passenger ... (and there is at least one passenger)", because an author reading "every passenger holds a passport" would otherwise supply the classical reading themselves. The sentence is false until a passenger exists, and it says so.
+- **The test bench** evaluates against zero instances, so an author can see the false result rather than read about it.
 
-**Q9. The no-JS add and remove mechanism.** **Recommendation: named submit buttons (`name="__qop"`) carrying `formnovalidate`, with instance-qualified field names and no repeated names.** Section 4.2. _Options:_ over-provision blank instances up to `max` and let the respondent fill the ones they want, which posts `max` empty instances on every step and makes "how many passengers" unanswerable; a second `<form>` per instance, which cannot carry the step's other answers and would lose them on every add. _Consequence:_ `decodeStepForm` gains one reserved prefix and the step route gains one branch, and `docs/portal-constraints.md` is updated in the same change, its exception list still empty.
+_Consequence:_ each operator costs an edit to `visibility-rule.test.ts`'s hand-spelled list, which goes to sixteen, a matching edit to `apps/admin/lib/forms/condition.ts`, a structured editor, a sentence in `rule-sentence.ts`, a `checkValue` branch in `rule-graph.ts` and a golden scenario.
 
-**Q10. Table semantics: native `<table>` or `role="grid"`? (ADR-sized, portal.)** **Recommendation: native `<table>`.** Section 4.4 has the four reasons and the cost. _Options:_ `role="grid"` with a roving tabindex, which APG says requires author code to manage focus and therefore cannot exist with scripting off; a native table, whose documented cost is one tab stop per cell. _Consequence:_ the tab-stop count is bounded by the group's `max` and the column count, which makes Q14's ceiling an accessibility control as well as an abuse one.
+**Q8. `FlowState`: parallel optional fields, or multi-version evaluation first? (ADR-sized, ADR-16.) Ruled: parallel optional fields now,** as recommended, **and the tidy-up is recorded as the first job of multi-version evaluation.** Section 3.5 has the table. _Consequence:_ this is the one place the design is ugly, `FlowState` carries two arrays that mean nearly the same thing, and the record says why rather than hiding it. ADR-16's amendment carries the tidy-up as the first thing multi-version evaluation buys, so the debt has a named creditor.
 
-**Q11. Focus and announcement after add and remove.** **Recommendation: after add, the new instance's heading; after remove, the heading of the instance that took its place, falling back to the Add button when the removed one was last; a `role="status"` region on the scripted path only.** Section 4.3. _Options:_ the Add button in every case, which an earlier draft of this document recommended and which contradicts APG's stated destination; no focus move at all, which drops focus to the body on the scripted path. _Consequence:_ the no-JS landing is reached by a fragment in the 303, and no source covers focus after a POST-redirect-GET, so that half is a decision rather than a citation.
+**Q9. The no-JS add and remove mechanism. Ruled: named `__qop` submit buttons carrying `formnovalidate`, with instance-qualified field names and no repeated names.** As recommended. Section 4.2. _Consequence:_ `decodeStepForm` gains one reserved prefix and the step route gains one branch, and `docs/portal-constraints.md` is updated in the same change, its exception list still empty.
 
-**Q12. Which question types may be table columns?** **Recommendation: `shortText`, `number`, `date`, `boolean`, `singleChoice`. Refuse `longText` and `multiChoice` at publish.** _Options:_ allow all seven, which puts a textarea and a checkbox group in a cell and makes the phone card reflow unreadable; allow fewer (drop `date`, whose native control is wide), which costs the assets table its acquisition date. _Consequence:_ an author who needs a long text or a multi-choice per row uses the stacked presentation, which the admin says at the point of refusal rather than in documentation.
+**Q10. Table semantics: native `<table>` or `role="grid"`? (ADR-sized, portal.) Ruled: a native `<table>`, never `role="grid"`.** As recommended. Section 4.5 has the four reasons and the cost. _Consequence:_ the documented cost is one tab stop per cell, so the count is `columns x max`, and after the Q14 ruling the group's own `max` is the whole of the mitigation.
 
-**Q13. Nesting depth. (ADR-sized.)** **Recommendation: one. A repeating group may not contain a repeating group, refused at parse.** _Options:_ allow two, which is enough for "passengers, each with bags" and turns an instance address into a path, the evaluator's walk into a nested loop, the CSV grain into a tree and an error summary entry into "Passenger 2, Bag 3: weight is required"; allow arbitrary depth with a cap, which is the same cost with a larger number. _Consequence:_ lifting the cap later is a real change to addressing and export, not a constant, so the plan would rather the Code Owner say no deliberately than have the cap read as an oversight.
+**Q11. Focus and announcement after add and remove. Ruled: the APG focus destinations, a status region on the JS path, and a fragment landing on the no-JS path.** As recommended: after add, the new instance's heading; after remove, the heading of the instance that took its place, falling back to the previous instance when the removed one was last; a `role="status"` region on the scripted path only. Section 4.3. _Consequence:_ no source covers focus after a POST-redirect-GET, so the fragment landing is a decision this plan takes rather than a citation it makes, and task 030's manual pass is where it is tested.
 
-**Q14. Instance ceiling per group and per session.** **Recommendation: a group's `max` may not exceed 100, and one session may not hold more than 200 live instances across all groups. Both are core constants, both are publish-validated, and the API refuses an add that would cross either.** _Options:_ no ceiling, so a form is as safe as its least careful author; a lower ceiling, which would refuse a legitimate twenty-holding portfolio; a configurable ceiling, which is a typed setting whose safe value nobody knows. _Consequence:_ the number also bounds the tab-stop count in a table (Q10), the field count in a step POST (section 8) and the evaluator's per-instance walk (section 3.4), so it is one number doing four jobs and is worth choosing on purpose.
+**Q12. Which question types may be table columns, and how does the stacked presentation lay a card out? Ruled in two halves.** **Stacked:** one input per row, a single column with no side-by-side fields at any width, and **every** question type allowed. **Table:** five cell types, `shortText`, `number`, `date`, `boolean` and `singleChoice`, with `longText` and `multiChoice` refused at publish and the admin pointing at the stacked presentation. Sections 4.4 and 4.5. _Consequence:_ the two presentations are deliberately asymmetric, and the asymmetry is what makes the refusal survivable: an author refused a column type has a presentation that takes it.
 
-**Q15. The separator in a qualified answer key.** **Recommendation: `/`, as in `ins_7k2/q_passport`.** _Options:_ `/`, which no branded id contains, is a legal HTML `id` and fragment, and needs `CSS.escape` in a selector (already polyfilled for react-aria); `__`, which needs no escaping but adds a rule about what a branded id may hold and reads like the `__qk__` and `__qa__` marker prefixes; `.`, which is not usable in a CSS selector without escaping either and is worse in a fragment. _Consequence:_ whichever is chosen is baked into every stored `answers.instance_id` join, every field name, every DOM id and every error-summary anchor, so it is cheaper to choose than to change.
+**Q13. Nesting depth. (ADR-sized.) Ruled: one. A repeating group may not contain a repeating group, refused at parse.** As recommended. _Consequence:_ lifting the cap later is a real change to addressing and export, not a constant, so the record says no deliberately rather than leaving the cap to read as an oversight.
 
-**Q16. Roster storage: a new table, or inside `answers`? (ADR-sized.)** **Recommendation: a new append-only table, `answer_group_instances`.** Section 5.2. _Options:_ a synthetic answer keyed by the group id, which reuses the existing triggers and erasure path for free and puts a non-`questionId` in `answers.question_id`, colliding with `UNKNOWN_QUESTION`, with R6's statement of what a `questionId` is, and with the reporting contract that a row is a question; a new table, which costs two triggers, a CHECK, an index, a foreign key, an `EXPECTED_TABLES` entry, an erasure-path entry and three lines in ADR-40's per-environment guard table. _Consequence:_ the new table gives removal an explicit audit row ("this instance was removed at T"), which the synthetic answer could only express as a value diff.
+**Q14. Instance ceiling per group and per session. Ruled: NO INSTALLATION-WIDE CEILING. Per-form limits only.** _Recommended: a group's `max` capped at 100 and a session capped at 200 live instances, both core constants, both publish-validated._ The ruling removes both. Bounds come **solely from each group's author-set `max`**, which Q4 as amended makes required on every source that is not `fixed`, enforced by publish and by the API. Section 8 is rewritten to it, and states plainly what that leaves: with no global ceiling, the payload, the tab-stop count (Q10), the POST size and the evaluator cost are bounded **only per form**. The request-size and rate limits that already exist are kept as they are; no global cap is invented in their place, and the roster operation's own rate limit bounds how fast a bounded operation may be repeated rather than how large it may become. _Consequence:_ an author's `max` is a security-relevant field, and form review rather than a core constant is where it is checked. SEC-16 records both the rule and the absence, because a reader needs to be able to cite what is deliberately not controlled.
 
-**Q17. CSV export shape.** **Recommendation: long, one extra file per group, delivered as a zip when the form has any group; a form with none exports exactly the file it exports today.** Section 5.5. _Options:_ indexed wide columns, which makes the header depend on `max` rather than on the data and produces 500 mostly-empty columns for a `max: 500` group, and silently changes an automated consumer's header when a later form version raises `max`; long files, which changes the download from a file to a zip for repeat forms and asks a consumer to join on `session_id`. _Consequence:_ the export route already requires a `version` parameter for CSV because the column set depends on the version's shape; that stays true and the group files inherit it.
+**Q15. The separator in a qualified answer key. Ruled: `/`, as in `ins_7k2/q_passport`.** As recommended. _Consequence:_ it is baked into every stored `answers.instance_id` join, every field name, every DOM id and every error-summary anchor, and it needs `CSS.escape` in a selector, which the shared jsdom setup already polyfills.
 
-**Q18. How `reporting.responses.answers` represents a group.** **Recommendation: keep `questionId -> value` for everything outside a group and add one key per group id holding an ordered array of `{instance_id, questionId: value, ...}`.** _Options:_ flatten with composite keys (`grp_passengers/ins_7k2/q_passport`), which keeps the object flat and makes every consumer parse a key; the nested array, which is one more shape to document and reads the way the data is. _Consequence:_ either way, `jsonb_object_agg` must stop collapsing duplicates, which it does today with no error and no warning.
+**Q16. Roster storage: a new table, or inside `answers`? (ADR-sized.) Ruled: a new append-only table, `answer_group_instances`.** As recommended. Section 5.2. _Consequence:_ the new table gives removal an explicit audit row, which the synthetic-answer alternative could only express as a value diff, and it costs two triggers, a CHECK, an index, a foreign key, an `EXPECTED_TABLES` entry, an erasure-path entry and three lines in ADR-40's per-environment guard table.
 
-**Q19. Does the redacted outbox payload carry instance counts?** **Recommendation: no. The redacted payload carries no instance ids, no roster and no counts.** _Options:_ carry the count as operational metadata, which is genuinely useful to a consumer reconciling a delivery and is disclosive on its own ("how many dependants"); carry nothing, which keeps the CHECK's guarantee readable as "after redaction there is no respondent-derived value of any kind". _Consequence:_ recorded as a decision rather than an omission, so the next person to add a field to that payload reads the rule rather than the absence.
+**Q17. CSV export shape. Ruled: BOTH shapes.** _Recommended: the long shape alone, one extra file per group, zipped._ The ruling keeps long as the **default** and adds indexed wide columns as an **export option**. Section 5.5 has both, and carries the documentation the wide option requires: **a wide export's header depends on each version's `max` and changes when `max` changes**, which is why the export route's existing `version` requirement is the thing that makes a wide export automatable at all. _Consequence:_ a consumer who automates a wide export pins the version they bound to, and the export screen says so; a consumer who wants a stable header takes the long shape, which is what it is the default for.
 
-**Q20. Does the answer endpoint gain a batch form?** **Recommendation: yes, and the no-JS step route uses it.** _Options:_ keep one call per answer, which is fifty-four sequential round trips and fifty-four advisory locks for one nine-passenger Continue; add a batch, which is one transaction, one lock and one flow evaluation, and which also makes the answers and the roster operation atomic. _Consequence:_ the respondent-facing API carries no stability promise (ARCHITECTURE section 5.1), so this is an internal contract change and not a versioned one. It should also be weighed against **issue #968**, which is open and records that the submit sweep runs before the session lock; a batch endpoint is the natural place to fix the same class of race on the answer path.
+**Q18. How `reporting.responses.answers` represents a group. Ruled: a nested array per group,** as recommended: `questionId -> value` for everything outside a group, and one key per group id holding an ordered array of `{instance_id, questionId: value, ...}`. **`jsonb_object_agg` must stop collapsing duplicates**, which it does today with no error and no warning. _Consequence:_ a form with no group produces a byte-identical `answers` object, so the change is additive in fact and not only in principle.
 
-**Q21. The `qcms_step_ctx` cookie under N instances.** **Recommendation: a repeat form's re-render takes `values` and `missingRequired` from the API's own step projection, which already returns both, and the cookie keeps only the 422 constraint errors, capped, with a documented behaviour on overflow.** _Options:_ leave it, and discover the 4 KB limit as a respondent losing every answer on a step with nine passengers and an error on each; move the whole context server side, which is state the BFF may not hold (R2). _Consequence:_ the cookie is 15 seconds and httpOnly today and stays so; what changes is how much of the re-render it is responsible for.
+**Q19. Does the redacted outbox payload carry instance counts? Ruled: no. The redacted payload carries no instance ids, no roster and no counts.** As recommended. _Consequence:_ the CHECK's guarantee stays readable as "after redaction there is no respondent-derived value of any kind", and SEC-16 records it so the next person to add a field to that payload reads the rule rather than the absence.
 
-**Q22. How the ADR-28 cursor addresses a per-instance step page.** **Recommendation: the cursor stays a 0-based index, into the new `visibleStepViews` rather than into `visibleSteps`, and a view is `(stepId, instanceId | null)`.** _Options:_ a compound cursor on the wire (`?step=3&instance=ins_7k2`), which puts a session-scoped id in a URL a respondent can see and edit; an index into a list the server computes, which is what the cursor already is and what keeps `progress: {stepIndex, totalVisibleSteps}` meaningful. _Consequence:_ ADR-28's rule is unchanged: Continue advances one view, Back returns one, Submit appears on the last, and answering never moves the page by itself. A group of three passengers on a `perInstanceStep` presentation is three views and the progress indicator says so.
+**Q20. Does the answer endpoint gain a batch form? Ruled: yes, the no-JS step route uses it, and issue #968 is fixed in the same work.** As recommended, with the dependency promoted from advice to a deliverable: #968 records that the required-answer sweep runs before the session lock, so a concurrent retraction can leave the ledger and the submission out of step, and a repeat multiplies that window by the number of fields a step posts. **Closing #968 is part of task 073's deliverables and exit criteria**, not a prerequisite that might land elsewhere. _Consequence:_ the respondent-facing API carries no stability promise (ARCHITECTURE section 5.1), so the batch is an internal contract change and not a versioned one; and the batch is what makes the answers and the roster operation one transaction under one lock.
 
-**Q23. Which ADRs are created and which are amended.** **Recommendation: two new records and nine touched.** New: **ADR-42 (core), repetition is a form-level group**; **ADR-43 (portal), repeat rendering, the no-JS roster operation and the table's semantics**. Amended or noted: ADR-01 (the compiler emits a template the renderer expands), ADR-03 (two operators), ADR-14 (the roster reaches the renderer without widening `StepResolverContext`), ADR-16 (the per-instance pass, within `semanticsVersion` 1), ADR-18 (a new `a2uiSpecVersion` and a new golden generation), ADR-28 (the cursor indexes views), ADR-31 (add and remove commit immediately; no control's row changes), ADR-33 (a retraction is per instance), ADR-40 (three more guards and one more foreign key per environment). Also **`docs/SECURITY_DESIGN.md`**: SEC-13 gains the `ins_` prefix, and the abuse section gains the instance ceilings; whether that is a new SEC number or a paragraph in an existing one is the Code Owner's call. _Consequence:_ none of those files is edited by this document; each is edited by the task that lands the behaviour it describes.
+**Q21. The `qcms_step_ctx` cookie under N instances. Ruled: the re-render takes `values` and `missingRequired` from the API step projection, and the cookie keeps only the 422 constraint errors, capped, with defined overflow behaviour.** As recommended. _Consequence:_ the cookie stays 15 seconds and httpOnly; what changes is how much of the re-render it is responsible for, and what it does when the cap is reached is written down rather than discovered.
 
-### 10.1 Draft ADR text
+**Q22. How the ADR-28 cursor addresses a per-instance step page. Ruled: the cursor indexes `visibleStepViews`, a list of `(stepId, instanceId | null)`.** As recommended, and it stays a 0-based index into a list the server computes rather than a compound cursor on the wire. _Consequence:_ ADR-28's rule is unchanged, and `progress: {stepIndex, totalVisibleSteps}` counts views, so a three-passenger `perInstanceStep` group is three views and the progress indicator says so.
 
-Drafted here, in `plan/`, so a ruling produces a record rather than a drafting exercise. Nothing below is in `docs/adr/` and nothing below is decided.
+**Q23. Which records are created and which are amended. Ruled: two new ADRs, nine amendments, and a new SEC number.** _Recommended: two new and nine touched, with the security half left as the Code Owner's call between a new SEC number and a paragraph in an existing one._ The ruling takes the new number. The record is:
 
----
+- **ADR-42 (core), "Repetition is a form-level group"** and **ADR-43 (portal), "Repeat rendering and the no-JS roster operation"**, both indexed in `docs/adr/README.md`.
+- **Amendment notes on ADR-01** (the compiler emits a template the renderer expands), **ADR-03** (three operators, with `everyInstance` false over an empty group), **ADR-14** (the roster reaches the renderer without widening `StepResolverContext`), **ADR-16** (the per-instance pass within `semanticsVersion` 1, and the `FlowState` tidy-up as multi-version evaluation's first job), **ADR-18** (a new `a2uiSpecVersion` and a new golden generation), **ADR-28** (the cursor indexes views), **ADR-31** (add and remove commit immediately; no control's row changes), **ADR-33** (a retraction is per instance) and **ADR-40** (three more guards and one more foreign key per environment).
+- **SEC-16, "repeating-group bounds"**, in `docs/SECURITY_DESIGN.md`: the per-form `max` rule, the absence of a global ceiling, the `ins_` id prefix, and the abuse bounds.
 
-**ADR-42 - Repetition is a form-level group** _(would live in `docs/adr/core.md`)_
-
-**Status:** proposed; not built. `plan/repeating-groups-and-table-input.md` is the working record and its section 10 carries the questions.
-
-**Decision.** A form may repeat a named group of pinned questions. The group lives in a step's item list, not on a question and not on a step, and it is answered once per **instance**. An instance carries a stable, opaque, session-scoped id minted once and never reused or renumbered; the ordinal a respondent reads is its position in the live roster and is presentation only. A **looping question** is a group of one member. A **looping step** and a **table** are presentations of the same group, not separate constructs. No question type is added: the closed set stays seven and `AnswerValue` is unchanged.
-
-An answer is keyed by `questionId` outside a group and by `instanceId/questionId` inside one, so a question outside every group keeps the key it has today. A `questionId` is still pinned at most once in a form; a question is either repeated or not.
-
-The roster is state the server owns, held in its own append-only table with the ledger's guards, and passed to the evaluator beside the answers. A removed instance is never deleted: its answers are excluded from evaluation, from the locked submission and from reporting exactly as a hidden question's answers are (I6), and its removal is an appended row.
-
-A group may not contain a group. A group's maximum instance count is bounded in core, and an open-ended group must declare a maximum.
-
-**Why not a table question type.** A composite `AnswerValue` would break per-cell validation, per-cell retraction and "empty is absence" per cell, would make a partial table unstorable, and would change the grain of the ledger, the export and the reporting view, all of which are one row per question. A table as a presentation keeps every cell an ordinary answer.
-
-**Consequences.** `SNAPSHOT_SCHEMA_VERSION` moves to 2 because the snapshot's shape changes. `SEMANTICS_VERSION` stays 1, and that is load-bearing rather than convenient: the evaluator implements one version at a time and refuses any other stamp, so a bump would make every published snapshot fail rather than preserve it. Every change is therefore additive, a form with no group evaluates byte-identically, and the committed golden scenarios pass with no `expected` block edited. `@roonga/qcms-core` and `@roonga/qcms-db` move by a minor: every schema change is additive and no canonical encoding changes.
-
-**Note.** ADR-03 gains two operators, `anyInstance` and `instanceCount`, which is a versioned core change under that decision. ADR-16's forward-only rule is applied to a group's whole span rather than to a single position, and a rule may not read a different instance of the same group, because roster order is not document order. ADR-40's per-environment set grows by three guards and one foreign key.
-
----
-
-**ADR-43 - Repeat rendering and the no-JS roster operation** _(would live in `docs/adr/portal.md`)_
-
-**Status:** proposed; not built.
-
-**Decision.** The compiler emits a `RepeatGroup` **template** node carrying the group's member controls once. The renderer clones it per live instance and qualifies each cloned control's `name`, so the stored compiled document is served verbatim and expansion is a render-time transform, as `withNativeSubmit` and `documentForVisible` already are (ADR-18 unaffected). The roster reaches the renderer from the API's step projection; the portal still evaluates nothing (R2).
-
-Adding and removing an instance without scripting is a **named submit button** on the step's own form, carrying `formnovalidate` so that a half-filled step can still add an instance. The operation rides the whole-step POST that already exists, is applied after the step's answers, and returns the same 303 with a fragment naming the instance to focus. Field names are unique per instance; no repeated field name is relied on.
-
-A table presentation renders a native `<table>` with a caption, column headers, a row header per instance and **a real label on every input**, and never `role="grid"`. A grid requires author code to manage focus, so it cannot exist with scripting disabled, and a table's documented cost is one tab stop per cell.
-
-**Consequences.** `docs/portal-constraints.md` is updated in the same change and its exception list stays empty: there is still no question shape a respondent without scripting cannot answer. `A2UI_SPEC_VERSION` moves and a new golden generation opens. The re-render context outgrows one cookie and moves what it can to the API's own projection. The answer endpoint gains a batch form, because one call per answer does not survive a nine-instance step.
-
-**Note.** No ADR-31 commit-moment row changes: a repeat is a layout and not a control, and the cells keep the moments their types already have. Adding and removing an instance commits immediately, because it changes state the server owns and the server is the only evaluator.
-
----
+_Consequence:_ each record carries the status "decided; not built", naming its owning task, following the precedent PR #997 set for ADR-40, ADR-41 and SEC-14.
 
 ## 11. Acceptance cases
 
-Numbered and testable. Each names the layer it is proved at, per ADR-23.
+Numbered and testable. Each names the layer it is proved at, per ADR-23. The list is rewritten to the rulings of 2026-09-30, so the cases that proved the recommended installation-wide ceiling are gone and cases proving the ruled behaviour are in their place.
 
 **Additivity**
 
@@ -664,115 +715,134 @@ Numbered and testable. Each names the layer it is proved at, per ADR-23.
 6. A `questionId` pinned both inside a group and outside it is refused at parse with `DUPLICATE_QUESTION_IN_FORM`. _(unit)_
 7. A group inside a group is refused at parse. _(unit)_
 8. A `fromAnswer` count whose question appears after the group is refused at publish with `REPEAT_COUNT_BACKWARD_REF`; one that appears before it publishes. _(unit)_
-9. A group whose `max` exceeds the core ceiling is refused at publish. _(unit)_
-10. An `open` group with no `max` is refused at publish. _(unit)_
+9. **`max` is required on both bounded count sources.** An `open` group with no `max` is refused at publish with `REPEAT_MAX_MISSING`, and so is a `fromAnswer` group with no `max`; a `fixed` group publishes carrying no `max` at all, because its count is its own bound. _(unit)_
+10. **There is no installation-wide ceiling, asserted as a positive case.** A group declaring `max: 5000` publishes without error, and no core constant is consulted, so the absence of the ceiling is pinned by a test rather than by the absence of one. _(unit)_
 11. A rule targeting a question inside a group evaluates once per live instance, and a condition reading a question in the same group resolves to that instance's answer and to no other. _(unit, golden)_
 12. `anyInstance` is true when one of three instances matches and false when none does; `instanceCount gte 5` is false at four instances and true at five. _(unit, golden)_
-13. A rule reading a question inside a group and targeting a question outside it is refused at publish unless its target follows the group's whole span. _(unit)_
-14. A removed instance's answers are excluded from every later condition, from `missingRequired`, and from the locked submission, while remaining in the ledger. _(unit, golden, integration)_
-15. Lowering a `fromAnswer` count hides the trailing instance; raising it again restores the same instance id with its answers intact. _(integration)_
-16. A required question inside a group with three live instances and two answered produces exactly one `MISSING_REQUIRED` entry naming the third instance. _(unit)_
-17. A group below `min` or above `max` at submit is refused with `REPEAT_COUNT_OUT_OF_RANGE`. _(unit)_
-18. A cell posted as `""` or `[]` is refused with `EMPTY_ANSWER_NOT_ALLOWED`, per cell, and `null` retracts that cell alone. _(integration)_
+13. **`everyInstance` is true when all three instances match, false when one does not, and FALSE over an empty group**; the same scenario asserts that `not(anyInstance(not c))` is **true** over that empty group, so the non-equivalence the Q7 ruling creates is pinned rather than assumed. _(unit, golden)_
+14. A rule reading a question inside a group and targeting a question outside it is refused at publish unless its target follows the group's whole span. _(unit)_
+15. A removed instance's answers are excluded from every later condition, from `missingRequired`, and from the locked submission, while remaining in the ledger. _(unit, golden, integration)_
+16. Lowering a `fromAnswer` count hides the trailing instance; raising it again restores the same instance id with its answers intact. _(integration)_
+17. A required question inside a group with three live instances and two answered produces exactly one `MISSING_REQUIRED` entry naming the third instance. _(unit)_
+18. A group below `min` or above `max` at submit is refused with `REPEAT_COUNT_OUT_OF_RANGE`. _(unit)_
+19. A cell posted as `""` or `[]` is refused with `EMPTY_ANSWER_NOT_ALLOWED`, per cell, and `null` retracts that cell alone. _(integration)_
 
 **Storage**
 
-19. Two answers for one question in two instances both persist and both read back; `latestAnswers` returns one value per `(question, instance)`. _(integration, real Postgres)_
-20. An UPDATE and a DELETE on `answers` and on `answer_group_instances` are both rejected by trigger, outside the erasure door. _(integration, real Postgres)_
-21. `eraseSession` leaves no row in `answers`, `submissions` or `answer_group_instances` for that session, asserted by count, and writes one tombstone. _(integration, real Postgres)_
-22. `purgeExpired` reaches the roster table. _(integration, real Postgres)_
-23. `migrations.test.ts`'s `EXPECTED_TABLES` names the new table, and the drizzle chain and its snapshots link. _(unit)_
+20. Two answers for one question in two instances both persist and both read back; `latestAnswers` returns one value per `(question, instance)`. _(integration, real Postgres)_
+21. An UPDATE and a DELETE on `answers` and on `answer_group_instances` are both rejected by trigger, outside the erasure door. _(integration, real Postgres)_
+22. `eraseSession` leaves no row in `answers`, `submissions` or `answer_group_instances` for that session, asserted by count, and writes one tombstone. _(integration, real Postgres)_
+23. `purgeExpired` reaches the roster table. _(integration, real Postgres)_
+24. `migrations.test.ts`'s `EXPECTED_TABLES` names the new table, and the drizzle chain and its snapshots link. _(unit)_
 
 **Serving, both paths**
 
-24. With scripting on: answering three passengers, adding a fourth, removing the second, and submitting produces a locked set of three instances with the right answers against the right ids. _(browser)_
-25. With `javaScriptEnabled: false`: the same walk completes, including add and remove, and reaches the receipt. _(browser)_
-26. With scripting off, pressing **Add passenger** on a step with a blank required field adds the instance rather than being refused by the browser, and the step comes back with the API's own missing-required report. _(browser)_
-27. With scripting off, only the pressed button's name and value reach the server: a POST carries exactly one `__qop` entry, or none. _(unit on the decoder, browser on the wire)_
-28. An error summary entry reads "Passenger 2: passport number is required" and its anchor moves focus to that instance's passport field. _(browser)_
-29. After adding an instance with scripting on, focus is on the new instance's heading; after removing one, focus is on the heading of the instance that took its place, and on the Add button when the removed one was last. _(browser)_
-30. Adding an instance with scripting on announces through a `role="status"` region as a whole sentence. _(browser)_
-31. A ten-instance step carries exactly one honeypot decoy. _(unit on the compiled document, browser on the DOM)_
-32. A nine-instance step's re-render after a validation failure returns every answer the API accepted, with no cookie overflow. _(browser)_
-33. The whole-step POST for a nine-instance step makes one batched API call, not fifty-four. _(integration)_
+25. With scripting on: answering three passengers, adding a fourth, removing the second, and submitting produces a locked set of three instances with the right answers against the right ids. _(browser)_
+26. With `javaScriptEnabled: false`: the same walk completes, including add and remove, and reaches the receipt. _(browser)_
+27. With scripting off, pressing **Add passenger** on a step with a blank required field adds the instance rather than being refused by the browser, and the step comes back with the API's own missing-required report. _(browser)_
+28. With scripting off, only the pressed button's name and value reach the server: a POST carries exactly one `__qop` entry, or none. _(unit on the decoder, browser on the wire)_
+29. An error summary entry reads "Passenger 2: passport number is required" and its anchor moves focus to that instance's passport field. _(browser)_
+30. After adding an instance with scripting on, focus is on the new instance's heading; after removing one, focus is on the heading of the instance that took its place, and on the previous instance when the removed one was last. _(browser)_
+31. Adding an instance with scripting on announces through a `role="status"` region as a whole sentence. _(browser)_
+32. A ten-instance step carries exactly one honeypot decoy. _(unit on the compiled document, browser on the DOM)_
+33. A nine-instance step's re-render after a validation failure returns every answer the API accepted, with no cookie overflow, and an overflowing error set drops the oldest entries and says so rather than losing the answers. _(browser)_
+34. The whole-step POST for a nine-instance step makes one batched API call, not fifty-four. _(integration)_
+
+**Stacked presentation**
+
+35. **One input per row.** Inside an instance card no two controls share a horizontal band at any viewport project: every control's box starts at the card's content edge, asserted at 390px and at the widest project the config runs. _(browser)_
+36. A group whose members include `longText` and `multiChoice` publishes and renders in the stacked presentation, both types answerable on both paths. _(unit, browser)_
 
 **Table presentation**
 
-34. The table renders as a native `<table>` with a caption, `<th scope="col">` per column and `<th scope="row">` per row, and no `role="grid"` anywhere. _(unit, jsdom)_
-35. Every cell input has an accessible name naming its row and its column, asserted from the accessibility tree and not from the DOM. _(unit, jsdom)_
-36. At 390px the table reflows to one card per row, every input keeps the same accessible name, and the page has no horizontal scroll. _(browser, mobile project)_
-37. A column type outside the allowed set is refused at publish with `TABLE_COLUMN_TYPE_NOT_ALLOWED`. _(unit)_
-38. The column total is not an input, is not posted and appears in no locked answer set. _(browser, integration)_
-39. A focused cell in the first row is not obscured by a pinned header. _(browser)_
-40. axe reports no violation on a filled table at every viewport project. _(browser)_
+37. The table renders as a native `<table>` with a caption, `<th scope="col">` per column and `<th scope="row">` per row, and no `role="grid"` anywhere. _(unit, jsdom)_
+38. Every cell input has an accessible name naming its row and its column, asserted from the accessibility tree and not from the DOM. _(unit, jsdom)_
+39. At 390px the table reflows to one card per row, every input keeps the same accessible name, and the page has no horizontal scroll. _(browser, mobile project)_
+40. A column type outside the allowed set is refused at publish with `TABLE_COLUMN_TYPE_NOT_ALLOWED`, and the refusal names the stacked presentation. _(unit)_
+41. The column total is not an input, is not posted and appears in no locked answer set. _(browser, integration)_
+42. A focused cell in the first row is not obscured by a pinned header. _(browser)_
+43. axe reports no violation on a filled table at every viewport project. _(browser)_
 
 **Downstream**
 
-41. A CSV export of a form with one group produces the unchanged wide file plus one group file, joinable on `session_id`, with the formula-injection guard applied in both. _(integration)_
-42. A CSV export of a form with no group is byte-identical to today's. _(golden)_
-43. `reporting.answers_flat` returns one row per `(session, question, instance)` and loses nothing; the pre-change query against a non-repeating form returns identical rows. _(integration, real Postgres)_
-44. `reporting.responses.answers` for a non-repeating form is byte-identical to today's. _(integration, real Postgres)_
-45. The `response.submitted` payload carries every instance inside its `answers` member and nowhere else, asserted by walking the payload for respondent content outside that key. _(integration)_
-46. After redaction, the payload holds no `answers` key, no instance id and no count, and the CHECK holds. _(integration, real Postgres)_
-47. No exported span or log record carries an answer value or an instance label; `ins_` ids are permitted. _(integration, the existing in-test OTLP receiver)_
+44. A CSV export of a form with one group, in the default long shape, produces the unchanged wide file plus one group file, joinable on `session_id`, with the formula-injection guard applied in both. _(integration)_
+45. **The wide shape is an option and its header follows the version's `max`.** The same form and version requested in the wide shape returns one flat file carrying `q_passport__1` through `q_passport__<max>`, with the columns beyond a session's live count empty and the guard applied; the same request against a later version whose `max` is higher returns a header with more columns, asserted as the documented consequence rather than as a defect. _(integration)_
+46. A CSV export of a form with no group is byte-identical to today's, in either shape. _(golden)_
+47. `reporting.answers_flat` returns one row per `(session, question, instance)` and loses nothing; the pre-change query against a non-repeating form returns identical rows. _(integration, real Postgres)_
+48. `reporting.responses.answers` for a non-repeating form is byte-identical to today's, and for a repeating one carries the group's ordered array with no duplicate collapsed. _(integration, real Postgres)_
+49. The `response.submitted` payload carries every instance inside its `answers` member and nowhere else, asserted by walking the payload for respondent content outside that key. _(integration)_
+50. After redaction, the payload holds no `answers` key, no instance id and no count, and the CHECK holds. _(integration, real Postgres)_
+51. No exported span or log record carries an answer value or an instance label; `ins_` ids are permitted. _(integration, the existing in-test OTLP receiver)_
 
 **Abuse**
 
-48. An add that would exceed the group's `max` is refused by the API, and so is one that would exceed the session's total instance ceiling. _(integration)_
-49. A step POST above the field-count or body-size limit is refused with the standard error envelope. _(integration)_
-50. The roster operation is rate limited per session and per IP. _(integration)_
+52. An add that would exceed the group's `max` is refused by the API. The same test adds to `max` in **each of two groups in one session** and succeeds, because no per-session total ceiling exists to refuse it (Q14). _(integration)_
+53. A step POST above the request-size limits already in force is refused with the standard error envelope. _(integration)_
+54. The roster operation is rate limited per session and per IP, separately from the answer write. _(integration)_
 
 **Authoring**
 
-51. An author can define a group, choose each count source, set `min` and `max`, write the label template and switch presentation, and the draft round-trips through save and reload. _(browser, admin project)_
-52. The rules editor shows "evaluated per passenger" on a rule whose target is inside a group, and offers structured editors for both new operators. _(browser)_
-53. The test bench evaluates a rule against hypothetical instances and reports a per-instance result. _(browser)_
-54. The preview expands a group through the same renderer the portal uses, and its DOM for a repeated step matches the portal's structurally. _(browser)_
-55. The library picker offers only the allowed cell types when adding a column to a table-presented group, and says why. _(browser)_
+55. An author can define a group, choose each count source, set `min` and `max`, write the label template and switch presentation, and the draft round-trips through save and reload; a `fromAnswer` or `open` group with `max` left empty cannot be published and says why. _(browser, admin project)_
+56. The rules editor shows "evaluated per passenger" on a rule whose target is inside a group, and offers structured editors for all three new operators. _(browser)_
+57. The test bench evaluates a rule against hypothetical instances and reports a per-instance result, **including against zero instances**, where an `everyInstance` rule reports no match. _(browser)_
+58. The preview expands a group through the same renderer the portal uses, and its DOM for a repeated step matches the portal's structurally. _(browser)_
+59. The library picker offers only the allowed cell types when adding a column to a table-presented group, says why, and names the stacked presentation as the alternative. _(browser)_
 
 ---
 
 ## 12. Task breakdown
 
-**Numbers 071 to 077.** 070 is the highest allocated number; C1 to C3 deliberately hold no numbers so that 071 onward stay in circulation. Stage 9, Phase 4. None of this gates launch and none is dispatched before task 038.
+_Re-sequenced 2026-09-30 to the Q1 ruling. **This is launch scope**, so the old header ("Stage 9, Phase 4. None of this gates launch and none is dispatched before task 038") is wrong and is replaced rather than annotated._
 
-**Gates per task.** Every task runs `pnpm verify`. A task touching `apps/portal`, `apps/admin` or `@roonga/qcms-ui` also runs `QCMS_PORT_SEAT=<0-9> pnpm verify:browser`, detached. A task touching Docker-backed suites also runs the forced run (`pnpm exec turbo run test --force`, confirming it executed rather than cached), and a task changing the boot environment runs `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`. From task 064 onward those suites run once per environment, so if this track lands after the environments track its gate time is doubled with it.
+**Numbers 071 to 077, stage 8c.** 070 is the highest allocated number; C1 to C3 deliberately hold letters so that 071 onward stay in circulation. They sit in `docs/IMPLEMENTATION_PLAN.md` as **stage 8c**, between admin authoring (8a) and distribution (8b), because the work spans the kernel, the ledger, the API, both respondent paths and the admin, so no single existing stage holds it and the launch gate (038, at the end of 8b) is downstream of all of it.
 
-**One dependency outside this plan.** **Issue #968** (the submit sweep runs before the session lock) should close before 073, because repetition multiplies the window it describes by the number of fields a step posts and the no-JS path posts a whole step at once.
+**Sequencing against real dependencies, not against 038.** The old sequencing was "after task 038" for every task, which the ruling voids. What replaces it is each task's own dependency list:
+
+- **071 depends on nothing in flight.** It is the kernel change and it can start immediately.
+- **072 depends on 071** for the id types and the roster shape.
+- **073 depends on 071, 072 and on the fix for issue #968**, which it now carries itself (see below).
+- **074 depends on 071 and 073.** Part of it is forced into 071 already, because the admin does not typecheck once core gains an operator.
+- **075 depends on 071, 072 and 073.**
+- **076 and 077 each depend on 073** and on nothing else.
+- **038 (external launch validation) depends on the minimum slice**, which is the direction that reversed: launch validation now walks a repeating group, so 071 to 074 land before it rather than after it.
+
+**Issue #968 is a deliverable of 073, not a prerequisite of it** (Q20, ruled 2026-09-30). #968 records that the required-answer sweep runs before the session lock, so a concurrent retraction can leave the ledger and the submission out of step; a repeat multiplies that window by the number of fields a step posts, and the no-JS path posts a whole step at once. The batch answer endpoint 073 builds is the natural place the same class of race is fixed, so the ruling puts both in one piece of work rather than leaving a dependency to be scheduled.
+
+**Gates per task.** Every task runs `pnpm verify`. A task touching `apps/portal`, `apps/admin` or `@roonga/qcms-ui` also runs `QCMS_PORT_SEAT=<0-9> pnpm verify:browser`, detached. A task touching Docker-backed suites also runs the forced run (`pnpm exec turbo run test --force`, confirming it executed rather than cached), and a task changing the boot environment runs `QCMS_PORT_SEAT=<0-9> pnpm up:e2e`. Tasks 064 to 070 are Phase 4 and land after launch, so nothing here runs its suites once per environment; if this work ever rebases past that track, the gate time doubles with it.
 
 ### Track A - the model and the ledger
 
-**071 - The repeating group in the kernel.** Depends on 038. Q2, Q4, Q5, Q6, Q7, Q8, Q12, Q13, Q14 and Q15 all bear on it.
+**071 - The repeating group in the kernel.** No dependency in flight. Q2, Q4, Q5, Q6, Q7, Q8, Q12, Q13, Q14 and Q15 all bear on it.
 
-_Deliverables._ `GroupId` and `InstanceId` branded ids. `RepeatGroup`, `RepeatCount` and the widened `Step.items`. The widened `AnswerMap` key and the optional `rosters` parameter on `evaluateRules`. The per-instance forward pass and the two new operators, with `conditionDepth` reaching into `anyInstance`. `documentOrder` expanding a group into a span, and `analyzeRuleGraph` applying the forward-only rule to a span. `checkRuleTypes` gaining branches for both operators. The new publish codes of section 3.1 and the new submission code of section 3.3. The optional `FlowState` fields of section 3.5. `SNAPSHOT_SCHEMA_VERSION` to 2. The instance ceilings as core constants. Appended golden evaluator scenarios and corpus-local forms. **And the admin's parallel operator list in `apps/admin/lib/forms/condition.ts`, in this PR**, because the type-only import means the admin does not typecheck without it; nothing else in the admin moves here.
+_Deliverables._ `GroupId` and `InstanceId` branded ids. `RepeatGroup`, `RepeatCount` and the widened `Step.items`. The widened `AnswerMap` key and the optional `rosters` parameter on `evaluateRules`. The per-instance forward pass and the **three** new operators, with `conditionDepth` reaching into `anyInstance` and `everyInstance`, and **`everyInstance` over an empty roster short-circuiting to false as a base case rather than folding to a true identity**. `documentOrder` expanding a group into a span, and `analyzeRuleGraph` applying the forward-only rule to a span. `checkRuleTypes` gaining branches for all three operators. The new publish codes of section 3.1, including `REPEAT_MAX_MISSING` on both bounded count sources, and the new submission code of section 3.3. The optional `FlowState` fields of section 3.5. `SNAPSHOT_SCHEMA_VERSION` to 2. Appended golden evaluator scenarios and corpus-local forms, **including the empty-group `everyInstance` case**. **And the admin's parallel operator list in `apps/admin/lib/forms/condition.ts`, in this PR**, because the type-only import means the admin does not typecheck without it; nothing else in the admin moves here. **No instance ceiling constants**: the Q14 ruling removed them, and their absence is asserted by case 10 rather than left implicit.
 
-_Exit criteria._ Acceptance cases 1, 2, 3, 6 to 18, and the hand-spelled operator list in `visibility-rule.test.ts` naming fifteen operators deliberately. Plus: no `expected` block in `packages/core/golden/evaluator/` is modified, asserted by `check:golden-append-only` rather than by review; and `SEMANTICS_VERSION` is still 1, asserted by the constant and by case 1 passing.
+_Exit criteria._ Acceptance cases 1, 2, 3, 6 to 19, and the hand-spelled operator list in `visibility-rule.test.ts` naming sixteen operators deliberately. Plus: no `expected` block in `packages/core/golden/evaluator/` is modified, asserted by `check:golden-append-only` rather than by review; `SEMANTICS_VERSION` is still 1, asserted by the constant and by case 1 passing; and the `everyInstance` empty-group reading is pinned by case 13, which also asserts the non-equivalence with `not(anyInstance(not c))`.
 
 _Gates._ `pnpm verify`.
 
 **072 - The instance ledger.** Depends on 071.
 
-_Deliverables._ `answers.instance_id`, the widened `DISTINCT ON` in `latestAnswers` and the widened index. The `answer_group_instances` table with its two triggers, its CHECK, its index and its foreign key, in an appended migration. The roster read and the add and remove writes as query helpers. `eraseSession` and `purgeExpired` reaching the new table behind the existing door. The hand-kept `AnswerRow` type and its `_AnswerRowMatchesTable` guard (issue #5). `EXPECTED_TABLES` (issue #861). **And the proposed Note on ADR-40**: the per-environment guard set becomes fifteen and the foreign keys eight, with the two new trigger functions single in `control`, so task 064's generator emits them.
+_Deliverables._ `answers.instance_id`, the widened `DISTINCT ON` in `latestAnswers` and the widened index. The `answer_group_instances` table with its two triggers, its CHECK, its index and its foreign key, in an appended migration. The roster read and the add and remove writes as query helpers. `eraseSession` and `purgeExpired` reaching the new table behind the existing door. The hand-kept `AnswerRow` type and its `_AnswerRowMatchesTable` guard (issue #5). `EXPECTED_TABLES` (issue #861). **And the Note on ADR-40**: the per-environment guard set becomes fifteen and the foreign keys eight, with the two new trigger functions single in `control`, so task 064's generator emits them when that Phase 4 track runs.
 
-_Exit criteria._ Acceptance cases 19 to 23. Plus: an erasure leaves no row in any of the three tables, asserted by count against a real Postgres rather than by reading the code, because the erasure table list is hand-kept and a missing entry is silent.
+_Exit criteria._ Acceptance cases 20 to 24. Plus: an erasure leaves no row in any of the three tables, asserted by count against a real Postgres rather than by reading the code, because the erasure table list is hand-kept and a missing entry is silent.
 
 _Gates._ `pnpm verify`, forced Docker-backed run.
 
 ### Track B - serving
 
-**073 - Repeat rendering, the roster operation, and both paths.** Depends on 071, 072 and the closure of issue #968. Q9, Q11, Q15, Q20, Q21.
+**073 - Repeat rendering, the roster operation, both paths, and issue #968.** Depends on 071 and 072. Q9, Q11, Q12, Q15, Q20, Q21.
 
-_Deliverables._ The compiler's `RepeatGroup` template node, `A2UI_SPEC_VERSION` and `COMPILER_VERSION` moves, and the new golden generation carrying the seven existing forms unchanged plus repeat forms. `docs/a2ui-mapping.md` gaining the node. The renderer's render-time expansion and name qualification, keyed per instance (issue #144's rule, one control instance per field). `documentForVisible` and `commitMoments` reaching qualified names. The API's step projection carrying the roster. The batch answer endpoint (Q20) and the roster-operation endpoint. The portal's `__qop` decoding, the `formnovalidate` buttons, the fragment-based focus landing, the `role="status"` region, the instance-naming error summary, and the re-render context change (Q21). The stacked presentation. All three count sources. `docs/portal-constraints.md` updated in the same change. **And the template mirror** under `packages/create-qcms-app/templates/common/`, which `check:templates` enforces.
+_Deliverables._ The compiler's `RepeatGroup` template node, `A2UI_SPEC_VERSION` and `COMPILER_VERSION` moves, and the new golden generation carrying the seven existing forms unchanged plus repeat forms. `docs/a2ui-mapping.md` gaining the node. The renderer's render-time expansion and name qualification, keyed per instance (issue #144's rule, one control instance per field). `documentForVisible` and `commitMoments` reaching qualified names. The API's step projection carrying the roster. The batch answer endpoint (Q20) and the roster-operation endpoint. **The fix for issue #968 in the same work** (Q20): the required-answer sweep moves inside the session lock, so the ledger and the submission cannot diverge under a concurrent retraction, and the batch endpoint takes the same lock once for a whole step. The portal's `__qop` decoding, the `formnovalidate` buttons, the fragment-based focus landing, the `role="status"` region, the instance-naming error summary, and the re-render context change with its defined overflow behaviour (Q21). **The stacked presentation, one input per row at every width, all seven question types** (Q12). All three count sources. `docs/portal-constraints.md` updated in the same change. **And the template mirror** under `packages/create-qcms-app/templates/common/`, which `check:templates` enforces.
 
-_Exit criteria._ Acceptance cases 5, 24 to 33, and 47. Plus: the no-JS claim's seven named specs still pass, and an eighth joins them for the repeat walk; `docs/portal-constraints.md`'s exception list is still empty.
+_Exit criteria._ Acceptance cases 5, 25 to 36, and 51. Plus: the no-JS claim's seven named specs still pass, and an eighth joins them for the repeat walk; `docs/portal-constraints.md`'s exception list is still empty. **And issue #968 closes with this PR**, with a test that fails against the pre-change ordering rather than a claim that the ordering changed.
 
 _Gates._ `pnpm verify`, `pnpm verify:browser` detached, forced Docker-backed run, `pnpm up:e2e`.
 
-**074 - Authoring a repeating group.** Depends on 071 and 073. Q4, Q6, Q12.
+**074 - Authoring a repeating group.** Depends on 071 and 073. Q4, Q6, Q7, Q12.
 
-_Deliverables._ The widened `DraftStep.items` and the pure group mutations in `lib/forms/draft.ts`. The group panel of section 6.2. Group boundaries in `step-editor.tsx` and `lib/forms/pin-grid.ts`, and a group node in the rail tree. The rules editor's scope chip, the two structured operator editors, `rule-sentence.ts`, `eligibleTargets` over a span. The test bench's instance dimension and the draft-preview endpoint change behind it. `draft-preview.tsx` expanding a group with a locally minted roster.
+_Deliverables._ The widened `DraftStep.items` and the pure group mutations in `lib/forms/draft.ts`. The group panel of section 6.2, with `max` a required field on the two bounded count sources and the publish refusal surfaced where the author sets it. Group boundaries in `step-editor.tsx` and `lib/forms/pin-grid.ts`, and a group node in the rail tree. The rules editor's scope chip, the **three** structured operator editors, `rule-sentence.ts` including the `everyInstance` sentence that states its own non-vacuous reading, `eligibleTargets` over a span. The test bench's instance dimension, **evaluable at zero instances**, and the draft-preview endpoint change behind it. `draft-preview.tsx` expanding a group with a locally minted roster.
 
-_Exit criteria._ Acceptance cases 51 to 54.
+_Exit criteria._ Acceptance cases 55 to 58.
 
 _Gates._ `pnpm verify`, `pnpm verify:browser` detached.
 
@@ -780,9 +850,9 @@ _Gates._ `pnpm verify`, `pnpm verify:browser` detached.
 
 **075 - Export, reporting and the webhook payload.** Depends on 071, 072 and 073. Q17, Q18, Q19.
 
-_Deliverables._ The CSV group files and the zip, with the wide file unchanged. The reporting view generator: `answers_flat.instance_id`, the group key in `responses.answers`, and the `jsonb_object_agg` fix. `docs/reporting-view.md` and its drift test in the same change, with the `@roonga/qcms-db` minor. `LockedAnswer.instanceId` reaching the outbox payload inside `answers` and nowhere else. `docs/webhooks.md` gaining an example. SEC-13's allowlists gaining `ins_`.
+_Deliverables._ **Both CSV shapes** (Q17): the long shape as the default, with the group files and the zip and the wide file unchanged, and the indexed wide shape as an option on the export route and the export screen, with the header-follows-`max` consequence documented beside the route and not only in this plan. The reporting view generator: `answers_flat.instance_id`, the group key in `responses.answers`, and the `jsonb_object_agg` fix. `docs/reporting-view.md` and its drift test in the same change, with the `@roonga/qcms-db` minor. `LockedAnswer.instanceId` reaching the outbox payload inside `answers` and nowhere else. `docs/webhooks.md` gaining an example. SEC-13's allowlists gaining `ins_`.
 
-_Exit criteria._ Acceptance cases 41 to 47. Plus: a walk of the payload asserting no respondent content outside the `answers` key, because the redaction and its CHECK both depend on that and nothing else states it.
+_Exit criteria._ Acceptance cases 44 to 51. Plus: a walk of the payload asserting no respondent content outside the `answers` key, because the redaction and its CHECK both depend on that and nothing else states it.
 
 _Gates._ `pnpm verify`, forced Docker-backed run.
 
@@ -796,21 +866,21 @@ _Gates._ `pnpm verify`, `pnpm verify:browser` detached.
 
 **077 - The table presentation.** Depends on 073. Q10, Q12.
 
-_Deliverables._ The table layout in `@roonga/qcms-ui`, built on the vendored `Table`'s markup and style map (it is not in the renderer registry today and is a read-only display table). The per-cell label, the row header, the caption, the `<tfoot>` total as presentation. The 390px card reflow and the `overflow-x: auto` box above it. The publish refusal of a disallowed column type. The admin's column view of the member list and the filtered picker. The `docs/COMPONENT_GUIDELINES.md` checklist items that bind a layout: the no-JS path, the focus targets, the theming rules in `theme-components.css` beneath the ADR-38 scope carrier, the font sweep, the tabular-figures selector for the numeric column, and lint coverage.
+_Deliverables._ The table layout in `@roonga/qcms-ui`, built on the vendored `Table`'s markup and style map (it is not in the renderer registry today and is a read-only display table). The per-cell label, the row header, the caption, the `<tfoot>` total as presentation. The 390px card reflow and the `overflow-x: auto` box above it. The publish refusal of a disallowed column type, naming the stacked presentation. The admin's column view of the member list and the filtered picker. The `docs/COMPONENT_GUIDELINES.md` checklist items that bind a layout: the no-JS path, the focus targets, the theming rules in `theme-components.css` beneath the ADR-38 scope carrier, the font sweep, the tabular-figures selector for the numeric column, and lint coverage.
 
-_Exit criteria._ Acceptance cases 34 to 40, 55.
+_Exit criteria._ Acceptance cases 37 to 43, and 59.
 
 _Gates._ `pnpm verify`, `pnpm verify:browser` detached.
 
 ### The minimum shippable slice
 
-**071, 072, 073 and 074.** That is: a repeating group with all three count sources, the stacked presentation, per-instance rules including both new operators, the instance ledger, both respondent paths with add and remove, and an admin that can author one.
+**071, 072, 073 and 074, and under the Q1 ruling that slice is launch scope and lands before task 038.** That is: a repeating group with all three count sources, the stacked presentation at one input per row, per-instance rules including all three new operators, the instance ledger, both respondent paths with add and remove, the fix for issue #968, and an admin that can author one.
 
 It is the minimum because each of the four is load-bearing and none of the three that follow is. Without 071 there is no model. Without 072 the roster has nowhere to live and an instance the respondent added is lost on reload. Without 073 nobody can answer one, and 073 is where the two hardest problems live, the no-JS roster operation and the render-time expansion. Without 074 nobody can author one, and 074 cannot be deferred in any case because the admin does not typecheck once 071 adds an operator, so part of it is forced into 071 already.
 
-**075 is the first thing after**, and it should land before any real deployment uses a repeating group: until it does, a repeated answer is silently collapsed by `jsonb_object_agg` in the reporting view and dropped by the CSV export's one-column-per-question premise. That is a data-loss window, not a missing feature, and the plan would rather name it here than have it discovered.
+**075 is the first thing after, and the launch ruling sharpens why.** It should land before any real deployment uses a repeating group: until it does, a repeated answer is silently collapsed by `jsonb_object_agg` in the reporting view and dropped by the CSV export's one-column-per-question premise. That is a data-loss window, not a missing feature. With repetition in launch scope, "any real deployment" means the first one, so **075 belongs inside the launch cut-line too** even though it is not in the minimum slice, and the launch validation checklist (038) should include an export and a reporting read of a repeating form rather than only a respondent walk.
 
-**076 and 077 are presentations of a proven model** and are demand-ordered against each other. If only one ships, 077 is the one the financial use case asks for by name and 076 is the one a phone benefits from most.
+**076 and 077 are presentations of a proven model** and are demand-ordered against each other. If only one ships at launch, 077 is the one the financial use case asks for by name and 076 is the one a phone benefits from most. Neither is in the minimum slice, and the Q1 ruling does not pull them into it: what the ruling moves is the model, its two respondent paths, its authoring and its downstream, not every presentation of it.
 
 ---
 
@@ -862,7 +932,7 @@ Checked live on 2026-09-29. Quotations in sections 4 and 10 come from these page
 
 **Where the sources are silent, recorded rather than filled**
 
-1. No W3C source found covers **naming a form control inside a data cell**. The tables tutorial, the forms tutorial and the APG are all silent on it. H44 and the APG naming practice are the nearest authorities and are what section 4.4 leans on.
+1. No W3C source found covers **naming a form control inside a data cell**. The tables tutorial, the forms tutorial and the APG are all silent on it. H44 and the APG naming practice are the nearest authorities and are what section 4.5 leans on.
 2. `scope` and `headers` associate a **cell** with header cells. No source claims they contribute to a **control's** accessible name.
 3. No source states that a visible `<th>` discharges **3.3.2** for the input beneath it. Section 4.4 says so as an inference and names task 030's manual pass as where it is tested.
 4. WCAG says nothing about **focus after a deletion**; the APG sentence quoted above is the only authority, it addresses a scripted DOM removal, and nothing found addresses a full-page POST-redirect-GET. The no-JS landing is a decision this plan takes.

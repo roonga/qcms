@@ -57,3 +57,5 @@ Each record carries a **Status** line (implemented; amended, with date and task 
 | ADR-39 | Link version targeting                  | portal |
 | ADR-40 | Environments as release states          | core   |
 | ADR-41 | Workspaces as authorisation grouping    | core   |
+| ADR-42 | Repetition is a form-level group        | core   |
+| ADR-43 | Repeat rendering and the no-JS roster   | portal |

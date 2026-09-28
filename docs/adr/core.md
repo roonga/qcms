@@ -14,6 +14,8 @@
 
 **Note.** The compiler also emits one non-domain node per step (the ADR-12 honeypot decoy), and it also runs outside publish for the admin draft preview, whose output is not the ADR-18 audit copy.
 
+**Note - the compiler emits a template the renderer expands (ADR-42, Code Owner, 2026-09-30).** A repeating group's instance count is answer-dependent and `compileFormWith` is answer-blind, so the compiler cannot expand a group. It emits a **`RepeatGroup` template node** carrying the member controls once, and the renderer clones that template per live instance at render time and qualifies each cloned control's `name`. The stored compiled document is unaffected, which keeps ADR-18 exact: the bytes served are the bytes published, and expansion is a render-time transform on the precedent `withNativeSubmit` and `documentForVisible` already set. `RepeatGroup` is a qcms-owned node type rather than an `@a2ra/core` registry component, on the `HONEYPOT_NODE_TYPE` precedent this Note already records. Decided, not built: tasks 071 and 073.
+
 ### ADR-02 - Versioned question library
 
 **Status:** implemented; text corrected 2026-08-31.
@@ -31,6 +33,12 @@
 **Note.** Two artifacts now enforce the closed set, one per side. `packages/core/src/visibility-rule.test.ts` pins the thirteen operators as a hand-edited list checked against the `Condition` union, so adding one is a deliberate edit rather than a diff nobody reads. `apps/admin/lib/forms/condition.ts` ties the admin's parallel copy of the set to the same union through a **type-only** import of `Condition`, which R2 permits because it is erased at compile time and carries no kernel code into the app; a new operator in core therefore fails the admin's typecheck. Neither side can move alone.
 
 **Note (flagged).** There is still no DSL **version** constant, and `@roonga/qcms-core` has never been published, so "versioned core change" remains a review convention rather than a released number.
+
+**Amendment - three operators for repeating groups, and `everyInstance` is false over an empty group (Code Owner, 2026-09-30, ADR-42).** The closed set grows from thirteen operators to sixteen: **`anyInstance`** and **`everyInstance`**, each taking a `groupId` and a nested condition, and **`instanceCount`**, taking a `groupId`, one of the existing comparison names as a field and a number. Both nested conditions count toward `CONDITION_MAX_DEPTH`, which stays 8, and `conditionDepth` recurses into them as it does into `not`.
+
+**`everyInstance` over a group with no live instance evaluates to FALSE.** That is a decision and not an implementation accident: it is deliberately **not** vacuous truth, so `everyInstance(G, c)` is not equivalent to `not(anyInstance(G, not c))` on an empty G, and neither the evaluator, the admin's parallel copy nor a golden scenario may treat one as a rewrite of the other. The reason is the sentence an author writes: "every passenger holds a passport" is not true of a booking with no passengers, and an operator whose default reading contradicts its own sentence is a trap rather than a primitive. The evaluator short-circuits an empty roster to false before the per-instance walk; the admin's rule sentence renders the reading explicitly; a committed golden scenario pins the empty case beside the all-match and one-mismatch cases.
+
+Both artifacts this record's first Note names move in the same change: `packages/core/src/visibility-rule.test.ts`'s hand-edited list goes to sixteen, and `apps/admin/lib/forms/condition.ts` follows in the same PR, because the type-only import means the admin does not typecheck otherwise. Decided, not built: task 071, with the admin's parallel list carried in that same task.
 
 ### ADR-07 - Pinned sessions and submission lock
 
@@ -56,6 +64,8 @@
 
 **Note.** Today's `StepResolverContext` carries no answers, so an answer-adaptive resolver needs a widened seam; the code acknowledges this as a later seam version.
 
+**Note - the roster reaches the renderer without widening this seam (ADR-42, Code Owner, 2026-09-30).** A repeating group needs a live instance roster to render, and a roster is answer-derived state, which is exactly what the Note above says this seam does not carry. It is **not** carried through the seam. `StepResolverContext` is unchanged, the compiler stays pure and answer-blind, and the roster reaches the renderer from the **API's step projection**, beside `values` and `flowState`, because the API is the only rule evaluator (R2). The seam version stays where it is and repetition does not spend it. Decided, not built: task 073.
+
 ### ADR-16 - Forward-only rule evaluation
 
 **Status:** implemented; see note.
@@ -67,6 +77,14 @@
 **Amendment - required means non-blank (Code Owner, 2026-08-31, issue #128).** A question is answered when it holds a **non-blank** value: an empty or whitespace-only text value is absence, for the `answered` operator, for every value operator, and for the required accounting alike. The stored value is never rewritten - trimming decides the presence test only, so a respondent's `" "` stays verbatim in the ledger and in exports.
 
 This was corrected **within `semanticsVersion` 1** rather than under a bump, and the reasoning is part of the decision. A bump cannot deliver what this ADR's rule protects: the evaluator implements one version at a time and refuses any other stamp, so `2` would not preserve old snapshots' behavior, it would make every published snapshot fail at submit. Multi-version evaluation is the missing prerequisite, and it is the limitation noted above. Against that, no answer the product can produce changes meaning: both control boundaries have reported an emptied field as absence since issue #98, and the same batch made `""` and `[]` unstorable at the API (ADR-33). One golden scenario that had pinned `""` as answered was amended in place; `packages/core/golden/evaluator/CORPUS.md` records that as a defect-correction precedent and not as licence to edit a golden that disagrees with an intended semantics change.
+
+**Amendment - the forward pass reaches inside a repeating group, within `semanticsVersion` 1 (Code Owner, 2026-09-30, ADR-42).** With a repeating group in a form, `documentOrder` expands the group into a **contiguous span** of its member questions and this decision's rule applies to the span rather than to a single position. Three readings follow, all enforced by `analyzeRuleGraph`: a rule targeting inside a group may read questions before the group and questions earlier **within the same instance**, and a later position inside the instance is `RULE_BACKWARD_TARGET` as it is today; a rule using `anyInstance`, `everyInstance` or `instanceCount` reads **the whole** of the group, so its targets must follow the group's whole span; and a `fromAnswer` count source is a read of its count question by the whole group, so that question must precede the span. **No rule may read a different instance of the same group**, because roster order is not document order and there is no forward-only reading of it.
+
+It is one pass still. The group's span is walked once per live instance, so condition evaluations are bounded by `rules x max(instances)`, with `max(instances)` taken from the group's own author-set `max` and from no installation-wide constant (SEC-16). The bound is therefore per form, and it is known at publish rather than discovered at runtime, which is the property this decision exists to protect.
+
+**`SEMANTICS_VERSION` stays 1**, for the reason the amendment above already gives: a bump would make every published snapshot fail rather than preserve it. Repetition is built to need no bump, and a form with no repeating group produces a byte-identical `FlowState`, asserted by all forty-four committed golden scenarios passing with no `expected` block edited.
+
+**The `FlowState` debt this creates has a named creditor (Q8).** `visibleSteps`, `missingRequired` and `answeredRequired` cannot widen without the bump that cannot be taken, so repetition adds **parallel optional fields** beside them (`visibleStepViews`, `missingRequiredInstances`, `answeredRequiredInstances`, `rosters`), each absent entirely from a form with no group. That is the ugly part of the design and it is recorded rather than hidden: **collapsing the parallel fields into the widened originals is the first job of multi-version evaluation**, which is the standing limitation this record's first Note names. Decided, not built: task 071.
 
 ### ADR-21 - Multi-choice comparison
 
@@ -90,6 +108,8 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 
 **Note.** "Empty is absence" is enforced at the control boundary (the renderer and the no-JS decoder) _and_, since issue #128's batch, in the kernel: `validateAnswer` refuses `""` and `[]` with `EMPTY_ANSWER_NOT_ALLOWED`, so a direct API post of either is a 422 that stores nothing and whose message names the `null` retraction as the way to clear an answer. The refusal is never a silent conversion into a retraction - clearing keeps exactly one spelling on the wire. Whitespace-only text is a separate rule: it is stored as typed and denied _presence_ instead (issue #128, ADR-16 note). A retraction of a never-answered question is a no-op and appends nothing.
 
+**Note - a retraction is per instance (ADR-42, Code Owner, 2026-09-30).** With repeating groups the ledger's grain is `(question, instance)`, so a retraction names an instance as well as a question and clears **that cell alone**. `answers_retraction_value` is unchanged and the new nullable `answers.instance_id` column is covered by the existing reject-update and reject-delete triggers by construction. Everything this decision says holds per cell: `validateAnswer` still refuses `""` and `[]` with `EMPTY_ANSWER_NOT_ALLOWED` in a table cell exactly as in a standalone question, and `null` is still the one spelling of a clear. A **removed instance is not a retraction**: its answers stay in the ledger and are excluded by the roster, which is I6's semantic rather than this one's. Decided, not built: tasks 071 and 072.
+
 ### ADR-36 - Authored boolean labels
 
 **Status:** implemented.
@@ -97,6 +117,32 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 **Decision.** Boolean questions may provide localized `yesLabel` and `noLabel` values with catalog fallback. Stored answers remain booleans and rule, reporting, and export semantics do not change.
 
 **Note.** The fallback source is a compiler lexicon constant frozen by `compilerVersion`, not an app catalog in the ADR-11 sense.
+
+### ADR-42 - Repetition is a form-level group
+
+**Status:** decided; not built (tasks 071 to 077). Code Owner rulings of 2026-09-30, recorded question by question in `plan/repeating-groups-and-table-input.md` section 10. Nothing here is open.
+
+**Decision.** A form may repeat a named group of pinned questions. The group lives in a **step's item list**, not on a question and not on a step, and it is answered once per **instance**. An instance carries a stable, opaque, session-scoped id minted once and never reused or renumbered; the ordinal a respondent reads is its position in the live roster and is presentation only. A **looping question** is a group of one member. A **looping step** and a **table** are presentations of the same group, not separate constructs. No question type is added: the closed set stays seven and `AnswerValue` is unchanged.
+
+An answer is keyed by `questionId` outside a group and by `instanceId/questionId` inside one, separated by `/`, so a question outside every group keeps the key it has today. A `questionId` is still pinned at most once in a form; a question is either repeated or not, and a question does not know that it is.
+
+The roster is state the server owns, held in its own append-only table with the answer ledger's guards, and passed to the evaluator beside the answers rather than derived from them. A removed instance is **never deleted**: its answers are excluded from evaluation, from the locked submission and from reporting exactly as a hidden question's answers are (I6), and its removal is an appended row. A count that shrinks and grows again re-lives the same instance with its answers intact, because the id never changed.
+
+**A group may not contain a group**, refused at parse.
+
+**Bounds are per form and there is no installation-wide ceiling.** Every count source that is not `fixed` must declare a `max`, which publish refuses to omit and the API enforces on every add; a fixed count is its own bound. Nothing in core caps that `max`. SEC-16 records what that leaves bounded per form and what it does not bound at all.
+
+**The rules DSL gains three operators**, `anyInstance`, `everyInstance` and `instanceCount`, over a named group. A rule whose target sits inside a group is evaluated once per live instance with no new syntax, and a reference to a question inside the same group resolves to that instance's answer. No rule may read a different instance of the same group: roster order is not document order, so there is no forward-only reading of "the previous passenger's answer".
+
+**Why not a table question type.** A composite `AnswerValue` would break per-cell validation, per-cell retraction and "empty is absence" per cell, would make a partial table unstorable, and would change the grain of the ledger, the export and the reporting view, all of which are one row per question. A table as a presentation keeps every cell an ordinary answer.
+
+**Consequences.** `SNAPSHOT_SCHEMA_VERSION` moves to 2 because the snapshot's shape changes. **`SEMANTICS_VERSION` stays 1, and that is load-bearing rather than convenient:** the evaluator implements one version at a time and refuses any other stamp, so a bump would make every published snapshot fail rather than preserve it. Every change is therefore additive, a form with no group evaluates byte-identically, and the committed golden scenarios pass with no `expected` block edited. `@roonga/qcms-core` and `@roonga/qcms-db` move by a minor: every schema change is additive and no canonical encoding changes.
+
+**Note - the launch cut-line moved for this (Code Owner, 2026-09-30, Q1).** Repetition was designed as Phase 4 work and recommended as such. The Code Owner ruled it into **launch scope**, so `docs/PROJECT_GOAL.md` section 5 enumerates it among what launch includes, `docs/IMPLEMENTATION_PLAN.md` carries it as stage 8c, and tasks 071 to 077 are sequenced against their own dependencies rather than after task 038. It is deliberately absent from `docs/features/039-phase4-backlog.md`, which holds deferred work.
+
+**Note - `everyInstance` is false over an empty group (Code Owner, 2026-09-30, Q7).** This is **deliberately not vacuous truth**, so `everyInstance(G, c)` is **not** equivalent to `not(anyInstance(G, not c))` when G holds no live instance: the first is false and the second is true. The reason is what an author means by the sentence they write: "every passenger holds a passport" is not a true statement about a booking with no passengers. The evaluator states it as a base case that short-circuits before the per-instance walk, never as a fold whose identity is true; ADR-03's amendment carries the operator set, a golden scenario pins the empty case, and the admin's rule sentence says the reading out loud rather than leaving it to be inferred.
+
+**Note - the roster is a table and not an answer (Code Owner, 2026-09-30, Q16).** Encoding the roster as a synthetic answer keyed by the group id was weighed and refused: `answers.question_id` would then hold something that is not a `questionId`, which collides with `prepareSubmission`'s `UNKNOWN_QUESTION` ledger-drift defence, with R6's statement of what a `questionId` is, and with the reporting view's contract that a row is a question. The table is `answer_group_instances`, append-only, with the ledger's reject-update and reject-delete triggers and the same `qcms.allow_answer_delete` door, and it joins the erasure and retention paths in the same change that creates it.
 
 ## Serving and audit
 
@@ -107,6 +153,8 @@ This was corrected **within `semanticsVersion` 1** rather than under a bump, and
 **Decision.** The portal serves the compiled A2UI documents stored at publish time. Each form version records compiler, A2UI spec, and rule-semantics versions. Golden documents and renderer compatibility are append-only.
 
 **Note.** The CI append-only guard covers the compiler golden corpus (`packages/a2ui-compiler/golden/v*`); the evaluator corpus (`packages/core/golden/evaluator/`) is append-only by prose only.
+
+**Note - repetition moves `a2uiSpecVersion` and opens a new golden generation (ADR-42, ADR-43, Code Owner, 2026-09-30).** `RepeatGroup` is a node type the spec did not carry, so `A2UI_SPEC_VERSION` and `COMPILER_VERSION` both move and the documented spec-bump procedure opens a **new generation** under `packages/a2ui-compiler/golden/`, carrying the seven existing forms across byte-identically plus new repeat and table forms. Nothing about this decision's own rule changes: the portal still serves the stored documents verbatim, and a group's expansion is a render-time clone that never touches the stored bytes. Decided, not built: task 073.
 
 ## API and platform
 
@@ -292,6 +340,8 @@ The workspace half is not symmetry for its own sake. A schema per environment al
 **Note - the migration clause is withdrawn (Code Owner, 2026-09-26, Q22).** Ruling 2 of 2026-09-25 ended "an existing installation migrates to one `prod` environment with its current data", and that sentence is withdrawn: this is **green field**. There is no existing installation, so there is no data move, no `ALTER TABLE ... SET SCHEMA` of live tables, no backfill of a release row per already-published form, no defaulting of existing secure links to an environment, and no deployment-ordering concern about doing the schema move and the search-path switch together. It is recorded here rather than deleted because the withdrawn clause is what the `public`-to-`control` move would otherwise have had to carry, and a reader who finds the earlier ruling text needs to know which half of it stands. Everything else in ruling 2 stands unchanged.
 
 **Note.** Section 6 of `plan/environments-and-workspaces.md` records every question this decision raised together with its answer and where that answer landed, cited by number from here and from the task rows in `docs/features/README.md`. Section 7 of that document, open questions, is empty: the decision queue for #995 closed on 2026-09-26.
+
+**Note - repetition grows the per-environment set by three guards and one foreign key (ADR-42, Code Owner, 2026-09-30).** `answer_group_instances` is data-plane state, so the per-environment generator this decision describes emits it per environment like the answer ledger: the **twelve guards become fifteen** (two triggers plus one CHECK on the event vocabulary) and the **seven foreign keys become eight**. The two new trigger **functions** stay single in `control`, as this decision already specifies for the answer ledger's pair. Ordering between the two tracks does not matter and neither blocks the other: repetition is launch scope (stage 8c) and environments are Phase 4, so whichever lands second carries the other's shape. Decided, not built: task 072 writes the table, task 064 emits it per environment.
 
 ## Identity and security
 
