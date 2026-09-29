@@ -79,7 +79,7 @@ built when a real per-snapshot dispatch need arrives. Current generations on dis
 | `v1/`      | `0.0.0`  | The task-011 launch mapping.                                                                                           |
 | `v2/`      | `0.1.0`  | Task 026's `Honeypot` decoy, last in every step.                                                                       |
 | `v3/`      | `0.2.0`  | Issue #186: `size` and `weight` on every heading, so a form title and a step title stop rendering at the body default. |
-| `v4/`      | `0.3.0`  | Task 073 (ADR-42, ADR-43): the `RepeatGroup` template node, cloned per live instance by the renderer.                   |
+| `v4/`      | `0.3.0`  | Task 073 (ADR-42, ADR-43): the `RepeatGroup` template node, cloned per live instance by the renderer.                  |
 
 New goldens are always a **fresh file add** - never a rename/move into a `vN/`
 directory (the append-only guard reads a rename as a deletion of the old path and

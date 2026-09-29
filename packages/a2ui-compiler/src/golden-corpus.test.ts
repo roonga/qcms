@@ -433,9 +433,7 @@ describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () =>
   for (const golden of carriedOver) {
     it(`${golden} has byte-identical documents in v4`, () => {
       const before = JSON.parse(readFileSync(path.join(V3_DIR, golden), "utf8")) as CompiledForm;
-      const after = JSON.parse(
-        readFileSync(path.join(GOLDEN_DIR, golden), "utf8"),
-      ) as CompiledForm;
+      const after = JSON.parse(readFileSync(path.join(GOLDEN_DIR, golden), "utf8")) as CompiledForm;
       expect(JSON.stringify(after.documents, null, 2)).toBe(
         JSON.stringify(before.documents, null, 2),
       );

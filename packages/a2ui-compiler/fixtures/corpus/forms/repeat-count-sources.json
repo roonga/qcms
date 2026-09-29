@@ -30,7 +30,12 @@
           "label": { "en": "Incidents" },
           "instanceLabel": { "en": "Incident {n}" },
           "presentation": "stacked",
-          "count": { "source": "fromAnswer", "questionId": "q_rep_vehicle_count", "min": 0, "max": 5 },
+          "count": {
+            "source": "fromAnswer",
+            "questionId": "q_rep_vehicle_count",
+            "min": 0,
+            "max": 5
+          },
           "items": [
             { "questionId": "q_rep_notes", "version": 1 },
             { "questionId": "q_rep_extras", "version": 1 }

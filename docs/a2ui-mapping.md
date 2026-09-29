@@ -186,9 +186,9 @@ transform on the precedent `withNativeSubmit` and `documentForVisible` set.
 carries exactly one (ADR-12; asserted in the compiler corpus, in the renderer and in
 the portal's browser suite).
 
-| Node          | Props                                                                                                                                  | Renderer contract                                                                                                                                                                             |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RepeatGroup` | `groupId`, `label`, `instanceLabel` (with `{n}` intact), `presentation`, `countSource`, `min`, `max?`, `addLabel?`, `removeLabel?`      | Expand into one instance group per live instance, qualify each cloned control's `name`, and render Add and Remove controls for `countSource: "open"` alone.                                     |
+| Node          | Props                                                                                                                              | Renderer contract                                                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RepeatGroup` | `groupId`, `label`, `instanceLabel` (with `{n}` intact), `presentation`, `countSource`, `min`, `max?`, `addLabel?`, `removeLabel?` | Expand into one instance group per live instance, qualify each cloned control's `name`, and render Add and Remove controls for `countSource: "open"` alone. |
 
 - `instanceLabel` keeps its `{n}` placeholder, because the ordinal it names is the
   instance's **live** one-based position and is recomputed after a removal, which is
