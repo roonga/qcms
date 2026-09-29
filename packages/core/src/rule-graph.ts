@@ -639,20 +639,19 @@ export function checkRuleTypes(
           checkCondition(rule, child);
         });
         return;
+      // The two whole-group operators that carry a nested condition recurse
+      // exactly as `not` does. They must branch here rather than fall through:
+      // neither carries a `questionId`, so the default branch below would
+      // resolve `undefined` and check nothing. `instanceCount` carries no
+      // nested condition and reads no question at all, so it is a leaf with
+      // nothing to type-check (ADR-42).
       case "not":
-        checkCondition(rule, condition.condition);
-        return;
-      // The whole-group operators carry a `groupId` and no `questionId`, so
-      // they must branch here: falling through would read
-      // `condition.questionId` as `undefined` and resolve nothing. Their nested
-      // condition is type-checked exactly like any other, against the questions
-      // it names (ADR-42).
       case "anyInstance":
       case "everyInstance":
         checkCondition(rule, condition.condition);
         return;
       case "instanceCount":
-        return; // Compares a count against a number; it reads no question.
+        return;
       default:
         break;
     }

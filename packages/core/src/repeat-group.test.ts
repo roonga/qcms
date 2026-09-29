@@ -236,10 +236,7 @@ describe("the step item union (ADR-42)", () => {
   });
 
   it("gives a step's pinned refs with groups expanded, and names each question's group", () => {
-    const { form } = build(
-      [["stp_one", [{ id: "q_trip", type: "shortText" }, PAX_GROUP]]],
-      [],
-    );
+    const { form } = build([["stp_one", [{ id: "q_trip", type: "shortText" }, PAX_GROUP]]], []);
     const step = form.steps[0];
     expect(step === undefined ? [] : stepQuestionRefs(step).map((ref) => ref.questionId)).toEqual([
       "q_trip",
@@ -259,7 +256,11 @@ describe("the step item union (ADR-42)", () => {
             "stp_one",
             [
               { id: "q_dob", type: "date" },
-              { groupId: "grp_pax", items: [{ id: "q_dob", type: "date" }], count: PAX_GROUP.count },
+              {
+                groupId: "grp_pax",
+                items: [{ id: "q_dob", type: "date" }],
+                count: PAX_GROUP.count,
+              },
             ],
           ],
         ],
@@ -316,12 +317,7 @@ describe("the step item union (ADR-42)", () => {
   it("refuses a duplicate groupId at parse", () => {
     const result = parseFormDefinition(
       rawForm(
-        [
-          [
-            "stp_one",
-            [PAX_GROUP, { ...PAX_GROUP, items: [{ id: "q_other", type: "shortText" }] }],
-          ],
-        ],
+        [["stp_one", [PAX_GROUP, { ...PAX_GROUP, items: [{ id: "q_other", type: "shortText" }] }]]],
         [],
       ),
     );
@@ -334,9 +330,10 @@ describe("the step item union (ADR-42)", () => {
   it("reads the bounds of all three count sources, a fixed count being its own", () => {
     expect(countBounds({ source: "fixed", count: 3 })).toEqual({ min: 3, max: 3 });
     expect(countBounds({ source: "open", min: 1, max: 9 })).toEqual({ min: 1, max: 9 });
-    expect(
-      countBounds({ source: "fromAnswer", questionId: asQuestionId("q_n"), min: 0 }),
-    ).toEqual({ min: 0, max: undefined });
+    expect(countBounds({ source: "fromAnswer", questionId: asQuestionId("q_n"), min: 0 })).toEqual({
+      min: 0,
+      max: undefined,
+    });
   });
 
   it("finds every {placeholder} in an instance label template", () => {
@@ -417,7 +414,11 @@ describe("the three whole-group operators (ADR-03 as amended)", () => {
       when: {
         op: "and",
         conditions: [
-          { op: "anyInstance", groupId: "grp_pax", condition: { op: "answered", questionId: "q_dob" } },
+          {
+            op: "anyInstance",
+            groupId: "grp_pax",
+            condition: { op: "answered", questionId: "q_dob" },
+          },
           { op: "instanceCount", groupId: "grp_other", compare: "gte", value: 2 },
           { op: "answered", questionId: "q_trip" },
         ],
@@ -460,9 +461,7 @@ describe("documentOrder expands a group into a contiguous span (ADR-16 as amende
         },
       ],
     );
-    expect(analyzeRuleGraph(form).map((finding) => finding.code)).toEqual([
-      "RULE_BACKWARD_TARGET",
-    ]);
+    expect(analyzeRuleGraph(form).map((finding) => finding.code)).toEqual(["RULE_BACKWARD_TARGET"]);
   });
 });
 
@@ -527,9 +526,7 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
 
   it("case 9: max is required on open AND on fromAnswer, and absent on fixed", () => {
     expect(
-      publishCodes([
-        ["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 1 } }]],
-      ]),
+      publishCodes([["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 1 } }]]]),
     ).toEqual(["REPEAT_MAX_MISSING"]);
     expect(
       publishCodes([
@@ -554,9 +551,7 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
 
   it("refuses min above max", () => {
     expect(
-      publishCodes([
-        ["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 5, max: 2 } }]],
-      ]),
+      publishCodes([["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 5, max: 2 } }]]]),
     ).toEqual(["REPEAT_MIN_ABOVE_MAX"]);
   });
 
@@ -576,9 +571,7 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
 describe("publish: the instance label (ADR-42, Q6)", () => {
   it("refuses a placeholder that is not {n}, in any locale, and allows none at all", () => {
     expect(
-      publishCodes([
-        ["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "Passenger {index}" } }]],
-      ]),
+      publishCodes([["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "Passenger {index}" } }]]]),
     ).toEqual(["INSTANCE_LABEL_PLACEHOLDER_UNKNOWN"]);
     // A group of one has nothing to number, so a template with no placeholder
     // is legal rather than merely tolerated.
@@ -588,12 +581,12 @@ describe("publish: the instance label (ADR-42, Q6)", () => {
   });
 
   it("puts a group's own texts through the locale and blank checks", () => {
-    expect(
-      publishCodes([["stp_pax", [{ ...PAX_GROUP, label: { fr: "Passagers" } }]]]),
-    ).toEqual(["LOCALE_INCOMPLETE"]);
-    expect(
-      publishCodes([["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "   " } }]]]),
-    ).toEqual(["BLANK_LOCALIZED_TEXT"]);
+    expect(publishCodes([["stp_pax", [{ ...PAX_GROUP, label: { fr: "Passagers" } }]]])).toEqual([
+      "LOCALE_INCOMPLETE",
+    ]);
+    expect(publishCodes([["stp_pax", [{ ...PAX_GROUP, instanceLabel: { en: "   " } }]]])).toEqual([
+      "BLANK_LOCALIZED_TEXT",
+    ]);
   });
 });
 
@@ -669,10 +662,7 @@ describe("publish: the whole-group read is a read of the whole span (case 14)", 
 });
 
 describe("publish: the cross-group evaluation budget (case 16)", () => {
-  const twoGroups = (
-    firstMax: number,
-    secondMax: number,
-  ): [string, readonly TestItem[]][] => [
+  const twoGroups = (firstMax: number, secondMax: number): [string, readonly TestItem[]][] => [
     [
       "stp_one",
       [
@@ -706,9 +696,7 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
 
   it("refuses a cross-group rule whose product exceeds the budget, naming both groups", () => {
     const { errors } = publish(build(twoGroups(200, 200), [crossRule]));
-    const finding = errors.find(
-      (error) => error.code === "REPEAT_EVALUATION_BUDGET_EXCEEDED",
-    );
+    const finding = errors.find((error) => error.code === "REPEAT_EVALUATION_BUDGET_EXCEEDED");
     expect(finding).toBeDefined();
     if (finding?.code === "REPEAT_EVALUATION_BUDGET_EXCEEDED") {
       expect(finding.path).toEqual({
@@ -946,20 +934,13 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     );
     expect(state.missingRequired).toEqual(["q_dob"]);
     expect(state.answeredRequired).toEqual([]);
-    expect(state.missingRequiredInstances).toEqual([
-      { questionId: "q_dob", instanceId: "ins_b" },
-    ]);
-    expect(state.answeredRequiredInstances).toEqual([
-      { questionId: "q_dob", instanceId: "ins_a" },
-    ]);
+    expect(state.missingRequiredInstances).toEqual([{ questionId: "q_dob", instanceId: "ins_b" }]);
+    expect(state.answeredRequiredInstances).toEqual([{ questionId: "q_dob", instanceId: "ins_a" }]);
     expect(state.complete).toBe(false);
   });
 
   it("paginates a perInstanceStep group into one step view per live instance", () => {
-    const paginated = build(
-      [["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]]],
-      [],
-    );
+    const paginated = build([["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]]], []);
     const state = evalOk(
       paginated,
       answersOf([
@@ -1029,9 +1010,7 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
       ]),
       rosterOf([["grp_pax", ["ins_a", "ins_b", "ins_c"]]]),
     );
-    const finding = aboveMax.errors.find(
-      (error) => error.code === "REPEAT_COUNT_OUT_OF_RANGE",
-    );
+    const finding = aboveMax.errors.find((error) => error.code === "REPEAT_COUNT_OUT_OF_RANGE");
     expect(finding).toBeDefined();
     if (finding?.code === "REPEAT_COUNT_OUT_OF_RANGE") {
       expect(finding).toMatchObject({ groupId: "grp_pax", count: 3 });
@@ -1055,7 +1034,7 @@ describe("prepareSubmission with a repeating group (cases 17, 19, 20, 21)", () =
     ]);
   });
 
-  it("case 21: a cell is validated by the same call as a standalone answer", async () => {
+  it("case 21: a cell is validated by the same call as a standalone answer", () => {
     const definition = makeQuestion({
       type: "shortText",
       questionId: "q_note",

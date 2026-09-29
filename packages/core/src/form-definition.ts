@@ -93,11 +93,7 @@ export const FormDefinition = z
      * question is either repeated or not in a given form and the refinement's
      * stated reason - unambiguous answer keying - holds under the instance-
      * qualified key exactly as it did under the bare one. */
-    const pin = (
-      questionId: string,
-      where: string,
-      path: readonly (string | number)[],
-    ): void => {
+    const pin = (questionId: string, where: string, path: readonly (string | number)[]): void => {
       if (seenQuestions.has(questionId)) {
         addCodedIssue(
           ctx,

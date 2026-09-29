@@ -80,9 +80,7 @@ describe("kitchen-sink.json (canonical reference form)", () => {
 
   it("covers every question type via the question fixtures it pins", () => {
     const known = questionFixtureTypes();
-    const pinnedTypes = new Set(
-      documentOrder(form).map((entry) => known.get(entry.questionId)),
-    );
+    const pinnedTypes = new Set(documentOrder(form).map((entry) => known.get(entry.questionId)));
     expect([...pinnedTypes].sort()).toEqual(
       ["boolean", "date", "longText", "multiChoice", "number", "shortText", "singleChoice"].sort(),
     );

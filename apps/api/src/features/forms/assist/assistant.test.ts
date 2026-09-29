@@ -134,9 +134,9 @@ describe("draft assistant tool loop (fake provider)", () => {
 
     // The library search actually ran: the proposal pins what search returned.
     const firstStep = proposal.proposal.proposedDraft.steps[0];
-    expect(
-      firstStep === undefined ? undefined : stepQuestionRefs(firstStep)[0]?.questionId,
-    ).toBe("q_at_fault_accident");
+    expect(firstStep === undefined ? undefined : stepQuestionRefs(firstStep)[0]?.questionId).toBe(
+      "q_at_fault_accident",
+    );
   });
 
   /**

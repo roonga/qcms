@@ -139,7 +139,7 @@ function checkStructure(definition: FormDefinition): PublishError[] {
       // branch only fires for a definition constructed without
       // `parseFormDefinition`, which is exactly the case this whole function
       // exists for: the type does not prove the refinements ran.
-      if (item.items.some((member) => isRepeatGroup(member as never))) {
+      if (item.items.some((member) => isRepeatGroup(member))) {
         errors.push({
           code: "REPEAT_NESTING_NOT_ALLOWED",
           message: `Group "${item.groupId}" contains a repeating group; a group may not contain a group (ADR-42)`,

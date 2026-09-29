@@ -97,7 +97,7 @@ function expandUnionIssue(issue: z.core.$ZodIssue): readonly z.core.$ZodIssue[] 
     return [issue];
   }
   return best.flatMap((nested) =>
-    expandUnionIssue({ ...nested, path: [...issue.path, ...nested.path] } as z.core.$ZodIssue),
+    expandUnionIssue({ ...nested, path: [...issue.path, ...nested.path] }),
   );
 }
 

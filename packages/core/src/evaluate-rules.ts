@@ -197,9 +197,7 @@ export const FlowState = z.object({
     .optional(),
   /** The live roster this evaluation used, per group, in document order of the
    * groups and roster order within each. */
-  rosters: z
-    .array(z.object({ groupId: GroupId, instances: z.array(InstanceId) }))
-    .optional(),
+  rosters: z.array(z.object({ groupId: GroupId, instances: z.array(InstanceId) })).optional(),
 });
 export type FlowState = z.infer<typeof FlowState>;
 
@@ -621,7 +619,9 @@ export function evaluateRules(
     // The `instanceId` KEY is absent, not undefined, on an entry outside every
     // group: a form with no repeating group must produce a byte-identical
     // FlowState, and that is asserted by deep equality rather than by review.
-    visible.push(instanceId === undefined ? { stepId, questionId } : { stepId, questionId, instanceId });
+    visible.push(
+      instanceId === undefined ? { stepId, questionId } : { stepId, questionId, instanceId },
+    );
     return undefined;
   };
 

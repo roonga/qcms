@@ -56,9 +56,7 @@ const Scenario = z.object({
   // The LIVE roster the evaluation is handed, in roster order. Absent for a form
   // with no group, which is every scenario committed before task 071 and is
   // what makes the corpus's additivity claim checkable rather than asserted.
-  rosters: z
-    .array(z.object({ groupId: GroupId, instances: z.array(InstanceId) }))
-    .optional(),
+  rosters: z.array(z.object({ groupId: GroupId, instances: z.array(InstanceId) })).optional(),
   expected: FlowState,
 });
 
