@@ -81,21 +81,28 @@ function shellRoutes(): string[] {
 }
 
 /**
- * The three credential fields, each bound to its own control.
+ * The three credential fields, each bound to its own control, filled in reading order.
  *
- * `getByLabel("New password")` matches the confirmation field too - Playwright's label
- * match is a substring - so the plain form is a strict-mode violation on this screen
- * rather than a locator. Named here once so no case has to remember it.
+ * Two traps, both met on this screen rather than guessed at.
+ *
+ * `exact: true` on every label: Playwright matches a label by substring, so
+ * `getByLabel("New password")` resolves to the confirmation field as well and every
+ * call is a strict-mode violation rather than a locator.
+ *
+ * **Sequentially, not in a `Promise.all`.** These are react-aria `TextField`s, whose
+ * inputs are controlled and whose value lands through a React commit; three fills in
+ * flight at once interleave with each other's commits and one of them loses its value,
+ * which `fillStable` then spends its whole fifteen-second budget retrying. The first
+ * fill of a fresh document happened to survive it and the fill after a redirect did
+ * not, which is the least useful way for a race to present itself.
  */
-function fillChange(
+async function fillChange(
   page: Page,
   values: { readonly current: string; readonly next: string; readonly confirm: string },
-): Promise<void[]> {
-  return Promise.all([
-    fillStable(page.getByLabel("Temporary password", { exact: true }), values.current),
-    fillStable(page.getByLabel("New password", { exact: true }), values.next),
-    fillStable(page.getByLabel("Confirm new password", { exact: true }), values.confirm),
-  ]);
+): Promise<void> {
+  await fillStable(page.getByLabel("Temporary password", { exact: true }), values.current);
+  await fillStable(page.getByLabel("New password", { exact: true }), values.next);
+  await fillStable(page.getByLabel("Confirm new password", { exact: true }), values.confirm);
 }
 
 /**
