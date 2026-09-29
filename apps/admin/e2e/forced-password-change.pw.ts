@@ -1,5 +1,7 @@
 import { fileURLToPath } from "node:url";
 
+import type { Locator, Page } from "@playwright/test";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 // Plain JavaScript with a hand-written declaration file beside it, imported by relative
@@ -8,6 +10,7 @@ import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
 
 import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { fillStable, readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
+import { waitForHydration } from "./support/hydration.js";
 
 /**
  * The forced password change on first sign-in after bootstrap, in a real browser
@@ -77,6 +80,35 @@ function shellRoutes(): string[] {
   return routes;
 }
 
+/**
+ * The three credential fields, each bound to its own control.
+ *
+ * `getByLabel("New password")` matches the confirmation field too - Playwright's label
+ * match is a substring - so the plain form is a strict-mode violation on this screen
+ * rather than a locator. Named here once so no case has to remember it.
+ */
+function fillChange(
+  page: Page,
+  values: { readonly current: string; readonly next: string; readonly confirm: string },
+): Promise<void[]> {
+  return Promise.all([
+    fillStable(page.getByLabel("Temporary password", { exact: true }), values.current),
+    fillStable(page.getByLabel("New password", { exact: true }), values.next),
+    fillStable(page.getByLabel("Confirm new password", { exact: true }), values.confirm),
+  ]);
+}
+
+/**
+ * The page's own alert, not Next's route announcer.
+ *
+ * Next mounts `__next-route-announcer__` - a second `role="alert"` - outside `main` as
+ * the app hydrates, so an unscoped alert locator is a race against hydration rather
+ * than an assertion (`a11y-axe.pw.ts` records the day it resolved to two).
+ */
+function alertText(page: Page): Locator {
+  return page.getByRole("main").getByRole("alert");
+}
+
 test.beforeAll(async () => {
   await createTestAdmin(EMAIL, { mustChangePassword: true });
 });
@@ -118,21 +150,29 @@ test("the screen refuses what it should, and says so without naming the account"
 
   // A mismatch between the two new fields: its own sentence, because it is a statement
   // about two values the reader just typed rather than about the account.
-  await fillStable(page.getByLabel("Temporary password"), TEST_PASSWORD);
-  await fillStable(page.getByLabel("New password"), CHOSEN_PASSWORD);
-  await fillStable(page.getByLabel("Confirm new password"), `${CHOSEN_PASSWORD}x`);
-  await page.getByRole("button", { name: "Change password" }).click();
-  await expect(page).toHaveURL(/\/change-password\?mismatch=1$/);
-  await expect(page.getByRole("alert")).toContainText("did not match. Please type them again");
+  await fillChange(page, {
+    current: TEST_PASSWORD,
+    next: CHOSEN_PASSWORD,
+    confirm: `${CHOSEN_PASSWORD}x`,
+  });
+  await Promise.all([
+    page.waitForURL(/\/change-password\?mismatch=1$/),
+    page.getByRole("button", { name: "Change password" }).click(),
+  ]);
+  await expect(alertText(page)).toContainText("did not match. Please type them again");
 
   // A wrong temporary password: the generic sentence, so it is indistinguishable from a
   // rejected new one (SEC-1).
-  await fillStable(page.getByLabel("Temporary password"), `${TEST_PASSWORD}-wrong`);
-  await fillStable(page.getByLabel("New password"), CHOSEN_PASSWORD);
-  await fillStable(page.getByLabel("Confirm new password"), CHOSEN_PASSWORD);
-  await page.getByRole("button", { name: "Change password" }).click();
-  await expect(page).toHaveURL(/\/change-password\?error=1$/);
-  await expect(page.getByRole("alert")).toContainText("Those details did not match");
+  await fillChange(page, {
+    current: `${TEST_PASSWORD}-wrong`,
+    next: CHOSEN_PASSWORD,
+    confirm: CHOSEN_PASSWORD,
+  });
+  await Promise.all([
+    page.waitForURL(/\/change-password\?error=1$/),
+    page.getByRole("button", { name: "Change password" }).click(),
+  ]);
+  await expect(alertText(page)).toContainText("Those details did not match");
 
   // And the refusal changed nothing: still gated.
   await page.goto("/questions");
@@ -145,21 +185,21 @@ test("the screen is operable from the keyboard alone, with focus visible", async
   // sweep of this screen in all three modes lives in `a11y-axe.pw.ts` beside the other
   // auth screens; what is asserted here is the tab order, which axe cannot see.
   await submitSignIn(page, EMAIL);
-  const ids: string[] = [];
-  for (let step = 0; step < 4; step += 1) {
-    await page.keyboard.press("Tab");
-    ids.push(
-      await page.evaluate(() => {
-        const active = document.activeElement;
-        if (active === null) return "";
-        const label = active.getAttribute("aria-label") ?? "";
-        return `${active.tagName}:${(active as HTMLInputElement).type ?? ""}:${label}`;
-      }),
-    );
+  await waitForHydration(page);
+
+  // Walked forward from the first field rather than counted from the top of the
+  // document, so a red names the control the order actually broke at.
+  const order = [
+    page.getByLabel("Temporary password", { exact: true }),
+    page.getByLabel("New password", { exact: true }),
+    page.getByLabel("Confirm new password", { exact: true }),
+    page.getByRole("button", { name: "Change password" }),
+  ];
+  await order[0]?.focus();
+  for (const [index, control] of order.entries()) {
+    if (index > 0) await page.keyboard.press("Tab");
+    await expect(control).toBeFocused();
   }
-  // Three password inputs then the submit, in the order they are read.
-  expect(ids.slice(0, 3).every((id) => id.startsWith("INPUT:password"))).toBe(true);
-  expect(ids[3]).toMatch(/^BUTTON/);
 
   // A visible focus indicator, which is the other half of "keyboard operable": the theme
   // paints one with an outline, so an element with none is unusable without a mouse.
@@ -176,9 +216,11 @@ test("a successful change opens 2FA enrollment, and the account reaches the shel
   page,
 }) => {
   await submitSignIn(page, EMAIL);
-  await fillStable(page.getByLabel("Temporary password"), TEST_PASSWORD);
-  await fillStable(page.getByLabel("New password"), CHOSEN_PASSWORD);
-  await fillStable(page.getByLabel("Confirm new password"), CHOSEN_PASSWORD);
+  await fillChange(page, {
+    current: TEST_PASSWORD,
+    next: CHOSEN_PASSWORD,
+    confirm: CHOSEN_PASSWORD,
+  });
   await Promise.all([
     page.waitForURL(/\/two-factor\/enroll$/),
     page.getByRole("button", { name: "Change password" }).click(),
@@ -201,8 +243,8 @@ test("the changed account is unaffected from then on", async ({ page }) => {
   // again": a fresh context, the NEW password, the real 2FA challenge, and no forced
   // screen anywhere in it.
   await page.goto("/sign-in");
-  await fillStable(page.getByLabel("Email"), EMAIL);
-  await fillStable(page.getByLabel("Password"), CHOSEN_PASSWORD);
+  await fillStable(page.getByLabel("Email", { exact: true }), EMAIL);
+  await fillStable(page.getByLabel("Password", { exact: true }), CHOSEN_PASSWORD);
   await Promise.all([
     page.waitForURL(/\/two-factor\/challenge$/),
     page.getByRole("button", { name: "Sign in" }).click(),
