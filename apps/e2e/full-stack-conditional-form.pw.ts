@@ -157,9 +157,20 @@ test.describe.serial("conditional form journey", () => {
     await page.getByRole("button", { name: "Sign in" }).click();
 
     await expect(page).toHaveURL(/\/change-password$/);
-    await page.getByLabel("Temporary password").fill(PASSWORD);
-    await page.getByLabel("New password").fill(CHOSEN_PASSWORD);
-    await page.getByLabel("Confirm new password").fill(CHOSEN_PASSWORD);
+    // By accessible name and exactly, not by label, and the reason is specific to this
+    // screen: Playwright matches a label by case-insensitive substring, so
+    // `getByLabel("New password")` resolves to the confirmation field as well and the
+    // fill is a strict-mode violation rather than a locator. `exact: true` on the label
+    // does not rescue it either - a react-aria `TextField` puts the required marker
+    // inside the label element as an `aria-hidden` span, so the label TEXT is "New
+    // password*" while the accessible NAME is "New password".
+    // `apps/admin/e2e/forced-password-change.pw.ts` carries the same note beside its own
+    // helper; the sign-in fields above stay on `getByLabel` because that screen has no
+    // second field whose label contains either word.
+    const field = (name: string) => page.getByRole("textbox", { name, exact: true });
+    await field("Temporary password").fill(PASSWORD);
+    await field("New password").fill(CHOSEN_PASSWORD);
+    await field("Confirm new password").fill(CHOSEN_PASSWORD);
     await page.getByRole("button", { name: "Change password" }).click();
 
     await expect(page).toHaveURL(/\/two-factor\/enroll$/);
