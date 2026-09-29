@@ -1,7 +1,7 @@
 # 065 - Release records, promotion and the admin's environment switcher
 
 **Stage:** 9 (Phase 4) · **Apps/packages:** `@roonga/qcms-db` (`form_releases`), `apps/api` (release and promotion, release resolution on the respondent path), `apps/admin` (the switcher, the banner and the release screens) · **Depends on:** 064
-**References:** ADR-40 (release states over shared versions, and the `form.released` event of Q49) · ADR-07 (a session pins its version for life, invariant I4) · ADR-02 · ADR-18 · ADR-10 · SEC-6 · `docs/webhooks.md` · `plan/environments-and-workspaces.md` the 065 section of 8, and Q4, Q5, Q6, Q22, Q49, Q55 and finding 2 · R1 · R6 · issue #995
+**References:** ADR-40 (release states over shared versions, and the `form.released` event of Q49) · ADR-07 (a session pins its version for life, invariant I4) · ADR-02 · ADR-18 · ADR-10 · SEC-6 · `docs/webhooks.md` · `plan/environments-and-workspaces.md` the 065 section of 8, and Q4, Q5, Q6, Q22, Q49, Q53, Q55 and finding 2 · R1 · R6 · issue #995
 
 ## Context
 
@@ -11,7 +11,7 @@ This task builds that record and the admin surface over it. It is also where the
 
 ## The rulings that govern this task
 
-Q49 (publishing queues nothing; releasing queues `form.released` into that environment's `outbox`, in the release's own transaction, and `form.published` is retired), Q4 (no ordering requirement: a hotfix straight to `prod` is allowed and the release row records the source environment when there was one), Q5 (a release moves no open session; ADR-07 and invariant I4 stand), Q6 (a global switcher with a persistent banner, and destructive actions restating the environment), Q22 (green field, so there is no backfill), and finding 2 (publish-per-iteration churn is accepted, with both mitigations in presentation rather than in the model). ADR-40 binds the release state; ADR-07 binds the session pin.
+Q49 (publishing queues nothing; releasing queues `form.released` into that environment's `outbox`, in the release's own transaction, and `form.published` is retired), Q4 (no ordering requirement: a hotfix straight to `prod` is allowed and the release row records the source environment when there was one), Q5 (a release moves no open session; ADR-07 and invariant I4 stand), Q6 (a global switcher with a persistent banner, and destructive actions restating the environment), Q22 (green field, so there is no backfill), Q53 (the interim rule this task half-replaces: the Q6 switcher becomes the first of the two real sources a request's environment comes from, in place of every request resolving to the `prod` pool), and finding 2 (publish-per-iteration churn is accepted, with both mitigations in presentation rather than in the model). ADR-40 binds the release state; ADR-07 binds the session pin.
 
 ## Deliverables
 
@@ -40,7 +40,7 @@ Criterion 6 is asserted **in the browser suite** deliberately: a banner nobody r
 
 ## Files and areas
 
-`packages/db/src/schema/` and `packages/db/src/queries/` for `form_releases` and its reads, the release and promotion routes in `apps/api/src/features/`, the respondent path's version resolution, `apps/api/src/features/forms/handler.ts` and its README for the retired publish event, the `form.published` sites listed under Deliverables including `packages/db/src/queries/outbox.ts`, `erasure.ts` and `packages/db/src/schema/outbox.ts`, `apps/api/src/schedulers/outbox-delivery.ts`, `docs/webhooks.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_SCHEMA.md`, `docs/operations.md`, the scaffold mirrors under `packages/create-qcms-app/templates/common/`, the admin shell (the switcher and the banner), the admin's version-history and release screens, the admin and portal i18n catalogs for the new strings, the browser specs for the banner and the confirmations, and a changeset.
+`packages/db/src/schema/` and `packages/db/src/queries/` for `form_releases` and its reads, the release and promotion routes in `apps/api/src/features/`, the respondent path's version resolution, `apps/api/src/features/forms/handler.ts` and its README for the retired publish event, the `form.published` sites listed under Deliverables including `packages/db/src/queries/outbox.ts`, `erasure.ts` and `packages/db/src/schema/outbox.ts`, `apps/api/src/schedulers/outbox-delivery.ts`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_SCHEMA.md`, `docs/operations.md`, the scaffold mirrors under `packages/create-qcms-app/templates/common/`, the admin shell (the switcher and the banner), the admin's version-history and release screens, the admin and portal i18n catalogs for the new strings, the browser specs for the banner and the confirmations, and a changeset.
 
 **The changeset names a publishable package, and `qcms-api` is not one.** `qcms-api`, `qcms-portal` and `qcms-admin` sit in `.changeset/config.json`'s `ignore` list. What this task changes that is published is **`@roonga/qcms-db`**, which gains `form_releases`, its migration and the `SELECT` grant, so the changeset and its release note ride that package. If nothing published changes in a given slice of this work, no changeset is due for it.
 
