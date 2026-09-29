@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import type { Result } from "./errors.js";
 import type { FormDefinition } from "./form-definition.js";
-import { OptionId, QuestionId, RuleId, StepId } from "./ids.js";
+import { GroupId, OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { LocaleCode } from "./localized-text.js";
 import type { PublishWarning } from "./publish-warning.js";
 import type { QuestionVersionRecord } from "./question-definition.js";
@@ -42,6 +42,22 @@ export const PublishErrorCode = z.enum([
   // An author-supplied validation message keyed by a constraint the question
   // does not carry (task 048, ADR-32): a message no respondent could ever see.
   "ORPHAN_MESSAGE_KEY",
+  // The repeating group's publish invariants (task 071, ADR-42). All nine are
+  // ordinary members of this union and are reported alongside the others rather
+  // than short-circuiting. There is deliberately **no**
+  // `REPEAT_MAX_ABOVE_CEILING`: the Code Owner's ruling of 2026-09-30 (Q14)
+  // removed the installation-wide instance ceiling, so publish checks that a
+  // `max` is declared and coherent with `min`, and never that it is small
+  // enough.
+  "DUPLICATE_GROUP_ID",
+  "REPEAT_NESTING_NOT_ALLOWED",
+  "REPEAT_MAX_MISSING",
+  "REPEAT_MIN_ABOVE_MAX",
+  "REPEAT_COUNT_BACKWARD_REF",
+  "REPEAT_COUNT_NOT_A_NUMBER",
+  "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN",
+  "RULE_TARGETS_SPAN_SCOPES",
+  "REPEAT_EVALUATION_BUDGET_EXCEEDED",
 ]);
 export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 
@@ -89,6 +105,9 @@ export const PublishError = z.discriminatedUnion("code", [
     path: z.object({
       locale: LocaleCode,
       step: StepId.optional(),
+      // A repeating group's own label and instance-label template are authored
+      // text like any other, so both text checks reach them (ADR-42).
+      group: GroupId.optional(),
       question: QuestionId.optional(),
       option: OptionId.optional(),
     }),
@@ -102,6 +121,7 @@ export const PublishError = z.discriminatedUnion("code", [
     path: z.object({
       locale: LocaleCode,
       step: StepId.optional(),
+      group: GroupId.optional(),
       question: QuestionId.optional(),
       option: OptionId.optional(),
     }),
@@ -149,6 +169,77 @@ export const PublishError = z.discriminatedUnion("code", [
     code: z.literal("ORPHAN_MESSAGE_KEY"),
     message,
     path: z.object({ question: QuestionId, constraint: ValidationMessageKey }),
+  }),
+  // A groupId used more than once in the form (ADR-42). Form-scoped ids are
+  // permanent within a form the way a stepId is, so a duplicate is malformed.
+  z.object({
+    code: z.literal("DUPLICATE_GROUP_ID"),
+    message,
+    path: z.object({ group: GroupId, step: StepId }),
+  }),
+  // A repeating group inside a repeating group (ADR-42, Q13): a hard depth of
+  // one. Refused at parse as well, where a nested group matches neither member
+  // of the step item union; this variant is what a definition constructed
+  // without the parser is reported with.
+  z.object({
+    code: z.literal("REPEAT_NESTING_NOT_ALLOWED"),
+    message,
+    path: z.object({ group: GroupId, step: StepId }),
+  }),
+  // A `fromAnswer` or `open` count source with no `max` (ADR-42, Q4 as amended
+  // by Q14). With no installation-wide ceiling the group's own `max` is the
+  // only bound there is, so it is required on every source that is not `fixed`.
+  z.object({
+    code: z.literal("REPEAT_MAX_MISSING"),
+    message,
+    path: z.object({ group: GroupId, step: StepId }),
+  }),
+  // A group whose `min` is above its `max`: a range no instance count can sit
+  // in.
+  z.object({
+    code: z.literal("REPEAT_MIN_ABOVE_MAX"),
+    message,
+    path: z.object({ group: GroupId, step: StepId }),
+  }),
+  // A `fromAnswer` count question that does not precede the group's whole span
+  // in document order (ADR-16 as amended).
+  z.object({
+    code: z.literal("REPEAT_COUNT_BACKWARD_REF"),
+    message,
+    path: z.object({ group: GroupId, question: QuestionId }),
+  }),
+  // A `fromAnswer` count source pointing at a question that is not a `number`.
+  z.object({
+    code: z.literal("REPEAT_COUNT_NOT_A_NUMBER"),
+    message,
+    path: z.object({ group: GroupId, question: QuestionId }),
+  }),
+  // An `instanceLabel` template carrying a placeholder other than `{n}`
+  // (ADR-42, Q6). A template with no placeholder at all is legal - a group of
+  // one has nothing to number.
+  z.object({
+    code: z.literal("INSTANCE_LABEL_PLACEHOLDER_UNKNOWN"),
+    message,
+    path: z.object({ group: GroupId, locale: LocaleCode, placeholder: z.string() }),
+  }),
+  // One rule's `show` list straddling a group boundary (ADR-03 as amended): the
+  // rule would be per-instance and whole-form at once. `"form"` is the scope of
+  // every target outside every group, step targets included.
+  z.object({
+    code: z.literal("RULE_TARGETS_SPAN_SCOPES"),
+    message,
+    path: z.object({
+      rule: RuleId,
+      scopes: z.array(z.union([GroupId, z.literal("form")])).min(2),
+    }),
+  }),
+  // A cross-group whole-group operator whose `max_H x max_G` exceeds
+  // REPEAT_EVALUATION_BUDGET (ADR-16 as amended). A cost bound on one rule
+  // shape, never a cap on either group's size.
+  z.object({
+    code: z.literal("REPEAT_EVALUATION_BUDGET_EXCEEDED"),
+    message,
+    path: z.object({ rule: RuleId, targetGroup: GroupId, readGroup: GroupId }),
   }),
 ]);
 export type PublishError = z.infer<typeof PublishError>;
@@ -209,6 +300,7 @@ function assertNeverPublishError(error: never): never {
  */
 function textSite(path: {
   readonly step?: StepId | undefined;
+  readonly group?: GroupId | undefined;
   readonly question?: QuestionId | undefined;
   readonly option?: OptionId | undefined;
 }): string {
@@ -216,6 +308,7 @@ function textSite(path: {
     return `option "${path.option}" of question "${path.question}"`;
   }
   if (path.question !== undefined) return `question "${path.question}"`;
+  if (path.group !== undefined) return `group "${path.group}"`;
   if (path.step !== undefined) return `step "${path.step}"`;
   return "form title";
 }
@@ -263,6 +356,24 @@ export function publishErrorLocation(error: PublishError): string {
       return `step "${error.path.step}"`;
     case "ORPHAN_MESSAGE_KEY":
       return `validation message "${error.path.constraint}" of question "${error.path.question}"`;
+    case "DUPLICATE_GROUP_ID":
+    case "REPEAT_NESTING_NOT_ALLOWED":
+    case "REPEAT_MAX_MISSING":
+    case "REPEAT_MIN_ABOVE_MAX":
+      return `group "${error.path.group}" in step "${error.path.step}"`;
+    case "REPEAT_COUNT_BACKWARD_REF":
+    case "REPEAT_COUNT_NOT_A_NUMBER":
+      return `count question "${error.path.question}" of group "${error.path.group}"`;
+    case "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN":
+      return `placeholder "{${error.path.placeholder}}" in locale "${error.path.locale}" of group "${error.path.group}"`;
+    case "RULE_TARGETS_SPAN_SCOPES": {
+      const named = error.path.scopes.map((scope) =>
+        scope === "form" ? "the form" : `group "${scope}"`,
+      );
+      return `rule "${error.path.rule}" across ${named.join(" and ")}`;
+    }
+    case "REPEAT_EVALUATION_BUDGET_EXCEEDED":
+      return `rule "${error.path.rule}" from group "${error.path.targetGroup}" over group "${error.path.readGroup}"`;
     /* v8 ignore next 2 -- unreachable by construction */
     default:
       return assertNeverPublishError(error);

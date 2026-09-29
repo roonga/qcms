@@ -19,6 +19,13 @@ export {
   RuleId,
   SessionId,
   LinkId,
+  GroupId,
+  InstanceId,
+  InstanceAnswerKey,
+  type AnswerKey,
+  ANSWER_KEY_SEPARATOR,
+  answerKey,
+  answerKeyParts,
   parseQuestionId,
   parseFormId,
   parseStepId,
@@ -33,6 +40,11 @@ export {
   isRuleId,
   isSessionId,
   isLinkId,
+  parseGroupId,
+  parseInstanceId,
+  isGroupId,
+  isInstanceId,
+  isInstanceAnswerKey,
 } from "./ids.js";
 
 export {
@@ -105,6 +117,8 @@ export {
 
 export {
   CONDITION_MAX_DEPTH,
+  INSTANCE_COUNT_COMPARISONS,
+  InstanceCountComparison,
   Condition,
   VisibilityRule,
   VisibilityRuleError,
@@ -123,10 +137,26 @@ export {
   type RuleTypeFinding,
   documentOrder,
   ruleReferences,
+  ruleGroupReferences,
   ruleTargets,
   analyzeRuleGraph,
   checkRuleTypes,
 } from "./rule-graph.js";
+
+export {
+  QuestionRef as QuestionRefSchema,
+  RepeatCount,
+  RepeatGroup,
+  RepeatPresentation,
+  StepItem,
+  REPEAT_EVALUATION_BUDGET,
+  INSTANCE_LABEL_PLACEHOLDER,
+  countBounds,
+  isRepeatGroup,
+  labelPlaceholders,
+  questionGroups,
+  repeatGroups,
+} from "./step.js";
 
 export {
   QuestionRef,
@@ -144,6 +174,7 @@ export {
   EvalError,
   FlowState,
   type AnswerMap,
+  type RosterMap,
   evaluateRules,
 } from "./evaluate-rules.js";
 

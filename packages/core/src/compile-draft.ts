@@ -1,7 +1,7 @@
 import { err, ok } from "./errors.js";
 import { SEMANTICS_VERSION } from "./evaluate-rules.js";
 import type { FormDefinition } from "./form-definition.js";
-import { isStepId, type OptionId, type QuestionId, type StepId } from "./ids.js";
+import { isStepId, type GroupId, type OptionId, type QuestionId, type StepId } from "./ids.js";
 import { isCompleteFor, type LocaleCode, type LocalizedText } from "./localized-text.js";
 import type { FrozenSnapshot, PublishError, PublishResult } from "./publish-error.js";
 import type { PublishWarning } from "./publish-warning.js";
@@ -11,6 +11,13 @@ import {
   type QuestionVersionRecord,
 } from "./question-definition.js";
 import { analyzeRuleGraph, checkRuleTypes, documentOrder, ruleReferences } from "./rule-graph.js";
+import {
+  countBounds,
+  INSTANCE_LABEL_PLACEHOLDER,
+  isRepeatGroup,
+  labelPlaceholders,
+  type RepeatGroup,
+} from "./step.js";
 import { classSetAmbiguity } from "./safe-pattern.js";
 import { VALIDATION_MESSAGE_KEYS } from "./validation-message.js";
 import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
@@ -36,7 +43,7 @@ import { CONDITION_MAX_DEPTH, conditionDepth } from "./visibility-rule.js";
  * snapshots are immutable (R1), so readers use this stamp to interpret old
  * rows, never migrations.
  */
-export const SNAPSHOT_SCHEMA_VERSION = 1;
+export const SNAPSHOT_SCHEMA_VERSION = 2;
 
 /**
  * Resolve a `{questionId, version}` pin to the stored question version
@@ -91,6 +98,7 @@ function checkStructure(definition: FormDefinition): PublishError[] {
   const errors: PublishError[] = [];
   const seenSteps = new Set<StepId>();
   const seenQuestions = new Set<QuestionId>();
+  const seenGroups = new Set<GroupId>();
   for (const step of definition.steps) {
     if (seenSteps.has(step.stepId)) {
       errors.push({
@@ -101,16 +109,48 @@ function checkStructure(definition: FormDefinition): PublishError[] {
     } else {
       seenSteps.add(step.stepId);
     }
-    for (const item of step.items) {
-      if (seenQuestions.has(item.questionId)) {
+    const pin = (questionId: QuestionId): void => {
+      if (seenQuestions.has(questionId)) {
         errors.push({
           code: "DUPLICATE_QUESTION_IN_FORM",
-          message: `Question "${item.questionId}" is pinned more than once (again in step "${step.stepId}")`,
-          path: { step: step.stepId, question: item.questionId },
+          message: `Question "${questionId}" is pinned more than once (again in step "${step.stepId}")`,
+          path: { step: step.stepId, question: questionId },
         });
       } else {
-        seenQuestions.add(item.questionId);
+        seenQuestions.add(questionId);
       }
+    };
+    for (const item of step.items) {
+      if (!isRepeatGroup(item)) {
+        pin(item.questionId);
+        continue;
+      }
+      if (seenGroups.has(item.groupId)) {
+        errors.push({
+          code: "DUPLICATE_GROUP_ID",
+          message: `Group "${item.groupId}" appears more than once in the form`,
+          path: { group: item.groupId, step: step.stepId },
+        });
+      } else {
+        seenGroups.add(item.groupId);
+      }
+      // A group inside a group (ADR-42, Q13). The parser refuses this outright -
+      // a nested group matches neither member of the step item union - so this
+      // branch only fires for a definition constructed without
+      // `parseFormDefinition`, which is exactly the case this whole function
+      // exists for: the type does not prove the refinements ran.
+      if (item.items.some((member) => isRepeatGroup(member as never))) {
+        errors.push({
+          code: "REPEAT_NESTING_NOT_ALLOWED",
+          message: `Group "${item.groupId}" contains a repeating group; a group may not contain a group (ADR-42)`,
+          path: { group: item.groupId, step: step.stepId },
+        });
+      }
+      for (const member of item.items) {
+        pin(member.questionId);
+      }
+      errors.push(...checkRepeatBounds(item, step.stepId));
+      errors.push(...checkInstanceLabel(item));
     }
   }
   for (const rule of definition.rules) {
@@ -120,6 +160,99 @@ function checkStructure(definition: FormDefinition): PublishError[] {
         code: "RULE_DEPTH_EXCEEDED",
         message: `Rule "${rule.ruleId}": condition nesting depth ${String(depth)} exceeds the cap of ${String(CONDITION_MAX_DEPTH)} (DOMAIN_SCHEMA §3)`,
         path: { rule: rule.ruleId },
+      });
+    }
+  }
+  return errors;
+}
+
+/**
+ * A group's instance-count bounds are declared and coherent (ADR-42, SEC-16).
+ *
+ * `max` is required on every count source that is not `fixed`
+ * (`REPEAT_MAX_MISSING`), because the Code Owner's ruling of 2026-09-30 removed
+ * every installation-wide instance ceiling and left the group's own `max` as
+ * the only bound there is: without one, a `fromAnswer` group lets the
+ * respondent's answer to the count question set the size of the loop and an
+ * `open` group is an unbounded write path into an append-only ledger.
+ *
+ * **Nothing here checks that a `max` is small enough**, and that absence is the
+ * ruling rather than an omission. A group declaring `max: 5000` publishes.
+ */
+function checkRepeatBounds(group: RepeatGroup, stepId: StepId): PublishError[] {
+  const errors: PublishError[] = [];
+  const bounds = countBounds(group.count);
+  if (bounds.max === undefined) {
+    errors.push({
+      code: "REPEAT_MAX_MISSING",
+      message: `Group "${group.groupId}" takes its count from "${group.count.source}" and declares no max; every count source but "fixed" must declare one, because a group's own max is the only bound on how many instances a respondent may create (SEC-16)`,
+      path: { group: group.groupId, step: stepId },
+    });
+    return errors;
+  }
+  if (bounds.min > bounds.max) {
+    errors.push({
+      code: "REPEAT_MIN_ABOVE_MAX",
+      message: `Group "${group.groupId}" declares min ${String(bounds.min)} above max ${String(bounds.max)}, which no instance count can satisfy`,
+      path: { group: group.groupId, step: stepId },
+    });
+  }
+  return errors;
+}
+
+/**
+ * The instance-label template carries `{n}` and nothing else (ADR-42, Q6).
+ *
+ * `{n}` is the live, one-based ordinal. A template with **no** placeholder is
+ * legal, because a group of one has nothing to number; a template carrying any
+ * other placeholder is refused, because nothing would ever substitute it and a
+ * respondent would read the braces. Every locale the template declares is
+ * checked, not only the default: a translation carrying `{index}` reaches a
+ * respondent as literal text exactly as a default one would.
+ */
+function checkInstanceLabel(group: RepeatGroup): PublishError[] {
+  const errors: PublishError[] = [];
+  for (const [locale, template] of Object.entries(group.instanceLabel)) {
+    for (const placeholder of labelPlaceholders(template)) {
+      if (placeholder !== INSTANCE_LABEL_PLACEHOLDER) {
+        errors.push({
+          code: "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN",
+          message: `Group "${group.groupId}" has an instance label in locale "${locale}" carrying the placeholder "{${placeholder}}"; the only placeholder is "{${INSTANCE_LABEL_PLACEHOLDER}}", the live one-based ordinal`,
+          // The key of a parsed LocalizedText is a LocaleCode by construction.
+          path: { group: group.groupId, locale: locale as LocaleCode, placeholder },
+        });
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * A `fromAnswer` count source points at a `number` question
+ * (`REPEAT_COUNT_NOT_A_NUMBER`). Its position relative to the group's span is
+ * `analyzeRuleGraph`'s (`REPEAT_COUNT_BACKWARD_REF`); this needs the resolved
+ * pin, so it lives here beside the other resolution-dependent checks. A count
+ * question that does not resolve at all is skipped: `DANGLING_QUESTION_REF`
+ * already names it.
+ */
+function checkRepeatCountTypes(
+  definition: FormDefinition,
+  resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
+): PublishError[] {
+  const errors: PublishError[] = [];
+  for (const step of definition.steps) {
+    for (const item of step.items) {
+      if (!isRepeatGroup(item) || item.count.source !== "fromAnswer") {
+        continue;
+      }
+      const record = resolved.get(item.count.questionId);
+      if (record === undefined || record.definition.type === "number") {
+        continue;
+      }
+      errors.push({
+        code: "REPEAT_COUNT_NOT_A_NUMBER",
+        message: `Group "${item.groupId}" takes its instance count from question "${item.count.questionId}", which is ${record.definition.type} rather than number`,
+        path: { group: item.groupId, question: item.count.questionId },
       });
     }
   }
@@ -139,7 +272,10 @@ function resolvePins(
 ): PublishError[] {
   const errors: PublishError[] = [];
   for (const step of draft.definition.steps) {
-    for (const item of step.items) {
+    // A group's member pins resolve exactly like a step's own: a question does
+    // not know it is repeated, so its pin is the same pin (ADR-42).
+    const pins = step.items.flatMap((item) => (isRepeatGroup(item) ? item.items : [item]));
+    for (const item of pins) {
       const record = draft.resolveQuestion(item.questionId, item.version);
       if (
         record === undefined ||
@@ -225,6 +361,7 @@ interface TextSite {
   readonly subject: string;
   readonly path: {
     readonly step?: StepId;
+    readonly group?: GroupId;
     readonly question?: QuestionId;
     readonly option?: OptionId;
   };
@@ -284,6 +421,27 @@ function textSites(
       subject: `Step "${step.stepId}" title`,
       path: { step: step.stepId },
     });
+    // A repeating group carries two authored texts of its own (ADR-42): the
+    // group's label and the instance-label template a respondent reads as
+    // "Passenger 2". Both are subject to the same two verdicts as every other
+    // authored text - the default locale must be present (I3) and no locale may
+    // be whitespace only (issue #366) - and neither would be reached by walking
+    // pinned questions alone.
+    for (const item of step.items) {
+      if (!isRepeatGroup(item)) {
+        continue;
+      }
+      sites.push({
+        text: item.label,
+        subject: `Group "${item.groupId}" label`,
+        path: { step: step.stepId, group: item.groupId },
+      });
+      sites.push({
+        text: item.instanceLabel,
+        subject: `Group "${item.groupId}" instance label`,
+        path: { step: step.stepId, group: item.groupId },
+      });
+    }
   }
   // Pinned question content (unresolved pins were already reported as
   // DANGLING_QUESTION_REF; there is nothing to check for them).
@@ -491,6 +649,7 @@ export function compileDraft(draft: DraftInput): PublishResult {
     ...checkRuleResolution(definition),
     ...analyzeRuleGraph(definition),
     ...checkRuleTypes(definition, (questionId) => resolved.get(questionId)?.definition),
+    ...checkRepeatCountTypes(definition, resolved),
   ];
   const sites = textSites(definition, resolved);
   errors.push(...checkLocaleCompleteness(definition, sites));

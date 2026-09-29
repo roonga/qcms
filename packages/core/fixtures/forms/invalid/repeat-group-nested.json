@@ -1,0 +1,36 @@
+{
+  "description": "A repeating group inside a repeating group. A group may not contain a group (ADR-42, Q13, ruled 2026-09-30): the kernel refuses it at parse, because a group's items are pinned question refs and nothing else, so the nested object matches neither member of the step item union.",
+  "expected": {
+    "code": "INVALID_FORM_DEFINITION",
+    "path": ["steps", 0, "items", 0, "items", 0, "questionId"]
+  },
+  "definition": {
+    "formId": "frm_auto_quote",
+    "defaultLocale": "en",
+    "title": { "en": "Vehicle insurance quote" },
+    "steps": [
+      {
+        "stepId": "stp_history",
+        "title": { "en": "Driving history" },
+        "items": [
+          {
+            "groupId": "grp_passengers",
+            "label": { "en": "Passengers" },
+            "instanceLabel": { "en": "Passenger {n}" },
+            "items": [
+              {
+                "groupId": "grp_bags",
+                "label": { "en": "Bags" },
+                "instanceLabel": { "en": "Bag {n}" },
+                "items": [{ "questionId": "q_full_name", "version": 1 }],
+                "count": { "source": "open", "min": 0, "max": 3 }
+              }
+            ],
+            "count": { "source": "open", "min": 1, "max": 9 }
+          }
+        ]
+      }
+    ],
+    "rules": []
+  }
+}

@@ -150,12 +150,85 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'validation message "minLength" of question "q_at_fault_accident"',
   },
+  // The nine repeating-group codes (task 071, ADR-42).
+  {
+    raw: {
+      code: "DUPLICATE_GROUP_ID",
+      message: "Group appears more than once in the form",
+      path: { group: "grp_passengers", step: "stp_history" },
+    },
+    location: 'group "grp_passengers" in step "stp_history"',
+  },
+  {
+    raw: {
+      code: "REPEAT_NESTING_NOT_ALLOWED",
+      message: "A group may not contain a group",
+      path: { group: "grp_passengers", step: "stp_history" },
+    },
+    location: 'group "grp_passengers" in step "stp_history"',
+  },
+  {
+    raw: {
+      code: "REPEAT_MAX_MISSING",
+      message: "An open count source declares no max",
+      path: { group: "grp_passengers", step: "stp_history" },
+    },
+    location: 'group "grp_passengers" in step "stp_history"',
+  },
+  {
+    raw: {
+      code: "REPEAT_MIN_ABOVE_MAX",
+      message: "min is above max",
+      path: { group: "grp_passengers", step: "stp_history" },
+    },
+    location: 'group "grp_passengers" in step "stp_history"',
+  },
+  {
+    raw: {
+      code: "REPEAT_COUNT_BACKWARD_REF",
+      message: "The count question does not precede the group's span",
+      path: { group: "grp_passengers", question: "q_accident_count" },
+    },
+    location: 'count question "q_accident_count" of group "grp_passengers"',
+  },
+  {
+    raw: {
+      code: "REPEAT_COUNT_NOT_A_NUMBER",
+      message: "The count question is not a number question",
+      path: { group: "grp_passengers", question: "q_full_name" },
+    },
+    location: 'count question "q_full_name" of group "grp_passengers"',
+  },
+  {
+    raw: {
+      code: "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN",
+      message: "The instance label carries a placeholder that is not {n}",
+      path: { group: "grp_passengers", locale: "en", placeholder: "index" },
+    },
+    location: 'placeholder "{index}" in locale "en" of group "grp_passengers"',
+  },
+  {
+    raw: {
+      code: "RULE_TARGETS_SPAN_SCOPES",
+      message: "One rule shows targets in two scopes",
+      path: { rule: "rul_infant", scopes: ["grp_passengers", "form"] },
+    },
+    location: 'rule "rul_infant" across group "grp_passengers" and the form',
+  },
+  {
+    raw: {
+      code: "REPEAT_EVALUATION_BUDGET_EXCEEDED",
+      message: "A cross-group rule costs more than the evaluator budget",
+      path: { rule: "rul_infant", targetGroup: "grp_holdings", readGroup: "grp_passengers" },
+    },
+    location: 'rule "rul_infant" from group "grp_holdings" over group "grp_passengers"',
+  },
 ];
 
 describe("PublishError", () => {
   it("codes and union variants stay in lockstep (compile-time)", () => {
     expect(codesInLockstep).toBe(true);
-    expect(PublishErrorCode.options).toHaveLength(13);
+    expect(PublishErrorCode.options).toHaveLength(22);
   });
 
   it.each(

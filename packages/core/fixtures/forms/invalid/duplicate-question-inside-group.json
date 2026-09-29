@@ -1,0 +1,29 @@
+{
+  "description": "q_full_name is pinned once outside a repeating group and once inside one; DUPLICATE_QUESTION_IN_FORM reaches inside groups, so a question is either repeated or not in a given form (ADR-42).",
+  "expected": {
+    "code": "DUPLICATE_QUESTION_IN_FORM",
+    "path": ["steps", 0, "items", 1, "items", 0, "questionId"]
+  },
+  "definition": {
+    "formId": "frm_auto_quote",
+    "defaultLocale": "en",
+    "title": { "en": "Vehicle insurance quote" },
+    "steps": [
+      {
+        "stepId": "stp_history",
+        "title": { "en": "Driving history" },
+        "items": [
+          { "questionId": "q_full_name", "version": 1 },
+          {
+            "groupId": "grp_passengers",
+            "label": { "en": "Passengers" },
+            "instanceLabel": { "en": "Passenger {n}" },
+            "items": [{ "questionId": "q_full_name", "version": 1 }],
+            "count": { "source": "open", "min": 1, "max": 9 }
+          }
+        ]
+      }
+    ],
+    "rules": []
+  }
+}

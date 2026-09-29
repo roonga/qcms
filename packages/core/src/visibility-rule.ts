@@ -2,7 +2,7 @@ import { z } from "zod";
 
 import { AnswerValue, Comparable } from "./answer-value.js";
 import { QcmsError, err, ok, type Result } from "./errors.js";
-import { OptionId, QuestionId, RuleId, StepId } from "./ids.js";
+import { GroupId, OptionId, QuestionId, RuleId, StepId } from "./ids.js";
 import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 
 /**
@@ -35,6 +35,25 @@ export const CONDITION_MAX_DEPTH = 8;
  * whole-answer set equality, never containment), `gt/gte/lt/lte` order
  * `Comparable` values (number | date), `answered` is the explicit existence
  * test, and `contains`/`containsAny` are multiChoice membership (ADR-21).
+ *
+ * **Three operators read a whole repeating group** (ADR-42, ADR-03 as amended
+ * 2026-09-30). They reference a `groupId` rather than a `questionId`:
+ * `anyInstance` is true when its nested condition holds for at least one live
+ * instance, `everyInstance` when it holds for all of them, and `instanceCount`
+ * compares the live instance count. The **inside-out** direction needs no
+ * syntax at all: a rule whose `show` target sits inside a group is evaluated
+ * once per live instance, and a reference to a question in the same group
+ * resolves to that instance's answer.
+ *
+ * **`everyInstance` over a group with no live instance is FALSE**, and that is
+ * a decision rather than an implementation accident (ADR-42's own Note). It is
+ * deliberately not vacuous truth, because "every passenger holds a passport" is
+ * not a true statement about a booking with no passengers. The consequence has
+ * to be carried wherever the classical reading would otherwise be assumed:
+ * `everyInstance(G, c)` is **not** equivalent to `not(anyInstance(G, not c))`
+ * on an empty G - the first is false and the second is true - so nothing in the
+ * evaluator, the admin or a golden scenario may treat one as a rewrite of the
+ * other.
  */
 export type Condition =
   | { op: "equals"; questionId: QuestionId; value: AnswerValue }
@@ -49,7 +68,21 @@ export type Condition =
   | { op: "containsAny"; questionId: QuestionId; values: OptionId[] }
   | { op: "and"; conditions: Condition[] }
   | { op: "or"; conditions: Condition[] }
-  | { op: "not"; condition: Condition };
+  | { op: "not"; condition: Condition }
+  | { op: "anyInstance"; groupId: GroupId; condition: Condition }
+  | { op: "everyInstance"; groupId: GroupId; condition: Condition }
+  | {
+      op: "instanceCount";
+      groupId: GroupId;
+      compare: "equals" | "gt" | "gte" | "lt" | "lte";
+      value: number;
+    };
+
+/** The comparison names `instanceCount` reuses, as a field rather than as a
+ * second comparison vocabulary (ADR-03 as amended 2026-09-30). */
+export const INSTANCE_COUNT_COMPARISONS = ["equals", "gt", "gte", "lt", "lte"] as const;
+export const InstanceCountComparison = z.enum(INSTANCE_COUNT_COMPARISONS);
+export type InstanceCountComparison = z.infer<typeof InstanceCountComparison>;
 
 /**
  * Closed union of typed error codes for rule parsing. `RULE_DEPTH_EXCEEDED`
@@ -101,6 +134,18 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
     z.object({ op: z.literal("and"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("or"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("not"), condition: ConditionNode }),
+    // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-30).
+    // They carry a `groupId` and no `questionId`, which is the property every
+    // condition walker has to know about: a default branch reading
+    // `condition.questionId` silently reads `undefined` on these.
+    z.object({ op: z.literal("anyInstance"), groupId: GroupId, condition: ConditionNode }),
+    z.object({ op: z.literal("everyInstance"), groupId: GroupId, condition: ConditionNode }),
+    z.object({
+      op: z.literal("instanceCount"),
+      groupId: GroupId,
+      compare: InstanceCountComparison,
+      value: z.number().int().min(0),
+    }),
   ]),
 );
 
@@ -114,7 +159,14 @@ export function conditionDepth(condition: Condition): number {
     case "and":
     case "or":
       return 1 + Math.max(...condition.conditions.map(conditionDepth));
+    // `anyInstance` and `everyInstance` carry a nested condition, so they
+    // recurse exactly as `not` does and their nested condition counts toward
+    // the cap (ADR-03 as amended 2026-09-30; `CONDITION_MAX_DEPTH` stays 8).
+    // `instanceCount` carries none and is a leaf.
     case "not":
+      return 1 + conditionDepth(condition.condition);
+    case "anyInstance":
+    case "everyInstance":
       return 1 + conditionDepth(condition.condition);
     default:
       return 1;

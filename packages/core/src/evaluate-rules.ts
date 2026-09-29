@@ -3,16 +3,25 @@ import { z } from "zod";
 import { AnswerValue, compareValues, isBlankAnswerValue, valuesEqual } from "./answer-value.js";
 import { QcmsError, err, ok, type Result } from "./errors.js";
 import { FormDefinition } from "./form-definition.js";
-import { isStepId, QuestionId, StepId } from "./ids.js";
+import {
+  answerKey,
+  GroupId,
+  InstanceId,
+  isStepId,
+  QuestionId,
+  StepId,
+  type AnswerKey,
+} from "./ids.js";
 import type { FrozenSnapshot } from "./publish-error.js";
 import type { QuestionDefinition } from "./question-definition.js";
 import { documentOrder, type ResolveQuestion } from "./rule-graph.js";
+import { isRepeatGroup, questionGroups, repeatGroups } from "./step.js";
 import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
 /**
  * The rules evaluator (task 006, ADR-16, invariants I6/I7). A pure, total,
- * deterministic function: same `(snapshot, answers)` → same `FlowState`,
- * forever. Semantics (DOMAIN_SCHEMA §3, frozen as {@link SEMANTICS_VERSION}):
+ * deterministic function: same `(snapshot, answers, rosters)` → same
+ * `FlowState`, forever. Semantics (DOMAIN_SCHEMA §3, frozen as {@link SEMANTICS_VERSION}):
  *
  * 1. **Single forward pass in document order** - never a fixpoint. Steps in
  *    order; within a step, items in order. Untargeted items are visible; a
@@ -39,6 +48,14 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
  * 5. `currentStep` = first visible step containing a visible unanswered
  *    required question, else first with any visible unanswered question,
  *    else `null`; `complete` = no visible required question unanswered.
+ * 6. **A repeating group's span is walked once per live instance** (ADR-42,
+ *    ADR-16 as amended 2026-09-30), within this same `SEMANTICS_VERSION`. A
+ *    rule whose `show` target sits inside group G is evaluated once per live
+ *    instance of G, and a reference to a question inside G resolves to that
+ *    instance's answer; three operators read a whole group from outside it, and
+ *    `everyInstance` over a group with no live instance is FALSE by decision.
+ *    A form with no repeating group evaluates byte-identically, which every
+ *    committed golden scenario asserts with no `expected` block edited.
  *
  * Totality extensions for unvalidated input (all deterministic; publish makes
  * them unreachable): a reference whose visibility is not yet settled at the
@@ -60,7 +77,30 @@ export const SEMANTICS_VERSION = 1;
  * append-only ledger happens in storage (I5), not here. A map, not a ledger:
  * evaluation never depends on insertion order.
  */
-export type AnswerMap = ReadonlyMap<QuestionId, AnswerValue>;
+export type AnswerMap = ReadonlyMap<AnswerKey, AnswerValue>;
+
+/**
+ * The **live** instances of each repeating group, in roster order (ADR-42).
+ *
+ * The evaluator does not derive liveness and never reads a count answer to do
+ * it: what it receives is the roster the API already derived from the
+ * append-only roster table and the group's count source, and this function's
+ * contract is that the map it is handed is live and ordered. Omitted, it is the
+ * empty map, so every existing caller compiles and every existing form
+ * evaluates identically.
+ *
+ * Passing the roster in rather than deriving it from the answer keys is the
+ * choice that makes "Add passenger" visible: derived from answers, an instance
+ * the respondent added and has not yet answered would not exist, so the button
+ * would do nothing and a reload would lose the empty card.
+ *
+ * **Order is meaning here**, which is a first for the kernel: `multiChoice` is
+ * the only other array value and ADR-21 compares it as a set precisely because
+ * its order is not meaning. A roster is never set-compared. Determinism (I7)
+ * widens with it, from "same `(snapshot, answers)`" to "same
+ * `(snapshot, answers, rosters)`".
+ */
+export type RosterMap = ReadonlyMap<GroupId, readonly InstanceId[]>;
 
 /**
  * Closed union of typed error codes for evaluation. All are unreachable on
@@ -91,24 +131,75 @@ export type EvalError = z.infer<typeof evalError>;
  * respondent should be, and whether the response is submittable. All arrays
  * are in document order.
  *
- * - `visible` - every visible `(stepId, questionId)` pair.
+ * - `visible` - every visible `(stepId, questionId)` pair, carrying an
+ *   `instanceId` on a repeated entry and no such key otherwise.
  * - `visibleSteps` - the steps contributing at least one visible question
  *   (derived from `visible`; a step-visible step whose questions are all
  *   rule-hidden renders nothing and is therefore not listed).
  * - `currentStep` - semantic 5 above; `null` when nothing is unanswered.
  * - `answeredRequired` / `missingRequired` - visible required questions with
  *   and without an answer (required-ness comes from the resolved
- *   `QuestionDefinition`, task 003).
+ *   `QuestionDefinition`, task 003). A **repeated** question is listed **once**:
+ *   it is missing when any live instance of it is unanswered, and the
+ *   per-instance detail is in the parallel arrays below.
  * - `complete` - `missingRequired` is empty (I9's precondition; the
  *   submission sweep itself is task 009).
+ *
+ * **Order with a repeating group in the form.** A group expands into a
+ * contiguous span of its member questions, and each member is walked once per
+ * live instance, so every array here is in **document then roster order**: the
+ * span's first question for every instance, then its second for every instance,
+ * and so on. Nothing about a form with no group changes, because a form with no
+ * group has one instance of nothing.
  */
 export const FlowState = z.object({
-  visible: z.array(z.object({ stepId: StepId, questionId: QuestionId })),
+  visible: z.array(
+    z.object({ stepId: StepId, questionId: QuestionId, instanceId: InstanceId.optional() }),
+  ),
   visibleSteps: z.array(StepId),
   currentStep: StepId.nullable(),
   answeredRequired: z.array(QuestionId),
   missingRequired: z.array(QuestionId),
   complete: z.boolean(),
+  // --- Repetition (ADR-42, ADR-16 as amended 2026-09-30). ---
+  //
+  // Every field below is OPTIONAL and is omitted entirely for a form with no
+  // repeating group, and the six above keep their exact shapes and their exact
+  // contents for such a form. That is the whole of the additivity contract:
+  // `FlowState` is what every golden scenario asserts with `toEqual`, so
+  // widening `visibleSteps` to `{stepId, instanceId}[]` or `missingRequired` to
+  // `{questionId, instanceId}[]` would fail every committed scenario and would
+  // need the `SEMANTICS_VERSION` bump that cannot be taken.
+  //
+  // **These parallel arrays are deliberate and they are the ugly part of the
+  // design.** Two of them mean nearly the same thing as one of the originals,
+  // because the original cannot change shape. Do not tidy them and do not add a
+  // shim that makes them look like one field: collapsing them into the widened
+  // originals is recorded as the FIRST JOB OF MULTI-VERSION EVALUATION
+  // (ADR-16's amendment, Q8), which is somebody else's task and is what gives
+  // this debt a named creditor rather than a hope.
+  /** The ADR-28 cursor's real page list: one entry per step view. A step
+   * paginated by a `perInstanceStep` group contributes one view per live
+   * instance; every other visible step contributes one view with a null
+   * instance. Task 076 owns the cursor that walks it. */
+  visibleStepViews: z
+    .array(z.object({ stepId: StepId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  /** The per-instance detail behind `missingRequired`, in document then roster
+   * order. `instanceId` is null for a visible required question outside every
+   * group, so the array is a complete account rather than a group-only one. */
+  missingRequiredInstances: z
+    .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  /** The per-instance detail behind `answeredRequired`; same shape. */
+  answeredRequiredInstances: z
+    .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  /** The live roster this evaluation used, per group, in document order of the
+   * groups and roster order within each. */
+  rosters: z
+    .array(z.object({ groupId: GroupId, instances: z.array(InstanceId) }))
+    .optional(),
 });
 export type FlowState = z.infer<typeof FlowState>;
 
@@ -175,6 +266,12 @@ function assertNeverCondition(condition: never): never {
  * versions. It must be a pure lookup: determinism (I7) is over
  * `(snapshot, answers, resolved definitions)`.
  *
+ * `rosters` is the fourth input and it is **the live roster, already derived**
+ * (ADR-42). Omitted, it is the empty map: every existing caller compiles and
+ * every existing form evaluates identically, which is the whole of the
+ * additivity contract on this signature. See {@link RosterMap} for why it is
+ * passed in rather than read out of the answer keys.
+ *
  * Total: never throws; malformed or unresolvable input returns a typed
  * `EvalError` (every code unreachable on publish-validated input).
  */
@@ -182,6 +279,7 @@ export function evaluateRules(
   snapshot: FrozenSnapshot | FormDefinition,
   answers: AnswerMap,
   resolveQuestion: ResolveQuestion,
+  rosters?: RosterMap,
 ): Result<FlowState, EvalError> {
   const unwrapped = unwrapDefinition(snapshot);
   if (!unwrapped.ok) {
@@ -189,6 +287,15 @@ export function evaluateRules(
   }
   const form = unwrapped.value;
   const order = documentOrder(form);
+
+  // The repeating groups this form declares, and the live roster of each. A
+  // form with no group leaves both empty and every branch below that reads them
+  // is skipped, which is how the six original FlowState fields keep their exact
+  // contents and the four new ones stay absent.
+  const groups = repeatGroups(form.steps);
+  const hasGroups = groups.length > 0;
+  const groupOf = questionGroups(form.steps);
+  const rosterOf = (groupId: GroupId): readonly InstanceId[] => rosters?.get(groupId) ?? [];
 
   // Resolve every pin up front (I2 makes failures unreachable post-publish).
   // Reported all-at-once and in document order, so the error never depends on
@@ -211,6 +318,29 @@ export function evaluateRules(
     });
   }
 
+  /**
+   * Every answer key this form can hold, in document then roster order: the
+   * bare `questionId` outside a group, and one `instanceId/questionId` per
+   * **live** instance inside one.
+   *
+   * A key for an instance the roster does not list is simply not built, which
+   * is the whole of the removal semantic at this layer: a removed instance's
+   * answers stay in the ledger the caller read from, are never canonicalized,
+   * never settle, and so are excluded from every later condition, from the
+   * required accounting and from the locked set - exactly as a hidden
+   * question's answers are (I6).
+   */
+  const keys: { readonly key: AnswerKey; readonly questionId: QuestionId }[] = [];
+  for (const entry of order) {
+    if (entry.groupId === undefined) {
+      keys.push({ key: entry.questionId, questionId: entry.questionId });
+      continue;
+    }
+    for (const instanceId of rosterOf(entry.groupId)) {
+      keys.push({ key: answerKey(entry.questionId, instanceId), questionId: entry.questionId });
+    }
+  }
+
   // Canonicalize answers for pinned questions (NFC text, deduplicated
   // multiChoice); unknown keys are ignored. Malformed values are reported
   // all-at-once, in document order - again independent of map order.
@@ -221,19 +351,19 @@ export function evaluateRules(
   // value operator, and the required accounting the same answer without three
   // chances to disagree. The value is not rewritten - it stays untouched in the
   // ledger the caller read it from; it simply does not confer presence.
-  const canonical = new Map<QuestionId, AnswerValue>();
+  const canonical = new Map<AnswerKey, AnswerValue>();
   const malformed: QuestionId[] = [];
-  for (const { questionId } of order) {
-    if (!answers.has(questionId)) {
+  for (const { key, questionId } of keys) {
+    if (!answers.has(key)) {
       continue;
     }
-    const parsed = AnswerValue.safeParse(answers.get(questionId));
+    const parsed = AnswerValue.safeParse(answers.get(key));
     if (!parsed.success) {
       malformed.push(questionId);
       continue;
     }
     if (!isBlankAnswerValue(parsed.data)) {
-      canonical.set(questionId, parsed.data);
+      canonical.set(key, parsed.data);
     }
   }
   if (malformed.length > 0) {
@@ -241,14 +371,16 @@ export function evaluateRules(
       code: "MALFORMED_ANSWER_VALUE",
       message:
         "Answers for the question(s) in path are not canonical AnswerValue encodings (values never shown)",
-      path: [...malformed],
+      path: [...new Set(malformed)],
     });
   }
 
   // Which rules target each step / each question directly. A StepId target
   // conditions the *step* (semantic 4); it does not make the step's questions
   // individually targeted - step-level and question-level visibility are
-  // separate layers that AND together.
+  // separate layers that AND together. A StepId target is therefore whole-form
+  // scope and never per-instance, which is the reading `RULE_TARGETS_SPAN_SCOPES`
+  // is written against.
   const stepRules = new Map<StepId, VisibilityRule[]>();
   const questionRules = new Map<QuestionId, VisibilityRule[]>();
   for (const rule of form.rules) {
@@ -261,22 +393,82 @@ export function evaluateRules(
     }
   }
 
-  // The forward walk. `settled` holds questions already walked and visible;
-  // an answer participates in condition evaluation only once its question is
+  // The forward walk. `settled` holds answer keys already walked and visible;
+  // an answer participates in condition evaluation only once its key is
   // settled visible (semantic 2 / I6 - hidden answers are excluded, and
   // not-yet-walked references read as unanswered).
-  const settled = new Set<QuestionId>();
-  const effective = (questionId: QuestionId): AnswerValue | undefined =>
-    settled.has(questionId) ? canonical.get(questionId) : undefined;
+  const settled = new Set<AnswerKey>();
+
+  /**
+   * Which instance of each group the current evaluation is inside.
+   *
+   * Scope is implicit and by position (ADR-42): a rule whose `show` target sits
+   * inside group G is evaluated once per live instance of G with `{G -> that
+   * instance}` in scope, and a `anyInstance`/`everyInstance` walk adds its own
+   * group's instance the same way. A reference to a question in a group that is
+   * in scope resolves to **that instance's** answer; a reference to a question
+   * outside every group resolves normally.
+   *
+   * A reference to a question in a group that is **not** in scope has no
+   * forward-only reading at all, so it resolves to `undefined` and reads as
+   * unanswered - the same totality extension every other unresolvable reference
+   * gets, never a throw.
+   */
+  type InstanceScope = ReadonlyMap<GroupId, InstanceId>;
+  const NO_SCOPE: InstanceScope = new Map();
+  const withInstance = (
+    scope: InstanceScope,
+    groupId: GroupId,
+    instanceId: InstanceId,
+  ): InstanceScope => new Map([...scope, [groupId, instanceId]]);
+
+  /** The key a question resolves to under this scope, or `undefined` when it
+   * sits in a group no instance of which is in scope. */
+  const keyOf = (questionId: QuestionId, scope: InstanceScope): AnswerKey | undefined => {
+    const groupId = groupOf.get(questionId);
+    if (groupId === undefined) {
+      return questionId;
+    }
+    const instanceId = scope.get(groupId);
+    return instanceId === undefined ? undefined : answerKey(questionId, instanceId);
+  };
+
+  const effective = (questionId: QuestionId, scope: InstanceScope): AnswerValue | undefined => {
+    const key = keyOf(questionId, scope);
+    if (key === undefined) {
+      return undefined;
+    }
+    return settled.has(key) ? canonical.get(key) : undefined;
+  };
+
+  const compareCount = (
+    compare: "equals" | "gt" | "gte" | "lt" | "lte",
+    count: number,
+    value: number,
+  ): boolean => {
+    switch (compare) {
+      case "equals":
+        return count === value;
+      case "gt":
+        return count > value;
+      case "gte":
+        return count >= value;
+      case "lt":
+        return count < value;
+      case "lte":
+        return count <= value;
+    }
+  };
 
   const evalCondition = (
     rule: VisibilityRule,
     condition: Condition,
+    scope: InstanceScope,
   ): Result<boolean, EvalError> => {
     switch (condition.op) {
       case "and": {
         for (const child of condition.conditions) {
-          const outcome = evalCondition(rule, child);
+          const outcome = evalCondition(rule, child, scope);
           if (!outcome.ok || !outcome.value) {
             return outcome;
           }
@@ -285,7 +477,7 @@ export function evaluateRules(
       }
       case "or": {
         for (const child of condition.conditions) {
-          const outcome = evalCondition(rule, child);
+          const outcome = evalCondition(rule, child, scope);
           if (!outcome.ok || outcome.value) {
             return outcome;
           }
@@ -293,21 +485,63 @@ export function evaluateRules(
         return ok(false);
       }
       case "not": {
-        const outcome = evalCondition(rule, condition.condition);
+        const outcome = evalCondition(rule, condition.condition, scope);
         return outcome.ok ? ok(!outcome.value) : outcome;
       }
+      case "anyInstance": {
+        for (const instanceId of rosterOf(condition.groupId)) {
+          const outcome = evalCondition(
+            rule,
+            condition.condition,
+            withInstance(scope, condition.groupId, instanceId),
+          );
+          if (!outcome.ok || outcome.value) {
+            return outcome;
+          }
+        }
+        return ok(false);
+      }
+      case "everyInstance": {
+        const live = rosterOf(condition.groupId);
+        // THE BASE CASE, and it is a decision rather than a fold's identity
+        // (ADR-42's Note, Q7 ruled 2026-09-30). An empty roster short-circuits
+        // to FALSE before the per-instance walk begins, because "every
+        // passenger holds a passport" is not a true statement about a booking
+        // with no passengers. It follows that `everyInstance(G, c)` is NOT
+        // equivalent to `not(anyInstance(G, not c))` over an empty G - that
+        // expression is true here - and nothing in this evaluator may
+        // implement one as a rewrite of the other.
+        if (live.length === 0) {
+          return ok(false);
+        }
+        for (const instanceId of live) {
+          const outcome = evalCondition(
+            rule,
+            condition.condition,
+            withInstance(scope, condition.groupId, instanceId),
+          );
+          if (!outcome.ok || !outcome.value) {
+            return outcome;
+          }
+        }
+        return ok(true);
+      }
+      case "instanceCount":
+        return ok(
+          compareCount(condition.compare, rosterOf(condition.groupId).length, condition.value),
+        );
       case "answered":
-        return ok(effective(condition.questionId) !== undefined);
+        return ok(effective(condition.questionId, scope) !== undefined);
       case "equals": {
-        const answer = effective(condition.questionId);
+        const answer = effective(condition.questionId, scope);
         return ok(answer !== undefined && valuesEqual(answer, condition.value));
       }
       case "notEquals": {
-        const answer = effective(condition.questionId);
+        const answer = effective(condition.questionId, scope);
         return ok(answer !== undefined && !valuesEqual(answer, condition.value));
       }
       case "in": {
-        const answer = effective(condition.questionId);
+        const answer = effective(condition.questionId, scope);
         return ok(
           answer !== undefined && condition.values.some((value) => valuesEqual(answer, value)),
         );
@@ -316,7 +550,7 @@ export function evaluateRules(
       case "gte":
       case "lt":
       case "lte": {
-        const answer = effective(condition.questionId);
+        const answer = effective(condition.questionId, scope);
         if (answer === undefined) {
           return ok(false);
         }
@@ -334,7 +568,7 @@ export function evaluateRules(
       }
       case "contains":
       case "containsAny": {
-        const answer = effective(condition.questionId);
+        const answer = effective(condition.questionId, scope);
         if (answer === undefined) {
           return ok(false);
         }
@@ -352,9 +586,12 @@ export function evaluateRules(
 
   /** True when at least one of the targeting rules matches, in declaration
    * order ("at that point in the walk" - evaluated against `settled`). */
-  const anyRuleTrue = (rules: readonly VisibilityRule[]): Result<boolean, EvalError> => {
+  const anyRuleTrue = (
+    rules: readonly VisibilityRule[],
+    scope: InstanceScope,
+  ): Result<boolean, EvalError> => {
     for (const rule of rules) {
-      const outcome = evalCondition(rule, rule.when);
+      const outcome = evalCondition(rule, rule.when, scope);
       if (!outcome.ok || outcome.value) {
         return outcome;
       }
@@ -363,10 +600,35 @@ export function evaluateRules(
   };
 
   const visible: FlowState["visible"] = [];
+  /** Walk one pinned question at one scope, settling it when it is shown. */
+  const walkQuestion = (
+    stepId: StepId,
+    questionId: QuestionId,
+    instanceId: InstanceId | undefined,
+    scope: InstanceScope,
+  ): EvalError | undefined => {
+    const targeting = questionRules.get(questionId);
+    if (targeting !== undefined) {
+      const shown = anyRuleTrue(targeting, scope);
+      if (!shown.ok) {
+        return shown.error;
+      }
+      if (!shown.value) {
+        return undefined;
+      }
+    }
+    settled.add(answerKey(questionId, instanceId));
+    // The `instanceId` KEY is absent, not undefined, on an entry outside every
+    // group: a form with no repeating group must produce a byte-identical
+    // FlowState, and that is asserted by deep equality rather than by review.
+    visible.push(instanceId === undefined ? { stepId, questionId } : { stepId, questionId, instanceId });
+    return undefined;
+  };
+
   for (const step of form.steps) {
     const targetingStep = stepRules.get(step.stepId);
     if (targetingStep !== undefined) {
-      const shown = anyRuleTrue(targetingStep);
+      const shown = anyRuleTrue(targetingStep, NO_SCOPE);
       if (!shown.ok) {
         return shown;
       }
@@ -378,26 +640,47 @@ export function evaluateRules(
       }
     }
     for (const item of step.items) {
-      const targetingQuestion = questionRules.get(item.questionId);
-      if (targetingQuestion !== undefined) {
-        const shown = anyRuleTrue(targetingQuestion);
-        if (!shown.ok) {
-          return shown;
+      if (!isRepeatGroup(item)) {
+        const failure = walkQuestion(step.stepId, item.questionId, undefined, NO_SCOPE);
+        if (failure !== undefined) {
+          return err(failure);
         }
-        if (!shown.value) {
-          continue;
+        continue;
+      }
+      // A group's span is walked once per live instance, member-major so the
+      // whole walk stays in document then roster order. A rule targeting a
+      // member is evaluated once per instance with that instance in scope,
+      // which is the entire inside-out story: no new syntax, the author writes
+      // "this passenger is an infant, show this passenger's fare basis"
+      // exactly as they write an ordinary rule.
+      const live = rosterOf(item.groupId);
+      for (const member of item.items) {
+        for (const instanceId of live) {
+          const failure = walkQuestion(
+            step.stepId,
+            member.questionId,
+            instanceId,
+            withInstance(NO_SCOPE, item.groupId, instanceId),
+          );
+          if (failure !== undefined) {
+            return err(failure);
+          }
         }
       }
-      settled.add(item.questionId);
-      visible.push({ stepId: step.stepId, questionId: item.questionId });
     }
   }
 
-  // Accounting over the visible set (semantic 5). A visible question is
-  // answered iff the (canonicalized) answer map has an entry for it.
+  // Accounting over the visible set (semantic 5). A visible entry is answered
+  // iff the (canonicalized) answer map has an entry for its key. A repeated
+  // question is listed ONCE in `answeredRequired`/`missingRequired` and counts
+  // as missing when ANY live instance of it is unanswered, which is what keeps
+  // `complete` the precondition submit needs: I9 requires every instance.
   const visibleSteps = [...new Set(visible.map((entry) => entry.stepId))];
-  const answeredRequired: QuestionId[] = [];
-  const missingRequired: QuestionId[] = [];
+  const requiredOrder: QuestionId[] = [];
+  const requiredMissing = new Set<QuestionId>();
+  const requiredSeen = new Set<QuestionId>();
+  const answeredRequiredInstances: NonNullable<FlowState["answeredRequiredInstances"]> = [];
+  const missingRequiredInstances: NonNullable<FlowState["missingRequiredInstances"]> = [];
   let firstMissingRequiredStep: StepId | null = null;
   let firstUnansweredStep: StepId | null = null;
   for (const entry of visible) {
@@ -406,24 +689,88 @@ export function evaluateRules(
     if (definition === undefined) {
       continue;
     }
-    const answered = canonical.has(entry.questionId);
+    const answered = canonical.has(answerKey(entry.questionId, entry.instanceId));
     if (!answered && firstUnansweredStep === null) {
       firstUnansweredStep = entry.stepId;
     }
-    if (definition.required) {
-      (answered ? answeredRequired : missingRequired).push(entry.questionId);
-      if (!answered && firstMissingRequiredStep === null) {
+    if (!definition.required) {
+      continue;
+    }
+    if (!requiredSeen.has(entry.questionId)) {
+      requiredSeen.add(entry.questionId);
+      requiredOrder.push(entry.questionId);
+    }
+    const instanceId = entry.instanceId ?? null;
+    (answered ? answeredRequiredInstances : missingRequiredInstances).push({
+      questionId: entry.questionId,
+      instanceId,
+    });
+    if (!answered) {
+      requiredMissing.add(entry.questionId);
+      if (firstMissingRequiredStep === null) {
         firstMissingRequiredStep = entry.stepId;
       }
     }
   }
+  const answeredRequired = requiredOrder.filter((questionId) => !requiredMissing.has(questionId));
+  const missingRequired = requiredOrder.filter((questionId) => requiredMissing.has(questionId));
 
-  return ok({
+  const base: FlowState = {
     visible,
     visibleSteps,
     currentStep: firstMissingRequiredStep ?? firstUnansweredStep,
     answeredRequired,
     missingRequired,
     complete: missingRequired.length === 0,
+  };
+  if (!hasGroups) {
+    return ok(base);
+  }
+  return ok({
+    ...base,
+    visibleStepViews: stepViews(form, visibleSteps, rosterOf),
+    missingRequiredInstances,
+    answeredRequiredInstances,
+    rosters: groups.map((group) => ({
+      groupId: group.groupId,
+      instances: [...rosterOf(group.groupId)],
+    })),
   });
+}
+
+/**
+ * The ADR-28 cursor's page list (Q22): one entry per **view**, which is a step
+ * for everything except a step paginated by a `perInstanceStep` group, where it
+ * is one view per live instance.
+ *
+ * A step carrying such a group with an empty roster contributes one view with a
+ * null instance, so a visible step is never absent from the list. Task 076 owns
+ * the cursor that walks these and the presentation that produces them; what
+ * this task owes is the roster-driven list itself.
+ */
+function stepViews(
+  form: FormDefinition,
+  visibleSteps: readonly StepId[],
+  rosterOf: (groupId: GroupId) => readonly InstanceId[],
+): NonNullable<FlowState["visibleStepViews"]> {
+  const views: NonNullable<FlowState["visibleStepViews"]> = [];
+  const shown = new Set(visibleSteps);
+  for (const step of form.steps) {
+    if (!shown.has(step.stepId)) {
+      continue;
+    }
+    const paginating = step.items.find(
+      (item) => isRepeatGroup(item) && item.presentation === "perInstanceStep",
+    );
+    const live =
+      paginating !== undefined && isRepeatGroup(paginating) ? rosterOf(paginating.groupId) : [];
+    if (live.length === 0) {
+      views.push({ stepId: step.stepId, instanceId: null });
+      continue;
+    }
+    for (const instanceId of live) {
+      views.push({ stepId: step.stepId, instanceId });
+    }
+  }
+  return views;
 }
