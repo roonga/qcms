@@ -40,9 +40,9 @@ import { AccountMenu } from "./account-menu.tsx";
  * catalogue, so the assertion is independent of the message the fix edits: a catalogue
  * entry that lost its `{initials}` placeholder fails here, and so would a trigger that
  * started painting something else. `aria-hidden` subtrees are deliberately NOT stripped
- * when reading it, unlike the sweep in `forms/pin-label-in-name.test.tsx`: hiding text
- * from the accessibility tree does not unpaint it, and the criterion is about what a
- * sighted operator reads. That confusion is the one issue #1010 corrects.
+ * when reading it, the same reading the sweep in `forms/pin-label-in-name.test.tsx`
+ * takes: hiding text from the accessibility tree does not unpaint it, and the criterion
+ * is about what a sighted operator reads. That confusion is the one issue #1010 corrects.
  *
  * The name must START with the visible text, which is stronger than the criterion states
  * and is what speech input actually needs - a pronounceable prefix rather than a fragment
