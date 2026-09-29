@@ -20,27 +20,32 @@ transaction that:
 
 1. **Deletes the answer ledger** - every `answers` row for the session (all
    revisions, not just the latest).
-2. **Deletes the submission lock** - the `submissions` row, if the session was
+2. **Deletes the repeating-group roster** - every `answer_group_instances` row
+   for the session (ADR-42, task 072). A roster holds no answer, but it holds the
+   **shape** of a respondent's household: how many passengers, how many
+   dependants, how many liabilities. An erasure that left it behind would answer
+   the request and keep the count.
+3. **Deletes the submission lock** - the `submissions` row, if the session was
    submitted.
-3. **Scrubs respondent-linkable session columns** - see
+4. **Scrubs respondent-linkable session columns** - see
    [What is retained](#what-is-retained). In the launch schema this set is
    empty; the (now content-free) session row is retained as an audit shell.
-4. **Redacts QCMS's own outbox copy** - every `outbox` row whose payload names
+5. **Redacts QCMS's own outbox copy** - every `outbox` row whose payload names
    this session keeps its envelope (`sessionId`, `formId`, `formVersion`,
    `submittedAt`, `contentHash`) and loses its `answers` member, and the row is
    stamped `payload_redacted_at`. Existence without content, the same principle
    the tombstone applies one table over. The row is **not** deleted: it and its
    `webhook_deliveries` children are the audit record of what left the building.
-5. **Cancels every undelivered delivery** - each `webhook_deliveries` row for
+6. **Cancels every undelivered delivery** - each `webhook_deliveries` row for
    those events that is neither delivered nor already cancelled gets
    `cancelled_at` and `cancelled_reason = 'session_erased'`. It will never be
    attempted again.
-6. **Removes the stored response snippets** - every `webhook_deliveries` row for
+7. **Removes the stored response snippets** - every `webhook_deliveries` row for
    those events loses `last_response_snippet` and is stamped
    `last_response_snippet_redacted_at`. See
    [The webhook response snippet](#the-webhook-response-snippet) for why that
    column can hold respondent content at all.
-7. **Writes a tombstone** - one `erasure_tombstones` row
+8. **Writes a tombstone** - one `erasure_tombstones` row
    `(session_id, form_id, form_version, erased_at, reason)`.
 
 It is **idempotent**: erasing an already-erased session is a no-op that returns
@@ -286,6 +291,15 @@ Only the **two sanctioned whole-session delete paths** set that flag (via
 `SET LOCAL` reverts when the transaction ends, so the door is never left open
 across statements or connections. Any ad-hoc `DELETE FROM answers` outside a
 transaction that has opened the door is rejected. (See issue #4.)
+
+**The roster reads the same flag, and that is the point.** Migration `0022` gives
+`answer_group_instances` its own `BEFORE DELETE` trigger, and that trigger reads
+`qcms.allow_answer_delete` rather than a setting of its own, so the two sanctioned
+paths above reach the roster through the door they already hold. ADR-17 says there
+are two whole-session delete paths; repetition adds a table to each of them and no
+third path. Its `BEFORE UPDATE` trigger is the answer ledger's rule one table
+over: a removal appends a `removed` row, and rewriting an `added` row into one
+would leave no record that the instance had ever been minted.
 
 ## Where an operator performs it (task 035)
 
