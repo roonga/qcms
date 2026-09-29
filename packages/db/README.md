@@ -14,18 +14,19 @@ shipped; add a new one.
 
 ## Table inventory (kept in sync with `ARCHITECTURE.md` §4.3)
 
-| Table                                                     | Purpose                                                                                                                                                                                                         |
-| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `questions`, `question_versions`                          | Question library; a version's `definition` is frozen once `status = 'published'` (I1)                                                                                                                           |
-| `forms`, `form_drafts`                                    | Form identity + lifecycle `status` (`open`/`closed`, §4.1) and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key)                                                   |
-| `form_versions`                                           | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version`                                                                              |
-| `sessions`                                                | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                                                                                                 |
-| `secure_links`                                            | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption - a signature alone is never enough                                                                             |
-| `answers`                                                 | **Append-only** ledger `(session_id, question_id, value, retracted, answered_at)`; current = latest row, unless it is a retraction (ADR-33), which resolves to unanswered; UPDATE rejected at the DB level (I5) |
-| `submissions`                                             | Lock records: session, locked answer set + content hash, submitted timestamp                                                                                                                                    |
-| `erasure_tombstones`                                      | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                                                                                    |
-| `outbox`                                                  | Transactionally written domain events with delivery state, attempt count, next-retry, dead-letter flag                                                                                                          |
-| `user`, `session`, `account`, `verification`, `twoFactor` | better-auth tables - admin identity with TOTP 2FA at launch                                                                                                                                                     |
+| Table                                                     | Purpose                                                                                                                                                                                                                                                                                                         |
+| --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `questions`, `question_versions`                          | Question library; a version's `definition` is frozen once `status = 'published'` (I1)                                                                                                                                                                                                                           |
+| `forms`, `form_drafts`                                    | Form identity + lifecycle `status` (`open`/`closed`, §4.1) and mutable working state; **at most one open draft per form** (the draft's `form_id` primary key)                                                                                                                                                   |
+| `form_versions`                                           | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compiler_version` + `a2ui_spec_version` + `semantics_version`                                                                                                                                                                              |
+| `sessions`                                                | Respondent sessions; pinned `(form_id, form_version)`, access mode, expiry (I4)                                                                                                                                                                                                                                 |
+| `secure_links`                                            | Server-side state for secure-link tokens (SEC-2, task 010): revocation and one-time consumption - a signature alone is never enough                                                                                                                                                                             |
+| `answers`                                                 | **Append-only** ledger `(session_id, question_id, instance_id, value, retracted, answered_at)`; current = latest row per `(question, instance)`, unless it is a retraction (ADR-33), which resolves to unanswered; UPDATE rejected at the DB level (I5)                                                         |
+| `answer_group_instances`                                  | **Append-only** roster of repeating-group instances (ADR-42): `(session_id, group_id, instance_id, event, occurred_at)`, `event` one of `added` or `removed`. Which instances exist is state the ledger cannot express; the **live** roster is derived from these rows and the group's count source, in the API |
+| `submissions`                                             | Lock records: session, locked answer set + content hash, submitted timestamp                                                                                                                                                                                                                                    |
+| `erasure_tombstones`                                      | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                                                                                                                                                                                    |
+| `outbox`                                                  | Transactionally written domain events with delivery state, attempt count, next-retry, dead-letter flag                                                                                                                                                                                                          |
+| `user`, `session`, `account`, `verification`, `twoFactor` | better-auth tables - admin identity with TOTP 2FA at launch                                                                                                                                                                                                                                                     |
 
 > The better-auth `session` table (singular) is distinct from the domain
 > `sessions` table (plural).
@@ -47,6 +48,21 @@ static predicate; it has no access to the OLD row). Each is therefore a
 - **`form_versions_reject_update`** - published snapshots are immutable (R1, I1);
   every UPDATE is rejected. There is no update path.
 
+Migration `0022` (ADR-42) gives the roster the answer ledger's pair, one table
+over:
+
+- **`answer_group_instances_reject_update`** - the roster is append-only. A
+  removal appends a `removed` row; rewriting an `added` row into one would leave
+  no record that the instance had ever been minted.
+- **`answer_group_instances_reject_delete`** - every DELETE is rejected unless the
+  **same** transaction-local `qcms.allow_answer_delete` door the answer ledger
+  uses is open, so `eraseSession` and `purgeExpired` reach the roster through the
+  two sanctioned paths that already exist and no third one is added.
+
+The **roster event vocabulary** needs no trigger: the CHECK
+`answer_group_instances_event` (migration `0022`) permits `added` and `removed`
+and nothing else.
+
 The **one-open-draft** invariant needs no trigger: `form_drafts.form_id` is the
 primary key, so a second draft insert for the same form fails on the unique
 constraint.
@@ -59,7 +75,9 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 ## Indexes
 
-- `answers (session_id, question_id, answered_at DESC)` - latest-per-question resolution.
+- `answers (session_id, question_id, instance_id, answered_at DESC)` - latest-per-cell
+  resolution; the leading columns are exactly `latestAnswers`'s `DISTINCT ON` key.
+- `answer_group_instances (session_id, group_id, occurred_at)` - the roster read.
 - `sessions (status, expires_at)` - the retention sweep's scan.
 - `outbox (delivered_at, next_attempt_at) WHERE dead_lettered_at IS NULL` -
   partial index for the deliverer's claim query.
@@ -68,8 +86,10 @@ without trusting the writer, and no sentinel ever lives inside `value`.
 
 - **Authoring:** `pnpm --filter @roonga/qcms-db db:generate` (`drizzle-kit generate`)
   diffs the schema in `src/schema/` against the last snapshot and writes the next
-  SQL file offline. The trigger migration (`0001`) is hand-authored custom SQL -
-  triggers are not expressible as Drizzle schema.
+  SQL file offline. The trigger migrations (`0001`, `0004`, `0022`) are
+  hand-authored custom SQL - triggers are not expressible as Drizzle schema, and
+  this package keeps its CHECK constraints in SQL beside them rather than in the
+  mirror, so no snapshot records one.
 - **Applying (adopters):** `drizzle-kit migrate` against `migrations/`.
 - Files, snapshots (`migrations/meta/`), and the journal are committed and
   **append-only**.
