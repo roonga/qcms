@@ -1,0 +1,27 @@
+{
+  "formId": "frm_repeat_open",
+  "defaultLocale": "en",
+  "title": { "en": "Fleet vehicles" },
+  "steps": [
+    {
+      "stepId": "stp_fleet",
+      "title": { "en": "The vehicles on this policy" },
+      "items": [
+        { "questionId": "q_rep_fleet_name", "version": 1 },
+        {
+          "groupId": "grp_vehicles",
+          "label": { "en": "Vehicles" },
+          "instanceLabel": { "en": "Vehicle {n}" },
+          "presentation": "stacked",
+          "count": { "source": "open", "min": 1, "max": 9 },
+          "items": [
+            { "questionId": "q_rep_plate", "version": 1 },
+            { "questionId": "q_rep_service_date", "version": 1 },
+            { "questionId": "q_rep_odometer", "version": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": []
+}

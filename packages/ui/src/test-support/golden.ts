@@ -45,7 +45,7 @@ function findGoldenRoot(): string {
 }
 
 const GOLDEN_ROOT = findGoldenRoot();
-const VERSIONS = ["v1", "v2", "v3"] as const;
+const VERSIONS = ["v1", "v2", "v3", "v4"] as const;
 
 export function loadGoldenForms(): Array<{
   version: string;

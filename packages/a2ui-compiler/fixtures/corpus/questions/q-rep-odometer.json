@@ -1,0 +1,7 @@
+{
+  "type": "number",
+  "questionId": "q_rep_odometer",
+  "label": { "en": "Odometer reading" },
+  "required": true,
+  "constraints": { "min": 0, "max": 999999, "integer": true }
+}

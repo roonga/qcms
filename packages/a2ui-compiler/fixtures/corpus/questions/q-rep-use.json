@@ -1,0 +1,11 @@
+{
+  "type": "singleChoice",
+  "questionId": "q_rep_use",
+  "label": { "en": "How is this vehicle used?" },
+  "required": true,
+  "options": [
+    { "optionId": "opt_private", "label": { "en": "Private" } },
+    { "optionId": "opt_business", "label": { "en": "Business" } },
+    { "optionId": "opt_mixed", "label": { "en": "A mix of both" } }
+  ]
+}

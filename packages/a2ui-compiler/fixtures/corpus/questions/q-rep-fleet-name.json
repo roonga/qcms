@@ -1,0 +1,7 @@
+{
+  "type": "shortText",
+  "questionId": "q_rep_fleet_name",
+  "label": { "en": "Fleet name" },
+  "required": true,
+  "constraints": { "maxLength": 60 }
+}

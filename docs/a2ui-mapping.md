@@ -160,6 +160,58 @@ live axe pass is 028/030):
 </div>
 ```
 
+## Repeating group (task 073, ADR-42, ADR-43)
+
+A repeating group in a step's item list compiles to one **`RepeatGroup` template**
+node, in the group's document position, carrying its member controls **once** with the
+bare `questionId` as each control's `name` - identical to what the same question
+compiles to outside a group, because a question does not know that it is repeated.
+
+`RepeatGroup` is a **qcms-specific node type**, not an `@a2ra/core` registry
+component, on the same footing and for the same kind of reason as `Honeypot` above:
+nothing upstream describes a container whose children are cloned per instance, and the
+vendored component schemas are `strict` (ADR-22). It is a **renderer-compat contract**.
+
+**The compiler cannot expand the group and does not try.** `compileFormWith` is pure
+and answer-blind (`StepResolverContext` carries the snapshot, the locale and the
+resolvers and nothing else, ADR-14 as amended 2026-09-30) and an instance count is
+answer-dependent. The renderer clones the template once per **live instance**, in
+roster order, and rewrites each clone's `name` from `q_passport` to
+`ins_7k2/q_passport`; the roster reaches it from the API's step projection. The stored
+bytes are never touched, so ADR-18 holds exactly and the expansion is a render-time
+transform on the precedent `withNativeSubmit` and `documentForVisible` set.
+
+**The honeypot is never inside the template.** The decoy is appended to the step's
+`Flex` after the group node, so cloning cannot duplicate it and a ten-instance step
+carries exactly one (ADR-12; asserted in the compiler corpus, in the renderer and in
+the portal's browser suite).
+
+| Node          | Props                                                                                                                                  | Renderer contract                                                                                                                                                                             |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RepeatGroup` | `groupId`, `label`, `instanceLabel` (with `{n}` intact), `presentation`, `countSource`, `min`, `max?`, `addLabel?`, `removeLabel?`      | Expand into one instance group per live instance, qualify each cloned control's `name`, and render Add and Remove controls for `countSource: "open"` alone.                                     |
+
+- `instanceLabel` keeps its `{n}` placeholder, because the ordinal it names is the
+  instance's **live** one-based position and is recomputed after a removal, which is
+  render-time state and not content.
+- `presentation` is `stacked`, `perInstanceStep` or `table`. Task 073 renders
+  `stacked`; the other two are tasks 076 and 077.
+- `countSource` is `fixed`, `fromAnswer` or `open`. Add and Remove exist for `open`
+  alone: a `fixed` group's size is its author's and a `fromAnswer` group's is the
+  count answer's.
+- `min` and `max` are the declared bounds. A `fixed` count is its own bound, so both
+  are its `count`. `max` is absent only when a bounded source omitted it, which
+  publish refuses (`REPEAT_MAX_MISSING`, SEC-16), so it cannot be absent on a
+  published snapshot.
+- `addLabel` and `removeLabel` are emitted for `countSource: "open"` only, from a
+  **compiler lexicon** frozen by `compilerVersion` (`REPEAT_ACTION_LEXICON`), exactly
+  as the boolean Yes/No lexicon is and for the same reason (ADR-36's Note): nothing
+  authored supplies action wording, and the stored document is what a renderer that is
+  not ours reads. `addLabel` is resolved ("Add Vehicle", built from the instance-label
+  template with its `{n}` removed, because the group's own `label` names the whole
+  collection). `removeLabel` keeps a `{label}` placeholder the renderer fills with the
+  resolved instance label, giving "Remove Vehicle 3": APG's naming practice puts the
+  distinguishing words first, so it is never "Vehicle 3 remove".
+
 ### The field-name contract (compiler ↔ API)
 
 The decoy submits under one well-known key, `HONEYPOT_FIELD_NAME = "website"`
@@ -186,7 +238,19 @@ the living record, and the two are kept in step:
   component's body defaults. The current generation the corpus runner recompiles
   against.
 
-A future breaking change adds `golden/v4/` and appends here.
+- **`golden/v4/`** - compiler `0.3.0` (task 073): the `RepeatGroup` template node.
+  The seven forms carried over from `v3/` have no repeating group, so their compiled
+  **documents are byte-identical** there and only the `compilerVersion` stamp moves
+  (acceptance case 5). Two forms are appended, `repeat-open-group` and
+  `repeat-count-sources`. The current generation the corpus runner recompiles against.
+
+  **`a2uiSpecVersion` did not move with it**, and that is the `Honeypot` precedent
+  rather than an omission: it is the pinned `@a2ra/core` **package** version, asserted
+  against the installed package by `version.test.ts`, and a qcms-owned node type moves
+  no vendored schema. Task 026 added `Honeypot` on the same terms and moved the
+  compiler stamp alone.
+
+A future breaking change adds `golden/v5/` and appends here.
 
 ## Locale
 

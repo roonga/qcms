@@ -1,0 +1,10 @@
+{
+  "type": "multiChoice",
+  "questionId": "q_rep_extras",
+  "label": { "en": "Which parts were replaced?" },
+  "options": [
+    { "optionId": "opt_windscreen", "label": { "en": "Windscreen" } },
+    { "optionId": "opt_panel", "label": { "en": "Body panel" } },
+    { "optionId": "opt_mirror", "label": { "en": "Wing mirror" } }
+  ]
+}

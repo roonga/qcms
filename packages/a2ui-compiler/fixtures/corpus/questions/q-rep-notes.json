@@ -1,0 +1,6 @@
+{
+  "type": "longText",
+  "questionId": "q_rep_notes",
+  "label": { "en": "What happened?" },
+  "constraints": { "maxLength": 400 }
+}

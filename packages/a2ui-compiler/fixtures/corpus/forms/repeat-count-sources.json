@@ -1,0 +1,43 @@
+{
+  "formId": "frm_repeat_count_sources",
+  "defaultLocale": "en",
+  "title": { "en": "Count sources" },
+  "steps": [
+    {
+      "stepId": "stp_drivers",
+      "title": { "en": "The two named drivers" },
+      "items": [
+        { "questionId": "q_rep_vehicle_count", "version": 1 },
+        {
+          "groupId": "grp_drivers",
+          "label": { "en": "Named drivers" },
+          "instanceLabel": { "en": "Driver {n}" },
+          "presentation": "stacked",
+          "count": { "source": "fixed", "count": 2 },
+          "items": [
+            { "questionId": "q_rep_garaged", "version": 1 },
+            { "questionId": "q_rep_use", "version": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "stepId": "stp_incidents",
+      "title": { "en": "One entry per vehicle" },
+      "items": [
+        {
+          "groupId": "grp_incidents",
+          "label": { "en": "Incidents" },
+          "instanceLabel": { "en": "Incident {n}" },
+          "presentation": "stacked",
+          "count": { "source": "fromAnswer", "questionId": "q_rep_vehicle_count", "min": 0, "max": 5 },
+          "items": [
+            { "questionId": "q_rep_notes", "version": 1 },
+            { "questionId": "q_rep_extras", "version": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": []
+}
