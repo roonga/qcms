@@ -170,6 +170,9 @@ export type RuleGraphFinding = PublishErrorOf<
   | "RULE_TARGETS_SPAN_SCOPES"
   | "REPEAT_EVALUATION_BUDGET_EXCEEDED"
   | "REPEAT_COUNT_BACKWARD_REF"
+  | "REPEAT_COUNT_INSIDE_GROUP"
+  | "REPEAT_OPERATOR_NESTING_NOT_ALLOWED"
+  | "RULE_READS_GROUP_WITHOUT_OPERATOR"
 >;
 
 /** The half-open span a repeating group occupies in document order: `[from,
@@ -228,8 +231,10 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   const spans = groupSpans(form);
   const groupOf = questionGroups(form.steps);
 
-  findings.push(...checkRepeatCountOrder(form, position, spans));
+  findings.push(...checkRepeatCountOrder(form, position, spans, groupOf));
   findings.push(...checkTargetScopes(form, groupOf));
+  findings.push(...checkOperatorNesting(form));
+  findings.push(...checkScopedReferences(form, groupOf));
   findings.push(...checkCrossGroupBudget(form, groupOf, spans));
 
   // Backward targets: every target must sit strictly after every referenced
@@ -320,12 +325,16 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
  * group it sizes, or after it, is `REPEAT_COUNT_BACKWARD_REF`.
  *
  * A count question that is not pinned in the form at all is skipped here, the
- * way every other dangling reference is: `compileDraft` reports it.
+ * way every other dangling reference is. `compileDraft`'s `checkRuleResolution`
+ * reports it as `DANGLING_QUESTION_REF`; that was a claim about a check that
+ * did not exist until task 071's review, and such a draft published with no
+ * error at all until it was made true.
  */
 function checkRepeatCountOrder(
   form: FormDefinition,
   position: ReadonlyMap<QuestionId, number>,
   spans: ReadonlyMap<GroupId, GroupSpan>,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
 ): RuleGraphFinding[] {
   const findings: RuleGraphFinding[] = [];
   for (const group of repeatGroups(form.steps)) {
@@ -336,6 +345,19 @@ function checkRepeatCountOrder(
     const span = spans.get(group.groupId);
     if (countAt === undefined || span === undefined) {
       continue;
+    }
+    // A count question that itself sits inside a group has one answer per
+    // instance, so there is no single count for the group it sizes to read
+    // (Q26, Code Owner, 2026-09-29). It is refused whichever group it sits in,
+    // its own included, and a count question inside the group it sizes is
+    // additionally backward, which the check below reports on its own terms.
+    const countGroup = groupOf.get(group.count.questionId);
+    if (countGroup !== undefined) {
+      findings.push({
+        code: "REPEAT_COUNT_INSIDE_GROUP",
+        message: `Group "${group.groupId}" takes its instance count from question "${group.count.questionId}", which sits inside group "${countGroup}" and is therefore answered once per instance; move the count question out of every repeating group`,
+        path: { group: group.groupId, question: group.count.questionId },
+      });
     }
     if (countAt >= span.from) {
       findings.push({
@@ -386,6 +408,145 @@ function checkTargetScopes(
         path: { rule: rule.ruleId, scopes },
       });
     }
+  }
+  return findings;
+}
+
+/**
+ * A whole-group operator may not sit inside another one's condition (Q25, Code
+ * Owner, 2026-09-29).
+ *
+ * **Why it is a refusal rather than a bigger sum.** The condition schema is
+ * recursive, so `anyInstance(G, anyInstance(H, c))` parses, and its cost is
+ * `max_G x max_H` **whatever the rule targets** - the outer walk runs once per
+ * live instance of G and each of those walks the whole of H. The evaluation
+ * budget charges a rule's target group against each group it reads, so a nested
+ * pair escaped it entirely: two groups at `max: 5000` under one nested rule
+ * published, and cost twenty-five million leaf evaluations on every answer
+ * write, every step read and every submit, with the respondent setting the live
+ * counts. That is the exact shape the budget exists to refuse.
+ *
+ * The refusal covers **every** nesting: through `and`, `or` and `not`, and the
+ * same group nested in itself (`anyInstance(G, everyInstance(G, c))`), which is
+ * quadratic in one group's own maximum. `instanceCount` is refused inside
+ * another operator too, although its own cost is constant, because the rule is
+ * "a whole-group operator reads a whole group, and one rule reads each group it
+ * names once" rather than a cost calculation an author has to redo.
+ *
+ * With nesting gone, every whole-group read in a rule is a sibling of the
+ * others rather than a multiplier of them, which is what makes the pairwise
+ * budget a real bound on a rule (SEC-16).
+ */
+function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
+    switch (condition.op) {
+      case "and":
+      case "or":
+        condition.conditions.forEach((child) => {
+          walk(rule, child, outer);
+        });
+        return;
+      case "not":
+        walk(rule, condition.condition, outer);
+        return;
+      case "anyInstance":
+      case "everyInstance":
+      case "instanceCount": {
+        if (outer !== undefined) {
+          findings.push({
+            code: "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
+            message: `Rule "${rule.ruleId}" reads group "${condition.groupId}" inside a condition that already reads group "${outer}"; a whole-group operator may not sit inside another, because the nested pair costs the product of their maxima whatever the rule targets (ADR-16)`,
+            path: { rule: rule.ruleId, outerGroup: outer, innerGroup: condition.groupId },
+          });
+        }
+        if (condition.op !== "instanceCount") {
+          walk(rule, condition.condition, condition.groupId);
+        }
+        return;
+      }
+      default:
+        return;
+    }
+  };
+  for (const rule of form.rules) {
+    walk(rule, rule.when, undefined);
+  }
+  return findings;
+}
+
+/**
+ * Every reference to a question inside a repeating group is made from inside
+ * that group (Q26, Code Owner, 2026-09-29).
+ *
+ * A question inside a group has **one answer per instance**, so a bare
+ * reference to it is only meaningful where an instance is in scope. Two ways in
+ * put an instance in scope, and only two: the rule's own `show` targets sit
+ * inside that group, which makes the whole rule per-instance; or the reference
+ * sits inside an `anyInstance` or `everyInstance` over that group, which walks
+ * the instances itself.
+ *
+ * Anything else is dead on arrival rather than merely odd. The evaluator
+ * resolves such a reference to no key at all and reads it as unanswered for
+ * every respondent, forever, so the author sees a rule that publishes cleanly
+ * and a question that never appears. **A rule targeting inside group H reading
+ * a member of a different group G is the same defect** and is refused under the
+ * same code: H's instance is in scope, G's is not, and the plan's section 3.4
+ * gives a reference a per-instance reading only "to a question that is also
+ * inside G".
+ *
+ * A rule whose `show` list straddles two scopes is skipped here, because
+ * `RULE_TARGETS_SPAN_SCOPES` already refuses it and there is no single scope to
+ * judge its references against.
+ */
+function checkScopedReferences(
+  form: FormDefinition,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  const walk = (
+    rule: VisibilityRule,
+    condition: Condition,
+    inScope: ReadonlySet<GroupId>,
+  ): void => {
+    switch (condition.op) {
+      case "and":
+      case "or":
+        condition.conditions.forEach((child) => {
+          walk(rule, child, inScope);
+        });
+        return;
+      case "not":
+        walk(rule, condition.condition, inScope);
+        return;
+      case "anyInstance":
+      case "everyInstance":
+        walk(rule, condition.condition, new Set([...inScope, condition.groupId]));
+        return;
+      case "instanceCount":
+        return;
+      default: {
+        const group = groupOf.get(condition.questionId);
+        if (group === undefined || inScope.has(group)) {
+          return;
+        }
+        findings.push({
+          code: "RULE_READS_GROUP_WITHOUT_OPERATOR",
+          message: `Rule "${rule.ruleId}" reads question "${condition.questionId}", which is inside group "${group}" and so has one answer per instance rather than one value; wrap the condition in "anyInstance" or "everyInstance" over "${group}", or target the rule inside that group`,
+          path: { rule: rule.ruleId, question: condition.questionId, group },
+        });
+      }
+    }
+  };
+  for (const rule of form.rules) {
+    const scopes = new Set(
+      rule.show.map((target) => (isStepId(target) ? undefined : groupOf.get(target))),
+    );
+    if (scopes.size !== 1) {
+      continue; // RULE_TARGETS_SPAN_SCOPES owns this rule.
+    }
+    const [scope] = [...scopes];
+    walk(rule, rule.when, scope === undefined ? new Set() : new Set([scope]));
   }
   return findings;
 }

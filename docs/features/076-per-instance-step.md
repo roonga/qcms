@@ -19,6 +19,15 @@ The amendment of 2026-09-30 settles the addressing: a step id no longer identifi
 - **The admin's presentation switch reaching it**, and the preview walking the views through the same renderer the portal uses.
 - **Localised chrome** for the view-level labels (ADR-27).
 
+## Notes from task 071 on `visibleStepViews`
+
+Task 071 built the list this task's cursor walks, and left **two edges for this task to decide** rather than deciding them in the kernel (recorded on the review of PR #1016, 2026-09-29):
+
+- A view is emitted for a live instance **all of whose members are hidden**, where `visibleSteps` omits a step with nothing visible. The two fields therefore disagree about emptiness, deliberately: `visibleSteps` is derived from `visible` and the view list is derived from the roster.
+- **Only the first `perInstanceStep` group in a step paginates it.** A step holding two of them is not a shape any presentation has defined, and the kernel picks the first rather than inventing a reading.
+
+Changing either is a change to `packages/core/src/evaluate-rules.ts`'s `stepViews`, and it belongs here because the cursor is what gives a view its meaning.
+
 ## Exit criteria
 
 **This task owns no numbered acceptance case**, and section 11 of the plan says so in its ownership map. Its behaviour is a claim about a sequence rather than about a value, so the criterion is prose and it is the whole specification:

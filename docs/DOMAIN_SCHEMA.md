@@ -247,7 +247,8 @@ const VisibilityRule = z.object({
 1. Evaluation is a **single forward pass in document order** - not a fixpoint. This is well-defined because publish rejects any rule whose targets do not appear strictly _after_ every question its condition references (`RULE_BACKWARD_TARGET`) and any cycle in the reads→shows graph (`RULE_CYCLE`).
 2. Conditions over unanswered questions are `false`, except `answered`, which is the explicit existence test. This includes `notEquals`: an unanswered question does not satisfy `notEquals` - the condition is `false`, not `true`.
 3. Answers of questions evaluated as _hidden_ are excluded from all subsequent condition evaluation and from the locked submission - well-defined because a referenced question's visibility was settled earlier in the walk.
-4. Same `(snapshot, answers)` → same `FlowState`, forever. Changing these numbered semantics requires a new `semanticsVersion`; old snapshots evaluate under their recorded version.
+4. Same `(snapshot, answers, rosters)` → same `FlowState`, forever. Changing these numbered semantics requires a new `semanticsVersion`; old snapshots evaluate under their recorded version.
+5. **A repeating group's span is walked once per live instance** (ADR-42, task 071), within `semanticsVersion` 1. A rule whose `show` target sits inside group G is evaluated once per live instance of G, and a reference to a question inside G resolves to **that instance's** answer; `anyInstance`, `everyInstance` and `instanceCount` read a whole group from outside it, and `everyInstance` over a group with no live instance is **false** by decision rather than vacuously true. The **roster** is the third input and is passed in already derived, never read out of the answer keys, which is why the determinism statement above names it. A form with no repeating group evaluates byte-identically and produces a `FlowState` carrying none of the fields marked optional below.
 
 _(v1 of this document described evaluation as a "pure fixpoint"; that formulation was unsound under hidden-answer exclusion - visibility could oscillate with no unique fixpoint. ADR-16 records the analysis and decision.)_
 
@@ -266,14 +267,32 @@ evaluateRules(
 
 ```ts
 const FlowState = z.object({
-  visible: z.array(z.object({ stepId: StepId, questionId: QuestionId })), // document order
+  visible: z.array(
+    z.object({ stepId: StepId, questionId: QuestionId, instanceId: InstanceId.optional() }),
+  ),
+  // document then roster order; the `instanceId` KEY is absent outside a group
   visibleSteps: z.array(StepId), // steps contributing ≥1 visible question (derived from `visible`;
   // a step whose questions are all rule-hidden renders nothing and is not listed)
   currentStep: StepId.nullable(), // semantic: first visible step with a visible unanswered *required*
   // question, else first with any visible unanswered question, else null
   answeredRequired: z.array(QuestionId), // visible required questions with an answer, document order
-  missingRequired: z.array(QuestionId), // visible required questions without one, document order
+  missingRequired: z.array(QuestionId), // visible required questions without one, document order;
+  // a REPEATED question is listed once and is missing when any live instance of it is unanswered
   complete: z.boolean(), // missingRequired is empty (I9's precondition; the sweep is 009)
+  // The four below are ADR-42's, and each is ABSENT ENTIRELY from a form with no repeating group.
+  // They are parallel to the fields above rather than replacing them, because widening those would
+  // need a `semanticsVersion` bump that cannot be taken; collapsing them is the first job of
+  // multi-version evaluation (ADR-16's amendment).
+  visibleStepViews: z
+    .array(z.object({ stepId: StepId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  missingRequiredInstances: z
+    .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  answeredRequiredInstances: z
+    .array(z.object({ questionId: QuestionId, instanceId: InstanceId.nullable() }))
+    .optional(),
+  rosters: z.array(z.object({ groupId: GroupId, instances: z.array(InstanceId) })).optional(),
 });
 ```
 
@@ -397,7 +416,7 @@ stateDiagram-v2
 | I4  | Sessions pin a version at creation; never migrate                                                                                                                                                            | session creation; absent update path                                 | 014, 018 |
 | I5  | Answers are append-only; current = latest per `questionId`, unless that latest row is a **retraction**, which resolves to unanswered (ADR-33) (sole exception to append-only: whole-session erasure, ADR-17) | ledger schema; no UPDATE path; scoped erasure door; retraction CHECK | 013, 016 |
 | I6  | Hidden answers excluded from evaluation and from the locked submission                                                                                                                                       | `evaluateRules` + submit lock                                        | 006, 009 |
-| I7  | Same `(snapshot, answers)` → same `FlowState`, forever                                                                                                                                                       | forward-pass purity; `semanticsVersion` stamped per snapshot         | 006, 008 |
+| I7  | Same `(snapshot, answers, rosters)` → same `FlowState`, forever (the roster joined it with ADR-42; order is meaning and is never set-compared)                                                               | forward-pass purity; `semanticsVersion` stamped per snapshot         | 006, 008 |
 | I8  | `questionId` / `optionId` never reused with a different meaning                                                                                                                                              | authoring API refusal + R6 review rule                               | 021      |
 | I9  | Submission validates every visible required answer before lock                                                                                                                                               | `prepareSubmission` sweep                                            | 009, 020 |
 | I10 | Rule graph is forward-only and acyclic in every published snapshot (ADR-16)                                                                                                                                  | `analyzeRuleGraph` in `compileDraft`                                 | 005, 008 |

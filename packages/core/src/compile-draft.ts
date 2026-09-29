@@ -10,12 +10,19 @@ import {
   type QuestionDefinition,
   type QuestionVersionRecord,
 } from "./question-definition.js";
-import { analyzeRuleGraph, checkRuleTypes, documentOrder, ruleReferences } from "./rule-graph.js";
+import {
+  analyzeRuleGraph,
+  checkRuleTypes,
+  documentOrder,
+  ruleGroupReferences,
+  ruleReferences,
+} from "./rule-graph.js";
 import {
   countBounds,
   INSTANCE_LABEL_PLACEHOLDER,
   isRepeatGroup,
   labelPlaceholders,
+  repeatGroups,
   type RepeatGroup,
 } from "./step.js";
 import { classSetAmbiguity } from "./safe-pattern.js";
@@ -231,9 +238,12 @@ function checkInstanceLabel(group: RepeatGroup): PublishError[] {
  * A `fromAnswer` count source points at a `number` question
  * (`REPEAT_COUNT_NOT_A_NUMBER`). Its position relative to the group's span is
  * `analyzeRuleGraph`'s (`REPEAT_COUNT_BACKWARD_REF`); this needs the resolved
- * pin, so it lives here beside the other resolution-dependent checks. A count
- * question that does not resolve at all is skipped: `DANGLING_QUESTION_REF`
- * already names it.
+ * pin, so it lives here beside the other resolution-dependent checks.
+ *
+ * A count question the form does not pin is skipped here and reported by
+ * `checkRuleResolution` above as `DANGLING_QUESTION_REF`. That sentence used to
+ * sit here as a claim about a check that did not exist, and such a draft
+ * published with no error at all until the claim was made true.
  */
 function checkRepeatCountTypes(
   definition: FormDefinition,
@@ -310,12 +320,43 @@ function resolvePins(
  * every step target must exist (`DANGLING_QUESTION_REF`/`DANGLING_STEP_REF`).
  * Option references are checked by `checkRuleTypes` against the pinned
  * version's declared options (`DANGLING_OPTION_REF`).
+ *
+ * Two group-shaped resolutions join them (task 071, ADR-42). A whole-group
+ * operator naming a group the form does not declare is `DANGLING_GROUP_REF`
+ * (Q24, Code Owner, 2026-09-29), and a `fromAnswer` count source naming a
+ * question the form does not pin is `DANGLING_QUESTION_REF` - the same code the
+ * rule half uses, because a count source is a read of a question by the whole
+ * group and its path shape already fits.
  */
 function checkRuleResolution(definition: FormDefinition): PublishError[] {
   const errors: PublishError[] = [];
   const pinned = new Set<QuestionId>(documentOrder(definition).map((entry) => entry.questionId));
   const steps = new Set<StepId>(definition.steps.map((step) => step.stepId));
+  const groups = new Set<GroupId>(repeatGroups(definition.steps).map((group) => group.groupId));
+  for (const step of definition.steps) {
+    for (const item of step.items) {
+      if (!isRepeatGroup(item) || item.count.source !== "fromAnswer") {
+        continue;
+      }
+      if (!pinned.has(item.count.questionId)) {
+        errors.push({
+          code: "DANGLING_QUESTION_REF",
+          message: `Group "${item.groupId}" takes its instance count from question "${item.count.questionId}", which is not pinned in the form`,
+          path: { question: item.count.questionId, step: step.stepId },
+        });
+      }
+    }
+  }
   for (const rule of definition.rules) {
+    for (const groupId of ruleGroupReferences(rule)) {
+      if (!groups.has(groupId)) {
+        errors.push({
+          code: "DANGLING_GROUP_REF",
+          message: `Rule "${rule.ruleId}" reads group "${groupId}", which the form does not declare; the rule would publish cleanly and never fire`,
+          path: { rule: rule.ruleId, group: groupId },
+        });
+      }
+    }
     for (const questionId of ruleReferences(rule)) {
       if (!pinned.has(questionId)) {
         errors.push({

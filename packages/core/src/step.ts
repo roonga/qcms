@@ -115,6 +115,34 @@ export const RepeatGroup = z.object({
 export type RepeatGroup = z.infer<typeof RepeatGroup>;
 
 /**
+ * The message both members of the step-item union carry when an item claims to
+ * be a pinned question and a repeating group at once.
+ */
+const ITEM_IS_ONE_OR_THE_OTHER =
+  "A step item is either a pinned question or a repeating group, never both";
+
+/** A key this member of the union may not carry at all. Optional, so an absent
+ * key and an explicitly undefined one are the same absence, and `never`, so any
+ * present value is refused by name. */
+const forbiddenKey = z.never({ error: ITEM_IS_ONE_OR_THE_OTHER }).optional();
+
+/**
+ * The two members of the step-item union, each refusing the other's keys.
+ *
+ * The union is discriminated by disjoint required keys and carries no tag, and
+ * **disjointness has to be enforced rather than assumed**: without these guards
+ * an item carrying both `questionId` and `groupId` matches whichever member
+ * comes first, has the other's keys stripped as unknown, and silently becomes
+ * something its author did not write. Which way round it failed is not the
+ * point; that it failed in silence is.
+ */
+const StepQuestionRef = QuestionRef.extend({ groupId: forbiddenKey });
+const StepRepeatGroup = RepeatGroup.extend({
+  questionId: forbiddenKey,
+  version: forbiddenKey,
+});
+
+/**
  * One entry of a step's item list: a pinned question, or a repeating group.
  *
  * The union is discriminable **without a tag**, because the two shapes have
@@ -123,7 +151,7 @@ export type RepeatGroup = z.infer<typeof RepeatGroup>;
  * additivity depends on: adding a tag would make every form definition that
  * parses today fail to parse.
  */
-export const StepItem = z.union([QuestionRef, RepeatGroup]);
+export const StepItem = z.union([StepQuestionRef, StepRepeatGroup]);
 export type StepItem = z.infer<typeof StepItem>;
 
 export const Step = z.object({
@@ -179,9 +207,13 @@ export function labelPlaceholders(template: string): readonly string[] {
   return [...template.matchAll(/\{([^{}]*)\}/g)].map((match) => match[1] ?? "");
 }
 
-/** Whether a step item is a repeating group rather than a pinned question. */
-export function isRepeatGroup(item: StepItem): item is RepeatGroup {
-  return "groupId" in item;
+/** Whether a step item is a repeating group rather than a pinned question.
+ *
+ * The value test rather than the key test alone: a pinned question written with
+ * an explicit `groupId: undefined` carries the key, and `StepQuestionRef` above
+ * accepts it because an absent key and an undefined one are the same absence. */
+export function isRepeatGroup(item: StepItem | QuestionRef): item is RepeatGroup {
+  return "groupId" in item && item.groupId !== undefined;
 }
 
 /**

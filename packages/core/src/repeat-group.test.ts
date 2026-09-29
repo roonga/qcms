@@ -314,6 +314,45 @@ describe("the step item union (ADR-42)", () => {
     }
   });
 
+  it("refuses a step item carrying BOTH a questionId and a groupId, at parse", () => {
+    // Without this the union matches its first member, strips the `groupId` as
+    // an unknown key and silently drops a repeating group the author wrote. The
+    // disjointness the tagless union relies on has to be enforced.
+    const result = parseFormDefinition({
+      formId: "frm_test",
+      defaultLocale: "en",
+      title: { en: "Test" },
+      steps: [
+        {
+          stepId: "stp_one",
+          title: { en: "stp_one" },
+          items: [
+            {
+              questionId: "q_dob",
+              version: 1,
+              groupId: "grp_pax",
+              label: { en: "Passengers" },
+              instanceLabel: { en: "Passenger {n}" },
+              items: [{ questionId: "q_fare", version: 1 }],
+              count: { source: "open", min: 0, max: 9 },
+            },
+          ],
+        },
+      ],
+      rules: [],
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toEqual([
+        {
+          code: "INVALID_FORM_DEFINITION",
+          message: "A step item is either a pinned question or a repeating group, never both",
+          path: ["steps", 0, "items", 0, "groupId"],
+        },
+      ]);
+    }
+  });
+
   it("refuses a duplicate groupId at parse", () => {
     const result = parseFormDefinition(
       rawForm(
@@ -555,6 +594,55 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
     ).toEqual(["REPEAT_MIN_ABOVE_MAX"]);
   });
 
+  it("case 8: a count question INSIDE the group it sizes is refused on both counts", () => {
+    // The group's own span starts at the count question, so it is backward; and
+    // the question is answered once per instance, so there is no single count.
+    // Both are true and both are reported (Q26, 2026-09-29).
+    const codes = publishCodes([
+      [
+        "stp_pax",
+        [
+          {
+            groupId: "grp_pax",
+            items: [
+              { id: "q_n", type: "number" },
+              { id: "q_dob", type: "date" },
+            ],
+            count: { source: "fromAnswer", questionId: "q_n", min: 0, max: 9 },
+          },
+        ],
+      ],
+    ]);
+    expect([...codes].sort()).toEqual(["REPEAT_COUNT_BACKWARD_REF", "REPEAT_COUNT_INSIDE_GROUP"]);
+  });
+
+  it("a fromAnswer count question the form does not pin is DANGLING_QUESTION_REF", () => {
+    // It published with no error at all until the review of 2026-09-29: two
+    // comments claimed this was already covered and nothing did it.
+    const { errors } = publish(
+      build(
+        [
+          [
+            "stp_pax",
+            [
+              {
+                groupId: "grp_pax",
+                items: [{ id: "q_dob", type: "date" }],
+                count: { source: "fromAnswer", questionId: "q_missing", min: 0, max: 9 },
+              },
+            ],
+          ],
+        ],
+        [],
+      ),
+    );
+    const finding = errors.find((error) => error.code === "DANGLING_QUESTION_REF");
+    expect(finding).toBeDefined();
+    if (finding?.code === "DANGLING_QUESTION_REF") {
+      expect(finding.path).toEqual({ question: "q_missing", step: "stp_pax" });
+    }
+  });
+
   it("case 10: there is no installation-wide ceiling, asserted as a positive case", () => {
     // A group declaring five thousand instances publishes, and nothing in core
     // is consulted to decide it: the Q14 ruling of 2026-09-29 removed both the
@@ -605,6 +693,45 @@ describe("publish: one rule, one scope (case 15)", () => {
     expect(finding).toBeDefined();
     if (finding?.code === "RULE_TARGETS_SPAN_SCOPES") {
       expect(finding.path).toEqual({ rule: "rul_mixed", scopes: ["grp_pax", "form"] });
+    }
+  });
+
+  it("refuses one target inside each of TWO groups, the case's second variant", () => {
+    const { errors } = publish(
+      build(
+        [
+          ["stp_pax", [PAX_GROUP]],
+          [
+            "stp_other",
+            [
+              {
+                groupId: "grp_other",
+                items: [{ id: "q_note", type: "shortText" }],
+                count: { source: "open", min: 0, max: 5 },
+              },
+            ],
+          ],
+        ],
+        [
+          {
+            ruleId: "rul_two_groups",
+            when: {
+              op: "anyInstance",
+              groupId: "grp_pax",
+              condition: { op: "answered", questionId: "q_dob" },
+            },
+            show: ["q_fare", "q_note"],
+          },
+        ],
+      ),
+    );
+    const finding = errors.find((error) => error.code === "RULE_TARGETS_SPAN_SCOPES");
+    expect(finding).toBeDefined();
+    if (finding?.code === "RULE_TARGETS_SPAN_SCOPES") {
+      expect(finding.path).toEqual({
+        rule: "rul_two_groups",
+        scopes: ["grp_pax", "grp_other"],
+      });
     }
   });
 
@@ -719,6 +846,50 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
     expect(codesOf(publish(build(twoGroups(5000, 5000), [])).errors)).toEqual([]);
   });
 
+  it("publishes two groups far above the budget when the form HAS per-instance rules", () => {
+    // The half the reviewer's mutation survived: charging every rule that
+    // targets inside a group against every OTHER group in the form turns the
+    // budget into the instance ceiling Q14 removed. This rule reads only its
+    // own instance, so it costs `max` and not `max_G x max_H`, and the form
+    // publishes with both groups at five thousand.
+    expect(
+      publishCodes(
+        [
+          [
+            "stp_g",
+            [
+              {
+                groupId: "grp_g",
+                items: [
+                  { id: "q_dob", type: "date" },
+                  { id: "q_fare", type: "boolean" },
+                ],
+                count: { source: "open", min: 0, max: 5000 },
+              },
+            ],
+          ],
+          [
+            "stp_h",
+            [
+              {
+                groupId: "grp_h",
+                items: [{ id: "q_note", type: "shortText" }],
+                count: { source: "open", min: 0, max: 5000 },
+              },
+            ],
+          ],
+        ],
+        [
+          {
+            ruleId: "rul_own_instance",
+            when: { op: "gte", questionId: "q_dob", value: "2024-01-01" },
+            show: ["q_fare"],
+          },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
   it("does not charge a rule for reading the group it targets", () => {
     // Inside-out is one walk per live instance, not a product: the rule below
     // is per-instance already, so nothing about it is quadratic.
@@ -755,6 +926,324 @@ describe("publish: the cross-group evaluation budget (case 16)", () => {
       // It is refused for being backward inside its own span, which is the
       // ordinary ADR-16 rule, and NOT for the budget: no product is charged.
     ).toEqual(["RULE_BACKWARD_TARGET", "RULE_CYCLE"]);
+  });
+});
+
+describe("publish: the group a rule names must exist (Q24, 2026-09-29)", () => {
+  it("refuses a whole-group operator over a group the form does not declare", () => {
+    for (const when of [
+      {
+        op: "anyInstance",
+        groupId: "grp_nope",
+        condition: { op: "answered", questionId: "q_dob" },
+      },
+      {
+        op: "everyInstance",
+        groupId: "grp_nope",
+        condition: { op: "answered", questionId: "q_dob" },
+      },
+      { op: "instanceCount", groupId: "grp_nope", compare: "gte", value: 1 },
+    ]) {
+      const { errors } = publish(
+        build(
+          [
+            ["stp_pax", [PAX_GROUP]],
+            ["stp_after", [{ id: "q_gate", type: "boolean" }]],
+          ],
+          [{ ruleId: "rul_ghost", when, show: ["q_gate"] }],
+        ),
+      );
+      const finding = errors.find((error) => error.code === "DANGLING_GROUP_REF");
+      // Without this the rule publishes cleanly and can never fire: the two
+      // quantifiers are false forever and the count reads zero.
+      expect(finding, JSON.stringify(when)).toBeDefined();
+      if (finding?.code === "DANGLING_GROUP_REF") {
+        expect(finding.path).toEqual({ rule: "rul_ghost", group: "grp_nope" });
+      }
+    }
+  });
+});
+
+describe("publish: whole-group operators may not nest (Q25, 2026-09-29)", () => {
+  /** Two groups and a gate after both, the shape every nesting case needs. */
+  const twoGroupsAndGate = (max: number): [string, readonly TestItem[]][] => [
+    [
+      "stp_g",
+      [
+        {
+          groupId: "grp_g",
+          items: [{ id: "q_g1", type: "date" }],
+          count: { source: "open", min: 0, max },
+        },
+      ],
+    ],
+    [
+      "stp_h",
+      [
+        {
+          groupId: "grp_h",
+          items: [{ id: "q_h1", type: "date" }],
+          count: { source: "open", min: 0, max },
+        },
+      ],
+    ],
+    ["stp_after", [{ id: "q_gate", type: "boolean" }]],
+  ];
+  const answeredH = { op: "answered", questionId: "q_h1" };
+  const answeredG = { op: "answered", questionId: "q_g1" };
+
+  it("refuses the two-group nest that escaped the budget entirely", () => {
+    // Measured at the reviewed head: two groups at max 5000 under this shape
+    // published, and cost twenty-five million leaf evaluations per request. The
+    // budget charges a rule's TARGET group against each group it reads, and
+    // this rule's target is outside every group, so nothing was charged.
+    const { errors } = publish(
+      build(twoGroupsAndGate(5000), [
+        {
+          ruleId: "rul_nested",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_g",
+            condition: { op: "anyInstance", groupId: "grp_h", condition: answeredH },
+          },
+          show: ["q_gate"],
+        },
+      ]),
+    );
+    const finding = errors.find((error) => error.code === "REPEAT_OPERATOR_NESTING_NOT_ALLOWED");
+    expect(finding).toBeDefined();
+    if (finding?.code === "REPEAT_OPERATOR_NESTING_NOT_ALLOWED") {
+      expect(finding.path).toEqual({
+        rule: "rul_nested",
+        outerGroup: "grp_g",
+        innerGroup: "grp_h",
+      });
+    }
+  });
+
+  it("refuses a group nested in ITSELF, which is quadratic in one group's own max", () => {
+    expect(
+      publishCodes(twoGroupsAndGate(5000), [
+        {
+          ruleId: "rul_self",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_g",
+            condition: { op: "everyInstance", groupId: "grp_g", condition: answeredG },
+          },
+          show: ["q_gate"],
+        },
+      ]),
+    ).toEqual(["REPEAT_OPERATOR_NESTING_NOT_ALLOWED"]);
+  });
+
+  it("refuses nesting reached through and, or and not", () => {
+    for (const when of [
+      {
+        op: "anyInstance",
+        groupId: "grp_g",
+        condition: {
+          op: "and",
+          conditions: [answeredG, { op: "anyInstance", groupId: "grp_h", condition: answeredH }],
+        },
+      },
+      {
+        op: "anyInstance",
+        groupId: "grp_g",
+        condition: {
+          op: "or",
+          conditions: [
+            answeredG,
+            { op: "instanceCount", groupId: "grp_h", compare: "gte", value: 1 },
+          ],
+        },
+      },
+      {
+        op: "everyInstance",
+        groupId: "grp_g",
+        condition: {
+          op: "not",
+          condition: { op: "everyInstance", groupId: "grp_h", condition: answeredH },
+        },
+      },
+    ]) {
+      expect(
+        publishCodes(twoGroupsAndGate(200), [{ ruleId: "rul_x", when, show: ["q_gate"] }]),
+        JSON.stringify(when),
+      ).toContain("REPEAT_OPERATOR_NESTING_NOT_ALLOWED");
+    }
+  });
+
+  it("refuses the three-group shape whose every PAIR is within budget", () => {
+    // G and H nested, targeting inside a third group K, all three at max 100:
+    // every pair is 10,000 and the whole rule is 1,000,000.
+    const codes = publishCodes(
+      [
+        ...twoGroupsAndGate(100).slice(0, 2),
+        [
+          "stp_k",
+          [
+            {
+              groupId: "grp_k",
+              items: [{ id: "q_k1", type: "boolean" }],
+              count: { source: "open", min: 0, max: 100 },
+            },
+          ],
+        ],
+      ],
+      [
+        {
+          ruleId: "rul_three",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_g",
+            condition: { op: "anyInstance", groupId: "grp_h", condition: answeredH },
+          },
+          show: ["q_k1"],
+        },
+      ],
+    );
+    expect(codes).toContain("REPEAT_OPERATOR_NESTING_NOT_ALLOWED");
+  });
+
+  it("publishes two whole-group reads that are SIBLINGS rather than nested", () => {
+    // This is what makes the pairwise budget a real bound on a rule: with
+    // nesting gone, a rule's whole-group reads add rather than multiply.
+    expect(
+      publishCodes(twoGroupsAndGate(100), [
+        {
+          ruleId: "rul_siblings",
+          when: {
+            op: "and",
+            conditions: [
+              { op: "anyInstance", groupId: "grp_g", condition: answeredG },
+              { op: "everyInstance", groupId: "grp_h", condition: answeredH },
+            ],
+          },
+          show: ["q_gate"],
+        },
+      ]),
+    ).toEqual([]);
+  });
+});
+
+describe("publish: a reference needs a single value (Q26, 2026-09-29)", () => {
+  const steps: [string, readonly TestItem[]][] = [
+    ["stp_pax", [PAX_GROUP]],
+    [
+      "stp_other",
+      [
+        {
+          groupId: "grp_other",
+          items: [{ id: "q_note", type: "shortText" }],
+          count: { source: "open", min: 0, max: 5 },
+        },
+      ],
+    ],
+    ["stp_after", [{ id: "q_gate", type: "boolean" }]],
+  ];
+
+  it("refuses a bare in-group reference from a rule outside every group", () => {
+    const { errors } = publish(
+      build(steps, [
+        {
+          ruleId: "rul_bare",
+          when: { op: "answered", questionId: "q_dob" },
+          show: ["q_gate"],
+        },
+      ]),
+    );
+    const finding = errors.find((error) => error.code === "RULE_READS_GROUP_WITHOUT_OPERATOR");
+    expect(finding).toBeDefined();
+    if (finding?.code === "RULE_READS_GROUP_WITHOUT_OPERATOR") {
+      expect(finding.path).toEqual({
+        rule: "rul_bare",
+        question: "q_dob",
+        group: "grp_pax",
+      });
+      // The message has to tell the author what to do, because the shape looks
+      // right and the rule would otherwise publish and never fire.
+      expect(finding.message).toContain("anyInstance");
+      expect(finding.message).toContain("everyInstance");
+    }
+  });
+
+  it("refuses the same reference from a rule targeting inside a DIFFERENT group", () => {
+    // Ruled the same defect: the rule's own instance of grp_other is in scope,
+    // grp_pax's is not, so there is still no single value to read.
+    expect(
+      publishCodes(steps, [
+        {
+          ruleId: "rul_cross_bare",
+          when: { op: "answered", questionId: "q_dob" },
+          show: ["q_note"],
+        },
+      ]),
+    ).toEqual(["RULE_READS_GROUP_WITHOUT_OPERATOR"]);
+  });
+
+  it("keeps the per-instance case legal: a rule inside G reading G's own member", () => {
+    expect(
+      publishCodes(steps, [
+        {
+          ruleId: "rul_per_instance",
+          when: { op: "gte", questionId: "q_dob", value: "2024-01-01" },
+          show: ["q_fare"],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("keeps a wrapped reference legal, which is what the message asks for", () => {
+    expect(
+      publishCodes(steps, [
+        {
+          ruleId: "rul_wrapped",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_pax",
+            condition: { op: "answered", questionId: "q_dob" },
+          },
+          show: ["q_gate"],
+        },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("refuses a fromAnswer count question that is itself inside a group", () => {
+    const { errors } = publish(
+      build(
+        [
+          [
+            "stp_counts",
+            [
+              {
+                groupId: "grp_counts",
+                items: [{ id: "q_n", type: "number" }],
+                count: { source: "open", min: 0, max: 5 },
+              },
+            ],
+          ],
+          [
+            "stp_pax",
+            [
+              {
+                groupId: "grp_pax",
+                items: [{ id: "q_dob", type: "date" }],
+                count: { source: "fromAnswer", questionId: "q_n", min: 0, max: 9 },
+              },
+            ],
+          ],
+        ],
+        [],
+      ),
+    );
+    const finding = errors.find((error) => error.code === "REPEAT_COUNT_INSIDE_GROUP");
+    expect(finding).toBeDefined();
+    if (finding?.code === "REPEAT_COUNT_INSIDE_GROUP") {
+      expect(finding.path).toEqual({ group: "grp_pax", question: "q_n" });
+      expect(finding.message).toContain("move the count question out");
+    }
   });
 });
 
@@ -898,8 +1387,10 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
   });
 
   it("treats a group question read with no instance in scope as unanswered, never a throw", () => {
-    // A whole-form rule naming an in-group question directly has no
-    // forward-only reading, so it is total rather than special-cased.
+    // Publish refuses this shape since the Q26 ruling of 2026-09-29
+    // (`RULE_READS_GROUP_WITHOUT_OPERATOR`, tested under publish below), and the
+    // evaluator stays total over it anyway: the kernel's totality contract is
+    // about unvalidated input, so it may not depend on a publish gate.
     const withRule = build(
       [
         ["stp_pax", [PAX_GROUP]],

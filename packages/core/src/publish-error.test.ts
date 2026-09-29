@@ -223,12 +223,45 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'rule "rul_infant" from group "grp_holdings" over group "grp_passengers"',
   },
+  // The four the Code Owner ruled on 2026-09-29 (Q24 to Q26).
+  {
+    raw: {
+      code: "DANGLING_GROUP_REF",
+      message: "Rule reads a group the form does not declare",
+      path: { rule: "rul_infant", group: "grp_nope" },
+    },
+    location: 'group "grp_nope" in rule "rul_infant"',
+  },
+  {
+    raw: {
+      code: "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
+      message: "A whole-group operator may not sit inside another",
+      path: { rule: "rul_infant", outerGroup: "grp_passengers", innerGroup: "grp_holdings" },
+    },
+    location: 'group "grp_holdings" inside group "grp_passengers" in rule "rul_infant"',
+  },
+  {
+    raw: {
+      code: "RULE_READS_GROUP_WITHOUT_OPERATOR",
+      message: "A bare reference to a question inside a group has no single value",
+      path: { rule: "rul_infant", question: "q_passport", group: "grp_passengers" },
+    },
+    location: 'question "q_passport" of group "grp_passengers" in rule "rul_infant"',
+  },
+  {
+    raw: {
+      code: "REPEAT_COUNT_INSIDE_GROUP",
+      message: "The count question is itself inside a repeating group",
+      path: { group: "grp_holdings", question: "q_accident_count" },
+    },
+    location: 'count question "q_accident_count" of group "grp_holdings"',
+  },
 ];
 
 describe("PublishError", () => {
   it("codes and union variants stay in lockstep (compile-time)", () => {
     expect(codesInLockstep).toBe(true);
-    expect(PublishErrorCode.options).toHaveLength(22);
+    expect(PublishErrorCode.options).toHaveLength(26);
   });
 
   it.each(

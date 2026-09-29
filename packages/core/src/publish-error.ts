@@ -58,6 +58,12 @@ export const PublishErrorCode = z.enum([
   "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN",
   "RULE_TARGETS_SPAN_SCOPES",
   "REPEAT_EVALUATION_BUDGET_EXCEEDED",
+  // The four the Code Owner ruled on 2026-09-29 (Q24 to Q26), each closing a
+  // shape that published cleanly and could never fire.
+  "DANGLING_GROUP_REF",
+  "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
+  "RULE_READS_GROUP_WITHOUT_OPERATOR",
+  "REPEAT_COUNT_INSIDE_GROUP",
 ]);
 export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 
@@ -241,6 +247,45 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ rule: RuleId, targetGroup: GroupId, readGroup: GroupId }),
   }),
+  // A whole-group operator naming a group the form does not declare (Q24,
+  // Code Owner, 2026-09-29). It is the group-shaped sibling of
+  // DANGLING_QUESTION_REF, and it exists for the same reason: without it the
+  // rule publishes cleanly, `anyInstance` and `everyInstance` over the unknown
+  // group are false forever, `instanceCount` reads zero, and nothing anywhere
+  // tells the author why the question they gated never appears.
+  z.object({
+    code: z.literal("DANGLING_GROUP_REF"),
+    message,
+    path: z.object({ rule: RuleId, group: GroupId }),
+  }),
+  // A whole-group operator inside another whole-group operator's condition
+  // (Q25, Code Owner, 2026-09-29), including the same group nested in itself
+  // and nesting reached through `and`, `or` or `not`. Nesting multiplies the
+  // per-instance walks, so a nested pair costs the product of their maxima
+  // whatever the rule targets, which is precisely what the evaluation budget
+  // exists to bound and cannot bound while nesting is unlimited.
+  z.object({
+    code: z.literal("REPEAT_OPERATOR_NESTING_NOT_ALLOWED"),
+    message,
+    path: z.object({ rule: RuleId, outerGroup: GroupId, innerGroup: GroupId }),
+  }),
+  // A bare reference to a question inside a group, from a rule that is not
+  // evaluated inside that group (Q26, Code Owner, 2026-09-29). Such a question
+  // has one answer per instance, so the reference has no single value to read
+  // and the evaluator resolves it to nothing for every respondent.
+  z.object({
+    code: z.literal("RULE_READS_GROUP_WITHOUT_OPERATOR"),
+    message,
+    path: z.object({ rule: RuleId, question: QuestionId, group: GroupId }),
+  }),
+  // A `fromAnswer` count question that itself sits inside a repeating group
+  // (Q26, Code Owner, 2026-09-29): its answer is per instance, so there is no
+  // single count for the group it sizes to read.
+  z.object({
+    code: z.literal("REPEAT_COUNT_INSIDE_GROUP"),
+    message,
+    path: z.object({ group: GroupId, question: QuestionId }),
+  }),
 ]);
 export type PublishError = z.infer<typeof PublishError>;
 
@@ -363,6 +408,7 @@ export function publishErrorLocation(error: PublishError): string {
       return `group "${error.path.group}" in step "${error.path.step}"`;
     case "REPEAT_COUNT_BACKWARD_REF":
     case "REPEAT_COUNT_NOT_A_NUMBER":
+    case "REPEAT_COUNT_INSIDE_GROUP":
       return `count question "${error.path.question}" of group "${error.path.group}"`;
     case "INSTANCE_LABEL_PLACEHOLDER_UNKNOWN":
       return `placeholder "{${error.path.placeholder}}" in locale "${error.path.locale}" of group "${error.path.group}"`;
@@ -374,6 +420,12 @@ export function publishErrorLocation(error: PublishError): string {
     }
     case "REPEAT_EVALUATION_BUDGET_EXCEEDED":
       return `rule "${error.path.rule}" from group "${error.path.targetGroup}" over group "${error.path.readGroup}"`;
+    case "DANGLING_GROUP_REF":
+      return `group "${error.path.group}" in rule "${error.path.rule}"`;
+    case "REPEAT_OPERATOR_NESTING_NOT_ALLOWED":
+      return `group "${error.path.innerGroup}" inside group "${error.path.outerGroup}" in rule "${error.path.rule}"`;
+    case "RULE_READS_GROUP_WITHOUT_OPERATOR":
+      return `question "${error.path.question}" of group "${error.path.group}" in rule "${error.path.rule}"`;
     /* v8 ignore next 2 -- unreachable by construction */
     default:
       return assertNeverPublishError(error);

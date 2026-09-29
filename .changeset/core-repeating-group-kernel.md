@@ -35,6 +35,23 @@ and `AnswerValue` is unchanged.
   above a fixed `REPEAT_EVALUATION_BUDGET` of 10,000 instance pairs. That is a
   cost bound on one rule shape and not an instance ceiling: nothing in core caps
   a group's `max`.
+- **Four more publish refusals** (Q24 to Q26, Code Owner, 2026-09-29), each
+  closing a shape that published cleanly and could never fire.
+  `DANGLING_GROUP_REF` refuses a whole-group operator naming a group the form
+  does not declare. `REPEAT_OPERATOR_NESTING_NOT_ALLOWED` refuses a whole-group
+  operator inside another's condition, including through `and`, `or` and `not`
+  and including a group nested in itself, which is what makes the pairwise
+  budget a bound on a rule rather than on a pair.
+  `RULE_READS_GROUP_WITHOUT_OPERATOR` refuses a bare reference to an in-group
+  question from a rule that is not evaluated inside that group, and its message
+  names the operator to wrap it in. `REPEAT_COUNT_INSIDE_GROUP` refuses a
+  `fromAnswer` count question that itself sits inside a group, and a count
+  question the form does not pin is now reported with the existing
+  `DANGLING_QUESTION_REF`.
+- A step item carrying **both** a `questionId` and a `groupId` is refused at
+  parse. The item union is tagless and discriminated by disjoint required keys,
+  so without the refusal such an item matched one member and had the other's
+  keys stripped, silently becoming something its author did not write.
 - `prepareSubmission` takes the roster too, reports `MISSING_REQUIRED` per
   `(instance, question)` and adds `REPEAT_COUNT_OUT_OF_RANGE`.
 - `FlowState` gains four optional fields, `visibleStepViews`,
