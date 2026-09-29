@@ -22,7 +22,6 @@ What changes is the **form builder**, the **rules editor** and the **test bench*
 - **`rule-targets.ts` and `eligibleTargets`** applying the forward-only rule over a **span** rather than a position.
 - **The test bench's instance dimension**: the author adds hypothetical instances, fills per-instance answers and reads a per-instance match or no-match, and the bench is **evaluable at zero instances**, where an `everyInstance` rule reports no match and its negation reports a match. That is the surface where an author discovers that a rule they wrote reads the whole group rather than one instance, and where the empty-group reading is discoverable rather than documented.
 - **The draft-preview endpoint change behind the bench**, and `draft-preview.tsx` expanding a group through the same renderer the portal uses, with a roster minted locally from the draft's `min` or from a count the author types rather than from session state the preview does not have.
-- **The column view for a table-presented group**: there is no table question, so the "column editor" is the group's member list rendered as columns, each row a column showing its label, its underlying question and its type, with the type **shown rather than chosen** because it is the question's own. Adding a column is adding a question to the group, and the library picker filters to the five allowed cell types and **names the stacked presentation** as where the other two belong.
 - **Localised chrome for everything above** (ADR-27), keyboard operable, visible focus.
 
 ## Exit criteria
@@ -44,7 +43,7 @@ Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` sect
 
 ## Out of scope (binding)
 
-The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
+The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. **The admin's column view of a table-presented group's member list, and the library picker filtered to the five allowed cell types: 077 owns both**, together with acceptance case 62, because they are that task's publish refusal being surfaced in the admin rather than group authoring in general. This task's group panel offers the presentation switch and nothing behind the table option. The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
 
 ## Notes for the executor
 

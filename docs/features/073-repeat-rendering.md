@@ -60,6 +60,8 @@ The per-instance step presentation (076) and the table presentation (077): this 
 
 **The 200 re-render is a deliberate departure from the 303, confirmed by the Code Owner on 2026-09-30**, recorded in ADR-43 and in plan section 4.2, and the token is what pays for it. Do not "fix" it back to a redirect without the carrier problem solved, and do not carry a whole step's values in the cookie: that is the failure Q21 exists to prevent, arrived at from the other side.
 
+**Expect the browser's own prompts on that path, and assert the no-op rather than trying to suppress them.** Reloading the response to a POST raises a resubmission confirmation ("Confirm Form Resubmission" in Chromium, a re-POST prompt in Firefox), and a Back to it can show a "Document Expired" interstitial in Firefox. Neither is suppressible from the server. What the suite asserts is that **confirming the resubmission adds nothing**: the same operation token is replayed, the roster operation is a no-op, and the step re-renders with the same instances. That is exit criterion 3.
+
 **`formnovalidate` is safe only because the post writes nothing.** If you find yourself writing the step's answers on the `__qop` path, stop: that is the shape the 2026-09-30 ruling refused, and it reopens the required-clear path the 2026-09-13 ruling closed.
 
 **Expansion is a clone, so the honeypot is a real risk.** Assert that a ten-instance step carries exactly one decoy, on the compiled document and on the DOM.
