@@ -81,28 +81,36 @@ function shellRoutes(): string[] {
 }
 
 /**
- * The three credential fields, each bound to its own control, filled in reading order.
+ * One of the screen's three credential fields, by its accessible name.
  *
- * Two traps, both met on this screen rather than guessed at.
- *
- * `exact: true` on every label: Playwright matches a label by substring, so
- * `getByLabel("New password")` resolves to the confirmation field as well and every
- * call is a strict-mode violation rather than a locator.
+ * **Not `getByLabel`, and the reason is specific to this screen.** Playwright matches a
+ * label by substring, so `getByLabel("New password")` resolves to the confirmation
+ * field as well - a strict-mode violation rather than a locator. `exact: true` does not
+ * rescue it here either: a react-aria `TextField` puts the required marker inside the
+ * label element as an `aria-hidden` span, so the label TEXT is "New password*" while
+ * the accessible NAME is "New password", and an exact label match finds nothing at all.
+ * The role locator reads the accessible name, which is the string the screen actually
+ * announces, so it is both unambiguous and the one a screen-reader user hears.
+ */
+function field(page: Page, name: string): Locator {
+  return page.getByRole("textbox", { name, exact: true });
+}
+
+/**
+ * The three credential fields, filled in reading order.
  *
  * **Sequentially, not in a `Promise.all`.** These are react-aria `TextField`s, whose
  * inputs are controlled and whose value lands through a React commit; three fills in
  * flight at once interleave with each other's commits and one of them loses its value,
- * which `fillStable` then spends its whole fifteen-second budget retrying. The first
- * fill of a fresh document happened to survive it and the fill after a redirect did
- * not, which is the least useful way for a race to present itself.
+ * which `fillStable` then spends its whole fifteen-second budget retrying.
  */
 async function fillChange(
   page: Page,
   values: { readonly current: string; readonly next: string; readonly confirm: string },
 ): Promise<void> {
-  await fillStable(page.getByLabel("Temporary password", { exact: true }), values.current);
-  await fillStable(page.getByLabel("New password", { exact: true }), values.next);
-  await fillStable(page.getByLabel("Confirm new password", { exact: true }), values.confirm);
+  await fillStable(field(page, "Temporary password"), values.current);
+  await fillStable(field(page, "New password"), values.next);
+  await fillStable(field(page, "Confirm new password"), values.confirm);
 }
 
 /**
@@ -197,9 +205,9 @@ test("the screen is operable from the keyboard alone, with focus visible", async
   // Walked forward from the first field rather than counted from the top of the
   // document, so a red names the control the order actually broke at.
   const order = [
-    page.getByLabel("Temporary password", { exact: true }),
-    page.getByLabel("New password", { exact: true }),
-    page.getByLabel("Confirm new password", { exact: true }),
+    field(page, "Temporary password"),
+    field(page, "New password"),
+    field(page, "Confirm new password"),
     page.getByRole("button", { name: "Change password" }),
   ];
   await order[0]?.focus();
@@ -250,8 +258,10 @@ test("the changed account is unaffected from then on", async ({ page }) => {
   // again": a fresh context, the NEW password, the real 2FA challenge, and no forced
   // screen anywhere in it.
   await page.goto("/sign-in");
-  await fillStable(page.getByLabel("Email", { exact: true }), EMAIL);
-  await fillStable(page.getByLabel("Password", { exact: true }), CHOSEN_PASSWORD);
+  // The sign-in screen's own two fields, by label as `submitSignIn` does: that screen
+  // carries no second field whose label contains either word.
+  await fillStable(page.getByLabel("Email"), EMAIL);
+  await fillStable(page.getByLabel("Password"), CHOSEN_PASSWORD);
   await Promise.all([
     page.waitForURL(/\/two-factor\/challenge$/),
     page.getByRole("button", { name: "Sign in" }).click(),
