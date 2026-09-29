@@ -145,9 +145,7 @@ export async function eraseSession(
     //    a review of this line (`erasure.integration.test.ts`).
     await openAnswerDeleteDoor(tx);
     await tx.delete(answers).where(eq(answers.sessionId, sessionId));
-    await tx
-      .delete(answerGroupInstances)
-      .where(eq(answerGroupInstances.sessionId, sessionId));
+    await tx.delete(answerGroupInstances).where(eq(answerGroupInstances.sessionId, sessionId));
     await tx.delete(submissions).where(eq(submissions.sessionId, sessionId));
 
     // 4. Scrub respondent-linkable session columns. None exist in the launch

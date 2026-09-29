@@ -253,10 +253,7 @@ export async function readRoster(
     })
     .from(answerGroupInstances)
     .where(
-      and(
-        eq(answerGroupInstances.sessionId, sessionId),
-        eq(answerGroupInstances.groupId, groupId),
-      ),
+      and(eq(answerGroupInstances.sessionId, sessionId), eq(answerGroupInstances.groupId, groupId)),
     )
     .orderBy(asc(answerGroupInstances.occurredAt), asc(answerGroupInstances.instanceId));
 

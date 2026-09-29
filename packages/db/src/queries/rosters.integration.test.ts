@@ -273,7 +273,11 @@ describe("the roster read", () => {
     const sessionId = await seedSession("roster_groups");
     const bags = GroupId.parse("grp_bags");
     await addInstances(testDb.db, { sessionId, groupId: pax, instanceIds: [ins("p1")] });
-    await addInstances(testDb.db, { sessionId, groupId: bags, instanceIds: [ins("b1"), ins("b2")] });
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId: bags,
+      instanceIds: [ins("b1"), ins("b2")],
+    });
 
     const rosters = await readRosters(testDb.db, sessionId);
     expect(rosters.get(pax)?.present).toEqual([ins("p1")]);

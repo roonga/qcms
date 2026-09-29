@@ -190,12 +190,7 @@ export async function latestAnswers(exec: Executor, sessionId: SessionId): Promi
     })
     .from(answers)
     .where(eq(answers.sessionId, sessionId))
-    .orderBy(
-      answers.questionId,
-      answers.instanceId,
-      desc(answers.answeredAt),
-      desc(answers.id),
-    );
+    .orderBy(answers.questionId, answers.instanceId, desc(answers.answeredAt), desc(answers.id));
   const current = new Map<AnswerKey, AnswerValue>();
   for (const row of rows) {
     // `value === null` is implied by `retracted` (the CHECK constraint) and is

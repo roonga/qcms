@@ -372,9 +372,9 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       expect(await publicTables(testDb)).toContain("answer_group_instances");
       expect(await triggerExists(testDb, "answer_group_instances_reject_update")).toBe(true);
       expect(await triggerExists(testDb, "answer_group_instances_reject_delete")).toBe(true);
-      expect(await indexExists(testDb, "answer_group_instances_session_group_occurred_at_idx")).toBe(
-        true,
-      );
+      expect(
+        await indexExists(testDb, "answer_group_instances_session_group_occurred_at_idx"),
+      ).toBe(true);
     });
 
     it("applies 0020 over a database that 0017 left carrying account.issuer", async () => {

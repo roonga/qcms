@@ -151,9 +151,9 @@ describe("minting on serve", () => {
 
   it("an open group with min 2 mints two on first serve", async () => {
     const sessionId = await seedSession("mint_open_min");
-    expect(await serve(testDb.db, sessionId, group({ source: "open", min: 2, max: 4 }))).toHaveLength(
-      2,
-    );
+    expect(
+      await serve(testDb.db, sessionId, group({ source: "open", min: 2, max: 4 })),
+    ).toHaveLength(2);
   });
 
   it("a fromAnswer group mints nothing until the count is answered, then the difference", async () => {

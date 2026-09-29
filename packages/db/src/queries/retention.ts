@@ -167,9 +167,7 @@ export async function purgeExpired(exec: Executor, olderThan: Date): Promise<Pur
     // through the door it already holds rather than through one of its own.
     await openAnswerDeleteDoor(tx);
     await tx.delete(answers).where(inArray(answers.sessionId, ids));
-    await tx
-      .delete(answerGroupInstances)
-      .where(inArray(answerGroupInstances.sessionId, ids));
+    await tx.delete(answerGroupInstances).where(inArray(answerGroupInstances.sessionId, ids));
     await tx.delete(sessions).where(inArray(sessions.sessionId, ids));
     return { purgedSessionIds: ids, purgedCount: ids.length };
   });
