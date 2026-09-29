@@ -271,10 +271,7 @@ describe("clearMustChangePassword", () => {
       .update(authUser)
       .set({ mustChangePassword: true })
       .where(eq(authUser.email, EMAIL));
-    const [before] = await testDb.db
-      .select()
-      .from(authUser)
-      .where(eq(authUser.email, EMAIL));
+    const [before] = await testDb.db.select().from(authUser).where(eq(authUser.email, EMAIL));
     if (before === undefined) throw new Error("the bootstrap admin is missing");
 
     await clearMustChangePassword(testDb.db, before.id);

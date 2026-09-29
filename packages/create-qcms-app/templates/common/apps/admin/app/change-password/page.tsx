@@ -71,11 +71,7 @@ export default async function ForcedPasswordChangePage({
   const error = authFailureMessage(params);
 
   return (
-    <AuthScreen
-      title={t("forcedPassword.title")}
-      intro={t("forcedPassword.intro")}
-      error={error}
-    >
+    <AuthScreen title={t("forcedPassword.title")} intro={t("forcedPassword.intro")} error={error}>
       {/* No wrapper `role` on either: the vendored `Alert` already renders `role="alert"`,
           and nesting a second live region for one message means it is announced twice.
           `AuthScreen` focuses the generic alert above; these two are below the intro and

@@ -191,10 +191,7 @@ type SessionOutcome =
   | { readonly session: AdminSession; readonly redirectTo?: undefined }
   | {
       readonly session?: undefined;
-      readonly redirectTo:
-        | typeof SIGN_IN_PATH
-        | typeof CHANGE_PASSWORD_PATH
-        | typeof ENROLL_PATH;
+      readonly redirectTo: typeof SIGN_IN_PATH | typeof CHANGE_PASSWORD_PATH | typeof ENROLL_PATH;
     };
 
 /**
@@ -304,9 +301,7 @@ export async function requirePasswordChangeSession(): Promise<AdminSession> {
   const session = await currentAdminSession();
   if (session === undefined) redirect(SIGN_IN_PATH);
   if (!session.mustChangePassword) {
-    redirect(
-      !session.twoFactorEnabled && !twoFactorOptional() ? ENROLL_PATH : SHELL_HOME_PATH,
-    );
+    redirect(!session.twoFactorEnabled && !twoFactorOptional() ? ENROLL_PATH : SHELL_HOME_PATH);
   }
   return session;
 }
@@ -321,9 +316,7 @@ export async function requirePasswordChangeSession(): Promise<AdminSession> {
  * would refuse itself in a loop. See `route-helpers.ts` for why a form POST is
  * refused with a 303 and never with `redirect()`'s 307.
  */
-export async function requirePasswordChangeSessionForRequest(): Promise<
-  AdminSession | Response
-> {
+export async function requirePasswordChangeSessionForRequest(): Promise<AdminSession | Response> {
   const session = await currentAdminSession();
   if (session === undefined) return redirectAfterPost(SIGN_IN_PATH);
   if (!session.mustChangePassword) {

@@ -144,9 +144,7 @@ test.beforeAll(async () => {
 });
 
 test.describe.serial("conditional form journey", () => {
-  test("walks the bootstrap admin through the forced password change and MFA", async ({
-    page,
-  }) => {
+  test("walks the bootstrap admin through the forced password change and MFA", async ({ page }) => {
     // docker:up bootstraps a first admin in the fresh test database with the REAL
     // `qcms:create-admin`, so this is the only place the whole SEC-1 first-run sequence
     // runs against the shipped images: a provisional credential set by the command, the

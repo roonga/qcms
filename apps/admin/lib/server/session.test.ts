@@ -297,7 +297,12 @@ describe("the forced password change (task 061, SEC-1)", () => {
     // the API would refuse.
     mocks.proxiedSession.mockResolvedValue({
       session: { createdAt: new Date().toISOString(), token: "tok_test" },
-      user: { id: "usr_test", email: "admin@example.test", name: "Test Admin", twoFactorEnabled: true },
+      user: {
+        id: "usr_test",
+        email: "admin@example.test",
+        name: "Test Admin",
+        twoFactorEnabled: true,
+      },
     });
     await expect(requireAdminSession()).resolves.toMatchObject({ mustChangePassword: false });
   });

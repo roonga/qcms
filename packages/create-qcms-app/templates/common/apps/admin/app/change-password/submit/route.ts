@@ -93,7 +93,6 @@ export async function POST(request: Request): Promise<Response> {
   // The flag is clear by the time this redirect is followed: the hook that clears it
   // is awaited inside the endpoint (see `instance.ts`), so the `get-session` the next
   // request makes reads the cleared row.
-  const next =
-    !session.twoFactorEnabled && !twoFactorOptional() ? ENROLL_PATH : SHELL_HOME_PATH;
+  const next = !session.twoFactorEnabled && !twoFactorOptional() ? ENROLL_PATH : SHELL_HOME_PATH;
   return redirectAfterPost(next, cookiesFrom(changed));
 }
