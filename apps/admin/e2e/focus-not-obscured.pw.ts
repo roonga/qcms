@@ -155,30 +155,39 @@ async function landingOf(handle: ElementHandle<HTMLElement | SVGElement>): Promi
   }, TOPBAR_SELECTOR);
 }
 
-/** Scroll the page to its own bottom, which is where every journey below starts. */
-async function scrollToBottom(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    window.scrollTo(0, document.documentElement.scrollHeight);
-  });
-  await expect
-    .poll(() => page.evaluate(() => window.scrollY), {
-      message: "the screen must overflow its viewport, or nothing here is being tested",
-    })
-    .toBeGreaterThan(0);
-}
-
 /**
- * A focusable control the current scroll position has left ABOVE the viewport.
+ * Scroll to the bottom, then move focus to a control the scroll left ABOVE the viewport -
+ * and keep trying candidates until the page actually moves for one.
  *
- * Above, rather than merely elsewhere, because the direction is the whole point: scrolling
- * DOWN to a target uses `scroll-padding-block-end` and the page has no sticky footer, so a
- * target below the fold would pass whatever this fix did. Scoped to `<main>` so the bar's
- * own nav - which is never scrolled anywhere - cannot be chosen.
+ * ## Why the search, rather than taking the first one
  *
- * It throws rather than skipping when a screen has nothing above the fold: a journey that
- * quietly measured nothing is exactly how this class of defect survives a green suite.
+ * Because a control that needs no scroll proves nothing, and two shapes of those are on
+ * these screens. One is a control inside a sticky region, which is on the viewport wherever
+ * the page is. The other is a control whose target scroll position clamps to zero. Focus on
+ * either leaves the page where it was, the control is wherever it always was - usually well
+ * clear of the bar - and a journey that asserted its position would pass whatever the
+ * reservation said. That is not hypothetical: the first draft of this file took the first
+ * candidate, and the geometry assertion below passed against the unfixed sheet.
+ *
+ * So the loop keeps a candidate only when `focus()` SCROLLED THE PAGE UP for it. That is
+ * the whole mechanism under test - the browser choosing a scroll position for a focused
+ * element, and the page's `scroll-padding-block-start` deciding where the top edge is - so
+ * a candidate that did not trigger it is not a measurement of anything.
+ *
+ * ## Why it all happens in one evaluate
+ *
+ * `focus()` scrolls synchronously, so the before and after scroll positions are readable
+ * without waiting for anything, and the page is never left half-scrolled between round
+ * trips. Scoped to `<main>` so the bar's own nav, which is never scrolled anywhere, cannot
+ * be chosen.
+ *
+ * It throws rather than skipping when no candidate moves the page: a journey that quietly
+ * measured nothing is exactly how this class of defect survives a green suite.
  */
-async function controlAboveTheFold(page: Page, where: string): Promise<ElementHandle<HTMLElement>> {
+async function focusFromAboveTheFold(
+  page: Page,
+  where: string,
+): Promise<ElementHandle<HTMLElement | SVGElement>> {
   const handle = await page.evaluateHandle((label: string) => {
     const main = document.querySelector("main#main-content");
     if (main === null) throw new Error(`${label}: the shell's main region must be on screen`);
@@ -187,25 +196,44 @@ async function controlAboveTheFold(page: Page, where: string): Promise<ElementHa
         'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), ' +
           'select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ),
-    ];
-    const above = candidates.find((element) => {
+    ].filter((element) => {
       const rect = element.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0 && rect.bottom < 0;
+      return rect.width > 0 && rect.height > 0;
     });
-    if (above === undefined) {
+    if (candidates.length === 0) throw new Error(`${label}: this screen has no focusable control`);
+
+    const bottom = (): void => {
+      window.scrollTo(0, document.documentElement.scrollHeight);
+    };
+    bottom();
+    if (window.scrollY <= 0) {
       throw new Error(
-        `${label}: scrolled to the bottom and no focusable control was left above the ` +
-          `viewport, so this journey measures nothing. Pick a longer screen.`,
+        `${label}: the screen does not overflow its viewport, so there is no scroll for a ` +
+          `focus to come to rest in. Pick a longer screen.`,
       );
     }
-    return above;
+
+    for (const element of candidates) {
+      bottom();
+      // Above the viewport, rather than merely elsewhere: scrolling DOWN to a target uses
+      // `scroll-padding-block-end`, and the page has no sticky footer, so a target below the
+      // fold would land clear of the bar whatever this fix did.
+      if (element.getBoundingClientRect().bottom >= 0) continue;
+      const before = window.scrollY;
+      element.focus();
+      if (window.scrollY < before - 1) return element;
+    }
+    throw new Error(
+      `${label}: scrolled to the bottom and no focusable control above the fold made the ` +
+        `page scroll when it took focus, so this journey measures nothing.`,
+    );
   }, where);
   return handle;
 }
 
 /**
  * The whole journey at one width: land on the screen, scroll to its bottom, move focus back
- * up, and report where the control came to rest.
+ * up to something the scroll hid, and report where that control came to rest.
  */
 async function focusFromBelow(
   page: Page,
@@ -218,13 +246,7 @@ async function focusFromBelow(
   // The height is published from a mount effect, and the shell's own effect runs BEFORE the
   // root layout's hydration marker, so observing the marker is enough to know it has run.
   await waitForHydration(page);
-  await scrollToBottom(page);
-
-  const target = await controlAboveTheFold(page, `${path} at ${String(size.width)}`);
-  await target.evaluate((element) => {
-    element.focus();
-  });
-  return landingOf(target);
+  return landingOf(await focusFromAboveTheFold(page, `${path} at ${String(size.width)}`));
 }
 
 /** One landing, judged. Soft, so a failing width still reports the other's verdict. */
@@ -244,6 +266,20 @@ function expectClearOfTheBar(landing: Landing, where: string): void {
   expect
     .soft(landing.hitIsControl, `${where}: the control's own centre is what is painted there`)
     .toBe(true);
+  // THE RESERVATION ITSELF, which is the fix stated as a property of the page rather than of
+  // this journey's geometry. `scroll-padding-block-start` has to cover the bar's RENDERED
+  // height, not the height a token derives from the control size: at 390 those are 145 and
+  // 57, and it is the second number that put a focused control 88px behind the bar. Reading
+  // it here means every journey in this file fails on the defect even when its own scroll
+  // happened to land somewhere harmless. Reserving MORE than the bar is not a defect, so
+  // this is a floor rather than an equality.
+  expect
+    .soft(
+      landing.scrollPadding,
+      `${where}: the page reserves the bar's rendered height ` +
+        `(${String(Math.round(landing.barHeight))}) when it scrolls something into view`,
+    )
+    .toBeGreaterThanOrEqual(landing.barHeight - 0.5);
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -359,18 +395,12 @@ test("1011 following a validation issue lands the pin row clear of the top bar a
   if (!handle) return;
 
   const landing = await landingOf(handle);
-  const where = "the pin row reached from its issue at 390";
-  expectClearOfTheBar(landing, where);
-  // AND IT GOT THERE BY SCROLLING UP, which is what makes the verdict above mean something.
-  // A jump that came to rest on the page's own reservation was placed by that reservation;
-  // anything else means the row was already on screen and this journey measured nothing.
-  expect
-    .soft(
-      Math.abs(landing.controlTop - landing.scrollPadding),
-      `${where}: the jump came to rest on the page's scroll reservation ` +
-        `(${String(Math.round(landing.scrollPadding))}), rather than wherever the row ` +
-        `already was (${String(Math.round(landing.controlTop))}) - if these differ, the ` +
-        `step's screen is shorter than the form's and needs more pins`,
-    )
-    .toBeLessThanOrEqual(2);
+  // The geometry of the landing is judged exactly as the other two journeys are. What is
+  // deliberately NOT pinned here is where the step's screen comes to rest underneath it: a
+  // soft screen switch clamps the scroll position to the new screen's height, so whether
+  // the jump ends up scrolling up, down or not at all is a property of how tall this
+  // fixture's step editor happens to be rather than of the fix. The reservation assertion
+  // inside `expectClearOfTheBar` is what makes this journey fail without the fix, and it
+  // is a fact about the page rather than about the fixture.
+  expectClearOfTheBar(landing, "the pin row reached from its issue at 390");
 });
