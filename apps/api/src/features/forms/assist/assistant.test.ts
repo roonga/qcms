@@ -12,6 +12,7 @@ import {
   parseFormDefinition,
   parseQuestionDefinition,
   type FormDefinition,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 
 import { createNullLogger, type Logger } from "../../../logger.js";
@@ -132,9 +133,10 @@ describe("draft assistant tool loop (fake provider)", () => {
     expect(validated.at(-1)?.steps.map((s) => s.stepId)).toEqual(["stp_agent_history"]);
 
     // The library search actually ran: the proposal pins what search returned.
-    expect(proposal.proposal.proposedDraft.steps[0]?.items[0]?.questionId).toBe(
-      "q_at_fault_accident",
-    );
+    const firstStep = proposal.proposal.proposedDraft.steps[0];
+    expect(
+      firstStep === undefined ? undefined : stepQuestionRefs(firstStep)[0]?.questionId,
+    ).toBe("q_at_fault_accident");
   });
 
   /**

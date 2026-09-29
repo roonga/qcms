@@ -16,7 +16,7 @@
  *     carries the same `PublishError[]` 022's validation produces.
  */
 
-import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
+import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
   createQuestion,
   createQuestionVersion,
@@ -260,7 +260,8 @@ describe("the assist slice over HTTP", () => {
       const proposal = events.find((e) => e.type === "proposal");
       if (proposal?.type !== "proposal") throw new Error(JSON.stringify(events));
 
-      const pinned = proposal.proposal.proposedDraft.steps[0]?.items[0];
+      const step = proposal.proposal.proposedDraft.steps[0];
+      const pinned = step === undefined ? undefined : stepQuestionRefs(step)[0];
       expect(pinned?.questionId).toBe("q_versions_only");
       expect(pinned?.version).toBe(2);
     },

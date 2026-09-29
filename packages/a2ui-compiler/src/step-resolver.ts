@@ -1,9 +1,10 @@
-import type {
-  FrozenSnapshot,
-  LocaleCode,
-  QuestionDefinition,
-  QuestionRef,
-  Step,
+import {
+  isRepeatGroup,
+  type FrozenSnapshot,
+  type LocaleCode,
+  type QuestionDefinition,
+  type QuestionRef,
+  type Step,
 } from "@roonga/qcms-core";
 
 import { honeypotNode } from "./honeypot.js";
@@ -107,6 +108,16 @@ export const staticStepResolver: StepResolver = {
     }
     children.push(heading("h2", context.resolveText(step.title)));
     for (const item of step.items) {
+      // A repeating group compiles to a `RepeatGroup` TEMPLATE node the renderer
+      // clones once per live instance, and that node is **task 073's**: ADR-42's
+      // Note on ADR-01 keeps the compiler answer-blind, so it cannot expand a
+      // group, and the new node type moves `A2UI_SPEC_VERSION` and opens a new
+      // golden generation. Task 071 is the kernel half only, so a group
+      // contributes nothing here yet and the seven committed golden documents
+      // stay byte-identical.
+      if (isRepeatGroup(item)) {
+        continue;
+      }
       children.push(
         questionToNode(context.resolveQuestion(item), context.resolveText, context.locale),
       );

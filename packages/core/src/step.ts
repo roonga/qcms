@@ -184,6 +184,20 @@ export function isRepeatGroup(item: StepItem): item is RepeatGroup {
   return "groupId" in item;
 }
 
+/**
+ * Every pinned question ref a step holds, in document order, with each
+ * repeating group expanded into its member refs.
+ *
+ * This is what a caller that used to iterate `step.items` for pins wants now
+ * that the item list is a union: a question does not know it is repeated, so a
+ * group's member pin resolves, compiles and validates exactly like a step's own
+ * (ADR-42). A caller that needs to know a question sits in a group reads
+ * {@link questionGroups} or `documentOrder`'s `groupId` instead.
+ */
+export function stepQuestionRefs(step: Step): readonly QuestionRef[] {
+  return step.items.flatMap((item) => (isRepeatGroup(item) ? item.items : [item]));
+}
+
 /** Every repeating group in these steps, in document order. */
 export function repeatGroups(steps: readonly Step[]): readonly RepeatGroup[] {
   return steps.flatMap((step) => step.items.filter((item) => isRepeatGroup(item)));

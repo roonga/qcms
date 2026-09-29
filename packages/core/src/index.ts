@@ -156,6 +156,7 @@ export {
   labelPlaceholders,
   questionGroups,
   repeatGroups,
+  stepQuestionRefs,
 } from "./step.js";
 
 export {
