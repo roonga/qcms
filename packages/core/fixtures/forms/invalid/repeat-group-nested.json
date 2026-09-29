@@ -1,5 +1,5 @@
 {
-  "description": "A repeating group inside a repeating group. A group may not contain a group (ADR-42, Q13, ruled 2026-09-30): the kernel refuses it at parse, because a group's items are pinned question refs and nothing else, so the nested object matches neither member of the step item union.",
+  "description": "A repeating group inside a repeating group. A group may not contain a group (ADR-42, Q13, ruled 2026-09-29): the kernel refuses it at parse, because a group's items are pinned question refs and nothing else, so the nested object matches neither member of the step item union.",
   "expected": {
     "code": "INVALID_FORM_DEFINITION",
     "path": ["steps", 0, "items", 0, "items", 0, "questionId"]

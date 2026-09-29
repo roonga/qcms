@@ -3,7 +3,7 @@
 ---
 
 Add the repeating group to the kernel (task 071, ADR-42; ADR-03 and ADR-16 as
-amended 2026-09-30; SEC-16).
+amended 2026-09-29; SEC-16).
 
 QCMS could not ask the same question twice, because an answer was keyed by a
 bare `questionId` everywhere. A **repeating group** closes that with one new

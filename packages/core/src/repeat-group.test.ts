@@ -46,7 +46,7 @@ import {
 
 /**
  * The repeating group in the kernel (task 071, ADR-42; ADR-03 and ADR-16 as
- * amended 2026-09-30; SEC-16).
+ * amended 2026-09-29; SEC-16).
  *
  * This file carries the acceptance cases of
  * `plan/repeating-groups-and-table-input.md` section 11 that are proved at the
@@ -557,7 +557,7 @@ describe("publish: the count source (cases 8, 9, 10)", () => {
 
   it("case 10: there is no installation-wide ceiling, asserted as a positive case", () => {
     // A group declaring five thousand instances publishes, and nothing in core
-    // is consulted to decide it: the Q14 ruling of 2026-09-30 removed both the
+    // is consulted to decide it: the Q14 ruling of 2026-09-29 removed both the
     // per-group and the per-session ceiling, so the ONLY bound is the author's.
     expect(
       publishCodes([["stp_pax", [{ ...PAX_GROUP, count: { source: "open", min: 0, max: 5000 } }]]]),

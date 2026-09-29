@@ -49,7 +49,7 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
  *    required question, else first with any visible unanswered question,
  *    else `null`; `complete` = no visible required question unanswered.
  * 6. **A repeating group's span is walked once per live instance** (ADR-42,
- *    ADR-16 as amended 2026-09-30), within this same `SEMANTICS_VERSION`. A
+ *    ADR-16 as amended 2026-09-29), within this same `SEMANTICS_VERSION`. A
  *    rule whose `show` target sits inside group G is evaluated once per live
  *    instance of G, and a reference to a question inside G resolves to that
  *    instance's answer; three operators read a whole group from outside it, and
@@ -161,7 +161,7 @@ export const FlowState = z.object({
   answeredRequired: z.array(QuestionId),
   missingRequired: z.array(QuestionId),
   complete: z.boolean(),
-  // --- Repetition (ADR-42, ADR-16 as amended 2026-09-30). ---
+  // --- Repetition (ADR-42, ADR-16 as amended 2026-09-29). ---
   //
   // Every field below is OPTIONAL and is omitted entirely for a form with no
   // repeating group, and the six above keep their exact shapes and their exact
@@ -502,7 +502,7 @@ export function evaluateRules(
       case "everyInstance": {
         const live = rosterOf(condition.groupId);
         // THE BASE CASE, and it is a decision rather than a fold's identity
-        // (ADR-42's Note, Q7 ruled 2026-09-30). An empty roster short-circuits
+        // (ADR-42's Note, Q7 ruled 2026-09-29). An empty roster short-circuits
         // to FALSE before the per-instance walk begins, because "every
         // passenger holds a passport" is not a true statement about a booking
         // with no passengers. It follows that `everyInstance(G, c)` is NOT

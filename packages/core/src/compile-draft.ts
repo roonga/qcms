@@ -170,7 +170,7 @@ function checkStructure(definition: FormDefinition): PublishError[] {
  * A group's instance-count bounds are declared and coherent (ADR-42, SEC-16).
  *
  * `max` is required on every count source that is not `fixed`
- * (`REPEAT_MAX_MISSING`), because the Code Owner's ruling of 2026-09-30 removed
+ * (`REPEAT_MAX_MISSING`), because the Code Owner's ruling of 2026-09-29 removed
  * every installation-wide instance ceiling and left the group's own `max` as
  * the only bound there is: without one, a `fromAnswer` group lets the
  * respondent's answer to the count question set the size of the loop and an

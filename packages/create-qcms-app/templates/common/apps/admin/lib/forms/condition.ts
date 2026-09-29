@@ -87,7 +87,7 @@ const OP_ARITY = {
   or: "combinator",
   not: "combinator",
   // The three whole-group operators the kernel gained in task 071 (ADR-42,
-  // ADR-03 as amended 2026-09-30). They are a **third arity**, not a leaf and
+  // ADR-03 as amended 2026-09-29). They are a **third arity**, not a leaf and
   // not a combinator: they read a `groupId` rather than a `questionId`, and
   // `anyInstance` and `everyInstance` carry one nested condition each while
   // `instanceCount` carries none.

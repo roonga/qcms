@@ -54,7 +54,7 @@ function expectRejects(condition: unknown, code?: string): void {
  * This is the pin, in the spirit of `packages/a2ui-compiler/src/version.test.ts`: a
  * constant that has to be edited by hand, checked against the thing it mirrors.
  *
- * The list is **sixteen** operators since task 071 (ADR-03 as amended 2026-09-30):
+ * The list is **sixteen** operators since task 071 (ADR-03 as amended 2026-09-29):
  * `anyInstance`, `everyInstance` and `instanceCount` read a whole repeating group and
  * carry a `groupId` rather than a `questionId`.
  *
@@ -84,7 +84,7 @@ const OPERATOR_SAMPLES = {
   and: { op: "and", conditions: [{ op: "answered", questionId: "q_a" }] },
   or: { op: "or", conditions: [{ op: "answered", questionId: "q_a" }] },
   not: { op: "not", condition: { op: "answered", questionId: "q_a" } },
-  // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-30). They took
+  // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-29). They took
   // the list from thirteen to sixteen, which is exactly the deliberate edit this table
   // exists to force.
   anyInstance: {

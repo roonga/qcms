@@ -45,7 +45,7 @@ export const PublishErrorCode = z.enum([
   // The repeating group's publish invariants (task 071, ADR-42). All nine are
   // ordinary members of this union and are reported alongside the others rather
   // than short-circuiting. There is deliberately **no**
-  // `REPEAT_MAX_ABOVE_CEILING`: the Code Owner's ruling of 2026-09-30 (Q14)
+  // `REPEAT_MAX_ABOVE_CEILING`: the Code Owner's ruling of 2026-09-29 (Q14)
   // removed the installation-wide instance ceiling, so publish checks that a
   // `max` is declared and coherent with `min`, and never that it is small
   // enough.

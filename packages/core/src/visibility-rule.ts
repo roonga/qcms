@@ -37,7 +37,7 @@ export const CONDITION_MAX_DEPTH = 8;
  * test, and `contains`/`containsAny` are multiChoice membership (ADR-21).
  *
  * **Three operators read a whole repeating group** (ADR-42, ADR-03 as amended
- * 2026-09-30). They reference a `groupId` rather than a `questionId`:
+ * 2026-09-29). They reference a `groupId` rather than a `questionId`:
  * `anyInstance` is true when its nested condition holds for at least one live
  * instance, `everyInstance` when it holds for all of them, and `instanceCount`
  * compares the live instance count. The **inside-out** direction needs no
@@ -79,7 +79,7 @@ export type Condition =
     };
 
 /** The comparison names `instanceCount` reuses, as a field rather than as a
- * second comparison vocabulary (ADR-03 as amended 2026-09-30). */
+ * second comparison vocabulary (ADR-03 as amended 2026-09-29). */
 export const INSTANCE_COUNT_COMPARISONS = ["equals", "gt", "gte", "lt", "lte"] as const;
 export const InstanceCountComparison = z.enum(INSTANCE_COUNT_COMPARISONS);
 export type InstanceCountComparison = z.infer<typeof InstanceCountComparison>;
@@ -134,7 +134,7 @@ const ConditionNode: z.ZodType<Condition> = z.lazy(() =>
     z.object({ op: z.literal("and"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("or"), conditions: z.array(ConditionNode).min(1) }),
     z.object({ op: z.literal("not"), condition: ConditionNode }),
-    // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-30).
+    // The three whole-group operators (ADR-42, ADR-03 as amended 2026-09-29).
     // They carry a `groupId` and no `questionId`, which is the property every
     // condition walker has to know about: a default branch reading
     // `condition.questionId` silently reads `undefined` on these.
@@ -161,7 +161,7 @@ export function conditionDepth(condition: Condition): number {
       return 1 + Math.max(...condition.conditions.map(conditionDepth));
     // `anyInstance` and `everyInstance` carry a nested condition, so they
     // recurse exactly as `not` does and their nested condition counts toward
-    // the cap (ADR-03 as amended 2026-09-30; `CONDITION_MAX_DEPTH` stays 8).
+    // the cap (ADR-03 as amended 2026-09-29; `CONDITION_MAX_DEPTH` stays 8).
     // `instanceCount` carries none and is a leaf.
     case "not":
       return 1 + conditionDepth(condition.condition);

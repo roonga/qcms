@@ -41,7 +41,7 @@ export type QuestionRef = z.infer<typeof QuestionRef>;
 
 /**
  * Where a group's instance count comes from (ADR-42, Q4 as amended by Q14,
- * ruled 2026-09-30).
+ * ruled 2026-09-29).
  *
  * - **`fixed`** is the degenerate case a looping question with a known count
  *   uses. **A fixed count is its own bound**, so it carries no `max` and no
@@ -53,7 +53,7 @@ export type QuestionRef = z.infer<typeof QuestionRef>;
  *
  * **`max` is required on both bounded sources**, and that is a ruling rather
  * than a default: the Code Owner removed every installation-wide instance
- * ceiling on 2026-09-30 (Q14), so a group's own `max` is the only bound that
+ * ceiling on 2026-09-29 (Q14), so a group's own `max` is the only bound that
  * exists. Without one, a `fromAnswer` group lets the respondent's answer to the
  * count question set the size of the loop and an `open` group is an unbounded
  * write path into an append-only ledger (SEC-16).
@@ -96,7 +96,7 @@ export type RepeatPresentation = z.infer<typeof RepeatPresentation>;
  * other placeholder is refused at publish
  * (`INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`).
  *
- * **A group may not contain a group** (Q13, ruled 2026-09-30): `items` is an
+ * **A group may not contain a group** (Q13, ruled 2026-09-29): `items` is an
  * array of `QuestionRef` and nothing else, so nesting is refused at parse. The
  * reasons are cost and comprehensibility in that order - a nested group makes
  * an instance address a path rather than a pair, makes the per-instance walk
@@ -135,8 +135,8 @@ export type Step = z.infer<typeof Step>;
 
 /**
  * The evaluator's cost budget for one cross-group rule, in instance pairs
- * (ADR-16 as amended 2026-09-30; **confirmed at 10,000 by the Code Owner on
- * 2026-09-30**).
+ * (ADR-16 as amended 2026-09-29; **confirmed at 10,000 by the Code Owner on
+ * 2026-09-29**).
  *
  * **What it bounds.** Forward-only rule 2 lets a rule using `anyInstance`,
  * `everyInstance` or `instanceCount` over group G target anything after G's

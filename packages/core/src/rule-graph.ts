@@ -55,7 +55,7 @@ export interface DocumentPosition {
  * order a respondent encounters them (ADR-16 evaluation order).
  *
  * **A repeating group expands into a contiguous span of its member questions,
- * in order** (ADR-16 as amended 2026-09-30). The span is the unit the
+ * in order** (ADR-16 as amended 2026-09-29). The span is the unit the
  * forward-only rule applies to: a rule targeting inside the group may read
  * questions before the group and questions earlier within the same instance,
  * while a rule reading the **whole** group must target after the whole span.
@@ -314,7 +314,7 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
 }
 
 /**
- * Forward-only rule 3 (ADR-16 as amended 2026-09-30): a `fromAnswer` count
+ * Forward-only rule 3 (ADR-16 as amended 2026-09-29): a `fromAnswer` count
  * source is a read of its count question **by the whole group**, so that
  * question must precede the group's whole span. A count question inside the
  * group it sizes, or after it, is `REPEAT_COUNT_BACKWARD_REF`.
@@ -349,7 +349,7 @@ function checkRepeatCountOrder(
 }
 
 /**
- * One rule, one scope (ADR-03 as amended 2026-09-30).
+ * One rule, one scope (ADR-03 as amended 2026-09-29).
  *
  * `VisibilityRule.show` is an array, so a rule listing one target inside a
  * group and another outside it would be per-instance and whole-form at once,
@@ -391,7 +391,7 @@ function checkTargetScopes(
 }
 
 /**
- * The cross-group cost budget (ADR-16 as amended 2026-09-30, and
+ * The cross-group cost budget (ADR-16 as amended 2026-09-29, and
  * {@link REPEAT_EVALUATION_BUDGET}).
  *
  * A rule whose target sits inside group H and whose condition applies a

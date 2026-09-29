@@ -61,7 +61,7 @@ export type InstanceId = z.infer<typeof InstanceId>;
 
 /**
  * The separator between an instance id and a question id in an answer key
- * (ADR-42, Q15 ruled 2026-09-30): `ins_7k2/q_passport`.
+ * (ADR-42, Q15 ruled 2026-09-29): `ins_7k2/q_passport`.
  *
  * `/` is safe because no branded id may contain it - every prefix pattern above
  * is `[a-z0-9_]+` - so the encoding parses without a schema. It is also a legal
