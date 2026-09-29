@@ -10,8 +10,15 @@ export type { Executor } from "./executor.js";
 
 // Admin identity reads (task 031): the two reads better-auth's non-shell consumers
 // need - session verification in the API middleware, and the first-run bootstrap
-// guard. better-auth owns every write to the auth tables EXCEPT the one below.
+// guard. better-auth owns every write to the auth tables EXCEPT the two below.
 export { type AdminSessionRow, getAdminSessionByToken, countAdminUsers } from "./auth.js";
+
+// SEC-1's provisional bootstrap credential (task 061). The flag itself is a
+// better-auth `additionalFields` entry, so the library sets it when it creates the
+// account and returns it on the session user; this clears it, called from the one
+// database hook that fires when a password is actually changed. `auth.js` records why
+// the library has no concept that would write it.
+export { clearMustChangePassword } from "./auth.js";
 
 // The `qcms:reset-2fa` break-glass (issue #432): resolve the account an operator
 // named, delete its second factor and recovery codes, and append the audit row.

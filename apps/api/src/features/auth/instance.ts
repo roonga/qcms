@@ -4,6 +4,7 @@ import {
   authTwoFactor,
   authUser,
   authVerification,
+  clearMustChangePassword,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { betterAuth } from "better-auth";
@@ -121,6 +122,18 @@ export const TWO_FACTOR_COOKIE = `${COOKIE_PREFIX}.two_factor`;
  * library resolves every request to an unknown endpoint.
  */
 export const AUTH_BASE_PATH = "/api/auth";
+
+/**
+ * better-auth's `providerId` for an email-and-password account (task 061).
+ *
+ * A literal in the library rather than a configurable name: `findCredentialAccount`
+ * looks the row up with `value: "credential"`
+ * (`dist/db/internal-adapter.mjs:652-669`) <!-- expect: value: "credential" -->, and
+ * `/change-password` writes the new hash to whatever that read returned. Named here
+ * because the `account.update.after` hook below has to tell that row apart from an
+ * OAuth account whose refreshed tokens go through the same write.
+ */
+const CREDENTIAL_PROVIDER_ID = "credential";
 
 /**
  * Minimum admin password length (SEC-1). Length is the only *composition-shaped* rule
@@ -666,6 +679,103 @@ export function createAdminAuth(input: AdminAuthInput) {
         // `input: false` is the load-bearing part: no request body can set it, so
         // the claim cannot be self-assigned.
         role: { type: "string", required: false, defaultValue: "admin", input: false },
+        // SEC-1's provisional bootstrap credential (task 061).
+        //
+        // WHY A DECLARED FIELD RATHER THAN A COLUMN THE LIBRARY HAS NEVER HEARD OF.
+        // The gate reads this off the session user, and the session user is whatever
+        // better-auth's `get-session` returns. `parseUserOutput`
+        // (`dist/db/schema.mjs:24-26`) <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->
+        // filters the row against `getFields(options, "user", "output")`, which merges
+        // `options.user.additionalFields` into better-auth's own field set
+        // (`:12-13`) <!-- expect: options[modelName]?.additionalFields --> and drops
+        // only what is marked `returned: false`. A column added behind the library's
+        // back is in neither set, so it would be absent from the session object
+        // exactly where the gate needs it.
+        //
+        // `defaultValue: true` is what SETS the flag, and it is the library that
+        // applies it: `parseInputData` writes a field's `defaultValue` on a create
+        // that does not name it (`:95-101`) <!-- expect: action === "create" -->, so
+        // an account `qcms:create-admin` brings into existence is marked provisional
+        // by the same call that creates it. Nothing in `bootstrap.ts` has to remember
+        // to, and any future account-creation path inherits the marking rather than
+        // opting into it - the fail-closed direction for a control like this.
+        //
+        // `input: false` is the load-bearing half of the pair, for the reason the
+        // role claim above gives and one more: a request that names the field is
+        // refused outright on an update (`:69-73`) <!-- expect: is not allowed to be set -->,
+        // so a session holder cannot clear their own flag through any endpoint. It is
+        // cleared by the `databaseHooks` entry below and by nothing else.
+        //
+        // `required: false` because the column carries a database default too, and a
+        // required field with no value would refuse better-auth's own insert.
+        mustChangePassword: {
+          type: "boolean",
+          required: false,
+          defaultValue: true,
+          input: false,
+        },
+      },
+    },
+    databaseHooks: {
+      account: {
+        update: {
+          /**
+           * Clear the provisional-credential flag when a password is actually
+           * changed (task 061, SEC-1).
+           *
+           * ## Why this seam, out of the ones 1.7.6 offers
+           *
+           * There is no library support for any of this. 1.7.6 ships no "force
+           * password change" option, no first-party plugin, and nothing in
+           * `databaseHooks` that can refuse a request on a user-field predicate -
+           * the nearest shape is the admin plugin's `banned` field, which is the
+           * wrong semantics (a banned account is refused, not sent to a remedy).
+           * So the enforcement is entirely ours, and this hook is only the
+           * clearing half.
+           *
+           * The event that means "a password was successfully changed" is the write
+           * of the new hash to the credential account row.
+           * `dist/api/routes/update-user.mjs:172`
+           * <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->
+           * is that write, and it is reached only after `password.verify` of the
+           * current password succeeded on `:168-171`
+           * <!-- expect: password.verify -->. `updateAccount` routes through
+           * `updateWithHooks` (`dist/db/internal-adapter.mjs:695-699`)
+           * <!-- expect: updateWithHooks -->, which runs this hook.
+           *
+           * That is what makes exit criterion 2 hold by construction rather than by
+           * enumeration. A refused change throws before `:172`. Signing out and in
+           * again writes the `session` model, never `account`. A session refresh
+           * writes `session`. None of them reaches this hook at all.
+           *
+           * ## What else could reach it
+           *
+           * `updateAccount` is also how better-auth stores refreshed OAuth tokens,
+           * so the guard is on `providerId`: only the `credential` account carries a
+           * password. QCMS configures no social provider, so today the guard is
+           * belt on braces - but a deployment that adds one must not have its flag
+           * cleared by a token refresh, and the guard is cheaper than the incident.
+           *
+           * ## Ordering and the transaction
+           *
+           * `update.after` hooks are queued through `queueAfterTransactionHook`,
+           * which runs the hook immediately when no transaction is open and
+           * otherwise after the commit (`@better-auth/core/dist/context/transaction.mjs:96-113`)
+           * <!-- expect: If not in a transaction, the hook will execute immediately -->.
+           * Either way it is awaited before the endpoint answers, so the very next
+           * `get-session` the admin makes - the one on the redirect after the form
+           * POST - already sees the cleared flag. The write goes through this
+           * process's own executor rather than the library's adapter, which is
+           * correct on both paths: outside a transaction there is none to join, and
+           * inside one the hook has been deferred until after the commit.
+           */
+          after: async (account) => {
+            const row = account as { readonly providerId?: unknown; readonly userId?: unknown };
+            if (row.providerId !== CREDENTIAL_PROVIDER_ID) return;
+            if (typeof row.userId !== "string") return;
+            await clearMustChangePassword(input.db, row.userId);
+          },
+        },
       },
     },
     advanced: {

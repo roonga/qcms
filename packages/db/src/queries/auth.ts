@@ -4,17 +4,20 @@ import { authSession, authTwoFactor, authUser, twoFactorResets } from "../schema
 import type { Executor } from "./executor.js";
 
 /**
- * Admin identity reads (task 031, SEC-1/SEC-3), plus the one sanctioned write
- * (issue #432).
+ * Admin identity reads (task 031, SEC-1/SEC-3), plus the two sanctioned writes
+ * (issue #432, task 061).
  *
  * better-auth owns **almost** every write to the auth tables: the admin shell
  * configures it with the Drizzle adapter over this package's schema, so users,
  * sessions, accounts and TOTP secrets are created, refreshed and deleted by the
- * library. This paragraph used to say "every", and the break-glass reset is the
- * deliberate exception recorded at the bottom of this file rather than a quiet
- * relaxation of it: there is exactly one write here, it removes a second factor,
- * and it exists because the state it recovers from is one the library cannot act
- * in at all.
+ * library. This paragraph used to say "every", and the two exceptions are recorded
+ * where they live rather than as a quiet relaxation of it. The break-glass reset at
+ * the bottom of this file removes a second factor, and it exists because the state
+ * it recovers from is one the library cannot act in at all.
+ * {@link clearMustChangePassword} clears one boolean of ours, and it exists because
+ * the field is ours: better-auth is told about it as a `user.additionalFields` entry,
+ * so it returns it on the session user, but it has no concept that would ever write
+ * it.
  *
  * The reads are the ones the rest of the system needs, and they are here rather
  * than in an app because their callers are outside the shell:
@@ -47,13 +50,20 @@ export interface AdminSessionRow {
   readonly role: string;
   /** Whether the account has completed TOTP enrollment (SEC-1 2FA policy). */
   readonly twoFactorEnabled: boolean;
+  /**
+   * Whether the account still holds the provisional credential `qcms:create-admin`
+   * set (task 061, SEC-1). True means the admin app sends this session to the forced
+   * change screen and the API refuses it on every admin route.
+   */
+  readonly mustChangePassword: boolean;
 }
 
 /**
  * Resolve a better-auth session token to its session + user, or `undefined` when
- * no such session exists. Expiry and 2FA policy are the **caller's** decision
- * (the API middleware applies both, so the policy lives with authorization
- * rather than with the read); this helper only reports what is stored.
+ * no such session exists. Expiry, 2FA policy and the provisional-credential gate
+ * are the **caller's** decision (the API middleware applies all three, so the policy
+ * lives with authorization rather than with the read); this helper only reports what
+ * is stored.
  */
 export async function getAdminSessionByToken(
   exec: Executor,
@@ -68,6 +78,7 @@ export async function getAdminSessionByToken(
       email: authUser.email,
       role: authUser.role,
       twoFactorEnabled: authUser.twoFactorEnabled,
+      mustChangePassword: authUser.mustChangePassword,
     })
     .from(authSession)
     .innerJoin(authUser, eq(authUser.id, authSession.userId))
@@ -84,7 +95,38 @@ export async function getAdminSessionByToken(
     // The column is nullable in better-auth's own schema (absent means "never
     // enrolled"), so normalize here rather than leaking a tri-state to policy.
     twoFactorEnabled: row.twoFactorEnabled === true,
+    mustChangePassword: row.mustChangePassword,
   };
+}
+
+/**
+ * Clear the provisional-credential flag on one account (task 061, SEC-1).
+ *
+ * The second sanctioned write to the auth tables, and it is narrower than the
+ * break-glass below it: one boolean, from `true` to `false`, on one row. It exists
+ * because better-auth has no "must change password" concept at 1.7.6 - no core
+ * option, no first-party plugin, nothing in `databaseHooks` that consumes a user
+ * field - so the whole control is QCMS's, and the clearing half has to be a write
+ * somebody makes.
+ *
+ * **Who calls it is the load-bearing part.** Exactly one caller: the
+ * `account.update.after` database hook the API installs on better-auth, which fires
+ * when the library writes a new password hash to a credential account. That is the
+ * only event that means "this password was successfully changed", which is what SEC-1
+ * says clears the flag. It is not called from a route handler, so no request can ask
+ * for it; it is not called on sign-in, sign-out or session refresh, so none of those
+ * clears it. `apps/api/src/features/auth/instance.ts` holds the hook and the
+ * reasoning.
+ *
+ * `updatedAt` moves with it, matching {@link clearAdminTwoFactor}: a row this package
+ * writes without touching that column would report a modification time that predates
+ * its own contents.
+ */
+export async function clearMustChangePassword(exec: Executor, userId: string): Promise<void> {
+  await exec
+    .update(authUser)
+    .set({ mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(authUser.id, userId));
 }
 
 /** How many admin accounts exist. `0` is the only state `create-admin` accepts. */

@@ -34,13 +34,25 @@ import { boolean, integer, pgTable, text, timestamp } from "drizzle-orm/pg-core"
  * These tables are deliberately isolated from the domain schema: no foreign keys
  * cross between auth and the questionnaire tables.
  *
- * One column is ours rather than better-auth's default set: `user.role`
- * (task 031). Launch ships a single `admin` role, but SEC-3 requires the session
- * context to carry a role claim **from day one** so Phase 4 RBAC is additive code
- * rather than a migration against a live deployment. The admin shell declares it
- * to better-auth as an `additionalFields` entry with `input: false`, so no
- * request body can set it; nothing at launch reads it for an authorization
- * decision.
+ * Two columns are ours rather than better-auth's default set, and both are declared
+ * to the library as `user.additionalFields` entries with `input: false` so that no
+ * request body can set either (`apps/api/src/features/auth/instance.ts`).
+ *
+ * `user.role` (task 031). Launch ships a single `admin` role, but SEC-3 requires the
+ * session context to carry a role claim **from day one** so Phase 4 RBAC is additive
+ * code rather than a migration against a live deployment. Nothing at launch reads it
+ * for an authorization decision.
+ *
+ * `user.mustChangePassword` (task 061, SEC-1). The password `qcms:create-admin` sets
+ * is a transfer mechanism, not a permanent credential: it comes from a shell command,
+ * a provisioning script or a CI variable. This column is what says so durably - a
+ * cookie or a session claim would not survive a restart or a second browser, which is
+ * exactly the property the control needs. better-auth applies the field's declared
+ * default when it creates a user, so the flag is set by the only path that creates
+ * one; the API clears it on a successful password change and on nothing else.
+ *
+ * Both carry a column default, which is what keeps them legal under the two-way schema
+ * check above: better-auth's own insert succeeds without naming either.
  */
 
 export const authUser = pgTable("user", {
@@ -54,6 +66,20 @@ export const authUser = pgTable("user", {
   twoFactorEnabled: boolean("twoFactorEnabled"),
   /** SEC-3 role claim. Single value (`admin`) at launch; see the file header. */
   role: text("role").notNull().default("admin"),
+  /**
+   * Whether this account still holds the provisional credential `qcms:create-admin`
+   * set (task 061, SEC-1). See the file header.
+   *
+   * The **column** default is `false` and better-auth's **declared field** default is
+   * `true`, and the difference is deliberate rather than an inconsistency. The column
+   * default is what existing rows get when this migration runs, and for a row that
+   * predates the control nobody can tell whether its password was ever changed:
+   * backfilling `true` would make an upgrade force a password change on every live
+   * deployment's administrator, which is a migration taking a policy action on an
+   * account. The declared field default is what every account created from this
+   * version onwards gets, which is the control.
+   */
+  mustChangePassword: boolean("mustChangePassword").notNull().default(false),
 });
 
 export const authSession = pgTable("session", {

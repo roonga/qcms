@@ -146,10 +146,15 @@ describe("query helper import surface", () => {
     // admin identity reads (task 031) - these two are reads. No helper in this
     // package creates, refreshes or deletes a SESSION, and none returns a
     // credential (no password hash, no TOTP secret, no backup codes); better-auth
-    // owns every write to the auth tables except the break-glass deletion listed
-    // immediately below, which is the sole exception and is recorded as one.
+    // owns every write to the auth tables except the two listed immediately below,
+    // both of which are recorded as exceptions where they live.
     "getAdminSessionByToken",
     "countAdminUsers",
+    // SEC-1's provisional bootstrap credential (task 061). One boolean of ours, from
+    // true to false, called from the database hook that fires when better-auth writes
+    // a new password hash. It writes no session and reads no credential, so the
+    // property above holds.
+    "clearMustChangePassword",
     // The `qcms:reset-2fa` break-glass (issue #432). `clearAdminTwoFactor` is the
     // one write to the auth tables in this package, and it is a deletion: the
     // stored TOTP secret and the recovery codes are ciphertext under a key the
