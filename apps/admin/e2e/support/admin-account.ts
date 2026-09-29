@@ -45,13 +45,20 @@ export function uniqueAdminEmail(label: string): string {
   return `e2e.${label}.${Date.now().toString(36)}@admin.test`;
 }
 
-/** Create an admin account with no TOTP factor yet: enrollment is the browser's job. */
-export async function createTestAdmin(email: string): Promise<void> {
+/**
+ * Create an admin account with no TOTP factor yet: enrollment is the browser's job.
+ *
+ * `name` is the account's display name and defaults to `E2E Admin`. Pass one when the
+ * spec cares what the topbar's monogram paints - which is only the label-in-name gate, so
+ * far (issue #1010); see `TestAdminInput.name` for why that default cannot measure it.
+ */
+export async function createTestAdmin(email: string, name?: string): Promise<void> {
   await createAdminAccount({
     databaseUrl: readFixtures().databaseUrl,
     authSecret: FIXED_AUTH_SECRET,
     adminBaseUrl: ADMIN_BASE_URL,
     email,
     password: TEST_PASSWORD,
+    ...(name !== undefined && { name }),
   });
 }

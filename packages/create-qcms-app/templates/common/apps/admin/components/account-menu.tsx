@@ -60,16 +60,29 @@ import { initialsFor } from "@/lib/initials";
 
 export function AccountMenu({ email, name }: { readonly email: string; readonly name?: string }) {
   const signOutForm = useRef<HTMLFormElement>(null);
+  // Computed once and used twice on purpose. These two letters are BOTH what the disc
+  // paints and the opening words of the accessible name, and WCAG 2.5.3 is a statement
+  // about the two being the same characters. Deriving them separately on each side is
+  // exactly how they drift apart again.
+  const initials = initialsFor(email, name);
 
   return (
     <div className="qcms-account" data-testid="account-menu">
       <Menu
-        triggerLabel={t("account.trigger", { email })}
-        /* Decorative, and hidden from the accessibility tree on purpose: the
-           accessible name is `triggerLabel` above, and two letters sitting beside it
-           as visible text would be a WCAG 2.5.3 mismatch the moment a display name's
-           initials stop appearing in the address. */
-        trigger={<span aria-hidden="true">{initialsFor(email, name)}</span>}
+        /* The accessible name OPENS with the initials the disc paints, then says which
+           account the menu belongs to: "AD, account menu for dev@qcms.test" (Code Owner,
+           2026-09-29, issue #1010). WCAG 2.2 SC 2.5.3 requires the visible text to be part
+           of the name, and speech input needs it at the front, so the catalogue message
+           takes the initials as a placeholder rather than naming the account alone. */
+        triggerLabel={t("account.trigger", { initials, email })}
+        /* `aria-hidden` because `triggerLabel` above already REPLACES this content in the
+           name computation, so leaving it exposed would add nothing and risk a doubled
+           announcement. It is not what satisfies 2.5.3, and the comment here claimed it
+           was until issue #1010: hiding text from the accessibility tree does not unpaint
+           it, the criterion is about what a sighted operator can read, and axe reports
+           `label-content-name-mismatch` on this node regardless of the attribute. What
+           satisfies the criterion is the name starting with these same characters. */
+        trigger={<span aria-hidden="true">{initials}</span>}
         menuLabel={t("account.menuLabel")}
         /* Outside the menu rather than inside it, which the slot guarantees: this is
            a label for the menu, not a stop in it, and a menu whose first arrow-down

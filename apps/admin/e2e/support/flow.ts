@@ -127,19 +127,26 @@ export async function signInWithTotp(page: Page, email: string, secret: string):
 /**
  * The topbar's two menu triggers (task 032), by their accessible names.
  *
- * By NAME and not by class, because the name is the contract: both triggers are
- * wordless (a glyph, two decorative letters), so `aria-label` is the entire control
- * as far as a screen reader is concerned, and a test that found them by class would
- * keep passing after the labels went missing.
+ * By NAME and not by class, because the name is the contract: the appearance trigger is
+ * a wordless glyph and the account trigger's two letters are hidden from the
+ * accessibility tree, so `aria-label` is the entire control as far as a screen reader is
+ * concerned, and a test that found them by class would keep passing after the labels went
+ * missing.
  *
  * The appearance trigger's name carries its current mode, so the match is a prefix.
+ *
+ * The account trigger's name now OPENS with the initials the disc paints, which is the
+ * whole point of issue #1010 (WCAG 2.2 SC 2.5.3), so it can no longer be anchored at the
+ * start: those letters vary with the account and this helper serves every spec. The comma
+ * and the words after it are the stable part, and matching them is still unambiguous -
+ * nothing else on an admin screen says that sentence.
  */
 export function appearanceTrigger(page: Page): Locator {
   return page.getByRole("button", { name: /^Appearance: / });
 }
 
 export function accountTrigger(page: Page): Locator {
-  return page.getByRole("button", { name: /^Account menu for / });
+  return page.getByRole("button", { name: /, account menu for / });
 }
 
 /**

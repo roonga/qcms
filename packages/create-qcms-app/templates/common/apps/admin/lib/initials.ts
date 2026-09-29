@@ -7,6 +7,13 @@
  * `react-aria-components`. Pulling that graph into a unit test to exercise a pure string
  * function is the wrong trade, and this app's Vitest project resolves relative imports
  * only, so `lib/` is where its testable logic already lives (`lib/questions/*`).
+ *
+ * Both halves of that have moved on and the module stays where it is anyway. The `@/`
+ * alias resolves under Vitest now (issue #252), and a jsdom project renders components
+ * (issue #352), so `components/account-label-in-name.test.tsx` DOES pull that graph in -
+ * because the claim it makes is about a computed accessible name, which only exists once
+ * the component is rendered. This module keeps its own `initials.test.ts` for the string
+ * contract, which is still the cheaper place to state it.
  */
 
 /**
@@ -46,8 +53,14 @@ function firstGraphemes(source: string, count: number): string {
  * Deliberately not clever about WHICH characters it picks. Splitting on the separators
  * people actually use in an address (`.`, `_`, `-`, `+`) covers `ada.lovelace@` and
  * `ada_lovelace@`; anything else falls back to the first two characters, which is always
- * SOMETHING rather than a blank circle. The result is decorative - `aria-label` carries
- * the accessible name - so an imperfect guess costs nobody anything.
+ * SOMETHING rather than a blank circle. An imperfect guess costs an operator nothing,
+ * because these letters identify the account rather than describing it.
+ *
+ * They are not decorative, though, and this comment said they were until issue #1010: the
+ * account trigger's accessible name now OPENS with whatever this returns
+ * (`account.trigger`, "AD, account menu for dev@qcms.test"), because WCAG 2.2 SC 2.5.3
+ * requires the painted text to be part of the name. So a caller must put this exact string
+ * on screen and into the name - never one here and something else there.
  *
  * It is careful about what a character IS, though, which is a different question and the
  * one `firstGraphemes` above answers.

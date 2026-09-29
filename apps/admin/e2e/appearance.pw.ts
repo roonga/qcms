@@ -5,6 +5,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
+  accountTrigger,
   appearanceTrigger,
   openMenu,
   readSetupKey,
@@ -401,10 +402,10 @@ test("both topbar triggers are 32px squares, not stretched by the control floor"
   // correct on its own.
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  for (const trigger of [
-    appearanceTrigger(page),
-    page.getByRole("button", { name: /Account menu/ }),
-  ]) {
+  // Through the shared helper rather than a local role query: the account trigger's
+  // accessible name opens with the account's own initials since issue #1010, so a pattern
+  // written out here would have to be kept in step with one written out there.
+  for (const trigger of [appearanceTrigger(page), accountTrigger(page)]) {
     const box = await trigger.boundingBox();
     expect(box).not.toBeNull();
     expect(Math.round(box!.width)).toBe(32);
