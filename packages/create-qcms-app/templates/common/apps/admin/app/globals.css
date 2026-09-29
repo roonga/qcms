@@ -319,8 +319,27 @@ html {
      `--admin-topbar-h` is the same derived token the rail's own sticky offset uses
      (`calc(var(--admin-control-h) + 1rem + 1px)`), so this moves with the density rather
      than going stale beside it. Found while diagnosing a `target-size` violation that
-     turned out to be the publish controls sitting under this bar at a scroll offset. */
-  scroll-padding-block-start: var(--admin-topbar-h);
+     turned out to be the publish controls sitting under this bar at a scroll offset.
+
+     ONE CONTROL TALL IS AN ASSUMPTION, AND IT IS FALSE AT NARROW WIDTHS (issue #1011). The
+     bar is a `flex-wrap` row whose nav is its elastic member, so below roughly 640 the nav
+     takes three lines and the bar measures 145px while the token still derives 57px. A
+     control focused from further down the page then landed 88px BEHIND the bar - entirely
+     hidden, which is the SC 2.4.11 Minimum failure and not only the Enhanced one.
+
+     So the padding prefers the bar's MEASURED height and falls back to the derivation.
+     `components/topbar-height.tsx` publishes `--admin-topbar-measured-h` from a
+     `ResizeObserver` on the bar; before its first measurement, and in any render where it
+     never runs, this rule is exactly the rule that shipped. A width-keyed media query was
+     the alternative and is a guess about how many lines the nav takes - stale on a longer
+     label, a second locale or a different density - where the height is a fact the browser
+     already holds.
+
+     ONLY THE SCROLL PADDING READS THE MEASURED VALUE. The rail's sticky offset and its own
+     height still spend `--admin-topbar-h`, and must: both live inside `@variant sidebar`,
+     where the bar is one row by construction, and both are LAYOUT, so feeding them a number
+     that arrives after first paint would trade a scrolling defect for a visible jump. */
+  scroll-padding-block-start: var(--admin-topbar-measured-h, var(--admin-topbar-h));
   /* NO `scrollbar-gutter: stable`, and it was tried (Code Owner, 2026-08-26). The form's
      own screen scrolls and its Preview does not, so moving between them makes the page
      scrollbar appear and vanish and every column jumps sideways by its width - a real
@@ -1449,7 +1468,24 @@ button {
 /* The insert affordance: a hairline-height hotzone straddling the row's top
    edge. Invisible at rest; hover or focus reveals the accent line and the
    circled plus. The same language without the plus doubles as the live drop
-   indicator, because nothing new is being created there - a row is relocating. */
+   indicator, because nothing new is being created there - a row is relocating.
+
+   14px IS BELOW SC 2.5.8'S 24px MINIMUM AND CONFORMS THROUGH THE EQUIVALENT
+   EXCEPTION, which is written down here so the next reader does not "fix" the
+   height and, more importantly, does not remove the thing the exception leans on
+   (issue #1011). The spacing exception does NOT rescue it: a 24px circle centred
+   on this hotzone overlaps the label input of the row below, which starts at the
+   same y as this element's centre. What does rescue it is the row menu.
+   `optionRowMenuItems` in `lib/questions/option-grid.ts` carries "Insert option
+   above {row}" and "Insert option below {row}" under the same names, its trigger
+   is the 28 by 28 `.qcms-rowgrip` in the same row, and `.qcms-rowmenu__item`
+   measures 241 by 40. So the equivalent control is the row menu, and deleting
+   those two items would take the grid out of conformance without touching a
+   single rule in this file.
+
+   That exception is also why both this and the grip appear in the
+   `@media (any-hover: none)` block far below: an equivalent control nobody with a
+   touch screen can see is not an equivalent control. */
 .qcms-opt-insert {
   position: absolute;
   inset-inline: 0;
@@ -3059,9 +3095,28 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text);
 }
 /* A pointer-less reader never hovers, so the trigger has to be visible to be found
-   at all: `any-hover: none` is the query for that device rather than a width guess. */
+   at all: `any-hover: none` is the query for that device rather than a width guess.
+
+   THE OPTION GRID'S TWO HOVER-REVEALED CONTROLS BELONG HERE TOO, and their absence
+   was a defect rather than a scoping choice (issue #1011). Measured in a context
+   where this query matches, `.qcms-rail-steps__menu` reported opacity 1 and both of
+   the others reported 0, so a touch operator saw neither the 14px insert hotzone nor
+   the grip - and the grip is the trigger for the row menu that is the insert's SC
+   2.5.8 Equivalent control (see the `.qcms-opt-insert` comment). Losing the small
+   target and its conforming alternative in the same breath is the whole of the
+   finding. Keyboard focus revealed both all along, and `:root.hc` shows both always,
+   so this is specifically the touch case; it is also invisible to an axe sweep,
+   because `opacity: 0` puts both controls outside what axe treats as visible.
+
+   Rejected: revealing them below `--bp-compact` instead. The rule above already
+   argues that hover capability is the right query and a width is a guess, and a
+   touch laptop at 1440 has the same problem a phone does. */
 @media (any-hover: none) {
   .qcms-rail-steps__menu {
+    opacity: 1;
+  }
+  .qcms-opt-row .qcms-rowgrip,
+  .qcms-opt-insert {
     opacity: 1;
   }
 }

@@ -6,6 +6,7 @@ import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
 import { AppearanceMenu } from "@/components/appearance-menu";
 import { MeasuredMain } from "@/components/measured-main";
+import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { secureCookies } from "@/lib/server/config";
 import { t } from "@/lib/i18n/en";
@@ -89,6 +90,14 @@ export default async function ShellLayout({
           the screen that performed it - and a region taken out of the document mid
           announcement says nothing. See `components/announcer.tsx`. */}
       <Announcer />
+      {/* The bar below WRAPS, and the page's scroll padding has to know how far (issue
+          #1011). The nav is this row's elastic member, so at narrow widths its items take
+          further lines and the bar is 145px rather than the 57px `--admin-topbar-h`
+          derives - and that token is what reserves room for the sticky bar when the
+          browser scrolls a control into view (WCAG 2.2 SC 2.4.11). This measures the bar
+          and publishes the number; `app/globals.css` prefers it and falls back to the
+          token. Layout is untouched: scroll padding paints nothing. */}
+      <TopbarHeight />
       <header className="qcms-topbar">
         {/* Three siblings of one wrapping row, not two nested groups, and the design
             card's 390px demo is why (task 032): the nav is the only elastic member
