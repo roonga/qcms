@@ -34,6 +34,17 @@ const credentials = JSON.parse(readFileSync(credentialsPath, "utf8")) as {
 };
 const EMAIL = credentials.email;
 const PASSWORD = credentials.password;
+/**
+ * The password this run chooses, replacing the provisional one `qcms:create-admin` set
+ * (task 061, SEC-1). Generated rather than written down, like the admin suite's: a
+ * literal is a hard-coded credential the lint gate flags, and a value that changes per
+ * run means a leaked log line from one run authorizes nothing in the next.
+ *
+ * Nothing after the first checkpoint signs in again - the enrolled session is saved to
+ * `authStatePath` and reused - so this is used exactly once and never has to be written
+ * back to the credentials file the compose bootstrap produced.
+ */
+const CHOSEN_PASSWORD = `e2e-chosen-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
 const RUN = Date.now().toString(36);
 const FORM_SLUG = `full-stack-e2e-conditional-${RUN}`;
@@ -133,13 +144,26 @@ test.beforeAll(async () => {
 });
 
 test.describe.serial("conditional form journey", () => {
-  test("enrolls the bootstrap admin in MFA", async ({ page }) => {
-    // docker:up bootstraps a first admin in the fresh test database. This flow
-    // proves that account can complete the required MFA enrollment in the browser.
+  test("walks the bootstrap admin through the forced password change and MFA", async ({
+    page,
+  }) => {
+    // docker:up bootstraps a first admin in the fresh test database with the REAL
+    // `qcms:create-admin`, so this is the only place the whole SEC-1 first-run sequence
+    // runs against the shipped images: a provisional credential set by the command, the
+    // forced change, then the required MFA enrollment. Task 061's exit criterion 5 is
+    // the order these two appear in, and the reason it is asserted here as well as in
+    // the admin suite is that this stack is the one that never stubs the bootstrap.
     await page.goto("/sign-in");
     await page.getByLabel("Email").fill(EMAIL);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.getByRole("button", { name: "Sign in" }).click();
+
+    await expect(page).toHaveURL(/\/change-password$/);
+    await page.getByLabel("Temporary password").fill(PASSWORD);
+    await page.getByLabel("New password").fill(CHOSEN_PASSWORD);
+    await page.getByLabel("Confirm new password").fill(CHOSEN_PASSWORD);
+    await page.getByRole("button", { name: "Change password" }).click();
+
     await expect(page).toHaveURL(/\/two-factor\/enroll$/);
 
     const setupKey = await page.getByLabel(/Setup key/).inputValue();

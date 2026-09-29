@@ -133,12 +133,29 @@ better-auth instance:
   password in the docker CLI's argv (issue #440). The env the service already carries
   supplies the rest.
 
-On first sign-in you are required to enroll a TOTP factor and are shown recovery codes
-once.
+**The password you set here is provisional** (task 061, SEC-1). It came from a shell
+command, a provisioning script or a CI variable, so the account is created carrying
+`user.mustChangePassword`, and on first sign-in the app sends every route to
+`/change-password` until it has been replaced. The flag is a declared better-auth field
+on the user row, so it survives a restart, a sign-out and a second browser; it is cleared
+by a successful change and by nothing else, and the API refuses every admin route while it
+is set.
+
+**First sign-in is therefore: password change, then TOTP enrolment, then the recovery
+codes.** That order is deliberate and is the one screen sequence worth knowing about
+before you run the command. Enrolling a factor binds it to an account, and binding it
+while the first factor is still the password out of your provisioning script makes the
+pair only as good as its oldest half - so the cheap, always-possible step goes first, and
+nobody is parked on a screen that needs an authenticator app in hand while still holding a
+credential they should not have. `docs/SECURITY_DESIGN.md` SEC-1 carries the full
+argument; `apps/admin/lib/server/session.ts` is where the order is actually expressed, in
+one gate list that every route inherits.
 
 `QCMS_ADMIN_2FA=optional` skips enrollment. It is a development escape hatch and the API
 reads the same variable, so relaxing it in one place and not the other fails closed
-(every admin API call 401s).
+(every admin API call 401s). It does **not** skip the password change: that hatch exists
+because enrolment needs a device you may not have to hand, and changing a password needs
+nothing.
 
 ### Content to look at
 

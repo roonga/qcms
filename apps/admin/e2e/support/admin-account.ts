@@ -74,6 +74,6 @@ export async function createTestAdmin(
     email,
     password: TEST_PASSWORD,
     ...(options.name !== undefined && { name: options.name }),
-    mustChangePassword: options.mustChangePassword,
+    mustChangePassword: options.mustChangePassword === true,
   });
 }

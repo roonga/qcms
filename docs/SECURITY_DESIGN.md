@@ -43,8 +43,34 @@ Sign-in throttling: better-auth's per-client-address limiter over `/sign-in`, `/
 `NODE_ENV` decides nothing here, deliberately: it used to, by way of the vendor's own default, which meant a general-purpose variable decided a security control and a process started outside the shipped images served an unthrottled sign-in surface with nothing saying so.
 Setting the variable false is a development escape hatch and the only way to turn the control off; the API logs a warn line naming it at every boot for as long as it is off, read back off the limiter's resolved context rather than off the configuration.
 Generic failure messages (no user enumeration - same response for unknown email and wrong password).
-First admin via `qcms:create-admin` CLI only; **no self-registration path exists in any composition**.
-Delivered: 031, with the breach check added by issue #178 and the throttle switch by issue #390; 040 verifies SEC-1 as a system.
+First admin via `qcms:create-admin` CLI only; **no self-registration path exists in any composition**, and **the password that command sets is provisional: it must be changed before the account is usable** (task 061, below).
+Delivered: 031, with the breach check added by issue #178, the throttle switch by issue #390 and the provisional-credential rule by task 061; 040 verifies SEC-1 as a system.
+
+**The bootstrap credential is a transfer mechanism, not a permanent one (task 061).**
+`qcms:create-admin` reads `QCMS_ADMIN_PASSWORD` from the environment, which in practice means a shell command, a provisioning script, a CI variable or an operator's terminal history - every one of them a place a standing credential should not live - and the person who ends up using the account typically did not choose it.
+This section used to describe the command without saying that, which left a deployment in which the first administrator's password was the one out of the runbook for as long as nobody thought about it.
+So the account is created carrying **`user.mustChangePassword`**, and while that flag is set the account can reach the forced change screen and nothing else: the admin app redirects every route to it, and the API answers `401` on every admin route with the same value-free body every other refusal there uses.
+The change-password endpoint itself is unaffected, because it is on the auth mount, which carries no admin-session gate - it cannot, since those are the endpoints that issue the session.
+
+**The flag is durable state on the account, and that is the requirement rather than an implementation note.**
+A cookie or a session claim would be cleared by a restart, a sign-out or a second browser, which are precisely the things this has to survive.
+It is a **declared better-auth field** (`user.additionalFields`, `input: false`, `defaultValue: true`) rather than a column added behind the library's back: better-auth writes the declared default when it creates the account, so the command marks it without naming it and any future account-creation path inherits the marking; `input: false` means no request body can set or clear it; and the field is returned on the session user, which is where the admin's gate reads it.
+A column the library did not know about would be absent from that session object exactly where the gate needs it.
+It is cleared by a database hook on the credential account's password write - the one event that means a password was successfully changed - and by nothing else: not by a failed attempt, not by signing out and in again, not by a session refresh.
+better-auth 1.7.6 ships no "force password change" option, plugin or hook, so the enforcement is entirely QCMS's; the admin plugin's `banned` field is the nearest shape and is the wrong semantics, since a banned account is refused rather than sent to a remedy.
+
+**The order relative to 2FA enrolment: password change first.**
+031 forces TOTP enrolment on first sign-in and 061 puts the password change ahead of it, because enrolment binds a second factor to an account whose first factor is still the credential from the provisioning script - the pair is then only as good as its oldest half, and the more fiddly of the two steps is asked for at the moment the account is weakest.
+It also falls out of what each screen needs: enrolment needs an authenticator app in someone's hand and a fifteen-minute cookie, a password change needs neither, so nobody is parked on a screen they cannot finish while holding a credential they should not have.
+`QCMS_ADMIN_2FA=optional` does not relax the password gate: that hatch exists because enrolment needs a device a developer may not have, and changing a password needs nothing.
+
+**What the migration does to an existing deployment, stated rather than left to be discovered.**
+The column defaults to `false`, so an account that predates this control is **not** marked provisional on upgrade.
+For such a row nobody can tell whether the password was ever changed, and backfilling `true` would make a migration take a policy action on every live deployment's administrator.
+The control therefore applies to accounts bootstrapped from this version onwards; an operator who knows their first administrator is still on the runbook password changes it, which is what the control would have asked for anyway.
+
+Out of scope and deliberately so: password expiry or rotation of any kind.
+NIST SP 800-63B Rev 4 section 3.1.1.2 advises verifiers **SHALL NOT** require periodic change, and this is about one provisional credential rather than a recurring policy.
 
 **The password policy, amended 2026-08-09 (issue #178).**
 This section used to promise a "zxcvbn-style strength check (min score, not composition rules)".
@@ -840,7 +866,7 @@ The 2026-08-14 pass is recorded in `docs/security-review-2026-08-14.md`, which n
 
 | Control                                             | Designed | Delivered / verified                                                                                                                                                                                                                                                                                             |
 | --------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Admin authn + 2FA (SEC-1)                           | §2.1     | 031 · #178 · #390 · 040 · **#432 (recorded break-glass: `qcms:reset-2fa`)** · #910 (outage body carries no variable name)                                                                                                                                                                                        |
+| Admin authn + 2FA (SEC-1)                           | §2.1     | 031 · #178 · #390 · 040 · **#432 (recorded break-glass: `qcms:reset-2fa`)** · #910 (outage body carries no variable name) · **061 (the bootstrap credential is provisional and must be changed first)**                                                                                                          |
 | Respondent tokens + secure links (SEC-2)            | §2.2     | 010, 018, 024 · 027                                                                                                                                                                                                                                                                                              |
 | Authorization matrix (SEC-3)                        | §3       | 017, 021–023 · **040 matrix tests (`apps/api/e2e/security/`)**                                                                                                                                                                                                                                                   |
 | Service channel auth (SEC-4)                        | §2.3     | 017, 029, 031 · 040                                                                                                                                                                                                                                                                                              |

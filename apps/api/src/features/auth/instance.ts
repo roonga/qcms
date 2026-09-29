@@ -683,27 +683,30 @@ export function createAdminAuth(input: AdminAuthInput) {
         //
         // WHY A DECLARED FIELD RATHER THAN A COLUMN THE LIBRARY HAS NEVER HEARD OF.
         // The gate reads this off the session user, and the session user is whatever
-        // better-auth's `get-session` returns. `parseUserOutput`
-        // (`dist/db/schema.mjs:24-26`) <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->
-        // filters the row against `getFields(options, "user", "output")`, which merges
-        // `options.user.additionalFields` into better-auth's own field set
-        // (`:12-13`) <!-- expect: options[modelName]?.additionalFields --> and drops
-        // only what is marked `returned: false`. A column added behind the library's
-        // back is in neither set, so it would be absent from the session object
-        // exactly where the gate needs it.
+        // better-auth's `get-session` returns. `parseUserOutput` filters the row
+        // against `getFields(options, "user", "output")`
+        // (`dist/db/schema.mjs:25`) <!-- expect: filterOutputFields(user, getFields(options, "user", "output")) -->,
+        // and that function merges `options.user.additionalFields` into better-auth's
+        // own field set
+        // (`dist/db/schema.mjs:12`) <!-- expect: options[modelName]?.additionalFields -->,
+        // dropping only what is marked `returned: false`. A column added behind the
+        // library's back is in neither set, so it would be absent from the session
+        // object exactly where the gate needs it.
         //
         // `defaultValue: true` is what SETS the flag, and it is the library that
         // applies it: `parseInputData` writes a field's `defaultValue` on a create
-        // that does not name it (`:95-101`) <!-- expect: action === "create" -->, so
-        // an account `qcms:create-admin` brings into existence is marked provisional
-        // by the same call that creates it. Nothing in `bootstrap.ts` has to remember
-        // to, and any future account-creation path inherits the marking rather than
+        // that does not name it
+        // (`dist/db/schema.mjs:95`) <!-- expect: action === "create" -->, so an
+        // account `qcms:create-admin` brings into existence is marked provisional by
+        // the same call that creates it. Nothing in `bootstrap.ts` has to remember to,
+        // and any future account-creation path inherits the marking rather than
         // opting into it - the fail-closed direction for a control like this.
         //
         // `input: false` is the load-bearing half of the pair, for the reason the
         // role claim above gives and one more: a request that names the field is
-        // refused outright on an update (`:69-73`) <!-- expect: is not allowed to be set -->,
-        // so a session holder cannot clear their own flag through any endpoint. It is
+        // refused outright on an update
+        // (`dist/db/schema.mjs:74`) <!-- expect: is not allowed to be set -->, so a
+        // session holder cannot clear their own flag through any endpoint. It is
         // cleared by the `databaseHooks` entry below and by nothing else.
         //
         // `required: false` because the column carries a database default too, and a
@@ -734,13 +737,13 @@ export function createAdminAuth(input: AdminAuthInput) {
            * clearing half.
            *
            * The event that means "a password was successfully changed" is the write
-           * of the new hash to the credential account row.
+           * of the new hash to the credential account row, which is
            * `dist/api/routes/update-user.mjs:172`
-           * <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->
-           * is that write, and it is reached only after `password.verify` of the
-           * current password succeeded on `:168-171`
-           * <!-- expect: password.verify -->. `updateAccount` routes through
-           * `updateWithHooks` (`dist/db/internal-adapter.mjs:695-699`)
+           * <!-- expect: internalAdapter.updateAccount(account.id, { password: passwordHash }) -->.
+           * It is reached only after the `password.verify` of the current password at
+           * `dist/api/routes/update-user.mjs:168`
+           * <!-- expect: password.verify --> succeeded. `updateAccount` routes through
+           * `updateWithHooks`, at `dist/db/internal-adapter.mjs:696`
            * <!-- expect: updateWithHooks -->, which runs this hook.
            *
            * That is what makes exit criterion 2 hold by construction rather than by
@@ -759,9 +762,13 @@ export function createAdminAuth(input: AdminAuthInput) {
            * ## Ordering and the transaction
            *
            * `update.after` hooks are queued through `queueAfterTransactionHook`,
-           * which runs the hook immediately when no transaction is open and
-           * otherwise after the commit (`@better-auth/core/dist/context/transaction.mjs:96-113`)
-           * <!-- expect: If not in a transaction, the hook will execute immediately -->.
+           * which runs the hook immediately when no transaction is open and pushes it
+           * onto the commit's pending list otherwise:
+           * `@better-auth/core/dist/context/transaction.mjs:112`
+           * <!-- expect: if (!store?.isTransactionActive) return executeHook(); -->,
+           * and `runWithTransaction` awaits that list after the commit
+           * (`@better-auth/core/dist/context/transaction.mjs:78`)
+           * <!-- expect: for (const hook of pendingHooks) -->.
            * Either way it is awaited before the endpoint answers, so the very next
            * `get-session` the admin makes - the one on the redirect after the form
            * POST - already sees the cleared flag. The write goes through this

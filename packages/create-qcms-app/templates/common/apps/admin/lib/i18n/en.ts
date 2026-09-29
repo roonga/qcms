@@ -141,6 +141,25 @@ export const messages = {
   "signIn.throttled": "Too many attempts. Please try again later.",
   "signIn.expired": "Your session expired. Please sign in again.",
 
+  // The forced change on first sign-in after bootstrap (task 061, SEC-1). The intro
+  // says WHY rather than only what, because the reader did not ask for this screen and
+  // the reason is the whole point: the password they just used came from somewhere a
+  // standing credential should not live. It names no environment variable and no
+  // command - the person in front of it is the administrator, not the operator who ran
+  // the bootstrap, and they may be neither the same person nor able to act on either.
+  "forcedPassword.title": "Choose your own password",
+  "forcedPassword.intro":
+    "The password this account was created with was set for you, so it is temporary. Choose one only you know before you continue.",
+  "forcedPassword.current": "Temporary password",
+  "forcedPassword.new": "New password",
+  "forcedPassword.confirm": "Confirm new password",
+  // Its own sentence rather than the generic one, on the same principle as the corpus
+  // refusal below: it is a statement about two values the reader just typed, not about
+  // the account, so it tells nobody anything they did not already have. Saying "those
+  // details did not match" here would send someone back to re-examine a temporary
+  // password that was perfectly correct.
+  "forcedPassword.mismatch": "The two new passwords did not match. Please type them again.",
+
   "enroll.title": "Set up two-factor authentication",
   "enroll.intro":
     "Scan this code with your authenticator app, then enter the six-digit code it shows.",
