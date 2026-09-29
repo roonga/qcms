@@ -46,6 +46,6 @@ Also out: a compound cursor on the wire, which was refused. Any Back control on 
 
 ## Notes for the executor
 
-**The no-JS half is the part with a decision in it**, because ADR-28's amendment removes the control the hydrated path uses to move backwards. Serving the first incomplete view is the reading this work order takes; if it turns out to interact badly with a group whose instances are all complete but whose step has other questions, raise it rather than inventing a second rule.
+**The no-JS half is the part with a decision in it**, because ADR-28's amendment removes the control the hydrated path uses to move backwards. **Serving the first incomplete view is confirmed by the Code Owner (2026-09-30)**, so it is the rule to implement rather than a reading to revisit; if it turns out to interact badly with a group whose instances are all complete but whose step has other questions, raise that rather than inventing a second rule beside it.
 
 **`visibleStepViews` already exists as an optional field** from 071 and is absent for a form with no group. Keep it absent: a form with no repeating group must produce a `FlowState` with no new key present, which is an acceptance case 071 owns and this task must not break.

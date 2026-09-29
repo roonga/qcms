@@ -58,7 +58,7 @@ The per-instance step presentation (076) and the table presentation (077): this 
 
 ## Notes for the executor
 
-**The 200 re-render is a deliberate departure from the 303**, recorded in ADR-43 and in plan section 4.2, and the token is what pays for it. Do not "fix" it back to a redirect without the carrier problem solved, and do not carry a whole step's values in the cookie: that is the failure Q21 exists to prevent, arrived at from the other side.
+**The 200 re-render is a deliberate departure from the 303, confirmed by the Code Owner on 2026-09-30**, recorded in ADR-43 and in plan section 4.2, and the token is what pays for it. Do not "fix" it back to a redirect without the carrier problem solved, and do not carry a whole step's values in the cookie: that is the failure Q21 exists to prevent, arrived at from the other side.
 
 **`formnovalidate` is safe only because the post writes nothing.** If you find yourself writing the step's answers on the `__qop` path, stop: that is the shape the 2026-09-30 ruling refused, and it reopens the required-clear path the 2026-09-13 ruling closed.
 
