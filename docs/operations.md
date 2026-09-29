@@ -666,6 +666,33 @@ you run it, and on Compose the `db-roles` one-shot runs on every `up`, so withou
 line the audit table would quietly regain the DML pass on the next boot after it was
 created. Both copies are idempotent.
 
+**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-30, issue #995).**
+That decision replaces the single `qcms_app` with a control-only role and one role per
+environment, and adds a second migrate-only audit table, the SEC-15 access audit.
+So when task 064 rewrites this recipe to grant per named schema, the revoke here becomes
+a loop over **every `qcms_app%` role** rather than a line naming one, and it covers two
+tables rather than one.
+The two are not the same case and do not arrive together.
+
+`two_factor_resets` stays **migrate-only for every application role**, all four
+privileges, exactly as the block above has it for `qcms_app`: the control role gets
+nothing on it either.
+Its revoke lives in **task 064's baseline migration**, which is where that table is
+created.
+
+The **SEC-15 access audit** is written by the application on an ordinary request, so it
+cannot be migrate-only: each environment role holds `INSERT`, the control role holds
+`SELECT`, and neither holds `UPDATE` or `DELETE`.
+Those grants and that revoke live in **task 069's migration**, which is the migration
+that creates that table, for the reason the note above gives: only the migration that
+creates a table runs as its owner in the same step.
+Task 064's baseline has nothing to act on there.
+
+So this recipe ends up carrying both, each **guarded on its own table existing** the way
+the block above is guarded, and so does 064's environment-create command, because that
+command creates roles neither migration has ever seen and may create one before task 069
+has added the audit table.
+
 **If you renamed the application role, this revoke is yours to carry.**
 All three copies name `qcms_app` as a literal, so on a deployment that calls it something
 else the migration's guard is false, the revoke never runs, and your application role
