@@ -1,0 +1,79 @@
+{
+  "formId": "frm_g_repeat_stacked",
+  "defaultLocale": "en",
+  "title": { "en": "frm_g_repeat_stacked" },
+  "steps": [
+    {
+      "stepId": "stp_pax",
+      "title": { "en": "stp_pax" },
+      "items": [
+        {
+          "groupId": "grp_pax",
+          "label": { "en": "Passengers" },
+          "instanceLabel": { "en": "Passenger {n}" },
+          "items": [
+            { "questionId": "q_pax_dob", "version": 1 },
+            { "questionId": "q_pax_infant_fare", "version": 1 }
+          ],
+          "count": { "source": "open", "min": 0, "max": 9 },
+          "presentation": "stacked"
+        }
+      ]
+    },
+    {
+      "stepId": "stp_after",
+      "title": { "en": "stp_after" },
+      "items": [
+        { "questionId": "q_gate_a", "version": 1 },
+        { "questionId": "q_gate_b", "version": 1 },
+        { "questionId": "q_gate_c", "version": 1 },
+        { "questionId": "q_gate_d", "version": 1 }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_infant_fare",
+      "when": { "op": "gte", "questionId": "q_pax_dob", "value": "2024-01-01" },
+      "show": ["q_pax_infant_fare"]
+    },
+    {
+      "ruleId": "rul_any_infant",
+      "when": {
+        "op": "anyInstance",
+        "groupId": "grp_pax",
+        "condition": { "op": "gte", "questionId": "q_pax_dob", "value": "2024-01-01" }
+      },
+      "show": ["q_gate_a"]
+    },
+    {
+      "ruleId": "rul_count_gte_5",
+      "when": { "op": "instanceCount", "groupId": "grp_pax", "compare": "gte", "value": 5 },
+      "show": ["q_gate_b"]
+    },
+    {
+      "ruleId": "rul_every_answered",
+      "when": {
+        "op": "everyInstance",
+        "groupId": "grp_pax",
+        "condition": { "op": "answered", "questionId": "q_pax_dob" }
+      },
+      "show": ["q_gate_c"]
+    },
+    {
+      "ruleId": "rul_not_any_not_answered",
+      "when": {
+        "op": "not",
+        "condition": {
+          "op": "anyInstance",
+          "groupId": "grp_pax",
+          "condition": {
+            "op": "not",
+            "condition": { "op": "answered", "questionId": "q_pax_dob" }
+          }
+        }
+      },
+      "show": ["q_gate_d"]
+    }
+  ]
+}

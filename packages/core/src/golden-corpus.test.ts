@@ -11,13 +11,18 @@ import {
   checkRuleTypes,
   evaluateRules,
   FlowState,
+  GroupId,
+  InstanceAnswerKey,
+  InstanceId,
   parseFormDefinition,
   parseQuestionDefinition,
   QuestionId,
+  type AnswerKey,
   type AnswerMap,
   type FormDefinition,
   type QuestionDefinition,
   type ResolveQuestion,
+  type RosterMap,
 } from "./index.js";
 
 /**
@@ -42,7 +47,18 @@ const CORPUS_DIR = path.join(PACKAGE_DIR, "golden", "evaluator");
 const Scenario = z.object({
   description: z.string().min(1),
   form: z.string().min(1),
-  answers: z.array(z.object({ questionId: QuestionId, value: AnswerValue })),
+  // The key is a bare `questionId` outside a repeating group and
+  // `instanceId/questionId` inside one (ADR-42). The field keeps its name so
+  // that every scenario committed before repetition is unchanged.
+  answers: z.array(
+    z.object({ questionId: z.union([QuestionId, InstanceAnswerKey]), value: AnswerValue }),
+  ),
+  // The LIVE roster the evaluation is handed, in roster order. Absent for a form
+  // with no group, which is every scenario committed before task 071 and is
+  // what makes the corpus's additivity claim checkable rather than asserted.
+  rosters: z
+    .array(z.object({ groupId: GroupId, instances: z.array(InstanceId) }))
+    .optional(),
   expected: FlowState,
 });
 
@@ -96,6 +112,9 @@ interface LoadedScenario {
   scenario: z.infer<typeof Scenario>;
   /** Raw (pre-canonical) answer values, exactly as authored in the JSON. */
   answers: AnswerMap;
+  /** `undefined` for a scenario that declares no roster, so the evaluator is
+   * called with three arguments exactly as every pre-071 caller calls it. */
+  rosters: RosterMap | undefined;
 }
 
 function loadScenarios(): LoadedScenario[] {
@@ -113,15 +132,19 @@ function loadScenarios(): LoadedScenario[] {
     // ones. Casts justified: Scenario.parse above proved each value is a valid
     // AnswerValue encoding and each id a QuestionId.
     const rawAnswers = (raw as { answers: { questionId: string; value: unknown }[] }).answers;
-    const answers = new Map<QuestionId, AnswerValue>();
+    const answers = new Map<AnswerKey, AnswerValue>();
     for (const entry of rawAnswers) {
-      const questionId = entry.questionId as QuestionId;
-      if (answers.has(questionId)) {
+      const key = entry.questionId as AnswerKey;
+      if (answers.has(key)) {
         throw new Error(`scenario ${file} answers ${entry.questionId} twice`);
       }
-      answers.set(questionId, entry.value as AnswerValue);
+      answers.set(key, entry.value as AnswerValue);
     }
-    return { file, scenario: parsed.data, answers };
+    const rosters =
+      parsed.data.rosters === undefined
+        ? undefined
+        : new Map(parsed.data.rosters.map((entry) => [entry.groupId, entry.instances]));
+    return { file, scenario: parsed.data, answers, rosters };
   });
 }
 
@@ -144,10 +167,10 @@ describe("golden evaluator corpus", () => {
   });
 
   describe("scenarios", () => {
-    for (const { file, scenario, answers } of scenarios) {
+    for (const { file, scenario, answers, rosters } of scenarios) {
       it(`${file} - ${scenario.description}`, () => {
         const form = loadForm(scenario.form, formCache);
-        const result = evaluateRules(form, answers, resolve);
+        const result = evaluateRules(form, answers, resolve, rosters);
         if (!result.ok) {
           throw new Error(`evaluator returned an error: ${JSON.stringify(result.error)}`);
         }

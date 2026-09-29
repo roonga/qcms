@@ -1,0 +1,38 @@
+{
+  "description": "The empty group, and the non-equivalence the Q7 ruling creates. everyInstance over a group with no live instance is FALSE by decision (ADR-42), so q_gate_c stays hidden; not(anyInstance(not answered)) over the SAME empty group is TRUE, so q_gate_d shows. The two would be the same rule under vacuous truth, and this scenario is what stops either being implemented as a rewrite of the other.",
+  "form": "golden/evaluator/forms/repeat-stacked.json",
+  "rosters": [
+    {
+      "groupId": "grp_pax",
+      "instances": []
+    }
+  ],
+  "answers": [],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_after"],
+    "currentStep": "stp_after",
+    "answeredRequired": [],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_after",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [],
+    "rosters": [
+      {
+        "groupId": "grp_pax",
+        "instances": []
+      }
+    ]
+  }
+}

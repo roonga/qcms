@@ -1,0 +1,31 @@
+{
+  "formId": "frm_g_repeat_from_answer",
+  "defaultLocale": "en",
+  "title": { "en": "frm_g_repeat_from_answer" },
+  "steps": [
+    {
+      "stepId": "stp_count",
+      "title": { "en": "stp_count" },
+      "items": [{ "questionId": "q_accident_count", "version": 1 }]
+    },
+    {
+      "stepId": "stp_pax",
+      "title": { "en": "stp_pax" },
+      "items": [
+        {
+          "groupId": "grp_fa",
+          "label": { "en": "Passengers" },
+          "instanceLabel": { "en": "Passenger {n}" },
+          "items": [{ "questionId": "q_pax_dob", "version": 1 }],
+          "count": {
+            "source": "fromAnswer",
+            "questionId": "q_accident_count",
+            "min": 0,
+            "max": 9
+          }
+        }
+      ]
+    }
+  ],
+  "rules": []
+}

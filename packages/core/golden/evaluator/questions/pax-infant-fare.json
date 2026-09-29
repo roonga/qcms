@@ -1,0 +1,6 @@
+{
+  "type": "boolean",
+  "questionId": "q_pax_infant_fare",
+  "label": { "en": "Infant fare basis (corpus per-instance rule target)" },
+  "required": false
+}
