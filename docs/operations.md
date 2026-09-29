@@ -699,7 +699,13 @@ else the migration's guard is false, the revoke never runs, and your application
 keeps all four privileges on the audit table.
 That is a real limit and not an oversight: a migration cannot know a name you chose.
 
-**What each role is granted, once task 064 rewrites this recipe (Code Owner, 2026-09-29, Q40 as amended by Q48 and Q49).**
+So if you renamed it, add the line to your own recipe with your name in place of
+`qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
+Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
+the application credential by testing **schema ownership** rather than a role name, so
+that guard survives a rename and this one does not.
+
+**What each role is granted, once task 064 rewrites this recipe (Code Owner, Q40 as amended by Q48, Q49, Q52, Q54 and Q56).**
 There are three kinds of application role and the grants are per named schema, never
 `IN SCHEMA public`.
 
@@ -708,20 +714,33 @@ own `reporting_<env>` with `SELECT` on that schema's views and nothing on any ot
 environment's; on `control`, `SELECT` on
 exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
 `environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
-consumption and `INSERT` on the SEC-15 audit; and no privilege of any kind on `user`,
+consumption, **no `INSERT` on `secure_links`**, `INSERT` on the SEC-15 audit, and
+whatever `USAGE` Postgres requires on `control`'s `access_mode` and `session_status`
+types; and no privilege of any kind on `user`,
 `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`,
 `member`, `team` or `teamMember`.
 `question_versions` is on the list because the respondent path reads the pinned question
 version on every step served and every submission; without it every respondent request
 fails on permission.
+`form_releases` is on it from task 065, which is the migration that creates that table
+and therefore the one that grants `SELECT` on it; until then the list is five, and this
+recipe and the environment-create command carry the sixth clause guarded on the table
+existing, the way the SEC-15 audit's clauses are.
 
 `qcms_app_control` holds DML on `control`, with `two_factor_resets` carved out entirely
-and the SEC-15 audit carved down to `SELECT`, and in the data schemas it holds
-**`INSERT` on `outbox` and nothing else at all**: no `SELECT`, no `UPDATE`, no `DELETE`,
-and no privilege on any other data-plane table.
+and the SEC-15 audit carved down to `SELECT` **and `INSERT`**, never `UPDATE` or
+`DELETE`, because a grant write and its audit row are both control-pool acts (Q56).
+In the data schemas it holds **`USAGE` on each `data_<env>` and `INSERT` on its
+`outbox`, and no other table privilege there**: no `SELECT`, no `UPDATE`, no `DELETE` on
+`outbox`, and nothing of any kind on any other data-plane table.
+The schema `USAGE` is not an extra: without it the insert fails on the schema before it
+reaches the table.
 That one grant exists so a release record and its `form.released` event commit in one
 transaction, and it does not weaken the boundary the three roles exist for, because an
 insert into an event queue is not a read of a response.
+Both of this role's `INSERT`-only writes, the release event and the audit row, are plain
+inserts with **no `RETURNING`**: `RETURNING` is a read, and a role holding `INSERT`
+alone gets a permission error on it.
 It holds **nothing on any reporting schema** either, so the connection the authoring
 routes run on cannot reach a production response through a view any more than through
 a table.
@@ -732,11 +751,6 @@ The per-workspace view sets, and the read-only roles an analyst or a BI tool is 
 are a different matter in `docs/reporting-view.md`, and task 067 owns them.
 
 `qcms_migrate` is unchanged: owner and DDL, in every schema.
-So if you renamed it, add the line to your own recipe with your name in place of
-`qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
-Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
-the application credential by testing **schema ownership** rather than a role name, so
-that guard survives a rename and this one does not.
 
 `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the outcome from both
 sides against a real Postgres: `qcms_app` holds none of the four on `two_factor_resets`,
