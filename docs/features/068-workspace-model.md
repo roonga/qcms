@@ -1,6 +1,6 @@
 # 068 - Workspaces on the organisation table: ownership, moving and archiving
 
-**Stage:** 9 (Phase 4) · **Apps/packages:** `@roonga/qcms-db` (the workspace reference, the slug constraint and, when this task lands after 067, the per-workspace reporting views), `apps/api` (the workspace routes, the pin rule and the seeding) · **Depends on:** built now, ahead of 038 (launch validation) by the Code Owner's direction of 2026-09-29; independent of track A. The plan's original dependency text read "Depends on 038"
+**Stage:** 9 (Phase 4) · **Apps/packages:** `@roonga/qcms-db` (the workspace reference and the slug constraint), `apps/api` (the workspace routes, the pin rule and the seeding) · **Depends on:** built now, ahead of 038 (launch validation) by the Code Owner's direction of 2026-09-29; independent of track A. The plan's original dependency text read "Depends on 038"
 **References:** ADR-41 (the decision) · ADR-40 (the `control` schema the row lives in) · ADR-04 (single tenancy, which this does not change) · ADR-02 (question versions and pinning) · ADR-17 (two whole-session delete paths, and no third) · ADR-06 (better-auth) · `docs/auth-swap.md` · `plan/environments-and-workspaces.md` the 068 section of 8, and Q13, Q14, Q15, Q22, Q32 and finding 10 · R6 · R7 · issue #179 · issue #995
 
 ## Context
@@ -29,17 +29,16 @@ Q13 (the two-person switch is off by default, including on the seeded workspace)
 - **The unique constraint on `forms.slug`** that does not exist today. Slugs stay unique **installation-wide**, which green field makes a plain constraint rather than a data fix.
 - **The seeding of a first workspace**, so a bootstrapped installation has one to author in, with the two-person switch **off** on it (Q13). The seeding uses the server-side **`createOrganization` with `userId`** rather than the request-scoped call, because the seeded workspace is created before anybody is signed in and the session-based form has no user to attribute it to.
 - **The slug uniqueness and shared-workspace rules as QCMS domain rules**, enforced in QCMS code. They are unchanged by the table's owner moving.
-- **The per-workspace reporting split, when this task lands after 067** (Q26). Each environment's `reporting_<env>` gains a view set per workspace with its own read-only role, so a workspace's analysts are granted exactly their workspace's views in exactly their environment. **The split belongs to whichever of 067 and 068 lands second**, and 067's work order says the same from its side, so it has an owner in either order. If 067 has not landed yet, there are no per-environment schemas to split and this deliverable is 067's.
 
 ## Exit criteria
 
-Exit criteria **1 to 7** of the 068 section of `plan/environments-and-workspaces.md` section 8, **plus criterion 7 of task 067 when this task lands second**: the per-workspace reporting split belongs to whichever of 067 and 068 lands after the other, and its criterion travels with it. This task owns those and no others.
+Exit criteria **1 to 7** of the 068 section of `plan/environments-and-workspaces.md` section 8. This task owns those and no others. **The per-workspace reporting split is not among them**: 069 depends on this task and 067 depends on 069, so 067 always lands after it, and 067 builds the split and asserts its own criterion 7.
 
 Criterion 5 is asserted rather than reasoned: **no code path deletes a workspace, and none reaches a response row from one.** Criterion 6 is asserted on **both halves**: an editor outside the shared workspace can read and pin a shared question and **cannot edit one**.
 
 ## Files and areas
 
-`packages/db/src/schema/auth.ts` (the organisation's additional fields, and the plugin's five tables if this task lands before 064), `packages/db/src/schema/forms.ts` and `questions.ts` (the workspace reference and the slug constraint), `packages/db/src/queries/forms.ts` and `questions.ts`, the workspace routes and the pin rule in `apps/api/src/features/`, the better-auth instance configuration in `apps/api/src/features/auth/instance.ts`, the bootstrap seeding, `packages/db/src/queries/reporting.ts` and the view generation when this task lands after 067, `docs/auth-swap.md`, `CONTRIBUTING.md`'s risk row, and a changeset.
+`packages/db/src/schema/auth.ts` (the organisation's additional fields, and the plugin's five tables if this task lands before 064), `packages/db/src/schema/forms.ts` and `questions.ts` (the workspace reference and the slug constraint), `packages/db/src/queries/forms.ts` and `questions.ts`, the workspace routes and the pin rule in `apps/api/src/features/`, the better-auth instance configuration in `apps/api/src/features/auth/instance.ts`, the bootstrap seeding, `docs/auth-swap.md`, `CONTRIBUTING.md`'s risk row, and a changeset.
 
 ## Gates
 
@@ -47,7 +46,7 @@ Criterion 5 is asserted rather than reasoned: **no code path deletes a workspace
 
 ## Out of scope (binding)
 
-The six roles, the scope, the access-group names, the resolver, the middleware, the grant write path and the SEC-15 audit (069): this task builds the **container** and grants nothing. **Any admin surface for workspaces**: the plan's 068 section has no screen in it, and a screen this work order invented would be a requirement the plan does not have. The admin's workspace and membership screens arrive with 069, which is where the permissions matrix that governs them is built. The two-person rule's check (070): this task adds `requireSecondApprover` as a field, defaulting off, and nothing reads it. Everything in track A (064 to 067): the tracks are independent and this task depends on none of them, beyond finding or creating the plugin tables. The per-workspace reporting view split, which is 067's deliverable and lands when this task does. Deleting a workspace, in any form. A workspace segment in any URL. Per-workspace configuration, theming or ports. Multi-tenancy (R7, ADR-04).
+The six roles, the scope, the access-group names, the resolver, the middleware, the grant write path and the SEC-15 audit (069): this task builds the **container** and grants nothing. **The per-workspace reporting split (067)**: 067 always lands after this task, so the split is its deliverable and its criterion, and this task neither builds it nor asserts it. **Any admin surface for workspaces**: the plan's 068 section has no screen in it, and a screen this work order invented would be a requirement the plan does not have. The admin's workspace and membership screens arrive with 069, which is where the permissions matrix that governs them is built. The two-person rule's check (070): this task adds `requireSecondApprover` as a field, defaulting off, and nothing reads it. Everything in track A (064 to 067): the tracks are independent and this task depends on none of them, beyond finding or creating the plugin tables. The per-workspace reporting view split, which is 067's deliverable and lands when this task does. Deleting a workspace, in any form. A workspace segment in any URL. Per-workspace configuration, theming or ports. Multi-tenancy (R7, ADR-04).
 
 ## Notes for the executor
 
