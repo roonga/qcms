@@ -704,7 +704,8 @@ There are three kinds of application role and the grants are per named schema, n
 `IN SCHEMA public`.
 
 `qcms_app_<env>`, one per environment, holds DML on its own `data_<env>`; `USAGE` on its
-own `reporting_<env>` with `SELECT` on that schema's views; on `control`, `SELECT` on
+own `reporting_<env>` with `SELECT` on that schema's views and nothing on any other
+environment's; on `control`, `SELECT` on
 exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
 `environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
 consumption and `INSERT` on the SEC-15 audit; and no privilege of any kind on `user`,
@@ -721,6 +722,14 @@ and no privilege on any other data-plane table.
 That one grant exists so a release record and its `form.released` event commit in one
 transaction, and it does not weaken the boundary the three roles exist for, because an
 insert into an event queue is not a read of a response.
+It holds **nothing on any reporting schema** either, so the connection the authoring
+routes run on cannot reach a production response through a view any more than through
+a table.
+
+The reporting grants above are the **application** role's own, and they are all of what
+that role needs to serve a staff response read.
+The per-workspace view sets, and the read-only roles an analyst or a BI tool is granted,
+are a different matter in `docs/reporting-view.md`, and task 067 owns them.
 
 `qcms_migrate` is unchanged: owner and DDL, in every schema.
 So if you renamed it, add the line to your own recipe with your name in place of
