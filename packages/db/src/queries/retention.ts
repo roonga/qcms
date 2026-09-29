@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, lt } from "drizzle-orm";
 
 import type { SessionId } from "@roonga/qcms-core";
 
-import { answers, sessions, submissions } from "../schema/index.js";
+import { answerGroupInstances, answers, sessions, submissions } from "../schema/index.js";
 import { openAnswerDeleteDoor } from "./erasure.js";
 import type { Executor } from "./executor.js";
 import { type AccessMode, expireSessions, type SessionRow } from "./sessions.js";
@@ -115,8 +115,13 @@ export interface PurgeResult {
  * Optional hard cleanup: permanently remove the ledger rows for sessions that
  * **expired and were never submitted**, whose `expiresAt` is strictly before the
  * `olderThan` retention horizon. For each victim it deletes the append-only
- * answers first (no `ON DELETE CASCADE` exists on that FK), then the session row,
- * atomically.
+ * answers and the append-only roster first (no `ON DELETE CASCADE` exists on
+ * either FK), then the session row, atomically.
+ *
+ * The roster (`answer_group_instances`, ADR-42) is session-scoped data-plane
+ * state, so it goes with the answers: a purge that removed a respondent's answers
+ * and kept the count of passengers they were for would keep respondent-derived
+ * data past the retention horizon.
  *
  * Scope, by construction:
  * - Only `status = 'expired'` rows - `submitted` sessions are a different status
@@ -157,8 +162,14 @@ export async function purgeExpired(exec: Executor, olderThan: Date): Promise<Pur
       return { purgedSessionIds: [], purgedCount: 0 };
     }
     // Sanctioned DELETE door: authorize the answers delete for this transaction.
+    // The same GUC authorizes the roster delete (migration 0022 reads it in
+    // `answer_group_instances_reject_delete`), so the sweep reaches the roster
+    // through the door it already holds rather than through one of its own.
     await openAnswerDeleteDoor(tx);
     await tx.delete(answers).where(inArray(answers.sessionId, ids));
+    await tx
+      .delete(answerGroupInstances)
+      .where(inArray(answerGroupInstances.sessionId, ids));
     await tx.delete(sessions).where(inArray(sessions.sessionId, ids));
     return { purgedSessionIds: ids, purgedCount: ids.length };
   });
