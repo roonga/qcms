@@ -64,29 +64,34 @@ export function MessagesEditor({
   const keys = authoredMessageKeys(definition);
   const messages = definition.messages ?? {};
 
+  // NO "NOTHING TO WRITE A MESSAGE FOR YET" NOTE ANY MORE (Code Owner, 2026-09-27), and the
+  // reason is the same one `constraints-editor.tsx` records at greater length: this was one
+  // section of a stacked column, so it stood there with nothing in it and had to say why. The
+  // editor is panelled now and `lib/questions/panels.ts` omits this panel entirely while
+  // `authoredMessageKeys` is empty - it reads the same function this line does, so the panel and
+  // its rail row appear together the moment a constraint or `required` gives them something to
+  // hold. The empty state is now the absence of a row rather than a row that opens an apology.
+  if (keys.length === 0) return null;
+
   return (
     <fieldset className="qcms-fieldset">
       <legend className="qcms-fieldset__legend">{t("questions.editor.messages")}</legend>
       <p className="text-sm text-(--color-text-muted)">{t("questions.message.note")}</p>
-      {keys.length === 0 ? (
-        <p className="text-sm text-(--color-text-muted)">{t("questions.message.none")}</p>
-      ) : (
-        <div className="flex flex-col gap-4">
-          {keys.map((key) => (
-            <TextField
-              key={key}
-              label={messageLabelFor(key, definition)}
-              placeholder={defaultMessageFor(key, definition)}
-              value={textOf(messages[key])}
-              isDisabled={isFrozen}
-              {...fieldErrorProps(issues, `messages.${key}`)}
-              onChange={(next) => {
-                onChange(withMessage(messages, key, next));
-              }}
-            />
-          ))}
-        </div>
-      )}
+      <div className="flex flex-col gap-4">
+        {keys.map((key) => (
+          <TextField
+            key={key}
+            label={messageLabelFor(key, definition)}
+            placeholder={defaultMessageFor(key, definition)}
+            value={textOf(messages[key])}
+            isDisabled={isFrozen}
+            {...fieldErrorProps(issues, `messages.${key}`)}
+            onChange={(next) => {
+              onChange(withMessage(messages, key, next));
+            }}
+          />
+        ))}
+      </div>
     </fieldset>
   );
 }

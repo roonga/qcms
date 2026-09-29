@@ -24,6 +24,18 @@ import type { QuestionStatus } from "@/lib/questions/types";
  * takes a variant and a size and no class name, and wrapping it here to add one would be the
  * start of a second design language outside `packages/ui` (ADR-22).
  *
+ * **The block wears the builder's add-step treatment (Code Owner, 2026-09-27)**, which is the
+ * ruling that this rail is styled like the form builder's. `.qcms-rail-steps__block` is the
+ * geometry `components/forms/rail-steps.tsx`'s Add step control already had - a full-track
+ * control at the rail's own rhythm - and the dashed rule that used to close this block went
+ * with it: the builder separates a cluster with space rather than with a line.
+ *
+ * New version is `ghost` for the reason `rail-steps.tsx` records about Add step: the kit's
+ * `secondary` is a solid slate fill, so in a column of quiet rows it read as the loudest thing
+ * on the screen and as the primary action of the whole screen, which it is not. Publish and
+ * Deprecate keep their variants - they are the consequential actions this screen is about, and
+ * the POC colours them.
+ *
  * ## The confirmations are the teaching surface
  *
  * ADR-02 makes the governed library the product's identity, and these three dialogs are
@@ -66,13 +78,13 @@ export function LifecycleActions({
   const next = latestVersion + 1;
 
   return (
-    <div className="qcms-question-rail__lifecycle">
+    <div className="qcms-rail-steps__block qcms-question-rail__lifecycle">
       {/* New version first, and that is the POC's order rather than a ranking of the three.
           It is the one control that is offered whatever the selected version's status, so
           first is the only position it can hold without the buttons below it moving as an
           author walks the version list. */}
       <Button
-        variant="secondary"
+        variant="ghost"
         size="sm"
         onPress={() => {
           setOpen("newVersion");

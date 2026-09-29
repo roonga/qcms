@@ -1,5 +1,7 @@
 import type { Locator, Page } from "@playwright/test";
 
+import { settleTransitions } from "@roonga/qcms-e2e-support/animations";
+
 import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
@@ -14,6 +16,7 @@ import {
   grip,
   insertOptionAbove,
   moveOptionByKey,
+  openPanel,
   openRowMenuByPointer,
   optionIds,
   pendingRow,
@@ -123,6 +126,11 @@ test("option ids survive a relabel and a reorder (exit criterion 2)", async ({ p
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("options"), "Single choice");
+  // THE OPTIONS PANEL, chosen from the rail (Code Owner, 2026-09-27). The detail screen shows
+  // the preview and one panel of the selected version, so a step that works on the option grid
+  // says so first, exactly as an author does. `createDraft` needs no such call: it works on
+  // `/questions/new`, which has no rail and shows every panel at once.
+  await openPanel(page, "options");
   await addOption(page, "Green");
 
   // The ids as minted, and they are minted from the labels the options were added with.
@@ -165,6 +173,7 @@ test("an abandoned ghost row consumes no option id (the minting ruling, 2026-08-
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("ghost"), "Single choice");
+  await openPanel(page, "options");
 
   const before = await optionIds(page);
   expect(before).toEqual(["opt_yes_always", "opt_no_never"]);
@@ -197,6 +206,7 @@ test("insert lands an option at the top, between two rows and at the bottom", as
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("insert"), "Single choice");
+  await openPanel(page, "options");
 
   // Pointer path: the insert point above a row. Above the first row is the top of the list.
   await insertOptionAbove(page, 0, "Top");
@@ -255,6 +265,7 @@ test("a real drag reorders to the position the drop indicator marks", async ({ p
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("drag"), "Single choice");
+  await openPanel(page, "options");
   await addOption(page, "Green");
   expect(await optionIds(page)).toEqual(["opt_yes_always", "opt_no_never", "opt_green"]);
 
@@ -286,6 +297,7 @@ test("the row menu reorders an option with a single pointer and no dragging", as
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("nodrag"), "Single choice");
+  await openPanel(page, "options");
   await addOption(page, "Maybe");
   const minted = await optionIds(page);
   expect(minted).toEqual(["opt_yes_always", "opt_no_never", "opt_maybe"]);
@@ -376,6 +388,7 @@ test("the grid's hidden controls are reachable without a pointer", async ({ page
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("keys"), "Single choice");
+  await openPanel(page, "options");
 
   // The grip and the insert point are hidden at rest and revealed by hover OR focus.
   // Focus is the half a pointer-only implementation forgets, so it is the half asserted -
@@ -524,6 +537,7 @@ test("a cleared label renders the grid's error state, joined to its message line
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("blank"), "Single choice");
+  await openPanel(page, "options");
 
   // Clearing a committed row is now the ONLY route to a blank option: the pending path
   // abandons a row it cannot name, so an empty label can no longer be created. That makes
@@ -570,12 +584,19 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("compact"), "Single choice");
+  await openPanel(page, "options");
 
   const label = page.locator('[data-option-index="0"] .qcms-opt-cell--label');
   const id = page.locator('[data-option-index="0"] .qcms-opt-cell--id');
 
-  // Wide: three columns, so the ID sits to the RIGHT of the label on the same line.
+  // SETTLE AFTER EACH RESIZE BEFORE MEASURING. The fold is a CONTAINER query on the grid, so
+  // it re-resolves when the column's width changes, and `setViewportSize` resolves on the
+  // resize rather than on the frame that reflowed from it. This screen got taller than the
+  // viewport at 390 when the editor became one panel under a collapsed rail, which is what
+  // made the unsettled read start returning a box from the frame in between - the ID above
+  // the label rather than folded under it, on a grid that folds correctly once it has.
   await page.setViewportSize({ width: 1280, height: 800 });
+  await settleTransitions(page);
   const wideLabel = await label.boundingBox();
   const wideId = await id.boundingBox();
   expect(wideLabel).not.toBeNull();
@@ -588,6 +609,7 @@ test("the narrow layout folds the ID under the label, keyed off the editor's wid
   // is a CONTAINER query on the grid, not a viewport media query, so the same DOM reflows
   // and no option id is ever rendered twice.
   await page.setViewportSize({ width: 390, height: 844 });
+  await settleTransitions(page);
   const tightLabel = await label.boundingBox();
   const tightId = await id.boundingBox();
   expect(tightLabel).not.toBeNull();
@@ -618,6 +640,7 @@ test("a long label-derived option id renders whole at both gate widths", async (
   // be looked at.
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("longid"), "Single choice");
+  await openPanel(page, "options");
 
   // `mintOptionId` slugs the author's label, so this names its own expected id. It is the
   // contract's own example of a real derived id, and 23 characters against the column's
@@ -661,6 +684,7 @@ test("a long label-derived option id renders whole at both gate widths", async (
 test("the version preview renders the real control for the type", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("preview"), "Long text");
+  await openPanel(page, "preview");
 
   // The preview is compiled by the API and drawn by the shared renderer, so what appears
   // here is literally the control a respondent gets: a long-text question compiles to a
@@ -697,6 +721,7 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // Multiple choice, because the checkbox is the control the defect was found on and the
   // one whose frozen state is most obviously wrong to a human.
   await createDraft(page, slugFor("interactive"), "Multiple choice");
+  await openPanel(page, "preview");
 
   const preview = page.locator(".qcms-preview");
   const yes = preview.getByRole("checkbox", { name: "Yes, always", exact: true });
@@ -743,6 +768,12 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // POSITIVE CONTROL: the recorder above is armed. Saving the draft is the same screen's
   // one deliberate trip to the server, so if this list were also empty the assertion
   // above would be measuring a listener that never fires.
+  //
+  // Save lives with the editing panels rather than with the preview - a panel with nothing
+  // to save says nothing (contract §6) - so the panel switch comes first. It is deliberately
+  // AFTER the assertion above: switching a panel is a `replaceState` and no request, which
+  // this ordering also happens to prove.
+  await openPanel(page, "content");
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   expect(requests.length, "the request recorder sees traffic when traffic exists").toBeGreaterThan(
@@ -754,7 +785,8 @@ test("a preview control accepts input, and nothing leaves the browser", async ({
   // ticks must not reappear under v2's controls, whichever navigation kind Next chooses.
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
   await confirmLifecycle(page, /^New version$/, "Create draft");
-  await page.waitForURL(/\?v=2$/);
+  await page.waitForURL(/\?v=2/);
+  await openPanel(page, "preview");
   await expect(preview.getByRole("checkbox", { name: "Yes, always" })).not.toBeChecked();
 });
 
@@ -772,16 +804,23 @@ test("errors from the API are readable, and land on the field that caused them",
   //    MIN_LENGTH_ABOVE_MAX_LENGTH at ["constraints","minLength"], so it has to appear on
   //    the "Shortest answer" field rather than as a banner with no home.
   await createDraft(page, slugFor("invalid"), "Short text");
+  await openPanel(page, "constraints");
   await setNumericConstraint(page, "Shortest answer", "10");
   await setNumericConstraint(page, "Longest answer", "5");
-  // Anchor on the message field the commit produced before clicking Save (task 048): that
-  // insertion is what reflows the page, and an un-anchored click lands its mousedown and its
-  // mouseup on different elements, so no `click` event fires at all. The full reasoning is
-  // on `setNumericConstraint`.
-  await expect(field(page, "Message when the answer is too long")).toBeVisible();
+  // Anchor on the commit landing before clicking Save (task 048), for the reason
+  // `setNumericConstraint` gives at length: a `NumberField` reports its value on blur, so a
+  // test that fills and immediately clicks is racing the commit. The anchor used to be the
+  // message field the commit inserted BELOW the constraints; the message fields are their own
+  // panel now, so what the commit visibly produces on this screen is the rail growing a
+  // Validation messages row - which is the same anchor and also says the rail is reading the
+  // document the editor is holding rather than the one it last saved.
+  await expect(page.locator('[data-rail-panel="messages"]')).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(alert).toContainText("The engine rejected this draft");
+  // The refusal is at `["constraints","minLength"]`, so the panel it belongs to is the one
+  // already open, and the editor moves focus onto the field rather than merely marking it.
   await expect(field(page, "Shortest answer")).toHaveAttribute("aria-invalid", "true");
+  await expect(field(page, "Shortest answer")).toBeFocused();
 
   // 2. R6 in the one place an author meets it: a slug that resolves to an id already used.
   //    The two slugs differ, the ids do not.
@@ -910,10 +949,11 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await createDraft(page, slugFor("frozen-number"), "Number");
+  await openPanel(page, "constraints");
   await setNumericConstraint(page, "Smallest value", "1");
   await setNumericConstraint(page, "Largest value", "10");
   // Same anchor as the API-errors test above, for the same reason (`setNumericConstraint`).
-  await expect(field(page, "Message when the value is too large")).toBeVisible();
+  await expect(page.locator('[data-rail-panel="messages"]')).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
 
@@ -929,8 +969,10 @@ test("a frozen number version renders cleanly with its bounds saved", async ({ p
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
   // The hard navigation is the point: a client-side link would never server-render this
-  // screen, so only `goto` puts the frozen panel through hydration.
-  await page.goto(`/questions/${questionIdFor("frozen-number")}?v=1`);
+  // screen, so only `goto` puts the frozen panel through hydration. `&panel=` is the other
+  // half of it: a panel is addressable, so the frozen constraints are reached by asking for
+  // them rather than by pressing a rail row after arriving (`lib/questions/panels.ts`).
+  await page.goto(`/questions/${questionIdFor("frozen-number")}?v=1&panel=constraints`);
   await expect(field(page, "Smallest value")).toHaveValue("1");
   await expect(field(page, "Smallest value")).toBeDisabled();
 });
@@ -940,6 +982,7 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
   await signInWithTotp(page, EMAIL, totpSecret);
 
   await createDraft(page, slugFor("frozen-date"), "Date");
+  await openPanel(page, "constraints");
   await fillDate(page, "Earliest date", "01012030");
   await fillDate(page, "Latest date", "12312030");
   await page.getByRole("button", { name: "Save draft" }).click();
@@ -954,7 +997,7 @@ test("a frozen date version renders cleanly with its bounds saved", async ({ pag
 
   await confirmLifecycle(page, /^Publish version 1$/, "Publish");
 
-  await page.goto(`/questions/${questionIdFor("frozen-date")}?v=1`);
+  await page.goto(`/questions/${questionIdFor("frozen-date")}?v=1&panel=constraints`);
   await expect(page.getByRole("group", { name: "Earliest date" })).toContainText("2030");
 });
 
@@ -978,15 +1021,20 @@ test("a validation message inherits until it is written, then round-trips (048)"
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("messages"), "Short text");
+  await openPanel(page, "constraints");
 
-  // NO CONSTRAINT, NO FIELD. This is the whole reason the kernel's ORPHAN_MESSAGE_KEY is
-  // unreachable from this screen rather than merely caught by it.
+  // NO CONSTRAINT, NO FIELD - AND NO PANEL EITHER (Code Owner, 2026-09-27). This is the whole
+  // reason the kernel's ORPHAN_MESSAGE_KEY is unreachable from this screen rather than merely
+  // caught by it. It used to be a panel standing empty under a sentence saying why; a panel is
+  // absent now while it has nothing to hold, so the empty state is the absence of a rail row.
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
-  await expect(page.getByText("There is nothing to write a message for yet.")).toBeVisible();
+  await expect(page.locator('[data-rail-panel="messages"]')).toHaveCount(0);
 
   // Setting the constraint reveals its message field, and the field's PLACEHOLDER is the
-  // sentence a respondent would see, with this question's own bound interpolated.
+  // sentence a respondent would see, with this question's own bound interpolated. The panel
+  // and its rail row arrive together, because both read `authoredMessageKeys`.
   await setNumericConstraint(page, "Shortest answer", "8");
+  await openPanel(page, "messages");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
     "placeholder",
     "Answer must be at least 8 characters",
@@ -998,6 +1046,8 @@ test("a validation message inherits until it is written, then round-trips (048)"
   // what keeps a later improvement to the shipped wording reaching this question.
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
+  // The reload keeps the panel, because choosing one writes it into the address: this is the
+  // `?panel=` half of `lib/questions/panels.ts` proven end to end rather than asserted on a URL.
   await page.reload();
   await expect(field(page, TOO_SHORT)).toHaveValue("");
   await expect(field(page, TOO_SHORT)).toHaveAttribute(
@@ -1016,12 +1066,15 @@ test("a validation message inherits until it is written, then round-trips (048)"
   // And clearing the constraint takes the message with it: the field goes, the next save
   // drops the orphaned key, and bringing the constraint back brings back an EMPTY field
   // rather than a remembered sentence for a rule that stopped existing.
+  await openPanel(page, "constraints");
   await setNumericConstraint(page, "Shortest answer", "");
   await expect(field(page, TOO_SHORT)).toHaveCount(0);
+  await expect(page.locator('[data-rail-panel="messages"]')).toHaveCount(0);
   await page.getByRole("button", { name: "Save draft" }).click();
   await expect(page.getByText("Draft saved.")).toBeVisible();
   await page.reload();
   await setNumericConstraint(page, "Shortest answer", "8");
+  await openPanel(page, "messages");
   await expect(field(page, TOO_SHORT)).toHaveValue("");
 });
 
@@ -1029,6 +1082,7 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
   test.setTimeout(120_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await createDraft(page, slugFor("bool-labels"), "Yes or no");
+  await openPanel(page, "booleanLabels");
 
   const yes = field(page, "Label for the affirmative choice");
   const no = field(page, "Label for the negative choice");
@@ -1049,6 +1103,7 @@ test("each boolean label overrides independently of the other (048, ADR-36)", as
 
   // The preview is compiled by the API and drawn by the shared renderer, so it is where the
   // resolved pair shows: the override for one label, the lexicon for the other.
+  await openPanel(page, "preview");
   const preview = page.locator(".qcms-preview");
   await expect(preview.getByText("I was at fault", { exact: true })).toBeVisible();
   await expect(preview.getByText("No", { exact: true })).toBeVisible();
@@ -1061,7 +1116,12 @@ test("the type picker is locked once the question exists", async ({ page }) => {
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/questions/${questionIdFor("preview")}`);
   await expect(page.getByRole("button", { name: /Type$/ })).toHaveCount(0);
-  await expect(page.getByText("Type is locked to Long text.")).toBeVisible();
+  // STATED ONCE, IN THE RAIL (Code Owner, 2026-09-27). "Type is locked to Long text." used to
+  // sit at the top of the version card as well, which was two sentences for one immutable fact
+  // and put one of them inside the editor it constrains. The rail's details group says it
+  // beside the slug and the created day, which are the question's other permanent facts (R6).
+  await expect(page.getByTestId("qcms-question-rail")).toContainText("Long text (locked)");
+  await expect(page.getByRole("main")).not.toContainText("Type is locked to");
 
   // And the creation screen still offers it, so the assertion above is about this screen
   // rather than about a picker that stopped rendering everywhere.

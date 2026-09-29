@@ -1,5 +1,6 @@
 import { LifecycleActions } from "@/components/questions/lifecycle-actions";
 import { QuestionVersionsRail } from "@/components/questions/question-versions-rail";
+import { questionPanelState } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
 import { loadQuestionRail } from "@/lib/server/question-rail";
 import { requireAdminSession } from "@/lib/server/session";
@@ -35,6 +36,13 @@ import { lifecycleAction } from "../../../questions/actions";
  * disagreement would be a screen saying two things: a row marked current beside an editor
  * showing another version.
  *
+ * `?panel=` is read the same way and for the same reason since 2026-09-27 (Code Owner): the
+ * rail's panel rows mark one row current and the editor renders one panel, so both ask
+ * `panelFromParams` about the same address. The panels themselves come from `questionPanels`
+ * over the selected version's stored definition - the same function the editor derives its
+ * sections from, so a row can never name a panel the editor does not have. Neither tree keeps
+ * a list of its own; `lib/questions/panels.ts` says why at length.
+ *
  * `lifecycleAction` is imported from the page's own route rather than re-declared here for
  * the same reason: publish, deprecate and new-version are one server action with one
  * revalidation, and a second copy of it in this segment would be a second place for the
@@ -55,15 +63,21 @@ export default async function QuestionDetailRail({
   const rail = await loadQuestionRail(session, questionId);
   if (rail === null) return null;
 
-  const selected = selectVersion(rail.versions, (await searchParams)["v"]);
+  const query = await searchParams;
+  const selected = selectVersion(rail.versions, query["v"]);
   if (selected === undefined) return null;
   const latest = rail.versions[rail.versions.length - 1];
+  const { panels, panel } = questionPanelState(selected.definition, query);
 
   return (
     <QuestionVersionsRail
       questionId={rail.questionId}
+      slug={rail.slug}
+      createdAt={rail.createdAt}
       versions={rail.versions}
       selected={selected.version}
+      panels={panels}
+      panel={panel}
       actions={
         <LifecycleActions
           action={lifecycleAction}

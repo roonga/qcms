@@ -330,20 +330,31 @@ const PANELS: Readonly<Record<QuestionType, ((props: PanelProps) => React.JSX.El
   multiChoice: MultiChoicePanel,
 };
 
-/** The constraint panel for one question type, or the "nothing to set" note. */
+/**
+ * The constraint panel for one question type.
+ *
+ * NO "THIS TYPE HAS NOTHING TO SET" NOTE ANY MORE (Code Owner, 2026-09-27). It was the right
+ * answer while this was one section of a stacked column: the section stood there whatever the
+ * type, so it had to say why it was empty. The editor is panelled now, and a panel is ABSENT
+ * rather than empty when the type owns no constraint field - `lib/questions/panels.ts` decides
+ * that from `CONSTRAINT_FIELDS`, which is empty for exactly the two types `PANELS` maps to
+ * `null`. A rail row that opened a panel reading "there is nothing here" is a row that should
+ * not be in the rail.
+ *
+ * So `null` is unreachable through the panel list, and this returns nothing rather than an empty
+ * box. The branch stays because `PANELS` is typed over every question type, and deleting its two
+ * `null` entries would be claiming `boolean` and `singleChoice` have a panel they do not.
+ */
 export function ConstraintsEditor({
   type,
   ...props
 }: PanelProps & { readonly type: QuestionType }) {
   const Panel = PANELS[type];
+  if (Panel === null) return null;
   return (
     <fieldset className="qcms-fieldset">
       <legend className="qcms-fieldset__legend">{t("questions.editor.constraints")}</legend>
-      {Panel === null ? (
-        <p className="text-sm text-(--color-text-muted)">{t("questions.editor.noConstraints")}</p>
-      ) : (
-        <Panel {...props} />
-      )}
+      <Panel {...props} />
     </fieldset>
   );
 }

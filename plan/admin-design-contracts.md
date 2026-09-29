@@ -947,6 +947,91 @@ closes with it.
   alone: it is a same-page view switch, and on the other seven form screens the
   Builder row is already the link that reaches those panels.
 
+  **Amended 2026-09-27 (Code Owner): the QUESTION detail rail also carries
+  same-page panel switches, and a details group.** Its version rows are `?v=` on
+  the route the reader is already standing on, and nested under the selected one
+  are rows that choose which panel of that version's editor the column shows -
+  Content, Options, Constraints, Validation messages, Yes and no labels, each
+  present only when the document has fields for it. Which rows exist is derived
+  from the same functions the editor renders from
+  (`apps/admin/lib/questions/panels.ts`), so the rail cannot offer a row the
+  editor has nothing to open, and each row carries a short digest plus a
+  per-panel issue badge after a refused save - the builder's step-badge device on
+  a second screen.
+
+  **Preview is the last of those rows.** It was a card standing above the editor,
+  on screen whatever the author was doing, so it held the top of the column
+  permanently for a question that is only asked at the end. It is a panel like the
+  others now, opened on the same screen rather than at a route of its own, and it
+  is the one panel that shows the STORED version rather than the document being
+  typed - which the panel says out loud, and only while the two differ.
+
+  The same amendment moves the question's own details into that rail (slug,
+  created day, and the **type stated once** with its locked status) and the "Back
+  to questions" link to the top of it, above the disclosure so it survives the
+  collapse. What does NOT move into the rail is Save: it stays in the content
+  column, because the rail collapses to a shut disclosure below `--bp-sidebar` and
+  a save an author has to expand a navigation to reach is worse than one they have
+  to scroll to.
+
+  **Amended 2026-09-28 (Code Owner): Save sits in the screen's one heading row,
+  and §6's statement sits with it.** It was the last thing in the editor's column,
+  then a sticky bar at the column's foot, then the version card's own header. The
+  first two put the control where the selected PANEL left it - measured at 1440,
+  y=481 on Validation messages, 565 on Content, 848 on Options, and no control at
+  all on Preview - and 367px of travel between panels is a button a reader has to
+  find again each time. The third stopped it moving and said "Version 2" a third
+  time, under a rail row and a collapsed rail summary that had each said it
+  already.
+
+  So the screen has **one** heading row. It reads `{questionId} · Version {n}`,
+  carries the version's status tag once, and ends with Save; the version card
+  opens directly on its panel and carries no heading of its own. The row holds one
+  control's height whether or not a control is in it, so the heading does not move
+  as a reader walks from a draft to a frozen version, and Save's box is identical
+  on every panel at 1440 and at 390 (`apps/admin/e2e/questions-rail.pw.ts`).
+
+  **The rail's collapsed summary shows the question id and nothing else, from
+  2026-09-29 (Code Owner).** Issue 650 gave it a collapsed-only "/ Version 2"
+  beside the id, shown below `--bp-sidebar` while the disclosure was shut, on the
+  reasoning that in that state this line IS the whole rail and the selected
+  version was the one thing a reader could not otherwise get. The heading above
+  names the version now, one row up, so at 390 the two sat stacked saying the
+  same thing. The indicator is retired with its two CSS rules and their
+  `@variant sidebar` override, and the summary reads like the form rail's: the
+  thing the rail belongs to. The pair is a single decision rather than two, so it
+  is written here as one: the version is named ONCE per width, by the `<h1>`.
+
+  Two consequences worth recording, because both are the kind of thing a later
+  pass would undo. The button is **outside** the form it submits - the heading row
+  is not in the card - so it finds the form by id and calls `requestSubmit()`, and
+  reads the action's pending state across the same module seam the rail's rows use;
+  the vendored `Button` forwards no `form` attribute and ADR-22 keeps it that way.
+  And a sticky control was tried and withdrawn: pinning it to the viewport put it
+  under the option grid's own stacking band, under the corner `next dev` paints its
+  badge in, and - because the §6 note wrapped to four lines inside it at 390 - over
+  the control a reader had just tabbed to, which is WCAG 2.2 SC 2.4.11. A control in
+  normal flow needs none of the machinery those three cost.
+
+  **This rail is STYLED like the form builder's** (Code Owner, 2026-09-27). It
+  takes the same `qcms-rail*` and `qcms-rail-steps*` classes: the same row
+  geometry and typography, the same current-row mark, the same nesting of children
+  inside their parent's row, the same issue badge, and the same full-track control
+  block for its lifecycle buttons that the builder's Add step control wears. Six
+  classes of a look of its own went with that: a labelled header row and its
+  right-aligned digest, the lifecycle block's dashed rule, and two bespoke
+  two-line row treatments. Four remain, for the four things this rail has and the
+  builder does not - the mono question id in its summary, the digest line above
+  the version list, the details group, and the back link above the disclosure.
+  (There were five until 2026-09-29, when the collapsed-only version indicator was
+  retired; the amendment below records it.)
+
+  So three rails now answer "what does a rail carry" three ways: routes (§7),
+  same-page panels (§7a), and both at once here. They remain three components for
+  the reason §7a gives - a flag would be the seam along which the three contracts
+  get unified - and they now look like one family, which is what the styling
+  ruling settles.
+
 - The rail **may carry actions and same-page switches** (Code Owner, 2026-08-25).
   It never carries a route the audit rejected (Validation stays on the builder page,
   `plan/admin-ux-audit.md` §5.5).
@@ -954,7 +1039,8 @@ closes with it.
   Two rails already carry actions and both are the approved design: the question
   detail rail's lifecycle block (`question-editor-poc.html`), and the form
   builder's step rows, which `admin-shell-poc.html` draws with a rename, move and
-  remove menu on each and an add-step control under them.
+  remove menu on each and an add-step control under them. The question detail
+  rail's panel rows joined the same-page half on 2026-09-27, amended above.
 
   Same-page switches are what the builder's rail is for: its step rows select a
   step, and its Form details row selects the form's own panels, on the screen the

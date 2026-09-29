@@ -23,6 +23,66 @@ export function field(page: Page, name: string): Locator {
   return page.getByRole("textbox", { name, exact: true });
 }
 
+/** The panels of the question editor, as the rail addresses them. */
+export type QuestionPanelName =
+  "content" | "options" | "constraints" | "messages" | "booleanLabels" | "preview";
+
+/**
+ * Open one panel of the question editor from the rail (Code Owner, 2026-09-27).
+ *
+ * The detail screen shows **one** panel of the selected version, chosen from rows in the rail
+ * beside it (`lib/questions/panels.ts`). So a step that fills a constraint, an option or a
+ * message names the panel it is working in first, exactly as an author does - and so does one
+ * that reads the preview, which is the last row rather than a card above the editor (Code
+ * Owner, 2026-09-27).
+ *
+ * `/questions/new` needs none of this and must not call it: the creation screen has no rail and
+ * shows every panel at once, because creation is one pass through a short document.
+ *
+ * Two things this helper absorbs rather than leaving to each caller:
+ *
+ * - **The rail may be shut.** Below `--bp-sidebar` it collapses to its summary, and this suite
+ *   runs cases at 390px on purpose. The summary is pressed first when the disclosure is closed.
+ * - **The rows are React's.** A press before the attach goes nowhere and the panel never opens,
+ *   which is issue #815's shape on a new control.
+ */
+export async function openPanel(page: Page, panel: QuestionPanelName): Promise<void> {
+  await waitForHydration(page);
+  const row = page.locator(`[data-rail-panel="${panel}"]`);
+  await expect(row, `the rail should offer a ${panel} panel`).toHaveCount(1);
+  await openPanelRow(page, row);
+}
+
+/**
+ * Open a panel **if this screen has one**, and do nothing at all if it does not.
+ *
+ * This is what the option and constraint helpers below call, and it is why none of their call
+ * sites had to learn about panels. The same step runs on two screens with two shapes:
+ * `/questions/new` has no rail and every panel on screen at once, so there is no row to press
+ * and nothing to do; the detail screen has a rail and shows one panel, so the row has to be
+ * pressed before the fields exist to be typed into.
+ *
+ * Asking the DOM which of the two it is on, rather than taking a flag, is what keeps a helper
+ * like `addOption` one helper. The alternative was a boolean threaded through every caller, and
+ * the callers that forgot it failed as "the button is not there" five minutes later.
+ */
+async function ensurePanel(page: Page, panel: QuestionPanelName): Promise<void> {
+  const row = page.locator(`[data-rail-panel="${panel}"]`);
+  if ((await row.count()) === 0) return;
+  if ((await row.getAttribute("aria-current")) === "page") return;
+  await openPanelRow(page, row);
+}
+
+/** Press one panel row, expanding the rail first when it is collapsed. */
+async function openPanelRow(page: Page, row: Locator): Promise<void> {
+  const disclosure = page.locator("details.qcms-rail__disclosure");
+  if ((await disclosure.getAttribute("open")) === null) {
+    await page.locator("summary.qcms-rail__summary").click();
+  }
+  await row.click();
+  await expect(row).toHaveAttribute("aria-current", "page");
+}
+
 /** Pick a question type in the creation form's `Select`. */
 export async function chooseType(page: Page, label: string): Promise<void> {
   // The picker is a vendored `Select`: server-rendered as a bare button, opened only by
@@ -87,6 +147,7 @@ export async function addOption(page: Page, label: string): Promise<void> {
   // The ghost row is minted by React, so a press before the attach adds nothing and the
   // focus assertion below then times out on a row that was never opened (issue #815).
   await waitForHydration(page);
+  await ensurePanel(page, "options");
   await page.getByRole("button", { name: "Add option" }).click();
   await expect(pendingRow(page)).toBeFocused();
   await fillStable(pendingRow(page), label);
@@ -106,6 +167,7 @@ export async function insertOptionAbove(page: Page, index: number, label: string
   // Same swallowed press as `addOption`, and `force` makes it quieter rather than safer:
   // it skips the actionability checks, so nothing else here would notice (issue #815).
   await waitForHydration(page);
+  await ensurePanel(page, "options");
   await page
     .locator(`[data-option-index="${String(index)}"] .qcms-opt-insert`)
     .first()
@@ -119,6 +181,7 @@ export async function insertOptionAbove(page: Page, index: number, label: string
 export async function moveOptionByKey(page: Page, index: number, key: "ArrowUp" | "ArrowDown") {
   // The grip's arrow handling is React's, so an early press moves nothing (issue #815).
   await waitForHydration(page);
+  await ensurePanel(page, "options");
   await grip(page, index).focus();
   await grip(page, index).press(key);
 }
@@ -136,6 +199,7 @@ export async function openRowMenuByPointer(page: Page, index: number): Promise<L
   // The same one-press-then-poll shape `openMenu` was filed for, on the row menu: press
   // before the attach and the menu never opens and never will (issue #815).
   await waitForHydration(page);
+  await ensurePanel(page, "options");
   await page.locator(".qcms-opt-grid").scrollIntoViewIfNeeded();
   await grip(page, index).click();
   const menu = page.getByRole("menu");
@@ -148,6 +212,7 @@ export async function useRowMenu(page: Page, index: number, item: RegExp): Promi
   // As `openRowMenuByPointer`, by the keyboard route: Enter on a grip React has not
   // attached to is Enter on a plain element (issue #815).
   await waitForHydration(page);
+  await ensurePanel(page, "options");
   await grip(page, index).focus();
   await grip(page, index).press("Enter");
   await expect(page.getByRole("menu")).toBeVisible();
@@ -167,6 +232,10 @@ export async function fillDate(page: Page, label: string, digits: string): Promi
   // A `DatePicker`'s segments hold no value of their own; the digits are read by React's
   // key handling, so typing before the attach types into nothing (issue #815).
   await waitForHydration(page);
+  // A question's date bounds live in the Constraints panel. Every other `DatePicker` in the
+  // app - a secure link's expiry, say - is on a screen with no such row, so this does nothing
+  // there rather than needing to know which caller it has.
+  await ensurePanel(page, "constraints");
   const group = page.getByRole("group", { name: label });
   await group.getByRole("spinbutton").first().click();
   await page.keyboard.type(digits);
@@ -194,7 +263,12 @@ export async function confirmLifecycle(page: Page, open: RegExp, confirm: string
  * abandoned ghost row look like a minted option, which is the exact confusion the deferred
  * minting rule exists to prevent.
  */
-export function optionIds(page: Page): Promise<string[]> {
+export async function optionIds(page: Page): Promise<string[]> {
+  // A read that may have to OPEN something first, which is worth the surprise: on the detail
+  // screen the grid is one panel of several, and a caller that has just created a question
+  // lands on Content. Reading zero ids from a panel that is merely not on screen is the
+  // failure this prevents, and it read as "the ids were never minted".
+  await ensurePanel(page, "options");
   return page.locator("[data-option-index] .qcms-opt-cell--id").allTextContents();
 }
 
@@ -219,6 +293,7 @@ export async function setNumericConstraint(
   label: string,
   value: string,
 ): Promise<void> {
+  await ensurePanel(page, "constraints");
   await fillStable(field(page, label), value);
   await field(page, label).blur();
 }

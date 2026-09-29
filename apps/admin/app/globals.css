@@ -2145,6 +2145,102 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   overflow-wrap: anywhere;
 }
 
+/* ONE PANEL OF THE QUESTION EDITOR (Code Owner, 2026-09-27). The section wrapper
+   carries the id the rail row controls and is the focus destination a refused save
+   falls back to; it draws nothing of its own, because the panel's own fieldset is
+   the box. The outline is suppressed for the same reason `[tabindex="-1"]`
+   destinations elsewhere suppress theirs: focus lands here only when nothing inside
+   reported itself invalid, and a ring around a whole section says "this is the
+   control" when the point is "this is where to read". */
+.qcms-question-panel:focus {
+  outline: none;
+}
+
+/* THE SCREEN'S ONE HEADING ROW, AND THE SAVE BUTTON IN IT (Code Owner, 2026-09-28).
+
+   Save was the last thing in the editor's column, then a sticky bar at its foot,
+   then the version card's own header. The first two put the button where the PANEL
+   decided - measured at 1440, y=481 on Validation messages, 565 on Content, 848 on
+   Options, and no button at all on Preview - and 367px of travel between panels is a
+   control a reader has to find again each time. The third stopped it moving and said
+   "Version 2" a third time, under a rail row and a collapsed summary that had each
+   said it already.
+
+   So there is one heading row, it names the question and the version together, and
+   the action sits at its end. Everything the sticky bar needed went with it: a
+   `scroll-padding-block-end` so focus did not land underneath (WCAG 2.2 SC 2.4.11),
+   a stacking order above the option grid's band, a full-width treatment to clear the
+   corner `next dev` paints its badge in, and a hook measuring its height. A control
+   in normal flow needs none of them.
+
+   TWO COLUMNS AT `--bp-compact`, ONE BELOW IT. The button is placed explicitly in row
+   1 of the second column, so it ends the heading's own line; the save note is placed
+   on the line under it, in the first column, where it has the width to be read. That
+   placement is what lets the note stay BEFORE the button in DOM order - contract §6
+   wants a linear read to reach the statement on the way to the control - while the
+   control still sits where the eye expects it. Below the boundary there is no room
+   for two columns, so both wrap under the heading in DOM order rather than
+   overflowing, and the button fills the width.
+
+   THE ROW HOLDS ITS HEIGHT WITH NO BUTTON IN IT. A frozen version publishes no save
+   state, so it renders neither control nor note; without the minimum the heading
+   would rise as a reader walked from a draft to a published version. */
+.qcms-question-head {
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* THE MINIMUM IS ON THIS ROW, NOT ON THE GRID. On the container it only bit when
+   the container had nothing else in it: a frozen version has one row, which then
+   stretched to 40px and centred the heading inside it, while a draft's heading row
+   was its own content height under two more rows. The heading sat 5px lower on a
+   published version than on a draft at 390 - measured, not theorised. Held here, the
+   heading's row is one control tall whether or not a control is beside it. */
+.qcms-question-head__id {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  min-block-size: var(--admin-control-h);
+}
+/* The version, beside the id and in the app's ordinary heading weight rather than the
+   mono the identifier keeps. The separator is decorative: the two spans are already
+   two facts, and a screen reader reading "middle dot" between them adds nothing. */
+.qcms-question-head__sep {
+  margin-inline: 0.5rem;
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+.qcms-question-head__version {
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-question-head > button {
+  inline-size: 100%;
+  justify-content: center;
+}
+@variant compact {
+  .qcms-question-head {
+    grid-template-columns: 1fr auto;
+    column-gap: 1rem;
+  }
+  .qcms-question-head__id {
+    grid-column: 1;
+    grid-row: 1;
+  }
+  .qcms-question-head > [data-testid="qcms-manual-save-note"] {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .qcms-question-head > button {
+    grid-column: 2;
+    grid-row: 1;
+    inline-size: auto;
+  }
+}
+
 /* The version timeline's row rules used to live here. The timeline moved into
    the rail in issue 650, where the screen's POC draws it, so its geometry is
    the question rail's block near the end of this sheet and the classes it used
@@ -3037,12 +3133,23 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 /* NO PADDING OF ITS OWN. It used to carry `0.5rem 0.25rem`, which made the add control a
    52px box among 40px rows and put an 8px space above it and 4px below - a third spacing
    in a column that has one. The cluster's gap places it now, like every other row. */
-.qcms-rail-steps__add {
+/* A FULL-TRACK CONTROL BLOCK. `__add` is the builder's Add step; `__block` is the
+   same geometry named for reuse, which the question rail's lifecycle buttons take
+   (Code Owner, 2026-09-27), and `__block` stacks where `__add` holds one control. */
+.qcms-rail-steps__add,
+.qcms-rail-steps__block {
   display: flex;
   padding-block: 0;
 }
-.qcms-rail-steps__add > button {
+.qcms-rail-steps__block {
+  flex-direction: column;
+  gap: var(--admin-rail-row-gap);
+  margin-block-end: 0.5rem;
+}
+.qcms-rail-steps__add > button,
+.qcms-rail-steps__block > button {
   flex: 1 1 auto;
+  justify-content: center;
 }
 /* The same control on the seven screens with no builder, where it is an anchor because
    it navigates rather than acts. The kit's `Button` renders a `<button>` and takes no
@@ -3276,6 +3383,38 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   padding-inline-end: calc(0.5rem + 1.75rem + 0.125rem);
 }
 
+/* A RAIL ROW THAT CARRIES A SECOND LINE, and the muted line itself (Code Owner,
+   2026-09-27). The form rail's rows are one line each and need neither; the
+   question rail's do - a version row states when it was published and a panel row
+   digests what is in it - so the two live here, beside the row rule they modify,
+   rather than as a second look in a rail of their own.
+
+   `align-items` is overridden from the shared rule's `center`, which aligns one
+   line in a taller box and is the wrong instruction for two. */
+.qcms-rail__link--stacked {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.125rem;
+}
+/* The first line of a stacked row: the name, and whatever sits at its end. */
+.qcms-rail__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+/* The second line. Muted and light at every state, INCLUDING the current row: it
+   describes the row rather than saying which row is chosen, so taking the active
+   colour with the rest of the row would make it look like part of that statement. */
+.qcms-rail__sub {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+  overflow-wrap: anywhere;
+}
+.qcms-rail__link[aria-current="page"] .qcms-rail__sub {
+  color: var(--color-text-muted);
+}
+
 /* The step's ordinal. Muted and unshrinkable, so the title beside it is what
    takes the width. */
 .qcms-rail__position {
@@ -3377,113 +3516,141 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 
 /* The question id, in the mono face it is written in everywhere else, because it
    is a machine identifier an author pastes into a ticket. Truncation comes from
-   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse. */
+   `.qcms-rail__summary-text`, which is the one line the rail lets ellipse.
+
+   IT IS THE WHOLE SUMMARY NOW (Code Owner, 2026-09-29). A collapsed-only
+   "/ Version 2" sat beside it from issue 650, shown only below `--bp-sidebar`
+   while the disclosure was shut, because at that width and in that state this
+   line was the whole rail and the selected version was the one thing a reader
+   could not otherwise get. The screen's `<h1>` names the version since
+   2026-09-28, directly under this line, so the indicator became the same fact
+   twice in two stacked rows at 390. Its two rules and their `@variant sidebar`
+   override went with it, and the summary reads like the form rail's: the thing
+   the rail belongs to, and nothing else. */
 .qcms-question-rail__summary-id {
   font-family: var(--font-mono);
 }
 
-/* The collapsed-only "which version" indicator. Hidden by default and hidden
-   again above `--bp-sidebar`, where the rail is a permanent sidebar and the
-   marked row is on screen anyway; visible only below the boundary while the
-   disclosure is shut, when this line is the whole rail. The two `display: none`
-   rules are written at the same specificity as the rule between them so source
-   order settles it, which is why the second one restates the whole selector. */
-.qcms-question-rail__summary-version {
-  display: none;
-  flex-shrink: 0;
+/* THE WAY BACK, ABOVE THE DISCLOSURE (Code Owner, 2026-09-27). Outside the
+   `<details>` rather than in its body, so it survives the collapse: below
+   `--bp-sidebar` the body is shut and a link inside it would be reachable only by
+   expanding a navigation first.
+
+   Quiet rather than a button: it is the same text link it was at the top of the
+   content column, wearing the rail's own inline padding so it lines up with the
+   rows under it rather than with the column's edge. */
+.qcms-question-rail__back {
+  display: inline-flex;
   align-items: center;
-  gap: 0.375rem;
+  align-self: start;
+  gap: 0.25rem;
+  padding-inline: 0.5rem;
+  padding-block: 0.25rem;
+  margin-block-end: 0.5rem;
+  color: var(--color-primary);
   font-size: 0.8125rem;
   font-weight: 600;
-  white-space: nowrap;
-  color: var(--color-text-muted);
+  text-decoration: none;
 }
-.qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
-  display: inline-flex;
-}
-@variant sidebar {
-  .qcms-rail__disclosure:not([open]) > .qcms-rail__summary .qcms-question-rail__summary-version {
-    display: none;
-  }
-}
-.qcms-question-rail__summary-sep {
-  font-weight: 400;
+.qcms-question-rail__back:hover {
+  text-decoration: underline;
 }
 
-/* "Versions" and its digest, as a labelled row rather than a heading. The rail
-   renders before `<main>`, so a heading here would sit above the screen's `<h1>`
-   and be a `heading-order` violation on this screen in all three modes. */
-.qcms-question-rail__label {
-  display: flex;
+/* THE QUESTION'S OWN DETAILS (Code Owner, 2026-09-27), moved here from a meta
+   strip under the screen's `<h1>`: slug, created day, and the type with its locked
+   status. A description list, because three label-and-value pairs are one, and
+   because the rail carries no headings.
+
+   Two columns rather than a stack. The labels are three short words and the values
+   are short too, so stacking them would spend six lines of a 240px track on what
+   fits in three. `min-inline-size: 0` on the value lets a long slug wrap rather
+   than widen the grid, which is the same reason the shared row rule sets it. */
+.qcms-question-rail__details {
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: baseline;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding-inline: 0.5rem;
-  padding-block: 0.375rem 0.25rem;
-}
-.qcms-question-rail__title {
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-text-muted);
-}
-.qcms-question-rail__digest {
-  font-size: 0.75rem;
-  text-align: end;
-  color: var(--color-text-muted);
-}
-
-/* The pinned lifecycle block. The buttons fill the track from here rather than
-   from a prop, because the vendored `Button` takes a variant and a size and no
-   class name, and a wrapper added to give it one would be the first component of
-   a second design language outside `packages/ui` (ADR-22). */
-.qcms-question-rail__lifecycle {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
+  gap: 0.125rem 0.5rem;
   padding-inline: 0.5rem;
   padding-block-end: 0.5rem;
-  margin-block-end: 0.5rem;
-  border-block-end: 1px dashed var(--color-border);
+  margin: 0;
+  font-size: 0.75rem;
 }
-.qcms-question-rail__lifecycle > button {
-  inline-size: 100%;
-  justify-content: center;
+.qcms-question-rail__details > dt {
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }
-:root.hc .qcms-question-rail__lifecycle {
-  border-block-end-color: var(--color-border-strong);
+.qcms-question-rail__details > dd {
+  min-inline-size: 0;
+  margin: 0;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+/* The slug is an authored identifier, in the mono face every other identifier in
+   this app is written in - the same call the summary's question id makes. */
+.qcms-question-rail__details-slug {
+  font-family: var(--font-mono);
 }
 
-/* One version row: the shared rail link, stacked. `align-items` is overridden
-   from the shared rule's `baseline`, which aligns two things on a line and is the
-   wrong instruction for a column. */
-.qcms-question-rail__version {
-  flex-direction: column;
-  align-items: stretch;
-  gap: 0.125rem;
+/* The version digest, as one muted line above the list. It takes the rail's own
+   inline padding so it lines up with the rows under it; everything else about it
+   is `.qcms-rail__sub`, which the rows' second lines use too. */
+.qcms-question-rail__digest {
+  padding-inline: 0.5rem;
+  margin-block-end: 0.25rem;
 }
-.qcms-question-rail__version-row {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+
+/* THE EDITOR'S PANEL ROWS, nested under the selected version (Code Owner,
+   2026-09-27).
+
+   ONE BUTTON RESET AND A GAP, and nothing else: the rows themselves are
+   `.qcms-rail__link` and `.qcms-rail__link--stacked`, which is the form builder's
+   own row treatment, on the 2026-09-27 ruling that this rail is styled like that
+   one. Six classes of a look of its own went with that ruling - the group header
+   and its digest, the lifecycle block's dashed rule, and the version and panel
+   rows' bespoke two-line rules - and what is left here is the part a `<button>`
+   needs that an `<a>` does not.
+
+   INDENTED, WHICH THE FORM RAIL'S NESTED GROUP DELIBERATELY IS NOT, and the
+   difference is worth stating because the rule above says at length why that one
+   has neither an indent nor a tree line. Its reason is that a step row carries an
+   ordinal - "1.", "2.", "3." at the start of every row, where an indent would have
+   been - so a second device saying the same thing cost a 240px column the width of
+   a step title twice over.
+
+   Neither half of that holds here. A panel row has no ordinal, and its parent is
+   not the same KIND of row: a version row is an anchor that goes to another
+   address, a panel row is a button that switches this one. Without the indent the
+   selected version and the open panel wear the same mark at the same depth,
+   directly above one another, and the pair reads as two current things rather than
+   as "this version, showing this panel". The indent is on the group so each row's
+   own accent edge still lands on its own box.
+
+   Written at a higher specificity than the general nested-group reset above, which
+   zeroes exactly this, rather than by weakening that rule: it is right for the tree
+   it was written for.
+
+   NO `data-rail-group` ON THIS LIST, deliberately, and the attribute is the reason
+   the class exists: the rule above keyed off `[data-rail-group]` removes a current
+   row's accent edge, which is right in the form rail's stacked tree and wrong here.
+   This rail keeps its edge, exactly as the comment on that rule says it does. */
+.qcms-question-rail__panels.qcms-rail__group {
+  margin-block: var(--admin-rail-row-gap) 0.375rem;
+  margin-inline-start: 0.75rem;
 }
-/* The status tag keeps its own size here and is not pushed to the trailing edge:
-   the shared rule does that to an issue badge, which is a count at the end of a
-   title, and this one is part of the phrase "Version 3, published". */
-.qcms-question-rail__version .qcms-tag {
-  margin-inline-start: 0;
-}
-.qcms-question-rail__version-date {
-  font-size: 0.75rem;
-  font-weight: 400;
-  color: var(--color-text-muted);
-}
-/* The current row's date stays muted rather than taking the active colour with
-   the rest of the row: it is the one part of the row that is not a statement
-   about which version is selected. */
-.qcms-question-rail__version[aria-current="page"] .qcms-question-rail__version-date {
-  color: var(--color-text-muted);
+
+/* The `<button>` half of a row that is otherwise `.qcms-rail__link`, which is what
+   `.qcms-rail-steps__form` does for the builder's Form row and for the same reason:
+   the app's reset gives every button the control height, and these four lines are
+   what stop it looking like a control sitting on a list rather than a row of one. */
+.qcms-question-rail__panel {
+  inline-size: 100%;
+  border-block: 0;
+  border-inline-end: 0;
+  background-color: transparent;
+  font-family: inherit;
+  text-align: start;
+  cursor: pointer;
+  appearance: none;
 }
 
 /* THE ADD-QUESTION PICKER'S MULTI-SELECT (issue 660).

@@ -1,14 +1,14 @@
-import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { Alert, Card } from "@/components/kit";
 import { QuestionEditor } from "@/components/questions/question-editor";
 import { QuestionPreview } from "@/components/questions/question-preview";
+import { QuestionSave } from "@/components/questions/question-save";
 import { StatusTag } from "@/components/questions/status-tag";
 import { t } from "@/lib/i18n/en";
-import { formatDay } from "@/lib/i18n/format";
 import { pageMetadata } from "@/lib/page-title";
+import { questionPanelState } from "@/lib/questions/panels";
 import { selectVersion } from "@/lib/questions/version-rail";
 import { previewPortalTheme } from "@/lib/server/config";
 import { getPreview, getQuestion } from "@/lib/server/questions";
@@ -57,6 +57,22 @@ export async function generateMetadata({
  * `selectVersion` and the ISO day formatter live in `lib/questions/version-rail.ts` rather
  * than here, because the rail beside this column has to answer the same question about the
  * same address. Two copies of that rule would be two answers the first time either changed.
+ *
+ * ## And so is which PANEL of the editor is open (Code Owner, 2026-09-27)
+ *
+ * The column is a preview and **one panel** of the selected version's editor, not the whole
+ * form stacked: `lib/questions/panels.ts` says why, and the rail's rows under the selected
+ * version are what switch between them. `panelFromParams` is the `selectVersion` of that
+ * question, asked here and in the slot beside it about the same `?panel=`.
+ *
+ * ## What left this column, and why it is not repeated here
+ *
+ * The back link and the meta strip (slug, created, type) both moved into the rail on
+ * 2026-09-27. They were the two things in this column that were not the question's content: a
+ * link to another route above the `<h1>`, and a paragraph of facts about the question sitting
+ * above one panel of one version of it. The rail is where this screen's navigation and this
+ * question's identity live, and stating either in both places would be two surfaces to keep
+ * equal - the same rule that kept the version list out of this column in issue 650.
  */
 
 export default async function QuestionDetailPage({
@@ -81,6 +97,9 @@ export default async function QuestionDetailPage({
   const isFrozen = selected.status !== "draft";
 
   const preview = await getPreview(session, questionId, selected.version);
+  // Resolved through the one function the rail's slot also calls, so the address and the
+  // rendered panel cannot be read off two different lists (`lib/questions/panels.ts`).
+  const { panel } = questionPanelState(selected.definition, query);
 
   return (
     // THE 720px EDITOR COLUMN (issue 668). `question-editor-poc.html` puts a single
@@ -94,69 +113,57 @@ export default async function QuestionDetailPage({
     // that was missing. It is here rather than in the measure table because it is one
     // element on one screen; see that table's doc for why the two layers live apart.
     <div className="qcms-editor-column flex flex-col gap-6">
-      <div className="flex flex-col gap-2">
-        <Link href="/questions" className="qcms-text-link">
-          {t("questions.backToList")}
-        </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="qcms-question-id">{detail.data.questionId}</h1>
+      {/* THE SCREEN'S ONE HEADING ROW (Code Owner, 2026-09-28). It names the question AND the
+          version, carries the version's status once, and ends with Save.
+
+          The version used to be said three times over: this row, the rail's marked row, the
+          collapsed rail summary at 390, and again as an `<h2>Version 2</h2>` at the top of the
+          card. The card opens on its panel now and this row is the only place the number is
+          composed with the question's name.
+
+          `QuestionSave` is a client component and this page is not, which is the whole reason
+          the button is not rendered here directly: it needs the editor's pending state, and the
+          editor is in the card below. It reads that across the same module seam the rail's rows
+          use, and submits the form by id (`lib/questions/editor-bridge.ts`). On a frozen version
+          it renders nothing, and `app/globals.css` holds this row's height so the heading does
+          not move as a reader walks the version list. */}
+      <div className="qcms-question-head">
+        <div className="qcms-question-head__id">
+          <h1>
+            <span className="qcms-question-id">{detail.data.questionId}</span>{" "}
+            {/* Decorative: the two spans are already two facts, and "middle dot" read aloud
+                between them adds nothing. The spaces around it are NOT decorative - they are
+                real text nodes, so the heading's accessible name is "q_body_type Version 2"
+                rather than the two run together, which is what an aria-hidden separator with
+                no whitespace beside it produces. */}
+            <span className="qcms-question-head__sep" aria-hidden="true">
+              {"·"}
+            </span>{" "}
+            <span className="qcms-question-head__version">
+              {t("questions.detail.version", { version: selected.version })}
+            </span>
+          </h1>
           <StatusTag status={selected.status} />
         </div>
-        {/* STILL UTC, and named rather than left to be discovered (issue #582). The Code
-            Owner's 2026-09-11 ruling moved day columns onto the operator's own zone, and it
-            was about TABLES: this line is a detail route's meta strip, and a server
-            component with no hydration swap to hang the operator zone on. The consequence
-            is visible and accepted for now: the library table can name 3 Aug where this
-            line names 2 Aug for an operator east of UTC, because they are the same instant
-            read on two clocks. Extending the ruling here is a decision, not a detail. */}
-        <p className="text-sm text-(--color-text-muted)">
-          {t("questions.detail.slug")}: {detail.data.slug} · {t("questions.detail.created")}:{" "}
-          {formatDay(detail.data.createdAt)} · {t("questions.detail.type")}:{" "}
-          {t(`questions.type.${selected.definition.type}`)}
-        </p>
+        <QuestionSave mode="edit" />
       </div>
 
-      {/* The version list and the lifecycle actions used to sit here, in two cards of this
-          column. They are the rail's now (issue 650), which is where the screen's POC draws
-          them: `app/(shell)/@rail/questions/[questionId]/page.tsx`. They are not repeated
-          here, because a navigation rendered twice on one screen is two lists that can
-          disagree and two sets of links to walk. */}
-
-      <div className="qcms-card">
-        <Card padding="md" radius="md" border>
-          <div className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold text-(--color-text)">
-              {t("questions.preview.title")}
-            </h2>
-            {preview.ok ? (
-              <QuestionPreview
-                preview={preview.data}
-                resetKey={selected.version}
-                defaultTheme={previewPortalTheme()}
-              />
-            ) : (
-              <Alert variant="warning">
-                {t("questions.preview.unavailable", { message: preview.message })}
-              </Alert>
-            )}
-          </div>
-        </Card>
-      </div>
+      {/* The version list, the lifecycle actions, the back link and the question's own details
+          all used to sit in this column. They are the rail's now - the first two since issue
+          650, which is where the screen's POC draws them, and the last two since 2026-09-27
+          (Code Owner). None of them is repeated here, because a navigation or a fact rendered
+          twice on one screen is two surfaces that can disagree:
+          `app/(shell)/@rail/questions/[questionId]/page.tsx`. */}
 
       <div className="qcms-card">
         <Card padding="md" radius="md" border>
           <div className="flex flex-col gap-4">
-            <h2 className="text-base font-semibold text-(--color-text)">
-              {t("questions.editor.heading", { version: selected.version })}
-            </h2>
-            {selected.status === "deprecated" && (
-              <p className="text-sm text-(--color-warning-fg)">
-                {t("questions.detail.deprecatedNote")}
-              </p>
-            )}
-            {isFrozen && (
-              <p className="text-sm text-(--color-text-muted)">{t("questions.editor.frozen")}</p>
-            )}
+            {/* THE HEADING AND THE VERSION'S NOTES ARE THE EDITOR'S (Code Owner, 2026-09-28).
+                They sat here, above it. Save is in the card's header row now - the one part of
+                this card that is in the same place on every panel - and a button rendered by
+                this server component beside a heading could not read the action's pending
+                state without a second seam. So the editor owns that whole row, and this page
+                keeps the card around it. */}
             {/* Keyed by the selected version: switching versions is a client-side
                 navigation of the same route, so without this React would keep the
                 mounted editor and its state, and `?v=2` would still be showing v1's
@@ -169,6 +176,26 @@ export default async function QuestionDetailPage({
               initialDefinition={selected.definition}
               version={selected.version}
               isFrozen={isFrozen}
+              isDeprecated={selected.status === "deprecated"}
+              addressedPanel={panel}
+              // THE PREVIEW AS A SLOT (Code Owner, 2026-09-27). It was a card of its own above
+              // the editor, on screen whatever the author was doing; it is the last panel row
+              // in the rail now, and the column shows one panel at a time. Compiling it is a
+              // server read, so what crosses into the client editor is the finished subtree -
+              // the same seam the rail takes its lifecycle actions through.
+              preview={
+                preview.ok ? (
+                  <QuestionPreview
+                    preview={preview.data}
+                    resetKey={selected.version}
+                    defaultTheme={previewPortalTheme()}
+                  />
+                ) : (
+                  <Alert variant="warning">
+                    {t("questions.preview.unavailable", { message: preview.message })}
+                  </Alert>
+                )
+              }
             />
           </div>
         </Card>

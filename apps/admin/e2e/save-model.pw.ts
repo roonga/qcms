@@ -247,7 +247,15 @@ test("the question editor states its manual model, visibly, with no ambient stri
   await expect(note).toHaveCount(1);
   await expect(note).toBeVisible();
   await expect(note).toContainText("This editor does not save automatically.");
-  await expect(note).toContainText("Create draft");
+  // THE CONTROL IS BESIDE THE SENTENCE RATHER THAN NAMED IN IT (Code Owner, 2026-09-28). Both
+  // moved into the screen's heading row, so the clause that used to name the button was the
+  // button repeating itself two inches away; what the sentence keeps is the part an author
+  // cannot read off the controls - that leaving loses the work.
+  await expect(note).toContainText("discards what you have written");
+  await expect(
+    page.getByRole("main").getByRole("button", { name: "Create draft" }),
+    "and the control it is about is beside it",
+  ).toBeVisible();
   // A visible statement, not a tooltip: it is real text in the document, not a title.
   await expect(note).not.toHaveAttribute("title", /./u);
 
@@ -264,7 +272,11 @@ test("the question editor states its manual model, visibly, with no ambient stri
   await expect(page.getByTestId("qcms-manual-save-note")).toContainText(
     "This editor does not save automatically.",
   );
-  await expect(page.getByTestId("qcms-manual-save-note")).toContainText("Save draft");
+  await expect(page.getByTestId("qcms-manual-save-note")).toContainText("discards unsaved changes");
+  await expect(
+    page.getByRole("main").getByRole("button", { name: "Save draft" }),
+    "and the control it is about is beside it",
+  ).toBeVisible();
   await expect(page.getByTestId("qcms-save-status")).toHaveCount(0);
 
   // And a frozen version says nothing at all: it has no Save button, so contract §6's

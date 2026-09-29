@@ -1,20 +1,24 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import { Alert, Button, Checkbox, Select, TextField } from "@/components/kit";
-import { ManualSaveNote } from "@/components/save-model";
+import { Alert, Checkbox, Select, TextField } from "@/components/kit";
 import { t } from "@/lib/i18n/en";
 import {
-  CONSTRAINT_FIELDS,
-  authoredMessageKeys,
   blankDefinition,
   forWire,
-  hasOptions,
   localizedDraft,
   questionIdFromSlug,
   textOf,
 } from "@/lib/questions/definition";
+import {
+  QUESTION_FORM_ID,
+  chooseQuestionPanel,
+  resetQuestionPanel,
+  useQuestionPanel,
+  usePublishQuestionPanels,
+  usePublishQuestionSave,
+} from "@/lib/questions/editor-bridge";
 import { IDLE_MUTATION, type MutationState } from "@/lib/questions/editor-state";
 import {
   fieldErrorProps,
@@ -23,9 +27,20 @@ import {
   unplacedIssues,
 } from "@/lib/questions/errors";
 import {
+  DEFAULT_QUESTION_PANEL,
+  firstPanelWithIssue,
+  panelAnchorId,
+  panelIssueCounts,
+  questionPanels,
+  renderedQuestionFields,
+  type QuestionPanel,
+  type QuestionPanelId,
+} from "@/lib/questions/panels";
+import {
   QUESTION_TYPES,
   type ChoiceOptionView,
   type ConstraintsView,
+  type DefinitionIssue,
   type QuestionDefinitionView,
   type QuestionType,
   type ValidationMessagesView,
@@ -53,11 +68,37 @@ import { OptionGridEditor } from "./option-grid-editor";
  * server side to `JSON.parse` and forward, and keeps the kernel the only thing that has
  * ever decided what a question is.
  *
- * The trade is that editing needs JavaScript. That is a deliberate, narrow concession:
- * 031's credential screens still work with JavaScript off (a respondent or an operator
- * must always be able to sign in), but an authoring tool with a live option list and a
- * per-type constraint panel is not a form that degrades meaningfully, and the operator
- * audience is internal (ARCHITECTURE §6).
+ * **This costs nothing in reach: the admin requires JavaScript** (Code Owner, 2026-09-27).
+ * The sentence here used to offer 031's credential screens as the counterweight - "those
+ * still work with JavaScript off" - which read as though a no-script floor were a property
+ * this app trades against screen by screen. It is not one, and it never was the reason those
+ * screens are plain-form POSTs: they are named route handlers so that **credentials never
+ * pass through client JavaScript at all** (ADR-35, SEC-1). That is a security boundary rather
+ * than a degradation budget, and it is unaffected by what this editor needs.
+ *
+ * ## ONE PANEL AT A TIME, CHOSEN FROM THE RAIL (Code Owner, 2026-09-27)
+ *
+ * The sections used to be stacked in one column: label, help text, required, the option
+ * grid, the constraints, the messages, the boolean labels, and the Save button under all of
+ * them. On a nine-option single choice that is a screen and a half of scrolling before an
+ * author reaches a constraint, and the save is somewhere past the end of it.
+ *
+ * `lib/questions/panels.ts` decides which panels this document has and what is in each, and
+ * the rail beside this column renders one row per panel under the selected version
+ * (`components/questions/question-panel-rows.tsx`). This component renders exactly the one the
+ * address names. Three things follow, and each is deliberate:
+ *
+ * - **The address decides the first paint, not this component.** `?panel=` arrives as
+ *   `addressedPanel`, resolved on the server by the same `panelFromParams` the rail's slot
+ *   reads, so the marked row and the rendered panel agree before a line of JavaScript runs,
+ *   and a reload lands where the author was. `lib/questions/editor-bridge.ts` holds only what
+ *   the reader has since CHOSEN.
+ * - **The panels themselves are republished as the document changes**, so the rail's digests
+ *   and its rows follow what is typed rather than the last save: setting a constraint makes
+ *   the Validation messages row appear, and adding an option changes "8 options" to "9".
+ * - **`/questions/new` shows every panel at once**, because it has no rail and therefore
+ *   nothing to switch them with. That screen is the one place the old stacked column survives,
+ *   and it is the right place for it: creation is a single pass through a short document.
  *
  * ## Where errors land
  *
@@ -66,7 +107,23 @@ import { OptionGridEditor } from "./option-grid-editor";
  * field is shown on that field; anything left over is listed in the alert at the top
  * rather than dropped, which is what makes "every error is surfaced somewhere readable"
  * hold for codes this screen has never seen.
+ *
+ * **With one panel on screen, "shown on that field" needs a second half**, or a refusal about
+ * a constraint would mark a field in a panel the author is not looking at. So a refused save
+ * opens the first panel carrying an issue and moves focus into it - see `focusPanel` below.
+ * That path is this component's own and needs no rail: below `--bp-sidebar` the rail is a shut
+ * `<details>`, and the panel still switches and the focus still lands.
  */
+
+/**
+ * One stable empty list, so "no issues" is one value rather than a new array each render.
+ *
+ * `state.issues ?? []` was the obvious spelling and it is the reason the memos below would
+ * never have held: a fresh array every render invalidates every dependency chained off it, so
+ * the rail would be republished on every keystroke in the label field.
+ */
+const NO_ISSUES: readonly DefinitionIssue[] = [];
+
 export function QuestionEditor({
   mode,
   action,
@@ -74,6 +131,9 @@ export function QuestionEditor({
   initialDefinition,
   version,
   isFrozen = false,
+  isDeprecated = false,
+  addressedPanel,
+  preview,
 }: {
   readonly mode: "create" | "edit";
   readonly action: (state: MutationState, formData: FormData) => Promise<MutationState>;
@@ -81,6 +141,24 @@ export function QuestionEditor({
   readonly initialDefinition: QuestionDefinitionView;
   readonly version: number;
   readonly isFrozen?: boolean;
+  /** A deprecated version says so above its fields; see the header block below. */
+  readonly isDeprecated?: boolean;
+  /**
+   * The panel `?panel=` names, resolved on the server, or absent on a screen with no rail.
+   *
+   * Absent means "show every panel": `/questions/new` passes nothing, because it has no rail
+   * to switch them from and creation is one pass through a short document.
+   */
+  readonly addressedPanel?: QuestionPanelId;
+  /**
+   * The saved version's preview, rendered by the server, or absent where there is none.
+   *
+   * A slot rather than an import, the same seam the rail takes its lifecycle actions through:
+   * compiling a preview is a server read (`getPreview`) and this is a client component, so
+   * what crosses is the finished subtree. `/questions/new` passes nothing, which is also what
+   * keeps a Preview row off the one screen with no saved version to show.
+   */
+  readonly preview?: ReactNode;
 }) {
   const [state, formAction, isPending] = useActionState(action, IDLE_MUTATION);
   // Seeded from the rejected submission when there is one, so a refusal that arrived via
@@ -90,6 +168,24 @@ export function QuestionEditor({
   const [definition, setDefinition] = useState<QuestionDefinitionView>(
     state.submitted?.definition ?? initialDefinition,
   );
+  // WHAT THE SERVER LAST STORED, for the one panel that shows it rather than the document
+  // being typed. Seeded from the version this editor mounted on and moved forward by a save
+  // that landed, so "the preview is behind" is a fact about this session rather than a guess.
+  const [saved, setSaved] = useState(state.submitted?.definition ?? initialDefinition);
+  /**
+   * THE DOCUMENT THAT WAS ACTUALLY POSTED, captured as the submit event fires.
+   *
+   * `setSaved(definition)` on the render the result lands on was wrong, and wrong in the one
+   * case this exists for: a save takes a round trip, an author can type during it, and
+   * `definition` by then is the NEWER document rather than the one the server stored. Recording
+   * that made `hasUnsavedEdits` false, which hid the preview's "this is the last saved version"
+   * notice over a preview that was genuinely behind - the exact state the notice is for.
+   *
+   * A ref rather than state because nothing renders from it, and captured on `submit` rather
+   * than read out of the result because that is the moment the payload is fixed: the hidden
+   * `definition` field is serialized from whatever this render held, and so is this.
+   */
+  const submitted = useRef<QuestionDefinitionView | undefined>(undefined);
   // And the same restoration when the form was hydrated, where the component is not
   // remounted and the initialiser above never runs again. Adjusting state during render
   // (rather than in an effect) is React's documented answer for "derive from a prop that
@@ -102,11 +198,15 @@ export function QuestionEditor({
       setSlug(state.submitted.slug);
       setDefinition(state.submitted.definition);
     }
+    // `?? definition` for the pre-hydration full POST, where no client submit event ever fired:
+    // that path re-renders the whole screen from the server anyway, so the two agree there.
+    if (state.status === "saved") setSaved(submitted.current ?? definition);
   }
 
   const isCreate = mode === "create";
   const questionId = isCreate ? questionIdFromSlug(slug) : definition.questionId;
-  const issues = issuesByField(state.issues ?? []);
+  const issueList = state.issues ?? NO_ISSUES;
+  const issues = issuesByField(issueList);
 
   /** Changing the type in creation starts a fresh document: constraints do not carry. */
   function changeType(next: QuestionType): void {
@@ -117,216 +217,471 @@ export function QuestionEditor({
     setDefinition((current) => ({ ...current, ...fields }));
   }
 
-  const rendered = renderedFields(definition);
-  const leftover = unplacedIssues(state.issues ?? [], rendered);
+  // Memoized on the state objects rather than recomputed, so the rail is woken when the
+  // document or the verdict changes and not when React re-renders this form for any other
+  // reason. `definition` and `issueList` are both stable between edits.
+  const panels = useMemo(
+    () => questionPanels(definition, { withPreview: preview !== undefined }),
+    [definition, preview],
+  );
+  const counts = useMemo(() => panelIssueCounts(panels, issueList), [panels, issueList]);
+  const leftover = unplacedIssues(issueList, renderedQuestionFields(panels));
+
+  // WHICH PANEL IS OPEN. The address's answer unless the reader has chosen another, which is
+  // `lib/questions/editor-bridge.ts`'s whole job and the Settings rail's mechanism.
+  //
+  // The fallback to Content when the open panel is not in the list is the one guard this needs:
+  // a panel can VANISH under the reader - clearing the last constraint removes Validation
+  // messages, and changing a draft's type on the creation screen removes Options - and the
+  // builder's "no fallback to the first step" reasoning does not apply here, because Content
+  // always exists and is the only panel a question cannot be saved without. An empty column
+  // would be the alternative.
+  const chosen = useQuestionPanel(addressedPanel ?? DEFAULT_QUESTION_PANEL);
+  const open = panels.some((panel) => panel.id === chosen) ? chosen : DEFAULT_QUESTION_PANEL;
+  const shown = addressedPanel === undefined ? panels : panels.filter((panel) => panel.id === open);
+  // THE PREVIEW IS NOT A PANEL OF THE FORM. It is a compiled respondent view with live controls
+  // of its own - a theme picker, a mode picker and the question's own control - and every one of
+  // those inside this `<form>` would be posted with the document, or would block the native
+  // submit on a constraint the editor never set. So it renders as a SIBLING of the form rather
+  // than inside it, and the form stays mounted underneath it: that is what keeps the header's
+  // Save button working while the preview is the panel on screen (Code Owner, 2026-09-28).
+  const editing = shown.filter((panel) => panel.id !== "preview");
+  const showPreview = open === "preview" && preview !== undefined && addressedPanel !== undefined;
+
+  // Hand the rail this document's panels and the counts its badges are drawn from. Nothing
+  // else crosses: the selection lives in the module both trees read, and the document stays
+  // this component's.
+  usePublishQuestionPanels(
+    useMemo(
+      () => (addressedPanel === undefined ? undefined : { panels, issueCounts: counts }),
+      [addressedPanel, panels, counts],
+    ),
+  );
+
+  // Hand the heading row's Save button this action's pending state. `undefined` while the
+  // version is frozen: there is nothing to save, so contract §6 asks for no control at all
+  // rather than a disabled one, and the button renders nothing.
+  usePublishQuestionSave(
+    useMemo(() => (isFrozen ? undefined : { isPending }), [isFrozen, isPending]),
+  );
+
+  // Forget the reader's chosen panel as this editor goes away. Module state outlives a route,
+  // and the page keys this component by question and version, so a remount is exactly the
+  // moment the address becomes the authority again. `resetQuestionPanel` says what goes wrong
+  // without it.
+  useEffect(
+    () => () => {
+      resetQuestionPanel();
+    },
+    [],
+  );
+
+  // THE REFUSED SAVE, IN TWO PASSES. Sending focus needs the panel to be on screen, and
+  // choosing the panel is a render, so the panel is chosen here and focused in the effect
+  // below - which React runs after the render that put it there.
+  const [focusPanel, setFocusPanel] = useState<QuestionPanelId | undefined>(undefined);
+  const summary = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (state.status !== "error") return;
+    const first = firstPanelWithIssue(panels, counts);
+    if (first === undefined) {
+      // NOTHING A PANEL CAN SHOW, so the summary is where the author has to read it. This is
+      // the other half of exit criterion 1's "every error surfaced somewhere readable": an
+      // issue at a path no field renders is listed at the top of the form, and with the form
+      // now one panel deep that list is the only place it appears.
+      summary.current?.focus();
+      return;
+    }
+    setFocusPanel(first);
+    // Through the same call a rail row makes, so the address follows the author here too: a
+    // reload after a refusal lands back on the panel that has to be fixed rather than on
+    // Content. On `/questions/new` there is nothing to choose - every panel is already on
+    // screen - so the call is skipped and only the focus moves.
+    if (addressedPanel !== undefined) chooseQuestionPanel(first);
+    // Keyed on the verdict object, which `useActionState` replaces per result, so each refusal
+    // runs this once. It also runs on mount for a refusal that arrived through a full POST
+    // before hydration, which is the same behaviour for the same reason.
+  }, [state]);
+  useEffect(() => {
+    if (focusPanel === undefined) return;
+    setFocusPanel(undefined);
+    const section = document.getElementById(panelAnchorId(focusPanel));
+    if (section === null) return;
+    (firstInvalidControl(section) ?? section).focus();
+  }, [focusPanel]);
 
   return (
-    <form
-      action={formAction}
-      className="flex flex-col gap-5"
-      // React 19 resets a form automatically once its action resolves. That is right for an
-      // uncontrolled form (the inputs are the state, so clearing them is the point) and
-      // wrong for this one, which is fully controlled: `definition` above is the single
-      // source of truth and every visible control is driven from it, so a reset does not
-      // clear the document - it desynchronizes the controls from the document that owns
-      // them. react-aria honours the cancellation explicitly (`useFormReset` skips its work
-      // when the reset event is `defaultPrevented`), so this is the vendored stack's own
-      // opt-out rather than a workaround pushed past it.
-      //
-      // Left un-prevented, every constraint control silently reverted to its mount-time
-      // value the moment "Draft saved." appeared: the date panel visibly blanked, and the
-      // numeric panel dropped its bounds without even a warning, because the reset arrives
-      // as an `onChange` and this editor believes its own controls. The next save would
-      // then have persisted the emptied document over the one just stored.
-      //
-      // `onResetCapture`, not `onReset`, and that is the fix rather than a detail of it.
-      // react-aria subscribes with `addEventListener` on the form itself, so its handler
-      // runs in the target phase; React delegates both props to the root container, where
-      // capture runs before the target and bubble runs after it. Cancelling in the bubble
-      // phase sets `defaultPrevented` a beat too late for react-aria to read, which looks
-      // exactly like the fix not working.
-      onResetCapture={(event) => {
-        event.preventDefault();
-      }}
-    >
-      {/* The whole document, as one field. See the note above on why. */}
-      <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
-      <input type="hidden" name="questionId" value={questionId} />
-      <input type="hidden" name="version" value={String(version)} />
-      {/* In creation the slug is a real field; here it is carried so a rejected save can
+    <>
+      <form
+        id={QUESTION_FORM_ID}
+        action={formAction}
+        className="flex flex-col gap-5"
+        // Fires before the action runs, on a real submit event - including the one
+        // `requestSubmit()` dispatches from the heading row's button, which is how this screen
+        // saves. See `submitted` above for why the document is pinned here rather than read
+        // when the result arrives.
+        onSubmit={() => {
+          submitted.current = definition;
+        }}
+        // React 19 resets a form automatically once its action resolves. That is right for an
+        // uncontrolled form (the inputs are the state, so clearing them is the point) and
+        // wrong for this one, which is fully controlled: `definition` above is the single
+        // source of truth and every visible control is driven from it, so a reset does not
+        // clear the document - it desynchronizes the controls from the document that owns
+        // them. react-aria honours the cancellation explicitly (`useFormReset` skips its work
+        // when the reset event is `defaultPrevented`), so this is the vendored stack's own
+        // opt-out rather than a workaround pushed past it.
+        //
+        // Left un-prevented, every constraint control silently reverted to its mount-time
+        // value the moment "Draft saved." appeared: the date panel visibly blanked, and the
+        // numeric panel dropped its bounds without even a warning, because the reset arrives
+        // as an `onChange` and this editor believes its own controls. The next save would
+        // then have persisted the emptied document over the one just stored.
+        //
+        // `onResetCapture`, not `onReset`, and that is the fix rather than a detail of it.
+        // react-aria subscribes with `addEventListener` on the form itself, so its handler
+        // runs in the target phase; React delegates both props to the root container, where
+        // capture runs before the target and bubble runs after it. Cancelling in the bubble
+        // phase sets `defaultPrevented` a beat too late for react-aria to read, which looks
+        // exactly like the fix not working.
+        onResetCapture={(event) => {
+          event.preventDefault();
+        }}
+      >
+        {/* ONE HEADING ROW ON THIS SCREEN, AND IT IS THE PAGE'S (Code Owner, 2026-09-28).
+          
+          This card carried an `<h2>Version 2</h2>` of its own, which was the third place that
+          number appeared: the rail marks the version's row, the collapsed rail summary repeats it
+          at 390, and the card said it again directly underneath. The card opens on its panel now,
+          and the screen's `<h1>` carries the question and the version together, with the status
+          tag once and Save at the end of the row (`components/questions/question-save.tsx`).
+          
+          What stayed here are the two sentences that are about this VERSION rather than about the
+          screen: they belong above the fields they constrain, and they are the first thing in the
+          card for the same reason the heading is the first thing on the screen. */}
+        {isDeprecated && (
+          <p className="text-sm text-(--color-warning-fg)">
+            {t("questions.detail.deprecatedNote")}
+          </p>
+        )}
+        {isFrozen && (
+          <p className="text-sm text-(--color-text-muted)">{t("questions.editor.frozen")}</p>
+        )}
+
+        {/* The whole document, as one field. See the note above on why. The hidden fields are
+          outside the panels on purpose: a panel is what the author is looking at, and what
+          gets POSTed is the document rather than the panel. */}
+        <input type="hidden" name="definition" value={JSON.stringify(forWire(definition))} />
+        <input type="hidden" name="questionId" value={questionId} />
+        <input type="hidden" name="version" value={String(version)} />
+        {/* In creation the slug is a real field; here it is carried so a rejected save can
           echo the whole submission back intact. */}
-      {!isCreate && <input type="hidden" name="slug" value={slug} />}
+        {!isCreate && <input type="hidden" name="slug" value={slug} />}
 
-      {state.status === "error" && (
-        <Alert variant="error" {...optionalProp("title", state.message)}>
-          {leftover.length > 0 && (
-            <ul className="flex flex-col gap-1">
-              {leftover.map((issue) => (
-                <li key={`${issue.code}:${(issue.path ?? []).join(".")}`}>
-                  {issue.path === undefined || issue.path.length === 0
-                    ? issue.message
-                    : `${issue.path.join(" / ")}: ${issue.message}`}
-                </li>
-              ))}
-            </ul>
-          )}
-        </Alert>
-      )}
-      {state.status === "saved" && <Alert variant="success">{t("questions.editor.saved")}</Alert>}
-
-      {isCreate ? (
-        <div className="flex flex-col gap-4">
-          <TextField
-            name="slug"
-            label={t("questions.create.slug")}
-            description={t("questions.create.slugHint")}
-            value={slug}
-            isRequired
-            onChange={(next) => {
-              setSlug(next);
-              patch({ questionId: questionIdFromSlug(next) });
-            }}
-          />
-          <div className="qcms-id-callout">
-            <p className="text-xs uppercase tracking-wide text-(--color-text-muted)">
-              {t("questions.create.id")}
-            </p>
-            <p className="qcms-id-callout__value">
-              {questionId === "" ? t("questions.create.idPending") : questionId}
-            </p>
-            <p className="text-sm text-(--color-text-muted)">{t("questions.create.idNote")}</p>
+        {state.status === "error" && (
+          // A FOCUSABLE WRAPPER, because the summary is a focus destination now: when a refusal
+          // names nothing any panel renders, this is where the author is sent. `tabIndex={-1}`
+          // so it is reachable when something sends focus to it and never a stop on the way
+          // past - the device `stepAnchorId`'s span uses in the builder's rail.
+          <div ref={summary} tabIndex={-1} data-testid="qcms-question-errors">
+            <Alert variant="error" {...optionalProp("title", state.message)}>
+              {leftover.length > 0 && (
+                <ul className="flex flex-col gap-1">
+                  {leftover.map((issue) => (
+                    <li key={`${issue.code}:${(issue.path ?? []).join(".")}`}>
+                      {issue.path === undefined || issue.path.length === 0
+                        ? issue.message
+                        : `${issue.path.join(" / ")}: ${issue.message}`}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Alert>
           </div>
-          <Select
-            label={t("questions.create.type")}
-            description={t("questions.create.typeNote")}
-            value={definition.type}
-            items={QUESTION_TYPES.map((type) => ({
-              label: t(`questions.type.${type}`),
-              value: type,
-            }))}
-            onChange={(next) => {
-              changeType(next as QuestionType);
-            }}
-          />
-        </div>
-      ) : (
-        <p className="text-sm text-(--color-text-muted)">
-          {t("questions.editor.typeLocked", { type: t(`questions.type.${definition.type}`) })}
-        </p>
+        )}
+        {state.status === "saved" && <Alert variant="success">{t("questions.editor.saved")}</Alert>}
+
+        {editing.map((panel) => (
+          // ONE SECTION PER PANEL, CARRYING THE ID THE RAIL ROW CONTROLS. A plain `<section>`
+          // with no accessible name, deliberately: naming it would make it a `region` landmark,
+          // and five landmarks inside one card is five entries in a screen reader's landmark
+          // list for what is one form. The panel's own name is its fieldset's legend, inside.
+          //
+          // `tabIndex={-1}` because it is the fallback focus destination when a refusal names a
+          // panel but no control inside it reports itself invalid.
+          <section
+            key={panel.id}
+            id={panel.anchorId}
+            tabIndex={-1}
+            className="qcms-question-panel"
+            data-question-panel={panel.id}
+          >
+            <PanelBody
+              panel={panel}
+              definition={definition}
+              issues={issues}
+              isFrozen={isFrozen}
+              isCreate={isCreate}
+              slug={slug}
+              questionId={questionId}
+              onSlug={(next) => {
+                setSlug(next);
+                patch({ questionId: questionIdFromSlug(next) });
+              }}
+              onType={changeType}
+              onPatch={patch}
+            />
+          </section>
+        ))}
+      </form>
+      {showPreview && (
+        <section
+          id={panelAnchorId("preview")}
+          tabIndex={-1}
+          className="qcms-question-panel flex flex-col gap-4"
+          data-question-panel="preview"
+        >
+          {/* SAID ONLY WHEN IT IS TRUE (Code Owner, 2026-09-27). The preview is compiled by the
+              API from the STORED version, so an author who has typed a new label and not saved
+              is looking at the old one. Standing text would be noise on the common case (a
+              frozen version, or a draft opened and not touched); this appears exactly when the
+              document in the editor and the document behind the preview have diverged. */}
+          {hasUnsavedEdits(definition, saved) && (
+            <Alert variant="warning">{t("questions.preview.stale")}</Alert>
+          )}
+          {preview}
+        </section>
       )}
+    </>
+  );
+}
 
-      <TextField
-        label={t("questions.editor.label")}
-        value={textOf(definition.label)}
-        isRequired
-        isDisabled={isFrozen}
-        {...fieldErrorProps(issues, "label")}
-        onChange={(next) => {
-          patch({ label: localizedDraft(next) ?? {} });
-        }}
-      />
-      <TextField
-        label={t("questions.editor.help")}
-        description={t("questions.editor.helpHint")}
-        value={textOf(definition.help)}
-        isDisabled={isFrozen}
-        {...fieldErrorProps(issues, "help")}
-        onChange={(next) => {
-          patch({ help: localizedDraft(next) });
-        }}
-      />
-      <Checkbox
-        label={t("questions.editor.required")}
-        isSelected={definition.required === true}
-        isDisabled={isFrozen}
-        onChange={(selected) => {
-          patch({ required: selected });
-        }}
-      />
+/**
+ * Whether the editor is holding something the preview cannot be showing yet.
+ *
+ * Compared through {@link forWire}, which is what a save actually sends, so whitespace an
+ * author is part-way through typing and a constraint they set and cleared again both read as
+ * "no change" - the same normalisation the API would apply. Comparing the raw drafts would
+ * announce a stale preview for an edit that is not one.
+ */
+function hasUnsavedEdits(draft: QuestionDefinitionView, saved: QuestionDefinitionView): boolean {
+  return JSON.stringify(forWire(draft)) !== JSON.stringify(forWire(saved));
+}
 
-      {hasOptions(definition.type) && (
+/** What every panel body is handed. Assembled once, because five of them want overlapping cuts. */
+interface PanelBodyProps {
+  readonly panel: QuestionPanel;
+  readonly definition: QuestionDefinitionView;
+  readonly issues: ReadonlyMap<string, DefinitionIssue[]>;
+  readonly isFrozen: boolean;
+  readonly isCreate: boolean;
+  readonly slug: string;
+  readonly questionId: string;
+  readonly onSlug: (next: string) => void;
+  readonly onType: (next: QuestionType) => void;
+  readonly onPatch: (fields: Partial<QuestionDefinitionView>) => void;
+}
+
+/**
+ * The fields of one panel.
+ *
+ * A switch rather than a map of components, because the five bodies take five different cuts
+ * of the same props and a uniform signature would be a props object with five optional halves.
+ * The exhaustiveness is what matters and TypeScript checks it: adding a member to
+ * `QUESTION_PANELS` without a branch here is a type error rather than an empty panel.
+ */
+function PanelBody(props: PanelBodyProps) {
+  const { panel, definition, issues, isFrozen, onPatch } = props;
+  switch (panel.id) {
+    case "content":
+      return <ContentPanel {...props} />;
+    case "options":
+      return (
         <OptionGridEditor
           options={definition.options ?? []}
           issues={issues}
           isFrozen={isFrozen}
           onChange={(options: readonly ChoiceOptionView[]) => {
-            patch({ options });
+            onPatch({ options });
           }}
         />
-      )}
-
-      <ConstraintsEditor
-        type={definition.type}
-        constraints={definition.constraints ?? {}}
-        issues={issues}
-        isFrozen={isFrozen}
-        onChange={(constraints: ConstraintsView) => {
-          patch({ constraints });
-        }}
-      />
-
-      {/* Below the constraints, and that order is the argument: a message field only
-          exists for a constraint set above it, so an author reads the constraint and then
-          the sentence a respondent gets when they miss it. */}
-      <MessagesEditor
-        definition={definition}
-        issues={issues}
-        isFrozen={isFrozen}
-        onChange={(messages: ValidationMessagesView) => {
-          patch({ messages });
-        }}
-      />
-
-      {definition.type === "boolean" && (
+      );
+    case "constraints":
+      return (
+        <ConstraintsEditor
+          type={definition.type}
+          constraints={definition.constraints ?? {}}
+          issues={issues}
+          isFrozen={isFrozen}
+          onChange={(constraints: ConstraintsView) => {
+            onPatch({ constraints });
+          }}
+        />
+      );
+    case "messages":
+      return (
+        <MessagesEditor
+          definition={definition}
+          issues={issues}
+          isFrozen={isFrozen}
+          onChange={(messages: ValidationMessagesView) => {
+            onPatch({ messages });
+          }}
+        />
+      );
+    case "booleanLabels":
+      return (
         <BooleanLabelsEditor
           definition={definition}
           issues={issues}
           isFrozen={isFrozen}
-          onChange={patch}
+          onChange={onPatch}
         />
-      )}
+      );
+    // Never reached: the preview is not a set of fields, so it returns above this switch,
+    // outside the `<form>`. The branch exists because `QUESTION_PANELS` is exhaustive here and
+    // that exhaustiveness is what makes a sixth panel a type error rather than a blank column.
+    case "preview":
+      return null;
+  }
+}
 
-      {/* The manual save model, stated where the author will meet it (issue 518;
-          `plan/admin-design-contracts.md` §6). It sits before the button in DOM order so a
-          linear read reaches it on the way to the control, and it is deliberately not on
-          the frozen branch: a frozen version has no Save button, and contract §6 says a
-          screen with nothing to save says nothing. There is no companion "Saved 14:02"
-          strip here, by the same rule - the builder's ambient chrome is for the one screen
-          that autosaves, and putting it beside a Save button is the confusion
-          `plan/admin-ux-audit.md` §4.6 describes rather than the fix for it. */}
-      {!isFrozen && (
-        <div className="flex flex-col gap-2">
-          <ManualSaveNote
-            messageKey={isCreate ? "questions.create.manualModel" : "questions.editor.manualModel"}
-          />
-          <div>
-            <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
-              {isCreate ? t("questions.create.submit") : t("questions.editor.save")}
-            </Button>
-          </div>
-        </div>
-      )}
-    </form>
+/**
+ * What a respondent reads: the label, the help text, and whether an answer is required. Plus,
+ * in creation only, the two fields that can never be changed again.
+ *
+ * A fieldset with a legend like the other four panels, where these three used to be loose
+ * controls at the top of the form. The rail row names this panel and the legend names the
+ * section it opens, and they are the same string for the reason
+ * `apps/admin/app/(shell)/AGENTS.md` gives: a screen must not carry two names for one place.
+ *
+ * THE SLUG AND THE TYPE LIVE HERE, in creation, rather than in a panel of their own. They are
+ * the same question the label is - what is this question - and they exist for one screen only.
+ * A sixth panel that appeared on `/questions/new` and nowhere else would be a rail row that no
+ * rail ever shows.
+ */
+function ContentPanel({
+  panel,
+  definition,
+  issues,
+  isFrozen,
+  isCreate,
+  slug,
+  questionId,
+  onSlug,
+  onType,
+  onPatch,
+}: PanelBodyProps) {
+  return (
+    <fieldset className="qcms-fieldset">
+      <legend className="qcms-fieldset__legend">{panel.label}</legend>
+      <div className="flex flex-col gap-4">
+        {isCreate && (
+          <>
+            <TextField
+              name="slug"
+              label={t("questions.create.slug")}
+              description={t("questions.create.slugHint")}
+              value={slug}
+              isRequired
+              onChange={onSlug}
+            />
+            <div className="qcms-id-callout">
+              <p className="text-xs uppercase tracking-wide text-(--color-text-muted)">
+                {t("questions.create.id")}
+              </p>
+              <p className="qcms-id-callout__value">
+                {questionId === "" ? t("questions.create.idPending") : questionId}
+              </p>
+              <p className="text-sm text-(--color-text-muted)">{t("questions.create.idNote")}</p>
+            </div>
+            <Select
+              label={t("questions.create.type")}
+              description={t("questions.create.typeNote")}
+              value={definition.type}
+              items={QUESTION_TYPES.map((type) => ({
+                label: t(`questions.type.${type}`),
+                value: type,
+              }))}
+              onChange={(next) => {
+                onType(next as QuestionType);
+              }}
+            />
+          </>
+        )}
+        {/* THE TYPE IS NOT RESTATED IN EDIT MODE. "Type is locked to Long text." stood here
+            until 2026-09-27; the rail's details group says it once now, beside the slug and
+            the created date, which are the question's other permanent facts (R6). Two
+            sentences for one immutable fact was one too many, and the one inside the editor
+            was the one constraining the editor. */}
+        <TextField
+          label={t("questions.editor.label")}
+          value={textOf(definition.label)}
+          isRequired
+          isDisabled={isFrozen}
+          {...fieldErrorProps(issues, "label")}
+          onChange={(next) => {
+            onPatch({ label: localizedDraft(next) ?? {} });
+          }}
+        />
+        <TextField
+          label={t("questions.editor.help")}
+          description={t("questions.editor.helpHint")}
+          value={textOf(definition.help)}
+          isDisabled={isFrozen}
+          {...fieldErrorProps(issues, "help")}
+          onChange={(next) => {
+            onPatch({ help: localizedDraft(next) });
+          }}
+        />
+        <Checkbox
+          label={t("questions.editor.required")}
+          isSelected={definition.required === true}
+          isDisabled={isFrozen}
+          onChange={(selected) => {
+            onPatch({ required: selected });
+          }}
+        />
+      </div>
+    </fieldset>
   );
 }
 
 /**
- * The field paths this form actually renders, so anything else can be reported instead of
- * silently swallowed. Derived from the document rather than listed, because the option
- * rows come and go.
+ * What to focus inside a composite control that reports itself invalid, in the order a reader
+ * would want it: the field they type into, then a date segment, then anything else focusable.
+ *
+ * THE ORDER IS THE WHOLE POINT and a single selector list cannot express it, because
+ * `querySelector` answers in DOM order rather than in selector order. A vendored `NumberField`
+ * is a `group` whose first focusable descendant is its **decrement stepper**, so the obvious
+ * one-liner sent focus to a minus button beside the field that was at fault rather than into
+ * the field. That reads as the focus move not working.
  */
-function renderedFields(definition: QuestionDefinitionView): ReadonlySet<string> {
-  const fields = new Set<string>(["label", "help", "required", "questionId"]);
-  for (const key of CONSTRAINT_FIELDS[definition.type]) fields.add(`constraints.${key}`);
-  // The message fields come and go with the constraints they belong to, so they are derived
-  // from the same function the panel renders from rather than listed (task 048).
-  for (const key of authoredMessageKeys(definition)) fields.add(`messages.${key}`);
-  if (definition.type === "boolean") {
-    fields.add("yesLabel");
-    fields.add("noLabel");
+const INVALID_TARGETS = [
+  'input:not([type="hidden"]), textarea, select',
+  '[role="spinbutton"]',
+  'button, [tabindex="0"], [tabindex]',
+] as const;
+
+/**
+ * The control a refused save should land on inside a panel, or `null` when none says it is
+ * invalid.
+ *
+ * `aria-invalid="true"` is what react-aria puts on a control it has been told is in error
+ * (`fieldErrorProps` is the one thing that sets it), so it is the honest way to ask the
+ * rendered DOM which field the kernel objected to - rather than mapping a kernel path back
+ * onto a selector here, which would be a third copy of the panel-to-fields relationship.
+ *
+ * The second hop is for the composite controls, which carry the flag on a wrapper that cannot
+ * take focus: a `NumberField` on its `group`, a `DatePicker` on the group holding its segments.
+ */
+function firstInvalidControl(root: HTMLElement): HTMLElement | null {
+  const flagged = root.querySelector<HTMLElement>('[aria-invalid="true"]');
+  if (flagged === null) return null;
+  if (flagged.matches('input:not([type="hidden"]), textarea, select')) return flagged;
+  for (const selector of INVALID_TARGETS) {
+    const found = flagged.querySelector<HTMLElement>(selector);
+    if (found !== null) return found;
   }
-  (definition.options ?? []).forEach((_option, index) => {
-    fields.add(`options.${index}.label`);
-  });
-  return fields;
+  return null;
 }

@@ -31,6 +31,16 @@ import type { AdminSession } from "./session.ts";
 /** What the rail needs about one question, once its read has landed. */
 export interface QuestionRailData {
   readonly questionId: string;
+  /**
+   * The authored slug and the creation instant, for the rail's details group.
+   *
+   * They moved into the rail on 2026-09-27 (Code Owner) from a meta strip under the screen's
+   * `<h1>`, and they cost this loader nothing: `getQuestion` already returned them in the
+   * answer this function was already reading, and already memoizes it per request. The rail
+   * reads two more fields rather than asking a second question.
+   */
+  readonly slug: string;
+  readonly createdAt: string;
   /** Every version the question has ever had, oldest first, as the API returns them. */
   readonly versions: readonly QuestionVersion[];
 }
@@ -50,5 +60,10 @@ export async function loadQuestionRail(
   const detail = await getQuestion(session, questionId);
   if (!detail.ok) return null;
   if (detail.data.versions.length === 0) return null;
-  return { questionId: detail.data.questionId, versions: detail.data.versions };
+  return {
+    questionId: detail.data.questionId,
+    slug: detail.data.slug,
+    createdAt: detail.data.createdAt,
+    versions: detail.data.versions,
+  };
 }

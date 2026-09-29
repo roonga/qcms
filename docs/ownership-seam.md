@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (380 files common to both shapes)
+### Scaffolded paths (384 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 369   |
-| `apps/admin/`                                                        | 222   |
+| `apps/`                                                              | 373   |
+| `apps/admin/`                                                        | 226   |
 | `apps/admin/app/`                                                    | 67    |
 | `apps/admin/app/(shell)/`                                            | 51    |
 | `apps/admin/app/(shell)/@rail/`                                      | 21    |
@@ -156,16 +156,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 70    |
+| `apps/admin/components/`                                             | 72    |
 | `apps/admin/components/forms/`                                       | 29    |
 | `apps/admin/components/ops/`                                         | 7     |
-| `apps/admin/components/questions/`                                   | 9     |
+| `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 78    |
+| `apps/admin/lib/`                                                    | 80    |
 | `apps/admin/lib/forms/`                                              | 21    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
-| `apps/admin/lib/questions/`                                          | 6     |
+| `apps/admin/lib/questions/`                                          | 8     |
 | `apps/admin/lib/server/`                                             | 23    |
 | `apps/api/`                                                          | 83    |
 | `apps/api/src/`                                                      | 80    |
@@ -227,7 +227,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2002` lines across `332` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2014` lines across `336` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -242,7 +242,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (380)</summary>
+<summary>Every scaffolded file (384)</summary>
 
 ```
 .dockerignore
@@ -373,7 +373,9 @@ apps/admin/components/questions/lifecycle-actions.tsx
 apps/admin/components/questions/messages-editor.tsx
 apps/admin/components/questions/option-grid-editor.tsx
 apps/admin/components/questions/question-editor.tsx
+apps/admin/components/questions/question-panel-rows.tsx
 apps/admin/components/questions/question-preview.tsx
+apps/admin/components/questions/question-save.tsx
 apps/admin/components/questions/question-versions-rail.tsx
 apps/admin/components/questions/questions-table.tsx
 apps/admin/components/questions/status-tag.tsx
@@ -434,9 +436,11 @@ apps/admin/lib/page-headings.ts
 apps/admin/lib/page-title.ts
 apps/admin/lib/preview-theme.ts
 apps/admin/lib/questions/definition.ts
+apps/admin/lib/questions/editor-bridge.ts
 apps/admin/lib/questions/editor-state.ts
 apps/admin/lib/questions/errors.ts
 apps/admin/lib/questions/option-grid.ts
+apps/admin/lib/questions/panels.ts
 apps/admin/lib/questions/types.ts
 apps/admin/lib/questions/version-rail.ts
 apps/admin/lib/read-state.ts
