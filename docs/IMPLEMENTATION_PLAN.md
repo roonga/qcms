@@ -73,7 +73,7 @@ better-auth sign-in **with TOTP 2FA**; question library (create, edit, version, 
 
 **Bounds are per form.** There is no installation-wide instance ceiling: every count source that is not `fixed` declares a `max`, publish refuses its absence and the API enforces it (SEC-16).
 
-**Exit:** a respondent completes a repeating-group walk on both paths, with add and remove, including without scripting; a removed instance's answers are excluded and never deleted; an author can define a group and write a per-instance rule; the export and the reporting view carry every instance with none collapsed; and all forty-four committed golden evaluator scenarios pass with no `expected` block edited. The minimum shippable slice is 071 to 074, with 075 beside it before any real deployment uses a group.
+**Exit:** a respondent completes a repeating-group walk on both paths, with add and remove, including without scripting; a removed instance's answers are excluded and never deleted; an author can define a group and write a per-instance rule; **all three presentations serve**, stacked, per-instance-step and table; the export and the reporting view carry every instance with none collapsed; and **every** committed golden evaluator scenario passes with no `expected` block edited. **All seven tasks are inside the cut-line**: there is no launch subset, and 038 waits on 076 and 077 as well. The build order is 071 to 074 first, then 075 before any deployment uses a group, then 076 and 077 ordered against each other by demand. Each task has a work order under `docs/features/`.
 
 ## Stage 8b - Distribution → **public launch**
 
