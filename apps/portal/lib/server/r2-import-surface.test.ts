@@ -104,11 +104,20 @@ describe("R2 import surface (strict BFF)", () => {
       i.spec.startsWith("@roonga/qcms-core"),
     );
     expect(coreImports).toEqual([]);
-    // Its only @roonga/qcms-ui *value* reach is the React-free transport-constants
-    // subpath (a bare `@roonga/qcms-ui` type import is erased and harmless).
+    // Its only @roonga/qcms-ui *value* reach is a React-free transport-constants
+    // subpath (a bare `@roonga/qcms-ui` type import is erased and harmless). There are
+    // two of them now: `native-submit` for the `__qk__` and `__qa__` field markers, and
+    // `repeat-node` for the instance-name separator and the `__qop` vocabulary (task
+    // 073). Both are plain-data modules with no React import anywhere in their graph,
+    // which is the property this assertion is about rather than the count.
+    const REACT_FREE_SUBPATHS = new Set([
+      "@roonga/qcms-ui/native-submit",
+      "@roonga/qcms-ui/repeat-node",
+    ]);
     for (const { spec, isType } of importsOf(stepRoute!.text)) {
-      if (!isType && spec.startsWith("@roonga/qcms-ui"))
-        expect(spec).toBe("@roonga/qcms-ui/native-submit");
+      if (!isType && spec.startsWith("@roonga/qcms-ui")) {
+        expect(REACT_FREE_SUBPATHS.has(spec), spec).toBe(true);
+      }
     }
   });
 

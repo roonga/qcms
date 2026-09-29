@@ -5,6 +5,11 @@ import {
   NATIVE_FIELD_KIND_PREFIX,
   type NativeFieldKind,
 } from "@roonga/qcms-ui/native-submit";
+import {
+  parseRosterOpValue,
+  ROSTER_OP_FIELD,
+  type RosterOpRequest,
+} from "@roonga/qcms-ui/repeat-node";
 
 /**
  * Whole-step form decoding for the no-JS submit route (task 044).
@@ -21,6 +26,29 @@ import {
  * A field with no kind tag is not an answer - it is the anti-abuse honeypot decoy
  * (026), returned verbatim in `extras` so the caller can forward it into the
  * session-submit body where the API's honeypot check reads it.
+ *
+ * ## The roster operation, the fourth reserved name (task 073, ADR-43, Q9)
+ *
+ * `__qop` joins `__qk__`, `__qa__` and the honeypot's `website` as a name this
+ * decoder reserves. It is how a respondent adds or removes an instance of a repeating
+ * group **without scripting**: the Add and Remove controls are named **submit
+ * buttons** on the step's own form, and a `<button name value>` contributes its name
+ * and value to the form data set **only when it is the button that submitted the
+ * form**. So a whole-step POST carries every field on the step plus **at most one**
+ * `__qop` entry, or none, and no ordering rule and no repeated name is relied on
+ * anywhere.
+ *
+ * The value is `add:grp_passengers:op_7f3` or
+ * `remove:grp_passengers:ins_7k2:op_7f3`, and the last part is the **one-time
+ * operation token** the rendered page minted. Decoding it here is still a pure
+ * transport mapping: whether the group exists, whether the instance belongs to this
+ * session and whether the token has been spent are all the API's to decide, against
+ * the pinned snapshot and the roster rather than against a regular expression.
+ *
+ * **An `__qop` post commits NO answers** (Code Owner, 2026-09-30), and that is the
+ * caller's rule rather than this module's: the answers are still decoded, because the
+ * typed values have to be carried back into the re-render, and the caller is what
+ * does not forward them to the ledger.
  *
  * ## Clearing an answer without JavaScript (issue #127)
  *
@@ -83,6 +111,17 @@ export interface DecodedAnswer {
 /** The result of decoding a whole-step form POST. */
 export interface DecodedStepForm {
   readonly answers: readonly DecodedAnswer[];
+  /**
+   * The roster operation this post carried, when it carried one (task 073, ADR-43).
+   *
+   * At most one, by construction rather than by a rule this decoder enforces: only
+   * the pressed submit button contributes its name and value. A post carrying two
+   * `__qop` entries is therefore not a shape a browser produces, and the first is
+   * taken - a forged second entry can only name an operation the API would accept from
+   * the same respondent anyway, in their own session, and it is refused or applied on
+   * its own merits either way.
+   */
+  readonly rosterOp?: RosterOpRequest;
   /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
   /**
@@ -135,20 +174,28 @@ function decodeValue(kind: NativeFieldKind, raws: readonly string[]): unknown {
   }
 }
 
-/** The raw values (grouped by name), the kind tags, and the answered markers. */
+/** The raw values (grouped by name), the kind tags, the answered markers, the op. */
 interface Partitioned {
   readonly rawByName: ReadonlyMap<string, string[]>;
   readonly kindByName: ReadonlyMap<string, NativeFieldKind>;
   readonly answered: ReadonlySet<string>;
+  readonly rosterOp: RosterOpRequest | undefined;
 }
 
-/** Split form entries into raw value groups, `__qk__` kinds and `__qa__` markers. */
+/** Split form entries into raw value groups, `__qk__` kinds, `__qa__` markers, `__qop`. */
 function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned {
   const rawByName = new Map<string, string[]>();
   const kindByName = new Map<string, NativeFieldKind>();
   const answered = new Set<string>();
+  let rosterOp: RosterOpRequest | undefined;
   for (const [key, entry] of entries) {
     if (typeof entry !== "string") continue; // ignore any file parts
+    if (key === ROSTER_OP_FIELD) {
+      // The pressed Add or Remove button (073). Reserved, so it never lands in
+      // `extras` and is never mistaken for an answer or for the honeypot.
+      rosterOp ??= parseRosterOpValue(entry);
+      continue;
+    }
     if (key.startsWith(NATIVE_FIELD_KIND_PREFIX)) {
       const name = key.slice(NATIVE_FIELD_KIND_PREFIX.length);
       if (KINDS.has(entry)) kindByName.set(name, entry as NativeFieldKind);
@@ -163,7 +210,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
     if (list === undefined) rawByName.set(key, [entry]);
     else list.push(entry);
   }
-  return { rawByName, kindByName, answered };
+  return { rawByName, kindByName, answered, rosterOp };
 }
 
 /**
@@ -172,7 +219,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
  * and unknown kind tags are ignored.
  */
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
-  const { rawByName, kindByName, answered } = partition(entries);
+  const { rawByName, kindByName, answered, rosterOp } = partition(entries);
   const answers: DecodedAnswer[] = [];
   const fields = [...kindByName.keys()];
 
@@ -204,5 +251,5 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     extras[name] = raws[0] ?? "";
   }
 
-  return { answers, extras, fields };
+  return { answers, extras, fields, ...(rosterOp !== undefined ? { rosterOp } : {}) };
 }
