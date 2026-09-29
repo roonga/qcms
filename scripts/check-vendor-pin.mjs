@@ -27,6 +27,37 @@
  *   3. Fails on any assertion whose version is not one the lockfile resolves, naming
  *      the file, the line, and both versions.
  *
+ * ## Which files it reads, and the one extension left out on purpose
+ *
+ * {@link GLOBS} is the file set. It started as prose and source - `*.md`, the
+ * TypeScript and JavaScript extensions, `*.yml`, `*.sh`, `*.example` - and that set
+ * had a hole in it for several bumps. `docker/api.Dockerfile:38` carried a comment about
+ * which optional peers the vendor declares, pinned to a version several bumps behind
+ * the lockfile, with the same sentence in the generated
+ * `packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl`,
+ * and every carry since walked straight past both because neither extension was
+ * listed. PR #1007's review caught it by hand, which is the failure mode a gate exists
+ * to remove. A `RUN` comment explaining why a build step exists is prose, and a
+ * generated template copy of a scanned file is the same prose a second time.
+ *
+ * So Dockerfiles and `*.tmpl` are in scope (Code Owner, 2026-09-29). Every Dockerfile
+ * spelling is listed, not only the `docker/*.Dockerfile` this repository writes today:
+ * the suffixed form, a bare `Dockerfile` at the root or anywhere below it, and
+ * `Dockerfile.*`. A Dockerfile added outside `docker/` is then covered on the day it
+ * lands rather than on the day somebody notices.
+ *
+ * **`*.sql` is deliberately NOT in that set**, and this paragraph exists so the
+ * omission reads as a decision rather than as the same oversight one extension along.
+ * A released migration is an append-only record, and the version in it is the version
+ * whose behaviour the migration describes rather than a claim about the current pin:
+ * `packages/db/migrations/0020_account_drops_issuer.sql:1` names the release that
+ * reversed the account identity change 1.7.0 through 1.7.2 required, which was true
+ * when it was written and is true now. Forcing that number forward would make it
+ * false, which is exactly the argument the record areas below rest on. The difference
+ * is only where the rule is written down: a record *area* is an {@link EXEMPT} path,
+ * and migrations are code rather than an area, so the extension stays out of GLOBS. If
+ * a `.sql` file ever needs to assert the live pin, it is in the wrong place.
+ *
  * ## Records are exempt, by path
  *
  * A log is allowed to describe a world that no longer exists, and rewriting one
@@ -146,7 +177,17 @@ export const EXEMPT = [
   "pnpm-lock.yaml",
 ];
 
-const GLOBS = [
+/**
+ * The tracked file set, as `git ls-files` pathspecs. See "Which files it reads, and
+ * the one extension left out on purpose" above for why Dockerfiles and `*.tmpl` are
+ * here and why `*.sql` is not.
+ *
+ * A pathspec with a wildcard is matched with `FNM_PATHNAME` off, so `*` crosses a
+ * slash and `*.md` reaches every depth. That is also why the bare `Dockerfile` entry
+ * needs the wildcarded spelling beside it: with no wildcard in it a pathspec is a
+ * literal path, so on its own it would match only one file at the repository root.
+ */
+export const GLOBS = [
   "*.md",
   "*.ts",
   "*.tsx",
@@ -158,6 +199,12 @@ const GLOBS = [
   "*.yaml",
   "*.sh",
   "*.example",
+  "*.Dockerfile",
+  "Dockerfile",
+  "*/Dockerfile",
+  "Dockerfile.*",
+  "*/Dockerfile.*",
+  "*.tmpl",
 ];
 
 /**

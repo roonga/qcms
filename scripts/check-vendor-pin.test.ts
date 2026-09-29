@@ -1,7 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { afterAll, describe, expect, it } from "vitest";
 
 import {
   EXEMPT,
+  GLOBS,
   TRACKED_PREFIXES,
   assertionsIn,
   isExempt,
@@ -20,12 +27,20 @@ import {
  * file scans cleanly under the gate it tests. `check-vendor-pin.mjs` avoids the same
  * trap by naming no literal version at all; a test file cannot, since the stale case
  * is the thing under test.
+ *
+ * The last block drives the shipped script over a throwaway repository rather than
+ * importing a helper, because the file set is a `git ls-files` pathspec list and a unit
+ * test of {@link GLOBS} would only assert that the array contains the strings it
+ * contains. What needs proving is that git resolves those pathspecs to the files, which
+ * takes a git index (the same reason `check-changeset.test.ts` builds one).
  */
 
 /** A version the lockfile does not resolve, in the fixtures below. */
 const STALE = "1.6.26";
 /** Stands in for the resolved pin. */
 const PINNED = "1.7.1";
+
+const GATE = fileURLToPath(new URL("check-vendor-pin.mjs", import.meta.url));
 
 describe("assertion matching", () => {
   it("matches the specifier shape, `name@version`", () => {
@@ -243,5 +258,163 @@ describe("record exemptions", () => {
   it("names the package families it tracks", () => {
     expect(TRACKED_PREFIXES).toContain("better-auth");
     expect(TRACKED_PREFIXES).toContain("@better-auth/");
+  });
+});
+
+describe("the file set, driven end to end over a throwaway repository", () => {
+  const repos: string[] = [];
+
+  afterAll(() => {
+    for (const repo of repos) rmSync(repo, { recursive: true, force: true });
+  });
+
+  /** A lockfile resolving the stand-in pin, so the gate has something to compare to. */
+  const LOCK = [
+    "packages:",
+    "",
+    `  better-auth@${PINNED}:`,
+    "    resolution: {integrity: sha512-abc}",
+    "",
+  ].join("\n");
+
+  function write(root: string, filePath: string, content: string): void {
+    const absolute = join(root, filePath);
+    mkdirSync(dirname(absolute), { recursive: true });
+    writeFileSync(absolute, content);
+  }
+
+  function run(root: string, args: string[]): void {
+    // `as string`: every call site passes a literal argv whose first element is the
+    // program name, so args[0] is never undefined; `noUncheckedIndexedAccess` cannot
+    // see that. A runtime guard here would be unreachable code in a test helper.
+    const result = spawnSync(args[0] as string, args.slice(1), { cwd: root, encoding: "utf8" });
+    if (result.status !== 0) {
+      throw new Error(`${args.join(" ")} failed in ${root}: ${result.stderr}`);
+    }
+  }
+
+  /**
+   * A repository holding a lockfile and the given files, all tracked. The gate reads
+   * `git ls-files`, so an untracked file is invisible to it and the fixture would pass
+   * for the wrong reason.
+   */
+  function makeRepo(files: Record<string, string>): string {
+    const root = mkdtempSync(join(tmpdir(), "check-vendor-pin-"));
+    repos.push(root);
+    run(root, ["git", "init", "-q", "-b", "main"]);
+    write(root, "pnpm-lock.yaml", LOCK);
+    for (const [path, content] of Object.entries(files)) write(root, path, content);
+    run(root, ["git", "add", "-A"]);
+    return root;
+  }
+
+  function runGate(root: string): { status: number | null; stdout: string; stderr: string } {
+    const result = spawnSync(process.execPath, [GATE], { cwd: root, encoding: "utf8" });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  }
+
+  /** The comment shape `docker/api.Dockerfile` actually carries, at a given version. */
+  const dockerComment = (version: string): string =>
+    ["FROM node:24-alpine", `# better-auth@${version} declares optional peers on kysely`, ""].join(
+      "\n",
+    );
+
+  it("FAILS on a stale version in a Dockerfile", () => {
+    // The regression PR #1007's review found by hand: `docker/api.Dockerfile` named a
+    // version three bumps behind and no carry had ever seen the file.
+    const root = makeRepo({ "docker/api.Dockerfile": dockerComment(STALE) });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("docker/api.Dockerfile:2");
+    expect(result.stderr).toContain(STALE);
+  });
+
+  it("FAILS on a stale version in a `.tmpl` file", () => {
+    // The generated half of the same sentence. A template is a copy of a file that is
+    // scanned, so leaving it out made the gate's coverage depend on which copy drifted.
+    const root = makeRepo({
+      "packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl": dockerComment(STALE),
+    });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain(
+      "packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl:2",
+    );
+  });
+
+  it("FAILS on a Dockerfile written in any of the spellings, not only `*.Dockerfile`", () => {
+    // A bare `Dockerfile` is a literal pathspec and reaches only the repository root,
+    // so the nested spelling is listed beside it; without it a Dockerfile added outside
+    // `docker/` would be invisible and the run would print OK.
+    const root = makeRepo({
+      Dockerfile: dockerComment(STALE),
+      "apps/api/Dockerfile": dockerComment(STALE),
+      "Dockerfile.dev": dockerComment(STALE),
+      "docker/local/Dockerfile.seed": dockerComment(STALE),
+    });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(1);
+    for (const file of [
+      "Dockerfile:2",
+      "apps/api/Dockerfile:2",
+      "Dockerfile.dev:2",
+      "docker/local/Dockerfile.seed:2",
+    ]) {
+      expect(result.stderr).toContain(file);
+    }
+  });
+
+  it("passes when a Dockerfile and a template name the resolved version", () => {
+    // The other side of the first two cases: proves they fail on the version rather
+    // than on the file merely being readable.
+    const root = makeRepo({
+      "docker/api.Dockerfile": dockerComment(PINNED),
+      "packages/create-qcms-app/templates/common/docker/api.Dockerfile.tmpl": dockerComment(PINNED),
+    });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("OK");
+  });
+
+  it("does NOT scan a `.sql` migration naming an older version", () => {
+    // Deliberate, not an oversight (Code Owner, 2026-09-29): a released migration is an
+    // append-only record of the release whose behaviour it describes, and forcing its
+    // number forward would make a true sentence false. The gate reads no `.sql` at all,
+    // so the run is green with this file in the tree.
+    const root = makeRepo({
+      "packages/db/migrations/0020_account_drops_issuer.sql": [
+        `-- better-auth ${STALE} reverses the account identity change its predecessors required.`,
+        'ALTER TABLE "account" DROP COLUMN "issuer";',
+        "",
+      ].join("\n"),
+    });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain("OK");
+    expect(GLOBS).not.toContain("*.sql");
+  });
+
+  it("still reads the prose and source extensions it started with", () => {
+    // A guard against a future edit to GLOBS dropping one while adding another: the
+    // original set is what the gate was built for.
+    for (const glob of ["*.md", "*.ts", "*.yml", "*.sh", "*.example"]) {
+      expect(GLOBS).toContain(glob);
+    }
+    const root = makeRepo({ "docs/SECURITY_DESIGN.md": `better-auth ${STALE} resolves this.\n` });
+
+    const result = runGate(root);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("docs/SECURITY_DESIGN.md:1");
   });
 });
