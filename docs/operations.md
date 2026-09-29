@@ -709,14 +709,14 @@ that guard survives a rename and this one does not.
 There are three kinds of application role and the grants are per named schema, never
 `IN SCHEMA public`.
 
-`qcms_app_<env>`, one per environment, holds DML on its own `data_<env>`; `USAGE` on its
+`qcms_app_<env>`, one per environment, holds `USAGE` on its own `data_<env>` with DML in
+it; `USAGE` on its
 own `reporting_<env>` with `SELECT` on that schema's views and nothing on any other
-environment's; on `control`, `SELECT` on
+environment's; `USAGE` on `control` with `SELECT` on
 exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
 `environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
-consumption, **no `INSERT` on `secure_links`**, `INSERT` on the SEC-15 audit, and
-whatever `USAGE` Postgres requires on `control`'s `access_mode` and `session_status`
-types; and no privilege of any kind on `user`,
+consumption, **no `INSERT` on `secure_links`** and `INSERT` on the SEC-15 audit; and no
+privilege of any kind on `user`,
 `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`,
 `member`, `team` or `teamMember`.
 `question_versions` is on the list because the respondent path reads the pinned question
@@ -726,8 +726,14 @@ fails on permission.
 and therefore the one that grants `SELECT` on it; until then the list is five, and this
 recipe and the environment-create command carry the sixth clause guarded on the table
 existing, the way the SEC-15 audit's clauses are.
+**No type or function grant is written for any role.**
+`USAGE` on `control`'s `access_mode` and `session_status` and `EXECUTE` on the trigger
+functions come from the `PUBLIC` defaults, so every role already holds them, and a
+catalogue read that reports them is reporting a default rather than a grant this recipe
+made.
 
-`qcms_app_control` holds DML on `control`, with `two_factor_resets` carved out entirely
+`qcms_app_control` holds `USAGE` on `control` and DML in it, with `two_factor_resets`
+carved out entirely
 and the SEC-15 audit carved down to `SELECT` **and `INSERT`**, never `UPDATE` or
 `DELETE`, because a grant write and its audit row are both control-pool acts (Q56).
 In the data schemas it holds **`USAGE` on each `data_<env>` and `INSERT` on its
@@ -738,9 +744,13 @@ reaches the table.
 That one grant exists so a release record and its `form.released` event commit in one
 transaction, and it does not weaken the boundary the three roles exist for, because an
 insert into an event queue is not a read of a response.
-Both of this role's `INSERT`-only writes, the release event and the audit row, are plain
-inserts with **no `RETURNING`**: `RETURNING` is a read, and a role holding `INSERT`
-alone gets a permission error on it.
+Both of this role's event and audit writes are plain inserts with **no `RETURNING`**, and
+only the release event is `INSERT`-only: on an `outbox` this role holds `INSERT` alone, so
+`RETURNING`, which is a read, gets a permission error there.
+On the audit table it holds `SELECT` as well, so a `RETURNING` would succeed for it; the
+insert is plain anyway, because one helper writes audit rows for both roles and
+`qcms_app_<env>`, holding `INSERT` on that table and nothing else, is the one it would be
+refused for.
 It holds **nothing on any reporting schema** either, so the connection the authoring
 routes run on cannot reach a production response through a view any more than through
 a table.
