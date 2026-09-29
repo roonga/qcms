@@ -107,6 +107,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
  * sign-out form" from "something is posting at the TOTP verifier".
  */
 export type BeltRoute =
+  | "/change-password/submit"
   | "/forms/{formId}/assist"
   | "/settings/password"
   | "/settings/recovery-codes"
@@ -212,6 +213,16 @@ const BELTED_ROUTES: readonly BeltedRoute[] = [
     route: "/forms/{formId}/assist",
     pattern: /^\/forms\/[^/]+\/assist\/?$/,
     outcome: "refused-403",
+  },
+  {
+    // The forced change on first sign-in after bootstrap (task 061). Its own entry
+    // rather than a share of `/settings/password`: the two handlers post different
+    // forms to different paths and land on different screens, and this one is reached
+    // by an account that cannot reach the shell at all, so a refusal here and a
+    // refusal there are different events to whoever reads the log.
+    route: "/change-password/submit",
+    pattern: /^\/change-password\/submit\/?$/,
+    outcome: "redirect-with-failure",
   },
   {
     route: "/settings/password",

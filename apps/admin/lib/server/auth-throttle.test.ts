@@ -124,6 +124,7 @@ const challengeRoute = await import("../../app/two-factor/challenge/verify/route
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
 const recoveryRoute = await import("../../app/two-factor/recovery/verify/route.ts");
 const passwordRoute = await import("../../app/(shell)/settings/password/route.ts");
+const forcedPasswordRoute = await import("../../app/change-password/submit/route.ts");
 const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
 const { authFailureMessage } = await import("../auth-failure-message.ts");
 const { messages } = await import("../i18n/en.ts");
@@ -181,6 +182,17 @@ interface RefusingRoute {
   /** Arm the auth-mount call this handler makes with the given refusal. */
   readonly refuseWith: (status: number) => void;
   readonly post: () => Promise<Response>;
+  /**
+   * The session this handler's own guard requires, when it is not the ordinary one.
+   *
+   * Only the forced change-password handler needs it (task 061): its guard admits a
+   * session the shell's guard refuses and refuses the one the shell's guard admits, so
+   * handing it {@link signedInSession} would send it to the shell and the refusal under
+   * test would never be produced. Declared per route rather than stubbed globally,
+   * because the guard itself is the real module here for the reason the `next/headers`
+   * mock above gives.
+   */
+  readonly session?: () => unknown;
 }
 
 /**
@@ -253,6 +265,26 @@ const ROUTES: readonly RefusingRoute[] = [
       ),
   },
   {
+    // The forced change on first sign-in after bootstrap (task 061). In the table for
+    // exactly the reason the paragraph below this one gives: it reads an auth-mount
+    // refusal, so a throttled 429 reaching it as "those details did not match" is the
+    // same defect issue #805 fixed everywhere else. Its markers are the shared pair -
+    // the screen carries one form, like the other auth screens.
+    path: "app/change-password/submit/route.ts",
+    screen: "/change-password",
+    markers: SHARED_MARKERS,
+    session: () => provisionalSession(),
+    refuseWith: (status) => seams.changePassword.mockResolvedValue(refusal(status)),
+    post: () =>
+      forcedPasswordRoute.POST(
+        formPost("/change-password/submit", {
+          currentPassword: "correct horse battery staple",
+          newPassword: "a much longer replacement",
+          confirmPassword: "a much longer replacement",
+        }),
+      ),
+  },
+  {
     path: "app/(shell)/settings/recovery-codes/route.ts",
     screen: "/settings",
     markers: CODES_MARKERS,
@@ -284,12 +316,34 @@ function signedInSession(): unknown {
   };
 }
 
+/**
+ * The session the forced change-password handler requires: signed in, enrolled, and
+ * still holding the provisional bootstrap credential (task 061, SEC-1).
+ */
+function provisionalSession(): unknown {
+  return {
+    session: { createdAt: new Date().toISOString(), token: "session-token" },
+    user: {
+      id: "usr_1",
+      email: "admin@example.test",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: true,
+      mustChangePassword: true,
+    },
+  };
+}
+
 beforeEach(() => {
   for (const seam of Object.values(seams)) seam.mockReset();
   seams.proxiedSession.mockResolvedValue(signedInSession());
 });
 
 describe.each(ROUTES)("$path", (route) => {
+  beforeEach(() => {
+    if (route.session !== undefined) seams.proxiedSession.mockResolvedValue(route.session());
+  });
+
   it("redirects with the throttled marker when the auth mount answers 429", async () => {
     route.refuseWith(429);
     const response = await route.post();
