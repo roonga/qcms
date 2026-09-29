@@ -39,15 +39,17 @@
  * `RosterMap` is built, deduplicates before it truncates. The mint side is closed
  * too: a fresh id is generated against the ids already in the group.
  *
- * It is not held by a database constraint, and that is a deliberate limit rather
- * than an oversight. The invariant is cross-row ("at most one `added` row per
- * `(session, group, instance)`"), so the only shapes that express it are a partial
- * UNIQUE index or a third trigger, and either is a **fifth guard** on a table
- * ADR-40's amendment counts four for - which would move that record's
- * per-environment totals from seventeen guards and twenty-five objects to
- * eighteen and twenty-six. Those totals are the reconciled figures task 064
- * checks its generator against, so moving them is the Code Owner's ruling and not
- * this task's. Task 072's report carries the recommendation.
+ * **It is held in code and not by a database constraint, and that is ruled rather
+ * than pending** (Code Owner, 2026-09-30). The invariant is cross-row ("at most
+ * one `added` row per `(session, group, instance)`"), so the only shapes that
+ * express it in SQL are a partial UNIQUE index or a third trigger, and either
+ * would be a **fifth guard** on a table ADR-40's amendment counts four for,
+ * taking that record's per-environment totals from seventeen guards and
+ * twenty-five objects to eighteen and twenty-six. Those totals are the reconciled
+ * figures task 064 checks its generator against, and the ruling keeps them:
+ * **ADR-40 stays at seventeen guards, eight foreign keys and twenty-five
+ * objects**, and no constraint is added. So the three points above are the whole
+ * of the mechanism rather than a stopgap, which is why each one carries a test.
  *
  * **What this module does not do.** It does not serve a step, render anything or
  * decide an HTTP envelope; the serving loop and both respondent paths are task
