@@ -126,7 +126,12 @@ function contains(text: string): RegExp {
 describe("the account trigger satisfies label-in-name (WCAG 2.5.3)", () => {
   for (const shape of SHAPES) {
     it(`names the trigger with the initials it paints: ${shape.what}`, () => {
-      const container = render(<AccountMenu email={shape.email} name={shape.name} />).container;
+      // Spread rather than `name={shape.name}`: `exactOptionalPropertyTypes` is on, so an
+      // absent display name has to be an absent PROP, not a prop holding `undefined` -
+      // which is also the shape the shell layout passes when the session carries no name.
+      const container = render(
+        <AccountMenu email={shape.email} {...(shape.name !== undefined && { name: shape.name })} />,
+      ).container;
       const scope = within(container);
       const trigger = scope.getByRole("button");
 
