@@ -23,6 +23,10 @@
       "types": "./dist/native-submit.d.ts",
       "default": "./dist/native-submit.js"
     },
+    "./repeat-node": {
+      "types": "./dist/repeat/repeat-node.d.ts",
+      "default": "./dist/repeat/repeat-node.js"
+    },
     "./theme.css": "./src/theme.css",
     "./theme-components.css": "./src/theme-components.css",
     "./fonts.css": "./src/fonts.css",

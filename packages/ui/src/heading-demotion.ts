@@ -1,5 +1,7 @@
 import type { A2Node } from "@a2ra/core";
 
+import { REPEAT_INSTANCE_NODE_TYPE } from "./repeat/repeat-node.ts";
+
 /**
  * Render-time heading demotion for an EMBEDDED compiled document (issue #537).
  *
@@ -95,6 +97,19 @@ export function withDemotedHeadings(root: A2Node, by: number): A2Node {
 
   const demote = (node: A2Node): A2Node => {
     const children = mapChildren(node.children, demote);
+    // A repeat instance's label is a heading too, and it is a PROP rather than a
+    // `Text` node because it lives inside the instance's `<legend>` and carries the
+    // focus handle (`id`, `tabindex="-1"`) that Q11's landings need. It is renumbered
+    // by the same rule and the same clamp; the group's own label IS a `Text` node and
+    // is reached by the branch below.
+    const headingAs: unknown = node.props?.headingAs;
+    if (node.type === REPEAT_INSTANCE_NODE_TYPE && isHeadingLevel(headingAs)) {
+      return {
+        ...node,
+        props: { ...node.props, headingAs: demotedLevel(headingAs, by) },
+        children,
+      };
+    }
     const as: unknown = node.props?.as;
     // A `Text` with no `as`, or with a non-heading one (`p`, `span`, `label`), has no
     // level to move: copied for the render, otherwise untouched.

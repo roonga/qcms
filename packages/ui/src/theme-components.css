@@ -354,6 +354,125 @@
 }
 
 /* --------------------------------------------------------------------------
+   Repeating group, stacked presentation (task 073, ADR-42, ADR-43, Q12).
+
+   THE RULING THIS SECTION IMPLEMENTS: one input per row. A single column inside
+   an instance card, with NO two fields side by side at any width - not at a
+   desktop width, not in the admin preview, not for two short fields. It is a
+   Code Owner ruling of 2026-09-30 and not a default, so it is written as one
+   declaration a reviewer can check rather than as a grid that happens to be one
+   column at the widths anybody looked at. Two reasons, and the first decides it:
+   a side-by-side pair inside a repeated card makes the reading order and the tab
+   order diverge from the visual order the moment a rule hides one of the pair in
+   one instance and not in another, which is exactly what per-instance branching
+   does; and one column everywhere is one layout to prove rather than two, which
+   is the same reasoning `playwright.config.ts` encodes by running every spec on
+   the phone project.
+
+   THE LEGEND TRAP, found while building the concept pages rather than reasoned
+   about. With the card's border on the `<fieldset>`, a `<legend>` renders in the
+   fieldset's legend slot and CUTS that border. `float: left; width: 100%` takes
+   the legend out of the slot and puts it inside the card as an ordinary block,
+   while it stays the fieldset's accessible name. The `::after` clears the float
+   so the fields start below it.
+
+   The card, the gaps and the radii are all tokens (ADR-30), so density and the
+   corners preset reach a repeat card like every other surface.
+   -------------------------------------------------------------------------- */
+
+[data-qcms-theme-scope] .qcms-repeat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-field-gap);
+}
+
+[data-qcms-theme-scope] .qcms-repeat__instance {
+  margin: 0;
+  padding: var(--space-section-pad);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  min-inline-size: 0;
+}
+
+/* The legend leaves the fieldset's legend slot so the card's border stays whole. */
+[data-qcms-theme-scope] .qcms-repeat__legend {
+  float: left;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__legend::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__heading {
+  margin: 0 0 var(--space-stack);
+  font-weight: 600;
+}
+
+/* A focus ring on the heading, because Q11 moves focus to it after an add or a
+   removal and a focus destination with no visible indicator fails 2.4.7. */
+[data-qcms-theme-scope] .qcms-repeat__heading:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ONE INPUT PER ROW. A single column at every width; `grid-template-columns` is
+   fixed at `1fr` deliberately, with no media query anywhere that widens it. */
+[data-qcms-theme-scope] .qcms-repeat__fields {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-field-gap);
+}
+
+[data-qcms-theme-scope] .qcms-repeat__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--space-field-gap);
+}
+
+[data-qcms-theme-scope] .qcms-repeat__actions--add {
+  justify-content: flex-start;
+  margin-block-start: 0;
+}
+
+/* Add and Remove sit at the portal's control-height floor, which is 44px at the
+   default density and clears WCAG 2.5.8's 24px minimum at every density. */
+[data-qcms-theme-scope] .qcms-repeat__button {
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  /* A visually hidden label inside a positioned box resolves against the initial
+     containing block and widens the DOCUMENT, which is the horizontal page
+     scroll the portal forbids. One declaration prevents it, and it is here
+     rather than only in the table presentation because this button may carry one
+     too. */
+  position: relative;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The polite status region is announced, never drawn: it carries no box, so an
+   empty region occupies nothing and a filled one does not move the page. */
+[data-qcms-theme-scope] .qcms-repeat__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
    FORCED COLORS / Windows High Contrast Mode (issue #28).
 
    Under `forced-colors: active` the user agent replaces the palette with the

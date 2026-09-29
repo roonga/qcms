@@ -3,7 +3,8 @@ import { computeAccessibleName } from "dom-accessibility-api";
 import { describe, expect, it } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
-import { loadGoldenSteps } from "./test-support/golden.ts";
+import { qualifiedFieldName } from "./repeat/repeat-node.ts";
+import { loadGoldenSteps, syntheticRoster } from "./test-support/golden.ts";
 
 /**
  * A required question is perceivable as required BEFORE its error fires (issue #99).
@@ -23,31 +24,74 @@ import { loadGoldenSteps } from "./test-support/golden.ts";
 interface RequiredControl {
   readonly type: string;
   readonly label: string;
+  /** The `data-qcms-field` value the control renders under. */
   readonly name: string;
 }
 
-/** Every `isRequired` node of one compiled step, with the label it renders. */
-function requiredControlsIn(node: unknown, found: RequiredControl[] = []): RequiredControl[] {
+/**
+ * Every `isRequired` node of one compiled step, with the label it renders and the
+ * name it renders UNDER.
+ *
+ * A required question inside a repeating group renders once per live instance under
+ * its **qualified** name (`ins_.../q_plate`, task 073), so the walk carries the
+ * instance of whichever group it is inside. That is the whole point of qualifying
+ * here rather than exempting the group: the property this suite pins - every required
+ * control renders its marker - has to hold for a control inside an instance card too,
+ * and it would silently stop being checked if a group's members were skipped.
+ */
+function requiredControlsIn(
+  node: unknown,
+  rosters: Readonly<Record<string, readonly string[]>>,
+  instanceId?: string,
+  found: RequiredControl[] = [],
+): RequiredControl[] {
   if (Array.isArray(node)) {
-    for (const child of node) requiredControlsIn(child, found);
+    for (const child of node) requiredControlsIn(child, rosters, instanceId, found);
     return found;
   }
   if (typeof node !== "object" || node === null) return found;
   const record = node as Record<string, unknown>;
-  const props = record["props"];
-  if (typeof props === "object" && props !== null) {
-    const p = props as Record<string, unknown>;
-    if (
-      p["isRequired"] === true &&
-      typeof record["type"] === "string" &&
-      typeof p["label"] === "string" &&
-      typeof p["name"] === "string"
-    ) {
-      found.push({ type: record["type"], label: p["label"], name: p["name"] });
-    }
-  }
-  for (const value of Object.values(record)) requiredControlsIn(value, found);
+  const props = propsOf(record);
+  const scope = groupInstance(record, props, rosters) ?? instanceId;
+  const control = requiredControlOf(record, props, scope);
+  if (control !== undefined) found.push(control);
+  for (const value of Object.values(record)) requiredControlsIn(value, rosters, scope, found);
   return found;
+}
+
+function propsOf(record: Record<string, unknown>): Record<string, unknown> {
+  const props = record["props"];
+  return typeof props === "object" && props !== null ? (props as Record<string, unknown>) : {};
+}
+
+/** The first live instance of the group this node IS, when it is a group. */
+function groupInstance(
+  record: Record<string, unknown>,
+  props: Record<string, unknown>,
+  rosters: Readonly<Record<string, readonly string[]>>,
+): string | undefined {
+  if (record["type"] !== "RepeatGroup" || typeof props["groupId"] !== "string") return undefined;
+  return rosters[props["groupId"]]?.[0];
+}
+
+/** This node as a required control, or `undefined` when it is not one. */
+function requiredControlOf(
+  record: Record<string, unknown>,
+  props: Record<string, unknown>,
+  instanceId: string | undefined,
+): RequiredControl | undefined {
+  if (props["isRequired"] !== true) return undefined;
+  const type = record["type"];
+  const label = props["label"];
+  const name = props["name"];
+  if (typeof type !== "string" || typeof label !== "string" || typeof name !== "string") {
+    return undefined;
+  }
+  return {
+    type,
+    label,
+    name: instanceId === undefined ? name : qualifiedFieldName(instanceId, name),
+  };
 }
 
 interface Case {
@@ -55,16 +99,20 @@ interface Case {
   readonly step: A2UIStepDocument;
   readonly specVersion: string;
   readonly control: RequiredControl;
+  /** The one-instance roster a document carrying a repeating group is rendered with. */
+  readonly rosters: Readonly<Record<string, readonly string[]>>;
 }
 
-const cases: Case[] = loadGoldenSteps().flatMap((step) =>
-  requiredControlsIn(step.document).map((control) => ({
+const cases: Case[] = loadGoldenSteps().flatMap((step) => {
+  const rosters = syntheticRoster(step.document);
+  return requiredControlsIn(step.document, rosters).map((control) => ({
     label: `${step.version}/${step.form}/${step.stepId} ${control.type} ${control.name}`,
     step: step.document,
     specVersion: step.specVersion,
     control,
-  })),
-);
+    rosters,
+  }));
+});
 
 /**
  * The controls whose marker is NOT hidden from assistive technology: none of them,
@@ -134,8 +182,10 @@ describe("every required control renders the required marker (issue #99)", () =>
 
   it.each(cases.map((c) => [c.label, c] as const))(
     "%s renders one marker inside its label",
-    (_label, { step, specVersion, control }) => {
-      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
+    (_label, { step, specVersion, control, rosters }) => {
+      const { container } = render(
+        <A2UIStepRenderer document={step} specVersion={specVersion} repeat={{ rosters }} />,
+      );
       const markers = markersIn(fieldWrapper(container, control.name));
       expect(markers).toHaveLength(1);
       // Inside the label, beside the label text, exactly as the six controls that
@@ -148,8 +198,10 @@ describe("every required control renders the required marker (issue #99)", () =>
 
   it.each(cases.map((c) => [c.label, c] as const))(
     "%s conveys required in the accessibility tree",
-    (_label, { step, specVersion, control }) => {
-      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
+    (_label, { step, specVersion, control, rosters }) => {
+      const { container } = render(
+        <A2UIStepRenderer document={step} specVersion={specVersion} repeat={{ rosters }} />,
+      );
       const wrapper = fieldWrapper(container, control.name);
 
       // The required STATE, which is what assistive technology reports. RAC sets it
@@ -181,8 +233,10 @@ describe("every required control renders the required marker (issue #99)", () =>
     // The per-case assertions above already cover every case individually.
     const byType = new Map(cases.map((c) => [c.control.type, c]));
     const leaking = new Set<string>();
-    for (const { step, specVersion, control } of byType.values()) {
-      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
+    for (const { step, specVersion, control, rosters } of byType.values()) {
+      const { container } = render(
+        <A2UIStepRenderer document={step} specVersion={specVersion} repeat={{ rosters }} />,
+      );
       const wrapper = fieldWrapper(container, control.name);
       const marker = markersIn(wrapper)[0];
       if (marker?.getAttribute("aria-hidden") !== "true") leaking.add(control.type);
@@ -197,8 +251,10 @@ describe("every required control renders the required marker (issue #99)", () =>
     // One case per control TYPE, for the reason given above.
     const byType = new Map(cases.map((c) => [c.control.type, c]));
     const visualOnly = new Set<string>();
-    for (const { step, specVersion, control } of byType.values()) {
-      const { container } = render(<A2UIStepRenderer document={step} specVersion={specVersion} />);
+    for (const { step, specVersion, control, rosters } of byType.values()) {
+      const { container } = render(
+        <A2UIStepRenderer document={step} specVersion={specVersion} repeat={{ rosters }} />,
+      );
       const wrapper = fieldWrapper(container, control.name);
       const required = wrapper.querySelectorAll("[aria-required='true'], [required]");
       if (required.length === 0) visualOnly.add(control.type);

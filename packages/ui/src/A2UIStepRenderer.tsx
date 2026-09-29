@@ -13,6 +13,8 @@ import { QcmsFieldContext } from "./field-context.tsx";
 import { withDemotedHeadings } from "./heading-demotion.ts";
 import { withNativeSubmit, type NativeSubmitOptions } from "./native-submit.ts";
 import { registryForSpecVersion } from "./registry.tsx";
+import { QcmsRepeatContext, type QcmsRepeatContextValue } from "./repeat/repeat-context.tsx";
+import { expandRepeatGroups, type RepeatExpansion } from "./repeat/repeat-expand.ts";
 
 /** One compiled A2UI step document (one entry of a compiled form's `documents`). */
 export interface A2UIStepDocument {
@@ -64,6 +66,21 @@ export interface A2UIStepRendererProps {
    * yields rather than the host chrome.
    */
   readonly headingLevelOffset?: number;
+  /**
+   * The repeating-group render (task 073, ADR-42, ADR-43).
+   *
+   * A compiled `RepeatGroup` is a **template** carrying its member controls once: the
+   * compiler is answer-blind and an instance count is answer-dependent, so the
+   * expansion happens here, at render time, from the live roster the API's step
+   * projection supplies. `rosters` and `visible` are that projection; `opToken` is the
+   * one-time token this render mints into its `__qop` buttons; `onAdd`, `onRemove` and
+   * `status` are the scripted path's behaviour and are absent without scripting.
+   *
+   * Absent (the default) still expands, with no roster: a document carrying a group
+   * then renders the group's chrome and no instance, which is what an admin version
+   * view of a stored document should show. A document with no group is untouched.
+   */
+  readonly repeat?: RepeatExpansion & QcmsRepeatContextValue;
 }
 
 const NO_VALUES: A2UIValues = Object.freeze({});
@@ -92,6 +109,7 @@ export function A2UIStepRenderer({
   specVersion,
   nativeSubmit,
   headingLevelOffset = 0,
+  repeat,
 }: A2UIStepRendererProps) {
   const registry = registryForSpecVersion(specVersion);
   const native = nativeSubmit !== undefined;
@@ -107,14 +125,34 @@ export function A2UIStepRenderer({
   // submit control carries no heading and the order is therefore not load-bearing today,
   // but reversing it would make the appended node's future contents subject to a
   // transform that is meant to be about stored content alone.
+  //
+  // The repeat expansion runs FIRST, and that order is load-bearing rather than
+  // incidental. It is the only transform that reads the stored template, it computes
+  // its own heading levels from `headingLevelOffset` for the one heading it emits as a
+  // node prop rather than as a `Text` node (`RepeatInstance.headingAs`, which
+  // `withDemotedHeadings` then leaves alone), and the `Text` heading it emits for the
+  // group's own label must be in the tree before demotion so that an embedded preview
+  // renumbers it like every other compiled heading.
   const root = useMemo(() => {
-    const demoted = withDemotedHeadings(document.root, headingLevelOffset);
+    const expanded = expandRepeatGroups(document.root, repeat ?? {});
+    const demoted = withDemotedHeadings(expanded, headingLevelOffset);
     return nativeSubmit === undefined ? demoted : withNativeSubmit(demoted, nativeSubmit);
-  }, [document.root, headingLevelOffset, nativeSubmit]);
+  }, [document.root, headingLevelOffset, nativeSubmit, repeat]);
+  const repeatCtx = useMemo<QcmsRepeatContextValue>(
+    () => ({
+      ...(repeat?.onAdd !== undefined ? { onAdd: repeat.onAdd } : {}),
+      ...(repeat?.onRemove !== undefined ? { onRemove: repeat.onRemove } : {}),
+      ...(repeat?.status !== undefined ? { status: repeat.status } : {}),
+      ...(repeat?.busyGroupId !== undefined ? { busyGroupId: repeat.busyGroupId } : {}),
+    }),
+    [repeat?.onAdd, repeat?.onRemove, repeat?.status, repeat?.busyGroupId],
+  );
   return (
     <I18nProvider locale={locale}>
       <QcmsFieldContext.Provider value={ctx}>
-        <A2Renderer node={root} registry={registry} />
+        <QcmsRepeatContext.Provider value={repeatCtx}>
+          <A2Renderer node={root} registry={registry} />
+        </QcmsRepeatContext.Provider>
       </QcmsFieldContext.Provider>
     </I18nProvider>
   );
