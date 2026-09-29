@@ -1,7 +1,7 @@
 # 072 - The instance ledger
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `@roonga/qcms-db` (migration, queries, schema mirror), `apps/api` (the roster derivation) · **Depends on:** 071 (the branded ids and the roster's shape)
-**References:** ADR-42 (the roster is a table and not an answer) · ADR-40 as amended 2026-09-30 (the eighth data-plane table, sixteen guards, eight foreign keys, and the baseline note) · ADR-17 (erasure and retention) · ADR-33 as amended 2026-09-30 (a retraction is per instance) · SEC-16 · SEC-10 · `plan/repeating-groups-and-table-input.md` sections 5.1, 5.2 and 5.7, and Q5, Q16 · R3 · issue #5 · issue #861
+**References:** ADR-42 (the roster is a table and not an answer) · ADR-40 as amended 2026-09-30 (the eighth data-plane table, seventeen guards, eight foreign keys, and the baseline note) · ADR-17 (erasure and retention) · ADR-33 as amended 2026-09-30 (a retraction is per instance) · SEC-16 · SEC-10 · `plan/repeating-groups-and-table-input.md` sections 5.1, 5.2 and 5.7, and Q5, Q16 · R3 · issue #5 · issue #861
 
 ## Context
 
@@ -22,7 +22,7 @@ The roster is also what makes "Add passenger" a thing a respondent can watch hap
 - **The roster read and the add and remove writes as query helpers**, beside the existing answer queries.
 - **`eraseSession` and `purgeExpired` reaching the new table** inside the same transaction and behind the same door.
 - **The hand-kept `AnswerRow` type and its `_AnswerRowMatchesTable` guard** (issue #5) and **`EXPECTED_TABLES`** in `migrations.test.ts` (issue #861, where the set is exact).
-- **The ADR-40 amendment already landed with the plan**, and this task is where its numbers are checked against real SQL: eight data-plane tables, sixteen per-environment guards (two triggers, one CHECK, one index), eight foreign keys, the two trigger **functions** single in `control`.
+- **The ADR-40 amendment already landed with the plan**, and this task is where its numbers are checked against real SQL: eight data-plane tables, seventeen per-environment guards (four of them from this table: two triggers, one CHECK and one index), eight foreign keys, the two trigger **functions** single in `control`.
 - **A changeset** for `@roonga/qcms-db` as a minor: appending a nullable column and a table is additive.
 
 ## Exit criteria
@@ -44,7 +44,7 @@ Acceptance cases **22 to 26** of `plan/repeating-groups-and-table-input.md` sect
 
 ## Sequencing against task 064
 
-**This lands first, and it lands as an ordinary appended migration.** Repetition is launch scope and environments (064) are Phase 4, so do not wait for that track and do not write anything conditional on it. The Code Owner's Q41 ruling on issue #995 then has **064 replace migrations 0000 onward with a new baseline**, and that baseline must include `answer_group_instances` with its two triggers, its CHECK, its index and its foreign key, which is where they join ADR-40's per-environment set. So this task writes nothing 064 has to migrate; it writes something 064 has to **carry into the baseline**. The counts in ADR-40's amendment are what 064 checks its generator against, and if the environments track's own counts disagree when both have landed, the later of the two reconciles them.
+**This lands first, and it lands as an ordinary appended migration.** Repetition is launch scope and environments (064) are Phase 4, so do not wait for that track and do not write anything conditional on it. The Code Owner's Q41 ruling on issue #995 then has **064 replace migrations 0000 onward with a new baseline**, and that baseline must include `answer_group_instances` with its two triggers, its CHECK, its index and its foreign key, which is where they join ADR-40's per-environment set. So this task writes nothing 064 has to migrate; it writes something 064 has to **carry into the baseline**. The counts in ADR-40's amendment are what 064 checks its generator against, and **the reconciliation between the two tracks is done**: the repetition work landed second and wrote the combined figures, so ADR-40, `plan/environments-and-workspaces.md` and `plan/repeating-groups-and-table-input.md` all state **eight data-plane tables, seventeen guards, eight foreign keys and twenty-five objects** per environment. Nothing is left for a later change to settle.
 
 ## Out of scope (binding)
 
