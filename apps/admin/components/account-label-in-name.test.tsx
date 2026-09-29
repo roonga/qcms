@@ -66,15 +66,35 @@ interface Shape {
   readonly name?: string;
   /** The monogram this shape must paint, stated here rather than derived. */
   readonly initials: string;
+  /**
+   * The exact code points of the monogram this shape paints, for the one row where the
+   * encoding is the point.
+   *
+   * Comparing against `initials` compares two strings, and two strings differing only by
+   * Unicode normalization are unequal - but the assertion does not SAY which form it
+   * expects, so a formatter or editor that composed the source literal AND the
+   * expectation together would leave the suite green while the decomposed case it exists
+   * for had quietly vanished. A list of code points cannot be satisfied by an accident of
+   * encoding, which is why it is stated separately from the string.
+   */
+  readonly codePoints?: readonly number[];
 }
 
 /**
- * Written as escapes rather than literals, for the reason `lib/initials.test.ts` gives:
- * an editor normalizes a typed accented letter to its precomposed single-code-unit form,
- * which is the form that passes on a broken implementation. Decomposed is the interesting
- * input, so it is spelled out. `Ó` is what `toUpperCase` makes of `ó`.
+ * Written as `\u` escapes rather than as typed letters, for the reason
+ * `lib/initials.test.ts` gives: an editor or a formatter normalizes a typed accented
+ * letter to its precomposed single-code-unit form, which is exactly the form that passes
+ * on a broken grapheme implementation - so a literal here would quietly turn the
+ * interesting case into the boring one. These two lines are the only place that risk
+ * lives in this file, so the code points are spelled out.
+ *
+ * `o` + U+0301 uppercases to `O` + U+0301. `toUpperCase` leaves a decomposed letter
+ * decomposed, so the monogram this shape expects is two clusters of two code points each,
+ * NOT the precomposed U+00D3 U+00C1. The `codePoints` assertion on that row is what holds
+ * the file to that: a normalization applied to these bytes fails the test rather than
+ * quietly weakening it.
  */
-const DECOMPOSED_NAME = "ólafur ásta";
+const DECOMPOSED_NAME = "o\u0301lafur a\u0301sta";
 
 const SHAPES: readonly Shape[] = [
   {
@@ -98,7 +118,9 @@ const SHAPES: readonly Shape[] = [
     what: "a display name whose initials are non-ASCII",
     email: "dev@qcms.test",
     name: DECOMPOSED_NAME,
-    initials: "ÓÁ",
+    initials: "O\u0301A\u0301",
+    // U+004F U+0301 U+0041 U+0301: the assertion that keeps the line above decomposed.
+    codePoints: [0x004f, 0x0301, 0x0041, 0x0301],
   },
   {
     what: "a one-character monogram",
@@ -140,6 +162,16 @@ describe("the account trigger satisfies label-in-name (WCAG 2.5.3)", () => {
       const visible = paintedText(trigger);
       expect(visible).toBe(shape.initials);
       expect(initialsFor(shape.email, shape.name)).toBe(shape.initials);
+
+      // Measured off the RENDERED text rather than off `shape.initials`, so this states
+      // what reached the DOM: the source literal, `initialsFor`'s grapheme segmentation
+      // and `toUpperCase` all have to keep the letter decomposed for it to hold.
+      if (shape.codePoints !== undefined) {
+        expect(
+          [...visible].map((character) => character.codePointAt(0)),
+          "the monogram lost its decomposed form somewhere between the source literal and the DOM",
+        ).toEqual([...shape.codePoints]);
+      }
 
       // The criterion, in the direction speech input needs it. Read from the rendered
       // button, so nothing about the catalogue message can satisfy this by construction.
