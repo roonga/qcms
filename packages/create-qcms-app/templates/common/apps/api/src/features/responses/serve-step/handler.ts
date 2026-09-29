@@ -45,6 +45,7 @@ import {
   SNAPSHOT_SCHEMA_VERSION,
   type StepId,
   validateAnswer,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
   appendAnswer,
@@ -141,7 +142,7 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
   const questionById = new Map<QuestionId, QuestionDefinition>();
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
-    for (const ref of step.items) {
+    for (const ref of stepQuestionRefs(step)) {
       const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(

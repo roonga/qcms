@@ -40,6 +40,7 @@ import {
   type SessionId,
   SNAPSHOT_SCHEMA_VERSION,
   type SubmissionError,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
   enqueue,
@@ -104,7 +105,7 @@ async function loadFrozenSnapshot(deps: Deps, session: SessionRow): Promise<Froz
 
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
-    for (const ref of step.items) {
+    for (const ref of stepQuestionRefs(step)) {
       const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
       if (record === undefined) {
         throw new Error(

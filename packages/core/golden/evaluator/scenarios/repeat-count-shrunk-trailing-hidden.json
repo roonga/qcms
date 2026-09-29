@@ -1,0 +1,82 @@
+{
+  "description": "A fromAnswer group whose count answer moved from three to two. The trailing instance is not live, so it contributes no visible entry and its date of birth is excluded, while staying in the ledger the scenario hands over. The evaluator reads the roster and never the count answer: deriving liveness from the count is the API's step above it.",
+  "form": "golden/evaluator/forms/repeat-from-answer.json",
+  "rosters": [
+    {
+      "groupId": "grp_fa",
+      "instances": ["ins_f1", "ins_f2"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "q_accident_count",
+      "value": 2
+    },
+    {
+      "questionId": "ins_f1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_f2/q_pax_dob",
+      "value": "1985-01-01"
+    },
+    {
+      "questionId": "ins_f3/q_pax_dob",
+      "value": "1978-11-30"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_count",
+        "questionId": "q_accident_count"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f2"
+      }
+    ],
+    "visibleSteps": ["stp_count", "stp_pax"],
+    "currentStep": null,
+    "answeredRequired": ["q_accident_count", "q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_count",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_accident_count",
+        "instanceId": null
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f2"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_fa",
+        "instances": ["ins_f1", "ins_f2"]
+      }
+    ]
+  }
+}

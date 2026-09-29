@@ -2,11 +2,18 @@ import { z } from "zod";
 
 import { AnswerValue, isBlankAnswerValue } from "./answer-value.js";
 import { err, ok, type Result } from "./errors.js";
-import { EvalError, evaluateRules, FlowState, type AnswerMap } from "./evaluate-rules.js";
-import { QuestionId } from "./ids.js";
+import {
+  EvalError,
+  evaluateRules,
+  FlowState,
+  type AnswerMap,
+  type RosterMap,
+} from "./evaluate-rules.js";
+import { answerKey, answerKeyParts, GroupId, InstanceId, QuestionId } from "./ids.js";
 import type { FrozenSnapshot } from "./publish-error.js";
 import type { QuestionDefinition } from "./question-definition.js";
 import { documentOrder } from "./rule-graph.js";
+import { countBounds, repeatGroups } from "./step.js";
 import { validateAnswer, ValidationError } from "./validate-answer.js";
 
 /**
@@ -49,6 +56,13 @@ export const SubmissionErrorCode = z.enum([
   "INVALID_ANSWER",
   "UNKNOWN_QUESTION",
   "FLOW_EVALUATION_FAILED",
+  // A repeating group whose live instance count is outside the bounds the form
+  // declares (ADR-42). It is a SUBMISSION error rather than a validation one
+  // because it is a property of the session's roster, not of any one value -
+  // `validateAnswer` takes a question and a value and knows nothing about where
+  // the question sits, which is exactly why a table cell validates like any
+  // other answer.
+  "REPEAT_COUNT_OUT_OF_RANGE",
 ]);
 export type SubmissionErrorCode = z.infer<typeof SubmissionErrorCode>;
 
@@ -61,28 +75,53 @@ const message = z.string().min(1);
  * ids only - never answer values (SECURITY_DESIGN).
  */
 export const SubmissionError = z.discriminatedUnion("code", [
-  // A visible required question with no answer (I9).
-  z.object({ code: z.literal("MISSING_REQUIRED"), message, questionId: QuestionId }),
+  // A visible required question with no answer (I9). Inside a repeating group
+  // the sweep reports one entry per `(instance, question)` rather than one per
+  // question, because a question marked required is required in EVERY live
+  // instance (ADR-42); `instanceId` is absent outside a group.
+  z.object({
+    code: z.literal("MISSING_REQUIRED"),
+    message,
+    questionId: QuestionId,
+    instanceId: InstanceId.optional(),
+  }),
   // A visible question's present answer failed validateAnswer; `errors`
   // carries the full per-constraint list for UI display.
   z.object({
     code: z.literal("INVALID_ANSWER"),
     message,
     questionId: QuestionId,
+    instanceId: InstanceId.optional(),
     errors: z.array(ValidationError).min(1),
   }),
   // An answer for a questionId not pinned in the form at all - defense
   // against ledger drift.
-  z.object({ code: z.literal("UNKNOWN_QUESTION"), message, questionId: QuestionId }),
+  z.object({
+    code: z.literal("UNKNOWN_QUESTION"),
+    message,
+    questionId: QuestionId,
+    instanceId: InstanceId.optional(),
+  }),
+  // A group's live instance count below its `min` or above its `max`.
+  z.object({
+    code: z.literal("REPEAT_COUNT_OUT_OF_RANGE"),
+    message,
+    groupId: GroupId,
+    count: z.number().int().min(0),
+  }),
   // The flow evaluation itself failed (unreachable on a compileDraft
   // snapshot with I5-resolved answers; returned, never thrown, for totality).
   z.object({ code: z.literal("FLOW_EVALUATION_FAILED"), message, cause: EvalError }),
 ]);
 export type SubmissionError = z.infer<typeof SubmissionError>;
 
-/** One locked answer: a visible question's canonical value. */
+/** One locked answer: a visible question's canonical value, addressed by its
+ * instance when it sits inside a repeating group. The `instanceId` key is
+ * ABSENT outside a group, which is what keeps a non-repeating form's
+ * `contentHash` byte-identical to the one it has always had. */
 export const LockedAnswer = z.object({
   questionId: QuestionId,
+  instanceId: InstanceId.optional(),
   value: AnswerValue,
 });
 export type LockedAnswer = z.infer<typeof LockedAnswer>;
@@ -158,15 +197,30 @@ export async function computeContentHash(content: unknown): Promise<string> {
 export async function prepareSubmission(
   snapshot: FrozenSnapshot,
   answers: AnswerMap,
+  rosters?: RosterMap,
 ): Promise<Result<LockedSubmission, readonly SubmissionError[]>> {
   const definitions = new Map<QuestionId, QuestionDefinition>(
     snapshot.questions.map((record) => [record.questionId, record.definition]),
   );
 
+  // Ledger drift is judged on the QUESTION half of the key: an answer whose
+  // question is not pinned in the form is UNKNOWN_QUESTION whether or not it
+  // names an instance, and an answer naming an instance the roster no longer
+  // lists is not drift at all - it is a removed instance, which stays in the
+  // ledger and is excluded from the locked set exactly as a hidden question's
+  // answer is (I6, ADR-42).
   const pinned = new Set(documentOrder(snapshot.definition).map((entry) => entry.questionId));
-  const unknown = [...answers.keys()].filter((questionId) => !pinned.has(questionId)).sort();
+  const unknown = [...answers.keys()]
+    .map((key) => answerKeyParts(key))
+    .filter((parts) => !pinned.has(parts.questionId))
+    .sort((left, right) => left.questionId.localeCompare(right.questionId));
 
-  const evaluated = evaluateRules(snapshot, answers, (questionId) => definitions.get(questionId));
+  const evaluated = evaluateRules(
+    snapshot,
+    answers,
+    (questionId) => definitions.get(questionId),
+    rosters,
+  );
   if (!evaluated.ok) {
     return err([
       {
@@ -174,14 +228,14 @@ export async function prepareSubmission(
         message: "Flow evaluation failed; the submission cannot be validated",
         cause: evaluated.error,
       },
-      ...unknown.map((questionId) => unknownQuestionError(questionId)),
+      ...unknown.map((parts) => unknownQuestionError(parts.questionId, parts.instanceId)),
     ]);
   }
   const flowState = evaluated.value;
 
   const errors: SubmissionError[] = [];
   const locked: LockedAnswer[] = [];
-  for (const { questionId } of flowState.visible) {
+  for (const { questionId, instanceId } of flowState.visible) {
     const definition = definitions.get(questionId);
     /* v8 ignore next 3 -- evaluateRules already failed UNRESOLVED_QUESTION_PIN
        for any pinned question the snapshot does not embed */
@@ -192,30 +246,43 @@ export async function prepareSubmission(
     // it neither satisfies `required` nor enters the locked set (issue #128).
     // The sweep reads the same predicate the evaluator dropped the entry with,
     // so `flowState.missingRequired` and MISSING_REQUIRED cannot disagree.
-    const answer = answers.get(questionId);
+    const answer = answers.get(answerKey(questionId, instanceId));
+    const named = instanceId === undefined ? "" : ` in instance "${instanceId}"`;
     if (answer === undefined || isBlankAnswerValue(answer)) {
       if (definition.required) {
         errors.push({
           code: "MISSING_REQUIRED",
-          message: `Required question "${questionId}" has no answer`,
+          message: `Required question "${questionId}"${named} has no answer`,
           questionId,
+          ...(instanceId === undefined ? {} : { instanceId }),
         });
       }
       continue;
     }
+    // `validateAnswer` is UNCHANGED and is deliberately position-blind: a cell
+    // inside a table-presented group is validated by the same call as a
+    // standalone question, returns the same `{code, constraint, message}`
+    // errors, and refuses `""` and `[]` with EMPTY_ANSWER_NOT_ALLOWED per cell.
+    // That is the property the "table is a presentation" ruling rests on.
     const validated = validateAnswer(definition, answer);
     if (validated.ok) {
-      locked.push({ questionId, value: validated.value });
+      locked.push({
+        questionId,
+        ...(instanceId === undefined ? {} : { instanceId }),
+        value: validated.value,
+      });
     } else {
       errors.push({
         code: "INVALID_ANSWER",
-        message: `Answer for question "${questionId}" is invalid`,
+        message: `Answer for question "${questionId}"${named} is invalid`,
         questionId,
+        ...(instanceId === undefined ? {} : { instanceId }),
         errors: [...validated.error],
       });
     }
   }
-  errors.push(...unknown.map((questionId) => unknownQuestionError(questionId)));
+  errors.push(...checkRepeatCounts(snapshot, rosters));
+  errors.push(...unknown.map((parts) => unknownQuestionError(parts.questionId, parts.instanceId)));
 
   if (errors.length > 0) {
     return err(errors);
@@ -225,10 +292,42 @@ export async function prepareSubmission(
   return ok({ answers: locked, flowState, contentHash });
 }
 
-function unknownQuestionError(questionId: QuestionId): SubmissionError {
+/**
+ * Every repeating group's live instance count sits within the bounds its form
+ * declares (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42). The count is read from the
+ * roster the caller derived, never from the answers: an instance with no
+ * non-blank answer at all is still live, which is what makes "Add passenger" a
+ * thing a respondent can see happen.
+ */
+function checkRepeatCounts(
+  snapshot: FrozenSnapshot,
+  rosters: RosterMap | undefined,
+): SubmissionError[] {
+  const errors: SubmissionError[] = [];
+  for (const group of repeatGroups(snapshot.definition.steps)) {
+    const count = rosters?.get(group.groupId)?.length ?? 0;
+    const bounds = countBounds(group.count);
+    if (count < bounds.min || (bounds.max !== undefined && count > bounds.max)) {
+      const ceiling = bounds.max === undefined ? "no declared max" : `max ${String(bounds.max)}`;
+      errors.push({
+        code: "REPEAT_COUNT_OUT_OF_RANGE",
+        message: `Group "${group.groupId}" has ${String(count)} live instances, outside its declared min ${String(bounds.min)} and ${ceiling}`,
+        groupId: group.groupId,
+        count,
+      });
+    }
+  }
+  return errors;
+}
+
+function unknownQuestionError(
+  questionId: QuestionId,
+  instanceId: InstanceId | undefined,
+): SubmissionError {
   return {
     code: "UNKNOWN_QUESTION",
     message: `Answer references question "${questionId}", which is not in the form`,
     questionId,
+    ...(instanceId === undefined ? {} : { instanceId }),
   };
 }

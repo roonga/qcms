@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  documentOrder,
   FormDefinitionErrorCode,
   isFormDefinition,
   parseFormDefinition,
@@ -62,10 +63,8 @@ describe("valid fixtures", () => {
     const known = questionFixtureTypes();
     for (const file of validFiles) {
       const form = parseValid(file);
-      for (const step of form.steps) {
-        for (const item of step.items) {
-          expect(known.has(item.questionId), `${file} pins unknown ${item.questionId}`).toBe(true);
-        }
+      for (const { questionId } of documentOrder(form)) {
+        expect(known.has(questionId), `${file} pins unknown ${questionId}`).toBe(true);
       }
     }
   });
@@ -81,9 +80,7 @@ describe("kitchen-sink.json (canonical reference form)", () => {
 
   it("covers every question type via the question fixtures it pins", () => {
     const known = questionFixtureTypes();
-    const pinnedTypes = new Set(
-      form.steps.flatMap((step) => step.items.map((item) => known.get(item.questionId))),
-    );
+    const pinnedTypes = new Set(documentOrder(form).map((entry) => known.get(entry.questionId)));
     expect([...pinnedTypes].sort()).toEqual(
       ["boolean", "date", "longText", "multiChoice", "number", "shortText", "singleChoice"].sort(),
     );

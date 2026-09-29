@@ -97,9 +97,41 @@ forked. Every referenced form must be publish-shaped - the runner asserts
   (`fixtures/forms/valid/...`) or a corpus form (`golden/evaluator/forms/...`).
 - `answers` - the _raw_ authored values; the runner hands them to the
   evaluator uncanonicalized, so NFC normalization and multiChoice
-  deduplication stay part of the asserted surface. Each `questionId` may
-  appear once.
+  deduplication stay part of the asserted surface. Each key may appear once.
+- `rosters` - **optional, and absent from every scenario that has no repeating
+  group** (see below).
 - `expected` - the full `FlowState`, all arrays in document order.
+
+### Repeating groups in a scenario (task 071, ADR-42)
+
+Two fields carry repetition, and both are additive, which is what lets the
+fifty-one scenarios committed before it stay untouched.
+
+- An `answers` key is a bare `questionId` outside a repeating group and
+  `instanceId/questionId` inside one, separated by `/`:
+  `{ "questionId": "ins_p2/q_pax_dob", "value": "2024-06-15" }`. The field keeps
+  the name `questionId` deliberately - renaming it would have edited every
+  committed scenario, which is the one thing this corpus does not do.
+- `rosters` is the **live** roster the evaluator is handed, in roster order:
+  `[{ "groupId": "grp_pax", "instances": ["ins_p1", "ins_p2"] }]`. The evaluator
+  never derives liveness and never reads a count answer to do it (that step is
+  the API's, above it), so a scenario states the roster the way it states the
+  answers. A scenario with no `rosters` key calls `evaluateRules` with three
+  arguments exactly as every pre-071 caller does.
+
+An instance the roster does not list is **removed**: its answers stay in the
+scenario, are excluded from every condition, from the required accounting and
+from `visible`, and are never deleted. `repeat-removed-instance-excluded` is
+that case, and `repeat-count-shrunk-trailing-hidden` beside
+`repeat-count-restored-answers-intact` is the shrink-and-grow pair.
+
+`expected` then carries four optional fields - `visibleStepViews`,
+`missingRequiredInstances`, `answeredRequiredInstances` and `rosters` - which
+are **absent entirely** from a scenario whose form has no group. The six
+original fields keep their exact shapes throughout: `missingRequired` lists a
+repeated question **once**, and the per-instance detail is in the parallel array
+beside it. Arrays over a group are in document then roster order: the span's
+first question for every instance, then its second for every instance.
 
 ## Coverage matrix
 
@@ -120,6 +152,12 @@ forked. Every referenced form must be publish-shaped - the runner asserts
 | Hidden-answer exclusion chain (A controls B; B's answer feeds C)        | `exclusion-chain`, `step-gate` | `chain-propagates`, `chain-hidden-answer-excluded`, `chain-middle-unanswered`, `step-gate-stale-answer-excluded`                                        |
 | Empty answers / all answered / partial with required missing            | many                           | `*-unanswered`, `*-none`, `answered-partial`, `kitchen-sink-partial-missing-required`, `minimal-*`                                                      |
 | Insurance flow as a sequence (answers appended step by step)            | fixture `insurance`            | `insurance-seq-1-empty`, `insurance-seq-2-accident-yes`, `insurance-seq-2b-accident-no`, `insurance-seq-3-complete`                                     |
+| Per-instance visibility: a rule inside a group reads its own instance   | `repeat-stacked`               | `repeat-per-instance-visibility`                                                                                                                        |
+| `anyInstance`, and `instanceCount` at the boundary (four, then five)    | `repeat-stacked`               | `repeat-per-instance-visibility`, `repeat-instance-count-four-hidden`, `repeat-instance-count-five-shown`                                               |
+| `everyInstance`: all match, one mismatch, and FALSE over an empty group | `repeat-stacked`               | `repeat-per-instance-visibility`, `repeat-every-instance-one-mismatch`, `repeat-every-instance-empty-group`                                             |
+| The non-equivalence: `not(anyInstance(not c))` is TRUE over that group  | `repeat-stacked`               | `repeat-every-instance-empty-group`                                                                                                                     |
+| A removed instance's answers excluded, never deleted                    | `repeat-stacked`               | `repeat-removed-instance-excluded`                                                                                                                      |
+| A shrinking then restored `fromAnswer` count, same instance ids         | `repeat-from-answer`           | `repeat-count-shrunk-trailing-hidden`, `repeat-count-restored-answers-intact`                                                                           |
 | Kitchen-sink end to end (both branches on, off, optional unanswered)    | fixture `kitchen-sink`         | `kitchen-sink-empty`, `kitchen-sink-partial-missing-required`, `kitchen-sink-complete`, `kitchen-sink-optional-unanswered`, `kitchen-sink-branches-off` |
 
 ## Adding a scenario

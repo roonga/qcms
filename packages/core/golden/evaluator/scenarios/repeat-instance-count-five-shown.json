@@ -1,0 +1,117 @@
+{
+  "description": "instanceCount gte 5 is TRUE at five live instances, so the whole-form gate shows. One instance more than the scenario beside it, and nothing else changed: the boundary is the assertion.",
+  "form": "golden/evaluator/forms/repeat-stacked.json",
+  "rosters": [
+    {
+      "groupId": "grp_pax",
+      "instances": ["ins_p1", "ins_p2", "ins_p3", "ins_p4", "ins_p5"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "ins_p1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_p2/q_pax_dob",
+      "value": "1985-01-01"
+    },
+    {
+      "questionId": "ins_p3/q_pax_dob",
+      "value": "1978-11-30"
+    },
+    {
+      "questionId": "ins_p4/q_pax_dob",
+      "value": "2001-02-28"
+    },
+    {
+      "questionId": "ins_p5/q_pax_dob",
+      "value": "1966-07-04"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p4"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p5"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_b"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_pax", "stp_after"],
+    "currentStep": "stp_after",
+    "answeredRequired": ["q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_after",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p4"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p5"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_pax",
+        "instances": ["ins_p1", "ins_p2", "ins_p3", "ins_p4", "ins_p5"]
+      }
+    ]
+  }
+}

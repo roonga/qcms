@@ -86,7 +86,26 @@ const OP_ARITY = {
   and: "combinator",
   or: "combinator",
   not: "combinator",
-} satisfies Record<Condition["op"], "leaf" | "combinator">;
+  // The three whole-group operators the kernel gained in task 071 (ADR-42,
+  // ADR-03 as amended 2026-09-29). They are a **third arity**, not a leaf and
+  // not a combinator: they read a `groupId` rather than a `questionId`, and
+  // `anyInstance` and `everyInstance` carry one nested condition each while
+  // `instanceCount` carries none.
+  //
+  // They are listed here and nowhere else in this app on purpose. The gate this
+  // table is works only if it is total over the kernel's union, so 071 carries
+  // the three keys in the same change that adds the operators - otherwise this
+  // app does not typecheck at all. **Task 074 owns the rest of the admin's
+  // half**: the operator picker, the structured editors, the rule sentence
+  // (including the "and there is at least one passenger" reading and its
+  // negation's mirror), the per-instance scope chip and the zero-instance test
+  // bench. Until then `CONDITION_OPS` in `./types.ts` deliberately does not
+  // carry them, so no picker can emit one and `isCombinator` below still
+  // indexes this table with a strictly narrower key set.
+  anyInstance: "group",
+  everyInstance: "group",
+  instanceCount: "group",
+} satisfies Record<Condition["op"], "leaf" | "combinator" | "group">;
 
 /** The three combinators, which read no question of their own. */
 export function isCombinator(op: ConditionOp): op is "and" | "or" | "not" {

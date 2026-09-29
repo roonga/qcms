@@ -1,0 +1,30 @@
+{
+  "description": "One step item carries both a questionId and a groupId. The step-item union is discriminated by disjoint required keys and carries no kind tag (ADR-42), so without an explicit refusal the item would match the pinned-question member, have its groupId stripped as an unknown key, and drop a repeating group the author wrote with nothing anywhere saying so.",
+  "expected": {
+    "code": "INVALID_FORM_DEFINITION",
+    "path": ["steps", 0, "items", 0, "groupId"]
+  },
+  "definition": {
+    "formId": "frm_auto_quote",
+    "defaultLocale": "en",
+    "title": { "en": "Vehicle insurance quote" },
+    "steps": [
+      {
+        "stepId": "stp_history",
+        "title": { "en": "Driving history" },
+        "items": [
+          {
+            "questionId": "q_full_name",
+            "version": 1,
+            "groupId": "grp_passengers",
+            "label": { "en": "Passengers" },
+            "instanceLabel": { "en": "Passenger {n}" },
+            "items": [{ "questionId": "q_dob", "version": 1 }],
+            "count": { "source": "open", "min": 1, "max": 9 }
+          }
+        ]
+      }
+    ],
+    "rules": []
+  }
+}

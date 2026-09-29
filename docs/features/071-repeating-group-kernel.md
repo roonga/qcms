@@ -23,6 +23,7 @@ This task is the kernel half and nothing else. It is the first of the seven and 
 - **`conditionDepth` recursing into both nested-condition operators**, with `CONDITION_MAX_DEPTH` unchanged at 8.
 - **`documentOrder` expanding a group into a contiguous span**, and `analyzeRuleGraph` applying the forward-only rule to the span rather than to a position.
 - **The publish codes this task introduces**, all in the existing `PublishError` union and all reported alongside the others rather than short-circuiting: `DUPLICATE_GROUP_ID`, `REPEAT_COUNT_BACKWARD_REF`, `REPEAT_COUNT_NOT_A_NUMBER`, `REPEAT_NESTING_NOT_ALLOWED`, `REPEAT_MAX_MISSING`, `REPEAT_MIN_ABOVE_MAX`, `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`, `RULE_TARGETS_SPAN_SCOPES` and `REPEAT_EVALUATION_BUDGET_EXCEEDED`. There is deliberately **no** `REPEAT_MAX_ABOVE_CEILING`.
+- **Four more from the rulings of 2026-09-29** (Q24 to Q26): `DANGLING_GROUP_REF`, `REPEAT_OPERATOR_NESTING_NOT_ALLOWED`, `RULE_READS_GROUP_WITHOUT_OPERATOR` and `REPEAT_COUNT_INSIDE_GROUP`, plus the existing `DANGLING_QUESTION_REF` for a `fromAnswer` count question the form does not pin.
 - **`RULE_TARGETS_SPAN_SCOPES`**: `VisibilityRule.show` is an array, so one rule listing a target inside a group and a target outside it is both per-instance and whole-form. Every `show` target of one rule shares one scope, and a mixed list is refused, naming both scopes.
 - **`REPEAT_EVALUATION_BUDGET` and its refusal**: a rule targeting inside group H whose condition applies a whole-group operator over another group G is refused when `max_H x max_G` exceeds the constant. **It is a cost bound and not an instance ceiling**; it caps no group's `max`, and two large groups with no cross-group rule between them publish. **The value is `10_000`, confirmed by the Code Owner on 2026-09-30**; the plan carries the reasoning, and it belongs in the constant's docblock rather than only in the commit.
 - **`REPEAT_COUNT_OUT_OF_RANGE`** in `prepareSubmission`, and `MISSING_REQUIRED` reported per `(instance, question)`.
@@ -34,14 +35,15 @@ This task is the kernel half and nothing else. It is the first of the seven and 
 
 ## Exit criteria
 
-Acceptance cases **1, 2, 3 and 6 to 21** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others. Plus:
+Acceptance cases **1, 2, 3, 6 to 21 and 63 to 66** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others. Cases 63 to 66 arrived with the Code Owner's rulings of **2026-09-29** (Q24 to Q26) on the independent review of this task's PR, and they close three rule shapes and one count shape that published cleanly and could never fire. Plus:
 
 1. No `expected` block under `packages/core/golden/evaluator/` is modified, asserted by `check:golden-append-only` rather than by review.
 2. `SEMANTICS_VERSION` is still 1, asserted by the constant and by case 1 passing.
 3. The hand-spelled operator list in `packages/core/src/visibility-rule.test.ts` names **sixteen** operators, edited deliberately, and the admin's parallel list matches.
 4. The `everyInstance` empty-group reading is pinned by case 13, which also asserts that `not(anyInstance(not c))` is **true** over the same empty group, so the non-equivalence is a test rather than a paragraph.
-5. `REPEAT_EVALUATION_BUDGET`'s refusal is proved by case 16 in both directions, including that two groups above the budget with **no** cross-group rule still publish.
-6. `pnpm verify` green.
+5. `REPEAT_EVALUATION_BUDGET`'s refusal is proved by case 16 in both directions, including that two groups above the budget with **no** cross-group rule still publish, and that two groups above it with a **per-instance** rule between them publish as well, so the budget is not the instance ceiling Q14 removed.
+6. **A whole-group operator may not sit inside another's condition** (Q25), which is what makes the pairwise budget a bound on a rule rather than on a pair. Case 64 proves it for the two-group nest, the self-nest, nesting through `and`, `or` and `not`, and the three-group shape whose every pair is within budget, and proves that two **sibling** whole-group reads still publish.
+7. `pnpm verify` green.
 
 ## Files and areas
 

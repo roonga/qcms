@@ -38,6 +38,7 @@ import {
   parseQuestionDefinition,
   type FormDefinition,
   type QuestionRef,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
   appendAnswer,
@@ -136,7 +137,7 @@ describe("the sample-data lifecycle against a real database", () => {
     const definition: FormDefinition = published.definition;
     const compiled: CompiledForm = published.compiled;
 
-    const items: QuestionRef[] = definition.steps.flatMap((step) => step.items);
+    const items: QuestionRef[] = definition.steps.flatMap((step) => stepQuestionRefs(step));
     const pinned: string[] = items.map((item) => String(item.questionId));
     expect([...new Set(pinned)].sort()).toEqual(questionIds.map(String).sort());
     expect(compiled.documents).toHaveLength(definition.steps.length);

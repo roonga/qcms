@@ -1,9 +1,10 @@
 import { z } from "zod";
 
 import { QcmsError, err, ok, type Result } from "./errors.js";
-import { FormId, QuestionId, StepId } from "./ids.js";
+import { FormId } from "./ids.js";
 import { addCodedIssue as addSharedCodedIssue, toCodedErrors } from "./internal/coded-issues.js";
 import { LocaleCode, LocalizedText } from "./localized-text.js";
+import { isRepeatGroup, Step, type StepItem } from "./step.js";
 import { VisibilityRule } from "./visibility-rule.js";
 
 /**
@@ -34,6 +35,7 @@ export const FormDefinitionErrorCode = z.enum([
   "INVALID_FORM_DEFINITION",
   "DUPLICATE_STEP_ID",
   "DUPLICATE_QUESTION_IN_FORM",
+  "DUPLICATE_GROUP_ID",
   "RULE_DEPTH_EXCEEDED",
 ]);
 export type FormDefinitionErrorCode = z.infer<typeof FormDefinitionErrorCode>;
@@ -53,23 +55,11 @@ function addCodedIssue(
 }
 
 /**
- * A pinned reference to a question version (ADR-02). The pair is the whole
- * point: a snapshot freezes exactly which content each questionId had.
- * Whether the pin resolves (question exists, version published) is a publish
- * invariant (008), not a parse concern.
+ * `QuestionRef` and `Step` moved to `step.ts` in task 071, where the repeating
+ * group that may now sit in a step's item list lives beside them. They are
+ * re-exported here so every existing importer of this module is unaffected.
  */
-export const QuestionRef = z.object({
-  questionId: QuestionId,
-  version: z.number().int().positive(),
-});
-export type QuestionRef = z.infer<typeof QuestionRef>;
-
-export const Step = z.object({
-  stepId: StepId,
-  title: LocalizedText,
-  items: z.array(QuestionRef).min(1),
-});
-export type Step = z.infer<typeof Step>;
+export { QuestionRef, Step } from "./step.js";
 
 /**
  * The form aggregate (DOMAIN_SCHEMA §2.3). Parse-level refinements: unique
@@ -96,6 +86,26 @@ export const FormDefinition = z
   .superRefine((form, ctx) => {
     const seenSteps = new Set<string>();
     const seenQuestions = new Set<string>();
+    const seenGroups = new Set<string>();
+
+    /** One pinned question, wherever it sits: a step's item list or a group's.
+     * `DUPLICATE_QUESTION_IN_FORM` reaches inside groups (ADR-42), so a
+     * question is either repeated or not in a given form and the refinement's
+     * stated reason - unambiguous answer keying - holds under the instance-
+     * qualified key exactly as it did under the bare one. */
+    const pin = (questionId: string, where: string, path: readonly (string | number)[]): void => {
+      if (seenQuestions.has(questionId)) {
+        addCodedIssue(
+          ctx,
+          "DUPLICATE_QUESTION_IN_FORM",
+          `Question "${questionId}" is pinned more than once (again at ${where})`,
+          [...path, "questionId"],
+        );
+      } else {
+        seenQuestions.add(questionId);
+      }
+    };
+
     form.steps.forEach((step, stepIndex) => {
       if (seenSteps.has(step.stepId)) {
         addCodedIssue(
@@ -107,17 +117,26 @@ export const FormDefinition = z
       } else {
         seenSteps.add(step.stepId);
       }
-      step.items.forEach((item, itemIndex) => {
-        if (seenQuestions.has(item.questionId)) {
+      step.items.forEach((item: StepItem, itemIndex) => {
+        const at = ["steps", stepIndex, "items", itemIndex] as const;
+        const where = `steps[${stepIndex}].items[${itemIndex}]`;
+        if (!isRepeatGroup(item)) {
+          pin(item.questionId, where, at);
+          return;
+        }
+        if (seenGroups.has(item.groupId)) {
           addCodedIssue(
             ctx,
-            "DUPLICATE_QUESTION_IN_FORM",
-            `Question "${item.questionId}" is pinned more than once (again at steps[${stepIndex}].items[${itemIndex}])`,
-            ["steps", stepIndex, "items", itemIndex, "questionId"],
+            "DUPLICATE_GROUP_ID",
+            `Duplicate groupId "${item.groupId}" at steps[${stepIndex}].items[${itemIndex}]`,
+            [...at, "groupId"],
           );
         } else {
-          seenQuestions.add(item.questionId);
+          seenGroups.add(item.groupId);
         }
+        item.items.forEach((member, memberIndex) => {
+          pin(member.questionId, `${where}.items[${memberIndex}]`, [...at, "items", memberIndex]);
+        });
       });
     });
   });

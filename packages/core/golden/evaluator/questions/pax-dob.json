@@ -1,0 +1,7 @@
+{
+  "type": "date",
+  "questionId": "q_pax_dob",
+  "label": { "en": "Date of birth (corpus repeating-group member)" },
+  "required": true,
+  "constraints": { "min": "1900-01-01", "max": "2100-12-31" }
+}

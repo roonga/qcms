@@ -1,0 +1,100 @@
+{
+  "description": "instanceCount gte 5 is FALSE at four live instances, so the whole-form gate stays hidden. The other two whole-group operators read the same four instances and agree with themselves: no infant, so anyInstance is false; every date answered, so everyInstance is true.",
+  "form": "golden/evaluator/forms/repeat-stacked.json",
+  "rosters": [
+    {
+      "groupId": "grp_pax",
+      "instances": ["ins_p1", "ins_p2", "ins_p3", "ins_p4"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "ins_p1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_p2/q_pax_dob",
+      "value": "1985-01-01"
+    },
+    {
+      "questionId": "ins_p3/q_pax_dob",
+      "value": "1978-11-30"
+    },
+    {
+      "questionId": "ins_p4/q_pax_dob",
+      "value": "2001-02-28"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p4"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_pax", "stp_after"],
+    "currentStep": "stp_after",
+    "answeredRequired": ["q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_after",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p4"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_pax",
+        "instances": ["ins_p1", "ins_p2", "ins_p3", "ins_p4"]
+      }
+    ]
+  }
+}

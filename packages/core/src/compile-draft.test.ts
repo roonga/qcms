@@ -9,6 +9,7 @@ import {
   SEMANTICS_VERSION,
   SNAPSHOT_SCHEMA_VERSION,
   compileDraft,
+  isRepeatGroup,
   parseFormDefinition,
   parseQuestionDefinition,
   type DraftInput,
@@ -195,7 +196,9 @@ describe("compileDraft - success path", () => {
         snapshot.questions.map((entry) => `${entry.questionId}@${String(entry.version)}`),
       ).toEqual(
         definition.steps.flatMap((step) =>
-          step.items.map((item) => `${item.questionId}@${String(item.version)}`),
+          step.items
+            .flatMap((item) => (isRepeatGroup(item) ? item.items : [item]))
+            .map((item) => `${item.questionId}@${String(item.version)}`),
         ),
       );
     }

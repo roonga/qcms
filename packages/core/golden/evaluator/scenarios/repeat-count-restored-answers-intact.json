@@ -1,0 +1,91 @@
+{
+  "description": "The same form with the count answer back at three. ins_f3 is live again, under the SAME instance id, and its date of birth is intact: the id never changed, so a mis-typed count does not destroy an answer. Read beside repeat-count-shrunk-trailing-hidden, the pair is the whole of the shrink-and-grow semantic.",
+  "form": "golden/evaluator/forms/repeat-from-answer.json",
+  "rosters": [
+    {
+      "groupId": "grp_fa",
+      "instances": ["ins_f1", "ins_f2", "ins_f3"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "q_accident_count",
+      "value": 3
+    },
+    {
+      "questionId": "ins_f1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_f2/q_pax_dob",
+      "value": "1985-01-01"
+    },
+    {
+      "questionId": "ins_f3/q_pax_dob",
+      "value": "1978-11-30"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_count",
+        "questionId": "q_accident_count"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f2"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f3"
+      }
+    ],
+    "visibleSteps": ["stp_count", "stp_pax"],
+    "currentStep": null,
+    "answeredRequired": ["q_accident_count", "q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_count",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_accident_count",
+        "instanceId": null
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f2"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_f3"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_fa",
+        "instances": ["ins_f1", "ins_f2", "ins_f3"]
+      }
+    ]
+  }
+}

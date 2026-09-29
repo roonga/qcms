@@ -1,0 +1,78 @@
+{
+  "description": "The third passenger was removed, and the ledger still holds their 2024 date of birth. The roster is what decides: the removed instance contributes no visible entry, its answer never settles, and anyInstance therefore does not see the infant it would have seen. Exclusion, never deletion, exactly as a hidden question's answers are excluded (I6).",
+  "form": "golden/evaluator/forms/repeat-stacked.json",
+  "rosters": [
+    {
+      "groupId": "grp_pax",
+      "instances": ["ins_p1", "ins_p2"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "ins_p1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_p2/q_pax_dob",
+      "value": "1985-01-01"
+    },
+    {
+      "questionId": "ins_p3/q_pax_dob",
+      "value": "2024-06-15"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_pax", "stp_after"],
+    "currentStep": "stp_after",
+    "answeredRequired": ["q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_after",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_pax",
+        "instances": ["ins_p1", "ins_p2"]
+      }
+    ]
+  }
+}

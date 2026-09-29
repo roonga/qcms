@@ -52,6 +52,7 @@ import {
   ruleReferences,
   type StepId,
   type VisibilityRule,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
   closeForm,
@@ -236,7 +237,7 @@ function placementKey(stepId: StepId, questionId: QuestionId, version: number): 
 function pinnedQuestionIds(definition: FormDefinition): Set<QuestionId> {
   const ids = new Set<QuestionId>();
   for (const step of definition.steps) {
-    for (const item of step.items) ids.add(item.questionId);
+    for (const item of stepQuestionRefs(step)) ids.add(item.questionId);
   }
   return ids;
 }
@@ -303,7 +304,7 @@ function deprecatedPinGate(
   const carried = new Set<string>();
   if (previousDefinition !== undefined) {
     for (const step of previousDefinition.steps) {
-      for (const item of step.items) {
+      for (const item of stepQuestionRefs(step)) {
         carried.add(placementKey(step.stepId, item.questionId, item.version));
       }
     }
@@ -311,7 +312,7 @@ function deprecatedPinGate(
 
   const issues: DeprecatedPinIssue[] = [];
   for (const step of definition.steps) {
-    for (const item of step.items) {
+    for (const item of stepQuestionRefs(step)) {
       if (statusByPin.get(pinKey(item.questionId, item.version)) !== "deprecated") continue;
       // Deprecated content is still valid content for compileDraft to resolve.
       publishedQuestionVersions.get(item.questionId)?.add(item.version);
@@ -710,7 +711,7 @@ function unavailable(
 function pinsByQuestion(definition: FormDefinition): Map<QuestionId, number> {
   const pins = new Map<QuestionId, number>();
   for (const step of definition.steps) {
-    for (const item of step.items) pins.set(item.questionId, item.version);
+    for (const item of stepQuestionRefs(step)) pins.set(item.questionId, item.version);
   }
   return pins;
 }
@@ -730,7 +731,7 @@ function orderedReferences(
   const referenced = new Set<QuestionId>(ruleReferences(rule));
   const pinned: QuestionId[] = [];
   for (const step of definition.steps) {
-    for (const item of step.items) {
+    for (const item of stepQuestionRefs(step)) {
       if (referenced.has(item.questionId)) pinned.push(item.questionId);
     }
   }
@@ -749,7 +750,8 @@ function benchTarget(
 ): QuestionRef | undefined {
   for (const target of rule.show) {
     if (isStepId(target)) {
-      const first = definition.steps.find((step) => step.stepId === target)?.items[0];
+      const step = definition.steps.find((entry) => entry.stepId === target);
+      const first = step === undefined ? undefined : stepQuestionRefs(step)[0];
       if (first !== undefined) return first;
       continue;
     }

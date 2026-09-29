@@ -9,6 +9,7 @@ import {
   type FormId,
   type QuestionDefinition,
   type QuestionId,
+  stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
   answers,
@@ -343,7 +344,7 @@ async function unpublishablePins(db: Db, definition: FormDefinition): Promise<st
   const reasons: string[] = [];
 
   for (const step of definition.steps) {
-    for (const item of step.items) {
+    for (const item of stepQuestionRefs(step)) {
       const pin = `${String(item.questionId)}@${String(item.version)}`;
       const row = await getQuestionVersion(db, item.questionId, item.version);
       if (row === undefined) {

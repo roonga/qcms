@@ -1,0 +1,96 @@
+{
+  "description": "Three passengers, one born in 2024: the infant-fare question appears under THAT passenger and under nobody else, which is the case that makes repetition a kernel feature rather than a rendering trick. anyInstance sees the one infant and shows the whole-form gate; instanceCount gte 5 is false at three; everyInstance over three answered dates is true.",
+  "form": "golden/evaluator/forms/repeat-stacked.json",
+  "rosters": [
+    {
+      "groupId": "grp_pax",
+      "instances": ["ins_p1", "ins_p2", "ins_p3"]
+    }
+  ],
+  "answers": [
+    {
+      "questionId": "ins_p1/q_pax_dob",
+      "value": "1990-05-01"
+    },
+    {
+      "questionId": "ins_p2/q_pax_dob",
+      "value": "2024-06-15"
+    },
+    {
+      "questionId": "ins_p3/q_pax_dob",
+      "value": "1985-01-01"
+    }
+  ],
+  "expected": {
+    "visible": [
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      },
+      {
+        "stepId": "stp_pax",
+        "questionId": "q_pax_infant_fare",
+        "instanceId": "ins_p2"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_a"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_c"
+      },
+      {
+        "stepId": "stp_after",
+        "questionId": "q_gate_d"
+      }
+    ],
+    "visibleSteps": ["stp_pax", "stp_after"],
+    "currentStep": "stp_pax",
+    "answeredRequired": ["q_pax_dob"],
+    "missingRequired": [],
+    "complete": true,
+    "visibleStepViews": [
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      },
+      {
+        "stepId": "stp_after",
+        "instanceId": null
+      }
+    ],
+    "missingRequiredInstances": [],
+    "answeredRequiredInstances": [
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p1"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p2"
+      },
+      {
+        "questionId": "q_pax_dob",
+        "instanceId": "ins_p3"
+      }
+    ],
+    "rosters": [
+      {
+        "groupId": "grp_pax",
+        "instances": ["ins_p1", "ins_p2", "ins_p3"]
+      }
+    ]
+  }
+}

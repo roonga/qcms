@@ -30,7 +30,7 @@
  * Answer *values* are export payload, never logged (SEC-8).
  */
 
-import type { FormDefinition } from "@roonga/qcms-core";
+import { stepQuestionRefs, type FormDefinition } from "@roonga/qcms-core";
 import { csvField } from "@roonga/qcms-csv";
 
 /**
@@ -57,7 +57,7 @@ export const METADATA_COLUMNS = ["session_id", "form_version", "submitted_at", "
 export function questionIdsInDocumentOrder(definition: FormDefinition): string[] {
   const ids: string[] = [];
   for (const step of definition.steps) {
-    for (const item of step.items) ids.push(item.questionId);
+    for (const item of stepQuestionRefs(step)) ids.push(item.questionId);
   }
   return ids;
 }

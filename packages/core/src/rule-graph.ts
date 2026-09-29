@@ -1,8 +1,23 @@
 import { DateAnswerValue } from "./answer-value.js";
 import type { FormDefinition } from "./form-definition.js";
-import { isOptionId, isStepId, type OptionId, type QuestionId, type StepId } from "./ids.js";
+import {
+  isOptionId,
+  isStepId,
+  type GroupId,
+  type OptionId,
+  type QuestionId,
+  type StepId,
+} from "./ids.js";
 import type { PublishErrorOf } from "./publish-error.js";
 import { optionIdsOf, type QuestionDefinition } from "./question-definition.js";
+import {
+  countBounds,
+  isRepeatGroup,
+  repeatGroups,
+  REPEAT_EVALUATION_BUDGET,
+  questionGroups,
+  type RepeatGroup,
+} from "./step.js";
 import type { Condition, VisibilityRule } from "./visibility-rule.js";
 
 /**
@@ -24,22 +39,57 @@ import type { Condition, VisibilityRule } from "./visibility-rule.js";
  * the type check looks inside option references.
  */
 
-/** One question's position in the form: which step it sits in. Positions are
- * unique per question (parse rejects duplicate pins). */
+/** One question's position in the form: which step it sits in, and which
+ * repeating group when it is inside one. Positions are unique per question
+ * (parse rejects duplicate pins, inside a group as well as outside). */
 export interface DocumentPosition {
   readonly stepId: StepId;
   readonly questionId: QuestionId;
+  /** The repeating group whose span this position belongs to, when it is inside
+   * one (ADR-42). Absent for a question outside every group. */
+  readonly groupId?: GroupId;
 }
 
-/** The flat document order of a form: every `(stepId, questionId)` pair, in
- * the order a respondent encounters them (ADR-16 evaluation order). */
+/**
+ * The flat document order of a form: every `(stepId, questionId)` pair, in the
+ * order a respondent encounters them (ADR-16 evaluation order).
+ *
+ * **A repeating group expands into a contiguous span of its member questions,
+ * in order** (ADR-16 as amended 2026-09-29). The span is the unit the
+ * forward-only rule applies to: a rule targeting inside the group may read
+ * questions before the group and questions earlier within the same instance,
+ * while a rule reading the **whole** group must target after the whole span.
+ * Instances do not multiply the order - the span is static and the roster is a
+ * runtime input - which is what keeps `documentOrder` answer-blind.
+ */
 export function documentOrder(form: FormDefinition): readonly DocumentPosition[] {
   return form.steps.flatMap((step) =>
-    step.items.map((item) => ({ stepId: step.stepId, questionId: item.questionId })),
+    step.items.flatMap((item) =>
+      isRepeatGroup(item)
+        ? item.items.map((member) => ({
+            stepId: step.stepId,
+            questionId: member.questionId,
+            groupId: item.groupId,
+          }))
+        : [{ stepId: step.stepId, questionId: item.questionId }],
+    ),
   );
 }
 
-function collectReferences(condition: Condition, out: QuestionId[]): void {
+/**
+ * Every id a condition reads, split by kind.
+ *
+ * **The group branches here are the ones this module could not do without.**
+ * The default branch reads `condition.questionId`, which none of the three
+ * whole-group operators carries, so without these cases a group operator reads
+ * nothing at all: `analyzeRuleGraph` and the cycle graph both consume this
+ * function, and forward-only rule 2 would silently not apply to the very rule
+ * shape it was written for (ADR-03's amendment says so in terms).
+ */
+function collectReferences(
+  condition: Condition,
+  out: { readonly questions: QuestionId[]; readonly groups: GroupId[] },
+): void {
   switch (condition.op) {
     case "and":
     case "or":
@@ -50,23 +100,49 @@ function collectReferences(condition: Condition, out: QuestionId[]): void {
     case "not":
       collectReferences(condition.condition, out);
       return;
+    case "anyInstance":
+    case "everyInstance":
+      out.groups.push(condition.groupId);
+      collectReferences(condition.condition, out);
+      return;
+    case "instanceCount":
+      out.groups.push(condition.groupId);
+      return;
     default:
-      out.push(condition.questionId);
+      out.questions.push(condition.questionId);
   }
 }
 
-/** Every questionId the rule's condition reads (recursive), deduplicated,
- * in first-encounter order. */
+/** Every questionId the rule's condition reads (recursive, through the
+ * whole-group operators' nested conditions too), deduplicated, in
+ * first-encounter order. */
 export function ruleReferences(rule: VisibilityRule): readonly QuestionId[] {
-  const raw: QuestionId[] = [];
+  const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
   collectReferences(rule.when, raw);
-  return [...new Set(raw)];
+  return [...new Set(raw.questions)];
 }
 
+/** Every repeating group the rule's condition reads **as a whole** through
+ * `anyInstance`, `everyInstance` or `instanceCount`, deduplicated, in
+ * first-encounter order (ADR-42). */
+export function ruleGroupReferences(rule: VisibilityRule): readonly GroupId[] {
+  const raw = { questions: [] as QuestionId[], groups: [] as GroupId[] };
+  collectReferences(rule.when, raw);
+  return [...new Set(raw.groups)];
+}
+
+/** Every question a step holds, group members included, in document order. */
 function questionsByStep(form: FormDefinition): Map<StepId, readonly QuestionId[]> {
-  return new Map(
-    form.steps.map((step) => [step.stepId, step.items.map((item) => item.questionId)]),
-  );
+  const byStep = new Map<StepId, QuestionId[]>();
+  for (const { stepId, questionId } of documentOrder(form)) {
+    byStep.set(stepId, [...(byStep.get(stepId) ?? []), questionId]);
+  }
+  for (const step of form.steps) {
+    if (!byStep.has(step.stepId)) {
+      byStep.set(step.stepId, []);
+    }
+  }
+  return byStep;
 }
 
 /**
@@ -88,7 +164,44 @@ export function ruleTargets(form: FormDefinition, rule: VisibilityRule): readonl
   return [...new Set(expanded)];
 }
 
-export type RuleGraphFinding = PublishErrorOf<"RULE_BACKWARD_TARGET" | "RULE_CYCLE">;
+export type RuleGraphFinding = PublishErrorOf<
+  | "RULE_BACKWARD_TARGET"
+  | "RULE_CYCLE"
+  | "RULE_TARGETS_SPAN_SCOPES"
+  | "REPEAT_EVALUATION_BUDGET_EXCEEDED"
+  | "REPEAT_COUNT_BACKWARD_REF"
+  | "REPEAT_COUNT_INSIDE_GROUP"
+  | "REPEAT_OPERATOR_NESTING_NOT_ALLOWED"
+  | "RULE_READS_GROUP_WITHOUT_OPERATOR"
+>;
+
+/** The half-open span a repeating group occupies in document order: `[from,
+ * to]`, inclusive, as indices into {@link documentOrder}. */
+interface GroupSpan {
+  readonly group: RepeatGroup;
+  readonly from: number;
+  readonly to: number;
+}
+
+function groupSpans(form: FormDefinition): ReadonlyMap<GroupId, GroupSpan> {
+  const order = documentOrder(form);
+  const spans = new Map<GroupId, GroupSpan>();
+  for (const group of repeatGroups(form.steps)) {
+    const indices = order
+      .map((entry, index) => (entry.groupId === group.groupId ? index : -1))
+      .filter((index) => index >= 0);
+    /* v8 ignore next 3 -- a group's items are `.min(1)`, so its span is never empty */
+    if (indices.length === 0) {
+      continue;
+    }
+    spans.set(group.groupId, {
+      group,
+      from: Math.min(...indices),
+      to: Math.max(...indices),
+    });
+  }
+  return spans;
+}
 
 /** reads→shows edge: `from` is read by a rule that shows `to`. */
 interface Edge {
@@ -115,13 +228,30 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   const order = documentOrder(form);
   const position = new Map<QuestionId, number>(order.map((entry, i) => [entry.questionId, i]));
   const byStep = questionsByStep(form);
+  const spans = groupSpans(form);
+  const groupOf = questionGroups(form.steps);
+
+  findings.push(...checkRepeatCountOrder(form, position, spans, groupOf));
+  findings.push(...checkTargetScopes(form, groupOf));
+  findings.push(...checkOperatorNesting(form));
+  findings.push(...checkScopedReferences(form, groupOf));
+  findings.push(...checkCrossGroupBudget(form, groupOf, spans));
 
   // Backward targets: every target must sit strictly after every referenced
   // question in document order.
+  //
+  // With a repeating group the same arithmetic covers all three readings of
+  // ADR-16's amendment, which is why there is no second check here. A rule
+  // targeting inside group G reads the whole of G when it uses a whole-group
+  // operator, so a referenced GROUP contributes the last index of its span
+  // rather than a single position; a reference to a question inside G
+  // contributes that question's own index, so "a later position inside the
+  // instance" is backward by exactly the comparison that was already here.
   for (const rule of form.rules) {
-    const referencePositions = ruleReferences(rule)
-      .map((questionId) => position.get(questionId))
-      .filter((p): p is number => p !== undefined);
+    const referencePositions = [
+      ...ruleReferences(rule).map((questionId) => position.get(questionId)),
+      ...ruleGroupReferences(rule).map((groupId) => spans.get(groupId)?.to),
+    ].filter((p): p is number => p !== undefined);
     if (referencePositions.length === 0) {
       continue;
     }
@@ -148,7 +278,16 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
   // (referenced question, expanded target) pair, labeled with its rule).
   const adjacency = new Map<QuestionId, Edge[]>();
   for (const rule of form.rules) {
-    const reads = ruleReferences(rule).filter((questionId) => position.has(questionId));
+    // A whole-group operator reads every question in that group's span, so each
+    // of them is a node the rule reads - otherwise a cycle running through a
+    // group operator would be invisible to Tarjan's.
+    const groupReads = ruleGroupReferences(rule).flatMap((groupId) => {
+      const span = spans.get(groupId);
+      return span === undefined ? [] : span.group.items.map((item) => item.questionId);
+    });
+    const reads = [...new Set([...ruleReferences(rule), ...groupReads])].filter((questionId) =>
+      position.has(questionId),
+    );
     const shows = ruleTargets(form, rule).filter((questionId) => position.has(questionId));
     for (const from of reads) {
       const edges = adjacency.get(from) ?? [];
@@ -176,6 +315,297 @@ export function analyzeRuleGraph(form: FormDefinition): readonly RuleGraphFindin
     });
   }
 
+  return findings;
+}
+
+/**
+ * Forward-only rule 3 (ADR-16 as amended 2026-09-29): a `fromAnswer` count
+ * source is a read of its count question **by the whole group**, so that
+ * question must precede the group's whole span. A count question inside the
+ * group it sizes, or after it, is `REPEAT_COUNT_BACKWARD_REF`.
+ *
+ * A count question that is not pinned in the form at all is skipped here, the
+ * way every other dangling reference is. `compileDraft`'s `checkRuleResolution`
+ * reports it as `DANGLING_QUESTION_REF`; that was a claim about a check that
+ * did not exist until task 071's review, and such a draft published with no
+ * error at all until it was made true.
+ */
+function checkRepeatCountOrder(
+  form: FormDefinition,
+  position: ReadonlyMap<QuestionId, number>,
+  spans: ReadonlyMap<GroupId, GroupSpan>,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  for (const group of repeatGroups(form.steps)) {
+    if (group.count.source !== "fromAnswer") {
+      continue;
+    }
+    const countAt = position.get(group.count.questionId);
+    const span = spans.get(group.groupId);
+    if (countAt === undefined || span === undefined) {
+      continue;
+    }
+    // A count question that itself sits inside a group has one answer per
+    // instance, so there is no single count for the group it sizes to read
+    // (Q26, Code Owner, 2026-09-29). It is refused whichever group it sits in,
+    // its own included, and a count question inside the group it sizes is
+    // additionally backward, which the check below reports on its own terms.
+    const countGroup = groupOf.get(group.count.questionId);
+    if (countGroup !== undefined) {
+      findings.push({
+        code: "REPEAT_COUNT_INSIDE_GROUP",
+        message: `Group "${group.groupId}" takes its instance count from question "${group.count.questionId}", which sits inside group "${countGroup}" and is therefore answered once per instance; move the count question out of every repeating group`,
+        path: { group: group.groupId, question: group.count.questionId },
+      });
+    }
+    if (countAt >= span.from) {
+      findings.push({
+        code: "REPEAT_COUNT_BACKWARD_REF",
+        message: `Group "${group.groupId}" takes its instance count from question "${group.count.questionId}", which does not appear strictly before the group's span in document order (ADR-16)`,
+        path: { group: group.groupId, question: group.count.questionId },
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * One rule, one scope (ADR-03 as amended 2026-09-29).
+ *
+ * `VisibilityRule.show` is an array, so a rule listing one target inside a
+ * group and another outside it would be per-instance and whole-form at once,
+ * and there is no reading that makes it one thing. Evaluating it per target
+ * would make one rule mean two things and make the admin's scope chip a lie, so
+ * **every `show` target of one rule must share one scope** and a mixed list is
+ * refused with `RULE_TARGETS_SPAN_SCOPES` naming both scopes. Splitting it into
+ * two rules is always possible, because the condition is copyable and the split
+ * changes nothing about what either rule means.
+ *
+ * A `StepId` target is whole-form scope by construction and never per-instance:
+ * a step target conditions the **step** (evaluator semantic 4) rather than its
+ * questions individually, which is the same reading the evaluator has always
+ * had of it.
+ */
+function checkTargetScopes(
+  form: FormDefinition,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  for (const rule of form.rules) {
+    const scopes: (GroupId | "form")[] = [];
+    for (const target of rule.show) {
+      const scope = isStepId(target) ? "form" : (groupOf.get(target) ?? "form");
+      if (!scopes.includes(scope)) {
+        scopes.push(scope);
+      }
+    }
+    if (scopes.length > 1) {
+      const named = scopes.map((scope) => (scope === "form" ? "the form" : `group "${scope}"`));
+      findings.push({
+        code: "RULE_TARGETS_SPAN_SCOPES",
+        message: `Rule "${rule.ruleId}" shows targets in more than one scope (${named.join(" and ")}); one rule is evaluated in one scope, so split it into one rule per scope (ADR-42)`,
+        path: { rule: rule.ruleId, scopes },
+      });
+    }
+  }
+  return findings;
+}
+
+/**
+ * A whole-group operator may not sit inside another one's condition (Q25, Code
+ * Owner, 2026-09-29).
+ *
+ * **Why it is a refusal rather than a bigger sum.** The condition schema is
+ * recursive, so `anyInstance(G, anyInstance(H, c))` parses, and its cost is
+ * `max_G x max_H` **whatever the rule targets** - the outer walk runs once per
+ * live instance of G and each of those walks the whole of H. The evaluation
+ * budget charges a rule's target group against each group it reads, so a nested
+ * pair escaped it entirely: two groups at `max: 5000` under one nested rule
+ * published, and cost twenty-five million leaf evaluations on every answer
+ * write, every step read and every submit, with the respondent setting the live
+ * counts. That is the exact shape the budget exists to refuse.
+ *
+ * The refusal covers **every** nesting: through `and`, `or` and `not`, and the
+ * same group nested in itself (`anyInstance(G, everyInstance(G, c))`), which is
+ * quadratic in one group's own maximum. `instanceCount` is refused inside
+ * another operator too, although its own cost is constant, because the rule is
+ * "a whole-group operator reads a whole group, and one rule reads each group it
+ * names once" rather than a cost calculation an author has to redo.
+ *
+ * With nesting gone, every whole-group read in a rule is a sibling of the
+ * others rather than a multiplier of them, which is what makes the pairwise
+ * budget a real bound on a rule (SEC-16).
+ */
+function checkOperatorNesting(form: FormDefinition): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  const walk = (rule: VisibilityRule, condition: Condition, outer: GroupId | undefined): void => {
+    switch (condition.op) {
+      case "and":
+      case "or":
+        condition.conditions.forEach((child) => {
+          walk(rule, child, outer);
+        });
+        return;
+      case "not":
+        walk(rule, condition.condition, outer);
+        return;
+      case "anyInstance":
+      case "everyInstance":
+      case "instanceCount": {
+        if (outer !== undefined) {
+          findings.push({
+            code: "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
+            message: `Rule "${rule.ruleId}" reads group "${condition.groupId}" inside a condition that already reads group "${outer}"; a whole-group operator may not sit inside another, because the nested pair costs the product of their maxima whatever the rule targets (ADR-16)`,
+            path: { rule: rule.ruleId, outerGroup: outer, innerGroup: condition.groupId },
+          });
+        }
+        if (condition.op !== "instanceCount") {
+          walk(rule, condition.condition, condition.groupId);
+        }
+        return;
+      }
+      default:
+        return;
+    }
+  };
+  for (const rule of form.rules) {
+    walk(rule, rule.when, undefined);
+  }
+  return findings;
+}
+
+/**
+ * Every reference to a question inside a repeating group is made from inside
+ * that group (Q26, Code Owner, 2026-09-29).
+ *
+ * A question inside a group has **one answer per instance**, so a bare
+ * reference to it is only meaningful where an instance is in scope. Two ways in
+ * put an instance in scope, and only two: the rule's own `show` targets sit
+ * inside that group, which makes the whole rule per-instance; or the reference
+ * sits inside an `anyInstance` or `everyInstance` over that group, which walks
+ * the instances itself.
+ *
+ * Anything else is dead on arrival rather than merely odd. The evaluator
+ * resolves such a reference to no key at all and reads it as unanswered for
+ * every respondent, forever, so the author sees a rule that publishes cleanly
+ * and a question that never appears. **A rule targeting inside group H reading
+ * a member of a different group G is the same defect** and is refused under the
+ * same code: H's instance is in scope, G's is not, and the plan's section 3.4
+ * gives a reference a per-instance reading only "to a question that is also
+ * inside G".
+ *
+ * A rule whose `show` list straddles two scopes is skipped here, because
+ * `RULE_TARGETS_SPAN_SCOPES` already refuses it and there is no single scope to
+ * judge its references against.
+ */
+function checkScopedReferences(
+  form: FormDefinition,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  const walk = (
+    rule: VisibilityRule,
+    condition: Condition,
+    inScope: ReadonlySet<GroupId>,
+  ): void => {
+    switch (condition.op) {
+      case "and":
+      case "or":
+        condition.conditions.forEach((child) => {
+          walk(rule, child, inScope);
+        });
+        return;
+      case "not":
+        walk(rule, condition.condition, inScope);
+        return;
+      case "anyInstance":
+      case "everyInstance":
+        walk(rule, condition.condition, new Set([...inScope, condition.groupId]));
+        return;
+      case "instanceCount":
+        return;
+      default: {
+        const group = groupOf.get(condition.questionId);
+        if (group === undefined || inScope.has(group)) {
+          return;
+        }
+        findings.push({
+          code: "RULE_READS_GROUP_WITHOUT_OPERATOR",
+          message: `Rule "${rule.ruleId}" reads question "${condition.questionId}", which is inside group "${group}" and so has one answer per instance rather than one value; wrap the condition in "anyInstance" or "everyInstance" over "${group}", or target the rule inside that group`,
+          path: { rule: rule.ruleId, question: condition.questionId, group },
+        });
+      }
+    }
+  };
+  for (const rule of form.rules) {
+    const scopes = new Set(
+      rule.show.map((target) => (isStepId(target) ? undefined : groupOf.get(target))),
+    );
+    if (scopes.size !== 1) {
+      continue; // RULE_TARGETS_SPAN_SCOPES owns this rule.
+    }
+    const [scope] = [...scopes];
+    walk(rule, rule.when, scope === undefined ? new Set() : new Set([scope]));
+  }
+  return findings;
+}
+
+/**
+ * The cross-group cost budget (ADR-16 as amended 2026-09-29, and
+ * {@link REPEAT_EVALUATION_BUDGET}).
+ *
+ * A rule whose target sits inside group H and whose condition applies a
+ * whole-group operator over a **different** group G is evaluated once per live
+ * instance of H, and each of those evaluations walks the whole of G, so its
+ * cost is `max_H x max_G`. Above the budget it is refused with
+ * `REPEAT_EVALUATION_BUDGET_EXCEEDED` naming both groups, both maxima and the
+ * product.
+ *
+ * It is a **cost bound and not an instance ceiling**: it caps no group's `max`,
+ * and two groups whose product exceeds it publish happily when no rule joins
+ * them. A group whose bounded source omitted `max` is skipped here, because
+ * `REPEAT_MAX_MISSING` is already refusing that draft and a second finding
+ * about an absent number would say nothing more.
+ */
+function checkCrossGroupBudget(
+  form: FormDefinition,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+  spans: ReadonlyMap<GroupId, GroupSpan>,
+): RuleGraphFinding[] {
+  const findings: RuleGraphFinding[] = [];
+  const maxOf = (groupId: GroupId): number | undefined => {
+    const span = spans.get(groupId);
+    return span === undefined ? undefined : countBounds(span.group.count).max;
+  };
+  for (const rule of form.rules) {
+    const targetGroups = new Set(
+      rule.show.map((target) => (isStepId(target) ? undefined : groupOf.get(target))),
+    );
+    for (const targetGroup of targetGroups) {
+      if (targetGroup === undefined) {
+        continue;
+      }
+      const targetMax = maxOf(targetGroup);
+      if (targetMax === undefined) {
+        continue;
+      }
+      for (const readGroup of ruleGroupReferences(rule)) {
+        const readMax = readGroup === targetGroup ? undefined : maxOf(readGroup);
+        if (readMax === undefined) {
+          continue;
+        }
+        const product = targetMax * readMax;
+        if (product > REPEAT_EVALUATION_BUDGET) {
+          findings.push({
+            code: "REPEAT_EVALUATION_BUDGET_EXCEEDED",
+            message: `Rule "${rule.ruleId}" targets inside group "${targetGroup}" (max ${String(targetMax)}) and reads the whole of group "${readGroup}" (max ${String(readMax)}), which costs ${String(product)} instance pairs on every evaluation and exceeds the evaluator budget of ${String(REPEAT_EVALUATION_BUDGET)} (ADR-16)`,
+            path: { rule: rule.ruleId, targetGroup, readGroup },
+          });
+        }
+      }
+    }
+  }
   return findings;
 }
 
@@ -370,8 +800,18 @@ export function checkRuleTypes(
           checkCondition(rule, child);
         });
         return;
+      // The two whole-group operators that carry a nested condition recurse
+      // exactly as `not` does. They must branch here rather than fall through:
+      // neither carries a `questionId`, so the default branch below would
+      // resolve `undefined` and check nothing. `instanceCount` carries no
+      // nested condition and reads no question at all, so it is a leaf with
+      // nothing to type-check (ADR-42).
       case "not":
+      case "anyInstance":
+      case "everyInstance":
         checkCondition(rule, condition.condition);
+        return;
+      case "instanceCount":
         return;
       default:
         break;
