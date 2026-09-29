@@ -1,0 +1,57 @@
+# 065 - Release records, promotion and the admin's environment switcher
+
+**Stage:** 9 (Phase 4) · **Apps/packages:** `@roonga/qcms-db` (`form_releases`), `apps/api` (release and promotion, release resolution on the respondent path), `apps/admin` (the switcher, the banner and the release screens) · **Depends on:** 064
+**References:** ADR-40 (release states over shared versions, and the `form.released` event of Q49) · ADR-07 (a session pins its version for life, invariant I4) · ADR-02 · ADR-18 · ADR-10 · SEC-6 · `docs/webhooks.md` · `plan/environments-and-workspaces.md` the 065 section of 8, and Q4, Q5, Q6, Q22, Q49 and finding 2 · R1 · R6 · issue #995
+
+## Context
+
+Publishing is the only way to get a definition onto the serving path today, and publishing is immediately live for everyone: `getFormBySlug` and `getLatestPublishedVersion` resolve every public link to the newest published version. ADR-40 replaces "newest published version" with **what is released to this environment**, and a release is a **record and never a copy**, which is what keeps form ids and version numbers continuous (R1, R6, ADR-02, ADR-18).
+
+This task builds that record and the admin surface over it. It is also where the environment becomes visible to an administrator: one global switcher, a persistent banner, and every destructive confirmation restating which environment it is about, because an erasure performed against the wrong environment is not undoable.
+
+## The rulings that govern this task
+
+Q49 (publishing queues nothing; releasing queues `form.released` into that environment's `outbox`, in the release's own transaction, and `form.published` is retired), Q4 (no ordering requirement: a hotfix straight to `prod` is allowed and the release row records the source environment when there was one), Q5 (a release moves no open session; ADR-07 and invariant I4 stand), Q6 (a global switcher with a persistent banner, and destructive actions restating the environment), Q22 (green field, so there is no backfill), and finding 2 (publish-per-iteration churn is accepted, with both mitigations in presentation rather than in the model). ADR-40 binds the release state; ADR-07 binds the session pin.
+
+## Deliverables
+
+- **`form_releases`**, in `control`: who released, when, which version, from which environment, and with whose approval. The approval column is written by task 070's rule when it lands and is present from here.
+- **The release and promotion API** on the admin surface, and **release resolution replacing "newest published version"** on the respondent path.
+- **The `form.released` outbox event, and the retirement of `form.published`** (Q49). A release writes one `form.released` row into **the released environment's** `outbox`, **in the same transaction as the release record**, so neither is ever observed without the other. The payload carries the form, the version, the environment and who released it. It is written on the control pool, under the `INSERT` on each environment's `outbox` that task 064 grants `qcms_app_control` for exactly this.
+- **Publishing queues nothing.** The `enqueue` in the publish transaction (`apps/api/src/features/forms/handler.ts`, the `FORM_PUBLISHED` constant and its call beside `insertFormVersion` and `deleteDraft`) is **removed**, and the event type is deleted. Under ADR-40 that transaction would span both planes, `outbox` being per environment while publishing is environment-agnostic, and no role can run it.
+- **Every consumer of `form.published` updated in this task.** They are: `apps/api/src/features/forms/handler.ts` (the constant, the `enqueue` and the module docblock), `apps/api/src/features/forms/README.md`, `apps/api/src/features/forms/forms.integration.test.ts` (the outbox-count helper and its query), `apps/api/src/features/outbox/outbox.integration.test.ts`, `apps/api/src/schedulers/outbox-delivery.ts` (the no-fan-out example), `packages/db/src/schema/outbox.ts` (two comments), `packages/db/src/queries/outbox.ts`, `packages/db/src/queries/erasure.ts`, `packages/db/src/queries/outbox-retention.integration.test.ts` (four sites, where it is the no-respondent-content event), `packages/db/src/queries/queries.integration.test.ts`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_SCHEMA.md` (the publish diagram), `docs/operations.md`, `docs/webhooks.md` (the event vocabulary) and the scaffold mirrors of the first and fifth under `packages/create-qcms-app/templates/common/`. Where the event is used as the example of an event carrying **no respondent content**, `form.released` takes that role unchanged.
+- **The webhook event vocabulary changes**, which is a breaking change to what a subscriber receives. `docs/webhooks.md` says so, and the changeset for the API's published surface says so in one line.
+- **The admin screens** that show what is released where and promote between environments.
+- **One global environment switcher in the admin shell** (Q6), setting the environment for every screen; a **persistent coloured banner** on every page while a non-prod environment is selected; and **destructive actions restating the environment in their confirmation** (erasure, closing, releasing).
+- **No ordering requirement** (Q4): a release straight to `prod` succeeds and is recorded as such, and the release row's source environment records the path when there was one.
+- **No backfill** (Q22): green field means there is no already-published form to write a first release row for, so the first row any form gets is written by a real release.
+- **Rollback as a release of an earlier version, presented as a rollback.** Nothing is reverted, undone or deleted: the administrator releases a version already released in that environment before, a new `form_releases` row records it, and sessions already open stay where they started. The release history must **show that as a rollback** rather than as an ordinary row, because "released version 4 after version 7" is the shape an incident review reads and a history that presents it as just another row makes an operator count backwards to see what happened. This is a presentation requirement, not a second mechanism.
+- **The two churn mitigations finding 2 accepted**, both in presentation: a combined **"publish and release to `<env>`"** action so one intent is one act, and a **"released anywhere"** filter in the version list so the versions that only ever reached `dev` are hideable. Every `dev` iteration publishes an immutable version and R1 keeps it; that cost is accepted rather than designed away, because promotion is a record and not a copy and no cheaper mechanism keeps the audit promise.
+
+## Exit criteria
+
+Exit criteria **1 to 8** of the 065 section of `plan/environments-and-workspaces.md` section 8, plus that section's **unnumbered churn-mitigation criterion**: one action publishes and releases atomically or not at all, and the filter's default shows every version so nothing is hidden by surprise. This task owns those and no others.
+
+Criterion 8 is Q49's: a release writes exactly one `form.released` row into the released environment's `outbox` in the same transaction as the release record, asserted by count against a real Postgres, and **publishing writes no outbox row at all**, asserted the same way, with no `form.published` left anywhere in the tree.
+
+Criterion 6 is asserted **in the browser suite** deliberately: a banner nobody renders is the failure mode here, and a unit test on the component does not catch a shell that never mounts it.
+
+## Files and areas
+
+`packages/db/src/schema/` and `packages/db/src/queries/` for `form_releases` and its reads, the release and promotion routes in `apps/api/src/features/`, the respondent path's version resolution, `apps/api/src/features/forms/handler.ts` and its README for the retired publish event, the `form.published` sites listed under Deliverables including `packages/db/src/queries/outbox.ts`, `erasure.ts` and `packages/db/src/schema/outbox.ts`, `apps/api/src/schedulers/outbox-delivery.ts`, `docs/webhooks.md`, `docs/ARCHITECTURE.md`, `docs/DOMAIN_SCHEMA.md`, `docs/operations.md`, the scaffold mirrors under `packages/create-qcms-app/templates/common/`, the admin shell (the switcher and the banner), the admin's version-history and release screens, the admin and portal i18n catalogs for the new strings, the browser specs for the banner and the confirmations, and a changeset.
+
+## Gates
+
+`pnpm verify`; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser`, **once per environment** (Q9), required because this task changes `apps/admin` (`CONTRIBUTING.md`), run detached with `pnpm verify:browser:detached` and then `pnpm verify:browser:wait <dir>` in slices until it stops exiting 75, never in the foreground (issue #846); and the forced Docker-backed run (`pnpm exec turbo run test --force`, confirmed to have executed). Run the forced run and `verify:browser` in sequence rather than concurrently on one checkout (issue #863).
+
+## Out of scope (binding)
+
+The schema layout, the roles, the baseline and the environment command (064). Link minting, the address prefix and the per-environment closed state (066): closing is 066's state and 067's authorisation, and this task only restates the environment in the confirmation. Per-environment delivery, retention, export and erasure (067). Workspaces, roles and scope (068, 069): this task's screens are not gated by a membership role, and adding one before 069 exists would be inventing the check. The two-person rule for `prod` (070): the approval column exists here and nothing enforces who may fill it. Copying a version between environments, in any form: promotion is a record, and a copy would break R1, R6 and ADR-18 at once. Migrating an open session onto a newly released version.
+
+## Notes for the executor
+
+**A release never re-pins a live session, and criterion 3 is the assertion that proves it.** Open a session, release a different version into that environment, and assert the session still serves what it started on. ADR-07's invariant I4 has no re-pin path and this task must not add one.
+
+**The rollback presentation is the requirement most likely to be read as optional.** It is criterion 4's second half. A release of an earlier version than the one it replaces is marked as a rollback in the history, and the marking is derived from the row rather than typed by the administrator.
+
+**The churn is real and the mitigations are presentation only.** Do not add a draft-level "release" that skips publishing, and do not make the combined action publish without keeping the version. The model stays: only an immutable version can be released.

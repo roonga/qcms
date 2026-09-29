@@ -1,7 +1,7 @@
 # 072 - The instance ledger
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `@roonga/qcms-db` (migration, queries, schema mirror), `apps/api` (the roster derivation) · **Depends on:** 071 (the branded ids and the roster's shape)
-**References:** ADR-42 (the roster is a table and not an answer) · ADR-40 as amended 2026-09-30 (the eighth data-plane table, seventeen guards, eight foreign keys, and the baseline note) · ADR-17 (erasure and retention) · ADR-33 as amended 2026-09-30 (a retraction is per instance) · SEC-16 · SEC-10 · `plan/repeating-groups-and-table-input.md` sections 5.1, 5.2 and 5.7, and Q5, Q16 · R3 · issue #5 · issue #861
+**References:** ADR-42 (the roster is a table and not an answer) · ADR-40 as amended 2026-09-29 (the eighth data-plane table, seventeen guards, eight foreign keys, and the baseline note) · ADR-17 (erasure and retention) · ADR-33 as amended 2026-09-29 (a retraction is per instance) · SEC-16 · SEC-10 · `plan/repeating-groups-and-table-input.md` sections 5.1, 5.2 and 5.7, and Q5, Q16 · R3 · issue #5 · issue #861
 
 ## Context
 

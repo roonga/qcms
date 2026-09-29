@@ -1,7 +1,7 @@
 # 074 - Authoring a repeating group
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `apps/admin`, `apps/api` (the draft-preview endpoint) · **Depends on:** 071 (the model and the operators), 073 (the renderer the preview shares)
-**References:** ADR-42 · ADR-03 as amended 2026-09-30 (three operators, the `everyInstance` reading, the two publish refusals) · ADR-19 (the structured editor is the default, not a fallback) · ADR-25 · SEC-16 · `plan/repeating-groups-and-table-input.md` section 6, and Q4, Q6, Q7, Q12 · `docs/COMPONENT_GUIDELINES.md`
+**References:** ADR-42 · ADR-03 as amended 2026-09-29 (three operators, the `everyInstance` reading, the two publish refusals) · ADR-19 (the structured editor is the default, not a fallback) · ADR-25 · SEC-16 · `plan/repeating-groups-and-table-input.md` section 6, and Q4, Q6, Q7, Q12 · `docs/COMPONENT_GUIDELINES.md`
 
 ## Context
 

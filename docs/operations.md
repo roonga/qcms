@@ -666,7 +666,7 @@ you run it, and on Compose the `db-roles` one-shot runs on every `up`, so withou
 line the audit table would quietly regain the DML pass on the next boot after it was
 created. Both copies are idempotent.
 
-**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-30, issue #995).**
+**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-29, issue #995).**
 That decision replaces the single `qcms_app` with a control-only role and one role per
 environment, and adds a second migrate-only audit table, the SEC-15 access audit.
 So when task 064 rewrites this recipe to grant per named schema, the revoke here becomes
@@ -698,6 +698,31 @@ All three copies name `qcms_app` as a literal, so on a deployment that calls it 
 else the migration's guard is false, the revoke never runs, and your application role
 keeps all four privileges on the audit table.
 That is a real limit and not an oversight: a migration cannot know a name you chose.
+
+**What each role is granted, once task 064 rewrites this recipe (Code Owner, 2026-09-29, Q40 as amended by Q48 and Q49).**
+There are three kinds of application role and the grants are per named schema, never
+`IN SCHEMA public`.
+
+`qcms_app_<env>`, one per environment, holds DML on its own `data_<env>`; `USAGE` on its
+own `reporting_<env>` with `SELECT` on that schema's views; on `control`, `SELECT` on
+exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
+`environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
+consumption and `INSERT` on the SEC-15 audit; and no privilege of any kind on `user`,
+`session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`,
+`member`, `team` or `teamMember`.
+`question_versions` is on the list because the respondent path reads the pinned question
+version on every step served and every submission; without it every respondent request
+fails on permission.
+
+`qcms_app_control` holds DML on `control`, with `two_factor_resets` carved out entirely
+and the SEC-15 audit carved down to `SELECT`, and in the data schemas it holds
+**`INSERT` on `outbox` and nothing else at all**: no `SELECT`, no `UPDATE`, no `DELETE`,
+and no privilege on any other data-plane table.
+That one grant exists so a release record and its `form.released` event commit in one
+transaction, and it does not weaken the boundary the three roles exist for, because an
+insert into an event queue is not a read of a response.
+
+`qcms_migrate` is unchanged: owner and DDL, in every schema.
 So if you renamed it, add the line to your own recipe with your name in place of
 `qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
 Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
