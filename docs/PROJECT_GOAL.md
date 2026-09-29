@@ -36,7 +36,7 @@ Two further properties are first-class commitments rather than differentiators: 
 
 ### Launch (end of Phase 3)
 
-- A person who did not build the system can, following only the README: scaffold the app, run it with docker-compose, author and publish a branching form, complete it as a respondent, and receive the export and signed webhook. **This is the launch gate.**
+- A person who did not build the system can, following only the README: scaffold the app, run it with docker-compose, author and publish a branching form **including a repeating group**, complete it as a respondent, and receive the export and signed webhook. **This is the launch gate.**
 - The kitchen-sink reference form (every question type) and the insurance fixture (branching) pass: automated axe checks, Lighthouse accessibility 100 on flow pages, and a logged manual NVDA + VoiceOver pass.
 - A respondent completes a flow on a mid-tier phone over a throttled network with SSR first paint.
 - The full loop runs on the solo topology: four containers - portal, admin, API, Postgres - with TLS/ingress supplied by the operator (ADR-20).
@@ -48,11 +48,13 @@ Adoption signals decide sequencing, not the roadmap: OTP/social login, question-
 
 ## 5. Scope boundaries (the cut-line)
 
-Launch **includes**: the seven core question types (short text, long text, number, date, boolean, single choice, multi choice); the closed rules DSL; question-level versioning with manual pinning; anonymous + secure-link access; append-only answers with resume; submission lock; signed webhook with transactional outbox; CSV/JSON export; reporting view; retention sweep and hard-erasure path; admin authoring with structured condition editing; **flag-gated agent-assisted form building (ADR-25 - launch scope, off the launch gate; task 041)**; **full internationalization on both apps** (no hardcoded user-facing text; locale-aware dates/numbers/currency; multiple-language-capable, ADR-27); single-tenant deployments.
+Launch **includes**: the seven core question types (short text, long text, number, date, boolean, single choice, multi choice); the closed rules DSL; question-level versioning with manual pinning; anonymous + secure-link access; append-only answers with resume; submission lock; signed webhook with transactional outbox; CSV/JSON export; reporting view; retention sweep and hard-erasure path; admin authoring with structured condition editing; **repeating groups, with the stacked, per-instance-step and table presentations (ADR-42, ADR-43, SEC-16 - Code Owner ruling of 2026-09-30; stage 8c, tasks 071 to 077)**; **flag-gated agent-assisted form building (ADR-25 - launch scope, off the launch gate; task 041)**; **full internationalization on both apps** (no hardcoded user-facing text; locale-aware dates/numbers/currency; multiple-language-capable, ADR-27); single-tenant deployments.
 
 Launch **excludes** (recorded as `phase-4` issues, never built early): impact analysis / breaking-change detection, `/api/v1`, large shipped locale-translation sets and a runtime locale-switcher UX (the i18n machinery is launch scope, ADR-27; additional translations are demand-ordered), multi-tenancy, OTP/social auth, runtime agent flows **in the serving path** (adaptive flows - the `StepResolver` seam stays reserved), the named custom-theme editor, version-targeted public and secure links, file-upload question type, and a visual drag-and-drop condition builder beyond the structured editor.
 
 **The cut-line is enforced at review, not remembered.** An itch is written down as an issue labeled `phase-4`, not scratched.
+
+**The cut-line moved once, deliberately (Code Owner, 2026-09-30).** Repeating groups were designed as Phase 4 work and recommended as such in `plan/repeating-groups-and-table-input.md`; the Code Owner ruled them into launch instead, and the "includes" list above is what that ruling changed. It is recorded here rather than only in the plan because moving a cut-line is the thing this section exists to make visible: the decision is ADR-42 and ADR-43 with SEC-16, the delivery is stage 8c of `docs/IMPLEMENTATION_PLAN.md`, and **all seven tasks, 071 to 077, land before launch validation rather than after it**. There is no launch subset: the "includes" list above names all three presentations, so 038 waits on the table and the per-instance step as well as on the model. Nothing else moved: everything in the "excludes" list is still excluded.
 
 ## 6. Decision record
 
