@@ -1,4 +1,4 @@
-import { schema } from "@roonga/qcms-db";
+import { clearMustChangePassword, schema } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
@@ -91,6 +91,21 @@ export interface TestAdminInput {
    * that means to measure that rule names an account here instead.
    */
   readonly name?: string;
+
+  /**
+   * Leave SEC-1's provisional-credential flag set (task 061). Default **false**.
+   *
+   * `signUpEmail` sets `user.mustChangePassword` on every account it creates, because
+   * better-auth applies a declared field's default and the only production caller is
+   * `qcms:create-admin` - where "this credential is provisional" is exactly right.
+   * This helper is not that caller: it stands in for an administrator who already has
+   * a password of their own, so that thirty specs about forms, questions and
+   * responses are not each routed through a password change first.
+   *
+   * The spec that is about the control passes `true` and gets the real bootstrap
+   * state; the full-stack Compose suite gets it from the real `create-admin`.
+   */
+  readonly mustChangePassword?: boolean;
 }
 
 /**
@@ -106,11 +121,18 @@ export interface TestAdminInput {
  * by the time the container stops.
  */
 export async function createTestAdmin(input: TestAdminInput): Promise<void> {
-  const { auth } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);
-  await auth.api.signUpEmail({
+  const { auth, db } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);
+  const created = await auth.api.signUpEmail({
     body: { email: input.email, password: input.password, name: input.name ?? "E2E Admin" },
     asResponse: true,
   });
+  if (input.mustChangePassword === true) return;
+  // Clear what `signUpEmail` set (see `TestAdminInput.mustChangePassword`). The same
+  // write the API's password-change hook makes, through the same helper, so this
+  // harness cannot arrive at a state the product cannot.
+  const body = (await created.json()) as { user?: { id?: unknown } };
+  const userId = body.user?.id;
+  if (typeof userId === "string") await clearMustChangePassword(db, userId);
 }
 
 /** A raw SQL read's rows, as `pg` returns them. */

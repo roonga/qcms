@@ -502,7 +502,7 @@ test("the account trigger passes label-in-name for an account whose address cann
     ).not.toContain(letter);
   }
 
-  await createTestAdmin(MISMATCH_EMAIL, MISMATCH_NAME);
+  await createTestAdmin(MISMATCH_EMAIL, { name: MISMATCH_NAME });
   await enrollNewAdmin(page, MISMATCH_EMAIL);
 
   // What the disc paints and what the button is called, stated separately: the criterion

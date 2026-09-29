@@ -51,14 +51,29 @@ export function uniqueAdminEmail(label: string): string {
  * `name` is the account's display name and defaults to `E2E Admin`. Pass one when the
  * spec cares what the topbar's monogram paints - which is only the label-in-name gate, so
  * far (issue #1010); see `TestAdminInput.name` for why that default cannot measure it.
+ *
+ * `mustChangePassword` opts into SEC-1's provisional bootstrap state (task 061),
+ * which is what `qcms:create-admin` produces and what `forced-password-change.pw.ts`
+ * is about. Every other spec leaves it off and gets an account that signs straight in,
+ * because a password change is not what those specs test; the API-side helper's
+ * docblock carries the reasoning.
+ *
+ * Both arrive in one options object rather than as positional arguments, which is what
+ * the two of them landing in the same week settled: a second optional string beside a
+ * first would have been two call shapes to remember and one transposition away from a
+ * silent wrong answer.
  */
-export async function createTestAdmin(email: string, name?: string): Promise<void> {
+export async function createTestAdmin(
+  email: string,
+  options: { readonly name?: string; readonly mustChangePassword?: boolean } = {},
+): Promise<void> {
   await createAdminAccount({
     databaseUrl: readFixtures().databaseUrl,
     authSecret: FIXED_AUTH_SECRET,
     adminBaseUrl: ADMIN_BASE_URL,
     email,
     password: TEST_PASSWORD,
-    ...(name !== undefined && { name }),
+    ...(options.name !== undefined && { name: options.name }),
+    mustChangePassword: options.mustChangePassword,
   });
 }

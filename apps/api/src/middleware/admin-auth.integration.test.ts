@@ -16,6 +16,7 @@
  * Requires Docker.
  */
 
+import { clearMustChangePassword } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -186,5 +187,61 @@ describe("admin-auth: 2FA policy (SEC-1)", () => {
     });
     const optional = compose(validEnv({ QCMS_ADMIN_2FA: "optional" }));
     expect((await whoami(optional, token)).status).toBe(200);
+  });
+});
+
+describe("admin-auth: the provisional bootstrap credential (SEC-1, task 061)", () => {
+  it("rejects a session whose account still holds the password create-admin set", async () => {
+    // The admin app's gate is what sends this admin to the forced-change screen. This
+    // is the half that makes "and nothing else" true of the DATA as well: a caller who
+    // went round the BFF, or a BFF route that forgot its guard, meets a 401 here.
+    const { token } = await seedAdminSession(testDb.db, {
+      at: NOW,
+      mustChangePassword: true,
+      label: "provisional",
+    });
+    expect((await whoami(compose(), token)).status).toBe(401);
+  });
+
+  it("is not relaxed by QCMS_ADMIN_2FA=optional", async () => {
+    // That hatch exists because enrollment needs a device a developer may not have;
+    // changing a password needs nothing, so it buys no exemption from this gate. A
+    // hatch that quietly widened to a second control is how one gets left on.
+    const { token } = await seedAdminSession(testDb.db, {
+      at: NOW,
+      mustChangePassword: true,
+      twoFactorEnabled: true,
+      label: "provisional-optional",
+    });
+    const optional = compose(validEnv({ QCMS_ADMIN_2FA: "optional" }));
+    expect((await whoami(optional, token)).status).toBe(401);
+  });
+
+  it("says nothing about WHY, like every other refusal here (SEC-1)", async () => {
+    const { token } = await seedAdminSession(testDb.db, {
+      at: NOW,
+      mustChangePassword: true,
+      label: "provisional-silent",
+    });
+    const refused = (await (await whoami(compose(), token)).json()) as {
+      error: { code: string; message: string };
+    };
+    const unknown = (await (await whoami(compose(), "st_never-issued-at-all")).json()) as {
+      error: { code: string; message: string };
+    };
+    expect(refused).toEqual(unknown);
+  });
+
+  it("accepts the same session once the flag is cleared", async () => {
+    // Exit criterion 4 on this side: nothing lingers. `clearMustChangePassword` is the
+    // same write the password-change database hook makes.
+    const { token, userId } = await seedAdminSession(testDb.db, {
+      at: NOW,
+      mustChangePassword: true,
+      label: "provisional-cleared",
+    });
+    expect((await whoami(compose(), token)).status).toBe(401);
+    await clearMustChangePassword(testDb.db, userId);
+    expect((await whoami(compose(), token)).status).toBe(200);
   });
 });

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /**
- * Issue #177, behavioural half: the route-handler guard applies the same three gates
+ * Issue #177, behavioural half: the route-handler guard applies the same four gates
  * as the page guard, and refuses with a 303.
  *
  * `shell-route-guards.test.ts` (structural) proves every handler under `app/(shell)/`
@@ -32,6 +32,7 @@ interface AuthSessionResult {
     readonly name: string;
     readonly role?: string;
     readonly twoFactorEnabled?: boolean;
+    readonly mustChangePassword?: boolean;
   };
 }
 
@@ -54,14 +55,27 @@ vi.mock("./config.ts", async (importOriginal) => ({
   twoFactorOptional: mocks.twoFactorOptional,
 }));
 
-const { ENROLL_PATH, SIGN_IN_PATH, requireAdminSession, requireAdminSessionForRequest } =
-  await import("./session.ts");
+const {
+  CHANGE_PASSWORD_PATH,
+  ENROLL_PATH,
+  SHELL_HOME_PATH,
+  SIGN_IN_PATH,
+  requireAdminSession,
+  requireAdminSessionForRequest,
+  requireEnrollingSession,
+  requirePasswordChangeSession,
+  requirePasswordChangeSessionForRequest,
+} = await import("./session.ts");
 
 const HOUR_MS = 60 * 60 * 1000;
 /** SEC-1's absolute lifetime, and `sessionMaxAgeMs()`'s default when the env is unset. */
 const MAX_AGE_MS = 12 * HOUR_MS;
 
-function signedIn(ageMs: number, twoFactorEnabled: boolean): AuthSessionResult {
+function signedIn(
+  ageMs: number,
+  twoFactorEnabled: boolean,
+  mustChangePassword = false,
+): AuthSessionResult {
   return {
     session: { createdAt: new Date(Date.now() - ageMs).toISOString(), token: "tok_test" },
     user: {
@@ -70,6 +84,7 @@ function signedIn(ageMs: number, twoFactorEnabled: boolean): AuthSessionResult {
       name: "Test Admin",
       role: "admin",
       twoFactorEnabled,
+      mustChangePassword,
     },
   };
 }
@@ -99,7 +114,7 @@ beforeEach(() => {
   mocks.twoFactorOptional.mockReturnValue(false);
 });
 
-describe("the three gates, applied identically by both guards (issue #177)", () => {
+describe("the four gates, applied identically by both guards (issue #177, task 061)", () => {
   const cases = [
     { name: "no session at all", result: undefined, expected: () => SIGN_IN_PATH },
     {
@@ -116,6 +131,11 @@ describe("the three gates, applied identically by both guards (issue #177)", () 
       name: "a live session that has not finished 2FA enrollment",
       result: signedIn(HOUR_MS, false),
       expected: () => ENROLL_PATH,
+    },
+    {
+      name: "a live enrolled session still holding the bootstrap credential",
+      result: signedIn(HOUR_MS, true, true),
+      expected: () => CHANGE_PASSWORD_PATH,
     },
   ];
 
@@ -141,7 +161,7 @@ describe("the three gates, applied identically by both guards (issue #177)", () 
   );
 });
 
-describe("a session that passes all three gates", () => {
+describe("a session that passes all four gates", () => {
   beforeEach(() => {
     mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, true));
   });
@@ -183,5 +203,102 @@ describe("the refusal shape a form POST needs", () => {
     // to the sign-in screen. That is why the handler cannot simply call `redirect()`.
     expect(outcome.status).toBe(303);
     expect(outcome.headers.get("location")).toBe(SIGN_IN_PATH);
+  });
+});
+
+/**
+ * Task 061: the provisional bootstrap credential.
+ *
+ * Exit criterion 1 ("cannot reach any admin route") is asserted in the browser, by
+ * driving a real sign-in and typing deep URLs - `apps/admin/e2e/forced-password-change.pw.ts`.
+ * What is asserted here is the policy those routes inherit: the ORDER relative to 2FA
+ * enrollment (criterion 5), the fact that the enrollment screens are inside the gate
+ * rather than beside it, and that an admin who has already changed their password
+ * meets nothing at all (criterion 4).
+ */
+describe("the forced password change (task 061, SEC-1)", () => {
+  it("comes before the 2FA gate when both apply", async () => {
+    // Both flags set: unenrolled AND still on the bootstrap credential, which is
+    // exactly the state `qcms:create-admin` leaves an account in. Enrolment binds a
+    // second factor, and binding it to an account whose first factor came out of a CI
+    // variable is the thing the order exists to prevent.
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false, true));
+    expect(await pageRefusal()).toBe(CHANGE_PASSWORD_PATH);
+    expect(await requestRefusal()).toEqual({ path: CHANGE_PASSWORD_PATH, status: 303 });
+  });
+
+  it("is not relaxed by the QCMS_ADMIN_2FA escape hatch", async () => {
+    // The hatch exists because enrollment needs a device a developer may not have.
+    // Changing a password needs nothing, so it buys no exemption here - and a hatch
+    // that silently widened to a second control is how one gets left on.
+    mocks.twoFactorOptional.mockReturnValue(true);
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false, true));
+    expect(await pageRefusal()).toBe(CHANGE_PASSWORD_PATH);
+  });
+
+  it("gates the enrollment screens too, which are outside the shell", async () => {
+    // `requireEnrollingSession` deliberately skips the 2FA gate, so without this it
+    // would be the one reachable screen for a provisional credential - and the screen
+    // that binds a factor, at that.
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false, true));
+    await expect(requireEnrollingSession()).rejects.toThrow(`REDIRECT:${CHANGE_PASSWORD_PATH}`);
+  });
+
+  describe("the forced screen's own guard", () => {
+    it("admits the session the other guards refuse", async () => {
+      mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false, true));
+      await expect(requirePasswordChangeSession()).resolves.toMatchObject({
+        mustChangePassword: true,
+      });
+      expect(await requirePasswordChangeSessionForRequest()).not.toBeInstanceOf(Response);
+    });
+
+    it("sends an anonymous visitor to sign-in, as a 303 for the handler", async () => {
+      mocks.proxiedSession.mockResolvedValue(undefined);
+      await expect(requirePasswordChangeSession()).rejects.toThrow(`REDIRECT:${SIGN_IN_PATH}`);
+      const outcome = await requirePasswordChangeSessionForRequest();
+      expect(outcome).toBeInstanceOf(Response);
+      // 307 would re-post the credential at the sign-in screen (see `route-helpers.ts`).
+      if (outcome instanceof Response) {
+        expect(outcome.status).toBe(303);
+        expect(outcome.headers.get("location")).toBe(SIGN_IN_PATH);
+      }
+    });
+
+    it("refuses an admin whose flag is clear, so it is not a second change surface", async () => {
+      // Criterion 4 at the URL rather than at the redirect: typing this path must not
+      // give an ordinary signed-in admin a change-password form outside Settings.
+      mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, true, false));
+      await expect(requirePasswordChangeSession()).rejects.toThrow(`REDIRECT:${SHELL_HOME_PATH}`);
+    });
+
+    it("sends a cleared-but-unenrolled admin straight on to enrollment", async () => {
+      // Not to the shell, which would only bounce off gate 4 one round trip later.
+      // This is the state the forced screen's own handler leaves behind.
+      mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, false, false));
+      await expect(requirePasswordChangeSession()).rejects.toThrow(`REDIRECT:${ENROLL_PATH}`);
+    });
+  });
+
+  it("leaves an admin who has already changed their password untouched", async () => {
+    // Criterion 4. No redirect anywhere, and the same one session read every other
+    // request makes - the gate is a predicate over a body the app already fetches, so
+    // it costs no extra round trip.
+    mocks.proxiedSession.mockResolvedValue(signedIn(HOUR_MS, true, false));
+    await expect(requireAdminSession()).resolves.toMatchObject({ mustChangePassword: false });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+    expect(mocks.proxiedSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads an absent field as clear rather than as set", async () => {
+    // The wire contract is between two deployables, so the field can be missing. The
+    // fail-closed half of this control is the API's own gate on the column; the BFF
+    // reading absent as "set" would instead park every admin on a screen whose form
+    // the API would refuse.
+    mocks.proxiedSession.mockResolvedValue({
+      session: { createdAt: new Date().toISOString(), token: "tok_test" },
+      user: { id: "usr_test", email: "admin@example.test", name: "Test Admin", twoFactorEnabled: true },
+    });
+    await expect(requireAdminSession()).resolves.toMatchObject({ mustChangePassword: false });
   });
 });

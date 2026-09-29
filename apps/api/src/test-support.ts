@@ -175,6 +175,13 @@ export async function seedAdminSession(
     readonly expiresInMs?: number;
     /** Set false to seed an account that has not completed TOTP enrollment. */
     readonly twoFactorEnabled?: boolean;
+    /**
+     * Set true to seed an account still holding the provisional bootstrap credential
+     * (task 061, SEC-1). Default false, which is the state of every account that has
+     * changed its password - and therefore of every account these tests are about
+     * except the one testing this gate.
+     */
+    readonly mustChangePassword?: boolean;
     /** Distinguishing suffix when a test needs two different admins. */
     readonly label?: string;
   } = {},
@@ -194,6 +201,7 @@ export async function seedAdminSession(
     createdAt: at,
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
+    mustChangePassword: options.mustChangePassword ?? false,
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,
