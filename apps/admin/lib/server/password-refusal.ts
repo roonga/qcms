@@ -22,9 +22,9 @@
  * The Code Owner ruled on 2026-09-03, taking option (a) of three put on issue #437, and
  * the cost is recorded because it is real rather than absent. better-auth 1.7.6 hashes
  * the new password - which is where the corpus check hooks - BEFORE it verifies the
- * current one: `dist/api/routes/update-user.mjs:167` is
- * `ctx.context.password.hash(newPassword)` and `:168-171` is the `password.verify` of
- * `currentPassword` that follows it. A Docker-backed probe on issue #437 confirmed the
+ * current one: `dist/api/routes/update-user.mjs:167` <!-- expect: password.hash(newPassword) -->
+ * is `ctx.context.password.hash(newPassword)` and `:168-171` <!-- expect: password.verify -->
+ * is the `password.verify` of `currentPassword` that follows it. A Docker-backed probe on issue #437 confirmed the
  * refusal comes back byte-identically whether the supplied current password is right or
  * wrong, and the two lines were re-read at this version. So this copy is visible to any session
  * holder regardless of whether they know the current password: a corpus-membership

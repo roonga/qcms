@@ -26,7 +26,7 @@ RUN pnpm --filter qcms-api build
 # "packages in `devDependencies` won't be installed" (pnpm 11.18.0, `pnpm deploy
 # --help`; https://pnpm.io/cli/deploy). The deployed tree's top-level `node_modules`
 # held production dependencies only. The tooling arrived one level down, through
-# resolved OPTIONAL PEER dependencies: `better-auth@1.7.3` declares optional peers on
+# resolved OPTIONAL PEER dependencies: `better-auth@1.7.6` declares optional peers on
 # `vitest`, `next`, `react`, `react-dom` and `drizzle-kit`, `next` declares one on
 # `@playwright/test`, and `@roonga/qcms-db` declares them on `testcontainers` and
 # `@testcontainers/postgresql` so a consumer can supply them for its `./testing`
