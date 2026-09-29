@@ -127,6 +127,7 @@ export {
   readRoster,
   readRosters,
   rosterLedger,
+  rosterOpApplied,
 } from "./rosters.js";
 
 export { type SubmissionRow, insertSubmission, getSubmission } from "./submissions.js";

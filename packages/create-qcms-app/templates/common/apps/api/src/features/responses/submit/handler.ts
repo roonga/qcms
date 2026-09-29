@@ -61,6 +61,7 @@ import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { FlagReason } from "../flag-reasons.js";
+import { loadRosters } from "../roster.js";
 import { parseSemanticsVersion } from "../semantics-version.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
@@ -200,9 +201,39 @@ function toSubmissionDetail(errors: readonly SubmissionError[]): {
 
 /**
  * `POST /sessions/{id}/submit`. Session-token authed. Ordering: authorize →
- * load session (idempotent on `submitted`, reject `expired`/`created`) →
- * `prepareSubmission` (422 on a failed sweep) → one transaction (advisory lock,
- * insert lock, mark submitted, enqueue unless flagged).
+ * load session (idempotent on `submitted`, reject `expired`/`created`) → one
+ * transaction (advisory lock, **then** the ledger read and the `prepareSubmission`
+ * sweep, then insert lock, mark submitted, enqueue unless flagged).
+ *
+ * **The sweep is INSIDE the lock, and that is the fix for issue #968.** It used to run
+ * before the transaction opened: the ledger was read, swept and hashed, and only then
+ * was the lock taken. A retraction committed in that window was in the ledger and not
+ * in the sealed `lockedAnswers` or its `contentHash`, so the two records of one
+ * response disagreed - the ledger recording a clear the submission did not reflect.
+ * The reviewer who found it read correctly that this could not seal an EMPTY required
+ * answer, because the locked set matched the snapshot that had been swept; what it
+ * could do is leave the audit trail and the audit anchor describing different answer
+ * sets, which is the one thing a submission exists to make impossible.
+ *
+ * Repetition amplifies it rather than creating it: the window is multiplied by the
+ * number of fields a step posts, and the no-JS path posts a whole step at once (Q20,
+ * ADR-43), which is why closing it is a deliverable of task 073 rather than a
+ * dependency scheduled elsewhere.
+ *
+ * **What moved and what did not.** The read and the sweep moved inside the existing
+ * transaction, after the existing advisory lock. Nothing else changed: the status gates
+ * above are still unlocked reads (they are re-checked under the lock, as they always
+ * were), the abuse decision is still pure over the validated submission, and the
+ * insert, the status flip and the outbox enqueue are still one transaction with the
+ * sweep they were computed from. The 422 is now thrown from inside the transaction,
+ * which rolls it back and writes nothing - the same envelope the caller saw before,
+ * because a sweep failure never wrote anything anyway.
+ *
+ * **The roster travels with the sweep** (ADR-42): a removed instance's answers are
+ * excluded from the locked set exactly as a hidden question's are, and a group below
+ * `min` or above `max` is refused with `REPEAT_COUNT_OUT_OF_RANGE`. Deriving it inside
+ * the lock is the same requirement as reading the answers there: a roster read outside
+ * it would reopen #968's window one table over.
  */
 export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, ApiEnv> {
   return async (c) => {
@@ -230,20 +261,9 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     // `in_progress`): there is nothing to submit.
     if (session.status === "created") throw fail.nothingToSubmit();
 
-    // Validate + lock through the kernel (the I9 sweep). Hidden answers are
-    // excluded from the locked set here (I6); the ledger keeps them.
+    // The pinned snapshot is immutable (I1/I4), so it is loaded outside the lock:
+    // nothing a concurrent request can do changes it.
     const snapshot = await loadFrozenSnapshot(deps, session);
-    const answers: AnswerMap = await latestAnswers(deps.db, sessionId);
-    const prepared = await prepareSubmission(snapshot, answers);
-    if (!prepared.ok) {
-      throw new ApiError(
-        "SUBMISSION_INVALID",
-        422,
-        "The submission has missing or invalid required answers",
-        toSubmissionDetail(prepared.error),
-      );
-    }
-    const locked = prepared.value;
 
     // The min-time floor is per-form (`forms.min_submit_ms`) with the config
     // default as fallback (task 026). A missing form row here would be an
@@ -252,13 +272,14 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
     const form = await getForm(deps.db, session.formId);
     const minTimeFloorMs = form?.minSubmitMs ?? deps.config.antiAbuse.minSubmitMs;
 
-    // Anti-abuse decision is pure over the (validated) submission; it changes
-    // whether the outbox event is enqueued, never the response shape.
+    // Anti-abuse decision is pure over the request and the session row; it changes
+    // whether the outbox event is enqueued, never the response shape. It reads no
+    // answer, so it does not belong inside the lock.
     const flaggedReason = detectAbuse(deps, session, body, minTimeFloorMs);
 
     const receipt = await deps.db.transaction(async (tx) => {
       // Serialize with concurrent submits/answers on this session (I5) so the
-      // submitted-state check and the writes are one atomic decision.
+      // submitted-state check, the SWEEP and the writes are one atomic decision.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
 
       // Re-check under the lock: a concurrent submit may have won the race.
@@ -270,6 +291,26 @@ export function makeSubmitHandler(deps: Deps): RouteHandler<typeof submitRoute, 
         }
         return receiptFrom(existing);
       }
+
+      // Validate + lock through the kernel (the I9 sweep), INSIDE the lock (issue
+      // #968). Hidden answers and removed instances are excluded from the locked set
+      // here (I6, ADR-42); the ledger keeps them. The roster is derived from the same
+      // locked read, so the answers, the roster and the hash are one consistent view.
+      const answers: AnswerMap = await latestAnswers(tx, sessionId);
+      const rosters = await loadRosters(tx, sessionId, snapshot.definition.steps, answers);
+      const prepared = await prepareSubmission(snapshot, answers, rosters);
+      if (!prepared.ok) {
+        // Thrown from inside the transaction, which rolls it back. Nothing had been
+        // written, so the rollback changes nothing a caller can see and the envelope
+        // is the one it always was.
+        throw new ApiError(
+          "SUBMISSION_INVALID",
+          422,
+          "The submission has missing or invalid required answers",
+          toSubmissionDetail(prepared.error),
+        );
+      }
+      const locked = prepared.value;
 
       const inserted = await insertSubmission(tx, {
         sessionId,

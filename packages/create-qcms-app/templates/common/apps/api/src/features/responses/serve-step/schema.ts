@@ -19,6 +19,18 @@
 import { z } from "@hono/zod-openapi";
 import { AnswerValue } from "@roonga/qcms-core";
 
+/**
+ * The most answers one batch may carry.
+ *
+ * **Not an instance ceiling** (Q14 removed every installation-wide one): it is a
+ * malformed-request bound on an array the transport has to allocate before anything
+ * validates it, in the same spirit as the request-size limits already in force. The
+ * real bound on a step's field count is the form's own `max` per group, enforced at
+ * publish and on every add (SEC-16), and the real bound on what a batch may SPEND is
+ * the per-session answer allowance it pays per entry.
+ */
+export const MAX_BATCH_ANSWERS = 2000;
+
 /** Path params for the session-scoped serving routes. */
 export const SessionParams = z.object({
   id: z.string().openapi({ param: { name: "id", in: "path" }, example: "ses_9f3a2b1c" }),
@@ -76,16 +88,57 @@ export const StepDocument = z
 export const FlowStateProjection = z
   .object({
     currentStep: z.string().nullable().openapi({ example: "stp_history" }),
-    visibleQuestions: z
-      .array(z.string())
-      .openapi({ example: ["q_at_fault_accident", "q_accident_count"] }),
-    missingRequired: z.array(z.string()).openapi({ example: ["q_accident_count"] }),
+    visibleQuestions: z.array(z.string()).openapi({
+      description:
+        "The currently-visible fields of the rendered step, as ANSWER KEYS: a bare questionId outside every repeating group, and `instanceId/questionId` inside one (ADR-42, ADR-43). A rule targeting inside a group is evaluated once per live instance, so a member question can be visible in one instance and hidden in another and only the qualified key can say which.",
+      example: ["q_at_fault_accident", "q_accident_count"],
+    }),
+    missingRequired: z.array(z.string()).openapi({
+      description:
+        "The visible required fields still unanswered, as answer keys, on the same rule as visibleQuestions: one entry per unanswered (instance, question) inside a group rather than one per question.",
+      example: ["q_accident_count"],
+    }),
     readyToSubmit: z.boolean().openapi({
       description:
         "True when no visible required question is unanswered (the flow may be submitted).",
     }),
   })
   .openapi("FlowStateProjection");
+
+/**
+ * The live instance roster per repeating group, in document order of the groups and
+ * roster order within each (ADR-42, ADR-43).
+ *
+ * **Already derived and already truncated.** The `answer_group_instances` table
+ * records what was minted and what was explicitly removed, and liveness is a function
+ * of the count source: only an `open` group's live set is the event record itself,
+ * while a `fixed` group's is the first `count` of it and a `fromAnswer` group's is the
+ * first N for the current count answer, clamped. That derivation runs in the API above
+ * the evaluator, so what crosses this boundary is the list the renderer expands and
+ * nothing it has to interpret.
+ *
+ * **This is how the roster reaches the renderer, and it is deliberately not the
+ * compiler's seam.** A compiled `RepeatGroup` is a template carrying its member
+ * controls once: the compiler is pure and answer-blind and an instance count is
+ * answer-dependent, so `StepResolverContext` is NOT widened (ADR-14 as amended
+ * 2026-09-30) and the roster travels beside the document exactly as `values` do. The
+ * portal still evaluates nothing (R2).
+ *
+ * An instance id is an opaque, random, session-scoped branded id carrying no
+ * respondent content (SEC-16), and it is never a visible label: it appears in field
+ * names, DOM ids, anchors and the no-JS fragment, and in no heading, legend, message
+ * or caption. A count IS respondent-derived, which is why the redacted outbox payload
+ * carries none (Q19) - but a respondent reading their own session over their own
+ * session-authed request is not that boundary.
+ */
+export const RosterProjection = z
+  .array(
+    z.object({
+      groupId: z.string().openapi({ example: "grp_passengers" }),
+      instances: z.array(z.string()).openapi({ example: ["ins_7k2", "ins_9m4"] }),
+    }),
+  )
+  .openapi("RosterProjection");
 
 /** Where the respondent is in the visible flow (for a progress indicator). */
 export const StepProgress = z
@@ -168,6 +221,7 @@ export const StepResponse = z
       example: "1.0.0-preview.7",
     }),
     flowState: FlowStateProjection,
+    rosters: RosterProjection,
     progress: StepProgress,
   })
   .openapi("StepResponse");
@@ -195,6 +249,11 @@ export type StepResponse = z.infer<typeof StepResponse>;
 export const SubmitAnswerBody = z
   .strictObject({
     questionId: z.string().min(1).openapi({ example: "q_at_fault_accident" }),
+    instanceId: z.string().min(1).optional().openapi({
+      description:
+        "Which instance of a repeating group this answer belongs to (ADR-42). Absent for a question outside every group, which keeps the body byte-identical for every form that has none. A retraction names an instance too, and clears that cell alone (ADR-33's Note).",
+      example: "ins_7k2",
+    }),
     value: z.unknown().openapi({
       description:
         'The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value ("" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer.',
@@ -202,3 +261,124 @@ export const SubmitAnswerBody = z
   })
   .openapi("SubmitAnswerBody");
 export type SubmitAnswerBody = z.infer<typeof SubmitAnswerBody>;
+
+/**
+ * The batch answer body (Q20, ADR-43): one Continue's answers, in one request.
+ *
+ * **Why it exists.** The no-JS path posts a **whole step**, and `forwardAnswers` made
+ * one `POST /sessions/{id}/answers` per decoded answer, sequentially, each taking the
+ * session's advisory lock and re-evaluating the flow. Nine passengers times six
+ * questions is fifty-four round trips and fifty-four advisory locks for one Continue.
+ * This carries them in one request, under one lock, with one flow evaluation.
+ *
+ * **It carries a Continue's answers only.** The roster operation is its own post and
+ * commits no answers, so the earlier claim that the batch makes the two one
+ * transaction does not hold and is withdrawn (ADR-43).
+ *
+ * **It is rate limited per ENTRY, not per request** (SEC-16). `answersPerSessionLimiter`
+ * spends one unit per request, which is correct while one request carries one answer;
+ * leaving it there would multiply a per-session allowance written for one answer by
+ * the batch size, and with no installation-wide instance ceiling the batch size is the
+ * author's `max`. So a batch of N answers spends N units of the same allowance, and a
+ * batch that would exceed the remainder is refused rather than partially applied.
+ *
+ * `answers` is bounded here only against a malformed or hostile request; the real
+ * bound is the form's own shape and the request-size limits already in force.
+ */
+export const BatchAnswerBody = z
+  .strictObject({
+    answers: z.array(SubmitAnswerBody).min(1).max(MAX_BATCH_ANSWERS).openapi({
+      description:
+        "The step's answers, in the order the form asked them. Each entry is exactly a single-answer body, including the null retraction and the optional instanceId.",
+    }),
+  })
+  .openapi("BatchAnswerBody");
+export type BatchAnswerBody = z.infer<typeof BatchAnswerBody>;
+
+/**
+ * One refused entry of a batch: which field, and why.
+ *
+ * A batch is **not** all-or-nothing on validation, and that mirrors what the no-JS
+ * route already did one call at a time: a 422 on one field fills that field's error
+ * slot and the remaining answers still go, because a respondent who mistyped one cell
+ * of nine passengers must not lose the other fifty-three. What IS all-or-nothing is
+ * the rate limit: a batch that cannot be paid for in full is refused before any entry
+ * is applied.
+ */
+export const BatchAnswerRejection = z
+  .object({
+    questionId: z.string(),
+    instanceId: z.string().optional(),
+    code: z.string().openapi({ example: "INVALID_ANSWER" }),
+    details: z.unknown().optional(),
+  })
+  .openapi("BatchAnswerRejection");
+
+/**
+ * The batch response: the projection after the whole batch, plus the entries it
+ * refused. The projection is the same `StepResponse` a single answer write returns, so
+ * a caller reads `flowState` and `values` from it exactly as before.
+ */
+export const BatchAnswerResponse = z
+  .object({
+    step: StepDocument.nullable(),
+    values: HeldValues,
+    a2uiSpecVersion: z.string(),
+    flowState: FlowStateProjection,
+    rosters: RosterProjection,
+    progress: StepProgress,
+    rejected: z.array(BatchAnswerRejection),
+  })
+  .openapi("BatchAnswerResponse");
+export type BatchAnswerResponse = z.infer<typeof BatchAnswerResponse>;
+
+/**
+ * The roster-operation body (ADR-43): the respondent's Add or Remove.
+ *
+ * **It commits no answers**, and that is the ruling of 2026-09-30 rather than an
+ * omission: the typed values ride the step POST, are carried back for the re-render,
+ * and reach the ledger only on Continue under the ordinary validation an ordinary
+ * Continue does. That is what makes `formnovalidate` on the Add and Remove buttons
+ * safe rather than merely convenient, and it is why `docs/portal-constraints.md`'s "a
+ * required question cannot be cleared without scripting" bullet is unchanged.
+ *
+ * `opToken` is the **one-time operation token** the rendered page minted into the
+ * button's value. It is recorded with the roster row, so a replayed post - a reload of
+ * the 200 re-render, or a Back that resubmits - applies nothing and returns the roster
+ * as it stands. It is not a credential: it is scoped to the session it was minted in
+ * and refusing a replay is its only job.
+ */
+export const RosterOpBody = z
+  .strictObject({
+    op: z.enum(["add", "remove"]).openapi({ example: "add" }),
+    groupId: z.string().min(1).openapi({ example: "grp_passengers" }),
+    instanceId: z
+      .string()
+      .min(1)
+      .optional()
+      .openapi({ description: "Required for `remove`; refused for `add`.", example: "ins_7k2" }),
+    opToken: z.string().min(1).max(128).openapi({
+      description:
+        "The one-time operation token this page minted. A token already applied is a no-op that returns the current roster.",
+      example: "op_7f3a2b1c",
+    }),
+  })
+  .openapi("RosterOpBody");
+export type RosterOpBody = z.infer<typeof RosterOpBody>;
+
+/** The roster operation's response: the projection after it, and what it did. */
+export const RosterOpResponse = z
+  .object({
+    step: StepDocument.nullable(),
+    values: HeldValues,
+    a2uiSpecVersion: z.string(),
+    flowState: FlowStateProjection,
+    rosters: RosterProjection,
+    progress: StepProgress,
+    /** True when the token had already been spent, so nothing was written. */
+    replayed: z.boolean(),
+    /** The instance this operation minted, when it minted one. */
+    minted: z.array(z.string()),
+  })
+  .openapi("RosterOpResponse");
+export type RosterOpResponse = z.infer<typeof RosterOpResponse>;
