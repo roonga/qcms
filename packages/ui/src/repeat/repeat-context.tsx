@@ -31,6 +31,24 @@ export interface QcmsRepeatContextValue {
   readonly status?: { readonly groupId: string; readonly message: string };
   /** The group a roster write is currently in flight for, so its controls can wait. */
   readonly busyGroupId?: string;
+  /**
+   * The DOM id this render should land focus on: an instance id after an add or a
+   * removal, or a group's Add button id when a removal emptied the group (Q11).
+   *
+   * **On the no-JS path this becomes an `autofocus` attribute**, and that is the ruled
+   * mechanism (Code Owner, 2026-10-01). The Add and Remove post answers with a **200**
+   * re-render rather than a redirect, and a 200 to a POST leaves the browser on the
+   * POST's own URL, which carries no fragment, so a fragment cannot be the landing.
+   * `autofocus` applies to every element and not only to form controls (HTML), and a
+   * negative `tabindex` makes the heading a focusable area, so the heading is a legal
+   * target. The two must never be combined: the flush algorithm skips `autofocus`
+   * outright when the document has a fragment target, so a page carrying both would
+   * land nowhere it intended.
+   *
+   * On the scripted path the host moves focus itself and this is the same destination
+   * expressed once, so the two paths cannot drift.
+   */
+  readonly autofocusId?: string;
 }
 
 const EMPTY: QcmsRepeatContextValue = Object.freeze({});

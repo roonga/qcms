@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext } from "react";
 
+import type { NativeFormAction } from "./native-submit.ts";
+
 /**
  * The canonical answer encodings this renderer round-trips (task 002,
  * DOMAIN_SCHEMA §2.4), expressed structurally so `@roonga/qcms-ui` stays decoupled
@@ -33,6 +35,17 @@ export type A2UIErrors = Readonly<Record<string, string | undefined>>;
 export interface QcmsFieldContextValue {
   readonly values: A2UIValues;
   readonly errors: A2UIErrors;
+  /**
+   * The form's own action when it is a function rather than a URL (task 073): a Next
+   * Server Action that applies the respondent's Add or Remove and re-renders the step
+   * in the same 200 response.
+   *
+   * It travels here rather than on the root `Form` node's props, and that is a
+   * constraint rather than a preference: a node's props are the stored document's
+   * data, validated by a Zod schema and serialisable by construction, so a function
+   * cannot ride there. This is the same seam `values` and `errors` already use.
+   */
+  readonly formAction?: NativeFormAction;
   /** Fires the canonical `AnswerValue` for `name` (or `undefined` when cleared). */
   readonly onChange: (name: string, value: A2UIAnswerValue | undefined) => void;
   /** Fires when focus leaves the control (touched semantics; policy is 029/030). */
@@ -92,4 +105,16 @@ export function useQcmsNativeSubmit(): boolean {
     throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
   }
   return ctx.native;
+}
+
+/**
+ * The form's action when the host supplied a function rather than a URL (task 073), or
+ * `undefined` when the stored node's string `action` is what the form renders.
+ */
+export function useQcmsFormAction(): NativeFormAction | undefined {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.formAction;
 }

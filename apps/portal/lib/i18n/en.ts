@@ -63,6 +63,21 @@ export const messages = {
   // and is never modified.
   "errorSummary.namedCustom": "{label}: {message}",
   "answer.invalid": "That answer is not valid.",
+  // The repeating group's own controls and refusals (task 073). The Add and Remove
+  // labels themselves are NOT here: they are compiled into the stored document from
+  // the compiler's lexicon (ADR-36's precedent), so a published form keeps the wording
+  // it was published with. What lives here is the portal's own chrome: what a refused
+  // operation says, and what the polite status region announces.
+  "errorSummary.inInstance": "{instance}: {message}",
+  "repeat.maxReached": "You have added as many as this form allows.",
+  "repeat.notAddable": "This part of the form is not one you can add to.",
+  "repeat.failed": "We could not make that change. Please try again.",
+  "repeat.added": "{label} added.",
+  "repeat.removed": "{label} removed, {count} remaining.",
+  "repeat.removedLast": "{label} removed, none remaining.",
+  "repeat.staleStep.title": "This page was out of date",
+  "repeat.staleStep.body":
+    "We have updated the form since this page was opened. Your answers are safe. Continue from the step below.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",

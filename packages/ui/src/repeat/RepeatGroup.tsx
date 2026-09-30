@@ -63,7 +63,7 @@ export function RepeatGroup({
   children,
 }: NonNullable<RepeatGroupNode["props"]> & { readonly children?: ReactNode }) {
   const native = useQcmsNativeSubmit();
-  const { onAdd, status, busyGroupId } = useQcmsRepeat();
+  const { onAdd, status, busyGroupId, autofocusId } = useQcmsRepeat();
   const addable = countSource === "open" && addLabel !== undefined;
   const busy = busyGroupId === groupId;
 
@@ -85,6 +85,7 @@ export function RepeatGroup({
               value={rosterOpValue({ op: "add", groupId, token: opToken ?? "" })}
               formNoValidate
               disabled={canAdd === false}
+              autoFocus={autofocusId === addButtonId(groupId)}
               className="qcms-repeat__button"
               data-qcms-repeat-action="add"
             >

@@ -122,11 +122,21 @@ export type BeltFetchSite =
 /**
  * How the request's `Origin` header reads, relative to this portal's own base URL.
  *
- * `null` is its own case rather than a mismatch, and it is the discriminating one.
- * The portal sends `Referrer-Policy: no-referrer`, so a no-JS form navigation
- * serializes its origin as the literal string `null`: `absent` or `null` beside
- * `beltFetchSite: "absent"` is the honest old browser, while `mismatch` is a request
- * that named a foreign origin and is a forgery attempt or a misconfigured embed.
+ * `null` is its own case rather than a mismatch, and it is worth keeping distinct even
+ * though the portal no longer produces it.
+ *
+ * Until task 073 the portal sent `Referrer-Policy: no-referrer`, under which a no-JS
+ * form navigation serializes its origin as the literal string `null` (Fetch), so
+ * `absent` or `null` beside `beltFetchSite: "absent"` was the shape of an honest old
+ * browser. The portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as
+ * amended, because Next's Server Action check refuses a null origin), so a navigation
+ * POST from a portal page carries this portal's real origin and a refusal from an
+ * honest old browser reads `match` beside `absent` instead.
+ *
+ * `null` therefore now identifies a post from a page that declared `no-referrer` on
+ * ITSELF, which is what an attacker's page does, so the case is more informative than
+ * it was rather than dead. `mismatch` is still a request that named a foreign origin:
+ * a forgery attempt or a misconfigured embed.
  *
  * `unverifiable` means `QCMS_PORTAL_BASE_URL` is unreadable, so there is nothing to
  * compare against. It exists so that a configuration fault cannot turn this logging

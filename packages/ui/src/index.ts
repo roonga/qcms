@@ -14,11 +14,11 @@ export {
   SUBMIT_NODE_TYPE,
   withNativeSubmit,
 } from "./native-submit.ts";
-export type { NativeFieldKind, NativeSubmitOptions } from "./native-submit.ts";
+export type { NativeFieldKind, NativeFormAction, NativeSubmitOptions } from "./native-submit.ts";
 
 export { withDemotedHeadings } from "./heading-demotion.ts";
 
-export { QcmsFieldContext, useQcmsField } from "./field-context.tsx";
+export { QcmsFieldContext, useQcmsField, useQcmsFormAction } from "./field-context.tsx";
 export type {
   A2UIAnswerValue,
   A2UIErrors,

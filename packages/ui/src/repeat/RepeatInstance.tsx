@@ -55,7 +55,7 @@ export function RepeatInstance({
   children,
 }: NonNullable<RepeatInstanceNode["props"]> & { readonly children?: ReactNode }) {
   const native = useQcmsNativeSubmit();
-  const { onRemove, busyGroupId } = useQcmsRepeat();
+  const { onRemove, busyGroupId, autofocusId } = useQcmsRepeat();
   const Heading = headingAs;
   const canRemove = removeLabel !== undefined;
   const busy = busyGroupId === groupId;
@@ -68,7 +68,12 @@ export function RepeatInstance({
       data-qcms-ordinal={ordinal}
     >
       <legend className="qcms-repeat__legend">
-        <Heading className="qcms-repeat__heading" id={instanceId} tabIndex={-1}>
+        <Heading
+          className="qcms-repeat__heading"
+          id={instanceId}
+          tabIndex={-1}
+          autoFocus={autofocusId === instanceId}
+        >
           {label}
         </Heading>
       </legend>

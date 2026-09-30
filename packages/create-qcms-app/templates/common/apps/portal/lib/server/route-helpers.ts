@@ -38,24 +38,40 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * explicit. It records classifications only, never a header value: see
  * `./origin-belt-log.ts` for why every field it emits is a constant.
  *
- * ## Why `Sec-Fetch-Site` is read first, and the `Origin` fallback is nearly dead
+ * ## Why `Sec-Fetch-Site` is read first, and what the `Origin` fallback now reaches
  *
  * Not "for older clients", which is what the admin copy's comment used to imply and
- * which is actively misleading here. `proxy.ts` sets `Referrer-Policy: no-referrer`
- * on every portal response, and per Fetch a navigation POST (which is what a no-JS
- * `<form method="post">` is) serializes its `Origin` as the literal string `null`
- * under that policy. So on the portal's own no-JS path a current browser sends
- * `Origin: null` and the `Origin` comparison below can never match: `Sec-Fetch-Site`
- * is the header actually doing the work. The admin learned this the expensive way
- * (`docs/RETRO.md`, the 031 entry: better-auth answered 403 to 100% of legitimate
- * sign-ins for exactly this reason).
+ * which is actively misleading on the admin. On the portal the reasoning changed with
+ * the policy, so both halves are written out.
  *
- * The `Origin` branch is still live for the **hydrated** path, because `fetch()`
- * requests are mode `cors`, which the referrer-policy rewrite above does not touch,
- * so those carry the real origin. (Written without the parentheses until issue #663
- * taught the admin twin's `r2-import-surface.test.ts` to blank comments before scanning
- * for a call to the global. The portal's own R2 test still does not carry that rule at
- * all, which is its own asymmetry and its own issue.)
+ * **Until task 073 the portal sent `Referrer-Policy: no-referrer`**, and per Fetch a
+ * navigation POST (which is what a no-JS `<form method="post">` is) serializes its
+ * `Origin` as the literal string `null` under that policy. So on the no-JS path a
+ * current browser sent `Origin: null`, the `Origin` comparison below could never
+ * match, and `Sec-Fetch-Site` was the only header doing any work. The admin learned
+ * that the expensive way and still lives there (`docs/RETRO.md`, the 031 entry:
+ * better-auth answered 403 to 100% of legitimate sign-ins for exactly this reason).
+ *
+ * **The portal now sends `same-origin`** (Code Owner, 2026-10-01, SEC-9 as amended),
+ * because Next's Server Action handler compares a request's `Origin` to the `Host` and
+ * refuses `null`, and the no-JS roster operation of a repeating group is a Server
+ * Action (ADR-43 as amended, task 073). A navigation POST from a portal page therefore
+ * now carries this portal's real origin, so the `Origin` branch below is **live on the
+ * no-JS path too** rather than nearly dead.
+ *
+ * **What that does NOT change is the order or the acceptance rule.** `Sec-Fetch-Site`
+ * is still read first and is still what the belt relies on, because it is the header
+ * that distinguishes a same-origin navigation from a cross-site one; `Origin` only
+ * says who claims to have sent the request. And a browser sending no `Sec-Fetch-Site`
+ * at all is still refused (see below), which is a separate decision with its own
+ * population analysis and is deliberately not reopened here.
+ *
+ * The `Origin` branch was already live for the **hydrated** path, because `fetch()`
+ * requests are mode `cors`, which no referrer policy touches, so those always carried
+ * the real origin. (Written without the parentheses until issue #663 taught the admin
+ * twin's `r2-import-surface.test.ts` to blank comments before scanning for a call to
+ * the global. The portal's own R2 test still does not carry that rule at all, which is
+ * its own asymmetry and its own issue.)
  *
  * ## Exactly what the belt covers, and what it does not
  *
@@ -78,12 +94,22 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * ## What this refuses that a respondent might not expect
  *
  * A browser that sends no `Sec-Fetch-Site` at all (Fetch Metadata predates Safari
- * 16.4 and Firefox 90) is refused, because the only other signal it sends is that
- * same `Origin: null`, which an attacker's page can also produce by declaring
- * `Referrer-Policy: no-referrer` on itself. Failing closed is the right side to err
- * on for a security belt, and it matches the admin twin, but it is a real cost on a
- * public respondent surface rather than a free one: see the `Referrer-Policy`
- * follow-up noted on issue #487.
+ * 16.4 and Firefox 90) is refused. Failing closed is the right side to err on for a
+ * security belt, and it matches the admin twin, but it is a real cost on a public
+ * respondent surface rather than a free one: see the `Referrer-Policy` follow-up noted
+ * on issue #487.
+ *
+ * **The reason it was unavoidable has weakened, and the rule has deliberately not
+ * moved.** The old argument was that such a browser's only other signal is
+ * `Origin: null`, which an attacker's page can also produce by declaring
+ * `Referrer-Policy: no-referrer` on itself, so the two are indistinguishable. Under
+ * the portal's new `same-origin` policy an honest Fetch-Metadata-less browser posting
+ * from a portal page sends this portal's **real** origin instead, which an attacker's
+ * page cannot forge, so the two are no longer indistinguishable and admitting a
+ * matching `Origin` with no `Sec-Fetch-Site` would be defensible. Whether to do it is a
+ * separate decision about who the belt admits, not a consequence of task 073, so it is
+ * recorded here and filed rather than taken (issue #504's population analysis is what
+ * it needs).
  *
  * **This is not only the no-JS path**, which is how issue #504 framed it after
  * reading an earlier version of this comment (corrected in issue #579).
