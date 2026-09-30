@@ -561,16 +561,17 @@ Hashing ids at the exporter was considered and deferred (Phase 4) as unnecessary
 
 **The gap it closes.** Every control in this document so far governs **whether** somebody may read a response: the session and link model (SEC-2), the authorization model (SEC-3), the workspace and environment scopes and the two role families (ADR-41), the schema and role boundaries (ADR-40, SEC-10), the network layer (SEC-14). Nothing records **that they did**. An operator asked "who has looked at this person's answers" can answer it today only from whatever their log shipper happened to keep, which is not a record and is not readable by the workspace that owns the form.
 
-**The control.** Every **response read, export and erasure**, and since Q56 every **grant write and every revoke**, writes one row to an append-only table in the `control` schema, carrying:
+**The control.** Every **response read, export and erasure**, since Q56 every **grant write and every revoke**, and since Q61 every **change to the seed setting**, writes one row to an append-only table in the `control` schema, carrying:
 
-| Field       | What it is                                                                     |
-| ----------- | ------------------------------------------------------------------------------ |
-| actor       | the administrator's account, or the IdP subject where single sign-on is in use |
-| workspace   | the workspace that owns the form                                               |
-| environment | the environment whose data was read                                            |
-| form        | the form                                                                       |
-| kind        | read, export, erasure, grant or revoke                                         |
-| time        | when                                                                           |
+| Field       | What it is                                                                                                                                         |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| actor       | the administrator's account, or the IdP subject where single sign-on is in use                                                                     |
+| workspace   | the workspace that owns the form                                                                                                                   |
+| environment | the environment whose data was read; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                |
+| form        | the form; **empty on a grant, a revoke or a setting row unless the act names one** (Q61)                                                           |
+| kind        | read, export, erasure, grant, revoke or **setting** (Q61)                                                                                          |
+| time        | when                                                                                                                                               |
+| detail      | the scope of a grant or a revoke, `all` or the form list, and a setting's name with its new value; empty on a read, an export and an erasure (Q61) |
 
 It is readable by that **workspace's owners** and by the **installation administrator**, and by nobody else. That readership is the point: an audit only the operator can see does not answer a department's own question about its own data.
 
@@ -578,7 +579,9 @@ It is readable by that **workspace's owners** and by the **installation administ
 
 **Precedent shape: `two_factor_resets`** (issue #432). That table is the model for three properties rather than one. It is **append-only** and written by the act it records. It carries **no foreign key** to the account it names, because an audit row that cascades away with the thing it describes is not an audit row. And its **write privilege is narrowed against the credential that serves traffic**, which is what makes the row worth anything against an attacker who reaches that credential.
 
-**The kinds widened to five, and why that is this control and not another one (Code Owner, 2026-09-30, Q56).** Read, export and erasure answer "who looked at this". **Grant and revoke** answer "who made it possible", and without them the first question has an unrecorded step in front of it: a `forms.owner`, or the installation administrator, could grant **themselves** a `prod.responses.viewer` group and then read, and only the read would leave a trace. So the same table records the grant act, with the same six fields, and the workspace the grant was made in is the workspace field.
+**The kinds widened to five, and why that is this control and not another one (Code Owner, 2026-09-30, Q56).** Read, export and erasure answer "who looked at this". **Grant and revoke** answer "who made it possible", and without them the first question has an unrecorded step in front of it: a `forms.owner`, or the installation administrator, could grant **themselves** a `prod.responses.viewer` group and then read, and only the read would leave a trace. So the same table records the grant act, in the same row shape, and the workspace the grant was made in is the workspace field.
+
+**A sixth kind, and what `environment` and `form` mean once the kinds are not all reads (Code Owner, 2026-09-30, Q61).** Turning `seedNewEditorsWithTestData` on is none of the five above (Q57), so the kinds gain **`setting`**. That exposed a definition written for reads alone: `environment` was "the environment whose data was read", which a grant, a revoke or a setting change need not have, and `form` had no meaning for a grant scoped to `all` or to a list. So on those three kinds **`environment` and `form` are empty unless the act names one**, and the scope moves to the row's **detail**: `all` or the form list on a grant or a revoke, the setting's name and its new value on a setting row. A read, an export and an erasure are unchanged, and their detail is empty. **No answer value, no respondent identifier and no `LocalizedText` content reaches the detail**, which is the rule the rest of the row already keeps.
 
 **The self-grant rule the widening exists for.** A self-grant of a `responses.*` role is **refused only when the workspace's `requireSecondApprover` switch is on**, and then needs a **second `forms.owner`, or the installation administrator, to confirm**; the installation administrator follows the same rule, so the claim is not a way around it. With the switch **off** it is **allowed and audited**, which keeps a one-account installation able to read its own responses: an unconditional refusal would leave that installation unable to, and the first thing its operator would learn about this control is how to get round it.
 
