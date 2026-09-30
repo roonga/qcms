@@ -14,7 +14,7 @@ Until this lands, no deployment may use a repeating group.
 
 ## Deliverables
 
-- **Both CSV shapes** (Q17, ruled 2026-09-30; the plan had recommended the long shape alone).
+- **Both CSV shapes** (Q17, ruled 2026-09-29; the plan had recommended the long shape alone).
   - **Long, the default.** `responses.csv` unchanged for every question outside a group, with the same metadata columns, document order, BOM, CRLF and golden byte test. One extra file per group, named for the group: `session_id, instance_ordinal, instance_id, <one column per member question in document order>`, one row per `(session, live instance)`. A form with at least one group exports as a **zip** of those files; a form with none exports exactly the single file it exports today, so no existing adopter's pipeline moves.
   - **Wide, an option.** A shape parameter on the export route beside the `version` parameter CSV already requires, defaulting to long. The wide shape folds indexed columns (`q_passport__1` through `q_passport__<max>`) back into one flat `responses.csv`, with columns beyond a session's live count empty.
   - `@roonga/qcms-csv`'s formula-injection guard (issue #470) and the `;` join for multiChoice apply unchanged in **every** file of both shapes.
@@ -41,7 +41,7 @@ Acceptance cases **46 to 53** of `plan/repeating-groups-and-table-input.md` sect
 
 ## Files and areas
 
-`packages/csv/src/`, `packages/db/src/reporting/` (the view generator) and its drift test, `docs/reporting-view.md`, the export route and the outbox payload builder in `apps/api/src/features/`, the redaction paths in `packages/db/src/queries/{erasure,retention}.ts` (assertions only; 072 added the table), the observability allowlists, `docs/webhooks.md`, the admin export screen, changesets.
+`packages/csv/src/`, `packages/db/src/queries/reporting.ts` (the view generator and the response reads) and its drift test, `docs/reporting-view.md`, the export route and the outbox payload builder in `apps/api/src/features/`, the redaction paths in `packages/db/src/queries/{erasure,retention}.ts` (assertions only; 072 added the table), the observability allowlists, `docs/webhooks.md`, the admin export screen, changesets.
 
 ## Gates
 

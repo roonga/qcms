@@ -1,7 +1,7 @@
 # 073 - Repeat rendering, the roster operation, both paths, and issue #968
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `@roonga/qcms-a2ui-compiler`, `@roonga/qcms-ui` (the renderer), `apps/api`, `apps/portal`, `packages/create-qcms-app` (the template mirror) · **Depends on:** 071 (the model), 072 (the roster's home and its derivation)
-**References:** ADR-43 (the decision) · ADR-42 · ADR-01 as amended 2026-09-30 (the compiler emits a template the renderer expands) · ADR-14 as amended 2026-09-30 (the roster reaches the renderer without widening `StepResolverContext`) · ADR-18 as amended 2026-09-30 (`a2uiSpecVersion` and a new golden generation) · ADR-31 as noted 2026-09-30 (no commit-moment row changes) · ADR-12 (the honeypot) · SEC-16 · SEC-9 · `docs/portal-constraints.md` · `plan/repeating-groups-and-table-input.md` sections 4.1 to 4.4, and Q9, Q11, Q12, Q15, Q20, Q21 · R2 · **issue #968** · issue #920 · issue #144
+**References:** ADR-43 (the decision) · ADR-42 · ADR-01 as amended 2026-09-29 (the compiler emits a template the renderer expands) · ADR-14 as amended 2026-09-29 (the roster reaches the renderer without widening `StepResolverContext`) · ADR-18 as amended 2026-09-29 (`a2uiSpecVersion` and a new golden generation) · ADR-31 as noted 2026-09-29 (no commit-moment row changes) · ADR-12 (the honeypot) · SEC-16 · SEC-9 · `docs/portal-constraints.md` · `plan/repeating-groups-and-table-input.md` sections 4.1 to 4.4, and Q9, Q11, Q12, Q15, Q20, Q21 · R2 · **issue #968** · issue #920 · issue #144
 
 ## Context
 
@@ -9,7 +9,7 @@ This is where the two hardest problems live. `compileFormWith` is pure and answe
 
 The answers to both are ADR-43's. The compiler emits a `RepeatGroup` **template** and the renderer clones it per live instance at render time, which keeps ADR-18 exact. Add and remove ride the step's own form as **named submit buttons**.
 
-**One ruling of 2026-09-30 governs the shape of the whole no-JS half:** an Add or Remove post applies **only the roster operation** and commits **no answers**. An earlier draft of the plan had it applying the step's answers first, which would write a whole step to the ledger on a button press that is not a Continue. It does not.
+**One ruling of 2026-09-29 governs the shape of the whole no-JS half:** an Add or Remove post applies **only the roster operation** and commits **no answers**. An earlier draft of the plan had it applying the step's answers first, which would write a whole step to the ledger on a button press that is not a Continue. It does not.
 
 ## Deliverables
 
@@ -60,10 +60,10 @@ The per-instance step presentation (076) and the table presentation (077): this 
 
 ## Notes for the executor
 
-**The 200 re-render is a deliberate departure from the 303, confirmed by the Code Owner on 2026-09-30**, recorded in ADR-43 and in plan section 4.2, and the token is what pays for it. Do not "fix" it back to a redirect without the carrier problem solved, and do not carry a whole step's values in the cookie: that is the failure Q21 exists to prevent, arrived at from the other side.
+**The 200 re-render is a deliberate departure from the 303, confirmed by the Code Owner on 2026-09-29**, recorded in ADR-43 and in plan section 4.2, and the token is what pays for it. Do not "fix" it back to a redirect without the carrier problem solved, and do not carry a whole step's values in the cookie: that is the failure Q21 exists to prevent, arrived at from the other side.
 
 **Expect the browser's own prompts on that path, and assert the no-op rather than trying to suppress them.** Reloading the response to a POST raises a resubmission confirmation ("Confirm Form Resubmission" in Chromium, a re-POST prompt in Firefox), and a Back to it can show a "Document Expired" interstitial in Firefox. Neither is suppressible from the server. What the suite asserts is that **confirming the resubmission adds nothing**: the same operation token is replayed, the roster operation is a no-op, and the step re-renders with the same instances. That is exit criterion 3.
 
-**`formnovalidate` is safe only because the post writes nothing.** If you find yourself writing the step's answers on the `__qop` path, stop: that is the shape the 2026-09-30 ruling refused, and it reopens the required-clear path the 2026-09-13 ruling closed.
+**`formnovalidate` is safe only because the post writes nothing.** If you find yourself writing the step's answers on the `__qop` path, stop: that is the shape the 2026-09-29 ruling refused, and it reopens the required-clear path the 2026-09-13 ruling closed.
 
 **Expansion is a clone, so the honeypot is a real risk.** Assert that a ten-instance step carries exactly one decoy, on the compiled document and on the DOM.

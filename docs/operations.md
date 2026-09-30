@@ -666,7 +666,7 @@ you run it, and on Compose the `db-roles` one-shot runs on every `up`, so withou
 line the audit table would quietly regain the DML pass on the next boot after it was
 created. Both copies are idempotent.
 
-**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-30, issue #995).**
+**Under ADR-40 this loop grows, and it stops naming one role (Code Owner, 2026-09-29, issue #995).**
 That decision replaces the single `qcms_app` with a control-only role and one role per
 environment, and adds a second migrate-only audit table, the SEC-15 access audit.
 So when task 064 rewrites this recipe to grant per named schema, the revoke here becomes
@@ -698,11 +698,69 @@ All three copies name `qcms_app` as a literal, so on a deployment that calls it 
 else the migration's guard is false, the revoke never runs, and your application role
 keeps all four privileges on the audit table.
 That is a real limit and not an oversight: a migration cannot know a name you chose.
+
 So if you renamed it, add the line to your own recipe with your name in place of
 `qcms_app`, and re-run it after each upgrade for the same reason the copy above exists.
 Note the asymmetry with the command itself, which is deliberate: `qcms:reset-2fa` refuses
 the application credential by testing **schema ownership** rather than a role name, so
 that guard survives a rename and this one does not.
+
+**What each role is granted, once task 064 rewrites this recipe (Code Owner, Q40 as amended by Q48, Q49, Q52, Q54 and Q56).**
+There are three kinds of application role and the grants are per named schema, never
+`IN SCHEMA public`.
+
+`qcms_app_<env>`, one per environment, holds `USAGE` on its own `data_<env>` with DML in
+it; `USAGE` on its
+own `reporting_<env>` with `SELECT` on that schema's views and nothing on any other
+environment's; `USAGE` on `control` with `SELECT` on
+exactly six tables, `forms`, `form_versions`, `question_versions`, `secure_links`,
+`environments` and `form_releases`, plus `UPDATE` on `secure_links` for one-time link
+consumption, **no `INSERT` on `secure_links`** and `INSERT` on the SEC-15 audit; and no
+privilege of any kind on `user`,
+`session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`,
+`member`, `team` or `teamMember`.
+`question_versions` is on the list because the respondent path reads the pinned question
+version on every step served and every submission; without it every respondent request
+fails on permission.
+`form_releases` is on it from task 065, which is the migration that creates that table
+and therefore the one that grants `SELECT` on it; until then the list is five, and this
+recipe and the environment-create command carry the sixth clause guarded on the table
+existing, the way the SEC-15 audit's clauses are.
+**No type or function grant is written for any role.**
+`USAGE` on `control`'s `access_mode` and `session_status` and `EXECUTE` on the trigger
+functions come from the `PUBLIC` defaults, so every role already holds them, and a
+catalogue read that reports them is reporting a default rather than a grant this recipe
+made.
+
+`qcms_app_control` holds `USAGE` on `control` and DML in it, with `two_factor_resets`
+carved out entirely
+and the SEC-15 audit carved down to `SELECT` **and `INSERT`**, never `UPDATE` or
+`DELETE`, because a grant write and its audit row are both control-pool acts (Q56).
+In the data schemas it holds **`USAGE` on each `data_<env>` and `INSERT` on its
+`outbox`, and no other table privilege there**: no `SELECT`, no `UPDATE`, no `DELETE` on
+`outbox`, and nothing of any kind on any other data-plane table.
+The schema `USAGE` is not an extra: without it the insert fails on the schema before it
+reaches the table.
+That one grant exists so a release record and its `form.released` event commit in one
+transaction, and it does not weaken the boundary the three roles exist for, because an
+insert into an event queue is not a read of a response.
+Both of this role's event and audit writes are plain inserts with **no `RETURNING`**, and
+only the release event is `INSERT`-only: on an `outbox` this role holds `INSERT` alone, so
+`RETURNING`, which is a read, gets a permission error there.
+On the audit table it holds `SELECT` as well, so a `RETURNING` would succeed for it; the
+insert is plain anyway, because one helper writes audit rows for both roles and
+`qcms_app_<env>`, holding `INSERT` on that table and nothing else, is the one it would be
+refused for.
+It holds **nothing on any reporting schema** either, so the connection the authoring
+routes run on cannot reach a production response through a view any more than through
+a table.
+
+The reporting grants above are the **application** role's own, and they are all of what
+that role needs to serve a staff response read.
+The per-workspace view sets, and the read-only roles an analyst or a BI tool is granted,
+are a different matter in `docs/reporting-view.md`, and task 067 owns them.
+
+`qcms_migrate` is unchanged: owner and DDL, in every schema.
 
 `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the outcome from both
 sides against a real Postgres: `qcms_app` holds none of the four on `two_factor_resets`,

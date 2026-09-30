@@ -1,7 +1,7 @@
 # 071 - The repeating group in the kernel
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `@roonga/qcms-core`, `apps/admin` (the parallel operator list only) · **Depends on:** nothing in flight
-**References:** ADR-42 (the decision) · ADR-03 as amended 2026-09-30 (three operators, `everyInstance` false over an empty group, the two publish refusals) · ADR-16 as amended 2026-09-30 (the forward pass over a span, the cost bound, `SEMANTICS_VERSION` held at 1) · SEC-16 (per-form bounds) · `plan/repeating-groups-and-table-input.md` sections 2 to 3, and Q2, Q4, Q5, Q6, Q7, Q8, Q12, Q13, Q14, Q15 · R3 · R6 · I6 · I7 · I9 · I10
+**References:** ADR-42 (the decision) · ADR-03 as amended 2026-09-29 (three operators, `everyInstance` false over an empty group, the two publish refusals) · ADR-16 as amended 2026-09-29 (the forward pass over a span, the cost bound, `SEMANTICS_VERSION` held at 1) · SEC-16 (per-form bounds) · `plan/repeating-groups-and-table-input.md` sections 2 to 3, and Q2, Q4, Q5, Q6, Q7, Q8, Q12, Q13, Q14, Q15 · R3 · R6 · I6 · I7 · I9 · I10
 
 ## Context
 
@@ -25,7 +25,7 @@ This task is the kernel half and nothing else. It is the first of the seven and 
 - **The publish codes this task introduces**, all in the existing `PublishError` union and all reported alongside the others rather than short-circuiting: `DUPLICATE_GROUP_ID`, `REPEAT_COUNT_BACKWARD_REF`, `REPEAT_COUNT_NOT_A_NUMBER`, `REPEAT_NESTING_NOT_ALLOWED`, `REPEAT_MAX_MISSING`, `REPEAT_MIN_ABOVE_MAX`, `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`, `RULE_TARGETS_SPAN_SCOPES` and `REPEAT_EVALUATION_BUDGET_EXCEEDED`. There is deliberately **no** `REPEAT_MAX_ABOVE_CEILING`.
 - **Four more from the rulings of 2026-09-29** (Q24 to Q26): `DANGLING_GROUP_REF`, `REPEAT_OPERATOR_NESTING_NOT_ALLOWED`, `RULE_READS_GROUP_WITHOUT_OPERATOR` and `REPEAT_COUNT_INSIDE_GROUP`, plus the existing `DANGLING_QUESTION_REF` for a `fromAnswer` count question the form does not pin.
 - **`RULE_TARGETS_SPAN_SCOPES`**: `VisibilityRule.show` is an array, so one rule listing a target inside a group and a target outside it is both per-instance and whole-form. Every `show` target of one rule shares one scope, and a mixed list is refused, naming both scopes.
-- **`REPEAT_EVALUATION_BUDGET` and its refusal**: a rule targeting inside group H whose condition applies a whole-group operator over another group G is refused when `max_H x max_G` exceeds the constant. **It is a cost bound and not an instance ceiling**; it caps no group's `max`, and two large groups with no cross-group rule between them publish. **The value is `10_000`, confirmed by the Code Owner on 2026-09-30**; the plan carries the reasoning, and it belongs in the constant's docblock rather than only in the commit.
+- **`REPEAT_EVALUATION_BUDGET` and its refusal**: a rule targeting inside group H whose condition applies a whole-group operator over another group G is refused when `max_H x max_G` exceeds the constant. **It is a cost bound and not an instance ceiling**; it caps no group's `max`, and two large groups with no cross-group rule between them publish. **The value is `10_000`, confirmed by the Code Owner on 2026-09-29**; the plan carries the reasoning, and it belongs in the constant's docblock rather than only in the commit.
 - **`REPEAT_COUNT_OUT_OF_RANGE`** in `prepareSubmission`, and `MISSING_REQUIRED` reported per `(instance, question)`.
 - **The optional `FlowState` fields** of plan section 3.5: `visibleStepViews`, `missingRequiredInstances`, `answeredRequiredInstances`, `rosters`, each **absent entirely** for a form with no group. The existing six fields keep their exact shapes and contents.
 - **`SNAPSHOT_SCHEMA_VERSION` to 2.** `SEMANTICS_VERSION` stays 1.
@@ -55,7 +55,7 @@ Acceptance cases **1, 2, 3, 6 to 21 and 63 to 66** of `plan/repeating-groups-and
 
 ## Out of scope (binding)
 
-Any instance ceiling, per group or per session: the ruling of 2026-09-30 removed both, and reintroducing one as a constant would be reversing a decision. The database (072). Any rendering, the compiler's node, the portal, the batch endpoint and issue #968 (073). The admin beyond the parallel operator list (074). Export, reporting and the webhook payload (075). Nesting a group in a group: refused at parse, and lifting the cap is a different piece of work. Cross-instance rule references and instance reordering: out of scope for the whole feature, per plan section 9.
+Any instance ceiling, per group or per session: the ruling of 2026-09-29 removed both, and reintroducing one as a constant would be reversing a decision. The database (072). Any rendering, the compiler's node, the portal, the batch endpoint and issue #968 (073). The admin beyond the parallel operator list (074). Export, reporting and the webhook payload (075). Nesting a group in a group: refused at parse, and lifting the cap is a different piece of work. Cross-instance rule references and instance reordering: out of scope for the whole feature, per plan section 9.
 
 ## Notes for the executor
 
@@ -63,4 +63,4 @@ Any instance ceiling, per group or per session: the ruling of 2026-09-30 removed
 
 **The parallel arrays in `FlowState` are deliberate and ugly**, and the reason is in ADR-16's amendment: the originals cannot widen without a `SEMANTICS_VERSION` bump that cannot be taken. Do not tidy them, and do not add a compatibility shim that makes them look like one field. Collapsing them is the first job of multi-version evaluation, which is somebody else's task.
 
-**The budget constant is settled at `10_000`** (Code Owner, 2026-09-30), so it is a number to implement rather than to choose. It is cheap to set and expensive to move once a form has published against it, so carry its reasoning into the docblock and treat a change to it as a decision rather than a tuning.
+**The budget constant is settled at `10_000`** (Code Owner, 2026-09-29), so it is a number to implement rather than to choose. It is cheap to set and expensive to move once a form has published against it, so carry its reasoning into the docblock and treat a change to it as a decision rather than a tuning.

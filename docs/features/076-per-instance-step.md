@@ -1,13 +1,13 @@
 # 076 - The per-instance step presentation
 
 **Stage:** 8c (launch scope) · **Apps/packages:** `apps/api` (the view list and the cursor), `apps/portal`, `apps/admin` (the presentation switch and the preview) · **Depends on:** 073
-**References:** ADR-43 · ADR-42 · ADR-28 as amended 2026-09-30 (the cursor indexes `visibleStepViews`) and as amended 2026-08-31 (the no-JS fallback is one readiness-labelled button with no Back) · `plan/repeating-groups-and-table-input.md` section 12 and Q22 · R1 · I4
+**References:** ADR-43 · ADR-42 · ADR-28 as amended 2026-09-29 (the cursor indexes `visibleStepViews`) and as amended 2026-08-31 (the no-JS fallback is one readiness-labelled button with no Back) · `plan/repeating-groups-and-table-input.md` section 12 and Q22 · R1 · I4
 
 ## Context
 
 `presentation: "perInstanceStep"` paginates one step's group into one page per live instance. It is the presentation a phone benefits from most, and it is the one that touches navigation, so it is the one ADR-28 has something to say about.
 
-The amendment of 2026-09-30 settles the addressing: a step id no longer identifies a page, so the cursor indexes **`visibleStepViews`**, a list of `(stepId, instanceId | null)` with the instance null for every page that is not a per-instance one. It stays a 0-based index into a list the server computed for this session on this request, which is what makes an out-of-range value refusable by arithmetic and an in-range value a view the server had already decided was visible. A compound cursor on the wire was refused for that reason, and not because an instance id is secret: an instance id is already in field names, DOM ids, anchors and the no-JS fragment.
+The amendment of 2026-09-29 settles the addressing: a step id no longer identifies a page, so the cursor indexes **`visibleStepViews`**, a list of `(stepId, instanceId | null)` with the instance null for every page that is not a per-instance one. It stays a 0-based index into a list the server computed for this session on this request, which is what makes an out-of-range value refusable by arithmetic and an in-range value a view the server had already decided was visible. A compound cursor on the wire was refused for that reason, and not because an instance id is secret: an instance id is already in field names, DOM ids, anchors and the no-JS fragment.
 
 ## Deliverables
 
@@ -55,6 +55,6 @@ Also out: a compound cursor on the wire, which was refused. Any Back control on 
 
 ## Notes for the executor
 
-**The no-JS half is the part with a decision in it**, because ADR-28's amendment removes the control the hydrated path uses to move backwards. **Serving the first incomplete view is confirmed by the Code Owner (2026-09-30)**, so it is the rule to implement rather than a reading to revisit; if it turns out to interact badly with a group whose instances are all complete but whose step has other questions, raise that rather than inventing a second rule beside it.
+**The no-JS half is the part with a decision in it**, because ADR-28's amendment removes the control the hydrated path uses to move backwards. **Serving the first incomplete view is confirmed by the Code Owner (2026-09-29)**, so it is the rule to implement rather than a reading to revisit; if it turns out to interact badly with a group whose instances are all complete but whose step has other questions, raise that rather than inventing a second rule beside it.
 
 **`visibleStepViews` already exists as an optional field** from 071 and is absent for a form with no group. Keep it absent: a form with no repeating group must produce a `FlowState` with no new key present, which is an acceptance case 071 owns and this task must not break.
