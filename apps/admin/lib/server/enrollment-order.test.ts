@@ -89,6 +89,7 @@ vi.mock("@/lib/server/enrollment", () => ({
 
 const signInRoute = await import("../../app/sign-in/submit/route.ts");
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
+const forcedChangeRoute = await import("../../app/change-password/submit/route.ts");
 const { CHANGE_PASSWORD_PATH, ENROLL_PATH, SHELL_HOME_PATH } = await import("./session.ts");
 
 /**
@@ -260,5 +261,93 @@ describe("sign-in/submit provisions no enrollment for a provisional account", ()
 
     expect(seams.enableTwoFactor).toHaveBeenCalledTimes(1);
     expect(location(response)).toBe(ENROLL_PATH);
+  });
+});
+
+describe("the forced change hands the enrollment over once the password has moved", () => {
+  /**
+   * The other half of the pair, and the one the full-stack suite caught.
+   *
+   * Gating the sign-in POST alone left nobody provisioning the enrollment: the admin
+   * changed the password, was sent to `/two-factor/enroll`, and found a screen with no
+   * secret in its cookie. `two-factor/enable` needs a password, so after the change there
+   * are exactly two moments one exists outside the browser, and this handler is the
+   * second.
+   */
+  function changePost(): Request {
+    return formPost("/change-password/submit", {
+      currentPassword: PROVISIONAL_PASSWORD,
+      newPassword: CHOSEN_PASSWORD,
+      confirmPassword: CHOSEN_PASSWORD,
+    });
+  }
+
+  /** A successful change, with the fresh session `revokeOtherSessions` forces. */
+  function changeOk(): Response {
+    return new Response(JSON.stringify({ token: "fresh" }), {
+      status: 200,
+      headers: {
+        "content-type": "application/json",
+        "set-cookie": "qcms_admin.session_token=fresh; Path=/; HttpOnly",
+      },
+    });
+  }
+
+  it("provisions the secret and the codes, and lands on enrollment with both", async () => {
+    seams.proxiedSession.mockResolvedValue(
+      session({ twoFactorEnabled: false, mustChangePassword: true }),
+    );
+    seams.changePassword.mockResolvedValue(changeOk());
+    seams.enableTwoFactor.mockResolvedValue(
+      new Response(JSON.stringify({ totpURI: "otpauth://totp/x", backupCodes: ["a", "b"] }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const response = await forcedChangeRoute.POST(changePost());
+
+    expect(location(response)).toBe(ENROLL_PATH);
+    expect(seams.enableTwoFactor).toHaveBeenCalledTimes(1);
+    // With the NEW password, not the provisional one: the old credential no longer
+    // verifies, so passing it would 4xx and throw.
+    expect(seams.enableTwoFactor.mock.calls[0]?.[1]).toBe(CHOSEN_PASSWORD);
+    // And authenticated by the session the change issued, not the one it revoked.
+    expect(seams.enableTwoFactor.mock.calls[0]?.[2]).toContain("fresh");
+
+    const cookies = response.headers.getSetCookie().join("; ");
+    expect(cookies).toContain("qcms_admin.enrollment");
+    expect(cookies).toContain("qcms_admin.recovery_codes");
+  });
+
+  it("provisions nothing for an already-enrolled admin and goes to the shell", async () => {
+    seams.proxiedSession.mockResolvedValue(
+      session({ twoFactorEnabled: true, mustChangePassword: true }),
+    );
+    seams.changePassword.mockResolvedValue(changeOk());
+
+    const response = await forcedChangeRoute.POST(changePost());
+
+    expect(location(response)).toBe(SHELL_HOME_PATH);
+    expect(seams.enableTwoFactor).not.toHaveBeenCalled();
+  });
+
+  it("provisions nothing when the change was refused", async () => {
+    // The pair of halves has to fail closed together: a refused change that still minted
+    // a secret would bind a factor to the provisional credential by another route.
+    seams.proxiedSession.mockResolvedValue(
+      session({ twoFactorEnabled: false, mustChangePassword: true }),
+    );
+    seams.changePassword.mockResolvedValue(
+      new Response(JSON.stringify({ message: "refused" }), {
+        status: 400,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    const response = await forcedChangeRoute.POST(changePost());
+
+    expect(location(response)).toBe(`${CHANGE_PASSWORD_PATH}?error=1`);
+    expect(seams.enableTwoFactor).not.toHaveBeenCalled();
   });
 });
