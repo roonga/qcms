@@ -91,6 +91,14 @@ const signInRoute = await import("../../app/sign-in/submit/route.ts");
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
 const { CHANGE_PASSWORD_PATH, ENROLL_PATH, SHELL_HOME_PATH } = await import("./session.ts");
 
+/**
+ * The passwords these posts carry, generated rather than written down: a literal here is a
+ * hard-coded credential the lint gate flags, correctly. Nothing verifies them - the auth
+ * mount is a seam in this file - so their only job is to be a value the form can carry.
+ */
+const PROVISIONAL_PASSWORD = `provisional-${Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString("base64url")}`;
+const CHOSEN_PASSWORD = `chosen-${Buffer.from(crypto.getRandomValues(new Uint8Array(12))).toString("base64url")}`;
+
 /** A same-origin form POST, which is what every auth screen sends. */
 function formPost(path: string, fields: Record<string, string>): Request {
   const body = new FormData();
@@ -198,7 +206,7 @@ describe("sign-in/submit provisions no enrollment for a provisional account", ()
     );
 
     const response = await signInRoute.POST(
-      formPost("/sign-in/submit", { email: "admin@example.test", password: "provisional-pw" }),
+      formPost("/sign-in/submit", { email: "admin@example.test", password: PROVISIONAL_PASSWORD }),
     );
 
     expect(response.status).toBe(303);
@@ -227,7 +235,7 @@ describe("sign-in/submit provisions no enrollment for a provisional account", ()
     );
 
     const response = await signInRoute.POST(
-      formPost("/sign-in/submit", { email: "admin@example.test", password: "provisional-pw" }),
+      formPost("/sign-in/submit", { email: "admin@example.test", password: PROVISIONAL_PASSWORD }),
     );
 
     expect(location(response)).toBe(CHANGE_PASSWORD_PATH);
@@ -247,7 +255,7 @@ describe("sign-in/submit provisions no enrollment for a provisional account", ()
     );
 
     const response = await signInRoute.POST(
-      formPost("/sign-in/submit", { email: "admin@example.test", password: "chosen-pw" }),
+      formPost("/sign-in/submit", { email: "admin@example.test", password: CHOSEN_PASSWORD }),
     );
 
     expect(seams.enableTwoFactor).toHaveBeenCalledTimes(1);

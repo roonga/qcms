@@ -125,10 +125,15 @@ async function main(): Promise<number> {
     return EXIT_REFUSED;
   }
 
+  // The order printed here is the one `apps/admin/lib/server/session.ts` enforces, and it
+  // is worth saying rather than leaving to be discovered: the password just set is
+  // provisional (task 061, SEC-1), and whoever runs this command is often not the person
+  // who ends up using the account.
   process.stdout.write(
     `Created the first admin account for ${result.email}.\n` +
-      "Sign in at the admin app; you will be asked to set up two-factor authentication\n" +
-      "before anything else, and shown recovery codes once. Save them.\n",
+      "The password you set is temporary. Sign in at the admin app and you will be asked to\n" +
+      "choose your own password first, then to set up two-factor authentication, and you\n" +
+      "will be shown recovery codes once. Save them.\n",
   );
   return EXIT_OK;
 }

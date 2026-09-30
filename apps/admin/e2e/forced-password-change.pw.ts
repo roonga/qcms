@@ -8,8 +8,20 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 // path the way `lib/rail-routes.test.ts` imports the same gate.
 import { trackedFilesUnder } from "../../../scripts/tracked-files.mjs";
 
-import { TEST_PASSWORD, createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
-import { fillStable, readSetupKey, submitSignIn, submitTotp } from "./support/flow.js";
+import {
+  TEST_PASSWORD,
+  createTestAdmin,
+  markProvisional,
+  uniqueAdminEmail,
+} from "./support/admin-account.js";
+import {
+  enrollNewAdmin,
+  fillStable,
+  readSetupKey,
+  signInWithTotp,
+  submitSignIn,
+  submitTotp,
+} from "./support/flow.js";
 import { waitForHydration } from "./support/hydration.js";
 
 /**
@@ -155,6 +167,42 @@ test("no admin route is reachable until the password is changed", async ({ page 
     await expect(page, `${route} was reachable while the bootstrap credential stood`).toHaveURL(
       /\/change-password$/,
     );
+  }
+});
+
+test("no admin route is reachable by an ENROLLED account still holding the credential", async ({
+  page,
+}) => {
+  // Exit criterion 1 again, against the account shape that makes the walk above bite.
+  //
+  // The first-round review of PR #1023 removed the gate line from `sessionOutcome()` and
+  // the walk above stayed green: EMAIL is unenrolled, so the mutated gate list still sent
+  // every route to `/two-factor/enroll`, whose own guard carries a second copy of the same
+  // check and landed on `/change-password` anyway. The route-level evidence was therefore
+  // about the pair of guards, not about the gate list the PR body cites it for.
+  //
+  // An enrolled provisional account has gate 4 satisfied, so only the `sessionOutcome()`
+  // line can send it anywhere, and removing that line alone turns this red.
+  //
+  // It has to be built in this order - enrol, then mark - because a provisional account is
+  // sent to the change screen before any enrollment is provisioned, which is the control
+  // working rather than an obstacle to route around.
+  const enrolledEmail = uniqueAdminEmail("forcedpw-enrolled");
+  await createTestAdmin(enrolledEmail);
+  const secret = await enrollNewAdmin(page, enrolledEmail);
+  await markProvisional(enrolledEmail);
+
+  await signInWithTotp(page, enrolledEmail, secret);
+  await expect(page).toHaveURL(/\/change-password$/);
+
+  const routes = shellRoutes();
+  expect(routes.length).toBeGreaterThan(10);
+  for (const route of routes) {
+    await page.goto(route);
+    await expect(
+      page,
+      `${route} was reachable by an enrolled account still on the bootstrap credential`,
+    ).toHaveURL(/\/change-password$/);
   }
 });
 

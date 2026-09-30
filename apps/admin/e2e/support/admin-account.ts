@@ -1,4 +1,7 @@
-import { createTestAdmin as createAdminAccount } from "../../../api/e2e/support/admin-accounts.js";
+import {
+  createTestAdmin as createAdminAccount,
+  openDbHandle,
+} from "../../../api/e2e/support/admin-accounts.js";
 import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
 
 import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "./harness-config.js";
@@ -76,4 +79,36 @@ export async function createTestAdmin(
     ...(options.name !== undefined && { name: options.name }),
     mustChangePassword: options.mustChangePassword === true,
   });
+}
+
+/**
+ * Set SEC-1's provisional flag on an account that already exists (task 061).
+ *
+ * The one state `createTestAdmin` cannot produce, and the only spec that wants it is the
+ * one proving the gate list is load-bearing on its own: an **enrolled** account still
+ * holding the bootstrap credential. It cannot be built forwards, because enrolment needs a
+ * session and a provisional account is sent to the change screen before one is provisioned
+ * - which is the control working. So the account is enrolled first and marked afterwards.
+ *
+ * A raw statement rather than a query builder, for the reason `openDbHandle` exists: the
+ * database client belongs to the API workspace, and this is harness code reaching for one
+ * row. It is the exact inverse of `clearMustChangePassword`, which is the product's own
+ * write, so the harness cannot reach a state the product cannot.
+ */
+export async function markProvisional(email: string): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    const updated = await handle.query(
+      `update "user" set "mustChangePassword" = true where email = $1`,
+      [email],
+    );
+    // A silent no-op here would make the spec below pass for the wrong reason: an account
+    // that was never marked reaches every route, and "every route redirected" would be
+    // vacuous in the other direction.
+    if (updated.rows.length === 0 && (updated as { rowCount?: number }).rowCount === 0) {
+      throw new Error(`markProvisional matched no account for ${email}`);
+    }
+  } finally {
+    await handle.close();
+  }
 }

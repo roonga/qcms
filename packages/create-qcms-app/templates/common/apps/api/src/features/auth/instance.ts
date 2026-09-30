@@ -703,11 +703,19 @@ export function createAdminAuth(input: AdminAuthInput) {
         // opting into it - the fail-closed direction for a control like this.
         //
         // `input: false` is the load-bearing half of the pair, for the reason the
-        // role claim above gives and one more: a request that names the field is
-        // refused outright on an update
-        // (`dist/db/schema.mjs:74`) <!-- expect: is not allowed to be set -->, so a
-        // session holder cannot clear their own flag through any endpoint. It is
-        // cleared by the `databaseHooks` entry below and by nothing else.
+        // role claim above gives and one more: an update naming the field never writes
+        // it. `parseInputData` skips every `input: false` field, and on the way past it
+        // throws for a TRUTHY value
+        // (`dist/db/schema.mjs:74`) <!-- expect: is not allowed to be set -->
+        // while a falsy one is dropped silently by the `continue` below it. So
+        // `mustChangePassword: true` is refused and `false` is ignored - a difference in
+        // the noise, not in the outcome, since neither reaches the row. A session holder
+        // therefore cannot clear their own flag through any endpoint. It is cleared by
+        // the `databaseHooks` entry below and by nothing else.
+        //
+        // Stated precisely because the first-round review of PR #1023 read the vendor
+        // and found this comment claiming "refused outright on an update", which would
+        // have had someone reaching for a refusal that never arrives.
         //
         // `required: false` because the column carries a database default too, and a
         // required field with no value would refuse better-auth's own insert.

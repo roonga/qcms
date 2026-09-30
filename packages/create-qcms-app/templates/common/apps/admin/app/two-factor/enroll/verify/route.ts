@@ -9,11 +9,7 @@ import {
   redirectAfterPost,
   redirectWithGenericFailure,
 } from "@/lib/server/route-helpers";
-import {
-  ENROLL_PATH,
-  SIGN_IN_PATH,
-  requireEnrollingSessionForRequest,
-} from "@/lib/server/session";
+import { ENROLL_PATH, SIGN_IN_PATH, requireEnrollingSessionForRequest } from "@/lib/server/session";
 
 /**
  * Confirm 2FA enrollment with a real TOTP code (task 031).

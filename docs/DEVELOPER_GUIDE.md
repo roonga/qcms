@@ -202,10 +202,12 @@ On the next sign-in better-auth issues a session with no challenge and the SEC-1
 then forces enrolment before the account reaches anything else.
 
 The command refuses to run once any admin account exists, so it is safe in a runbook and
-safe to re-run by accident. On first sign-in you must enroll a TOTP factor before reaching
-anything else, and the recovery codes are shown once. `QCMS_ADMIN_2FA=optional` skips
-enrollment for development; the API reads the same variable, so relaxing it in one place
-only means every admin API call 401s. The admin adopts the same `.next` / `.next-dev`
+safe to re-run by accident. **The password it sets is provisional** (SEC-1, task 061): on
+first sign-in you are sent to `/change-password` and reach nothing else until you replace
+it, then you must enroll a TOTP factor, and the recovery codes are shown once.
+`QCMS_ADMIN_2FA=optional` skips enrollment for development; the API reads the same
+variable, so relaxing it in one place only means every admin API call 401s. It does **not**
+skip the password change, which needs no device and so has no reason for a hatch. The admin adopts the same `.next` / `.next-dev`
 split described next, from day one.
 
 **Adding a screen to the admin?** `apps/admin/app/(shell)/AGENTS.md` names the six places
@@ -418,7 +420,7 @@ The service is behind a Compose `seed` profile, so `dev:up` neither builds nor r
 
 Four things worth knowing before you go looking for something that is missing:
 
-- **First sign-in forces TOTP enrolment** (SEC-1) and shows the recovery codes exactly once. Have an authenticator app open before you start. `QCMS_ADMIN_2FA=optional` relaxes it while developing, and both the API and the admin read it, so setting it in one place only makes every admin API call 401.
+- **First sign-in forces a password change, then TOTP enrolment** (SEC-1), and shows the recovery codes exactly once. The password `create-admin` set is provisional (task 061), so the change comes first and nothing is provisioned until it is done; have an authenticator app open before you start. `QCMS_ADMIN_2FA=optional` relaxes the enrolment half while developing, and both the API and the admin read it, so setting it in one place only makes every admin API call 401. It does not relax the password change.
 - **The home dashboard is repository-provisioned.** Its **Service** selector filters `qcms-admin`, `qcms-portal` and `qcms-api`; paste an `x-request-id` into **Request ID** to isolate one BFF-to-API call. Expand a row and follow `trace_id` to Tempo. The dashboard definition is copied into a thin local LGTM wrapper image rather than bind-mounted, so it works when a dev container drives the host Docker daemon (ADR-29). It is read-only in Grafana: edit `docker/grafana/qcms-observability.json` and rebuild instead of making a change that disappears with the container.
 - **Logs are intentionally concise.** Exported records contain only approved operational fields such as route template, method, status, duration, request id and opaque error id. They never contain request bodies, answers, direct identifiers, headers, cookies, query strings, exception messages or stacks (SEC-13). Use the trace link or copy `requestId` to follow one request across services.
 - **The first request after a cold start may not appear.** `lgtm` takes tens of seconds to come up and ships no healthcheck, so the apps start before the collector is listening and the earliest spans exhaust their retry budget. Make a second request.
