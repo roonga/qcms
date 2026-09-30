@@ -18,7 +18,6 @@ import {
   enrollNewAdmin,
   fillStable,
   readSetupKey,
-  signInWithTotp,
   submitSignIn,
   submitTotp,
 } from "./support/flow.js";
@@ -187,13 +186,16 @@ test("no admin route is reachable by an ENROLLED account still holding the crede
   // It has to be built in this order - enrol, then mark - because a provisional account is
   // sent to the change screen before any enrollment is provisioned, which is the control
   // working rather than an obstacle to route around.
+  //
+  // `enrollNewAdmin` leaves this context signed in and sitting in the shell, so the flag
+  // is flipped under a **live** session and the next request is the assertion. That is a
+  // stronger statement than re-authenticating would be, and it avoids the sign-in screen
+  // entirely: an already-authenticated visitor is sent away from `/sign-in`, so a
+  // `submitSignIn` here has no email field to fill.
   const enrolledEmail = uniqueAdminEmail("forcedpw-enrolled");
   await createTestAdmin(enrolledEmail);
-  const secret = await enrollNewAdmin(page, enrolledEmail);
+  await enrollNewAdmin(page, enrolledEmail);
   await markProvisional(enrolledEmail);
-
-  await signInWithTotp(page, enrolledEmail, secret);
-  await expect(page).toHaveURL(/\/change-password$/);
 
   const routes = shellRoutes();
   expect(routes.length).toBeGreaterThan(10);
