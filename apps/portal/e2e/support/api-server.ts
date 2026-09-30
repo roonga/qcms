@@ -29,6 +29,7 @@ import {
   seedAuthorMessagesForm,
   seedInsuranceForm,
   seedKitchenSinkForm,
+  seedRepeatFleetForm,
   seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
@@ -81,6 +82,17 @@ export interface PortalFixtures {
    * ADR-32 validation messages and ADR-36 boolean label overrides.
    */
   readonly authorMessagesSlug: string;
+  /**
+   * The `repeat-fleet` form slug (task 073): one step with a plain required question
+   * and one repeating group (`open`, `min: 1`, `max: 3`) whose members include a
+   * required shortText, an optional date, a longText and a multiChoice.
+   *
+   * It exists because a repeating group is unreachable in a browser without a fixture
+   * that compiles one, and the four no-JS dead ends of issues #920, #974, #18 and #988
+   * each stayed invisible to every gate for exactly as long as no fixture carried
+   * their shape.
+   */
+  readonly repeatFleetSlug: string;
   /**
    * The e2e Postgres connection URI, so a spec can open its OWN client and verify
    * persisted answers independently of the API's response echo (task 045, exit
@@ -198,6 +210,8 @@ export async function startApiServer(): Promise<void> {
   // Task 048: author-supplied validation messages (ADR-32) and boolean label
   // overrides (ADR-36). Its own four questions, so nothing is shared.
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
+  // Task 073: the repeating group. Five questions of its own, so nothing is shared.
+  const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -276,6 +290,7 @@ export async function startApiServer(): Promise<void> {
     slug,
     kitchenSinkSlug,
     authorMessagesSlug,
+    repeatFleetSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,

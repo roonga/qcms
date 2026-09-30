@@ -1,0 +1,7 @@
+{
+  "type": "shortText",
+  "questionId": "q_rf_plate",
+  "label": { "en": "Registration plate" },
+  "required": true,
+  "constraints": { "minLength": 3, "maxLength": 8 }
+}

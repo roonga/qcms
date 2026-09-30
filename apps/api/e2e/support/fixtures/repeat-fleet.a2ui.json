@@ -1,0 +1,135 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_fleet",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1",
+                  "size": "2xl",
+                  "weight": "bold"
+                },
+                "children": "Fleet cover"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "The vehicles on this policy"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Fleet reference",
+                  "name": "q_rf_fleet_ref",
+                  "isRequired": true,
+                  "minLength": 3,
+                  "maxLength": 12
+                }
+              },
+              {
+                "type": "RepeatGroup",
+                "props": {
+                  "groupId": "grp_vehicles",
+                  "label": "Vehicles",
+                  "instanceLabel": "Vehicle {n}",
+                  "presentation": "stacked",
+                  "countSource": "open",
+                  "min": 1,
+                  "max": 3,
+                  "addLabel": "Add Vehicle",
+                  "removeLabel": "Remove {label}"
+                },
+                "children": [
+                  {
+                    "type": "TextField",
+                    "props": {
+                      "label": "Registration plate",
+                      "name": "q_rf_plate",
+                      "isRequired": true,
+                      "minLength": 3,
+                      "maxLength": 8
+                    }
+                  },
+                  {
+                    "type": "DatePicker",
+                    "props": {
+                      "label": "Last service date",
+                      "name": "q_rf_service_date",
+                      "granularity": "day",
+                      "minValue": "2000-01-01",
+                      "maxValue": "2100-12-31"
+                    }
+                  },
+                  {
+                    "type": "TextArea",
+                    "props": {
+                      "label": "Anything else about this vehicle?",
+                      "name": "q_rf_notes",
+                      "maxLength": 200
+                    }
+                  },
+                  {
+                    "type": "CheckboxGroup",
+                    "props": {
+                      "label": "Which extras are fitted?",
+                      "name": "q_rf_extras",
+                      "orientation": "vertical"
+                    },
+                    "children": [
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_tow_bar",
+                          "label": "Tow bar"
+                        }
+                      },
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_roof_rack",
+                          "label": "Roof rack"
+                        }
+                      },
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_dash_camera",
+                          "label": "Dash camera"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.3.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

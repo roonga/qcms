@@ -50,6 +50,29 @@ export async function openDb(databaseUrl: string): Promise<Db> {
   return new Db(client);
 }
 
+/** One appended answer row, with the instance it belongs to (task 073). */
+export interface InstanceAnswerRow {
+  readonly questionId: string;
+  /** Null for a question outside every repeating group. */
+  readonly instanceId: string | null;
+  readonly value: unknown;
+  readonly retracted: boolean;
+}
+
+/** One entry of a sealed submission's answer set (task 073). */
+export interface LockedAnswerRow {
+  readonly questionId: string;
+  readonly instanceId?: string;
+  readonly value: unknown;
+}
+
+/** One row of the append-only roster ledger (task 072). */
+export interface RosterRow {
+  readonly groupId: string;
+  readonly instanceId: string;
+  readonly event: string;
+}
+
 export class Db {
   constructor(private readonly client: PgClient) {}
 
@@ -119,6 +142,76 @@ export class Db {
     return row === undefined
       ? null
       : { contentHash: row.content_hash, submittedAt: row.submitted_at };
+  }
+
+  /**
+   * Every appended answer row **with its instance**, oldest first (task 073).
+   *
+   * A second reader beside {@link answerRows} rather than a widening of it, because the
+   * existing one is what half a dozen specs assert against and a repeated answer is a
+   * new grain: the ledger's key is `(question_id, instance_id)` since migration 0022,
+   * and `instance_id` is null for every question outside a repeating group.
+   */
+  async instanceAnswerRows(sessionId: string): Promise<InstanceAnswerRow[]> {
+    const result = await this.client.query<{
+      question_id: string;
+      instance_id: string | null;
+      value: unknown;
+      retracted: boolean;
+    }>(
+      `select question_id, instance_id, value, retracted
+         from answers
+        where session_id = $1
+        order by answered_at asc, id asc`,
+      [sessionId],
+    );
+    return result.rows.map((row) => ({
+      questionId: row.question_id,
+      instanceId: row.instance_id,
+      value: row.value,
+      retracted: row.retracted,
+    }));
+  }
+
+  /**
+   * The sealed answer set, as the submission stored it (task 073).
+   *
+   * This is what a repeat walk has to be judged against rather than the ledger: the
+   * ledger keeps a removed instance's answers forever and the locked set excludes them,
+   * exactly as it excludes a hidden question's (I6, ADR-42). Asserting one without the
+   * other would miss whichever half the code got wrong.
+   */
+  async lockedAnswers(sessionId: string): Promise<LockedAnswerRow[]> {
+    const result = await this.client.query<{
+      locked_answers: { answers: LockedAnswerRow[] };
+    }>(`select locked_answers from submissions where session_id = $1`, [sessionId]);
+    return result.rows[0]?.locked_answers.answers ?? [];
+  }
+
+  /**
+   * The roster ledger for a session, oldest first: what was minted and what a
+   * respondent removed (task 072's `answer_group_instances`).
+   *
+   * Append-only, so a removal is a row rather than the absence of one. A spec reads it
+   * to prove that a removed instance was never deleted.
+   */
+  async rosterRows(sessionId: string): Promise<RosterRow[]> {
+    const result = await this.client.query<{
+      group_id: string;
+      instance_id: string;
+      event: string;
+    }>(
+      `select group_id, instance_id, event
+         from answer_group_instances
+        where session_id = $1
+        order by occurred_at asc, instance_id asc`,
+      [sessionId],
+    );
+    return result.rows.map((row) => ({
+      groupId: row.group_id,
+      instanceId: row.instance_id,
+      event: row.event,
+    }));
   }
 
   async close(): Promise<void> {
