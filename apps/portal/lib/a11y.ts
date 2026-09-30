@@ -167,8 +167,17 @@ export function focusQuestion(root: ParentNode, questionId: string): boolean {
   return true;
 }
 
-/** Minimal CSS.escape shim (questionIds are `q_…`, but stay defensive). */
-function cssEscape(value: string): string {
+/**
+ * Minimal CSS.escape shim.
+ *
+ * A bare questionId is `q_…`, but a repeated question's field name is
+ * `ins_7k2/q_plate` (task 073, Q15's separator), so escaping is load-bearing here
+ * rather than defensive: `/` is legal in an HTML id and in an attribute-selector
+ * string, and the escape keeps it legal in either. Exported since task 073 because the
+ * scripted path's roster focus lands on an instance HEADING by id, which is the same
+ * selector problem one element up.
+ */
+export function cssEscape(value: string): string {
   if (typeof CSS !== "undefined" && typeof CSS.escape === "function") return CSS.escape(value);
   return value.replace(/["\\]/g, "\\$&");
 }

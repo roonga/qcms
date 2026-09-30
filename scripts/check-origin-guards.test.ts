@@ -57,8 +57,17 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *     shape in this repo is `if (!isSameOriginPost(request)) return ...`, where the
  *     answer cannot be discarded silently, unlike the returned-Response guard that
  *     rule 1 of the admin's test had to defend against.
- *   - It reads route handlers. Server actions are out of scope and do not need the
- *     belt: Next verifies the origin of every action call itself.
+ *   - It reads route handlers. **A Server Action is a different mechanism with a
+ *     different guard, and since task 073 this file checks that claim rather than
+ *     asserting it.** Next verifies the origin of every action call itself, comparing
+ *     the request's `Origin` to the `Host` or `X-Forwarded-Host`, so an action needs no
+ *     belt. That check is what makes the portal's `Referrer-Policy: same-origin`
+ *     load-bearing (SEC-9 as amended, Code Owner 2026-10-01): under `no-referrer` a
+ *     navigation POST serializes its `Origin` as the literal `null`, which Next refuses,
+ *     so the portal's own no-JS Add and Remove would die in the framework. The rule
+ *     below therefore enumerates every `"use server"` module in the tree and pins two
+ *     things - which they are, and that the policy they depend on is still served - so
+ *     that a second action, or a policy edit, is a red rather than a silent hole.
  *   - It cannot know that a route which changes state was spelled `GET`. A handler
  *     that mutates behind a read verb is a different defect, and one no static scan
  *     of verb names can reach.
@@ -360,6 +369,99 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
  * passing. So they are written here. Without these, a parser that silently stopped
  * matching anything would report the whole tree green.
  */
+
+/**
+ * Every `"use server"` module in the Next apps, as repo-relative paths.
+ *
+ * Enumerated through git for the same reason the route walk is: a build leaves
+ * `.next` and a dev server leaves `.next-dev`, both of which a filesystem walk reads as
+ * source, and both contain generated action modules.
+ */
+function serverActionModules(): string[] {
+  const found: string[] = [];
+  for (const app of APPS) {
+    const root = `${REPO_ROOT}apps/${app.name}`;
+    for (const relative of trackedFilesUnder(root, { match: /\.tsx?$/ })) {
+      const source = readFileSync(`${root}/${relative}`, "utf8");
+      // The directive is the first statement of the module, so a mention inside a
+      // comment or a string elsewhere in the file is not one. Matched at the start of
+      // the file, allowing only a leading comment block above it.
+      if (/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/.test(source)) {
+        found.push(`apps/${app.name}/${relative}`);
+      }
+    }
+  }
+  return found.sort((a, b) => a.localeCompare(b));
+}
+
+const SERVER_ACTIONS = serverActionModules();
+
+/**
+ * The `Referrer-Policy` each app serves, read out of its proxy, so the claim above is
+ * checked against the code rather than against a comment.
+ */
+function referrerPolicyOf(app: string): string | undefined {
+  const source = readFileSync(`${REPO_ROOT}apps/${app}/proxy.ts`, "utf8");
+  return /"Referrer-Policy",\s*"([^"]+)"/.exec(source)?.[1];
+}
+
+describe("task 073: a Server Action is guarded by Next, and that guard has a premise", () => {
+  it("finds the actions in the tree, and they are exactly these", () => {
+    // An exact list rather than a superset, and deliberately so. A Server Action is a
+    // request entry point that SEC-9's belt does not cover, so a second one on the
+    // PORTAL is a decision someone has to take rather than a file someone can add: this
+    // assertion is where it is taken, and where the referrer-policy premise below is
+    // re-checked against it.
+    expect(SERVER_ACTIONS).toEqual([
+      "apps/admin/app/(shell)/forms/actions.ts",
+      "apps/admin/app/(shell)/questions/actions.ts",
+      "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/webhooks/actions.ts",
+      // The no-JS Add and Remove of a repeating group (task 073, ADR-43 as amended).
+      // The one action in this repository reachable WITHOUT scripting, which is the
+      // whole of why the portal's referrer policy had to move.
+      "apps/portal/app/s/[sessionId]/roster-action.ts",
+    ]);
+  });
+
+  /**
+   * The premise behind "Next verifies the origin itself", asserted per app rather than
+   * stated once, because the two apps depend on it differently.
+   *
+   * Next compares an action request's `Origin` to the `Host` or `X-Forwarded-Host` and
+   * refuses a mismatch. Per Fetch, a **navigation** POST under
+   * `Referrer-Policy: no-referrer` serializes its `Origin` as the literal `null`, which
+   * Next refuses; a `fetch()` is mode `cors` and carries the real origin whatever the
+   * referrer policy says.
+   *
+   * So the rule is not "an app with an action must relax the policy". It is:
+   *
+   * - **the portal** has an action invoked by a no-JS form navigation, so it must serve
+   *   a policy that sends an origin to itself, and it serves `same-origin` (Code Owner,
+   *   2026-10-01, SEC-9 as amended);
+   * - **the admin** requires JavaScript by design, so every action call there is a
+   *   `fetch()` from hydrated React and carries a real origin under any policy. It
+   *   keeps `no-referrer`, which its own belt reasoning depends on.
+   *
+   * Both directions are pinned, so relaxing the admin's policy or tightening the
+   * portal's is a red rather than a silent change to what Next admits.
+   */
+  it("serves same-origin on the portal, whose action is reachable without scripting", () => {
+    expect(referrerPolicyOf("portal")).toBe("same-origin");
+  });
+
+  it("keeps no-referrer on the admin, whose actions are only ever reached by fetch()", () => {
+    expect(referrerPolicyOf("admin")).toBe("no-referrer");
+  });
+
+  it("has an action on every app it read a policy for", () => {
+    // Guards the pair above against going vacuous: if the enumeration silently stopped
+    // finding anything, the two assertions would still pass while checking nothing
+    // about an action. This asserts each named app actually has one.
+    const apps = new Set(SERVER_ACTIONS.map((path) => path.split("/")[1]));
+    expect([...apps].sort((a, b) => a.localeCompare(b))).toEqual(["admin", "portal"]);
+  });
+});
 
 const GUARDED = [
   "export async function POST(request: Request): Promise<Response> {",

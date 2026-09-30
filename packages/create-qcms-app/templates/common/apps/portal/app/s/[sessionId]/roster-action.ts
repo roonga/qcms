@@ -1,9 +1,9 @@
 "use server";
 
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
-import { addButtonId } from "@roonga/qcms-ui";
 
 import { t } from "@/lib/i18n/en";
+import { focusAfterAdd, focusAfterRemoval } from "@/lib/repeat";
 import { ApiError, getStep, rosterOp } from "@/lib/server/api";
 import { readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
@@ -77,30 +77,6 @@ export interface RosterActionState {
 /** Nothing typed, nothing landed: the state before the respondent presses anything. */
 export const NO_ROSTER_ACTION: RosterActionState = { values: {} };
 
-/**
- * Where focus lands after a removal (Q11, ruled 2026-09-29): the instance that took
- * the removed one's place, else the previous instance when the removed one was last,
- * else the group's Add button when the removed one was the only instance.
- *
- * `before` is roster order as the page the respondent pressed on rendered it, so the
- * instance that "took its place" is the one that followed the removed one there. APG
- * names that destination in terms for a destructive operation on a list, and its
- * reasoning is the screen-reader one: hearing the next item confirms the deletion.
- */
-export function focusAfterRemoval(
-  before: readonly string[],
-  removed: string,
-  groupId: string,
-): string {
-  const index = before.indexOf(removed);
-  if (index < 0) return before[0] ?? addButtonId(groupId);
-  const next = before[index + 1];
-  if (next !== undefined) return next;
-  const previous = before[index - 1];
-  if (previous !== undefined) return previous;
-  return addButtonId(groupId);
-}
-
 /** The typed values from one whole-step post, for the re-render to show again. */
 function typedValues(
   answers: readonly { questionId: string; value: unknown }[],
@@ -163,13 +139,17 @@ export async function rosterOperation(
         autofocusId: focusAfterRemoval(rosterBefore, operation.instanceId ?? "", operation.groupId),
       };
     }
-    // After an add, the new instance's heading. A replayed post minted nothing - the
-    // one-time token had already been spent - so it lands on the instance that post
-    // created the first time, which is the last one the group now holds.
+    // After an add, the new instance's heading. A REPLAYED post minted nothing - the
+    // one-time token had already been spent - so the difference between the two rosters
+    // is empty and the landing is the group's Add button, which is the honest answer:
+    // the instance the first post created is already on the page and focus has not
+    // moved since.
     const after =
       result.rosters.find((entry) => entry.groupId === operation.groupId)?.instances ?? [];
-    const landed = result.minted[0] ?? after[after.length - 1];
-    return { values, ...(landed !== undefined ? { autofocusId: landed } : {}) };
+    return {
+      values,
+      autofocusId: focusAfterAdd(rosterBefore, after, operation.groupId),
+    };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     // A refused operation still re-renders the step with every typed value, which is

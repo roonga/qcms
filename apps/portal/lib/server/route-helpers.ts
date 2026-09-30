@@ -75,11 +75,21 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  *
  * ## Exactly what the belt covers, and what it does not
  *
- * Five POST route handlers call this function and nothing else does:
+ * Six POST route handlers call this function and nothing else does:
  * `POST /appearance`, `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
- * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`.
+ * `POST /s/{sessionId}/roster`, `POST /s/{sessionId}/step` and
+ * `POST /s/{sessionId}/submit`.
  * `scripts/check-origin-guards.test.ts` derives that set from disk, so it is a
  * checked statement rather than a count someone kept up to date by hand.
+ *
+ * `/s/{sessionId}/roster` is the sixth, added by task 073: the SCRIPTED path's Add or
+ * Remove of a repeating-group instance. **The no-JS path's Add and Remove is not a
+ * route handler at all** and so is not belted here: it is a Next Server Action, and
+ * Next verifies an action's origin against the `Host` itself. That is exactly why the
+ * portal serves `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01) - under
+ * `no-referrer` a navigation POST serializes its `Origin` as `null`, which Next refuses
+ * - and `scripts/check-origin-guards.test.ts` carries that reasoning beside the
+ * enumeration so the exemption is a checked claim rather than a sentence.
  *
  * `/appearance` is the no-JS appearance form (issue #195), and it is the one belted
  * route where a refusal costs a respondent nothing they can see: no answer is lost,

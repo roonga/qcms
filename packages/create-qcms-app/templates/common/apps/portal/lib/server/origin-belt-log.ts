@@ -74,6 +74,7 @@ export type BeltRoute =
   | "/appearance"
   | "/f/{formSlug}/start"
   | "/s/{sessionId}/answers"
+  | "/s/{sessionId}/roster"
   | "/s/{sessionId}/step"
   | "/s/{sessionId}/submit"
   | "unrecognized";
@@ -179,6 +180,18 @@ const BELTED_ROUTES: readonly BeltedRoute[] = [
   {
     route: "/s/{sessionId}/answers",
     pattern: /^\/s\/[^/]+\/answers\/?$/,
+    outcome: "forbidden",
+  },
+  // The scripted path's Add or Remove of a repeating-group instance (task 073). A
+  // hydrated `fetch()` like the answer write beside it, so a refusal is the same 403 a
+  // shape no ordinary respondent produces gets. The no-JS path's Add and Remove is a
+  // Next Server Action rather than a route handler, so it is not in this table and does
+  // not need to be: Next verifies an action's own origin against the `Host`, which is
+  // why the portal serves `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01)
+  // and why `scripts/check-origin-guards.test.ts` states that reasoning.
+  {
+    route: "/s/{sessionId}/roster",
+    pattern: /^\/s\/[^/]+\/roster\/?$/,
     outcome: "forbidden",
   },
   { route: "/s/{sessionId}/step", pattern: /^\/s\/[^/]+\/step\/?$/, outcome: "redirect-to-step" },
