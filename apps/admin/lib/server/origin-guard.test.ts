@@ -377,6 +377,14 @@ const ROUTES: readonly GuardedRoute[] = [
     reached: () => seams.verifyTotp,
     refusalLocation: "/two-factor/enroll?error=1",
     logged: { beltRoute: "/two-factor/enroll/verify", beltOutcome: "redirect-with-failure" },
+    // Since task 061 this handler carries `requireEnrollingSessionForRequest()`, so the
+    // shared default above - which names no `session` key and reports an enrolled user -
+    // would send every probe to the shell before the belt could be observed. The session
+    // this route exists to serve is mid-enrollment and past the password change.
+    session: {
+      session: { createdAt: new Date().toISOString(), token: "session-token" },
+      user: { id: "usr_1", twoFactorEnabled: false, mustChangePassword: false },
+    },
   },
   {
     path: "app/two-factor/recovery/verify/route.ts",

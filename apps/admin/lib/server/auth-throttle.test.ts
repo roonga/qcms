@@ -185,12 +185,18 @@ interface RefusingRoute {
   /**
    * The session this handler's own guard requires, when it is not the ordinary one.
    *
-   * Only the forced change-password handler needs it (task 061): its guard admits a
-   * session the shell's guard refuses and refuses the one the shell's guard admits, so
-   * handing it {@link signedInSession} would send it to the shell and the refusal under
-   * test would never be produced. Declared per route rather than stubbed globally,
-   * because the guard itself is the real module here for the reason the `next/headers`
-   * mock above gives.
+   * Two handlers need it, both from task 061, and both for the same reason: their guards
+   * are not the shell's, so {@link signedInSession} would be redirected before the
+   * refusal under test could be produced.
+   *
+   * - The forced change-password handler admits a session the shell's guard refuses and
+   *   refuses the one it admits, so it needs {@link provisionalSession}.
+   * - The enrollment verify handler applies gate 3 and skips gate 4 (Code Owner ruling,
+   *   2026-10-01), so it needs {@link enrollingSession}: past the password change and not
+   *   yet enrolled.
+   *
+   * Declared per route rather than stubbed globally, because the guard itself is the real
+   * module here for the reason the `next/headers` mock above gives.
    */
   readonly session?: () => unknown;
 }
@@ -241,6 +247,7 @@ const ROUTES: readonly RefusingRoute[] = [
     markers: SHARED_MARKERS,
     refuseWith: (status) => seams.verifyTotp.mockResolvedValue(refusal(status)),
     post: () => enrollRoute.POST(formPost("/two-factor/enroll/verify", { code: "123456" })),
+    session: enrollingSession,
   },
   {
     path: "app/two-factor/recovery/verify/route.ts",
@@ -330,6 +337,28 @@ function provisionalSession(): unknown {
       role: "admin",
       twoFactorEnabled: true,
       mustChangePassword: true,
+    },
+  };
+}
+
+/**
+ * The session the enrollment verify handler requires: signed in, past the password
+ * change, and not yet enrolled (task 061, Code Owner ruling 2026-10-01).
+ *
+ * Its guard skips gate 4 and applies gate 3, so {@link signedInSession} - enrolled, which
+ * is what every other route here wants - would be sent to the shell before the refusal
+ * under test could be produced.
+ */
+function enrollingSession(): unknown {
+  return {
+    session: { createdAt: new Date().toISOString(), token: "session-token" },
+    user: {
+      id: "usr_1",
+      email: "admin@example.test",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: false,
+      mustChangePassword: false,
     },
   };
 }
