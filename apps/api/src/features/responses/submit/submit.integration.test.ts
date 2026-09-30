@@ -37,6 +37,7 @@ import {
   markInProgress,
 } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -482,6 +483,103 @@ describe("required-answer sweep (exit criterion 4)", () => {
 });
 
 // --- exit criterion 5: silent anti-abuse flags ------------------------------
+
+describe("issue #968: the required-answer sweep runs INSIDE the session lock", () => {
+  /**
+   * The defect, and why a test can see it.
+   *
+   * Until task 073 this handler read the ledger and ran `prepareSubmission` BEFORE it
+   * opened its transaction and took `pg_advisory_xact_lock`. A retraction committed in
+   * the window between the read and the lock was in the ledger and not in the sealed
+   * `lockedAnswers` or its `contentHash`, so the two records of one response disagreed:
+   * the ledger recorded a clear the submission did not reflect. The PR #964 reviewer
+   * read correctly that this could not seal an EMPTY required answer, because the
+   * locked set matched the snapshot that had been swept; what it could do is leave the
+   * audit trail and the audit anchor describing different answer sets, which is the one
+   * thing a submission exists to make impossible.
+   *
+   * **The interleaving is forced rather than raced.** A second connection takes the
+   * session's advisory lock, appends the retraction, and holds the transaction open. The
+   * submit request is fired and blocks on that lock. Only then does the second
+   * connection commit. So the window is held open for as long as the test needs, and
+   * the outcome is deterministic in both directions:
+   *
+   * - with the sweep OUTSIDE the lock, it ran before the commit, saw the answer still
+   *   present, swept clean, and then sealed a submission over an answer the ledger had
+   *   retracted: a **200**;
+   * - with the sweep INSIDE the lock, it runs after the commit, sees the retraction, and
+   *   refuses: a **422**, with nothing written.
+   *
+   * That is what makes this a test against the ordering rather than a claim about it.
+   *
+   * The lock is taken with the same expression the handler uses, so the two cannot
+   * disagree about which lock the session has: `pg_advisory_xact_lock(hashtext($1))`.
+   */
+  it("refuses a submission whose required answer was retracted in the old window", async () => {
+    const { sessionId, sessionToken } = await startSession();
+    expect((await postAnswer(sessionId, sessionToken, "q_at_fault_accident", true)).status).toBe(
+      200,
+    );
+    expect((await postAnswer(sessionId, sessionToken, "q_accident_count", 20)).status).toBe(200);
+
+    // A connection of this test's own, registered with the harness so teardown drains
+    // it (issue #888). It must be a separate connection: two logical transactions on one
+    // client share a backend, and the first COMMIT would end both and release the lock
+    // early (the harness's own note).
+    const holder = testDb.register(new Client({ connectionString: testDb.connectionUri }), "#968");
+    await holder.connect();
+    await holder.query("begin");
+    await holder.query("select pg_advisory_xact_lock(hashtext($1))", [sessionId]);
+    // The retraction, written but NOT yet committed: the ledger will hold it the moment
+    // this transaction commits, and the submit must not have swept before then.
+    await holder.query(
+      `insert into answers (session_id, question_id, value, retracted, answered_at)
+       values ($1, $2, null, true, now())`,
+      [sessionId, "q_accident_count"],
+    );
+
+    // Fired, not awaited: it blocks on the lock the holder is sitting on.
+    const submitting = submit(sessionId, sessionToken);
+    // Give it time to reach the lock. With the sweep outside the lock, this is also the
+    // window in which it would have read and swept the pre-retraction ledger.
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await holder.query("commit");
+
+    const res = await submitting;
+    expect(res.status).toBe(422);
+    const body = (await res.json()) as ErrBody;
+    expect(body.error.code).toBe("SUBMISSION_INVALID");
+    expect((body.error.details as { missingRequired: string[] }).missingRequired).toContain(
+      "q_accident_count",
+    );
+    // Nothing sealed, and the session is still answerable: the 422 is thrown from
+    // inside the transaction, which rolls back a transaction that had written nothing.
+    expect(await loadSubmission(sessionId)).toBeUndefined();
+    expect(await sessionStatus(sessionId)).toBe("in_progress");
+  });
+
+  it("still seals a submission whose ledger did not move under the lock", async () => {
+    // The control, so the test above is not passing because the submit simply refuses
+    // whenever a lock was contended. Same interleaving, no retraction: the holder takes
+    // the lock, the submit blocks, the holder commits, and the submission is sealed.
+    const { sessionId, sessionToken } = await completeValidSession();
+
+    const holder = testDb.register(
+      new Client({ connectionString: testDb.connectionUri }),
+      "#968 control",
+    );
+    await holder.connect();
+    await holder.query("begin");
+    await holder.query("select pg_advisory_xact_lock(hashtext($1))", [sessionId]);
+
+    const submitting = submit(sessionId, sessionToken);
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    await holder.query("commit");
+
+    expect((await submitting).status).toBe(200);
+    expect(await loadSubmission(sessionId)).toBeDefined();
+  });
+});
 
 describe("silent anti-abuse flags (exit criterion 5)", () => {
   it("a honeypot-filled submit succeeds, is flagged, and withholds the outbox event", async () => {

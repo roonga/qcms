@@ -73,7 +73,7 @@ import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { spendAnswerAllowance } from "../rate-limits.js";
-import { applyRosterOp, mintDueAndLoadRosters } from "../roster.js";
+import { applyRosterOp, loadRosters, mintDueAndLoadRosters } from "../roster.js";
 import { parseSemanticsVersion, unsupportedSemanticsVersion } from "../semantics-version.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
@@ -405,34 +405,42 @@ async function projectWithRosters(
   requestedIndex?: number,
 ): Promise<StepResponse> {
   const steps = snapshot.frozen.definition.steps;
+  // Pass one is a READ, and it has to be. `occurred_at` defaults to `now()`, which in
+  // Postgres is the TRANSACTION's timestamp, so two mint statements in one transaction
+  // write rows that share a timestamp to the microsecond and the read's `instance_id`
+  // tiebreaker is what orders them. Minting exactly once per transaction is what keeps
+  // the order a mint intended and the order a later read returns the same thing (task
+  // 072's exit criterion, carried here because this is the caller that could break it).
   const first = evaluateOrThrow(
     snapshot,
     answers,
-    await loadLiveRosters(exec, sessionId, snapshot, answers),
+    await liveRosters(exec, sessionId, snapshot, answers),
   );
   const { stepId: renderStep } = renderTarget(first, requestedIndex);
+  // Pass two is the one write: whatever this request has made due, one statement per
+  // group, at most once per group.
   const rosters = await mintDueAndLoadRosters(exec, { sessionId, steps, renderStep, answers });
   const flow = evaluateOrThrow(snapshot, answers, rosters);
   return project(snapshot, flow, answers, rosters, requestedIndex);
 }
 
 /**
- * The first of the two passes above: the live roster before the render target is
- * known. It still mints every `fromAnswer` group, whose target follows a count answer
- * and does not depend on which step is drawn, and no step-scoped group at all.
+ * The live roster with **nothing minted**: what a visibility decision and a render
+ * target are computed against before any write in this transaction.
+ *
+ * It is 072's read-only `loadRosters` under a local name so the call sites read as what
+ * they are. Keeping it read-only is what makes "one mint pass per transaction" a
+ * property of the code rather than of the order somebody happened to write two calls
+ * in: a visibility check that minted would make the check's own inputs depend on the
+ * check, and it would put a second mint statement under the same transaction timestamp.
  */
-async function loadLiveRosters(
+async function liveRosters(
   exec: Parameters<typeof mintDueAndLoadRosters>[0],
   sessionId: SessionId,
   snapshot: LoadedSnapshot,
   answers: AnswerMap,
 ): Promise<RosterMap> {
-  return mintDueAndLoadRosters(exec, {
-    sessionId,
-    steps: snapshot.frozen.definition.steps,
-    renderStep: null,
-    answers,
-  });
+  return loadRosters(exec, sessionId, snapshot.frozen.definition.steps, answers);
 }
 
 /** The repeating group this id names in the pinned snapshot, or `undefined`. */
@@ -544,7 +552,7 @@ export function makeSubmitAnswerHandler(
       // under the lock, so the visibility decision matches what will be appended
       // (I6). A repeated question is visible per instance, so the check is per cell.
       const before = await latestAnswers(tx, sessionId);
-      const rosters = await loadLiveRosters(tx, sessionId, snapshot, before);
+      const rosters = await liveRosters(tx, sessionId, snapshot, before);
       const beforeFlow = evaluateOrThrow(snapshot, before, rosters);
       if (!isCellVisible(beforeFlow, target)) throw fail.questionNotVisible();
 
@@ -739,7 +747,7 @@ export function makeBatchAnswersHandler(
       // calls could not agree on: each of those re-evaluated between writes, so a
       // field's visibility could change under the batch it was posted with.
       let answers = await latestAnswers(tx, sessionId);
-      const rosters = await loadLiveRosters(tx, sessionId, snapshot, answers);
+      const rosters = await liveRosters(tx, sessionId, snapshot, answers);
       const flow = evaluateOrThrow(snapshot, answers, rosters);
       for (const target of targets) {
         if (!isCellVisible(flow, target)) {
