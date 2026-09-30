@@ -52,7 +52,7 @@ It is **idempotent**: erasing an already-erased session is a no-op that returns
 the existing tombstone. Erasing a session that never existed throws a typed
 `SessionNotFoundError` (`code: "SESSION_NOT_FOUND"`).
 
-All seven steps are one transaction: an induced failure at any point (e.g. a
+All eight steps are one transaction: an induced failure at any point (e.g. a
 constraint or trigger error on the tombstone insert, which runs last) rolls the
 deletes, the redaction and the cancellations back together - the ledger stays
 intact, the payloads still hold their answers, and no tombstone is written.
@@ -67,9 +67,9 @@ error, and the request is the respondent's answers. So the column can end up
 holding somebody's answers without QCMS ever choosing to write them.
 
 That makes it the one column on the delivery row that erasure has to reach, and
-step 6 above is that reach. Two properties are worth stating explicitly:
+step 7 above is that reach. Two properties are worth stating explicitly:
 
-- **Delivered rows too**, unlike the cancellation in step 5. The two answer
+- **Delivered rows too**, unlike the cancellation in step 6. The two answer
   different questions. Cancellation is a statement about what will happen next, and
   pretending a sent event was not sent would be a fiction; the snippet is a
   statement about what we still hold, and a successful `200` response can echo the

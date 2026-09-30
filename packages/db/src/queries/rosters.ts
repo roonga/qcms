@@ -165,6 +165,17 @@ export async function removeInstance(
  * The full roster history for a session, oldest first - for audit and for the
  * erasure and retention assertions. Every event is preserved (the table is
  * append-only); use {@link readRosters} for the derived per-group lists.
+ *
+ * **Ordered to agree with {@link readRosters}, then made total.** The derived
+ * reads order by `(occurred_at, instance_id)`, so this leads with the same two
+ * columns: restricted to one group's `added` rows, this query returns them in
+ * exactly the order the roster does, and an audit that contradicted the roster it
+ * audits would read as a bug the first time 075 put them side by side. `id` is
+ * appended only as the final tiebreaker, which the derived reads do not need and
+ * this one does: they see at most one row per instance per group, while the ledger
+ * also carries `removed` rows, so an instance minted and removed in the same
+ * transaction gives two rows sharing both `occurred_at` and `instance_id`. Without
+ * `id` those two have no defined order and an audit could print the removal first.
  */
 export async function rosterLedger(
   exec: Executor,
@@ -174,7 +185,11 @@ export async function rosterLedger(
     .select()
     .from(answerGroupInstances)
     .where(eq(answerGroupInstances.sessionId, sessionId))
-    .orderBy(asc(answerGroupInstances.occurredAt), asc(answerGroupInstances.id));
+    .orderBy(
+      asc(answerGroupInstances.occurredAt),
+      asc(answerGroupInstances.instanceId),
+      asc(answerGroupInstances.id),
+    );
 }
 
 /**
@@ -192,6 +207,21 @@ export async function rosterLedger(
  * id rather than by an unrecorded intent costs nothing and makes every later read
  * return the same roster, which is what a `fromAnswer` count lowered and raised
  * again depends on.
+ *
+ * **That argument covers one mint, and the write side owes the rest of it.**
+ * `occurred_at` defaults to `now()`, which is the **transaction** timestamp and
+ * not the statement's, so two separate mints for one group inside one transaction
+ * do not produce two timestamps: the combined set sorts by `instance_id` alone,
+ * and an `instance_id` is random, so the second batch interleaves with the first
+ * instead of following it. Rows minted *together* are interchangeable and ordering
+ * them by id costs nothing; rows minted in two calls are not, because the earlier
+ * ones may already be answered. So the write side carries the contract **at most
+ * one mint per group per transaction** - stated on `mintForServedGroup` in
+ * `apps/api/src/features/responses/roster.ts`, together with what it protects: the
+ * first-N guarantee that a lowered and re-raised `fromAnswer` count re-lives the
+ * same instance. **Ruled: no ordering column is added** (Code Owner, 2026-10-01);
+ * the contract is the mechanism, and task 073 carries an exit criterion that
+ * asserts it.
  *
  * One query for the whole session rather than one per group: a step's rosters are
  * read together on every serve, and a per-group read would be N round trips for

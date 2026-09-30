@@ -74,6 +74,23 @@ export type _AnswerRowMatchesTable = AssignableTo<AnswerRow, typeof answers.$inf
  * omitted for a question outside every group (ADR-42), which is why it is
  * optional: every existing caller writes exactly the row it wrote before.
  *
+ * **Caller obligation: an `instanceId` must already be live in the session's
+ * roster.** This function cannot check it and deliberately does not try - it is
+ * handed an id and a value, not a snapshot, and reading the roster here would put
+ * a query on the hot path of every answer write including the ones outside every
+ * group. The check belongs where the snapshot is already in hand: resolve the
+ * group's live roster (`readRosters` in `./rosters.ts`, or the derivation in
+ * `apps/api/src/features/responses/roster.ts`) and refuse an id that is not in it,
+ * before calling this. Task 073 owns the routes and implements the check.
+ *
+ * What is at stake if it is skipped: a respondent posting a forged `ins_` value
+ * gets rows appended under a key no roster lists. Nothing is disclosed and no
+ * derived list moves, because every read is scoped to the session and resolves
+ * against the roster, so this is unbounded append into the respondent's **own**
+ * session rather than a boundary crossing. It still matters, because the ledger is
+ * append-only and only an erasure clears it. The same obligation applies to
+ * {@link retractAnswer}.
+ *
  * To clear an answer, append a retraction with {@link retractAnswer} - never a
  * null or sentinel value here (`AnswerValue` admits neither).
  */
@@ -115,7 +132,9 @@ export async function appendAnswer(
  * `instanceId` clears that cell alone and leaves every other instance of the
  * same question answered, which is exactly what clearing one table cell needs.
  * The `answers_retraction_value` CHECK is unchanged and covers the new column by
- * construction.
+ * construction. The caller obligation on {@link appendAnswer} applies here too:
+ * the `instanceId` must already be live in the session's roster, and this function
+ * cannot check it.
  *
  * Returns a {@link RetractionRow}, not a bare {@link AnswerRow}: this function can
  * only ever insert a tombstone, so the narrower type carries that invariant to its

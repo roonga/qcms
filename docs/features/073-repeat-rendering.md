@@ -44,7 +44,8 @@ Acceptance cases **4, 5, 27 to 38, and 54 to 57** of `plan/repeating-groups-and-
 3. **A replayed `__qop` post applies the roster operation once**, asserted by reloading the 200 response, which the one-time token is what makes true.
 4. **Issue #968 closes with this PR**, with a test that fails against the pre-change ordering rather than a claim that the ordering changed.
 5. The seven existing compiler golden documents are byte-identical in the new generation, and the append-only guard covers both trees.
-6. `pnpm verify` green; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` green, run detached; the forced Docker-backed run confirmed to have executed; `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` green.
+6. **Every handler mints at most once per group per transaction**, asserted by a test rather than by reading the code. 072 states the contract on `mintForServedGroup` and on `readRosters`; this task is the first to have routes that could break it, and the batch answer endpoint is the shape that would: it carries a whole step in one transaction (ADR-43), so a handler that mints per entry, or that mints once on serve and again on a `fromAnswer` count it just wrote, writes two batches under one timestamp. `occurred_at` is the transaction timestamp, so those rows have no order between them and the read's `instance_id` tiebreaker interleaves them at random, which can sort an already-answered instance out of "the first N" and move a respondent's answers between cards. The test asserts the mint count for a transaction that applies a whole step including a count answer, and it is a unit assertion on the handler, not a timing test. **Ruled: no ordering column is added** (Code Owner, 2026-10-01); this criterion is what replaces it.
+7. `pnpm verify` green; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` green, run detached; the forced Docker-backed run confirmed to have executed; `QCMS_PORT_SEAT=<0-9> pnpm up:e2e` green.
 
 ## Files and areas
 

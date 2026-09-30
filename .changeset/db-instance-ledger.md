@@ -43,3 +43,13 @@ holds.
 Deriving the **live** roster from those rows is a function of the group's count
 source and runs in the API, above the evaluator; this package stores the events
 and reads them back.
+
+**Applying 0022 briefly locks `answers`.** Adding `instance_id` before
+`answered_at` means the index `answers_session_question_answered_at_idx` is
+dropped and recreated, and the migration runs in one transaction, so the rebuild
+is **not** `CONCURRENTLY` and takes an `ACCESS EXCLUSIVE` lock on `answers` for
+its duration: answer writes and reads block until it finishes. On a small ledger
+this is milliseconds and needs no planning. On a large one, size it first and
+apply it in a window, or build the replacement index `CONCURRENTLY` by hand
+outside the migration beforehand. `CREATE INDEX CONCURRENTLY` cannot run inside a
+transaction block, which is why the migration itself does not use it.
