@@ -85,13 +85,17 @@ async function continueOrSubmit(page: Page): Promise<void> {
  * browser this helper stands in for actually sends, and a helper that drove the route
  * with headers no browser produces would be testing a client that does not exist.
  *
- * `Origin: null` is deliberate and is not a placeholder. The portal serves
- * `Referrer-Policy: no-referrer`, and per Fetch a navigation POST under that policy
- * serializes its origin as the literal string `null`. That is precisely why the belt
- * reads `Sec-Fetch-Site` first, so this pair is the real shape of a legitimate no-JS
- * Start, `null` origin and all.
+ * **The `Origin` is the portal's own, and it used to be the literal `null`.** Per
+ * Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes its origin
+ * as `null`, and the portal served that policy until task 073; it now serves
+ * `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), because Next's Server
+ * Action check compares `Origin` to the `Host` and refuses `null`, and the no-JS roster
+ * operation of a repeating group is a Server Action. So the real shape of a legitimate
+ * no-JS Start now carries this portal's real origin, and that is what this helper
+ * sends. The belt still reads `Sec-Fetch-Site` first and its acceptance rule is
+ * unchanged, so the pair is what matters rather than either header alone.
  */
-const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: "null" } as const;
+const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: PORTAL_URL } as const;
 
 /** Start a portal session through the form's BFF endpoint and follow its redirect. */
 async function startPortalSession(page: Page, formSlug: string): Promise<void> {

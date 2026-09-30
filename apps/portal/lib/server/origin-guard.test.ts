@@ -26,12 +26,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * passes against the unguarded handler is the exact defect class the 040 review spent
  * its run cataloguing.
  *
- * `Origin: null` has its own case. It is not a hypothetical: `proxy.ts` sets
- * `Referrer-Policy: no-referrer`, and per Fetch a navigation POST under that policy
- * serializes its origin as the literal string `null`. It is therefore what the
- * portal's own no-JS form path sends, and also what an attacker's page sends if it
- * declares the same policy, so it must be refused rather than read as "local".
- * `Sec-Fetch-Site` is what separates the two, which is why it is read first.
+ * `Origin: null` has its own case, and since task 073 it means something narrower than
+ * it did. Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes
+ * its origin as the literal string `null`. The portal sent that policy until 073 and
+ * now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so `null` is no
+ * longer what the portal's own no-JS form produces: it is what a page that declares
+ * `no-referrer` on ITSELF produces, which is what an attacker's page does. It must be
+ * refused rather than read as "local", and `Sec-Fetch-Site` is what separates a genuine
+ * same-origin navigation from a cross-site one, which is why it is read first.
  *
  * ## The refusal is also asserted to be observable (issue #578)
  *
@@ -236,11 +238,13 @@ const ORIGIN_CASES: readonly OriginCase[] = [
     allowed: true,
   },
   {
-    name: "Origin: null and no Fetch Metadata (Referrer-Policy: no-referrer, either side)",
+    name: "Origin: null and no Fetch Metadata (a page declaring no-referrer on itself)",
     headers: { origin: "null" },
     allowed: false,
-    // The shape that separates the honest old browser from the forgery: no Fetch
-    // Metadata at all, and the `null` origin the portal's own no-JS form produces.
+    // Refused, and since task 073 this shape is no longer ambiguous: the portal sends
+    // `same-origin`, so its own no-JS form carries the real origin and a `null` one
+    // came from a page that suppressed its own referrer. The belt's acceptance rule is
+    // deliberately unchanged either way (issue #504 owns that decision).
     logged: { beltFetchSite: "absent", beltOrigin: "null" },
   },
   {

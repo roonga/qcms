@@ -211,11 +211,14 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   });
 });
 
-describe("the Referer leg, which this deployment's own responses never produce", () => {
-  // `proxy.ts` sets `Referrer-Policy: no-referrer` on every portal response, so a form
-  // navigation here carries no `Referer` at all - the hidden field is what does the
-  // work. This leg exists for a deployment that relaxes that policy at its ingress,
-  // and it is held to exactly the same rule.
+describe("the Referer leg, live on this deployment since task 073", () => {
+  // `proxy.ts` sent `Referrer-Policy: no-referrer` until task 073, under which a form
+  // navigation carries no `Referer` at all and the hidden field did all the work. The
+  // portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so a
+  // same-origin navigation does carry the submitting page's URL and this leg can
+  // answer. It is held to exactly the rule it always was, which is why the cases below
+  // did not move: the hidden field still wins, and a foreign `Referer` still falls back
+  // to the root.
   it("accepts a Referer naming this portal's own origin", () => {
     expect(safeReturnPath(undefined, `${PORTAL_BASE}/s/ses_1`, PORTAL_BASE)).toBe("/s/ses_1");
     expect(safeReturnPath(undefined, `${PORTAL_BASE}/f/road-cover?state=error`, PORTAL_BASE)).toBe(

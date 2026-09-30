@@ -99,28 +99,41 @@ describe("portal security-header proxy", () => {
   });
 
   /**
-   * `Referrer-Policy: no-referrer`, which on THIS surface is a security control and
-   * not only a privacy header (issue #555).
+   * `Referrer-Policy: same-origin`, which on THIS surface is a mechanism and not only a
+   * privacy header (issue #555, then the Code Owner's ruling of 2026-10-01 for task
+   * 073).
    *
-   * Per Fetch, a form-navigation POST made under `no-referrer` serializes its
-   * `Origin` as the literal string `null`. That is the entire reason the portal's
-   * CSRF belt cannot tell an honest old browser apart from a forged request on the
-   * no-JS form path, and therefore the reason it fails closed: see the reasoning in
-   * `lib/server/route-helpers.ts` (`isSameOriginPost`), `docs/SECURITY_DESIGN.md` §5,
-   * and the operator runbook in `docs/operations.md`.
+   * The portal sent `no-referrer` until 073. Per Fetch, a form-navigation POST under
+   * that policy serializes its `Origin` as the literal string `null`, and **Next's
+   * Server Action handler compares `Origin` to the `Host` and refuses a mismatch**, so
+   * the no-JS Add and Remove of a repeating group - which is a Server Action, because
+   * that is the only mechanism that re-renders the step in the same 200 response and so
+   * carries the respondent's typed values back - was aborted by the framework before any
+   * QCMS code ran. `serverActions.allowedOrigins: ['null']` would have admitted every
+   * null-origin POST from anywhere and was refused.
    *
-   * So a reader who changes this value for privacy reasons is changing what a
-   * security control observes, and two things would follow with nothing going red:
-   * the privacy property is lost quietly, and the documented premise that `Origin`
-   * arrives as `null` becomes false. The admin and the API both pin the same value
-   * (`apps/admin/proxy.test.ts`, `apps/api/e2e/security/02-transport-and-limits.e2e.ts`);
-   * the portal was the one surface asserting nothing, and the one where the value is
-   * load-bearing.
+   * So a reader who changes this value is changing what two mechanisms observe, and it
+   * should go red here rather than quietly:
+   *
+   * - back to `no-referrer` and the no-JS roster operation stops working, with a
+   *   framework error rather than a QCMS one;
+   * - to anything that sends a referrer cross-origin and the privacy property this
+   *   header is usually set for is lost.
+   *
+   * `same-origin` gives up nothing to a third party: Turnstile and outbound links still
+   * receive no `Referer`. What a same-origin request now carries is this page's own URL,
+   * which is already in that request's own path.
+   *
+   * **The admin and the API deliberately keep `no-referrer`** (`apps/admin/proxy.test.ts`,
+   * `apps/api/e2e/security/02-transport-and-limits.e2e.ts`): neither has a Server Action
+   * on a no-JS path, and the admin's belt reasoning depends on its form posts arriving
+   * with `Origin: null`. The portal's belt does not depend on it either way, because
+   * `Sec-Fetch-Site` is the header it reads (`lib/server/route-helpers.ts`).
    */
-  it("sets Referrer-Policy: no-referrer, which the no-JS CSRF belt reads", () => {
+  it("sets Referrer-Policy: same-origin, which Next's Server Action check requires", () => {
     const response = responseFor();
 
-    expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+    expect(response.headers.get("referrer-policy")).toBe("same-origin");
     // The other two hardening headers alongside it, so the whole set is pinned in
     // one place rather than one header having its own private test.
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
