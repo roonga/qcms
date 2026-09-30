@@ -40,6 +40,16 @@ const ADMIN_BASE_URL = required("QCMS_SCAFFOLD_ADMIN_BASE_URL");
 const INTERNAL_TOKEN = required("QCMS_SCAFFOLD_INTERNAL_TOKEN");
 const ADMIN_EMAIL = required("QCMS_SCAFFOLD_ADMIN_EMAIL");
 const ADMIN_PASSWORD = required("QCMS_SCAFFOLD_ADMIN_PASSWORD");
+/**
+ * The password this run chooses, replacing the provisional one the scaffolded
+ * `create-admin` set (task 061, SEC-1).
+ *
+ * Generated rather than written down, like the admin and full-stack suites': a literal is
+ * a hard-coded credential the lint gate flags, and a value that changes per run means a
+ * leaked log line from one run authorizes nothing in the next. It is never written back to
+ * the scaffolded `.env`, because nothing after `beforeAll` signs in again.
+ */
+const CHOSEN_PASSWORD = `scaffold-chosen-${Buffer.from(crypto.getRandomValues(new Uint8Array(18))).toString("base64url")}`;
 
 /** One run's identifiers, so a repeat run against a kept stack does not collide. */
 const RUN = Date.now()
@@ -103,18 +113,72 @@ describe("a scaffolded QCMS deployment", () => {
     // The session token comes back in the RESPONSE BODY, not in the cookie: the cookie
     // value is `<token>.<signature>`, and it is the bare token that
     // `x-qcms-admin-session` wants.
-    const signIn = await json(
-      `${API}/api/auth/sign-in/email`,
+    const signInResponse = await fetch(`${API}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: headers({ origin: ADMIN_BASE_URL }),
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    });
+    const signInBody = await signInResponse.text();
+    if (signInResponse.status !== 200) {
+      throw new Error(`sign-in returned ${String(signInResponse.status)}.\n${signInBody}`);
+    }
+    expect(typeof (JSON.parse(signInBody) as Record<string, unknown>)["token"]).toBe("string");
+
+    // The bootstrap credential is provisional, so signing in is not enough to reach a
+    // single admin route (task 061, SEC-1). `create-admin` marks the account, this
+    // stack runs the real one, and the API answers 401 on every admin route until the
+    // password is replaced - so the harness has to walk the same first step an operator
+    // does, rather than assert against a state the product no longer produces.
+    //
+    // The COOKIE is what carries the session here, not the `x-qcms-admin-session`
+    // header: this is a call to the auth mount, which is better-auth's own surface and
+    // reads its own cookie, while that header is the API's admin gate on the admin
+    // routes below. `getSetCookie()` keeps the cookies split rather than folded into one
+    // comma-joined string, which is what makes a signed value safe to pass back.
+    const sessionCookie = signInResponse.headers
+      .getSetCookie()
+      .map((cookie) => cookie.split(";")[0])
+      .join("; ");
+    expect(sessionCookie).not.toBe("");
+
+    const changed = await json(
+      `${API}/api/auth/change-password`,
       {
         method: "POST",
-        headers: headers({ origin: ADMIN_BASE_URL }),
-        body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+        headers: headers({ origin: ADMIN_BASE_URL, cookie: sessionCookie }),
+        body: JSON.stringify({
+          currentPassword: ADMIN_PASSWORD,
+          newPassword: CHOSEN_PASSWORD,
+          // SEC-1: a password change invalidates sessions server-side, or a stolen
+          // session outlives the credential that created it. It is also why the token
+          // below has to come from THIS response: the sign-in session was just deleted,
+          // and better-auth issued a fresh one in the same call.
+          revokeOtherSessions: true,
+        }),
       },
       [200],
     );
-    expect(typeof signIn["token"]).toBe("string");
-    adminSession = String(signIn["token"]);
+    expect(typeof changed["token"]).toBe("string");
+    adminSession = String(changed["token"]);
   }, 60_000);
+
+  it("forces the provisional bootstrap credential to be changed before any admin route", async () => {
+    // Task 061 against the shipped scaffold, which is the only place this runs against
+    // the mirrored `create-admin` rather than a test helper. A second account cannot be
+    // made here - `create-admin` is the only door and it refuses once one exists - so
+    // what is asserted is the other side of the same coin: the session issued by the
+    // change works, and the credential really moved rather than the flag merely being
+    // cleared.
+    const stale = await fetch(`${API}/api/auth/sign-in/email`, {
+      method: "POST",
+      headers: headers({ origin: ADMIN_BASE_URL }),
+      body: JSON.stringify({ email: ADMIN_EMAIL, password: ADMIN_PASSWORD }),
+    });
+    expect(stale.status).not.toBe(200);
+
+    const reachable = await fetch(`${API}/admin/questions`, { headers: adminHeaders() });
+    expect(reachable.ok).toBe(true);
+  });
 
   // Not "on the ports the scaffold published": that is true on CI and false in the
   // dev container, where the harness reaches the stack over Compose's own network
