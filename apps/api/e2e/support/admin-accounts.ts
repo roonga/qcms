@@ -79,6 +79,18 @@ export interface TestAdminInput {
   readonly adminBaseUrl: string;
   readonly email: string;
   readonly password: string;
+  /**
+   * The account's display name. Defaults to `E2E Admin`.
+   *
+   * Worth being able to choose since issue #1010. The display name is what the admin
+   * topbar's monogram is derived from, and that button's accessible name has to contain
+   * what it paints (WCAG 2.2 SC 2.5.3). `E2E Admin` gives the initials "EA", and the
+   * addresses this suite generates - `e2e.<label>.<ts>@admin.test` - contain those two
+   * letters once axe looks past the dots and digits, so the rule that checks the
+   * relationship could not fail on this account however broken the button was. A spec
+   * that means to measure that rule names an account here instead.
+   */
+  readonly name?: string;
 }
 
 /**
@@ -96,7 +108,7 @@ export interface TestAdminInput {
 export async function createTestAdmin(input: TestAdminInput): Promise<void> {
   const { auth } = authFor(input.databaseUrl, input.authSecret, input.adminBaseUrl);
   await auth.api.signUpEmail({
-    body: { email: input.email, password: input.password, name: "E2E Admin" },
+    body: { email: input.email, password: input.password, name: input.name ?? "E2E Admin" },
     asResponse: true,
   });
 }

@@ -11,9 +11,14 @@ import { initialsFor } from "./initials.ts";
  * painted into a 32px disc with no room to degrade gracefully. The interesting cases are
  * therefore the short and the non-Latin ones, not the happy path.
  *
- * The result is decorative (the trigger's `aria-label` carries the real accessible name),
- * so none of this is a correctness requirement about WHICH letters appear. It is a
- * requirement that the function always produces something renderable.
+ * None of this is a correctness requirement about WHICH letters appear - any guess is a
+ * fair one. It is a requirement that the function always produces something renderable.
+ *
+ * What the result is NOT any more is decorative, and this comment said it was until issue
+ * #1010: the trigger's accessible name now opens with whatever comes out of here, because
+ * WCAG 2.2 SC 2.5.3 requires the painted text to be part of the name. That relationship is
+ * not a property of this function and is not asserted here; it is asserted where both
+ * strings exist at once, in `components/account-label-in-name.test.tsx`.
  *
  * Every non-ASCII string below is written as an escape rather than as a literal. That is
  * deliberate and it is the whole point of two of these tests: a literal accented letter

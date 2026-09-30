@@ -105,9 +105,23 @@ export const messages = {
   // which is what the visible chip used to do between its border and its check mark.
   "appearance.trigger": "Appearance: {mode}",
 
-  // The account menu (task 032). The trigger is two decorative letters, so the same
-  // rule applies: its accessible name is the only thing announcing what it opens.
-  "account.trigger": "Account menu for {email}",
+  // The account menu (task 032). Unlike the appearance trigger above, this one is NOT
+  // wordless: it paints an initials monogram, and WCAG 2.2 SC 2.5.3 (label in name)
+  // requires an accessible name that contains the text a sighted operator can read. It
+  // said only "Account menu for {email}" until issue #1010, and for the bootstrap default
+  // - `Administrator`, which paints "AD", at any address without those letters in it -
+  // the name and the button shared no word at all: an operator saying "click AD" opened
+  // nothing, and a screen reader announced a name nobody could point at.
+  //
+  // The initials come FIRST, so the visible text is a pronounceable prefix rather than a
+  // fragment buried mid-sentence, and the email stays after them because that is what says
+  // which account is acting. One entry with two placeholders rather than two strings
+  // concatenated in markup, so the whole sentence - including whether a second locale
+  // still wants the initials in front - stays a catalogue decision (ADR-27). Same shape
+  // and same reason as `forms.step.movePin` (issue #879).
+  //
+  // Lower-case "account" mid-sentence is deliberate: the initials open the sentence now.
+  "account.trigger": "{initials}, account menu for {email}",
   "account.menuLabel": "Account",
   "account.signedInAs": "Signed in as",
 

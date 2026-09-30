@@ -11,6 +11,7 @@ import {
   accountTrigger,
   activeElementId,
   appearanceTrigger,
+  enrollNewAdmin,
   fillStable,
   openMenu,
   readSetupKey,
@@ -438,8 +439,8 @@ test("the authenticated shell states have zero violations", async ({ page }) => 
 test("both topbar menus have zero violations while OPEN, in every mode", async ({ page }) => {
   // Task 032. A closed menu is a button; the accessibility risk is entirely in the
   // open state, and a gate that only ever sampled first render would miss all of it:
-  // a portalled popover outside the landmark structure, two wordless triggers whose
-  // only name is an `aria-label`, and a checked row whose state must not be colour
+  // a portalled popover outside the landmark structure, two triggers whose only name is
+  // an `aria-label`, and a checked row whose state must not be colour
   // alone. `expectNoViolations` runs each state in light, dark and high contrast, and
   // high contrast is the case that matters most here - it is where a two-colour
   // palette would expose a state carried by colour and nothing else.
@@ -462,6 +463,81 @@ test("both topbar menus have zero violations while OPEN, in every mode", async (
   await openMenu(accountTrigger(page));
   await expectNoViolations(page, "account menu open");
   await page.keyboard.press("Escape");
+});
+
+/**
+ * An account whose monogram cannot appear in its address (issue #1010).
+ *
+ * The sweep above runs `label-content-name-mismatch` over the topbar on every
+ * authenticated screen in three modes, and it was green for months while the account
+ * trigger painted "AD" and answered to "Account menu for dev@qcms.test". It was green
+ * because of this file's own fixture: `E2E Admin` gives the initials "EA", and
+ * `e2e.<label>.<ts>@admin.test` contains those two letters once axe looks past the dots
+ * and digits, so the rule passed on the ADDRESS whatever the button painted. A gate that
+ * cannot fail measures nothing, so one state is swept on an account chosen the other way.
+ *
+ * ## Why the address is written out here rather than taken from `uniqueAdminEmail`
+ *
+ * Because "cannot contain" has to be true of every run, and that helper's unique part is
+ * a base-36 timestamp, which can spell any pair of letters. The chance is small and the
+ * consequence is exactly the silent hole this test exists to close - the run would pass
+ * while measuring nothing - so the unique part is base 10 here, leaving an address built
+ * from `e2e`, `labelinname` and `admin.test` and digits. Neither Z nor W occurs in any of
+ * them, and the test asserts that rather than trusting the reading.
+ */
+const MISMATCH_NAME = "Zoe Wren";
+const MISMATCH_INITIALS = "ZW";
+const MISMATCH_EMAIL = `e2e.labelinname.${Date.now().toString(10)}@admin.test`;
+
+test("the account trigger passes label-in-name for an account whose address cannot supply its initials", async ({
+  page,
+}) => {
+  // The premise, asserted rather than assumed: if either letter were in the address, the
+  // rule below could pass on the address alone and this test would prove nothing. Checked
+  // per letter, which is stronger than checking the pair and just as cheap.
+  for (const letter of MISMATCH_INITIALS.toLowerCase()) {
+    expect(
+      MISMATCH_EMAIL.toLowerCase(),
+      `the address must not contain "${letter}", or label-content-name-mismatch can pass without the monogram being in the name`,
+    ).not.toContain(letter);
+  }
+
+  await createTestAdmin(MISMATCH_EMAIL, MISMATCH_NAME);
+  await enrollNewAdmin(page, MISMATCH_EMAIL);
+
+  // What the disc paints and what the button is called, stated separately: the criterion
+  // is about the two agreeing, so reading one off the other would assert nothing.
+  const trigger = accountTrigger(page);
+  await expect(trigger).toHaveText(MISMATCH_INITIALS);
+  await expect(trigger).toHaveAccessibleName(
+    `${MISMATCH_INITIALS}, account menu for ${MISMATCH_EMAIL}`,
+  );
+
+  // Scoped to the topbar and to the one rule, so this state cannot go red for a reason
+  // that has nothing to do with it - every other rule and every mode is already covered
+  // by the full-page sweeps above, on the shell this account sees too.
+  //
+  // `rules` as well as `runOnly`, for the reason EXTRA_RULES gives: the rule carries the
+  // `experimental` tag, which `axe._audit.tagExclude` subtracts, and an explicit
+  // `rules[id].enabled` is what `ruleShouldRun` consults first.
+  const results = await new AxeBuilder({ page })
+    .include(".qcms-topbar")
+    .options({
+      runOnly: { type: "rule", values: ["label-content-name-mismatch"] },
+      rules: { "label-content-name-mismatch": { enabled: true } },
+    })
+    .analyze();
+
+  expect(
+    rulesNotRun(results, ["label-content-name-mismatch"]),
+    "the rule this test is entirely about did not join the run, so its verdict says nothing",
+  ).toEqual([]);
+  expect(
+    results.violations.map(
+      (v) => `${v.id}: ${v.nodes.map((node) => node.target.join(" ")).join(" | ")}`,
+    ),
+    "label-content-name-mismatch on the topbar, for an account whose address cannot mask it",
+  ).toEqual([]);
 });
 
 test("the question library, its editor and a question's detail have zero violations", async ({

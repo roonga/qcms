@@ -340,22 +340,32 @@ test("regenerating recovery codes needs the password, and retires the old set (i
 });
 
 test("the account menu names the operator and routes to the password screen", async ({ page }) => {
-  // Task 032. The trigger is two decorative letters, so everything an operator needs
-  // to know about which account is acting lives in the accessible name and in the
+  // Task 032. The trigger paints two letters and nothing else, so everything an operator
+  // needs to know about which account is acting lives in the accessible name and in the
   // menu's own header - and both are worth asserting, because a monogram that names
   // the wrong session is worse than no monogram at all.
+  //
+  // The name opens with those two letters since issue #1010: the suite's account is named
+  // `E2E Admin`, so the disc paints "EA". Before that the name said only the sentence, and
+  // the criterion it failed is WCAG 2.2 SC 2.5.3 - the painted text has to be part of the
+  // name, and `aria-hidden` on the span does not exempt it, because hiding text from the
+  // accessibility tree does not unpaint it.
   await signInWithTotp(page, EMAIL, totpSecret);
   const trigger = accountTrigger(page);
-  await expect(trigger).toHaveAccessibleName(`Account menu for ${EMAIL}`);
+  await expect(trigger).toHaveAccessibleName(`EA, account menu for ${EMAIL}`);
 
-  // The trigger's own content is the monogram, hidden from the accessibility tree: the
-  // sentence above is the accessible name, not visible text (WCAG 2.5.3). This is the
-  // vendored `Menu`'s `trigger` slot since issue #234, and the node below is the host's
-  // own - the component's default trigger would paint `triggerLabel` as plain text with
-  // nothing `aria-hidden` inside it, so this is what proves the slot rendered.
+  // The trigger's own content is the monogram. It is `aria-hidden` because the
+  // `aria-label` already replaces it in the name computation, not to dodge the criterion
+  // above. This is the vendored `Menu`'s `trigger` slot since issue #234, and the node
+  // below is the host's own - the component's default trigger would paint `triggerLabel`
+  // as plain text with nothing `aria-hidden` inside it, so this is what proves the slot
+  // rendered.
   const monogram = trigger.locator("span[aria-hidden='true']");
   await expect(monogram).toHaveCount(1);
-  expect((await monogram.innerText()).trim(), "the disc paints two letters").toHaveLength(2);
+  expect(
+    (await monogram.innerText()).trim(),
+    "the disc paints the same two letters the name opens with",
+  ).toBe("EA");
 
   await openMenu(trigger);
   const menu = page.getByRole("menu");
