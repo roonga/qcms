@@ -287,6 +287,33 @@ export type RosterWriteResult =
  * The caller owns the transaction (R5) and is expected to hold the session's
  * advisory lock, as the answer write does: two concurrent serves of one step
  * would otherwise each see an empty roster and each mint a full set.
+ *
+ * **Contract: call this at most once per group per transaction.** `occurred_at`
+ * defaults to `now()`, which in Postgres is the **transaction** timestamp and not
+ * the statement's, so two mints for one group inside one transaction write rows
+ * sharing a timestamp to the microsecond. The roster read then orders that
+ * combined set by its `instance_id` tiebreaker alone (see {@link readRosters} in
+ * `packages/db/src/queries/rosters.ts`), and an `instance_id` is 128 random bits,
+ * so the two batches interleave at random rather than the second following the
+ * first.
+ *
+ * What that breaks is the first-N guarantee, not merely a display order.
+ * {@link liveInstances} takes the **first** N of the minted list for `fixed` and
+ * `fromAnswer`, so an instance minted in the earlier batch and already answered
+ * can be sorted out of the live window by a later batch's ids. Lowering a
+ * `fromAnswer` count and raising it again would then re-live a *different*
+ * instance, moving a respondent's answers between cards. That is exactly the
+ * property `roster.integration.test.ts` pins in "lowers a fromAnswer count and
+ * raises it again, re-living the same instance with its answers intact", and it is
+ * why this contract is written down rather than left to be discovered.
+ *
+ * Keeping to it is cheap and is what 073 does: a serve resolves each group once,
+ * and the batch answer endpoint carries a whole step in one transaction (ADR-43),
+ * so it mints per group after applying the step's answers rather than once per
+ * entry. **Ruled: no ordering column is added** (Code Owner, 2026-10-01). ADR-42
+ * fixes this table's column set, and a monotonic column would also be a fifth
+ * guard on a table ADR-40's amendment counts four for, moving the per-environment
+ * totals the 064 generator is checked against.
  */
 export async function mintForServedGroup(
   exec: Executor,
@@ -333,6 +360,23 @@ export async function mintForServedGroup(
  * A group whose count source is not `open` refuses the Add outright: a `fixed`
  * group's size is its author's and a `fromAnswer` group's is the count answer's,
  * so there is no Add button on either and a post that names one is drift.
+ *
+ * **The caller must hold the session's advisory lock**, the same requirement
+ * {@link mintForServedGroup} states and for a sharper reason: the `max` check is a
+ * read followed by a write, not one atomic statement. Two simultaneous Add posts
+ * on one group each read `live.length === max - 1`, each pass the bound, and each
+ * append, leaving the group one past the `max` that SEC-16 calls the whole of the
+ * mitigation now that Q14 has removed every installation-wide ceiling. The
+ * mechanism already exists and needs nothing new: `pg_advisory_xact_lock` keyed on
+ * the session, as `serve-step/handler.ts` takes it. **No caller holds it at this
+ * head because there is no caller**: nothing outside the tests reaches this
+ * function, since 073 owns the routes. This is the contract those routes inherit,
+ * and 073 is where a concurrency test belongs, next to the handler that takes the
+ * lock.
+ *
+ * The one-mint-per-group-per-transaction contract on {@link mintForServedGroup}
+ * applies here too: an Add is a mint, so a transaction that already minted for
+ * this group must not also Add to it.
  */
 export async function addRosterInstance(
   exec: Executor,
@@ -365,6 +409,16 @@ export async function addRosterInstance(
  * removal that would take a group below its `min`; that is a submit-time refusal
  * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), so a respondent can empty a group,
  * rebuild it and only be stopped at the end.
+ *
+ * **Caller obligation: the `instanceId` must be one this session's roster minted.**
+ * This function is not handed the roster, so it cannot check, and a no-op that
+ * still appends is only harmless for an id the session owns. A forged `ins_` value
+ * appends a `removed` row under a key no roster lists: nothing is disclosed and no
+ * derived list moves, but the table is append-only and only an erasure clears it.
+ * The caller has the roster in hand already (it needs it to render the Remove
+ * control at all), so the check is a lookup, not a query. Task 073 owns the route
+ * and implements it, and the same obligation covers `appendAnswer` and
+ * `retractAnswer` in `@roonga/qcms-db`.
  */
 export async function removeRosterInstance(
   exec: Executor,
