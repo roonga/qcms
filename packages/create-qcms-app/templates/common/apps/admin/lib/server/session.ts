@@ -283,6 +283,31 @@ export async function requireEnrollingSession(): Promise<AdminSession> {
 }
 
 /**
+ * The same guard for the enrollment flow's **route handlers**, answered as a 303
+ * (Code Owner ruling, 2026-10-01).
+ *
+ * The screens had this and the handlers behind them did not, which made SEC-1's "can
+ * reach the forced change screen and nothing else" true of what a browser is shown and
+ * false of what the origin accepts: a provisional admin holding the enrollment cookie
+ * could post a TOTP code straight at `/two-factor/enroll/verify` and bind a second
+ * factor to an account whose password is still the one out of the provisioning script.
+ * The API refused that account every admin route regardless, so nothing was reachable
+ * with the factor - but "the order is enforced" was a claim about the screens, and the
+ * sentence in SEC-1 is about the account.
+ *
+ * Gate 4 is skipped for the same reason {@link requireEnrollingSession} skips it:
+ * incomplete 2FA is the whole point of being here. An already-enrolled admin is sent to
+ * the shell rather than allowed to re-provision a factor by posting at the URL.
+ */
+export async function requireEnrollingSessionForRequest(): Promise<AdminSession | Response> {
+  const session = await currentAdminSession();
+  if (session === undefined) return redirectAfterPost(SIGN_IN_PATH);
+  if (session.mustChangePassword) return redirectAfterPost(CHANGE_PASSWORD_PATH);
+  if (session.twoFactorEnabled) return redirectAfterPost(SHELL_HOME_PATH);
+  return session;
+}
+
+/**
  * The forced change-password screen's guard (task 061): a session is required, and a
  * flag that is still set is the whole point of being here, so gate 3 is not applied.
  *
