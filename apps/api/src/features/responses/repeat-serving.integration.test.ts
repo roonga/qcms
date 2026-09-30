@@ -170,7 +170,7 @@ beforeAll(async () => {
   await insertFormVersion(testDb.db, {
     formId,
     definition: DEFINITION,
-    compiled: compiled as unknown as Parameters<typeof insertFormVersion>[1]["compiled"],
+    compiled,
     compilerVersion: compiled.compilerVersion,
     a2uiSpecVersion: compiled.a2uiSpecVersion,
     semanticsVersion: "1",
