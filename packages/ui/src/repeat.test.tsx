@@ -261,9 +261,21 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
     );
   }
 
-  /** Every element in a markup string carrying the `autofocus` attribute. */
+  /**
+   * Every start tag in a markup string carrying the `autofocus` attribute.
+   *
+   * Split on `<` and tested per tag rather than matched with one expression over the whole
+   * document, because an expression with two unbounded `[^>]*` around the attribute
+   * backtracks super-linearly on a long line and the lint gate refuses it.
+   */
   function autofocusTags(markup: string): string[] {
-    return [...markup.matchAll(/<[a-z0-9]+[^>]*\bautofocus\b[^>]*>/g)].map((match) => match[0]);
+    const tags: string[] = [];
+    for (const fragment of markup.split("<")) {
+      const tag = fragment.split(">")[0] ?? "";
+      if (!/^[a-z][a-z0-9]*[ /]/.test(tag)) continue;
+      if (/ autofocus[ =]/.test(tag) || tag.endsWith(" autofocus")) tags.push(`<${tag}>`);
+    }
+    return tags;
   }
 
   it("marks the autofocus target the host named, and nothing else", () => {
@@ -276,13 +288,15 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
     // context: the action returned the right id, the page rendered, and the focus move
     // was silently gone with nothing else looking wrong.
     const roster = instances(2);
-    const marked = autofocusTags(nativeMarkup(roster, roster[1]!));
+    const second = roster[1] ?? "";
+    const marked = autofocusTags(nativeMarkup(roster, second));
     expect(marked).toHaveLength(1);
-    expect(marked[0]).toContain(`id="${roster[1]!}"`);
-    expect(marked[0]!.startsWith("<h4")).toBe(true);
+    const tag = marked[0] ?? "";
+    expect(tag).toContain(`id="${second}"`);
+    expect(tag.startsWith("<h4")).toBe(true);
     // Two autofocus targets in one document leave which one wins to the browser, so the
     // first instance's heading must not be marked as well.
-    expect(marked[0]).not.toContain(roster[0]!);
+    expect(tag).not.toContain(roster[0] ?? "");
   });
 
   it("marks the group's Add button when that is where the host sends focus", () => {
@@ -290,7 +304,7 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
     // instance the first post created is already on the page and focus has not moved.
     const marked = autofocusTags(nativeMarkup(instances(1), addButtonId("grp_vehicles")));
     expect(marked).toHaveLength(1);
-    expect(marked[0]).toContain('data-qcms-repeat-action="add"');
+    expect(marked[0] ?? "").toContain('data-qcms-repeat-action="add"');
   });
 
   it("marks nothing when the host names no destination", () => {

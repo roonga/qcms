@@ -2,7 +2,7 @@ import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 import { INSTANCE_NAME_SEPARATOR } from "@roonga/qcms-ui/repeat-node";
 import { NextResponse } from "next/server";
 
-import { splitFieldKey } from "@/lib/repeat";
+import { splitFieldKey } from "../../../../lib/repeat";
 import { t } from "@/lib/i18n/en";
 import {
   ApiError,

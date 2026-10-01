@@ -138,6 +138,8 @@ describe("R2 import surface (strict BFF)", () => {
    * module reads, and a bare `import type` is erased and harmless.
    */
   it("keeps a Server Action out of the @roonga/qcms-ui component graph (task 073)", () => {
+    /** A module whose first statement is the `"use server"` directive. */
+    const USE_SERVER = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/;
     const REACT_FREE_SUBPATHS = new Set([
       "@roonga/qcms-ui/native-submit",
       "@roonga/qcms-ui/repeat-node",
@@ -159,27 +161,30 @@ describe("R2 import surface (strict BFF)", () => {
     // action's own imports would have been green over it. So this follows every local
     // hop out of each `"use server"` module and holds the whole reachable set to the
     // rule, which is what "in the server graph" actually means.
-    const offenders: string[] = [];
-    for (const { path, text } of files) {
-      if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/.test(text)) continue;
-      const seen = new Set<string>([path]);
-      const queue = [path];
+    /** Every component-graph import reachable from one `"use server"` module. */
+    const offendersFrom = (entry: string): string[] => {
+      const found: string[] = [];
+      const seen = new Set<string>([entry]);
+      const queue = [entry];
       while (queue.length > 0) {
         const current = queue.pop() as string;
         for (const { spec, isType } of importsOf(byPath.get(current) ?? "")) {
           if (isType) continue;
           if (spec.startsWith("@roonga/qcms-ui") && !REACT_FREE_SUBPATHS.has(spec)) {
-            offenders.push(`${path} -> ${current} -> ${spec}`);
+            found.push(`${entry} -> ${current} -> ${spec}`);
             continue;
           }
           const next = resolve(current, spec);
-          if (next !== undefined && !seen.has(next)) {
-            seen.add(next);
-            queue.push(next);
-          }
+          if (next === undefined || seen.has(next)) continue;
+          seen.add(next);
+          queue.push(next);
         }
       }
-    }
+      return found;
+    };
+    const offenders = files
+      .filter(({ text }) => USE_SERVER.test(text))
+      .flatMap(({ path }) => offendersFrom(path));
     expect(offenders).toEqual([]);
   });
 

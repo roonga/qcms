@@ -210,29 +210,40 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
   const answered = new Set<string>();
   let rosterOp: RosterOpRequest | undefined;
   let sessionId: string | undefined;
-  for (const [key, entry] of entries) {
-    if (typeof entry !== "string") continue; // ignore any file parts
+  /**
+   * The two reserved WHOLE-name fields, taken before anything else so that neither can
+   * land in `extras` or be mistaken for an answer or for the honeypot: the form's own
+   * session and the pressed Add or Remove button (073). Returns true when the entry was
+   * one of them and is therefore spent.
+   */
+  const takeReserved = (key: string, entry: string): boolean => {
     if (key === SESSION_FIELD) {
-      // The form's own session (073). Reserved, so it is never read as an answer.
       sessionId ??= entry;
-      continue;
+      return true;
     }
     if (key === ROSTER_OP_FIELD) {
-      // The pressed Add or Remove button (073). Reserved, so it never lands in
-      // `extras` and is never mistaken for an answer or for the honeypot.
       rosterOp ??= parseRosterOpValue(entry);
-      continue;
+      return true;
     }
+    return false;
+  };
+  /** The two reserved PREFIXES: a field's wire kind, and its answered marker. */
+  const takePrefixed = (key: string, entry: string): boolean => {
     if (key.startsWith(NATIVE_FIELD_KIND_PREFIX)) {
       const name = key.slice(NATIVE_FIELD_KIND_PREFIX.length);
       if (KINDS.has(entry)) kindByName.set(name, entry as NativeFieldKind);
-      continue;
+      return true;
     }
     if (key.startsWith(NATIVE_FIELD_ANSWERED_PREFIX)) {
       // Presence is the signal; the value is not read (see the prefix's docblock).
       answered.add(key.slice(NATIVE_FIELD_ANSWERED_PREFIX.length));
-      continue;
+      return true;
     }
+    return false;
+  };
+  for (const [key, entry] of entries) {
+    if (typeof entry !== "string") continue; // ignore any file parts
+    if (takeReserved(key, entry) || takePrefixed(key, entry)) continue;
     const list = rawByName.get(key);
     if (list === undefined) rawByName.set(key, [entry]);
     else list.push(entry);
