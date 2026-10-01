@@ -45,13 +45,23 @@ export function FormField(props: Readonly<FormProps>) {
   if (formAction === undefined) {
     return <Form {...props} />;
   }
+  // The props are named rather than spread, because `method` must NOT be forwarded and
+  // the reason is a hydration mismatch rather than tidiness. React owns the method when
+  // the action is a function - a function action is always a POST - and its SSR output
+  // spells it `POST`, while the stored node's prop spells it `post`. Forwarding the prop
+  // produced `method="POST"` in the server HTML against `method="post"` on the client,
+  // which React reports as an unpatchable attribute mismatch and the portal's browser
+  // gate reports as a console error. `validationErrors` and the three `on*` handlers are
+  // not forwarded either: they are the scripted path's channel and this branch is the
+  // native one, where each control carries its own `errorMessage`.
   return (
     <FormContext.Provider value={{ validationBehavior }}>
       <form
-        {...rest}
         action={formAction}
-        method={rest.method ?? "post"}
         className={getFormStyles(gap)}
+        encType={rest.encType}
+        autoComplete={rest.autoComplete}
+        target={rest.target}
       >
         {children}
       </form>

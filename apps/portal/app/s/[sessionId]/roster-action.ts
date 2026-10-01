@@ -4,7 +4,7 @@ import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 import { headers } from "next/headers";
 
 import { t } from "@/lib/i18n/en";
-import { focusAfterAdd, focusAfterRemoval } from "@/lib/repeat";
+import { focusAfterAdd, focusAfterRemoval, type RosterActionState } from "@/lib/repeat";
 import { ApiError, getStep, rosterOp } from "@/lib/server/api";
 import { isSameOriginAction } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
@@ -63,34 +63,20 @@ import { decodeStepForm } from "@/lib/server/step-form";
  * navigation POST serializes its `Origin` as the literal `null`, which Next refuses
  * outright, so the operation died in the framework before the belt could admit it.
  *
+ * ## Why its state type lives in `lib/repeat.ts`
+ *
+ * A `"use server"` file may export **async functions and nothing else**. Exporting the
+ * initial state object from here made Next answer the action's own POST with a 500 and
+ * log "A `use server` file can only export async functions, found object", which reads
+ * as a broken mechanism rather than a misplaced export. The type and the constant are
+ * therefore in the shared module both this and the view import.
+ *
  * ## R2
  *
  * It decides nothing. It decodes a form, calls two API endpoints and hands back what
  * to re-show. Whether the group may grow, whether the token was already spent and
  * which instances are live are all the API's answers.
  */
-
-/** What an Add or Remove hands back for the re-render of the step it posted from. */
-export interface RosterActionState {
-  /**
-   * Every value the respondent had typed, keyed by the field's own name: a bare
-   * questionId outside a repeating group and `instanceId/questionId` inside one.
-   *
-   * This is the carrier. It is the whole step rather than a refused subset, which is
-   * why it rides the POST body and the 200 rather than a cookie.
-   */
-  readonly values: Readonly<Record<string, A2UIAnswerValue>>;
-  /**
-   * The DOM id this render lands focus on, which becomes an `autofocus` attribute
-   * (Q11, and the 2026-10-01 ruling that it is `autofocus` and never a fragment).
-   */
-  readonly autofocusId?: string;
-  /** A sentence to show when the API refused the operation. */
-  readonly message?: string;
-}
-
-/** Nothing typed, nothing landed: the state before the respondent presses anything. */
-export const NO_ROSTER_ACTION: RosterActionState = { values: {} };
 
 /** The typed values from one whole-step post, for the re-render to show again. */
 function typedValues(

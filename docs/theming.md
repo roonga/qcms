@@ -839,17 +839,23 @@ Two limits are worth stating rather than discovering:
 - **The redirect target is validated, never reflected, and never emitted relatively.** The
   return path (path and query) arrives in a hidden field, so it is respondent-controllable.
   It is accepted only when it resolves inside this origin, with the `Referer` (when that
-  names the portal's own origin) and then `/` as fallbacks; the portal sends
-  `Referrer-Policy: no-referrer`, so in practice the hidden field is what carries it. The
+  names the portal's own origin) and then `/` as fallbacks. The hidden field still wins,
+  because it is what the form declares rather than what the browser happened to send, and
+  the `Referer` leg became a live second source on 2026-10-01 when the portal moved to
+  `Referrer-Policy: same-origin` (SEC-9 as amended, task 073); under the previous
+  `no-referrer` a form navigation carried no `Referer` at all. Both legs go through the
+  same check, so which one supplied the value changes nothing about what is admitted. The
   check runs on the URL parser's OUTPUT, because normalisation rewrites `/..//host` into
   the pathname `//host` - a single leading slash in, a protocol-relative reference out. The
   `Location` is then built absolutely on the deployment's own base, so a path that somehow
   got past the first control still cannot name another origin. See
   `apps/portal/lib/server/appearance-form.ts` and `apps/portal/app/appearance/route.ts`.
 
-The route carries SEC-9's CSRF belt like every other state-changing portal handler, so
-the small population of browsers that send no `Sec-Fetch-Site` cannot use this form
-either; a refused request is sent to the site root with nothing written, and the refusal
+The route carries SEC-9's CSRF belt like every other state-changing portal entry point, so
+the small population of browsers that send **neither** `Sec-Fetch-Site` **nor** a matching
+`Origin` cannot use this form either (narrower than it was before 2026-10-01: a
+Fetch-Metadata-less browser posting from a portal page now sends a real origin and is
+admitted; issue #1024 re-measures what is left); a refused request is sent to the site root with nothing written, and the refusal
 is visible only in the `origin.belt.refused` line (`beltOutcome: "redirect-to-root"`,
 `docs/operations.md`).
 

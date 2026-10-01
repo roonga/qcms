@@ -1,5 +1,5 @@
 import { addButtonId, instanceLabelFor } from "@roonga/qcms-ui/repeat-node";
-import type { A2UIStepDocument } from "@roonga/qcms-ui";
+import type { A2UIAnswerValue, A2UIStepDocument } from "@roonga/qcms-ui";
 
 /**
  * What both portal paths need to know about a repeating group beyond what the renderer
@@ -117,3 +117,35 @@ export function resolvedInstanceLabel(
   if (template === undefined || index < 0) return undefined;
   return instanceLabelFor(template, index + 1);
 }
+
+/**
+ * What an Add or Remove hands back for the re-render of the step it posted from (task
+ * 073, ADR-43).
+ *
+ * **It lives here rather than in the action's own module because a `"use server"` file
+ * may export async functions and nothing else.** Next refuses the build otherwise - "A
+ * `use server` file can only export async functions, found object" - and the refusal is
+ * a 500 on the action's own POST rather than a build error, so it reads as a broken
+ * mechanism rather than a misplaced export. The admin records the same rule for its own
+ * actions (`apps/admin/README.md`, issue #256).
+ */
+export interface RosterActionState {
+  /**
+   * Every value the respondent had typed, keyed by the field's own name: a bare
+   * questionId outside a repeating group and `instanceId/questionId` inside one.
+   *
+   * This is the carrier. It is the whole step rather than a refused subset, which is why
+   * it rides the POST body and the action's own 200 rather than a cookie.
+   */
+  readonly values: Readonly<Record<string, A2UIAnswerValue>>;
+  /**
+   * The DOM id this render lands focus on, which becomes an `autofocus` attribute (Q11,
+   * and the 2026-10-01 ruling that it is `autofocus` and never a fragment).
+   */
+  readonly autofocusId?: string;
+  /** A sentence to show when the operation was refused. */
+  readonly message?: string;
+}
+
+/** Nothing typed, nothing landed: the state before the respondent presses anything. */
+export const NO_ROSTER_ACTION: RosterActionState = { values: {} };

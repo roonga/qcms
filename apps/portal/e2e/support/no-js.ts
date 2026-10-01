@@ -17,9 +17,25 @@
 
 import type { Page } from "@playwright/test";
 
-/** The step form's own submit control (never the header's, issue #195). */
+/**
+ * The step form's own Continue or Submit control.
+ *
+ * Narrowed twice, and each exclusion is a real collision rather than caution:
+ *
+ * - **never the header's** (issue #195): the appearance controls are a second native form
+ *   on the page with a `<noscript>`-revealed submit of their own, so an unscoped
+ *   `form button[type="submit"]` matches two elements. Hence the step-card scope.
+ * - **never a `__qop` button** (task 073): a step carrying a repeating group has two more
+ *   submit buttons inside the SAME form, the group's Add and Remove, because that is how
+ *   one form reaches several operations without scripting. They are excluded by name
+ *   rather than by position, since their count follows the live instance count.
+ *
+ * What is left is exactly one control: the one that posts the step to the whole-step BFF
+ * route. On a repeating step that is the control carrying `formaction`, because the form's
+ * own action is the Server Action the `__qop` buttons use.
+ */
 export function stepSubmit(page: Page) {
-  return page.getByTestId("step-card").locator('form button[type="submit"]');
+  return page.getByTestId("step-card").locator('form button[type="submit"]:not([name="__qop"])');
 }
 
 /** Submit the step's native form and wait for the page the 303 lands on. */

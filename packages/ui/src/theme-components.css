@@ -384,6 +384,10 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-field-gap);
+  /* The containing block for the status region below, which is positioned out of flow.
+     Without it that region resolves against the initial containing block, which is the
+     trap that cost 136 unexplained pixels of document width on a concept page. */
+  position: relative;
 }
 
 [data-qcms-theme-scope] .qcms-repeat__instance {
@@ -392,20 +396,29 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-card);
   min-inline-size: 0;
+  /* `flow-root` does two jobs with one declaration, and it is the fix for the trap the
+     concept build found rather than a layout preference.
+
+     One: a `<legend>` gets the fieldset's special legend slot only while the fieldset is
+     `display: block`, and a legend in that slot CUTS the card's border. Any other
+     display value puts the legend back in normal flow and the border stays whole.
+
+     Two: it establishes a block formatting context, so the floated legend below is
+     CONTAINED by the card. Without that the card's height excludes its own heading, the
+     fields overflow it, and the group's Add button ends up underneath the card - which
+     is how this was found: Playwright reported "fieldset intercepts pointer events" and
+     every repeat spec timed out clicking Add. */
+  display: flow-root;
 }
 
-/* The legend leaves the fieldset's legend slot so the card's border stays whole. */
+/* Full-width and floated so the heading reads as a block at the top of the card while
+   the element stays the fieldset's `<legend>`, and therefore its accessible name. The
+   card contains the float through `display: flow-root` above. */
 [data-qcms-theme-scope] .qcms-repeat__legend {
   float: left;
   width: 100%;
   padding: 0;
   margin: 0;
-}
-
-[data-qcms-theme-scope] .qcms-repeat__legend::after {
-  content: "";
-  display: block;
-  clear: both;
 }
 
 [data-qcms-theme-scope] .qcms-repeat__heading {

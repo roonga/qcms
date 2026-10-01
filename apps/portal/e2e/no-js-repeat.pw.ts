@@ -79,6 +79,10 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
 test("case 28: the whole walk completes without scripting, add and remove included", async ({
   page,
 }) => {
+  // The first `__qop` post in a run pays for Next compiling the Server Action route,
+  // which on a loaded host can take most of the default budget on its own. The
+  // assertions below are the walk's, not the compiler's.
+  test.slow();
   const sessionId = await startNoJsRepeat(page);
 
   await page.getByLabel("Fleet reference").fill("NORTH-1");

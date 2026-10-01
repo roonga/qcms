@@ -18,9 +18,10 @@ than by the suite in general: `apps/portal/e2e/no-js-submit.pw.ts` (start to rec
 to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.ts` (a
 required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
 `apps/portal/e2e/no-js-select.pw.ts` (a singleChoice question above the compiler's option
-threshold), `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer) and
-`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195). Read those seven as the definition
-of the claim.
+threshold), `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer),
+`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195) and
+`apps/portal/e2e/no-js-repeat.pw.ts` (a repeating group: adding an instance, removing one,
+and the whole walk to the receipt). Read those eight as the definition of the claim.
 
 **All four of its qualifiers are gone, and each one was a control whose form value the
 respondent could not reach.** A form with a required date completed only from issue #920
@@ -31,6 +32,24 @@ onward; one with a required multiChoice or a required number only from issues #9
 compiled one, every single-choice question anywhere having four options. The vehicle
 kitchen sink now carries a required/optional `Select` pair (`q_body_type`,
 `q_overnight_parking`).
+
+**A repeating group does not qualify the claim, and the one thing worth stating is what its
+Add and Remove post is** (task 073, ADR-43 as amended, Code Owner 2026-10-01). From the
+browser's point of view it is an ordinary HTML form submit: the Add and Remove controls are
+`<button type="submit" name="__qop" value="...">` on the step's own form, carrying
+`formnovalidate`, and a button contributes its name and value only when it is the submitter.
+No scripting is involved on the way out. What is different is the response: it is a **200
+carrying the step again** rather than a 303, because the values that have to survive the
+press are the whole step and the whole step at nine instances does not fit a 4 KB cookie.
+Next's own Server Action mechanism is what produces that response, and it is the only one
+in this framework that can.
+
+**Two properties of that post are what keep this document's own rules intact.** It applies
+the roster operation and **commits no answer**, so `formnovalidate` gives up nothing the
+2026-09-13 ruling was protecting; and because no answer write happens at all, the "a
+required question cannot be CLEARED without scripting" bullet below is unchanged rather
+than amended. An emptied required field on an Add post is neither stored nor retracted, and
+`apps/portal/e2e/no-js-repeat.pw.ts` asserts exactly that against the ledger.
 
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,
@@ -201,7 +220,13 @@ formatting is locale-aware.
 that shape portal work directly:
 
 - **The origin belt** refuses cross-origin state-changing requests, and every refusal writes
-  one structured log line so a locked-out respondent is countable.
+  one structured log line so a locked-out respondent is countable. It covers every
+  state-changing entry point and not only route handlers: the no-JS Add and Remove of a
+  repeating group is a Next **Server Action**, and it calls the belt itself rather than
+  relying on Next's own origin check, which admits a request carrying no `Origin` at all,
+  ignores the scheme and never reads `Sec-Fetch-Site` (Code Owner, 2026-10-01, ruling
+  R-B2). The portal serves `Referrer-Policy: same-origin` for that action's sake, which is
+  what also made the belt's `Origin` leg live on the no-JS path (SEC-9 as amended).
 - **SEC-13** is a strict allowlist on anything logged or exported: no answers, no PII, no
   secrets.
 

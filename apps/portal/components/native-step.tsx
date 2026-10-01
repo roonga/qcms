@@ -3,7 +3,8 @@ import type { A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 import { useActionState } from "react";
 
 import { PortalShell } from "@/components/portal-shell";
-import { NO_ROSTER_ACTION, rosterOperation } from "@/app/s/[sessionId]/roster-action";
+import { rosterOperation } from "@/app/s/[sessionId]/roster-action";
+import { NO_ROSTER_ACTION } from "@/lib/repeat";
 import {
   errorSummaryEntries,
   missingOnStep,
