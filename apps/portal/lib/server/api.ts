@@ -5,6 +5,8 @@ import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 import { serverLogger } from "./logger";
 
+import { splitFieldKey } from "@/lib/repeat";
+
 /**
  * The strict BFF's internal API client (task 029, R2).
  *
@@ -273,7 +275,11 @@ export async function submitAnswer(
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ questionId, value }),
+      // The qualified name is taken apart HERE, at the one boundary that cares: above
+      // this call a field is `instanceId/questionId` throughout (task 073, Q15), and the
+      // API takes the two parts separately. Posting the whole name as the question is a
+      // 404 `UNKNOWN_QUESTION`, which is how this was found.
+      body: JSON.stringify({ ...splitFieldKey(questionId), value }),
       cache: "no-store",
     },
     headers[REQUEST_ID_HEADER],

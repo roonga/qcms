@@ -57,7 +57,7 @@ import {
   resolvedInstanceLabel,
 } from "@/lib/repeat";
 import type { CommitMoment } from "@/lib/visible";
-import type { StepResponse } from "@/lib/server/api";
+import type { RosterOpResponse, StepResponse } from "@/lib/server/api";
 
 /** A JSON body, or `undefined` when the response carries none (never throws). */
 async function readJsonSafely(res: Response): Promise<unknown> {
@@ -491,7 +491,7 @@ export function StepFlow({
             setRosterStatus({ groupId, message: t("repeat.failed") });
             return;
           }
-          const next = (await res.json()) as StepResponse;
+          const next = (await res.json()) as RosterOpResponse;
           snapshotRef.current = next;
           setSnapshot(next);
           const after = rosterMap(next.rosters)[groupId] ?? [];
@@ -502,7 +502,7 @@ export function StepFlow({
           });
           setPendingFocus(
             op === "add"
-              ? focusAfterAdd(before, after, groupId)
+              ? focusAfterAdd(next.minted, groupId)
               : focusAfterRemoval(before, instanceId ?? "", groupId),
           );
         } catch {

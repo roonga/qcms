@@ -2,6 +2,7 @@ import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 import { INSTANCE_NAME_SEPARATOR } from "@roonga/qcms-ui/repeat-node";
 import { NextResponse } from "next/server";
 
+import { splitFieldKey } from "@/lib/repeat";
 import { t } from "@/lib/i18n/en";
 import {
   ApiError,
@@ -146,13 +147,6 @@ function fieldKey(questionId: string, instanceId?: string): string {
   return instanceId === undefined
     ? questionId
     : `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
-}
-
-/** Split a decoded field name back into the pair the API's own vocabulary uses. */
-function splitFieldKey(field: string): { questionId: string; instanceId?: string } {
-  const cut = field.indexOf(INSTANCE_NAME_SEPARATOR);
-  if (cut < 0) return { questionId: field };
-  return { instanceId: field.slice(0, cut), questionId: field.slice(cut + 1) };
 }
 
 /**

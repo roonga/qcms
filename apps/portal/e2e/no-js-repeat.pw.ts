@@ -1,6 +1,7 @@
 import { expect, test } from "./support/gates.js";
 import { openDb } from "./support/db.js";
 import { readFixtures } from "./support/fixtures.js";
+import { SESSION_FIELD } from "../lib/repeat.js";
 import { countStepPosts, stepSubmit, submitStep } from "./support/no-js.js";
 
 /**
@@ -51,6 +52,23 @@ function card(page: import("@playwright/test").Page, ordinal: number) {
   return page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
 }
 
+/**
+ * Every value posted under one field name, read out of a `multipart/form-data` body.
+ *
+ * The step form's action is a Server Action, and React renders such a form as
+ * `multipart/form-data`, so the browser's post is not a query string and
+ * `URLSearchParams` reads nothing from it. This is a deliberately small reader: the
+ * parts are split on the boundary, and a part's value is what follows its blank line.
+ */
+function multipartValues(body: string, field: string): string[] {
+  const values: string[] = [];
+  for (const part of body.split(/--[-A-Za-z0-9]+/)) {
+    const match = /name="([^"]*)"\r?\n\r?\n([\s\S]*?)\r?\n?$/.exec(part.trimStart());
+    if (match !== null && match[1] === field) values.push(match[2] ?? "");
+  }
+  return values;
+}
+
 /** Start the flow without scripting and land on the step. */
 async function startNoJsRepeat(page: import("@playwright/test").Page): Promise<string> {
   await page.goto(`/f/${repeatFleetSlug}`);
@@ -72,7 +90,13 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
   // Waits for the navigation the press produces and then ASSERTS its status. Waiting for a
   // 200 specifically would turn any other answer - a framework error, a belt refusal - into
   // a bare timeout, and the response here is the whole mechanism under test.
-  const served = page.waitForResponse((response) => response.request().isNavigationRequest());
+  // The timeout is explicit and generous because the FIRST `__qop` post in a run pays
+  // for the dev server compiling the Server Action route, which on a loaded host takes
+  // longer than the default action budget on its own. It is a compile cost, not a
+  // property of the mechanism, and a real refusal still fails fast on the status below.
+  const served = page.waitForResponse((response) => response.request().isNavigationRequest(), {
+    timeout: 120_000,
+  });
   await page.getByRole("button", { name }).click();
   const response = await served;
   expect(response.status(), `the ${name} post's own response`).toBe(200);
@@ -106,9 +130,8 @@ test("case 28: the whole walk completes without scripting, add and remove includ
   await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(2);
   await expect(card(page, 2).getByLabel("Registration plate")).toHaveValue("CCC333");
 
-  // Continue, which is the ordinary whole-step POST and its 303, then Submit.
-  await submitStep(page);
-  await expect(page.getByLabel("Fleet reference")).toHaveValue("NORTH-1");
+  // Continue, which is the ordinary whole-step POST and its 303. The fixture is one
+  // step, so that Continue is also the submit and the 303 lands on the receipt.
   await submitStep(page);
   await expect(page).toHaveURL(/\/done/);
 
@@ -132,11 +155,15 @@ test("case 29: Add with a blank required field adds, writes nothing, and replays
   const sessionId = await startNoJsRepeat(page);
   const db = await openDb(databaseUrl);
   try {
-    // Answer the required plate, then Continue so the API HOLDS it: the retraction half
-    // of this case needs a previously answered required field to try to clear.
-    await page.getByLabel("Fleet reference").fill("NORTH-1");
+    // Answer the plate and press Continue so the API HOLDS it: the retraction half of
+    // this case needs a previously answered required field to try to clear. The plain
+    // `Fleet reference` is left BLANK on purpose, so the step is refused as incomplete
+    // and the respondent comes back to it: the fixture is a single step, and a Continue
+    // that satisfied it would submit the response and end the session. The refusal still
+    // stores every answer it accepted, which is the answer this case needs held.
     await card(page, 1).getByLabel("Registration plate").fill("AAA111");
     await submitStep(page);
+    await expect(page.getByTestId("error-summary")).toBeVisible();
     const beforeRows = await db.instanceAnswerRows(sessionId);
     expect(beforeRows.filter((row) => row.questionId === "q_rf_plate")).toHaveLength(1);
 
@@ -180,7 +207,7 @@ test("case 29: Add with a blank required field adds, writes nothing, and replays
 });
 
 test("case 30: exactly one __qop entry reaches the server, or none", async ({ page }) => {
-  await startNoJsRepeat(page);
+  const sessionId = await startNoJsRepeat(page);
 
   // Every Add and Remove control is a `<button name="__qop">`, and nothing else on the
   // page carries that name - no hidden input, which would serialize whether pressed or
@@ -195,12 +222,18 @@ test("case 30: exactly one __qop entry reaches the server, or none", async ({ pa
   expect(await page.locator('input[name="__qop"]').count()).toBe(0);
 
   // On the wire: press Add and read the body the browser actually sent.
+  //
+  // Parsed as MULTIPART rather than as a query string, because that is what the browser
+  // sends: React renders a form whose action is a function with
+  // `enctype="multipart/form-data"`, so a `URLSearchParams` reading of this body finds
+  // nothing at all. Each part is `name="<field>"` followed by a blank line and the value,
+  // and the assertion below is on the parts named `__qop`.
   const request = page.waitForRequest(
     (candidate) => candidate.method() === "POST" && candidate.isNavigationRequest(),
   );
   await page.getByRole("button", { name: ADD }).click();
   const body = (await request).postData() ?? "";
-  const entries = new URLSearchParams(body).getAll("__qop");
+  const entries = multipartValues(body, "__qop");
   expect(entries).toHaveLength(1);
   expect(entries[0]).toMatch(/^add:grp_vehicles:op_[0-9a-f]+$/);
 
@@ -212,7 +245,13 @@ test("case 30: exactly one __qop entry reaches the server, or none", async ({ pa
       /\/s\/ses_[^/]+\/step$/.test(new URL(candidate.url()).pathname),
   );
   await stepSubmit(page).click();
-  expect(new URLSearchParams((await continueRequest).postData() ?? "").getAll("__qop")).toEqual([]);
+  // Continue posts to the BFF route, which is a plain URL on the submit control, so its
+  // body is an ordinary URL-encoded form rather than the action's multipart one. Both
+  // readings are tried, so this cannot pass merely because the parser saw nothing.
+  const continueBody = (await continueRequest).postData() ?? "";
+  expect(new URLSearchParams(continueBody).getAll("__qop")).toEqual([]);
+  expect(multipartValues(continueBody, "__qop")).toEqual([]);
+  expect(new URLSearchParams(continueBody).getAll(SESSION_FIELD)).toEqual([sessionId]);
 });
 
 test("case 35: a re-render after a refusal shows every accepted answer and every refused value", async ({

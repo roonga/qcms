@@ -1,4 +1,8 @@
-import { addButtonId, instanceLabelFor } from "@roonga/qcms-ui/repeat-node";
+import {
+  addButtonId,
+  instanceLabelFor,
+  INSTANCE_NAME_SEPARATOR,
+} from "@roonga/qcms-ui/repeat-node";
 import type { A2UIAnswerValue, A2UIStepDocument } from "@roonga/qcms-ui";
 
 /**
@@ -55,12 +59,14 @@ export function focusAfterRemoval(
 }
 
 /** Where focus lands after an add: the instance the operation minted (Q11). */
-export function focusAfterAdd(
-  before: readonly string[],
-  after: readonly string[],
-  groupId: string,
-): string {
-  return after.find((id) => !before.includes(id)) ?? addButtonId(groupId);
+export function focusAfterAdd(minted: readonly string[], groupId: string): string {
+  // `minted` is the operation's own report of what it created, which is the only
+  // trustworthy answer: a REPLAYED post minted nothing, because the one-time token had
+  // already been spent, and the honest landing is then the group's Add button - the
+  // instance the first post created is already on the page and focus has not moved since.
+  // It replaced a diff of the rosters before and after, which gave the right answer only
+  // when the read before the operation saw exactly the same set the operation did.
+  return minted[0] ?? addButtonId(groupId);
 }
 
 /**
@@ -169,3 +175,20 @@ export const NO_ROSTER_ACTION: RosterActionState = { values: {} };
  * validates nothing).
  */
 export const SESSION_FIELD = "__qsid";
+
+/**
+ * Split a rendered field name into the pair the API takes: the question, and the
+ * instance when the field is inside a repeating group (task 073, Q15).
+ *
+ * The qualified name `instanceId/questionId` is the field's whole identity everywhere
+ * ABOVE the API: the renderer names its inputs with it, the decoder reads it back, the
+ * error summary anchors to it, and the step's values are keyed by it. The API takes the
+ * two parts separately, so this is the one place the name is taken apart, and every
+ * caller that posts an answer goes through it. A field outside a group has no separator
+ * and yields the bare question.
+ */
+export function splitFieldKey(field: string): { questionId: string; instanceId?: string } {
+  const cut = field.indexOf(INSTANCE_NAME_SEPARATOR);
+  if (cut < 0) return { questionId: field };
+  return { instanceId: field.slice(0, cut), questionId: field.slice(cut + 1) };
+}

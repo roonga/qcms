@@ -155,16 +155,11 @@ export async function rosterOperation(
         autofocusId: focusAfterRemoval(rosterBefore, operation.instanceId ?? "", operation.groupId),
       };
     }
-    // After an add, the new instance's heading. A REPLAYED post minted nothing - the
-    // one-time token had already been spent - so the difference between the two rosters
-    // is empty and the landing is the group's Add button, which is the honest answer:
-    // the instance the first post created is already on the page and focus has not
-    // moved since.
-    const after =
-      result.rosters.find((entry) => entry.groupId === operation.groupId)?.instances ?? [];
+    // After an add, the new instance's heading, named by the operation's own `minted`
+    // report rather than inferred.
     return {
       values,
-      autofocusId: focusAfterAdd(rosterBefore, after, operation.groupId),
+      autofocusId: focusAfterAdd(result.minted, operation.groupId),
     };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
