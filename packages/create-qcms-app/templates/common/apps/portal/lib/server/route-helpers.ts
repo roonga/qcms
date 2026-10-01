@@ -60,11 +60,11 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * no-JS path too** rather than nearly dead.
  *
  * **What that does NOT change is the order or the acceptance rule.** `Sec-Fetch-Site`
- * is still read first and is still what the belt relies on, because it is the header
- * that distinguishes a same-origin navigation from a cross-site one; `Origin` only
- * says who claims to have sent the request. And a browser sending no `Sec-Fetch-Site`
- * at all is still refused (see below), which is a separate decision with its own
- * population analysis and is deliberately not reopened here.
+ * is read first because it is the stronger signal: it distinguishes a same-origin
+ * navigation from a cross-site one, while `Origin` only says who claims to have sent
+ * the request. And `null` must still be refused, because a page can declare
+ * `no-referrer` on itself to produce it. The rule is unchanged and only the set it
+ * refuses has narrowed (ruling R-B1).
  *
  * The `Origin` branch was already live for the **hydrated** path, because `fetch()`
  * requests are mode `cors`, which no referrer policy touches, so those always carried
@@ -103,23 +103,25 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  *
  * ## What this refuses that a respondent might not expect
  *
- * A browser that sends no `Sec-Fetch-Site` at all (Fetch Metadata predates Safari
- * 16.4 and Firefox 90) is refused. Failing closed is the right side to err on for a
- * security belt, and it matches the admin twin, but it is a real cost on a public
- * respondent surface rather than a free one: see the `Referrer-Policy` follow-up noted
- * on issue #487.
+ * A browser that sends no `Sec-Fetch-Site` (Fetch Metadata predates Safari 16.4 and
+ * Firefox 90) is refused **only if it also sends no matching `Origin`**, which since
+ * 2026-10-01 is a narrower set than it was. Failing closed is the right side to err on
+ * for a security belt, and it matches the admin twin, but it is a real cost on a public
+ * respondent surface rather than a free one: the `Referrer-Policy` follow-up noted on
+ * issue #487 is what the Code Owner settled on 2026-10-01 (SEC-9 as amended), and it is
+ * what narrowed this.
  *
- * **The reason it was unavoidable has weakened, and the rule has deliberately not
- * moved.** The old argument was that such a browser's only other signal is
- * `Origin: null`, which an attacker's page can also produce by declaring
- * `Referrer-Policy: no-referrer` on itself, so the two are indistinguishable. Under
- * the portal's new `same-origin` policy an honest Fetch-Metadata-less browser posting
- * from a portal page sends this portal's **real** origin instead, which an attacker's
- * page cannot forge, so the two are no longer indistinguishable and admitting a
- * matching `Origin` with no `Sec-Fetch-Site` would be defensible. Whether to do it is a
- * separate decision about who the belt admits, not a consequence of task 073, so it is
- * recorded here and filed rather than taken (issue #504's population analysis is what
- * it needs).
+ * **The rule itself has deliberately not moved** (ruling R-B1). Its old justification
+ * was that such a browser's only other signal is `Origin: null`, which an attacker's
+ * page can also produce by declaring `Referrer-Policy: no-referrer` on itself, so the
+ * two were indistinguishable. Under the portal's `same-origin` policy an honest
+ * Fetch-Metadata-less browser posting from a portal page sends this portal's **real**
+ * origin, which an attacker's page cannot forge, and the `Origin` leg below admits it.
+ * What is still refused is a request carrying `null` or no `Origin` at all, because an
+ * attacker's page can produce either. Whether that remaining set is still worth the
+ * same accepted cost is a measurement question rather than a logic one, and it is
+ * filed: issue #1024 re-measures the population, and issue #504's analysis is what it
+ * updates.
  *
  * **This is not only the no-JS path**, which is how issue #504 framed it after
  * reading an earlier version of this comment (corrected in issue #579).
@@ -165,6 +167,37 @@ export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
   if (!allowed) logOriginBeltRefusal(request);
   return allowed;
+}
+
+/**
+ * The same belt, for a caller that has headers rather than a `Request`: a **Next
+ * Server Action** (task 073, ADR-43 as amended).
+ *
+ * An action is handed its form data and nothing else, so its own request reaches it
+ * only through `headers()`. This wraps those headers, plus the path the action runs
+ * against, back into the shape the belt reads, so the decision, the classification and
+ * the refusal line are the ONE implementation rather than a second one written for the
+ * action's shape.
+ *
+ * **It is belted at all because Next's own action check is weaker in three ways**
+ * (Code Owner, 2026-10-01, ruling R-B2). Next compares the request's `Origin` to the
+ * `Host` or `X-Forwarded-Host`, and: it **admits a request carrying no `Origin` at
+ * all** after only a warning; it compares the host while **ignoring the scheme**; and
+ * it **never reads `Sec-Fetch-Site`**. The belt refuses an absent and a `null` origin,
+ * reads Fetch Metadata first, and compares against the full configured base URL
+ * including its scheme. So the action gets the belt like every other state-changing
+ * entry point, and Next's check stands behind it rather than instead of it.
+ */
+export function isSameOriginAction(headers: Headers, pathname: string): boolean {
+  let url: string;
+  try {
+    url = new URL(pathname, portalBaseUrl()).toString();
+  } catch {
+    // An unreadable base URL is a configuration fault, and the belt fails closed on
+    // one exactly as `classifyOrigin` reports `unverifiable` rather than throwing.
+    return false;
+  }
+  return isSameOriginPost(new Request(url, { method: "POST", headers }));
 }
 
 /**

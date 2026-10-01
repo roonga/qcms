@@ -211,7 +211,7 @@ describe("the redirect goes back to this portal or to the root, never elsewhere"
   });
 });
 
-describe("the Referer leg, live on this deployment since task 073", () => {
+describe("the Referer leg, live on this deployment since 2026-10-01", () => {
   // `proxy.ts` sent `Referrer-Policy: no-referrer` until task 073, under which a form
   // navigation carries no `Referer` at all and the hidden field did all the work. The
   // portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so a
@@ -219,6 +219,15 @@ describe("the Referer leg, live on this deployment since task 073", () => {
   // answer. It is held to exactly the rule it always was, which is why the cases below
   // did not move: the hidden field still wins, and a foreign `Referer` still falls back
   // to the root.
+  it("honours a same-origin Referer at a step when the hidden field is absent", () => {
+    // The case the policy change makes reachable on this deployment rather than only on
+    // one that relaxed the header at its ingress: a respondent changing their appearance
+    // from a step page, with no hidden field, lands back on that step.
+    expect(safeReturnPath(undefined, `${PORTAL_BASE}/s/ses_9f3a2b1c`, PORTAL_BASE)).toBe(
+      "/s/ses_9f3a2b1c",
+    );
+  });
+
   it("accepts a Referer naming this portal's own origin", () => {
     expect(safeReturnPath(undefined, `${PORTAL_BASE}/s/ses_1`, PORTAL_BASE)).toBe("/s/ses_1");
     expect(safeReturnPath(undefined, `${PORTAL_BASE}/f/road-cover?state=error`, PORTAL_BASE)).toBe(

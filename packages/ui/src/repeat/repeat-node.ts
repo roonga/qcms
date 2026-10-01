@@ -143,3 +143,20 @@ export const REMOVE_LABEL_PLACEHOLDER = "{label}";
 export function removeLabelFor(template: string, instanceLabel: string): string {
   return template.replaceAll(REMOVE_LABEL_PLACEHOLDER, () => instanceLabel);
 }
+
+/**
+ * The DOM id of a group's Add control: the third focus destination after a removal
+ * (Q11), when the removed instance was the only one and the button is the only
+ * candidate left on the page.
+ *
+ * It lives in this module rather than beside the component that renders it because a
+ * **server** module needs it: the no-JS Server Action computes the focus destination
+ * and hands it back for the re-render, and a `"use server"` module that reached for the
+ * component barrel would pull the whole React renderer into the server graph. Next
+ * refuses that outright ("You're importing a module that depends on `useState` into a
+ * React Server Component module"), which is the failure this placement prevents rather
+ * than a style it follows.
+ */
+export function addButtonId(groupId: string): string {
+  return `qcms-repeat-add-${groupId}`;
+}

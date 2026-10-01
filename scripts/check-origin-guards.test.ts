@@ -57,17 +57,20 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *     shape in this repo is `if (!isSameOriginPost(request)) return ...`, where the
  *     answer cannot be discarded silently, unlike the returned-Response guard that
  *     rule 1 of the admin's test had to defend against.
- *   - It reads route handlers. **A Server Action is a different mechanism with a
- *     different guard, and since task 073 this file checks that claim rather than
- *     asserting it.** Next verifies the origin of every action call itself, comparing
- *     the request's `Origin` to the `Host` or `X-Forwarded-Host`, so an action needs no
- *     belt. That check is what makes the portal's `Referrer-Policy: same-origin`
- *     load-bearing (SEC-9 as amended, Code Owner 2026-10-01): under `no-referrer` a
- *     navigation POST serializes its `Origin` as the literal `null`, which Next refuses,
- *     so the portal's own no-JS Add and Remove would die in the framework. The rule
- *     below therefore enumerates every `"use server"` module in the tree and pins two
- *     things - which they are, and that the policy they depend on is still served - so
- *     that a second action, or a policy edit, is a red rather than a silent hole.
+ *   - It reads route handlers. **A Server Action is a state-changing entry point too,
+ *     and it is NOT exempt from the belt.** This file said the opposite until task 073:
+ *     "Server actions are out of scope and do not need the belt: Next verifies the
+ *     origin of every action call itself." Next does verify it, and the Code Owner
+ *     ruled on 2026-10-01 (R-B2) that the verification is not enough, because it
+ *     **admits a request carrying no `Origin` at all** after only a warning, compares
+ *     the host while **ignoring the scheme**, and **never reads `Sec-Fetch-Site`**. The
+ *     rule below therefore enumerates every `"use server"` module in the tree and
+ *     asserts each one calls the belt, exactly as it asserts it of a route handler,
+ *     plus the referrer policy each app must serve for its own actions to be admitted
+ *     by Next at all. What it cannot read is an action whose belt call is behind a
+ *     helper; that is the same shape limit as the route rule above, and the coverage is
+ *     named in `apps/portal/lib/server/origin-guard.test.ts`, which drives the real
+ *     action with a refused request.
  *   - It cannot know that a route which changes state was spelled `GET`. A handler
  *     that mutates behind a read verb is a different defect, and one no static scan
  *     of verb names can reach.
@@ -405,7 +408,28 @@ function referrerPolicyOf(app: string): string | undefined {
   return /"Referrer-Policy",\s*"([^"]+)"/.exec(source)?.[1];
 }
 
-describe("task 073: a Server Action is guarded by Next, and that guard has a premise", () => {
+/** The belt, as an action calls it: the headers variant (task 073, R-B2). */
+const ACTION_BELT = "isSameOriginAction(";
+
+describe("task 073: a Server Action carries the belt too (R-B2)", () => {
+  it("calls the belt in every action that changes state", () => {
+    // The same rule the route handlers are held to, over the other entry-point shape.
+    // The portal's action calls the headers variant, because an action is handed its
+    // form data and reaches its own request only through `headers()`; the admin's
+    // actions are unreachable without JavaScript and are the case R-B2 left alone, so
+    // they are listed as the exception rather than silently skipped.
+    const unbelted = SERVER_ACTIONS.filter((path) => {
+      const source = readFileSync(`${REPO_ROOT}${path}`, "utf8");
+      return !source.includes(ACTION_BELT) && !source.includes(BELT);
+    });
+    expect(unbelted).toEqual([
+      "apps/admin/app/(shell)/forms/actions.ts",
+      "apps/admin/app/(shell)/questions/actions.ts",
+      "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/webhooks/actions.ts",
+    ]);
+  });
+
   it("finds the actions in the tree, and they are exactly these", () => {
     // An exact list rather than a superset, and deliberately so. A Server Action is a
     // request entry point that SEC-9's belt does not cover, so a second one on the

@@ -343,12 +343,14 @@ export async function assertPortalServesRestoredForm(slug, labels) {
   // all, and node's `fetch` declares none, so without this the drill reports
   // `state=error` and reads as "your restored data is missing" when the restore is
   // fine. That is the worst possible false alarm to raise during a recovery.
-  // `Origin: null` is what a real form POST sends here, because the portal serves
-  // `Referrer-Policy: no-referrer`; `Sec-Fetch-Site` is the header the belt reads.
+  // The `Origin` is the harness portal's own, which is what a real form POST sends here
+  // since 2026-10-01: the portal serves `Referrer-Policy: same-origin`, so a navigation
+  // POST from a portal page carries the real origin. It sent the literal `null` under the
+  // old `no-referrer` policy. `Sec-Fetch-Site` is still the header the belt reads first.
   const start = await fetch(`${base}/f/${slug}/start`, {
     method: "POST",
     redirect: "manual",
-    headers: { "sec-fetch-site": "same-origin", origin: "null" },
+    headers: { "sec-fetch-site": "same-origin", origin: base },
   });
   if (start.status !== 303) {
     throw new Error(

@@ -32,8 +32,12 @@ import { REQUEST_ID_HEADER, normalizeRequestId } from "./lib/server/request-id";
  * security while being worth nothing (a forged cookie passes it), and would add a second
  * place to keep the route list in sync.
  *
- * `Referrer-Policy: no-referrer` matches the portal: admin URLs carry form and response
- * identifiers, and nothing should learn them from an outbound link.
+ * `Referrer-Policy: no-referrer` is **stricter than the portal's `same-origin`** since
+ * 2026-10-01 (SEC-9 as amended), and deliberately so: admin URLs carry form and response
+ * identifiers, and nothing should learn them from an outbound link. The portal was
+ * widened for a Next Server Action reachable without scripting, which Next's own origin
+ * check refuses under `no-referrer`; this app has no such action, so it keeps the
+ * stricter value and its belt reasoning below keeps depending on `Origin: null`.
  */
 export function proxy(request: NextRequest): NextResponse {
   const nonceBytes = crypto.getRandomValues(new Uint8Array(16));

@@ -99,36 +99,34 @@ describe("portal security-header proxy", () => {
   });
 
   /**
-   * `Referrer-Policy: same-origin`, which on THIS surface is a mechanism and not only a
-   * privacy header (issue #555, then the Code Owner's ruling of 2026-10-01 for task
-   * 073).
+   * `Referrer-Policy: same-origin`, pinned because two mechanisms read it and neither
+   * would go red if it moved (issue #555, then the Code Owner's ruling of 2026-10-01).
    *
-   * The portal sent `no-referrer` until 073. Per Fetch, a form-navigation POST under
-   * that policy serializes its `Origin` as the literal string `null`, and **Next's
-   * Server Action handler compares `Origin` to the `Host` and refuses a mismatch**, so
-   * the no-JS Add and Remove of a repeating group - which is a Server Action, because
-   * that is the only mechanism that re-renders the step in the same 200 response and so
-   * carries the respondent's typed values back - was aborted by the framework before any
-   * QCMS code ran. `serverActions.allowedOrigins: ['null']` would have admitted every
-   * null-origin POST from anywhere and was refused.
+   * The portal sent `no-referrer` until task 073. It was **widened to `same-origin` for
+   * the `__qop` Server Action**: per Fetch, a form-navigation POST under `no-referrer`
+   * serializes its `Origin` as the literal `null`, and Next's action handler compares
+   * `Origin` to the `Host` and refuses `null` outright, so the no-JS Add and Remove of a
+   * repeating group died in the framework before any QCMS code ran.
+   * `serverActions.allowedOrigins: ['null']` would have admitted every null-origin POST
+   * from anywhere and was refused.
    *
-   * So a reader who changes this value is changing what two mechanisms observe, and it
-   * should go red here rather than quietly:
+   * So the value is pinned against movement in both directions:
    *
-   * - back to `no-referrer` and the no-JS roster operation stops working, with a
-   *   framework error rather than a QCMS one;
-   * - to anything that sends a referrer cross-origin and the privacy property this
-   *   header is usually set for is lost.
+   * - **back to `no-referrer`** and the `__qop` action breaks again, with a framework
+   *   error rather than a QCMS one;
+   * - **wider than `same-origin`** (`origin`, `strict-origin-when-cross-origin`, or
+   *   nothing) and the portal starts leaking `/s/{sessionId}` URLs cross-origin, to
+   *   Turnstile and to any outbound link a form's help text carries.
    *
-   * `same-origin` gives up nothing to a third party: Turnstile and outbound links still
-   * receive no `Referer`. What a same-origin request now carries is this page's own URL,
-   * which is already in that request's own path.
+   * `same-origin` itself gives up nothing to a third party: a cross-origin request
+   * still receives no `Referer` at all (Referrer Policy section 3.3). What a
+   * same-origin request now carries is the submitting page's own URL, which is already
+   * in that request's own path.
    *
    * **The admin and the API deliberately keep `no-referrer`** (`apps/admin/proxy.test.ts`,
    * `apps/api/e2e/security/02-transport-and-limits.e2e.ts`): neither has a Server Action
-   * on a no-JS path, and the admin's belt reasoning depends on its form posts arriving
-   * with `Origin: null`. The portal's belt does not depend on it either way, because
-   * `Sec-Fetch-Site` is the header it reads (`lib/server/route-helpers.ts`).
+   * reachable without scripting, admin URLs carry form and response identifiers, and the
+   * admin's own belt reasoning depends on its form posts arriving with `Origin: null`.
    */
   it("sets Referrer-Policy: same-origin, which Next's Server Action check requires", () => {
     const response = responseFor();

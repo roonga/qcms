@@ -26,14 +26,16 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  * passes against the unguarded handler is the exact defect class the 040 review spent
  * its run cataloguing.
  *
- * `Origin: null` has its own case, and since task 073 it means something narrower than
- * it did. Per Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes
- * its origin as the literal string `null`. The portal sent that policy until 073 and
- * now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so `null` is no
- * longer what the portal's own no-JS form produces: it is what a page that declares
- * `no-referrer` on ITSELF produces, which is what an attacker's page does. It must be
- * refused rather than read as "local", and `Sec-Fetch-Site` is what separates a genuine
- * same-origin navigation from a cross-site one, which is why it is read first.
+ * `Origin: null` has its own case, and since 2026-10-01 it means something narrower
+ * than it did. Per Fetch, a navigation POST under `Referrer-Policy: no-referrer`
+ * serializes its origin as the literal string `null`. The portal sent that policy until
+ * task 073 and now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), so
+ * `null` is no longer what the portal's own no-JS form produces: it is what a page that
+ * declares `no-referrer` on ITSELF produces, or a sandboxed context, and an attacker's
+ * page is both. It must be refused rather than read as "local", and `Sec-Fetch-Site` is
+ * read first because it is the stronger signal: it distinguishes a same-origin
+ * navigation from a cross-site one, while `Origin` only says who claims to have sent
+ * the request.
  *
  * ## The refusal is also asserted to be observable (issue #578)
  *
@@ -233,18 +235,20 @@ const ORIGIN_CASES: readonly OriginCase[] = [
     logged: { beltFetchSite: "absent", beltOrigin: "mismatch" },
   },
   {
-    name: "our own Origin and no Fetch Metadata (the hydrated fetch() path)",
+    name: "our own Origin and no Fetch Metadata (hydrated fetch, and the no-JS path on an old browser)",
     headers: { origin: PORTAL_BASE },
     allowed: true,
   },
   {
-    name: "Origin: null and no Fetch Metadata (a page declaring no-referrer on itself)",
+    name: "Origin: null and no Fetch Metadata (an attacker's page, or a sandboxed context)",
     headers: { origin: "null" },
     allowed: false,
-    // Refused, and since task 073 this shape is no longer ambiguous: the portal sends
-    // `same-origin`, so its own no-JS form carries the real origin and a `null` one
-    // came from a page that suppressed its own referrer. The belt's acceptance rule is
-    // deliberately unchanged either way (issue #504 owns that decision).
+    // Refused, and since 2026-10-01 this shape is no longer ambiguous. The portal sends
+    // `Referrer-Policy: same-origin`, so its own no-JS form carries the real origin and
+    // is admitted by the case above; a `null` origin now comes from a page that
+    // suppressed its own referrer or from a sandboxed context, which is what an
+    // attacker's page looks like. The rule is unchanged and only the refused set has
+    // narrowed (ruling R-B1; issue #1024 re-measures the population).
     logged: { beltFetchSite: "absent", beltOrigin: "null" },
   },
   {

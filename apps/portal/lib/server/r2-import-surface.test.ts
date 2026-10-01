@@ -121,6 +121,68 @@ describe("R2 import surface (strict BFF)", () => {
     }
   });
 
+  /**
+   * A `"use server"` module must not reach the `@roonga/qcms-ui` BARREL for a value
+   * (task 073).
+   *
+   * Not an R2 rule but a graph rule, and it is here because this is the file that
+   * already reasons about which module may see which. A Server Action runs in the React
+   * Server Component graph, and the barrel re-exports the renderer: a value import from
+   * it pulls `createContext`, `useState` and `useSyncExternalStore` into a server
+   * module, which Next refuses outright with "You're importing a module that depends on
+   * `useState` into a React Server Component module". The whole portal then fails to
+   * boot, which is how this was found - every spec in the suite red at once, with the
+   * real cause four lines into a dev-server log.
+   *
+   * The React-free subpaths (`./native-submit`, `./repeat-node`) are what a server
+   * module reads, and a bare `import type` is erased and harmless.
+   */
+  it("keeps a Server Action out of the @roonga/qcms-ui component graph (task 073)", () => {
+    const REACT_FREE_SUBPATHS = new Set([
+      "@roonga/qcms-ui/native-submit",
+      "@roonga/qcms-ui/repeat-node",
+    ]);
+    const byPath = new Map(files.map((file) => [file.path, file.text]));
+    /** Resolve a local specifier to a scanned file, or `undefined` for a package. */
+    const resolve = (from: string, spec: string): string | undefined => {
+      let base: string;
+      if (spec.startsWith("@/")) base = `${PORTAL_ROOT}${spec.slice(2)}`;
+      else if (spec.startsWith(".")) base = new URL(spec, `file://${from}`).pathname;
+      else return undefined;
+      for (const candidate of [base, `${base}.ts`, `${base}.tsx`, `${base}/index.ts`]) {
+        if (byPath.has(candidate)) return candidate;
+      }
+      return undefined;
+    };
+    // **The walk is the point.** The import that broke the build was not in the action
+    // at all: it was two hops away, in a helper the action imports, and a check of the
+    // action's own imports would have been green over it. So this follows every local
+    // hop out of each `"use server"` module and holds the whole reachable set to the
+    // rule, which is what "in the server graph" actually means.
+    const offenders: string[] = [];
+    for (const { path, text } of files) {
+      if (!/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/.test(text)) continue;
+      const seen = new Set<string>([path]);
+      const queue = [path];
+      while (queue.length > 0) {
+        const current = queue.pop() as string;
+        for (const { spec, isType } of importsOf(byPath.get(current) ?? "")) {
+          if (isType) continue;
+          if (spec.startsWith("@roonga/qcms-ui") && !REACT_FREE_SUBPATHS.has(spec)) {
+            offenders.push(`${path} -> ${current} -> ${spec}`);
+            continue;
+          }
+          const next = resolve(current, spec);
+          if (next !== undefined && !seen.has(next)) {
+            seen.add(next);
+            queue.push(next);
+          }
+        }
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
   // The pure transport decoder must not reach into @roonga/qcms-core either - its kind
   // hints come from @roonga/qcms-ui's React-free subpath, and coercion is not validation.
   it("the step-form decoder is transport-only (no @roonga/qcms-core)", () => {

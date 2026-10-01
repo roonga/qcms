@@ -3,7 +3,7 @@
  * types, the `__qop` wire vocabulary, the render-time expansion, and the two
  * components the registry renders.
  */
-export { RepeatGroup, addButtonId } from "./RepeatGroup.tsx";
+export { RepeatGroup } from "./RepeatGroup.tsx";
 export { RepeatInstance } from "./RepeatInstance.tsx";
 export {
   QcmsRepeatContext,
@@ -12,6 +12,7 @@ export {
 } from "./repeat-context.tsx";
 export { expandRepeatGroups, hasRepeatGroup, type RepeatExpansion } from "./repeat-expand.ts";
 export {
+  addButtonId,
   INSTANCE_NAME_SEPARATOR,
   INSTANCE_ORDINAL_PLACEHOLDER,
   REMOVE_LABEL_PLACEHOLDER,

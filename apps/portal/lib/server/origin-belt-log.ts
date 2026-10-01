@@ -13,9 +13,14 @@ import { serverLogger } from "./logger";
  * beside it. That is not a signal, it is the lack of one, and it cannot be counted.
  *
  * That matters more here than a missing log line usually would. The accepted position
- * on the Fetch Metadata baseline is that a measured floor of about 1.6% of browsers
- * send no `Sec-Fetch-Site` and are refused on the no-JS form path. Accepting a known,
- * small, permanent population of locked-out respondents is a decision someone made.
+ * on the Fetch Metadata baseline is that about 1.6% of browsers send no
+ * `Sec-Fetch-Site`, and those that **also send no matching `Origin`** are refused on
+ * the no-JS form path. That figure is an **upper bound on the refused population and
+ * not the population itself**, and it has been one since 2026-10-01: the portal now
+ * serves `Referrer-Policy: same-origin`, so a Fetch-Metadata-less browser posting from
+ * a portal page sends this portal's real origin and is admitted by the `Origin` leg. How
+ * much of the 1.6% that leaves is unmeasured (issue #1024). Accepting a known, small,
+ * permanent population of locked-out respondents is a decision someone made.
  * Being unable to see that population is not part of that decision: without a line
  * here we cannot tell a correctly-refused forgery from an incorrectly-refused
  * respondent, and we cannot tell whether the real rate matches the estimate.
@@ -73,6 +78,7 @@ export const ORIGIN_BELT_REFUSED = "origin.belt.refused";
 export type BeltRoute =
   | "/appearance"
   | "/f/{formSlug}/start"
+  | "/s/{sessionId}"
   | "/s/{sessionId}/answers"
   | "/s/{sessionId}/roster"
   | "/s/{sessionId}/step"
@@ -95,6 +101,11 @@ export type BeltRoute =
  * appearance unchanged, and `forbidden` is a hydrated `fetch()` refused with a 403 - a
  * shape no ordinary respondent produces.
  *
+ * `rendered-unchanged` is the newest member and the only one that is not a status
+ * code: the no-JS Add and Remove is a Server Action, and a refused action returns the
+ * step it was pressed on with a message and nothing applied. An operator reading it
+ * knows the respondent saw their own step rather than a redirect or a 403.
+ *
  * `redirect-to-root` is its own member rather than folded into `redirect-to-step`
  * because it is the only refusal that moves a respondent OFF the page they were reading.
  * A refused appearance submission cannot be sent back to the page it named, since a
@@ -103,7 +114,16 @@ export type BeltRoute =
  * why. This line is the only place that fact exists.
  */
 export type BeltOutcome =
-  "redirect-to-entry" | "redirect-to-root" | "redirect-to-step" | "forbidden";
+  | "redirect-to-entry"
+  | "redirect-to-root"
+  | "redirect-to-step"
+  /**
+   * The step re-rendered unchanged with a message, which is what a refused Server
+   * Action produces (task 073): the respondent is already on the page the action
+   * answers with, so there is nothing to redirect to and nothing was applied.
+   */
+  | "rendered-unchanged"
+  | "forbidden";
 
 /**
  * How the request's `Sec-Fetch-Site` header reads.
@@ -123,21 +143,21 @@ export type BeltFetchSite =
 /**
  * How the request's `Origin` header reads, relative to this portal's own base URL.
  *
- * `null` is its own case rather than a mismatch, and it is worth keeping distinct even
- * though the portal no longer produces it.
+ * `null` is its own case rather than a mismatch, and what it identifies changed on
+ * 2026-10-01.
  *
- * Until task 073 the portal sent `Referrer-Policy: no-referrer`, under which a no-JS
- * form navigation serializes its origin as the literal string `null` (Fetch), so
- * `absent` or `null` beside `beltFetchSite: "absent"` was the shape of an honest old
- * browser. The portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as
- * amended, because Next's Server Action check refuses a null origin), so a navigation
- * POST from a portal page carries this portal's real origin and a refusal from an
- * honest old browser reads `match` beside `absent` instead.
+ * Until then the portal sent `Referrer-Policy: no-referrer`, under which a no-JS form
+ * navigation serializes its origin as the literal string `null` (Fetch), so `absent` or
+ * `null` beside `beltFetchSite: "absent"` was the shape of an honest old browser. The
+ * portal now sends `same-origin` (SEC-9 as amended, for the `__qop` Server Action), so:
  *
- * `null` therefore now identifies a post from a page that declared `no-referrer` on
- * ITSELF, which is what an attacker's page does, so the case is more informative than
- * it was rather than dead. `mismatch` is still a request that named a foreign origin:
- * a forgery attempt or a misconfigured embed.
+ * - the portal's **own** no-JS post classifies as `match` and is admitted;
+ * - `null` beside `absent` is a post from a page that suppressed its own referrer or
+ *   from a sandboxed context, which is what an attacker's page looks like;
+ * - `absent` beside `absent` is the old-browser shape, and the one still refused.
+ *
+ * `mismatch` is unchanged: a request that named a foreign origin, so a forgery attempt
+ * or a misconfigured embed.
  *
  * `unverifiable` means `QCMS_PORTAL_BASE_URL` is unreadable, so there is nothing to
  * compare against. It exists so that a configuration fault cannot turn this logging
@@ -172,6 +192,18 @@ interface BeltedRoute {
  */
 const BELTED_ROUTES: readonly BeltedRoute[] = [
   { route: "/appearance", pattern: /^\/appearance\/?$/, outcome: "redirect-to-root" },
+  // The flow page's own path, which is where the no-JS Add and Remove of a repeating
+  // group posts: it is a Next **Server Action**, and a Server Action runs against the
+  // page that declares it (task 073, ADR-43 as amended). It is the one belted entry
+  // point in this table that is not a `route.ts`, and it is belted rather than left to
+  // Next's own origin check because that check is weaker in three ways: it admits a
+  // request carrying no `Origin` at all after only a warning, it compares the host
+  // while ignoring the scheme, and it never reads `Sec-Fetch-Site` (Code Owner,
+  // 2026-10-01, ruling R-B2).
+  //
+  // A refusal re-renders the step unchanged with a message, which is neither a redirect
+  // nor a 403: the respondent is already on the page the action answers with.
+  { route: "/s/{sessionId}", pattern: /^\/s\/[^/]+\/?$/, outcome: "rendered-unchanged" },
   {
     route: "/f/{formSlug}/start",
     pattern: /^\/f\/[^/]+\/start\/?$/,

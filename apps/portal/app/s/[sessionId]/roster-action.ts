@@ -1,10 +1,12 @@
 "use server";
 
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
+import { headers } from "next/headers";
 
 import { t } from "@/lib/i18n/en";
 import { focusAfterAdd, focusAfterRemoval } from "@/lib/repeat";
 import { ApiError, getStep, rosterOp } from "@/lib/server/api";
+import { isSameOriginAction } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
 import { decodeStepForm } from "@/lib/server/step-form";
 
@@ -38,15 +40,28 @@ import { decodeStepForm } from "@/lib/server/step-form";
  * convenient, and it is why `docs/portal-constraints.md`'s "a required question cannot
  * be CLEARED without scripting" bullet is unchanged.
  *
- * ## Why there is no origin belt here
+ * ## It runs SEC-9's belt itself, and Next's own check is not a substitute
  *
- * Next verifies a Server Action's own origin: it compares the request's `Origin` to
- * the `Host` or `X-Forwarded-Host` and refuses a mismatch. That is why the portal
- * serves `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01): under
- * `no-referrer` a navigation POST serializes its `Origin` as the literal `null`, which
- * Next refuses, so the operation died in the framework. `scripts/check-origin-guards.test.ts`
- * enumerates this action and states that reasoning, so a second action added without
- * one is a red gate rather than a silent gap.
+ * Ruled by the Code Owner on 2026-10-01 (R-B2). Next does verify an action's origin:
+ * it compares the request's `Origin` to the `Host` or `X-Forwarded-Host` and refuses a
+ * mismatch. That is weaker than the belt in three ways, each of which matters on a
+ * public respondent surface:
+ *
+ * - it **admits a request carrying no `Origin` at all**, after only a warning;
+ * - it compares the host while **ignoring the scheme**;
+ * - it **never reads `Sec-Fetch-Site`**, which is the header the belt relies on.
+ *
+ * So this action is the sixth caller of `isSameOriginPost` and writes the same refusal
+ * log line as the other five, with its own `BeltRoute` template (`/s/{sessionId}`,
+ * because an action runs against the page that declares it) and its own outcome
+ * (`rendered-unchanged`: the respondent is already on the page the action answers
+ * with). `scripts/check-origin-guards.test.ts` enumerates it and says where its
+ * coverage lives, so a second action added without a belt is a red gate.
+ *
+ * Next's check still matters in one direction: it is why the portal serves
+ * `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01). Under `no-referrer` a
+ * navigation POST serializes its `Origin` as the literal `null`, which Next refuses
+ * outright, so the operation died in the framework before the belt could admit it.
  *
  * ## R2
  *
@@ -105,8 +120,19 @@ export async function rosterOperation(
   _previous: RosterActionState,
   formData: FormData,
 ): Promise<RosterActionState> {
+  // SEC-9's belt, first, exactly as every belted route handler runs it above its
+  // credential read. An action gets no `Request`, so its headers are wrapped back into
+  // the shape the belt reads (`isSameOriginAction`); the decision and the refusal line
+  // are the one implementation.
   const { answers, rosterOp: operation } = decodeStepForm(formData);
   const values = typedValues(answers);
+  if (!isSameOriginAction(await headers(), `/s/${sessionId}`)) {
+    // The same shape as every other belt refusal on this surface: nothing is applied,
+    // and the respondent gets their own step back. Their typed values still ride the
+    // re-render, because a request that could not prove its origin is still a request
+    // whose body this page rendered the fields for.
+    return { values, message: t("repeat.failed") };
+  }
   // No operation in the post: nothing to apply, and the re-render still shows what the
   // respondent typed. Reachable only from a forged post, since every path into this
   // action is a `__qop` button.

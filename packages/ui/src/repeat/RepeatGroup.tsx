@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { useQcmsNativeSubmit } from "../field-context.tsx";
 import { useQcmsRepeat } from "./repeat-context.tsx";
-import { ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
+import { addButtonId, ROSTER_OP_FIELD, rosterOpValue } from "./repeat-node.ts";
 import type { RepeatGroupNode } from "./repeat.schema.ts";
 
 /**
@@ -46,11 +46,6 @@ import type { RepeatGroupNode } from "./repeat.schema.ts";
  * button, which is then the only candidate left on the page. It therefore carries a
  * stable id the host can reach.
  */
-
-/** The DOM id of a group's Add control: the third focus destination after a removal. */
-export function addButtonId(groupId: string): string {
-  return `qcms-repeat-add-${groupId}`;
-}
 
 export function RepeatGroup({
   groupId,

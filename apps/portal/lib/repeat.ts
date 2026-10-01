@@ -1,4 +1,4 @@
-import { addButtonId, instanceLabelFor } from "@roonga/qcms-ui";
+import { addButtonId, instanceLabelFor } from "@roonga/qcms-ui/repeat-node";
 import type { A2UIStepDocument } from "@roonga/qcms-ui";
 
 /**
@@ -15,6 +15,13 @@ import type { A2UIStepDocument } from "@roonga/qcms-ui";
  * It decides nothing about the roster. Liveness is a function of the count source and
  * the API computes it above the evaluator (R2); what arrives here is the live list in
  * roster order.
+ *
+ * **Every value import here is from `@roonga/qcms-ui/repeat-node`, the React-free
+ * subpath, and that is a boundary rather than a preference.** The no-JS Server Action
+ * imports this module, and a `"use server"` module runs in the React Server Component
+ * graph: reaching the component barrel from there pulls the whole renderer in and Next
+ * refuses the build outright ("You're importing a module that depends on `useState`
+ * into a React Server Component module"). The type import is erased and harmless.
  */
 
 /**

@@ -61,7 +61,6 @@ export {
   RepeatGroupSchema,
   RepeatInstance,
   RepeatInstanceSchema,
-  addButtonId,
   expandRepeatGroups,
   hasRepeatGroup,
   useQcmsRepeat,
@@ -73,6 +72,7 @@ export type {
   RepeatInstanceNode,
 } from "./repeat/index.ts";
 export {
+  addButtonId,
   INSTANCE_NAME_SEPARATOR,
   INSTANCE_ORDINAL_PLACEHOLDER,
   REMOVE_LABEL_PLACEHOLDER,
