@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (389 files common to both shapes)
+### Scaffolded paths (395 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 378   |
+| `apps/`                                                              | 384   |
 | `apps/admin/`                                                        | 230   |
 | `apps/admin/app/`                                                    | 69    |
 | `apps/admin/app/(shell)/`                                            | 51    |
@@ -187,8 +187,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/middleware/`                                           | 6     |
 | `apps/api/src/routes/`                                               | 1     |
 | `apps/api/src/schedulers/`                                           | 4     |
-| `apps/portal/`                                                       | 64    |
-| `apps/portal/app/`                                                   | 16    |
+| `apps/portal/`                                                       | 70    |
+| `apps/portal/app/`                                                   | 19    |
 | `apps/portal/app/appearance/`                                        | 1     |
 | `apps/portal/app/done/`                                              | 1     |
 | `apps/portal/app/expired/`                                           | 1     |
@@ -198,15 +198,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/portal/app/l/`                                                 | 1     |
 | `apps/portal/app/l/[token]/`                                         | 1     |
 | `apps/portal/app/link-error/`                                        | 1     |
-| `apps/portal/app/s/`                                                 | 4     |
-| `apps/portal/app/s/[sessionId]/`                                     | 4     |
+| `apps/portal/app/s/`                                                 | 7     |
+| `apps/portal/app/s/[sessionId]/`                                     | 7     |
 | `apps/portal/app/s/[sessionId]/answers/`                             | 1     |
+| `apps/portal/app/s/[sessionId]/roster/`                              | 1     |
 | `apps/portal/app/s/[sessionId]/step/`                                | 1     |
 | `apps/portal/app/s/[sessionId]/submit/`                              | 1     |
 | `apps/portal/components/`                                            | 13    |
-| `apps/portal/lib/`                                                   | 28    |
+| `apps/portal/lib/`                                                   | 31    |
 | `apps/portal/lib/i18n/`                                              | 2     |
-| `apps/portal/lib/server/`                                            | 16    |
+| `apps/portal/lib/server/`                                            | 17    |
 | `docker/`                                                            | 3     |
 
 ### What each deployment shape adds
@@ -221,7 +222,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | Package                      | Range    | What it carries                                                                                                                          | Upgrade story                                                                                                                                                                                                                                                                                                                                     |
 | ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `@roonga/qcms-core`          | `^0.0.0` | Domain model, the rules DSL and its forward-pass evaluator, the publish compiler, answer validation, secure-link tokens.                 | Upgrade freely within a major. Published versions are immutable (R1), so a form already published keeps the semantics it was compiled under; a new version changes what NEW publishes may express and how they evaluate. A major bump is where a semantics change would land, and would carry a migration note.                                   |
-| `@roonga/qcms-a2ui-compiler` | `^0.2.0` | Compiles a published form into the stored A2UI document the portal serves.                                                               | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.                                                |
+| `@roonga/qcms-a2ui-compiler` | `^0.3.0` | Compiles a published form into the stored A2UI document the portal serves.                                                               | Upgrade freely. The portal serves the STORED document and never recompiles (ADR-18), so a compiler upgrade cannot alter a form that is already live: it changes what the next publish produces. The golden corpus is append-only, which is what makes that promise checkable rather than asserted.                                                |
 | `@roonga/qcms-db`            | `^0.0.0` | The schema, the migration history, the query helpers and the reporting view.                                                             | Upgrade, then run `docker compose run --rm migrate` as its own step before the new API instances take traffic. Migration is never done at boot, deliberately: with more than one API instance that is a race, and an operator has to be able to choose when schema changes land. Migrations are plain SQL files you can read before you run them. |
 | `@roonga/qcms-ui`            | `^0.0.0` | The A2UI renderer, the vendored input controls, and the token contract the theming rests on.                                             | Upgrade freely. The vendored components are pinned inside the package rather than resolved from upstream (ADR-22), so an upstream component release cannot reach a published form until a QCMS release deliberately pulls it in and re-runs the conformance suite.                                                                                |
 | `@roonga/qcms-observability` | `^0.0.0` | The redacting server logger, trace correlation, and the SEC-13 allowlists that decide what a log record or a span may carry off the box. | Upgrade freely, and prefer to. It is a versioned package rather than scaffolded source precisely because the allowlists are a security control: a tightening reaches every deployment through an upgrade instead of through 300 forks each editing their own copy (ADR-34, SEC-13).                                                               |
@@ -229,7 +230,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2085` lines across `341` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2214` lines across `348` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -244,7 +245,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (389)</summary>
+<summary>Every scaffolded file (395)</summary>
 
 ```
 .dockerignore
@@ -579,7 +580,10 @@ apps/portal/app/layout.tsx
 apps/portal/app/link-error/page.tsx
 apps/portal/app/page.tsx
 apps/portal/app/s/[sessionId]/answers/route.ts
+apps/portal/app/s/[sessionId]/error.tsx
 apps/portal/app/s/[sessionId]/page.tsx
+apps/portal/app/s/[sessionId]/roster-action.ts
+apps/portal/app/s/[sessionId]/roster/route.ts
 apps/portal/app/s/[sessionId]/step/route.ts
 apps/portal/app/s/[sessionId]/submit/route.ts
 apps/portal/components/appearance-context.tsx
@@ -603,6 +607,8 @@ apps/portal/lib/error-summary.ts
 apps/portal/lib/hydration.ts
 apps/portal/lib/i18n/en.ts
 apps/portal/lib/i18n/format.ts
+apps/portal/lib/repeat.ts
+apps/portal/lib/rosters.ts
 apps/portal/lib/server/api.ts
 apps/portal/lib/server/appearance-form.ts
 apps/portal/lib/server/challenge.ts
@@ -612,6 +618,7 @@ apps/portal/lib/server/cookie-options.ts
 apps/portal/lib/server/csp.ts
 apps/portal/lib/server/logger.ts
 apps/portal/lib/server/mode-bootstrap.ts
+apps/portal/lib/server/operation-token.ts
 apps/portal/lib/server/origin-belt-log.ts
 apps/portal/lib/server/request-id.ts
 apps/portal/lib/server/route-helpers.ts
