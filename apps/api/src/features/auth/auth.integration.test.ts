@@ -1,4 +1,10 @@
-import { authSession, authTwoFactor, authUser, countAdminUsers } from "@roonga/qcms-db";
+import {
+  authSession,
+  authTwoFactor,
+  authUser,
+  clearMustChangePassword,
+  countAdminUsers,
+} from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { generate } from "otplib";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -159,6 +165,22 @@ beforeAll(async () => {
   );
   expect(created.ok, "the fixture admin should be created").toBe(true);
   expect(await countAdminUsers(testDb.db)).toBe(1);
+
+  // Then the fixture skips the first-run step this file is not about (task 061).
+  //
+  // `createInitialAdmin` marks the account provisional, which is the control, and while
+  // that flag stands the admin group answers `401` before routing - so every assertion
+  // below about the session semantics would be answered by a gate in front of them, and
+  // the recovery-codes 404 would read as a 401. Clearing it here is the same exclusion
+  // this file's header already makes for the 12h cap: the property belongs to the
+  // verifier and is asserted where the verifier is. The gate itself is
+  // `middleware/admin-auth.integration.test.ts`, and the flag's whole lifecycle -
+  // including that this write is the only kind that clears it - is
+  // `provisional-credential.integration.test.ts`.
+  //
+  // The same helper the API's password-change hook calls, so this fixture cannot reach a
+  // state the product cannot.
+  await clearMustChangePassword(testDb.db, created.ok ? created.userId : "");
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {

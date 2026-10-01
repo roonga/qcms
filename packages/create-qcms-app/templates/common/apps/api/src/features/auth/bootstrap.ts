@@ -46,9 +46,21 @@ import {
  * Leaving it would mean a live admin session whose token exists only in a CLI's
  * discarded response.
  *
+ * **The credential this sets is provisional, and the account is marked as such**
+ * (task 061, SEC-1). It arrives from a shell command, a provisioning script, a CI
+ * variable or an operator's terminal history, and the person who ends up using the
+ * account typically did not choose it. `instance.ts` declares
+ * `user.mustChangePassword` to better-auth with `defaultValue: true`, so the flag is
+ * written by the `signUpEmail` call below rather than by a line here: there is no
+ * "remember to set it" step, and any future account-creation path inherits the
+ * marking instead of opting into it. A successful password change clears it, and
+ * nothing else does.
+ *
  * 2FA is deliberately not enrolled here. Enrollment needs an authenticator app in the
  * operator's hands, so it happens on their first sign-in, which under the default
- * policy is enforced before the account can reach a single API route.
+ * policy is enforced before the account can reach a single API route - and **after**
+ * the forced password change, because enrolling a second factor binds it to an
+ * account whose credential is still the provisional one (task 061).
  *
  * `signUpEmail` and `revokeSessions` are called **in process**, not over the auth
  * mount, and that is the point rather than a convenience: sign-up is not on the

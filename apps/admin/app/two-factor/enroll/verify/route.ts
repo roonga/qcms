@@ -9,7 +9,7 @@ import {
   redirectAfterPost,
   redirectWithGenericFailure,
 } from "@/lib/server/route-helpers";
-import { ENROLL_PATH, SIGN_IN_PATH } from "@/lib/server/session";
+import { ENROLL_PATH, SIGN_IN_PATH, requireEnrollingSessionForRequest } from "@/lib/server/session";
 
 /**
  * Confirm 2FA enrollment with a real TOTP code (task 031).
@@ -34,6 +34,14 @@ import { ENROLL_PATH, SIGN_IN_PATH } from "@/lib/server/session";
  */
 export async function POST(request: Request): Promise<Response> {
   if (!isSameOriginPost(request)) return redirectWithGenericFailure(ENROLL_PATH);
+
+  // The 2FA order is enforced here and not only on the screen (task 061, Code Owner
+  // ruling 2026-10-01). Without this, a provisional admin holding the enrollment cookie
+  // could post a code straight at this path and bind a second factor to an account whose
+  // password is still the provisioning script's - which is what SEC-1's "can reach the
+  // forced change screen and nothing else" says cannot happen.
+  const session = await requireEnrollingSessionForRequest();
+  if (session instanceof Response) return session;
 
   const code = formField(await request.formData(), "code");
   if (code === undefined) return redirectWithGenericFailure(ENROLL_PATH);

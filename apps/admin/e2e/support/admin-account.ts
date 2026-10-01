@@ -1,4 +1,7 @@
-import { createTestAdmin as createAdminAccount } from "../../../api/e2e/support/admin-accounts.js";
+import {
+  createTestAdmin as createAdminAccount,
+  openDbHandle,
+} from "../../../api/e2e/support/admin-accounts.js";
 import { readFixtures } from "../../../portal/e2e/support/fixtures.js";
 
 import { ADMIN_BASE_URL, FIXED_AUTH_SECRET } from "./harness-config.js";
@@ -51,14 +54,61 @@ export function uniqueAdminEmail(label: string): string {
  * `name` is the account's display name and defaults to `E2E Admin`. Pass one when the
  * spec cares what the topbar's monogram paints - which is only the label-in-name gate, so
  * far (issue #1010); see `TestAdminInput.name` for why that default cannot measure it.
+ *
+ * `mustChangePassword` opts into SEC-1's provisional bootstrap state (task 061),
+ * which is what `qcms:create-admin` produces and what `forced-password-change.pw.ts`
+ * is about. Every other spec leaves it off and gets an account that signs straight in,
+ * because a password change is not what those specs test; the API-side helper's
+ * docblock carries the reasoning.
+ *
+ * Both arrive in one options object rather than as positional arguments, which is what
+ * the two of them landing in the same week settled: a second optional string beside a
+ * first would have been two call shapes to remember and one transposition away from a
+ * silent wrong answer.
  */
-export async function createTestAdmin(email: string, name?: string): Promise<void> {
+export async function createTestAdmin(
+  email: string,
+  options: { readonly name?: string; readonly mustChangePassword?: boolean } = {},
+): Promise<void> {
   await createAdminAccount({
     databaseUrl: readFixtures().databaseUrl,
     authSecret: FIXED_AUTH_SECRET,
     adminBaseUrl: ADMIN_BASE_URL,
     email,
     password: TEST_PASSWORD,
-    ...(name !== undefined && { name }),
+    ...(options.name !== undefined && { name: options.name }),
+    mustChangePassword: options.mustChangePassword === true,
   });
+}
+
+/**
+ * Set SEC-1's provisional flag on an account that already exists (task 061).
+ *
+ * The one state `createTestAdmin` cannot produce, and the only spec that wants it is the
+ * one proving the gate list is load-bearing on its own: an **enrolled** account still
+ * holding the bootstrap credential. It cannot be built forwards, because enrolment needs a
+ * session and a provisional account is sent to the change screen before one is provisioned
+ * - which is the control working. So the account is enrolled first and marked afterwards.
+ *
+ * A raw statement rather than a query builder, for the reason `openDbHandle` exists: the
+ * database client belongs to the API workspace, and this is harness code reaching for one
+ * row. It is the exact inverse of `clearMustChangePassword`, which is the product's own
+ * write, so the harness cannot reach a state the product cannot.
+ */
+export async function markProvisional(email: string): Promise<void> {
+  const handle = openDbHandle(readFixtures().databaseUrl);
+  try {
+    const updated = await handle.query(
+      `update "user" set "mustChangePassword" = true where email = $1`,
+      [email],
+    );
+    // A silent no-op here would make the spec below pass for the wrong reason: an account
+    // that was never marked reaches every route, and "every route redirected" would be
+    // vacuous in the other direction.
+    if (updated.rows.length === 0 && (updated as { rowCount?: number }).rowCount === 0) {
+      throw new Error(`markProvisional matched no account for ${email}`);
+    }
+  } finally {
+    await handle.close();
+  }
 }

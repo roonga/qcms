@@ -26,6 +26,16 @@
  * signed-in-but-not-yet-enrolled admin therefore reaches the enrollment screens
  * (which talk to better-auth in the shell, not to this API) and nothing else.
  *
+ * Task 061 adds one more condition of exactly that shape: the account must not
+ * still hold the provisional credential `qcms:create-admin` set (SEC-1). The admin
+ * app's own gate is what sends such an admin to the forced-change screen; this is
+ * the half that makes "and nothing else" true of the data as well as of the
+ * screens. It can be applied here without stranding anyone, because the
+ * change-password call itself goes to the auth mount, which carries no
+ * admin-session gate - it cannot, since those are the endpoints that issue the
+ * session. So a request that got past the BFF gate meets an API that answers 401,
+ * and the one operation the admin still needs is unaffected.
+ *
  * The verifier resolves to an {@link AdminPrincipal} (or `undefined` when
  * unauthenticated). The principal is stashed on the request context: its `role`
  * is the SEC-3 claim (single `admin` value at launch, carried so Phase 4 RBAC is
@@ -84,6 +94,10 @@ export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
     if (now - session.createdAt.getTime() >= deps.config.adminSession.maxAgeMs) return undefined;
     // 2FA policy (SEC-1). `optional` is the development escape hatch only.
     if (deps.flags.adminTwoFactor === "required" && !session.twoFactorEnabled) return undefined;
+    // The bootstrap credential is provisional (SEC-1, task 061). No escape hatch:
+    // `QCMS_ADMIN_2FA` exists because enrollment needs a device an operator may not
+    // have in a development loop, and changing a password needs nothing.
+    if (session.mustChangePassword) return undefined;
 
     return { userId: session.userId, role: session.role, scopes: [...SCOPES] };
   };

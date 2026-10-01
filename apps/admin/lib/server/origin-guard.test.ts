@@ -202,6 +202,7 @@ const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
 const recoveryRoute = await import("../../app/two-factor/recovery/verify/route.ts");
 const confirmRoute = await import("../../app/two-factor/recovery-codes/confirm/route.ts");
 const passwordRoute = await import("../../app/(shell)/settings/password/route.ts");
+const forcedPasswordRoute = await import("../../app/change-password/submit/route.ts");
 const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
 const assistRoute = await import("../../app/(shell)/forms/[formId]/assist/route.ts");
 
@@ -315,6 +316,16 @@ interface GuardedRoute {
    * the real response and the logged claim about it in one case makes a drift a red.
    */
   readonly logged: { readonly beltRoute: string; readonly beltOutcome: string };
+  /**
+   * The proxied session this route's own guard requires, when the default will not do.
+   *
+   * Only the forced change-password handler declares one (task 061): its guard admits
+   * exactly the session every other guard refuses, so the shared default would send it
+   * to the shell and the "proceeds past the belt" case would never reach its seam. The
+   * guard itself is the real module, which is the point - a stub would make this file
+   * assert a handler production does not run.
+   */
+  readonly session?: unknown;
 }
 
 function formPost(path: string, headers: Record<string, string>, fields: FormData): Request {
@@ -366,6 +377,14 @@ const ROUTES: readonly GuardedRoute[] = [
     reached: () => seams.verifyTotp,
     refusalLocation: "/two-factor/enroll?error=1",
     logged: { beltRoute: "/two-factor/enroll/verify", beltOutcome: "redirect-with-failure" },
+    // Since task 061 this handler carries `requireEnrollingSessionForRequest()`, so the
+    // shared default above - which names no `session` key and reports an enrolled user -
+    // would send every probe to the shell before the belt could be observed. The session
+    // this route exists to serve is mid-enrollment and past the password change.
+    session: {
+      session: { createdAt: new Date().toISOString(), token: "session-token" },
+      user: { id: "usr_1", twoFactorEnabled: false, mustChangePassword: false },
+    },
   },
   {
     path: "app/two-factor/recovery/verify/route.ts",
@@ -401,6 +420,31 @@ const ROUTES: readonly GuardedRoute[] = [
     reached: () => seams.changePassword,
     refusalLocation: "/settings?error=1",
     logged: { beltRoute: "/settings/password", beltOutcome: "redirect-with-failure" },
+  },
+  {
+    // The forced change on first sign-in after bootstrap (task 061). Belted like every
+    // other state-changing handler, and reached by an account that cannot reach the
+    // shell at all - which is why it carries its own session below.
+    path: "app/change-password/submit/route.ts",
+    post: (headers) =>
+      forcedPasswordRoute.POST(
+        formPost(
+          "/change-password/submit",
+          headers,
+          form({
+            currentPassword: "old password here",
+            newPassword: "new password here",
+            confirmPassword: "new password here",
+          }),
+        ),
+      ),
+    reached: () => seams.changePassword,
+    refusalLocation: "/change-password?error=1",
+    logged: { beltRoute: "/change-password/submit", beltOutcome: "redirect-with-failure" },
+    session: {
+      session: { createdAt: new Date().toISOString(), token: "session-token" },
+      user: { id: "usr_1", twoFactorEnabled: true, mustChangePassword: true },
+    },
   },
   {
     path: "app/(shell)/settings/recovery-codes/route.ts",
@@ -504,6 +548,7 @@ describe.each(ROUTES)("$path", (route) => {
       new Response(null, { status: 200, headers: { "content-type": "text/event-stream" } }),
     );
     seams.requireAdminSessionForRequest.mockResolvedValue(SESSION);
+    if (route.session !== undefined) seams.proxiedSession.mockResolvedValue(route.session);
   });
 
   it.each(ORIGIN_CASES.filter((probe) => probe.allowed))(

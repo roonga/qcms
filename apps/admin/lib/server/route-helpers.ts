@@ -183,8 +183,8 @@ export function redirectWithGenericFailure(
 }
 
 /**
- * The one refusal that is allowed to be specific: the new password is in the public
- * breach corpus (issue #437, Code Owner ruling 2026-09-03).
+ * The first of two refusals that are allowed to be specific: the new password is in
+ * the public breach corpus (issue #437, Code Owner ruling 2026-09-03).
  *
  * Its own function rather than a third member of {@link redirectWithGenericFailure}'s
  * marker union, because it is the opposite kind of thing. Those markers are opaque on
@@ -195,4 +195,22 @@ export function redirectWithGenericFailure(
  */
 export function redirectWithCompromisedPassword(path: `/${string}`): Response {
   return redirectAfterPost(`${path}?compromised=1`);
+}
+
+/**
+ * The second: the two new-password fields on the forced change screen did not match
+ * (task 061).
+ *
+ * Beside {@link redirectWithCompromisedPassword} rather than inside
+ * {@link redirectWithGenericFailure}'s marker union, on that function's own argument
+ * and for the same reason. Those markers are opaque because SEC-1 requires a wrong
+ * current password to be indistinguishable from a rejected new one; this is a
+ * statement about two values the submitter typed into one form seconds ago and holds
+ * both of, so it discloses nothing about the account. Reporting it generically would
+ * send someone back to re-examine a temporary password that was perfectly correct.
+ *
+ * Only the forced screen has a confirmation field, so this has exactly one call site.
+ */
+export function redirectWithPasswordMismatch(path: `/${string}`): Response {
+  return redirectAfterPost(`${path}?mismatch=1`);
 }

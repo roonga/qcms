@@ -116,6 +116,18 @@ export interface ProxiedSession {
     /** The SEC-3 role claim; a single `admin` value at launch. */
     readonly role?: string;
     readonly twoFactorEnabled?: boolean;
+    /**
+     * Whether this account still holds the provisional credential
+     * `qcms:create-admin` set (task 061, SEC-1).
+     *
+     * Optional for the same reason `role` and `twoFactorEnabled` are: this interface
+     * describes a body arriving over the wire from a separate deployable, so every
+     * field is one the sender might not have written. `session.ts` reads absent as
+     * `false`, which keeps an unmarked account out of a redirect loop; the
+     * fail-closed half of the control is the API's own gate on every admin route,
+     * which reads the column rather than this body.
+     */
+    readonly mustChangePassword?: boolean;
   };
 }
 

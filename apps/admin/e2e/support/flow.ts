@@ -92,6 +92,12 @@ export async function submitSignIn(page: Page, email: string): Promise<void> {
  * Read it **within the test that uses it**: a sign-in by an account with no confirmed
  * factor re-provisions enrollment, so each visit to this screen carries a *new* secret and
  * one cached from an earlier test is already stale.
+ *
+ * One account provisions from somewhere else, and it does not change the rule above: for
+ * an account still holding the provisional bootstrap credential the sign-in POST
+ * deliberately provisions nothing, and the forced change-password handler does it instead
+ * (task 061). The secret is still minted on the way to this screen, and still new each
+ * time.
  */
 export async function readSetupKey(page: Page): Promise<string> {
   return page.getByLabel(/Setup key/).inputValue();

@@ -124,6 +124,7 @@ const challengeRoute = await import("../../app/two-factor/challenge/verify/route
 const enrollRoute = await import("../../app/two-factor/enroll/verify/route.ts");
 const recoveryRoute = await import("../../app/two-factor/recovery/verify/route.ts");
 const passwordRoute = await import("../../app/(shell)/settings/password/route.ts");
+const forcedPasswordRoute = await import("../../app/change-password/submit/route.ts");
 const codesRoute = await import("../../app/(shell)/settings/recovery-codes/route.ts");
 const { authFailureMessage } = await import("../auth-failure-message.ts");
 const { messages } = await import("../i18n/en.ts");
@@ -181,6 +182,23 @@ interface RefusingRoute {
   /** Arm the auth-mount call this handler makes with the given refusal. */
   readonly refuseWith: (status: number) => void;
   readonly post: () => Promise<Response>;
+  /**
+   * The session this handler's own guard requires, when it is not the ordinary one.
+   *
+   * Two handlers need it, both from task 061, and both for the same reason: their guards
+   * are not the shell's, so {@link signedInSession} would be redirected before the
+   * refusal under test could be produced.
+   *
+   * - The forced change-password handler admits a session the shell's guard refuses and
+   *   refuses the one it admits, so it needs {@link provisionalSession}.
+   * - The enrollment verify handler applies gate 3 and skips gate 4 (Code Owner ruling,
+   *   2026-10-01), so it needs {@link enrollingSession}: past the password change and not
+   *   yet enrolled.
+   *
+   * Declared per route rather than stubbed globally, because the guard itself is the real
+   * module here for the reason the `next/headers` mock above gives.
+   */
+  readonly session?: () => unknown;
 }
 
 /**
@@ -229,6 +247,7 @@ const ROUTES: readonly RefusingRoute[] = [
     markers: SHARED_MARKERS,
     refuseWith: (status) => seams.verifyTotp.mockResolvedValue(refusal(status)),
     post: () => enrollRoute.POST(formPost("/two-factor/enroll/verify", { code: "123456" })),
+    session: enrollingSession,
   },
   {
     path: "app/two-factor/recovery/verify/route.ts",
@@ -249,6 +268,26 @@ const ROUTES: readonly RefusingRoute[] = [
         formPost("/settings/password", {
           currentPassword: "correct horse battery staple",
           newPassword: "a much longer replacement",
+        }),
+      ),
+  },
+  {
+    // The forced change on first sign-in after bootstrap (task 061). In the table for
+    // exactly the reason the paragraph below this one gives: it reads an auth-mount
+    // refusal, so a throttled 429 reaching it as "those details did not match" is the
+    // same defect issue #805 fixed everywhere else. Its markers are the shared pair -
+    // the screen carries one form, like the other auth screens.
+    path: "app/change-password/submit/route.ts",
+    screen: "/change-password",
+    markers: SHARED_MARKERS,
+    session: () => provisionalSession(),
+    refuseWith: (status) => seams.changePassword.mockResolvedValue(refusal(status)),
+    post: () =>
+      forcedPasswordRoute.POST(
+        formPost("/change-password/submit", {
+          currentPassword: "correct horse battery staple",
+          newPassword: "a much longer replacement",
+          confirmPassword: "a much longer replacement",
         }),
       ),
   },
@@ -284,12 +323,56 @@ function signedInSession(): unknown {
   };
 }
 
+/**
+ * The session the forced change-password handler requires: signed in, enrolled, and
+ * still holding the provisional bootstrap credential (task 061, SEC-1).
+ */
+function provisionalSession(): unknown {
+  return {
+    session: { createdAt: new Date().toISOString(), token: "session-token" },
+    user: {
+      id: "usr_1",
+      email: "admin@example.test",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: true,
+      mustChangePassword: true,
+    },
+  };
+}
+
+/**
+ * The session the enrollment verify handler requires: signed in, past the password
+ * change, and not yet enrolled (task 061, Code Owner ruling 2026-10-01).
+ *
+ * Its guard skips gate 4 and applies gate 3, so {@link signedInSession} - enrolled, which
+ * is what every other route here wants - would be sent to the shell before the refusal
+ * under test could be produced.
+ */
+function enrollingSession(): unknown {
+  return {
+    session: { createdAt: new Date().toISOString(), token: "session-token" },
+    user: {
+      id: "usr_1",
+      email: "admin@example.test",
+      name: "Admin",
+      role: "admin",
+      twoFactorEnabled: false,
+      mustChangePassword: false,
+    },
+  };
+}
+
 beforeEach(() => {
   for (const seam of Object.values(seams)) seam.mockReset();
   seams.proxiedSession.mockResolvedValue(signedInSession());
 });
 
 describe.each(ROUTES)("$path", (route) => {
+  beforeEach(() => {
+    if (route.session !== undefined) seams.proxiedSession.mockResolvedValue(route.session());
+  });
+
   it("redirects with the throttled marker when the auth mount answers 429", async () => {
     route.refuseWith(429);
     const response = await route.post();

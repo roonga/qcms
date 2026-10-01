@@ -377,6 +377,41 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       ).toBe(true);
     });
 
+    it("applies 0023 over a populated database and marks no existing admin provisional", async () => {
+      // Task 061, and the claim this asserts is a promise the changeset makes to adopters
+      // rather than a property of the column: an account that predates the control is
+      // **not** marked on upgrade. For such a row nobody can tell whether its password was
+      // ever changed, and backfilling `true` would make a migration take a policy action on
+      // every live deployment's administrator.
+      //
+      // Only the upgrade path can fail. A database created after 0023 has the column from
+      // the start and proves nothing about adding it to a `user` table that already holds
+      // an administrator. So: everything through 0022 first, then an account of the shape
+      // that existed before this migration.
+      //
+      // The indexes are literal at 22/23 for the reason the 0022 case above gives:
+      // migration history is append-only and immutable once released (ADR-18).
+      await applyMigrations(testDb.client, { to: 22 });
+      expect(await columnIsNotNull(testDb, "user", "mustChangePassword")).toBeUndefined();
+
+      await testDb.client.query(
+        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+         values ('usr_pre_0023', 'Existing Admin', 'existing@qcms.test', true, now(), now())`,
+      );
+
+      await applyMigrations(testDb.client, { from: 23, to: 23 });
+
+      // The column is NOT NULL with a default, so the pre-existing row reads back `false`:
+      // present, and saying "this account is not on a provisional credential". `true` here
+      // would be the migration forcing a password change on an administrator who may well
+      // have chosen their own password years ago.
+      expect(await columnIsNotNull(testDb, "user", "mustChangePassword")).toBe(true);
+      const survivor = await testDb.client.query(
+        `select "email", "mustChangePassword" from "user" where id = 'usr_pre_0023'`,
+      );
+      expect(survivor.rows).toEqual([{ email: "existing@qcms.test", mustChangePassword: false }]);
+    });
+
     it("applies 0020 over a database that 0017 left carrying account.issuer", async () => {
       // The upgrade path a developer's own stack takes, which is the only one that can
       // fail: a database created after 0020 never has the column, so migrating from zero

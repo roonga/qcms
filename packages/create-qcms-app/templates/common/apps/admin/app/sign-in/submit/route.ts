@@ -10,19 +10,28 @@ import {
   redirectAfterPost,
   redirectWithGenericFailure,
 } from "@/lib/server/route-helpers";
-import { ENROLL_PATH, SHELL_HOME_PATH, SIGN_IN_PATH } from "@/lib/server/session";
+import {
+  CHANGE_PASSWORD_PATH,
+  ENROLL_PATH,
+  SHELL_HOME_PATH,
+  SIGN_IN_PATH,
+} from "@/lib/server/session";
 
 /**
  * The sign-in POST (task 031). A BFF route handler: sessions and credentials only,
  * no business logic (R2).
  *
- * ## The three outcomes
+ * ## The four outcomes
  *
  * 1. **2FA challenge pending.** When the account has completed enrollment,
  *    better-auth's twoFactor plugin withholds the session and answers
  *    `{ twoFactorRedirect: true }`, setting only a short-lived two-factor cookie.
  *    That is what makes "a session row exists" a meaningful check in the API: a
  *    password alone never produces one.
+ * 1a. **The bootstrap credential is still in place.** A session is issued and
+ *    `user.mustChangePassword` is set, so the forced change comes next and nothing is
+ *    provisioned on the way (task 061, SEC-1). Before outcome 2 rather than beside it,
+ *    matching gate 3 coming before gate 4 in `lib/server/session.ts`.
  * 2. **Enrollment needed.** A session is issued but the account has no TOTP factor
  *    yet, and the policy is `required`. Enrollment is **provisioned here**, not on
  *    the enrollment screen, because `enableTwoFactor` needs the password and this is
@@ -84,6 +93,22 @@ export async function POST(request: Request): Promise<Response> {
   const sessionHeaders = new Headers(request.headers);
   sessionHeaders.set("cookie", issuedCookie);
   const session = await proxiedSession(sessionHeaders);
+
+  // Outcome 2a, and it comes before the enrollment outcome for the same reason gate 3
+  // comes before gate 4 in `sessionOutcome()`: the bootstrap credential is provisional,
+  // and the password change goes first (task 061, SEC-1).
+  //
+  // Skipping the provisioning below is the point rather than a shortcut around it. That
+  // call stores a TOTP secret against the account and hands the otpauth URI and the ten
+  // recovery codes to the browser, and doing that while the first factor is still the one
+  // out of the provisioning script binds the pair to its oldest half, which is the whole
+  // argument for the order. An admin who abandons the change therefore has no secret
+  // provisioned and no codes issued; the next sign-in re-provisions, exactly as it
+  // already does after any abandoned enrollment.
+  if (session?.user.mustChangePassword === true) {
+    return redirectAfterPost(CHANGE_PASSWORD_PATH, cookies);
+  }
+
   const enrolled = session?.user.twoFactorEnabled === true;
 
   if (!enrolled && !twoFactorOptional()) {

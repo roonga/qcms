@@ -567,7 +567,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440).",
+      "First-run bootstrap only, alongside `QCMS_ADMIN_EMAIL`. Pass it per-command, never in the `.env` file. Put the value in the environment of the command you run and name the variable with no value attached (`docker compose exec --env QCMS_ADMIN_PASSWORD ...`): `--env QCMS_ADMIN_PASSWORD=<value>` would place the password in the docker CLI's own argv, which is world-readable in a `ps` listing (issue #440). **This value is provisional** (SEC-1, task 061): the account is created marked `mustChangePassword`, the admin sends every route to the change-password screen on first sign-in until it is replaced, and the API refuses every admin route until then. The sequence on first sign-in is password change, then TOTP enrolment, then the recovery codes. An account created before this control shipped is not marked.",
   },
   {
     name: "QCMS_ADMIN_NAME",

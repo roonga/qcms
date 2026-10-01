@@ -414,6 +414,25 @@ test("the signed-out and failure states have zero violations", async ({ page }) 
   await expectNoViolations(page, "session expired");
 });
 
+test("the forced password-change screen has zero violations", async ({ page }) => {
+  // Task 061. Its own throwaway account, because the provisional flag is cleared by the
+  // first successful change and EMAIL's state is walked by every test below this one.
+  //
+  // Swept in the same three modes as every other state here, and in both its plain and
+  // its refused shapes: the refusal renders an alert the operator has to be able to
+  // read, and the screen carries three password fields rather than the one the sign-in
+  // screen does, which is where a label or an autocomplete regression would land.
+  const provisional = uniqueAdminEmail("a11ypw");
+  await createTestAdmin(provisional, { mustChangePassword: true });
+  await submitSignIn(page, provisional);
+  await expect(page).toHaveURL(/\/change-password$/);
+  await expectNoViolations(page, "forced password change");
+
+  await page.goto("/change-password?mismatch=1");
+  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
+  await expectNoViolations(page, "forced password change, mismatch");
+});
+
 test("the enrollment and recovery-code states have zero violations", async ({ page }) => {
   await submitSignIn(page, EMAIL);
   await expect(page).toHaveURL(/\/two-factor\/enroll$/);
@@ -502,7 +521,7 @@ test("the account trigger passes label-in-name for an account whose address cann
     ).not.toContain(letter);
   }
 
-  await createTestAdmin(MISMATCH_EMAIL, MISMATCH_NAME);
+  await createTestAdmin(MISMATCH_EMAIL, { name: MISMATCH_NAME });
   await enrollNewAdmin(page, MISMATCH_EMAIL);
 
   // What the disc paints and what the button is called, stated separately: the criterion

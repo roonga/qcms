@@ -100,6 +100,7 @@ describe("every route titles its own browser tab", () => {
     // added or removed changes this list, which is what puts it in front of a reviewer.
     expect(sorted(routes())).toEqual([
       "/",
+      "/change-password",
       "/forms",
       "/forms/[formId]",
       "/forms/[formId]/links",

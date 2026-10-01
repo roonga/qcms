@@ -38,6 +38,7 @@ const SESSION = {
   name: "Admin",
   role: "admin",
   twoFactorEnabled: true,
+  mustChangePassword: false,
   token: "tok",
 };
 
