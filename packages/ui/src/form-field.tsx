@@ -3,7 +3,7 @@ import { FormContext } from "react-aria-components";
 
 import { Form } from "./components/a2ui/form/index.ts";
 import { getFormStyles } from "./components/a2ui/form/form.styles.ts";
-import { useQcmsFormAction } from "./field-context.tsx";
+import { useQcmsFormAction, useQcmsFormHiddenFields } from "./field-context.tsx";
 
 /**
  * The vendored component's own props, so this adapter is held to exactly the shape it
@@ -41,6 +41,7 @@ type FormProps = ComponentProps<typeof Form>;
  */
 export function FormField(props: Readonly<FormProps>) {
   const formAction = useQcmsFormAction();
+  const hiddenFields = useQcmsFormHiddenFields();
   const { gap = "md", validationBehavior = "native", children, ...rest } = props;
   if (formAction === undefined) {
     return <Form {...props} />;
@@ -63,6 +64,9 @@ export function FormField(props: Readonly<FormProps>) {
         autoComplete={rest.autoComplete}
         target={rest.target}
       >
+        {Object.entries(hiddenFields ?? {}).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
         {children}
       </form>
     </FormContext.Provider>

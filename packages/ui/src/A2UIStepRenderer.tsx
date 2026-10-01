@@ -116,6 +116,7 @@ export function A2UIStepRenderer({
   // The form's action travels in the context when it is a function (task 073): a node's
   // props are stored, serialisable data, so a Server Action cannot ride there.
   const formAction = nativeSubmit?.formAction;
+  const formHiddenFields = nativeSubmit?.hiddenFields;
   const ctx = useMemo<QcmsFieldContextValue>(
     () => ({
       values,
@@ -125,8 +126,9 @@ export function A2UIStepRenderer({
       locale,
       native,
       ...(formAction !== undefined ? { formAction } : {}),
+      ...(formHiddenFields !== undefined ? { formHiddenFields } : {}),
     }),
-    [values, errors, onChange, onBlur, locale, native, formAction],
+    [values, errors, onChange, onBlur, locale, native, formAction, formHiddenFields],
   );
   // Render-time only (ADR-18): in native mode the root Form gains action/method and a
   // submit control, and an embedding host can lower the document's own heading levels.

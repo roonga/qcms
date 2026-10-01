@@ -149,3 +149,23 @@ export interface RosterActionState {
 
 /** Nothing typed, nothing landed: the state before the respondent presses anything. */
 export const NO_ROSTER_ACTION: RosterActionState = { values: {} };
+
+/**
+ * The session the form belongs to, posted as a hidden input by the step renderer (task
+ * 073). It is a fifth reserved name beside `__qop`, `__qk__`, `__qa__` and the honeypot's
+ * `website`.
+ *
+ * It exists so the `__qop` Server Action can be a **stable module-level reference**. The
+ * obvious alternative is `rosterOperation.bind(null, sessionId)`, and handing that to
+ * `useActionState` hangs the server render outright: Next compares a bound reference's
+ * signature asynchronously, the comparison never settles inside a render, the POST never
+ * gets a response, and the dev server dies with `RangeError: Map maximum size exceeded`
+ * after accumulating promises. A hidden input is how plain HTML has always given one form
+ * its context.
+ *
+ * **It is a label, not a credential.** The authority is the session bearer in the
+ * httpOnly cookie, which the API checks against the session the path names; a post naming
+ * another session with this token is refused by the API, not here (R2: the portal
+ * validates nothing).
+ */
+export const SESSION_FIELD = "__qsid";

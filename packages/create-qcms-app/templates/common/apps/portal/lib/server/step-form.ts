@@ -11,6 +11,8 @@ import {
   type RosterOpRequest,
 } from "@roonga/qcms-ui/repeat-node";
 
+import { SESSION_FIELD } from "@/lib/repeat";
+
 /**
  * Whole-step form decoding for the no-JS submit route (task 044).
  *
@@ -122,6 +124,11 @@ export interface DecodedStepForm {
    * its own merits either way.
    */
   readonly rosterOp?: RosterOpRequest;
+  /**
+   * The session the form was rendered for, from the reserved `__qsid` hidden input.
+   * A label rather than a credential: see {@link SESSION_FIELD}.
+   */
+  readonly sessionId?: string;
   /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
   /**
@@ -180,6 +187,7 @@ interface Partitioned {
   readonly kindByName: ReadonlyMap<string, NativeFieldKind>;
   readonly answered: ReadonlySet<string>;
   readonly rosterOp: RosterOpRequest | undefined;
+  readonly sessionId: string | undefined;
 }
 
 /** Split form entries into raw value groups, `__qk__` kinds, `__qa__` markers, `__qop`. */
@@ -188,8 +196,14 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
   const kindByName = new Map<string, NativeFieldKind>();
   const answered = new Set<string>();
   let rosterOp: RosterOpRequest | undefined;
+  let sessionId: string | undefined;
   for (const [key, entry] of entries) {
     if (typeof entry !== "string") continue; // ignore any file parts
+    if (key === SESSION_FIELD) {
+      // The form's own session (073). Reserved, so it is never read as an answer.
+      sessionId ??= entry;
+      continue;
+    }
     if (key === ROSTER_OP_FIELD) {
       // The pressed Add or Remove button (073). Reserved, so it never lands in
       // `extras` and is never mistaken for an answer or for the honeypot.
@@ -210,7 +224,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
     if (list === undefined) rawByName.set(key, [entry]);
     else list.push(entry);
   }
-  return { rawByName, kindByName, answered, rosterOp };
+  return { rawByName, kindByName, answered, rosterOp, sessionId };
 }
 
 /**
@@ -219,7 +233,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
  * and unknown kind tags are ignored.
  */
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
-  const { rawByName, kindByName, answered, rosterOp } = partition(entries);
+  const { rawByName, kindByName, answered, rosterOp, sessionId } = partition(entries);
   const answers: DecodedAnswer[] = [];
   const fields = [...kindByName.keys()];
 
@@ -251,5 +265,11 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     extras[name] = raws[0] ?? "";
   }
 
-  return { answers, extras, fields, ...(rosterOp !== undefined ? { rosterOp } : {}) };
+  return {
+    answers,
+    extras,
+    fields,
+    ...(rosterOp !== undefined ? { rosterOp } : {}),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+  };
 }

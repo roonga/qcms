@@ -46,6 +46,20 @@ export interface QcmsFieldContextValue {
    * cannot ride there. This is the same seam `values` and `errors` already use.
    */
   readonly formAction?: NativeFormAction;
+  /**
+   * Form-level hidden inputs the host needs in every post of this form (task 073),
+   * rendered as the form's first children.
+   *
+   * It exists because a Server Action must be a STABLE module-level reference. The
+   * obvious way to give an action a per-session argument is `action.bind(null, id)`,
+   * and passing that to `useActionState` hangs the server render: Next compares a bound
+   * reference's signature asynchronously, and in a server render that comparison never
+   * settles, so the response never arrives and the process accumulates promises until it
+   * dies with `RangeError: Map maximum size exceeded`. A hidden input carries the same
+   * value with no bound reference, which is also the plain-HTML way to give one form
+   * several pieces of context.
+   */
+  readonly formHiddenFields?: Readonly<Record<string, string>>;
   /** Fires the canonical `AnswerValue` for `name` (or `undefined` when cleared). */
   readonly onChange: (name: string, value: A2UIAnswerValue | undefined) => void;
   /** Fires when focus leaves the control (touched semantics; policy is 029/030). */
@@ -117,4 +131,16 @@ export function useQcmsFormAction(): NativeFormAction | undefined {
     throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
   }
   return ctx.formAction;
+}
+
+/**
+ * The form-level hidden inputs the host asked for, or `undefined` when it asked for
+ * none, which is every step with no repeating group.
+ */
+export function useQcmsFormHiddenFields(): Readonly<Record<string, string>> | undefined {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.formHiddenFields;
 }

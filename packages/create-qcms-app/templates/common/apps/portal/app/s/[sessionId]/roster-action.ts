@@ -102,7 +102,6 @@ function refusalMessage(error: ApiError): string {
 }
 
 export async function rosterOperation(
-  sessionId: string,
   _previous: RosterActionState,
   formData: FormData,
 ): Promise<RosterActionState> {
@@ -110,9 +109,14 @@ export async function rosterOperation(
   // credential read. An action gets no `Request`, so its headers are wrapped back into
   // the shape the belt reads (`isSameOriginAction`); the decision and the refusal line
   // are the one implementation.
-  const { answers, rosterOp: operation } = decodeStepForm(formData);
+  const { answers, rosterOp: operation, sessionId } = decodeStepForm(formData);
   const values = typedValues(answers);
-  if (!isSameOriginAction(await headers(), `/s/${sessionId}`)) {
+  // The ROUTE TEMPLATE rather than the concrete path, and deliberately: the belt
+  // compares origins and never reads the path, the refusal line's `beltRoute` is derived
+  // by matching this against the route table, and the only session id available here came
+  // out of the posted form. Passing that would put a respondent-supplied string into a log
+  // line for nothing.
+  if (!isSameOriginAction(await headers(), "/s/{sessionId}")) {
     // The same shape as every other belt refusal on this surface: nothing is applied,
     // and the respondent gets their own step back. Their typed values still ride the
     // re-render, because a request that could not prove its origin is still a request
@@ -122,7 +126,7 @@ export async function rosterOperation(
   // No operation in the post: nothing to apply, and the re-render still shows what the
   // respondent typed. Reachable only from a forged post, since every path into this
   // action is a `__qop` button.
-  if (operation === undefined) return { values };
+  if (operation === undefined || sessionId === undefined) return { values };
 
   const token = await readSessionToken();
   // No credential: the page's own read fails too and it renders the recovery screen,

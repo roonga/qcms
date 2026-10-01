@@ -4,7 +4,7 @@ import { useActionState } from "react";
 
 import { PortalShell } from "@/components/portal-shell";
 import { rosterOperation } from "@/app/s/[sessionId]/roster-action";
-import { NO_ROSTER_ACTION } from "@/lib/repeat";
+import { NO_ROSTER_ACTION, SESSION_FIELD } from "@/lib/repeat";
 import {
   errorSummaryEntries,
   missingOnStep,
@@ -109,16 +109,22 @@ export function NativeStep({
     total: initial.progress.totalVisibleSteps,
   };
 
-  // The Server Action for this step's Add and Remove, bound to the session (task 073).
-  // `useActionState` is what carries the action's returned values into the render, and
-  // React renders that state server-side before any hydration, which is the whole of
-  // the no-JS case. The action id React writes into the form is recalculated on every
-  // build, so a page held across a deploy posts a stale one: `app/s/[sessionId]/error.tsx`
-  // is what turns that into a page saying so rather than a framework error.
-  const [rosterState, rosterFormAction] = useActionState(
-    rosterOperation.bind(null, sessionId),
-    NO_ROSTER_ACTION,
-  );
+  // The Server Action for this step's Add and Remove (task 073). `useActionState` is what
+  // carries the action's returned values into the render, and React renders that state
+  // server-side before any hydration, which is the whole of the no-JS case. The action id
+  // React writes into the form is recalculated on every build, so a page held across a
+  // deploy posts a stale one: `app/s/[sessionId]/error.tsx` is what turns that into a page
+  // saying so rather than a framework error.
+  //
+  // NOT `rosterOperation.bind(null, sessionId)`, and this is the one line in the file that
+  // must not be "simplified" back. A bound reference handed to `useActionState` HANGS THE
+  // SERVER RENDER: Next compares a bound action's signature asynchronously, that comparison
+  // never settles inside a render, so the POST never gets a response and the process
+  // accumulates promises until it dies with `RangeError: Map maximum size exceeded`. It
+  // presents as the Add button doing nothing and then the whole server going away. The
+  // session rides as a hidden input instead (`__qsid`, below), which is how plain HTML has
+  // always given one form its context, and the action reads it out of the form data.
+  const [rosterState, rosterFormAction] = useActionState(rosterOperation, NO_ROSTER_ACTION);
 
   const stepDocument = initial.step as unknown as A2UIStepDocument | null;
   const repeating = stepDocument !== null && hasRepeatGroup(stepDocument.root);
@@ -248,7 +254,9 @@ export function NativeStep({
               // group to add to or remove from. A step without one keeps the string
               // action it always had, so nothing about the seven no-JS specs moves and
               // no page grows a framework entry point it has no use for.
-              ...(repeating ? { formAction: rosterFormAction } : {}),
+              ...(repeating
+                ? { formAction: rosterFormAction, hiddenFields: { [SESSION_FIELD]: sessionId } }
+                : {}),
             }}
             repeat={{
               rosters,

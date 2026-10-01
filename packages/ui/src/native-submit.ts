@@ -165,6 +165,20 @@ export interface NativeSubmitOptions {
    * `errors` use.
    */
   readonly formAction?: NativeFormAction;
+  /**
+   * Hidden inputs to render as the form's first children, as `{ name: value }`.
+   *
+   * This is how a Server Action gets its per-request context without being bound. A
+   * bound action cannot go to `useActionState`: Next compares a bound reference's
+   * signature asynchronously and that comparison never settles inside a server render,
+   * so the POST never gets a response and the process accumulates promises until it dies
+   * with `RangeError: Map maximum size exceeded`. A hidden input is the plain-HTML way to
+   * carry the same value, and it posts with every submit of the form including Continue.
+   *
+   * These names are the host's, and the host's own decoder has to reserve them so they
+   * are not mistaken for answers.
+   */
+  readonly hiddenFields?: Readonly<Record<string, string>>;
 }
 
 /** Normalize an `A2Node`'s `children` union to a plain array of child nodes. */
