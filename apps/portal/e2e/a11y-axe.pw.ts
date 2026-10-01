@@ -380,3 +380,41 @@ test("axe: completion page has zero violations", async ({ page }) => {
   await waitForHydration(page);
   await expectNoAxeViolations(page, "completion (hydrated render)");
 });
+
+test("a repeating group is axe-clean at one instance, at three, and after a removal", async ({
+  page,
+}) => {
+  // The sweep's own fixtures have no repeating group, so the newest interactive region on
+  // the respondent surface would otherwise be audited only in jsdom (task 073). Three
+  // states, because the group's markup is not the same in any two of them: the Remove
+  // control appears above `min`, the Add control disappears at `max`, and the renumbering
+  // after a removal rewrites every heading and every control name.
+  const { repeatFleetSlug } = readFixtures();
+  await page.goto(`/f/${repeatFleetSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await waitForHydration(page);
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await expectNoAxeViolations(page, "repeating group at min (hydrated)");
+
+  const press = async (name: string): Promise<void> => {
+    const written = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        /\/roster$/.test(new URL(response.url()).pathname),
+    );
+    await page.getByRole("button", { name }).click();
+    expect((await written).status(), `POST /roster for "${name}"`).toBe(200);
+  };
+  await press("Add Vehicle");
+  await press("Add Vehicle");
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(3);
+  // At `max: 3` the Add control is present and disabled, which is a state of its own:
+  // a disabled control still has to carry its name.
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
+  await expectNoAxeViolations(page, "repeating group at max, three instances");
+
+  await press("Remove Vehicle 2");
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(2);
+  await expectNoAxeViolations(page, "repeating group after a removal, renumbered");
+});
