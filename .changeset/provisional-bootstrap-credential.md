@@ -4,7 +4,7 @@
 
 The bootstrap credential is provisional (task 061, SEC-1).
 
-`user.mustChangePassword` joins the auth schema, with migration `0022` adding the column
+`user.mustChangePassword` joins the auth schema, with migration `0023` adding the column
 to the existing table. The column default is `false`, so **an account that predates this
 control is not marked on upgrade**: for such a row nobody can tell whether the password
 was ever changed, and backfilling `true` would make a migration force a password change on
