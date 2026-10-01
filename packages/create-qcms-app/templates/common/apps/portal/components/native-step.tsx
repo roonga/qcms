@@ -141,7 +141,25 @@ export function NativeStep({
     initial.flowState.visibleQuestions,
     refused,
   );
-  const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(stepDocument, missing) };
+  const visibleSet = new Set(initial.flowState.visibleQuestions);
+  const rosters = rosterMap(initial.rosters);
+  const expanded =
+    stepDocument === null
+      ? null
+      : expandRepeatGroups(
+          documentForVisible(stepDocument, initial.flowState.visibleQuestions).root,
+          { rosters, visible: visibleSet, opToken },
+        );
+
+  const expandedDocument: A2UIStepDocument | null =
+    stepDocument === null || expanded === null
+      ? null
+      : { stepId: stepDocument.stepId, root: expanded };
+
+  // The expanded document, so an authored "required" message on a question INSIDE a group
+  // is found: `missing` names those fields by their qualified name, which only the
+  // expanded tree carries.
+  const errors: A2UIErrors = { ...refused, ...requiredFieldErrors(expandedDocument, missing) };
   // The answers the API holds for this step (issue #146) under the just-submitted
   // ones from the no-JS re-render cookie. The cookie has to win, including when it
   // CLEARS a field: see `mergeStepValues`, which owns that three-way behaviour and
@@ -177,20 +195,6 @@ export function NativeStep({
   // keeps the anchors, the labels and the rendered ids one set of strings; the
   // renderer's own expansion is idempotent, so passing it an expanded document leaves
   // it alone.
-  const visibleSet = new Set(initial.flowState.visibleQuestions);
-  const rosters = rosterMap(initial.rosters);
-  const expanded =
-    stepDocument === null
-      ? null
-      : expandRepeatGroups(
-          documentForVisible(stepDocument, initial.flowState.visibleQuestions).root,
-          { rosters, visible: visibleSet, opToken },
-        );
-  const expandedDocument: A2UIStepDocument | null =
-    stepDocument === null || expanded === null
-      ? null
-      : { stepId: stepDocument.stepId, root: expanded };
-
   const errorEntries = orderedEntries(
     [
       ...errorSummaryEntries(expandedDocument, refused, initial.flowState.visibleQuestions),

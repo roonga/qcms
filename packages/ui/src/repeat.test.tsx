@@ -5,11 +5,13 @@ import {
   type QuestionId,
 } from "@roonga/qcms-core";
 import { render, screen } from "@testing-library/react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
 import { withDemotedHeadings } from "./heading-demotion.ts";
 import {
+  addButtonId,
   expandRepeatGroups,
   hasRepeatGroup,
   instanceLabelFor,
@@ -236,6 +238,73 @@ describe("the instance card (plan section 4.3, Q11, Q12)", () => {
       expect(heading?.id).toBe(instanceId);
       expect(heading?.getAttribute("tabindex")).toBe("-1");
     }
+  });
+
+  /**
+   * The server-rendered HTML for a native step, which is what the `autofocus` assertions
+   * below have to read.
+   *
+   * `render()` cannot answer them: on the client React applies `autoFocus` by CALLING
+   * focus() on the mounted node and writes no attribute at all, so a client render of a
+   * correctly wired tree has zero `[autofocus]` elements. The no-JS case IS the server's
+   * HTML, so that is what this renders.
+   */
+  function nativeMarkup(roster: readonly string[], autofocusId: string): string {
+    const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
+    return renderToStaticMarkup(
+      <A2UIStepRenderer
+        document={document}
+        specVersion={spec}
+        nativeSubmit={{ action: "/s/ses_1/step", submitLabel: "Continue" }}
+        repeat={{ rosters: { grp_vehicles: [...roster] }, opToken: "op_7f3", autofocusId }}
+      />,
+    );
+  }
+
+  /** Every element in a markup string carrying the `autofocus` attribute. */
+  function autofocusTags(markup: string): string[] {
+    return [...markup.matchAll(/<[a-z0-9]+[^>]*\bautofocus\b[^>]*>/g)].map((match) => match[0]);
+  }
+
+  it("marks the autofocus target the host named, and nothing else", () => {
+    // The no-JS landing after an Add or a Remove is an `autofocus` attribute on that
+    // instance's heading, which is a 200-to-a-POST's only option: the response leaves the
+    // browser on the POST's own URL and that URL carries no fragment (Q11, Q28).
+    //
+    // Asserted on the RENDERED ATTRIBUTE rather than on the prop, because the way this
+    // broke was a renderer that accepted `autofocusId` and never put it in the repeat
+    // context: the action returned the right id, the page rendered, and the focus move
+    // was silently gone with nothing else looking wrong.
+    const roster = instances(2);
+    const marked = autofocusTags(nativeMarkup(roster, roster[1]!));
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toContain(`id="${roster[1]!}"`);
+    expect(marked[0]!.startsWith("<h4")).toBe(true);
+    // Two autofocus targets in one document leave which one wins to the browser, so the
+    // first instance's heading must not be marked as well.
+    expect(marked[0]).not.toContain(roster[0]!);
+  });
+
+  it("marks the group's Add button when that is where the host sends focus", () => {
+    // A REPLAYED no-JS post minted nothing, so the landing is the Add button: the
+    // instance the first post created is already on the page and focus has not moved.
+    const marked = autofocusTags(nativeMarkup(instances(1), addButtonId("grp_vehicles")));
+    expect(marked).toHaveLength(1);
+    expect(marked[0]).toContain('data-qcms-repeat-action="add"');
+  });
+
+  it("marks nothing when the host names no destination", () => {
+    const roster = instances(2);
+    const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const markup = renderToStaticMarkup(
+      <A2UIStepRenderer
+        document={document}
+        specVersion={spec}
+        nativeSubmit={{ action: "/s/ses_1/step", submitLabel: "Continue" }}
+        repeat={{ rosters: { grp_vehicles: roster }, opToken: "op_7f3" }}
+      />,
+    );
+    expect(autofocusTags(markup)).toEqual([]);
   });
 
   it("never shows the instance id as a label a respondent reads", () => {

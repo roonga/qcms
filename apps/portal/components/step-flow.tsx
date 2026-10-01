@@ -751,8 +751,14 @@ export function StepFlow({
   // the document gave no label is named by its position among this step's visible
   // questions instead, which is why the visible set travels with the call (issue
   // #326 - the constant that stood there made every label-less entry identical).
+  // The EXPANDED document, not the stored one. Every name the API reports as missing
+  // inside a repeating group is qualified (`instanceId/questionId`), and only the expanded
+  // tree carries nodes under those names, so the stored tree yields neither the question's
+  // label nor the instance's: each entry degrades to "Question 2 needs an answer" with no
+  // vehicle named, which is the WCAG 3.3.1 distinctness failure the instance prefix exists
+  // to prevent.
   const missingEntries = missingRequiredEntries(
-    snapshot.step as unknown as A2UIStepDocument | null,
+    expandedStep,
     missing,
     snapshot.flowState.visibleQuestions,
   );

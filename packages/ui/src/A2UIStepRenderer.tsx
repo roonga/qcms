@@ -157,8 +157,14 @@ export function A2UIStepRenderer({
       ...(repeat?.onRemove !== undefined ? { onRemove: repeat.onRemove } : {}),
       ...(repeat?.status !== undefined ? { status: repeat.status } : {}),
       ...(repeat?.busyGroupId !== undefined ? { busyGroupId: repeat.busyGroupId } : {}),
+      // The focus destination after a roster operation. On the no-JS path it becomes an
+      // `autofocus` attribute on that instance's heading, which is the ruled landing
+      // (Q11, Q28), so leaving it out of this object silently loses the focus move with
+      // nothing else looking wrong: the action still returns the id and the page still
+      // renders. It did exactly that until a spec read the rendered attribute.
+      ...(repeat?.autofocusId !== undefined ? { autofocusId: repeat.autofocusId } : {}),
     }),
-    [repeat?.onAdd, repeat?.onRemove, repeat?.status, repeat?.busyGroupId],
+    [repeat?.onAdd, repeat?.onRemove, repeat?.status, repeat?.busyGroupId, repeat?.autofocusId],
   );
   return (
     <I18nProvider locale={locale}>
