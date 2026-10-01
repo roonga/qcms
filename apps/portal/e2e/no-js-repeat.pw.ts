@@ -69,11 +69,13 @@ async function startNoJsRepeat(page: import("@playwright/test").Page): Promise<s
  * whole point of the mechanism.
  */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
-  const served = page.waitForResponse(
-    (response) => response.request().isNavigationRequest() && response.status() === 200,
-  );
+  // Waits for the navigation the press produces and then ASSERTS its status. Waiting for a
+  // 200 specifically would turn any other answer - a framework error, a belt refusal - into
+  // a bare timeout, and the response here is the whole mechanism under test.
+  const served = page.waitForResponse((response) => response.request().isNavigationRequest());
   await page.getByRole("button", { name }).click();
-  await served;
+  const response = await served;
+  expect(response.status(), `the ${name} post's own response`).toBe(200);
 }
 
 test("case 28: the whole walk completes without scripting, add and remove included", async ({

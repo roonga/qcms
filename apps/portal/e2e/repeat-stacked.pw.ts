@@ -62,14 +62,18 @@ async function fillPlate(
 
 /** Press Add or Remove and wait for the roster write the API answers. */
 async function rosterPress(page: import("@playwright/test").Page, name: string): Promise<void> {
+  // Waits for the roster write and then ASSERTS its status, rather than waiting for a 200.
+  // The difference is diagnostic: a refused write (a belt refusal, a rate limit, a
+  // `REPEAT_MAX_REACHED`) would otherwise never satisfy the predicate and the failure would
+  // read as a timeout with nothing to act on.
   const written = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
-      /\/roster$/.test(new URL(response.url()).pathname) &&
-      response.status() === 200,
+      /\/roster$/.test(new URL(response.url()).pathname),
   );
   await page.getByRole("button", { name }).click();
-  await written;
+  const response = await written;
+  expect(response.status(), `POST /roster for "${name}"`).toBe(200);
 }
 
 test("case 27: answer, add, remove and submit lands the right instances (scripted)", async ({

@@ -190,6 +190,12 @@ export async function startApiServer(): Promise<void> {
     QCMS_RL_ANSWERS_IP_MAX: "1000000",
     QCMS_RL_SESSION_CREATE_MAX: "1000000",
     QCMS_RL_SUBMIT_SESSION_MAX: "1000000",
+    // The repeating group's roster operation has its own class (task 073, SEC-16), and it
+    // has to be raised with the rest: the clock is frozen, so a fixed window never
+    // advances and the production ceiling of ten per session would refuse a spec that
+    // presses Add more than ten times across one session's lifetime.
+    QCMS_RL_ROSTER_SESSION_MAX: "1000000",
+    QCMS_RL_ROSTER_IP_MAX: "1000000",
     // Task 041: the deterministic fake assistant provider. It calls no network and
     // needs no key, so the browser suite exercises the real assist slice - route,
     // tool allowlist, SSE relay - without a provider account. The rate limit is
