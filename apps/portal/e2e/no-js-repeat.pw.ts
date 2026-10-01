@@ -102,6 +102,65 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
   expect(response.status(), `the ${name} post's own response`).toBe(200);
 }
 
+/**
+ * Post the step the way a browser would, but **without the browser's own validation**.
+ *
+ * Needed because two of the cases below turn on what the API refuses, and the browser
+ * refuses those posts first: HTML `required` blocks an empty required field and
+ * `minlength` blocks a plate below the question's floor, so a form the API would reject
+ * never leaves the page. `page.request` shares this context's cookies, so this is the same
+ * session the page is looking at - a respondent defeating their own form, which is the
+ * threat model that makes server-side validation worth having (R2: the API is
+ * authoritative). It is the shape `no-js-number.pw.ts` already uses for the same reason.
+ *
+ * `fields` are raw form entries: a value under its (qualified) field name, and a
+ * `__qk__`-prefixed kind tag for each, which is what the decoder iterates.
+ */
+async function craftStepPost(
+  page: import("@playwright/test").Page,
+  sessionId: string,
+  fields: Readonly<Record<string, string>>,
+): Promise<void> {
+  const form: Record<string, string> = {};
+  for (const [name, value] of Object.entries(fields)) {
+    form[name] = value;
+    // `"string"` is the WIRE kind, which is not the question type: the vocabulary is
+    // `string | number | radio | multi` (`native-submit.ts`). A tag the decoder does not
+    // recognise is ignored, and since the decoder iterates the TAGS rather than the
+    // values, an unrecognised one means the post carries no answers at all - a 303 that
+    // stored nothing, which is what "shortText" produced here.
+    form[`__qk__${name}`] = "string";
+  }
+  const response = await page.request.post(`/s/${sessionId}/step`, {
+    headers: { "sec-fetch-site": "same-origin" },
+    form,
+    maxRedirects: 0,
+  });
+  expect(response.status(), "the crafted whole-step post").toBe(303);
+}
+
+/**
+ * Every value posted under one field name, whichever encoding the form used.
+ *
+ * The step form's enctype is `multipart/form-data`, because its action is a Server
+ * Action, and that holds for the Continue control too even though Continue posts to a
+ * plain URL through `formaction`. So both readings are tried rather than assumed, and a
+ * body in neither encoding yields nothing from both - which is why the assertions that
+ * expect nothing also assert something they DO expect to find.
+ */
+function postedValues(body: string, field: string): string[] {
+  const multipart = multipartValues(body, field);
+  if (multipart.length > 0) return multipart;
+  return new URLSearchParams(body).getAll(field);
+}
+
+/** The live instance ids on the page, in the order their cards are drawn. */
+async function instanceIds(page: import("@playwright/test").Page): Promise<string[]> {
+  return page
+    .locator("fieldset[data-qcms-instance]")
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-qcms-instance") ?? ""));
+}
+
 test("case 28: the whole walk completes without scripting, add and remove included", async ({
   page,
 }) => {
@@ -155,15 +214,26 @@ test("case 29: Add with a blank required field adds, writes nothing, and replays
   const sessionId = await startNoJsRepeat(page);
   const db = await openDb(databaseUrl);
   try {
-    // Answer the plate and press Continue so the API HOLDS it: the retraction half of
-    // this case needs a previously answered required field to try to clear. The plain
-    // `Fleet reference` is left BLANK on purpose, so the step is refused as incomplete
-    // and the respondent comes back to it: the fixture is a single step, and a Continue
-    // that satisfied it would submit the response and end the session. The refusal still
-    // stores every answer it accepted, which is the answer this case needs held.
-    await card(page, 1).getByLabel("Registration plate").fill("AAA111");
-    await submitStep(page);
-    await expect(page.getByTestId("error-summary")).toBeVisible();
+    // Get the plate HELD by the API first: the retraction half of this case needs a
+    // previously answered required field to try to clear.
+    //
+    // Posted through `craftStepPost` rather than by pressing Continue, and for two
+    // reasons that are both the suite working as intended. The fixture is a single step,
+    // so a Continue the API ACCEPTS submits the response and ends the session, leaving
+    // nothing to press Add on. And a Continue the API would refuse never leaves the page,
+    // because the thing that makes it refusable - a blank required `Fleet reference` - is
+    // exactly what HTML `required` blocks. So the post omits the fleet reference: the API
+    // stores the plate it accepted and refuses the step as incomplete, which is the state
+    // this case starts from.
+    const [first] = await instanceIds(page);
+    await craftStepPost(page, sessionId, { [`${first!}/q_rf_plate`]: "AAA111" });
+    // Still on the step, with the plate the API now holds rendered back into its cell.
+    // That value coming from the API's own projection is what this setup needed; whether
+    // the re-render also draws a summary for the missing fleet reference is
+    // `no-js-required.pw.ts`'s subject, not this one's.
+    await page.goto(`/s/${sessionId}`);
+    await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+    await expect(card(page, 1).getByLabel("Registration plate")).toHaveValue("AAA111");
     const beforeRows = await db.instanceAnswerRows(sessionId);
     expect(beforeRows.filter((row) => row.questionId === "q_rf_plate")).toHaveLength(1);
 
@@ -239,6 +309,17 @@ test("case 30: exactly one __qop entry reaches the server, or none", async ({ pa
 
   // An ordinary Continue carries none at all: it posts to the BFF route through the
   // submit control's own `formaction`, and the roster buttons were not the submitter.
+  //
+  // The required fields are filled first, because Continue carries no `formnovalidate`:
+  // with a blank required field the browser refuses the submit and there is no request to
+  // read. That refusal is the suite working (`no-js-required.pw.ts` owns it), and here it
+  // would read as this assertion passing for the wrong reason.
+  await page.getByLabel("Fleet reference").fill("NORTH-1");
+  for (const ordinal of [1, 2]) {
+    await card(page, ordinal)
+      .getByLabel("Registration plate")
+      .fill(`PLATE${String(ordinal)}`);
+  }
   const continueRequest = page.waitForRequest(
     (candidate) =>
       candidate.method() === "POST" &&
@@ -249,9 +330,11 @@ test("case 30: exactly one __qop entry reaches the server, or none", async ({ pa
   // body is an ordinary URL-encoded form rather than the action's multipart one. Both
   // readings are tried, so this cannot pass merely because the parser saw nothing.
   const continueBody = (await continueRequest).postData() ?? "";
-  expect(new URLSearchParams(continueBody).getAll("__qop")).toEqual([]);
-  expect(multipartValues(continueBody, "__qop")).toEqual([]);
-  expect(new URLSearchParams(continueBody).getAll(SESSION_FIELD)).toEqual([sessionId]);
+  expect(postedValues(continueBody, "__qop")).toEqual([]);
+  // And the session rides with it, which is both the proof that the body was read at all
+  // and the thing the `__qop` action needs: the reserved hidden input posts with EVERY
+  // submit of this form, not only with the roster buttons.
+  expect(postedValues(continueBody, SESSION_FIELD)).toEqual([sessionId]);
 });
 
 test("case 35: a re-render after a refusal shows every accepted answer and every refused value", async ({
@@ -261,14 +344,22 @@ test("case 35: a re-render after a refusal shows every accepted answer and every
   await rosterPress(page, ADD);
   await rosterPress(page, ADD);
   await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(3);
+  const ids = await instanceIds(page);
 
-  await page.getByLabel("Fleet reference").fill("NORTH-1");
   // Vehicle 1 and 3 are valid; vehicle 2's plate is two characters, below the question's
-  // `minLength: 3`, so the API refuses exactly that cell with a 422.
-  await card(page, 1).getByLabel("Registration plate").fill("AAA111");
-  await card(page, 2).getByLabel("Registration plate").fill("BB");
-  await card(page, 3).getByLabel("Registration plate").fill("CCC333");
-  await submitStep(page);
+  // `minLength: 3`, so the API refuses exactly that cell.
+  //
+  // Crafted rather than typed, because the BROWSER refuses it first: the renderer emits
+  // the question's floor as `minlength`, so a two-character plate never leaves the page.
+  // That is the right behaviour and it is asserted below, but the case under test is what
+  // the API's refusal RE-RENDERS, which needs the post to reach the API.
+  await craftStepPost(page, sessionId, {
+    q_rf_fleet_ref: "NORTH-1",
+    [`${ids[0]!}/q_rf_plate`]: "AAA111",
+    [`${ids[1]!}/q_rf_plate`]: "BB",
+    [`${ids[2]!}/q_rf_plate`]: "CCC333",
+  });
+  await page.goto(`/s/${sessionId}`);
 
   // The accepted answers are back from the API's own projection.
   await expect(page.getByLabel("Fleet reference")).toHaveValue("NORTH-1");
@@ -293,6 +384,24 @@ test("case 35: a re-render after a refusal shows every accepted answer and every
   } finally {
     await db.close();
   }
+});
+
+test("the browser refuses a plate below the question's floor, inside a group as outside one", async ({
+  page,
+}) => {
+  // The other half of case 35, and the reason its refusal has to be crafted: a cell inside
+  // a repeating group carries the same native constraints as a question outside one, so the
+  // browser stops a short plate before the form leaves the page. A `__qop` press is the
+  // exception that proves it, since `formnovalidate` is what lets Add through regardless.
+  await startNoJsRepeat(page);
+  await page.getByLabel("Fleet reference").fill("NORTH-1");
+  await card(page, 1).getByLabel("Registration plate").fill("BB");
+  const posts = countStepPosts(page);
+  await stepSubmit(page).click();
+  await expect(card(page, 1).getByLabel("Registration plate")).toBeFocused();
+  expect(posts()).toBe(0);
+  await rosterPress(page, ADD);
+  await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
 });
 
 test("the group renders one card per live instance with a legend and a heading", async ({

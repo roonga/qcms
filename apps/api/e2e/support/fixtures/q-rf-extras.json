@@ -1,10 +1,30 @@
 {
   "type": "multiChoice",
   "questionId": "q_rf_extras",
-  "label": { "en": "Which extras are fitted?" },
+  "label": {
+    "en": "Which extras are fitted?"
+  },
   "options": [
-    { "optionId": "opt_tow_bar", "label": { "en": "Tow bar" } },
-    { "optionId": "opt_roof_rack", "label": { "en": "Roof rack" } },
-    { "optionId": "opt_dash_camera", "label": { "en": "Dash camera" } }
-  ]
+    {
+      "optionId": "opt_tow_bar",
+      "label": {
+        "en": "Tow bar"
+      }
+    },
+    {
+      "optionId": "opt_roof_rack",
+      "label": {
+        "en": "Roof rack"
+      }
+    },
+    {
+      "optionId": "opt_dash_camera",
+      "label": {
+        "en": "Dash camera"
+      }
+    }
+  ],
+  "constraints": {
+    "maxSelected": 3
+  }
 }

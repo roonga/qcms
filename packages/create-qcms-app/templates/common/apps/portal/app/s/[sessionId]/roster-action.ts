@@ -8,7 +8,8 @@ import { focusAfterAdd, focusAfterRemoval, type RosterActionState } from "@/lib/
 import { ApiError, getStep, rosterOp } from "@/lib/server/api";
 import { isSameOriginAction } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
-import { decodeStepForm } from "@/lib/server/step-form";
+import { decodeStepForm, type DecodedAnswer } from "@/lib/server/step-form";
+import type { NativeFieldKind } from "@roonga/qcms-ui/native-submit";
 
 /**
  * The no-JS roster operation: a **Next Server Action** on the step form (task 073,
@@ -80,16 +81,28 @@ import { decodeStepForm } from "@/lib/server/step-form";
 
 /** The typed values from one whole-step post, for the re-render to show again. */
 function typedValues(
-  answers: readonly { questionId: string; value: unknown }[],
+  answers: readonly DecodedAnswer[],
+  cleared: Readonly<Record<string, NativeFieldKind>>,
 ): Record<string, A2UIAnswerValue> {
   const values: Record<string, A2UIAnswerValue> = {};
   for (const answer of answers) {
-    // A decoded `null` is a CLEARED field rather than a value. It is not recorded, so
-    // the field re-renders from what the API holds - which, since this post writes no
-    // answer, is still the old answer. That is the ruled behaviour and the reason the
-    // "cannot be cleared without scripting" bullet is unchanged: an emptied required
-    // field on an Add post is neither stored nor retracted.
-    if (answer.value !== null) values[answer.questionId] = answer.value as A2UIAnswerValue;
+    // A decoded `null` is a CLEARED field, and it is carried back as EMPTY rather than
+    // dropped. Dropping it would re-render the field from what the API holds, which this
+    // post deliberately did not change, so a respondent who emptied a field would watch
+    // the old answer reappear with no explanation. The record settles it: "the Add post
+    // writes no answer, so an emptied required field on it is neither stored nor
+    // retracted, and the field comes back still empty with the step unchanged"
+    // (`plan/repeating-groups-and-table-input.md` section 4.2).
+    //
+    // Which is exactly the pair of facts that keeps `docs/portal-constraints.md`'s "a
+    // required question cannot be CLEARED without scripting" bullet unchanged: the LEDGER
+    // is untouched, and the form showing the clear is not the clear taking effect. It
+    // takes effect, or is refused, on Continue.
+    if (answer.value === null) {
+      values[answer.questionId] = cleared[answer.questionId] === "multi" ? [] : "";
+      continue;
+    }
+    values[answer.questionId] = answer.value as A2UIAnswerValue;
   }
   return values;
 }
@@ -109,8 +122,8 @@ export async function rosterOperation(
   // credential read. An action gets no `Request`, so its headers are wrapped back into
   // the shape the belt reads (`isSameOriginAction`); the decision and the refusal line
   // are the one implementation.
-  const { answers, rosterOp: operation, sessionId } = decodeStepForm(formData);
-  const values = typedValues(answers);
+  const { answers, cleared, rosterOp: operation, sessionId } = decodeStepForm(formData);
+  const values = typedValues(answers, cleared);
   // The ROUTE TEMPLATE rather than the concrete path, and deliberately: the belt
   // compares origins and never reads the path, the refusal line's `beltRoute` is derived
   // by matching this against the route table, and the only session id available here came

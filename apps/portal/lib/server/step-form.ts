@@ -11,7 +11,7 @@ import {
   type RosterOpRequest,
 } from "@roonga/qcms-ui/repeat-node";
 
-import { SESSION_FIELD } from "@/lib/repeat";
+import { SESSION_FIELD } from "../repeat";
 
 /**
  * Whole-step form decoding for the no-JS submit route (task 044).
@@ -129,6 +129,19 @@ export interface DecodedStepForm {
    * A label rather than a credential: see {@link SESSION_FIELD}.
    */
   readonly sessionId?: string;
+  /**
+   * The fields the respondent CLEARED on this post, each with the wire kind the renderer
+   * tagged it with. A subset of `answers`, where each appears with `value: null`.
+   *
+   * It exists because one caller has to RE-RENDER the post rather than forward it: the
+   * `__qop` Server Action, which writes no answer and hands the step back. A field the
+   * respondent emptied has to come back empty rather than showing the answer the API still
+   * holds (`plan/repeating-groups-and-table-input.md` section 4.2), and what empty looks
+   * like depends on the kind: an empty selection is `[]` and an empty anything-else is
+   * `""`. The kind is the only thing that carries that distinction, and it does not belong
+   * on `answers`, whose shape is the API's request body.
+   */
+  readonly cleared: Readonly<Record<string, NativeFieldKind>>;
   /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
   /**
@@ -235,6 +248,7 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
   const { rawByName, kindByName, answered, rosterOp, sessionId } = partition(entries);
   const answers: DecodedAnswer[] = [];
+  const cleared: Record<string, NativeFieldKind> = {};
   const fields = [...kindByName.keys()];
 
   // Iterate the KIND TAGS, not the posted values. A control can be an answer field
@@ -250,6 +264,7 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     } else if (answered.has(name)) {
       // Marked as answered and arrived carrying nothing: the respondent cleared it.
       answers.push({ questionId: name, value: null });
+      cleared[name] = kind;
     }
     // Otherwise: never answered, still not answered. Nothing to post.
   }
@@ -269,6 +284,7 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     answers,
     extras,
     fields,
+    cleared,
     ...(rosterOp !== undefined ? { rosterOp } : {}),
     ...(sessionId !== undefined ? { sessionId } : {}),
   };

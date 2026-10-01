@@ -42,18 +42,32 @@ async function startRepeatFlow(page: import("@playwright/test").Page): Promise<s
   return new URL(page.url()).pathname.split("/")[2]!;
 }
 
+/**
+ * Wait for the answer post for ONE question, by the question in its body.
+ *
+ * Matching only "a 200 from `/answers`" is a race on a step like this one, and it cost a
+ * confusing failure: the fleet reference, the plate, the notes and the extras each post,
+ * and a waiter created for the last of them can be satisfied by an earlier one still in
+ * flight. The assertion that followed then read the ledger before the post it was actually
+ * waiting for had landed, and reported a missing answer that arrived a moment later.
+ */
+function answerPosted(page: import("@playwright/test").Page, questionId: string): Promise<unknown> {
+  return page.waitForResponse((response) => {
+    if (response.request().method() !== "POST" || response.status() !== 200) return false;
+    if (!/\/answers$/.test(new URL(response.url()).pathname)) return false;
+    const body = response.request().postDataJSON() as { questionId?: unknown } | null;
+    const posted = typeof body?.questionId === "string" ? body.questionId : "";
+    return posted === questionId || posted.endsWith(`/${questionId}`);
+  });
+}
+
 /** Type into one instance's plate field and wait for the answer to be recorded. */
 async function fillPlate(
   page: import("@playwright/test").Page,
   ordinal: number,
   value: string,
 ): Promise<void> {
-  const posted = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      /\/answers$/.test(new URL(response.url()).pathname) &&
-      response.status() === 200,
-  );
+  const posted = answerPosted(page, "q_rf_plate");
   await card(page, ordinal).getByLabel("Registration plate").fill(value);
   // shortText commits on blur (ADR-31), so the post is the blur's.
   await card(page, ordinal).getByLabel("Registration plate").blur();
@@ -68,8 +82,7 @@ async function rosterPress(page: import("@playwright/test").Page, name: string):
   // read as a timeout with nothing to act on.
   const written = page.waitForResponse(
     (response) =>
-      response.request().method() === "POST" &&
-      /\/roster$/.test(new URL(response.url()).pathname),
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
   );
   await page.getByRole("button", { name }).click();
   const response = await written;
@@ -215,29 +228,30 @@ test("case 31: a summary entry names the instance and anchors at its field", asy
 test("case 38: longText and multiChoice are answerable inside a group", async ({ page }) => {
   const sessionId = await startRepeatFlow(page);
   await page.getByLabel("Fleet reference").fill("NORTH-1");
+  const fleetPosted = answerPosted(page, "q_rf_fleet_ref");
   await page.getByLabel("Fleet reference").blur();
+  await fleetPosted;
   await fillPlate(page, 1, "AAA111");
 
   // The two types the table presentation refuses (Q12's deliberate asymmetry): a stacked
   // card gives each a full row, so neither is cramped and both are ordinary answers.
   const notes = card(page, 1).getByLabel("Anything else about this vehicle?");
-  const posted = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      /\/answers$/.test(new URL(response.url()).pathname) &&
-      response.status() === 200,
-  );
+  const posted = answerPosted(page, "q_rf_notes");
   await notes.fill("Kerbed wheel, cosmetic only.");
   await notes.blur();
   await posted;
 
-  const grouped = page.waitForResponse(
-    (response) =>
-      response.request().method() === "POST" &&
-      /\/answers$/.test(new URL(response.url()).pathname) &&
-      response.status() === 200,
-  );
-  await card(page, 1).getByText("Roof rack").click();
+  const grouped = answerPosted(page, "q_rf_extras");
+  // Toggled through the LABEL, which is the pattern `toggleOption` established for the
+  // vendored checkbox: the real `<input>` is behind a styled box that takes the pointer
+  // events, so clicking the input itself is refused as intercepted.
+  await card(page, 1).getByText("Roof rack", { exact: true }).click();
+  const roofRack = card(page, 1).getByRole("checkbox", { name: "Roof rack", exact: true });
+  // Asserted before the commit, because an unchecked box commits an EMPTY selection and
+  // that is a clear rather than an answer: the post would be a 200 with no row written,
+  // and this case would read as the group not storing anything.
+  await expect(roofRack).toBeChecked();
+  await roofRack.focus();
   // multiChoice commits when focus leaves the group (ADR-31), and the qualified name is
   // what the commit-moment table is keyed by, so this proves the table saw the
   // expansion rather than falling back to the default moment.

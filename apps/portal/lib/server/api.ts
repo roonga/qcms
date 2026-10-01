@@ -5,7 +5,7 @@ import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 import { serverLogger } from "./logger";
 
-import { splitFieldKey } from "@/lib/repeat";
+import { splitFieldKey } from "../repeat";
 
 /**
  * The strict BFF's internal API client (task 029, R2).

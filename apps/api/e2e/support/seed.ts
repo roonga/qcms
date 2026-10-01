@@ -233,6 +233,16 @@ const STALE_PIN_QUESTIONS = [
  * belongs to, so a clone is the only way to reuse one; structural, so the shared
  * fixture constants the other seeds hand to `createQuestionVersion` are untouched.
  */
+/**
+ * A fixture's definition with its id stamped on, stored **verbatim**.
+ *
+ * Nothing parses it against `QuestionDefinition` on the way in, so a fixture has to be
+ * written the way the schema would have left it. In particular the schema `prefault`s an
+ * empty `constraints` object for every question type, and a stored definition without one
+ * crashes the kernel's validator where it destructures the field: a `multiChoice` fixture
+ * that left `constraints` out answered 500 rather than refusing anything, which is how
+ * this was found. Spell the optional objects out.
+ */
 function questionDefinitionFor(
   questionId: QuestionId,
   definition: QuestionVersionInput["definition"],
