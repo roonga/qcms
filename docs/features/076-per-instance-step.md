@@ -28,6 +28,8 @@ Task 071 built the list this task's cursor walks, and left **two edges for this 
 
 Changing either is a change to `packages/core/src/evaluate-rules.ts`'s `stepViews`, and it belongs here because the cursor is what gives a view its meaning.
 
+**The no-JS path it inherits is a Server Action, not a route branch** (Q28, ruled 2026-10-01). Task 073's Add and Remove posts to a Next Server Action on the step form, which re-renders in the same 200 response and lands focus by `autofocus` rather than by a fragment, and the portal serves `Referrer-Policy: same-origin` so that Next admits it. This task adds the Add control to the last view and changes none of that: the control is the same `__qop` submit button on the same form, and the view it lands on is the one the action's re-render draws.
+
 ## Exit criteria
 
 **This task owns no numbered acceptance case**, and section 11 of the plan says so in its ownership map. Its behaviour is a claim about a sequence rather than about a value, so the criterion is prose and it is the whole specification:
