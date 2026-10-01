@@ -108,6 +108,20 @@ export {
   answerLedger,
 } from "./answers.js";
 
+// The append-only roster of repeating-group instances (ADR-42, task 072). These
+// are the raw event reads and writes; deriving the LIVE roster from them is a
+// function of the group's count source and runs in the API, above `evaluateRules`
+// (`apps/api/src/features/responses/roster.ts`).
+export {
+  type GroupRoster,
+  type RosterEventRow,
+  addInstances,
+  removeInstance,
+  readRoster,
+  readRosters,
+  rosterLedger,
+} from "./rosters.js";
+
 export { type SubmissionRow, insertSubmission, getSubmission } from "./submissions.js";
 
 export {

@@ -13,6 +13,7 @@ export * from "./secure-links.js";
 export * from "./webhooks.js";
 export * from "./sessions.js";
 export * from "./answers.js";
+export * from "./answer-group-instances.js";
 export * from "./submissions.js";
 export * from "./erasure.js";
 export * from "./outbox.js";

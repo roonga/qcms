@@ -8,7 +8,7 @@ import {
 } from "./testing/harness.js";
 
 /**
- * Every table the schema declares (13 domain + 1 break-glass audit + 5 better-auth).
+ * Every table the schema declares (14 domain + 1 break-glass audit + 5 better-auth).
  *
  * A new migration that creates a table must add the table to this list, or
  * "creates every table on an empty database" fails naming it.
@@ -18,6 +18,11 @@ import {
  * a table a later migration created passed while unlisted: `two_factor_resets`
  * (migration 0021) reached this list because a reviewer noticed it was missing, not
  * because the assertion complained, and it would not have.
+ *
+ * `answer_group_instances` (migration 0022, ADR-42) is the eighth **data-plane**
+ * table, which is a smaller set than this one: ADR-40 counts the tables that carry
+ * a session's respondent-linked state and multiply per environment, while this
+ * list is every table in `public`.
  */
 const EXPECTED_TABLES = [
   "questions",
@@ -29,6 +34,7 @@ const EXPECTED_TABLES = [
   "webhooks",
   "sessions",
   "answers",
+  "answer_group_instances",
   "submissions",
   "erasure_tombstones",
   "outbox",
@@ -164,6 +170,133 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       expect(await triggerExists(testDb, "answers_reject_delete")).toBe(true);
       expect(await triggerExists(testDb, "question_versions_freeze_published")).toBe(true);
       expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
+
+      // The roster's pair (migration 0022, ADR-42): the same two guards the answer
+      // ledger carries, one table over, the delete one honouring the same door.
+      expect(await triggerExists(testDb, "answer_group_instances_reject_update")).toBe(true);
+      expect(await triggerExists(testDb, "answer_group_instances_reject_delete")).toBe(true);
+    });
+
+    it("keys the answer ledger by instance and pins the roster's event vocabulary", async () => {
+      // The column is NULLABLE and that is the additive half of migration 0022: a row
+      // written before it, and a row written after it for a question outside every
+      // repeating group, are the same row (ADR-42).
+      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBe(false);
+
+      // The index keeps its name and gains `instance_id` before `answered_at`, so its
+      // leading columns are exactly `latestAnswers`'s DISTINCT ON key. Read off the
+      // live definition rather than off the mirror, which is source and not evidence.
+      const definition = await testDb.client.query<{ indexdef: string }>(
+        `select indexdef from pg_indexes
+           where schemaname = 'public' and indexname = 'answers_session_question_answered_at_idx'`,
+      );
+      expect(definition.rows[0]?.indexdef).toContain("session_id, question_id, instance_id");
+
+      // The CHECK is the third of this table's four guards, and it is hand-authored
+      // in SQL rather than declared in the Drizzle mirror, exactly as
+      // `answers_retraction_value` (0009) is. So the assertion has to be against the
+      // database: the mirror would report nothing either way.
+      await expect(
+        testDb.client.query(
+          `insert into answer_group_instances (session_id, group_id, instance_id, event)
+             values ('ses_nope', 'grp_pax', 'ins_1', 'archived')`,
+        ),
+      ).rejects.toMatchObject({ constraint: "answer_group_instances_event" });
+    });
+
+    it("carries ADR-40's per-environment counts, derived from the live catalogue", async () => {
+      // ADR-40's amendment states eight data-plane tables, seventeen guards and eight
+      // foreign keys per environment, and task 072 is where those figures are checked
+      // against real SQL rather than against the prose that produced them. Task 064
+      // checks its generator against the same numbers, so a drift found here is found
+      // before a generator is written to the wrong total.
+      //
+      // The criterion is ADR-40's own and is mechanical: any trigger, CHECK, UNIQUE
+      // constraint or index declared on one of the data-plane tables. Primary keys ride
+      // the CREATE TABLE and are excluded, and so is the index a UNIQUE constraint
+      // creates for itself, which would otherwise be counted twice.
+      const dataPlane = [
+        "sessions",
+        "answers",
+        "submissions",
+        "erasure_tombstones",
+        "outbox",
+        "webhook_deliveries",
+        "webhooks",
+        "answer_group_instances",
+      ];
+      const tables = await publicTables(testDb);
+      expect(dataPlane.filter((name) => tables.has(name))).toEqual(dataPlane);
+
+      const guards = await testDb.client.query<{ kind: string; name: string }>(
+        `select 'trigger' as kind, t.tgname as name
+           from pg_trigger t join pg_class c on c.oid = t.tgrelid
+           where not t.tgisinternal and c.relname = any($1)
+         union all
+         select case con.contype when 'c' then 'check' else 'unique' end, con.conname
+           from pg_constraint con join pg_class c on c.oid = con.conrelid
+           where con.contype in ('c', 'u') and c.relname = any($1)
+         union all
+         select 'index', ic.relname
+           from pg_index i
+           join pg_class c on c.oid = i.indrelid
+           join pg_class ic on ic.oid = i.indexrelid
+           where c.relname = any($1)
+             and not i.indisprimary
+             and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid)`,
+        [dataPlane],
+      );
+
+      // Sixteen off the chain: twelve ADR-40 reads off migrations 0000 to 0018, plus the
+      // four this task's table declares. The seventeenth is the `CHECK (environment =
+      // '<env>')` on `data_<env>.sessions` that #995's design adds and task 064 writes,
+      // so it cannot exist here and its absence is the honest reading of that record
+      // rather than a shortfall. Named as a list so a failure says which guard moved.
+      expect(guards.rows.map((row) => row.name).sort()).toEqual(
+        [
+          "answers_reject_update",
+          "answers_reject_delete",
+          "answers_retraction_value",
+          "answers_session_question_answered_at_idx",
+          "answer_group_instances_reject_update",
+          "answer_group_instances_reject_delete",
+          "answer_group_instances_event",
+          "answer_group_instances_session_group_occurred_at_idx",
+          "sessions_status_expires_at_idx",
+          "outbox_delivery_idx",
+          "outbox_payload_retention_idx",
+          "outbox_redacted_payload_has_no_answers",
+          "webhook_deliveries_due_idx",
+          "webhook_deliveries_event_webhook_uq",
+          "webhook_deliveries_snippet_requires_attempt",
+          "webhook_deliveries_snippet_retention_idx",
+        ].sort(),
+      );
+
+      const foreignKeys = await testDb.client.query<{ name: string }>(
+        `select con.conname as name
+           from pg_constraint con join pg_class c on c.oid = con.conrelid
+           where con.contype = 'f' and c.relname = any($1)`,
+        [dataPlane],
+      );
+      // Eight, the eighth being the roster's own `session_id` reference into the same
+      // plane. ADR-40 names the other seven: three cross into `control` and four stay
+      // inside one schema.
+      expect(foreignKeys.rows.map((row) => row.name).sort()).toEqual(
+        [
+          // The three that cross into what ADR-40 calls `control`.
+          "sessions_form_version_fk",
+          "sessions_link_id_secure_links_link_id_fk",
+          "webhooks_form_id_forms_form_id_fk",
+          // The four that stay inside one plane, and the roster's, which is the
+          // eighth and is also in-plane.
+          "answers_session_id_sessions_session_id_fk",
+          "submissions_session_id_sessions_session_id_fk",
+          "webhook_deliveries_outbox_id_outbox_id_fk",
+          "webhook_deliveries_webhook_id_webhooks_webhook_id_fk",
+          "answer_group_instances_session_id_sessions_session_id_fk",
+        ].sort(),
+      );
     });
   });
 
@@ -191,6 +324,57 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       await applyMigrations(testDb.client, { from: 1, to: 1 });
       expect(await triggerExists(testDb, "answers_reject_update")).toBe(true);
       expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
+    });
+
+    it("applies 0022 over a populated database without disturbing a stored answer", async () => {
+      // The upgrade path an adopter takes, which is the only one that can fail: a
+      // database created after 0022 has the column from the start and proves nothing
+      // about adding it to a table that already holds rows. Everything through 0021
+      // first, then a session and an answer of the shape that existed before ADR-42.
+      //
+      // The index is literal at 21/22 because migration history is append-only and
+      // immutable once released (ADR-18): 0022 is index 22 for good.
+      await applyMigrations(testDb.client, { to: 21 });
+      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBeUndefined();
+
+      await testDb.client.query(
+        `insert into forms (form_id, slug, default_locale) values ('frm_0022', 'pre-0022', 'en')`,
+      );
+      await testDb.client.query(
+        `insert into form_versions
+           (form_id, version, definition, compiled, compiler_version, a2ui_spec_version, semantics_version)
+         values ('frm_0022', 1, '{}'::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
+      );
+      await testDb.client.query(
+        `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
+         values ('ses_0022', 'frm_0022', 1, 'anonymous', now() + interval '1 day')`,
+      );
+      await testDb.client.query(
+        `insert into answers (session_id, question_id, value)
+         values ('ses_0022', 'q_meal', '"vegetarian"'::jsonb)`,
+      );
+
+      await applyMigrations(testDb.client, { from: 22, to: 22 });
+
+      // The column arrived nullable and the pre-existing row reads back with NULL in
+      // it, which is the whole claim the changeset makes to adopters: the migration is
+      // additive and there is no backfill, because "outside a repeating group" is
+      // exactly what NULL already means for every row that existed.
+      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBe(false);
+      const survivor = await testDb.client.query(
+        `select "question_id", "instance_id", "value" from answers where session_id = 'ses_0022'`,
+      );
+      expect(survivor.rows).toEqual([
+        { question_id: "q_meal", instance_id: null, value: "vegetarian" },
+      ]);
+
+      // And the roster table with its guards is there, on the same existing chain.
+      expect(await publicTables(testDb)).toContain("answer_group_instances");
+      expect(await triggerExists(testDb, "answer_group_instances_reject_update")).toBe(true);
+      expect(await triggerExists(testDb, "answer_group_instances_reject_delete")).toBe(true);
+      expect(
+        await indexExists(testDb, "answer_group_instances_session_group_occurred_at_idx"),
+      ).toBe(true);
     });
 
     it("applies 0020 over a database that 0017 left carrying account.issuer", async () => {

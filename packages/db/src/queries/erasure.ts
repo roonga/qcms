@@ -3,6 +3,7 @@ import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { EraseErrorCode, EraseOutcome, FormId, SessionId } from "@roonga/qcms-core";
 
 import {
+  answerGroupInstances,
   answers,
   erasureTombstones,
   outbox,
@@ -63,7 +64,10 @@ export class SessionNotFoundError extends Error {
  *    session row (a scrubbed shell) and its absent ledger are left as they are.
  * 2. Otherwise the session must exist, or throw {@link SessionNotFoundError}.
  * 3. Open the scoped DELETE door ({@link openAnswerDeleteDoor}), then delete
- *    every `answers` row for the session and the `submissions` lock if present.
+ *    every `answers` row for the session, every `answer_group_instances` row
+ *    (ADR-42: the roster is data-plane state, and an erasure that left it behind
+ *    would leave the shape of a respondent's household after the request had been
+ *    answered), and the `submissions` lock if present.
  * 4. Scrub any session column that could hold respondent-linkable data. The
  *    launch `sessions` schema holds **none** (all columns are structural and
  *    `linkId` is retained by design - see `@roonga/qcms-core` erasure semantics and
@@ -130,9 +134,18 @@ export async function eraseSession(
       throw new SessionNotFoundError(sessionId);
     }
 
-    // 3. Open the sanctioned DELETE door, then hard-delete the ledger + lock.
+    // 3. Open the sanctioned DELETE door, then hard-delete the ledger, the
+    //    roster and the lock. The one door covers all three: the roster's
+    //    `answer_group_instances_reject_delete` trigger reads the same GUC the
+    //    answer ledger's does (migration 0022), so this opens no third
+    //    whole-session delete path and ADR-17 still says there are two.
+    //
+    //    The roster list is hand-kept and a missing entry is silent, which is why
+    //    the criterion for it is a row count against a real Postgres rather than
+    //    a review of this line (`erasure.integration.test.ts`).
     await openAnswerDeleteDoor(tx);
     await tx.delete(answers).where(eq(answers.sessionId, sessionId));
+    await tx.delete(answerGroupInstances).where(eq(answerGroupInstances.sessionId, sessionId));
     await tx.delete(submissions).where(eq(submissions.sessionId, sessionId));
 
     // 4. Scrub respondent-linkable session columns. None exist in the launch

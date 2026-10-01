@@ -95,6 +95,84 @@ describe("answers ledger is append-only (I5, R3)", () => {
   });
 });
 
+/**
+ * Acceptance case 23 of `plan/repeating-groups-and-table-input.md` section 11, the
+ * roster half: an UPDATE and a DELETE on `answer_group_instances` are both
+ * rejected by trigger outside the erasure door (the `answers` half is the two
+ * cases above). Asserted against a real Postgres, because a trigger is the one
+ * kind of guard that reading the query helpers cannot prove.
+ */
+describe("answer_group_instances is append-only (I5, ADR-42)", () => {
+  async function seedRoster(suffix: string): Promise<string> {
+    const formId = `frm_roster_${suffix}`;
+    const sessionId = `ses_roster_${suffix}`;
+    await seedForm(formId);
+    await testDb.client.query(
+      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
+       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
+      [sessionId, formId],
+    );
+    await testDb.client.query(
+      `insert into answer_group_instances (session_id, group_id, instance_id, event)
+       values ($1, 'grp_pax', 'ins_one', 'added')`,
+      [sessionId],
+    );
+    return sessionId;
+  }
+
+  it("rejects UPDATE at the database level", async () => {
+    const sessionId = await seedRoster("update");
+    // Rewriting an `added` row into a `removed` one is exactly the shape the
+    // append-only rule exists to refuse: it would leave no record that the instance
+    // had ever been minted, and that record is what the table is for.
+    await expect(
+      testDb.client.query(
+        `update answer_group_instances set event = 'removed' where session_id = $1`,
+        [sessionId],
+      ),
+    ).rejects.toThrow(/append-only/i);
+  });
+
+  it("rejects ad-hoc DELETE outside the sanctioned door (ADR-17, migration 0022)", async () => {
+    const sessionId = await seedRoster("delete");
+    await expect(
+      testDb.client.query(`delete from answer_group_instances where session_id = $1`, [sessionId]),
+    ).rejects.toThrow(/sanctioned/i);
+    const survived = await testDb.client.query(
+      `select 1 from answer_group_instances where session_id = $1`,
+      [sessionId],
+    );
+    expect(survived.rowCount).toBe(1);
+  });
+
+  it("permits DELETE through the SAME door the answer ledger uses", async () => {
+    const sessionId = await seedRoster("delete_ok");
+    // The same GUC, not a second one: ADR-17 says there are two whole-session delete
+    // paths and migration 0022 adds none. Had the roster been given a door of its own,
+    // this test would still pass and nothing would say that erasure now has to open
+    // two of them.
+    await testDb.client.query("begin");
+    await testDb.client.query("select set_config('qcms.allow_answer_delete', 'on', true)");
+    const del = await testDb.client.query(
+      `delete from answer_group_instances where session_id = $1`,
+      [sessionId],
+    );
+    await testDb.client.query("commit");
+    expect(del.rowCount).toBe(1);
+  });
+
+  it("refuses an event outside the vocabulary the CHECK pins", async () => {
+    const sessionId = await seedRoster("event");
+    await expect(
+      testDb.client.query(
+        `insert into answer_group_instances (session_id, group_id, instance_id, event)
+         values ($1, 'grp_pax', 'ins_two', 'restored')`,
+        [sessionId],
+      ),
+    ).rejects.toMatchObject({ constraint: "answer_group_instances_event" });
+  });
+});
+
 describe("published question_versions are immutable (I1)", () => {
   async function seedQuestionVersion(questionId: string, status: string): Promise<void> {
     await testDb.client.query(`insert into questions (question_id, slug) values ($1, $2)`, [

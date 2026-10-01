@@ -72,6 +72,16 @@ describe("query helper import surface", () => {
     "isRetraction",
     "latestAnswers",
     "answerLedger",
+    // the roster (task 072, ADR-42) - `addInstances` and `removeInstance` both
+    // append and nothing else, so neither widens a mutation door: a removal is a
+    // `removed` row rather than a delete, and the table's own reject-update and
+    // reject-delete triggers hold whatever a caller attempts. The three reads are
+    // reads, and none of the five touches a session's pinned form version.
+    "addInstances",
+    "removeInstance",
+    "readRoster",
+    "readRosters",
+    "rosterLedger",
     // submissions
     "insertSubmission",
     "getSubmission",

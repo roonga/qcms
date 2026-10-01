@@ -1,11 +1,12 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
-import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
+import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 import {
+  addInstances,
   answerLedger,
   appendAnswer,
   claimDueDeliveries,
@@ -26,6 +27,7 @@ import {
   markSubmitted,
   recordDeliveryFailure,
   redeliveryRefusalFor,
+  removeInstance,
   SessionNotFoundError,
 } from "./index.js";
 
@@ -215,6 +217,19 @@ async function tombstoneCount(sessionId: SessionId): Promise<number> {
   return res.rowCount ?? 0;
 }
 
+/**
+ * How many rows of `table` name this session. The table name is interpolated
+ * rather than parameterised because an identifier cannot be a bind parameter, and
+ * every call site below passes a literal from this file.
+ */
+async function sessionRowCount(table: string, sessionId: SessionId): Promise<number> {
+  const res = await testDb.client.query<{ n: number }>(
+    `select count(*)::int as n from ${table} where session_id = $1`,
+    [sessionId],
+  );
+  return res.rows[0]?.n ?? 0;
+}
+
 async function inReportingResponses(sessionId: SessionId): Promise<boolean> {
   const res = await testDb.client.query(`select 1 from reporting.responses where session_id = $1`, [
     sessionId,
@@ -269,6 +284,51 @@ describe("eraseSession - post-erasure state (I11, exit criterion 2)", () => {
     // the submission still present in reporting-retention.integration.test.ts).
     expect(await inReportingResponses(sessionId)).toBe(false);
     expect(await inAnswersFlat(sessionId)).toBe(false);
+  });
+
+  it("leaves no answers, submission or roster row for the session, by count", async () => {
+    // Acceptance case 24 and the first exit criterion of task 072. Asserted **by
+    // count against a real Postgres**, deliberately, rather than by reading
+    // `eraseSession`: the table list that function deletes from is hand-kept, so a
+    // data-plane table added and not added there is a silent gap, and an erasure
+    // that leaves a roster behind leaves the shape of a respondent's household
+    // after their request has been answered (ADR-42, SEC-16).
+    const { formId, version } = await seedForm("frm_erase_roster");
+    const sessionId = SessionId.parse("ses_erase_roster");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+
+    const pax = GroupId.parse("grp_pax");
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceIds: [InstanceId.parse("ins_one"), InstanceId.parse("ins_two")],
+    });
+    await removeInstance(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceId: InstanceId.parse("ins_two"),
+    });
+    await appendAnswer(testDb.db, {
+      sessionId,
+      questionId: QuestionId.parse("q_passport"),
+      instanceId: InstanceId.parse("ins_one"),
+      value: "P-1234",
+    });
+
+    // The floor under every assertion below: all three tables hold rows first, so a
+    // query that found nothing would not read as an erasure that worked.
+    expect(await sessionRowCount("answers", sessionId)).toBe(4);
+    expect(await sessionRowCount("submissions", sessionId)).toBe(1);
+    expect(await sessionRowCount("answer_group_instances", sessionId)).toBe(3);
+
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
+
+    expect(await sessionRowCount("answers", sessionId)).toBe(0);
+    expect(await sessionRowCount("submissions", sessionId)).toBe(0);
+    expect(await sessionRowCount("answer_group_instances", sessionId)).toBe(0);
+    // And exactly one tombstone: existence without content, with no idea how many
+    // passengers there were.
+    expect(await tombstoneCount(sessionId)).toBe(1);
   });
 
   it("erases a never-submitted (in_progress) session - any state may erase", async () => {
