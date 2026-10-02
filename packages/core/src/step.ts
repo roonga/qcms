@@ -198,6 +198,38 @@ export type Step = z.infer<typeof Step>;
  */
 export const REPEAT_EVALUATION_BUDGET = 10_000;
 
+/**
+ * The five question types a `table` presentation admits as columns (Q12, second
+ * half, ruled 2026-09-29; task 077, ADR-43).
+ *
+ * `longText` and `multiChoice` are refused at publish with
+ * `TABLE_COLUMN_TYPE_NOT_ALLOWED`, because neither fits a cell and the phone card
+ * reflow makes both worse: a textarea in a cell is taller than the row it sits in,
+ * and a checkbox group in a cell is a column of unknown height whose own options
+ * have to be read before it can be answered.
+ *
+ * **The refusal names the stacked presentation**, which allows all seven types
+ * (plan section 4.4), so an author refused here has somewhere to go. That is the
+ * deliberate asymmetry between the two presentations rather than an accident of
+ * this list: a stacked card gives a control a full row.
+ *
+ * It is a constant here rather than a literal at the check, because the admin's
+ * library picker filters the library to the same five (plan section 6.3), and two
+ * lists that have to agree should be one list.
+ */
+export const TABLE_COLUMN_TYPES = [
+  "shortText",
+  "number",
+  "date",
+  "boolean",
+  "singleChoice",
+] as const;
+
+/** Whether a question type may be a column of a `table`-presented group. */
+export function isTableColumnType(type: string): boolean {
+  return (TABLE_COLUMN_TYPES as readonly string[]).includes(type);
+}
+
 /** The one placeholder an `instanceLabel` template may carry: the live,
  * one-based ordinal of the instance in the roster. */
 export const INSTANCE_LABEL_PLACEHOLDER = "n";
