@@ -12,10 +12,12 @@ import { responsePageLink } from "./browse.ts";
 import { isErasureConfirmed, isErasureReason } from "./erasure.ts";
 import type { ExportChoice } from "./export.ts";
 import {
+  exportExtension,
   exportFilename,
   exportQuery,
   isExportable,
   parseExportFilters,
+  shapeApplies,
   versionRequired,
 } from "./export.ts";
 import { labelFor, labelsForPins, orderedAnswerKeys, pinsOf } from "./labels.ts";
@@ -96,6 +98,40 @@ describe("export rules", () => {
     expect(exportFilename("frm_intake", choice({ format: "json" }))).toBe(
       "frm_intake-responses.json",
     );
+  });
+
+  // The CSV shape (task 075, ruling Q17).
+  it("sends the chosen shape for CSV and never for JSON", () => {
+    expect(exportQuery(choice({ version: "2", shape: "wide" }))).toBe(
+      "?format=csv&version=2&shape=wide",
+    );
+    expect(exportQuery(choice({ version: "2", shape: "long" }))).toBe(
+      "?format=csv&version=2&shape=long",
+    );
+    // Switching format must not smuggle a parameter the dialog is showing as inert,
+    // which is the rule `version` already follows.
+    expect(exportQuery(choice({ format: "json", version: "2", shape: "wide" }))).toBe(
+      "?format=json",
+    );
+    expect(shapeApplies("csv")).toBe(true);
+    expect(shapeApplies("json")).toBe(false);
+  });
+
+  it("omits the shape entirely when none was chosen, leaving the API's default", () => {
+    expect(exportQuery(choice({ version: "2" }))).toBe("?format=csv&version=2");
+  });
+
+  it("names a zip when the API answered with one, not when the request asked for CSV", () => {
+    // The long shape of a form with a repeating group is several files, and only the
+    // API has read the pinned definition that says whether this version has a group.
+    // So the extension follows what arrived.
+    expect(exportExtension("csv", "application/zip")).toBe("zip");
+    expect(exportExtension("csv", "text/csv; charset=utf-8")).toBe("csv");
+    expect(exportExtension("csv", null)).toBe("csv");
+    expect(exportExtension("json", "application/json; charset=utf-8")).toBe("json");
+    expect(
+      exportFilename("frm_booking", choice({ version: "2", shape: "long" }), "zip"),
+    ).toBe("frm_booking-v2-responses.zip");
   });
 });
 

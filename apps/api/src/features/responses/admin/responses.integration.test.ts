@@ -17,6 +17,8 @@
 import {
   type FormDefinition,
   FormId,
+  GroupId,
+  InstanceId,
   parseFormDefinition,
   QuestionId,
   SessionId,
@@ -24,6 +26,7 @@ import {
 import type { AnswerValue, LockedSubmission } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
+  addInstances,
   createForm,
   createSession,
   insertFormVersion,
@@ -797,5 +800,303 @@ describe("form scope on erase and unflag (issue #305)", () => {
     // rather than breaking the operation.
     expect((await post(`/forms/${owner}/responses/${sessionId}/unflag`)).status).toBe(200);
     expect(await releasedEvents(sessionId)).toBe(1);
+  });
+});
+
+// --- task 075: both CSV shapes for a repeating group ------------------------
+
+/**
+ * Acceptance cases 46, 47 and 48 of `plan/repeating-groups-and-table-input.md`
+ * section 11, through the real route against the real reporting view: the long
+ * shape's zip, the wide shape's indexed header and its dependence on the
+ * version's `max`, and the unchanged single file for a form with no group.
+ */
+
+/** A one-group form definition: `q_booking_ref`, then `grp_passengers`, then `q_notes`. */
+function repeatFormDefinition(formId: string, max: number): FormDefinition {
+  const parsed = parseFormDefinition({
+    formId,
+    defaultLocale: "en",
+    title: { en: "A booking" },
+    steps: [
+      {
+        stepId: "stp_booking",
+        title: { en: "Booking" },
+        items: [{ questionId: "q_booking_ref", version: 1 }],
+      },
+      {
+        stepId: "stp_pax",
+        title: { en: "Passengers" },
+        items: [
+          {
+            groupId: "grp_passengers",
+            label: { en: "Passengers" },
+            instanceLabel: { en: "Passenger {n}" },
+            items: [
+              { questionId: "q_name", version: 1 },
+              { questionId: "q_meal", version: 1 },
+            ],
+            count: { source: "open", min: 0, max },
+          },
+          { questionId: "q_notes", version: 1 },
+        ],
+      },
+    ],
+    rules: [],
+  });
+  if (!parsed.ok) throw new Error(`repeat fixture ${formId} did not parse`);
+  return parsed.value;
+}
+
+/** Create the form and publish one version per `max` given, in order. */
+async function seedRepeatForm(formId: string, maxima: readonly number[]): Promise<FormId> {
+  const id = FormId.parse(formId);
+  await createForm(testDb.db, { formId: id, slug: formId.replace(/_/g, "-"), defaultLocale: "en" });
+  for (const max of maxima) {
+    await insertFormVersion(testDb.db, {
+      formId: id,
+      definition: repeatFormDefinition(formId, max),
+      compiled: emptyCompiled,
+      compilerVersion: "1.0.0",
+      a2uiSpecVersion: "1.0.0",
+      semanticsVersion: "1",
+    });
+  }
+  return id;
+}
+
+/**
+ * A submitted session with a roster and instanced locked answers.
+ *
+ * The roster rows are not decoration: a `LockedAnswer` names its instance and not
+ * its group, so `reporting.responses` resolves the group from
+ * `answer_group_instances`. A fixture without them would export no group rows at
+ * all, which is the failure this test would otherwise mistake for a pass.
+ */
+async function seedRepeatSubmitted(opts: {
+  formId: FormId;
+  formVersion: number;
+  sessionId: string;
+  instances: ReadonlyArray<{ instanceId: string; name: string; meal?: string[] }>;
+  outside: Record<string, AnswerValue>;
+}): Promise<SessionId> {
+  const sessionId = SessionId.parse(opts.sessionId);
+  await createSession(testDb.db, {
+    sessionId,
+    formId: opts.formId,
+    formVersion: opts.formVersion,
+    accessMode: "anonymous",
+    expiresAt: new Date(Date.now() + 86_400_000),
+  });
+  await markSubmitted(testDb.db, sessionId);
+  await addInstances(testDb.db, {
+    sessionId,
+    groupId: GroupId.parse("grp_passengers"),
+    instanceIds: opts.instances.map((i) => InstanceId.parse(i.instanceId)),
+    occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+  });
+  const answers = [
+    ...Object.entries(opts.outside).map(([questionId, value]) => ({
+      questionId: QuestionId.parse(questionId),
+      value,
+    })),
+    ...opts.instances.flatMap((instance) => [
+      {
+        questionId: QuestionId.parse("q_name"),
+        instanceId: InstanceId.parse(instance.instanceId),
+        value: instance.name as unknown as AnswerValue,
+      },
+      ...(instance.meal === undefined
+        ? []
+        : [
+            {
+              questionId: QuestionId.parse("q_meal"),
+              instanceId: InstanceId.parse(instance.instanceId),
+              value: instance.meal as unknown as AnswerValue,
+            },
+          ]),
+    ]),
+  ];
+  await insertSubmission(testDb.db, {
+    sessionId,
+    contentHash: "0".repeat(64),
+    lockedAnswers: { answers, flowState: { visited: [], hidden: [] }, contentHash: "0".repeat(64) } as unknown as LockedSubmission,
+    submittedAt: new Date("2026-05-01T00:00:00.000Z"),
+  });
+  return sessionId;
+}
+
+/**
+ * The archive's entries as text, read from the central directory the way a reader
+ * does. Written here rather than shelled out to `unzip` so the test has no tool
+ * dependency; the record layout itself is covered by `@roonga/qcms-csv`'s own tests.
+ */
+function readZip(bytes: Uint8Array): Map<string, string> {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const decode = (from: number, length: number): string =>
+    new TextDecoder("utf-8", { ignoreBOM: true }).decode(bytes.subarray(from, from + length));
+  const end = bytes.length - 22;
+  if (view.getUint32(end, true) !== 0x06054b50) throw new Error("not a zip");
+  const files = new Map<string, string>();
+  let at = view.getUint32(end + 16, true);
+  for (let left = view.getUint16(end + 10, true); left > 0; left -= 1) {
+    const size = view.getUint32(at + 24, true);
+    const nameLength = view.getUint16(at + 28, true);
+    const local = view.getUint32(at + 42, true);
+    const dataAt = local + 30 + view.getUint16(local + 26, true);
+    files.set(decode(at + 46, nameLength), decode(dataAt, size));
+    at += 46 + nameLength;
+  }
+  return files;
+}
+
+async function exportBytes(path: string): Promise<{ res: Response; bytes: Uint8Array }> {
+  const res = await get(path);
+  return { res, bytes: new Uint8Array(await res.arrayBuffer()) };
+}
+
+describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => {
+  let formId: FormId;
+
+  beforeAll(async () => {
+    // Two published versions of one form, differing only in the group's `max`:
+    // v1 allows two passengers, v2 allows four. That is what case 47 needs.
+    formId = await seedRepeatForm("frm_booking", [2, 4]);
+    await seedRepeatSubmitted({
+      formId,
+      formVersion: 1,
+      sessionId: "ses_book_001",
+      outside: { q_booking_ref: "ABC123", q_notes: "window seats" },
+      instances: [
+        { instanceId: "ins_pax_a", name: "Ada", meal: ["opt_vegan"] },
+        { instanceId: "ins_pax_b", name: "Lovelace, Grace", meal: ["opt_halal", "opt_kosher"] },
+      ],
+    });
+    await seedRepeatSubmitted({
+      formId,
+      formVersion: 1,
+      sessionId: "ses_book_002",
+      outside: { q_booking_ref: "=FIXTURE_PAYLOAD" },
+      instances: [{ instanceId: "ins_pax_c", name: "@FIXTURE_PAYLOAD" }],
+    });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("case 46: the long shape is a zip of responses.csv and one group file, joinable on session_id", async () => {
+    const { res, bytes } = await exportBytes("/forms/frm_booking/export?format=csv&version=1");
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-type")).toBe("application/zip");
+    expect(res.headers.get("content-disposition")).toBe(
+      'attachment; filename="frm_booking-v1-responses.zip"',
+    );
+
+    const files = readZip(bytes);
+    expect([...files.keys()]).toEqual(["responses.csv", "grp_passengers.csv"]);
+
+    // The flat file carries the metadata columns and the questions OUTSIDE the
+    // group, and nothing of the group at all.
+    expect(files.get("responses.csv")).toBe(
+      "﻿session_id,form_version,submitted_at,access_mode,q_booking_ref,q_notes\r\n" +
+        "ses_book_001,1,2026-05-01T00:00:00.000Z,anonymous,ABC123,window seats\r\n" +
+        "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD,\r\n",
+    );
+
+    // The group file is one row per (session, live instance), joinable on
+    // session_id, with the guard applied there too.
+    expect(files.get("grp_passengers.csv")).toBe(
+      "﻿session_id,instance_ordinal,instance_id,q_name,q_meal\r\n" +
+        "ses_book_001,1,ins_pax_a,Ada,opt_vegan\r\n" +
+        'ses_book_001,2,ins_pax_b,"Lovelace, Grace",opt_halal;opt_kosher\r\n' +
+        "ses_book_002,1,ins_pax_c,'@FIXTURE_PAYLOAD,\r\n",
+    );
+
+    // Joinable: every group row's session is a row of the flat file.
+    const sessions = new Set(
+      files
+        .get("responses.csv")!
+        .split("\r\n")
+        .slice(1)
+        .filter((line) => line !== "")
+        .map((line) => line.split(",")[0]),
+    );
+    for (const line of files.get("grp_passengers.csv")!.split("\r\n").slice(1)) {
+      if (line === "") continue;
+      expect(sessions.has(line.split(",")[0]!)).toBe(true);
+    }
+  });
+
+  it("case 47: the wide shape is one flat file whose header follows the version's max", async () => {
+    const narrow = await exportBytes("/forms/frm_booking/export?format=csv&shape=wide&version=1");
+    expect(narrow.res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+    expect(narrow.res.headers.get("content-disposition")).toBe(
+      'attachment; filename="frm_booking-v1-responses.csv"',
+    );
+    const narrowText = new TextDecoder("utf-8", { ignoreBOM: true }).decode(narrow.bytes);
+    expect(narrowText).toBe(
+      "﻿session_id,form_version,submitted_at,access_mode,q_booking_ref," +
+        "q_name__1,q_name__2,q_meal__1,q_meal__2,q_notes\r\n" +
+        'ses_book_001,1,2026-05-01T00:00:00.000Z,anonymous,ABC123,Ada,"Lovelace, Grace",' +
+        "opt_vegan,opt_halal;opt_kosher,window seats\r\n" +
+        "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD," +
+        "'@FIXTURE_PAYLOAD,,,,\r\n",
+    );
+
+    // The same form at a version whose `max` is higher: four slots per member
+    // question instead of two, silently from a consumer's point of view. This is
+    // the documented consequence of Q17, asserted rather than warned about, and it
+    // is why the route requires a version and the screen says to pin it.
+    const wider = await exportBytes("/forms/frm_booking/export?format=csv&shape=wide&version=2");
+    const widerHeader = new TextDecoder("utf-8", { ignoreBOM: true })
+      .decode(wider.bytes)
+      .split("\r\n")[0];
+    expect(widerHeader).toBe(
+      "﻿session_id,form_version,submitted_at,access_mode,q_booking_ref," +
+        "q_name__1,q_name__2,q_name__3,q_name__4," +
+        "q_meal__1,q_meal__2,q_meal__3,q_meal__4,q_notes",
+    );
+  });
+
+  it("refuses an unknown shape rather than silently exporting the default", async () => {
+    expect((await get("/forms/frm_booking/export?format=csv&shape=tall&version=1")).status).toBe(
+      400,
+    );
+  });
+
+  it("case 48: a form with no group is byte-identical in either shape", async () => {
+    // The insurance fixture of exit criterion 2 above, requested in both shapes:
+    // the same single `text/csv` file, the same name, the same bytes. No existing
+    // adopter's pipeline moves, and `shape=wide` is not a second format for a form
+    // that has nothing to fold in.
+    const long = await exportBytes("/forms/frm_insurance/export?format=csv&version=1");
+    const wide = await exportBytes("/forms/frm_insurance/export?format=csv&shape=wide&version=1");
+    const explicitlyLong = await exportBytes(
+      "/forms/frm_insurance/export?format=csv&shape=long&version=1",
+    );
+    for (const got of [wide, explicitlyLong]) {
+      expect(got.res.headers.get("content-type")).toBe("text/csv; charset=utf-8");
+      expect(got.res.headers.get("content-disposition")).toBe(
+        long.res.headers.get("content-disposition"),
+      );
+      expect([...got.bytes]).toEqual([...long.bytes]);
+    }
+    // And it is still today's file, not merely three identical new ones.
+    expect(new TextDecoder("utf-8", { ignoreBOM: true }).decode(long.bytes)).toContain(
+      "session_id,form_version,submitted_at,access_mode," +
+        "q_full_name,q_age,q_at_fault_accident,q_coverage,q_conditions\r\n",
+    );
+  });
+
+  it("JSON export carries the group's instances inside answers", async () => {
+    // JSON spans versions and takes no shape: it emits the reporting row as it
+    // stands, which since migration 0025 carries the group's ordered array.
+    const res = await get("/forms/frm_booking/export?format=json");
+    const rows = (await res.json()) as Array<{
+      sessionId: string;
+      answers: Record<string, unknown>;
+    }>;
+    const row = rows.find((r) => r.sessionId === "ses_book_001")!;
+    expect(row.answers["grp_passengers"]).toEqual([
+      { instance_id: "ins_pax_a", q_name: "Ada", q_meal: ["opt_vegan"] },
+      { instance_id: "ins_pax_b", q_name: "Lovelace, Grace", q_meal: ["opt_halal", "opt_kosher"] },
+    ]);
   });
 });
