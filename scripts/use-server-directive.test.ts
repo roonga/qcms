@@ -12,13 +12,18 @@ import { declaresUseServer } from "./use-server-directive.mjs";
  * this scan does not recognise is an action none of those three reaches, so the cost of a
  * false negative is a whole rule silently not applying.
  *
- * The expression it replaced is kept here as the ORACLE. That is the point of this file:
- * the replacement was made to remove a CodeQL backtracking alert (alerts 22 to 24 on
- * PR #1034), not to change behaviour, and the first draft narrowed the whitespace set
- * without anyone noticing until review. Comparing against the expression is the only
- * assertion that would have caught that.
+ * **The expression it replaced is deliberately NOT reproduced here**, and the first draft of
+ * this file got that wrong too: keeping it as an oracle to compare against re-introduced the
+ * exact pattern the replacement existed to remove, and CodeQL raised a fourth alert on this
+ * file (alert 25, after 22 to 24 were fixed). An alert in a test is still an alert on the
+ * repository.
+ *
+ * What replaces it is stronger. The property under test is "whitespace means `\s`", and the
+ * draft asserted it against ten hand-picked characters; the derived case below asserts it
+ * across every code point up to U+3000 plus the BOM, in both directions, so no class can be
+ * dropped unnoticed. That is what the narrowing review found (PR #1034) stated as a test
+ * rather than as a comparison.
  */
-const ORACLE = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/;
 
 /** Every prefix that is ECMAScript whitespace and must therefore be skipped. */
 const WHITESPACE_PREFIXES: readonly { readonly name: string; readonly prefix: string }[] = [
@@ -44,10 +49,7 @@ describe("declaresUseServer", () => {
   });
 
   it.each(WHITESPACE_PREFIXES)("skips $name before the directive", ({ prefix }) => {
-    const source = `${prefix}"use server";\n`;
-    expect(declaresUseServer(source)).toBe(true);
-    // And agrees with the expression, which is what "no behaviour change" means.
-    expect(declaresUseServer(source)).toBe(ORACLE.test(source));
+    expect(declaresUseServer(`${prefix}"use server";\n`)).toBe(true);
   });
 
   it("skips leading line and block comments, in any order", () => {
@@ -72,23 +74,22 @@ describe("declaresUseServer", () => {
     expect(declaresUseServer("   \n\t")).toBe(false);
   });
 
-  it("agrees with the expression it replaced on every case above", () => {
-    const sources = [
-      '"use server";\n',
-      "'use server';\n",
-      '// a\n/* b */\n"use server";',
-      '/* a */ /* b */ "use server"',
-      'import x from "y";\n"use server";\n',
-      'const s = "use server";\n',
-      '"use client";\n',
-      "/* unterminated",
-      "// only a comment",
-      "",
-      ...WHITESPACE_PREFIXES.map(({ prefix }) => `${prefix}"use server";`),
-    ];
-    for (const source of sources) {
-      expect(declaresUseServer(source), JSON.stringify(source)).toBe(ORACLE.test(source));
+  it("treats exactly ECMAScript whitespace as skippable, derived rather than listed", () => {
+    // The assertion the narrowing would have failed, and it is derived from `\s` itself so
+    // that no class can be left out of a hand-written list. Both directions matter: a
+    // whitespace character must be SKIPPED, because a module beginning with one still has the
+    // directive as its first statement, and a non-whitespace character must STOP the walk,
+    // because otherwise some other first statement would read as the directive.
+    const codePoints = [...Array.from({ length: 0x3001 }, (_unused, code) => code), 0xfeff];
+    const disagreed: string[] = [];
+    for (const code of codePoints) {
+      const char = String.fromCodePoint(code);
+      const isWhitespace = /\s/.test(char);
+      if (declaresUseServer(`${char}"use server";`) !== isWhitespace) {
+        disagreed.push(`U+${code.toString(16).toUpperCase().padStart(4, "0")}`);
+      }
     }
+    expect(disagreed, "code points where the walk and `\\s` disagree").toEqual([]);
   });
 
   it("is linear on the input that made the expression backtrack", () => {
