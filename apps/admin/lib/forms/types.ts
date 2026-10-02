@@ -35,11 +35,94 @@ export interface DraftPin {
   readonly version: number;
 }
 
+/**
+ * Where a repeating group's instance count comes from (ADR-42, Q4 as amended by Q14).
+ *
+ * Mirrors the kernel's `RepeatCount` with plain-string ids, and **`max` is optional here
+ * for the same reason it is optional in the kernel's schema**: a draft an author is still
+ * filling in has to round-trip through save and reload with the field empty, and publish
+ * is where an `open` or `fromAnswer` group without one is refused (`REPEAT_MAX_MISSING`).
+ * The group panel says the field is required where the author sets it rather than leaving
+ * that refusal to arrive at publish, which is a statement about the CONTROL and not a
+ * second validator (R2).
+ *
+ * A `fixed` count carries neither bound, because the number is both.
+ */
+export type DraftRepeatCount =
+  | { readonly source: "fixed"; readonly count: number }
+  | {
+      readonly source: "fromAnswer";
+      readonly questionId: string;
+      readonly min: number;
+      readonly max?: number | undefined;
+    }
+  | { readonly source: "open"; readonly min: number; readonly max?: number | undefined };
+
+/** The three count sources, in the order the panel's radio group lists them. */
+export const REPEAT_COUNT_SOURCES = ["fixed", "fromAnswer", "open"] as const;
+export type RepeatCountSource = (typeof REPEAT_COUNT_SOURCES)[number];
+
+/**
+ * The three presentations one primitive carries (ADR-42): stacked (073), one step view
+ * per instance (076) and a table (077).
+ *
+ * All three are offered by the panel, because the field is the kernel's and an author
+ * choosing it is choosing a layout rather than a model. What sits BEHIND the table option
+ * - the column view of the member list, and the library picker filtered to the allowed
+ * cell types - belongs to task 077.
+ */
+export const REPEAT_PRESENTATIONS = ["stacked", "perInstanceStep", "table"] as const;
+export type RepeatPresentation = (typeof REPEAT_PRESENTATIONS)[number];
+
+/**
+ * A repeating group inside a step's item list (ADR-42), as the builder edits it.
+ *
+ * `items` is an array of pins and nothing else: a group may not contain a group (Q13), so
+ * the nesting depth is one here exactly as it is in the kernel, and there is no authoring
+ * gesture anywhere in this app that could produce a deeper draft.
+ */
+export interface DraftGroup {
+  readonly groupId: string;
+  readonly label: LocalizedText;
+  /** The instance heading template, carrying the one `{n}` placeholder ("Passenger {n}"). */
+  readonly instanceLabel: LocalizedText;
+  readonly items: readonly DraftPin[];
+  readonly count: DraftRepeatCount;
+  readonly presentation: RepeatPresentation;
+}
+
+/**
+ * One entry of a step's item list: a pinned question, or a repeating group.
+ *
+ * Discriminated **without a tag**, by the disjoint required keys `questionId` and
+ * `groupId`, which is the kernel's own choice and the one additivity depends on there
+ * (`packages/core/src/step.ts`): a tag would make every form definition that parses today
+ * fail to parse. Mirroring it here means a draft read off the wire needs no translation
+ * step that could invent a discriminator the API never sent.
+ */
+export type DraftStepItem = DraftPin | DraftGroup;
+
+/**
+ * Whether a step item is a repeating group rather than a pinned question.
+ *
+ * The VALUE test rather than the key test, mirroring the kernel's `isRepeatGroup`: a pin
+ * written with an explicit `groupId: undefined` carries the key, and treating it as a
+ * group would silently lose its question.
+ *
+ * It lives in this module rather than in `./draft.ts` because it is the discriminator of
+ * the union declared directly above it: every reader of `DraftStep.items` needs it, and
+ * several of them (`issues.ts`, `subtree-rail.ts`) otherwise import nothing from the
+ * mutation module at all.
+ */
+export function isDraftGroup(item: DraftStepItem): item is DraftGroup {
+  return "groupId" in item && item.groupId !== undefined;
+}
+
 /** One step of the working draft. `items` may be empty while it is being filled. */
 export interface DraftStep {
   readonly stepId: string;
   readonly title: LocalizedText;
-  readonly items: readonly DraftPin[];
+  readonly items: readonly DraftStepItem[];
 }
 
 /**
@@ -66,12 +149,44 @@ export type DraftCondition =
   | { readonly op: "containsAny"; readonly questionId: string; readonly values: readonly string[] }
   | { readonly op: "and"; readonly conditions: readonly DraftCondition[] }
   | { readonly op: "or"; readonly conditions: readonly DraftCondition[] }
-  | { readonly op: "not"; readonly condition: DraftCondition };
+  | { readonly op: "not"; readonly condition: DraftCondition }
+  // The three WHOLE-GROUP operators (ADR-42, ADR-03 as amended 2026-09-29). They carry a
+  // `groupId` and no `questionId`, which is the property every walker over this union has
+  // to know about: a `default:` branch reading `condition.questionId` reads `undefined`.
+  //
+  // The inside-out direction needs no member here at all, which is the design's own
+  // economy: a rule whose target sits inside a group is evaluated once per live instance
+  // and a reference to a question in that same group resolves to that instance's answer,
+  // so the airline's per-passenger rule is an ORDINARY condition. The admin states the
+  // scope on the rule instead of making the author encode it (`rule-sentence.ts`).
+  | { readonly op: "anyInstance"; readonly groupId: string; readonly condition: DraftCondition }
+  | { readonly op: "everyInstance"; readonly groupId: string; readonly condition: DraftCondition }
+  | {
+      readonly op: "instanceCount";
+      readonly groupId: string;
+      readonly compare: InstanceCountComparison;
+      readonly value: number;
+    };
+
+/**
+ * The comparison names `instanceCount` reuses as a FIELD rather than as a second
+ * comparison vocabulary (ADR-03 as amended 2026-09-29), in the order its picker lists
+ * them. The same five names the ordering operators carry, which is the point.
+ */
+export const INSTANCE_COUNT_COMPARISONS = ["equals", "gt", "gte", "lt", "lte"] as const;
+export type InstanceCountComparison = (typeof INSTANCE_COUNT_COMPARISONS)[number];
 
 /** The canonical answer encodings a condition can compare against (`DOMAIN_SCHEMA` §2.4). */
 export type DraftAnswerValue = string | number | boolean | readonly string[];
 
-/** Every `op` the DSL carries, in the order the operator picker lists them. */
+/**
+ * Every `op` the DSL carries, in the order the operator picker lists them.
+ *
+ * Sixteen since task 074 (ADR-03 as amended 2026-09-29). The three whole-group operators
+ * come last because they are the only ones that read a GROUP rather than a question, so an
+ * author scanning the list meets the twelve that apply to the question they are editing
+ * before the three that change the subject.
+ */
 export const CONDITION_OPS = [
   "answered",
   "equals",
@@ -86,12 +201,18 @@ export const CONDITION_OPS = [
   "and",
   "or",
   "not",
+  "anyInstance",
+  "everyInstance",
+  "instanceCount",
 ] as const;
 
 export type ConditionOp = (typeof CONDITION_OPS)[number];
 
-/** The ops that read one question (everything except the three combinators). */
-export type LeafConditionOp = Exclude<ConditionOp, "and" | "or" | "not">;
+/** The three ops that read a whole repeating group rather than one question. */
+export type GroupConditionOp = "anyInstance" | "everyInstance" | "instanceCount";
+
+/** The ops that read one question: everything but the combinators and the group reads. */
+export type LeafConditionOp = Exclude<ConditionOp, "and" | "or" | "not" | GroupConditionOp>;
 
 /** One visibility rule of the working draft. */
 export interface DraftRule {
@@ -213,11 +334,35 @@ export interface IssuePath {
   readonly rule?: string | undefined;
   readonly rules?: readonly string[] | undefined;
   readonly step?: string | undefined;
+  /**
+   * The repeating group an issue is about (ADR-42), which the kernel's own publish errors
+   * populate for every `REPEAT_*` code and for `DANGLING_GROUP_REF`. Read by the group
+   * panel so a refusal about a group's bounds, its label template or its count source is
+   * shown on the controls that set them rather than only in the validation panel.
+   */
+  readonly group?: string | undefined;
   readonly question?: string | undefined;
   readonly option?: string | undefined;
   readonly target?: string | undefined;
   readonly locale?: string | undefined;
   readonly version?: number | undefined;
+  /**
+   * The placeholder an instance-label template carried that nothing substitutes
+   * (`INSTANCE_LABEL_PLACEHOLDER_UNKNOWN`). Named rather than only counted, because the
+   * author's next act is to delete that exact token.
+   */
+  readonly placeholder?: string | undefined;
+  /**
+   * The scopes one rule's `show` list straddles (`RULE_TARGETS_SPAN_SCOPES`): group ids
+   * and the literal `"form"` for a target outside every group.
+   */
+  readonly scopes?: readonly string[] | undefined;
+  /** The outer and inner groups of a refused operator nest (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`). */
+  readonly outerGroup?: string | undefined;
+  readonly innerGroup?: string | undefined;
+  /** The group a refused cross-group rule targets inside, and the one it reads whole. */
+  readonly targetGroup?: string | undefined;
+  readonly readGroup?: string | undefined;
 }
 
 /**

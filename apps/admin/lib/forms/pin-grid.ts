@@ -1,10 +1,19 @@
-import { t } from "../i18n/en.ts";
+import { t, tPlural } from "../i18n/en.ts";
 import { textOf } from "../questions/definition.ts";
 
 import type { ReadState } from "../read-state.ts";
 
-import { pinnableVersions, pinnedVersionStatus } from "./draft.ts";
-import type { DraftStep, FormIssue, PinnableQuestion } from "./types.ts";
+import { countBounds, pinnableVersions, pinnedVersionStatus } from "./draft.ts";
+import { issuesForGroup } from "./issues.ts";
+import {
+  isDraftGroup,
+  type DraftGroup,
+  type DraftPin,
+  type DraftStep,
+  type FormIssue,
+  type PinnableQuestion,
+  type RepeatPresentation,
+} from "./types.ts";
 
 /**
  * The pin list's view model (issue 517).
@@ -42,6 +51,17 @@ export interface PinRowMenuItem {
 export interface PinRowView {
   /** Library-owned, and the row's identity: `q_at_fault_accident`. */
   readonly questionId: string;
+  /**
+   * The repeating group this pin sits inside, or `undefined` for a pin the step holds
+   * directly (ADR-42).
+   *
+   * **It is what every position in this row is counted against.** `position` and `total` are
+   * the pin's place in its own CONTAINER, so a member of a six-question group reads "3 of 6"
+   * rather than its offset in a step that also holds four other things - and Move up at
+   * position 1 of a group is disabled rather than silently moving the pin out of the group,
+   * which is a thing no reorder gesture in this app does (`movePinWithinGroup`).
+   */
+  readonly groupId?: string | undefined;
   /** Form-owned: which frozen version this form serves (R7 - never auto-upgraded). */
   readonly version: number;
   readonly position: number;
@@ -113,30 +133,175 @@ export function pinRows(
   library: ReadState<readonly PinnableQuestion[]>,
   issues: readonly FormIssue[] | undefined,
 ): readonly PinRowView[] {
-  return step.items.map((pin, index) => {
-    const question = library.ok
-      ? library.data.find((entry) => entry.questionId === pin.questionId)
-      : undefined;
-    return {
-      questionId: pin.questionId,
-      version: pin.version,
-      position: index + 1,
-      total: step.items.length,
-      label: textOf(question?.label ?? undefined),
-      labelFallback: t(library.ok ? "forms.step.labelMissing" : "forms.step.labelUnknown"),
-      type:
-        question === undefined || question.type === null
-          ? t("questions.column.typeUnknown")
-          : t(`questions.type.${question.type}`),
-      versionStatus: library.ok ? pinnedVersionStatus(question, pin.version) : "unknown",
-      otherVersions: library.ok
-        ? pinnableVersions(question ?? EMPTY_QUESTION).filter((version) => version !== pin.version)
-        : undefined,
-      // The absence of a verdict is carried down to every row rather than flattened into
-      // an empty one, so the cell that renders it can tell the two apart (issue 625).
-      issues: issues === undefined ? undefined : issuesForPin(issues, pin.questionId),
-    };
+  return stepGridRows(step, library, issues).flatMap((row) =>
+    row.kind === "pin" ? [row.pin] : [],
+  );
+}
+
+/**
+ * One row of the step's grid: a pin, or the boundary that opens a repeating group.
+ *
+ * ## Why a boundary is a ROW and not a nested table
+ *
+ * A group inside a step's question list is a **span**, not a cell: its members are ordinary
+ * pins in document order, drawn by the same ownership grid, and their position in the form is
+ * exactly where the span sits. A nested table would say the opposite - that a group's
+ * questions are a different kind of thing - which is the one claim ADR-42 exists to refuse: a
+ * question does not know it is repeated.
+ *
+ * So the boundary is a row of its own that states what the span is and what decides its size,
+ * the member pins follow it, and {@link GroupBoundaryView.members} is how the grid knows where
+ * the span ends. That is also what lets one `<tbody>` carry both and one row menu serve both,
+ * which matters more than it sounds: two lists would be two reorder paths, two insert-boundary
+ * calculations and two sets of ownership rules to keep in step.
+ */
+export type StepGridRow =
+  | { readonly kind: "pin"; readonly pin: PinRowView }
+  | { readonly kind: "group"; readonly group: GroupBoundaryView };
+
+/** A repeating group's boundary row: what the span is, and what decides its size. */
+export interface GroupBoundaryView {
+  readonly groupId: string;
+  /** The author's own name for the group, or the untitled stand-in. */
+  readonly label: string;
+  /** How many questions the span holds, which is where the grid ends it. */
+  readonly members: number;
+  /** The member count as a sentence, pluralised (ADR-27). */
+  readonly memberSummary: string;
+  /** Where the instance count comes from, in one localized phrase. */
+  readonly countSummary: string;
+  readonly presentation: RepeatPresentation;
+  readonly presentationLabel: string;
+  /**
+   * Whether this group's count source needs a `max` and has none (Q4 as amended by Q14).
+   *
+   * Carried on the boundary rather than left to the panel because the grid is where an author
+   * scans a step: a group that cannot be published should say so where it is listed, not only
+   * on the screen that sets the field. It is the same statement `REPEAT_MAX_MISSING` makes at
+   * publish, said earlier, and it is derived from the draft rather than from a verdict - so it
+   * is honest before any round trip has happened.
+   */
+  readonly maxMissing: boolean;
+  /** This group's own issues, or `undefined` when no check has landed yet (issue 625). */
+  readonly issues: readonly FormIssue[] | undefined;
+  /** This group's position among its step's items, 1-based, and the item total. */
+  readonly position: number;
+  readonly total: number;
+}
+
+export function stepGridRows(
+  step: DraftStep,
+  library: ReadState<readonly PinnableQuestion[]>,
+  issues: readonly FormIssue[] | undefined,
+): readonly StepGridRow[] {
+  // The pins the STEP holds directly, counted among themselves: a group is one neighbour of
+  // theirs rather than a run of its members, which is what the step-level reorder means.
+  const ownPins = step.items.filter((item) => !isDraftGroup(item));
+  let ownIndex = 0;
+  return step.items.flatMap((item, index): readonly StepGridRow[] => {
+    if (!isDraftGroup(item)) {
+      ownIndex += 1;
+      return [
+        { kind: "pin", pin: pinRow(item, library, issues, ownIndex, ownPins.length, undefined) },
+      ];
+    }
+    return [
+      { kind: "group", group: groupBoundary(item, issues, index + 1, step.items.length) },
+      ...item.items.map(
+        (member, at): StepGridRow => ({
+          kind: "pin",
+          pin: pinRow(member, library, issues, at + 1, item.items.length, item.groupId),
+        }),
+      ),
+    ];
   });
+}
+
+function pinRow(
+  pin: DraftPin,
+  library: ReadState<readonly PinnableQuestion[]>,
+  issues: readonly FormIssue[] | undefined,
+  position: number,
+  total: number,
+  groupId: string | undefined,
+): PinRowView {
+  const question = library.ok
+    ? library.data.find((entry) => entry.questionId === pin.questionId)
+    : undefined;
+  return {
+    questionId: pin.questionId,
+    ...(groupId === undefined ? {} : { groupId }),
+    version: pin.version,
+    position,
+    total,
+    label: textOf(question?.label ?? undefined),
+    labelFallback: t(library.ok ? "forms.step.labelMissing" : "forms.step.labelUnknown"),
+    type:
+      question === undefined || question.type === null
+        ? t("questions.column.typeUnknown")
+        : t(`questions.type.${question.type}`),
+    versionStatus: library.ok ? pinnedVersionStatus(question, pin.version) : "unknown",
+    otherVersions: library.ok
+      ? pinnableVersions(question ?? EMPTY_QUESTION).filter((version) => version !== pin.version)
+      : undefined,
+    // The absence of a verdict is carried down to every row rather than flattened into
+    // an empty one, so the cell that renders it can tell the two apart (issue 625).
+    issues: issues === undefined ? undefined : issuesForPin(issues, pin.questionId),
+  };
+}
+
+function groupBoundary(
+  group: DraftGroup,
+  issues: readonly FormIssue[] | undefined,
+  position: number,
+  total: number,
+): GroupBoundaryView {
+  const label = textOf(group.label);
+  const bounds = countBounds(group.count);
+  return {
+    groupId: group.groupId,
+    label: label === "" ? t("forms.group.untitled") : label,
+    members: group.items.length,
+    memberSummary: tPlural(
+      "forms.group.memberCountOne",
+      "forms.group.memberCount",
+      group.items.length,
+    ),
+    countSummary: countSummary(group),
+    presentation: group.presentation,
+    presentationLabel: t(`forms.group.presentation.${group.presentation}`),
+    maxMissing: bounds.max === undefined,
+    issues: issues === undefined ? undefined : issuesForGroup(issues, group.groupId),
+    position,
+    total,
+  };
+}
+
+/**
+ * Where a group's instances come from, in one phrase.
+ *
+ * A `fixed` count says only the number, because the number is also its bound. Both bounded
+ * sources say their range, and a missing `max` is named as missing rather than printed as a
+ * blank: the field is required, and a range reading "1 to " would look like a rendering fault
+ * rather than an unanswered question.
+ */
+function countSummary(group: DraftGroup): string {
+  const count = group.count;
+  if (count.source === "fixed") {
+    return t("forms.group.countSummary.fixed", { count: count.count });
+  }
+  if (count.max === undefined) {
+    return count.source === "fromAnswer"
+      ? t("forms.group.countSummary.fromAnswerNoMax", { questionId: count.questionId })
+      : t("forms.group.countSummary.openNoMax");
+  }
+  return count.source === "fromAnswer"
+    ? t("forms.group.countSummary.fromAnswer", {
+        questionId: count.questionId,
+        min: count.min,
+        max: count.max,
+      })
+    : t("forms.group.countSummary.open", { min: count.min, max: count.max });
 }
 
 /** A stand-in so the version helpers can be asked about a question the library lost. */

@@ -53,26 +53,19 @@ const OPERATOR_SAMPLES: Readonly<Record<Condition["op"], unknown>> = {
 };
 
 /**
- * Operators the kernel accepts that the prompt deliberately does not document.
+ * THERE IS NO EXCLUSION SET ANY MORE, and its removal is task 074's.
  *
- * The three whole-group operators arrived with the repeating group (ADR-42, task
- * 071), and they name a `groupId` the assistant has no way to invent: a proposal
- * can pin a question the library search found, but a group id exists only once an
- * author has created the group, and the admin cannot create one until task 074.
- * A prompt that offered these would produce confidently wrong proposals naming
- * groups that do not exist, which is exactly the staleness this file exists to
- * prevent, pointing the other way.
+ * Task 071 carried a named `NOT_DOCUMENTED` set holding the three whole-group
+ * operators, for a reason that was true at the time: they name a `groupId` the
+ * assistant had no way to invent, because a group id exists only once an author
+ * has created the group and the admin could not create one. Task 074 is where an
+ * author can, so the operators joined `CONDITION_OPERATORS`, the set went away,
+ * and `SYSTEM_PROMPT_VERSION` moved with the text.
  *
- * The exclusion is a named, deliberate edit rather than a hole: every operator
- * outside this set must still be documented, and every operator inside it must
- * still be one the kernel accepts, both asserted below.
+ * The assertion below is therefore the plain one again: every operator the kernel
+ * accepts is documented, and nothing it rejects is. A set reintroduced here would
+ * have to say which operator the prompt is deliberately silent about and why.
  */
-const NOT_DOCUMENTED: ReadonlySet<Condition["op"]> = new Set([
-  "anyInstance",
-  "everyInstance",
-  "instanceCount",
-]);
-
 describe("the draft assistant system prompt", () => {
   it("names every operator the kernel accepts, and no operator it rejects", () => {
     for (const op of CONDITION_OPERATORS) {
@@ -83,18 +76,25 @@ describe("the draft assistant system prompt", () => {
     // The negative half: an operator the prompt does not name is one the kernel
     // does not have, so the list cannot silently fall behind without this failing.
     expect(parseCondition({ op: "matches", questionId: "q_a", value: "x" }).ok).toBe(false);
-    expect(
-      Object.keys(OPERATOR_SAMPLES)
-        .filter((op) => !NOT_DOCUMENTED.has(op as Condition["op"]))
-        .sort(),
-    ).toEqual([...CONDITION_OPERATORS].sort());
+    expect(Object.keys(OPERATOR_SAMPLES).sort()).toEqual([...CONDITION_OPERATORS].sort());
   });
 
-  it("the operators it deliberately omits are ones the kernel still accepts", () => {
-    for (const op of NOT_DOCUMENTED) {
-      expect(CONDITION_OPERATORS as readonly string[]).not.toContain(op);
-      expect(parseCondition(OPERATOR_SAMPLES[op]).ok, `kernel rejected ${op}`).toBe(true);
-    }
+  it("documents the repeating group's refusals, not only its operators", () => {
+    const prompt = buildSystemPrompt();
+    // Q25, ruled 2026-09-29: a model that nests two whole-group reads writes a
+    // draft publish refuses (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`), so the
+    // prompt has to say so rather than leaving the proposal to be rejected.
+    expect(prompt).toContain("THESE THREE CANNOT NEST");
+    // Q7: the empty-group reading, which is the one semantic a model would
+    // otherwise supply classically and get exactly backwards.
+    expect(prompt).toContain("everyInstance over a group with NO instances is FALSE");
+    // Q4 as amended by Q14: `max` required on both bounded sources, because
+    // nothing above the group bounds a respondent's instance count.
+    expect(prompt).toContain("must BOTH declare a max");
+    // ADR-42's load-bearing property: repetition is not a question type.
+    expect(prompt).toContain("A question does not know it is repeated");
+    // ADR-42 §3.4: one rule, one scope, with the remedy named.
+    expect(prompt).toContain("must share one scope");
   });
 
   it("lists exactly the kernel's question types", () => {

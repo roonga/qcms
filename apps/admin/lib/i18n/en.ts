@@ -680,6 +680,11 @@ export const messages = {
     "Autosave is paused: a form needs at least one step before it can be stored.",
   "forms.save.pausedEmptyStep":
     "Autosave is paused: every step needs at least one question before the draft can be stored.",
+  // The group's own copy of the sentence above, because the state is the same one for the
+  // same reason: `RepeatGroup.items` is at-least-one in the kernel, so a group an author has
+  // just added and not yet filled is an unparseable draft rather than an inconsistent one.
+  "forms.save.pausedEmptyGroup":
+    "Autosave is paused: every repeating group needs at least one question before the draft can be stored.",
   "forms.save.pausedNoTarget":
     "Autosave is paused: every rule needs at least one question or step to show before the draft can be stored.",
 
@@ -760,6 +765,100 @@ export const messages = {
   "forms.step.issuesUnchecked": "Not checked",
   "forms.step.labelMissing": "No label in the library",
   "forms.step.labelUnknown": "Label not known",
+
+  // --- the repeating group (task 074, ADR-42) ---
+  //
+  // A group is ONE primitive with three presentations, and the panel's wording has to carry
+  // that: an author who thinks "a looping page" and an author who thinks "a table" are both
+  // looking at the same object with one field different, and the vocabulary is what stops
+  // them becoming two mental models of two data models (`plan/repeating-groups-and-table-
+  // input.md` §2.3's named cost of choosing a presentation over a question type).
+  "forms.group.add": "Add repeating group",
+  "forms.group.newName": "New group name",
+  "forms.group.addDone": "Add",
+  "forms.group.select": "Open repeating group {label}",
+  "forms.group.menu": "Actions for repeating group {label}",
+  "forms.group.remove": "Remove",
+  "forms.group.moveUp": "Move up",
+  "forms.group.moveDown": "Move down",
+  "forms.group.confirmRemoveTitle": "Remove repeating group {label}?",
+  "forms.group.confirmRemoveBody":
+    "The group and the questions pinned inside it go with it. Rules that read the group are left exactly as they are, so a rule pointing at it will be reported as a dangling reference rather than being rewritten for you.",
+  "forms.group.confirmRemove": "Remove group",
+  "forms.group.heading": "Repeating group: {label}",
+  "forms.group.note":
+    "The questions in a group are answered once per instance. The questions themselves do not change: the same library question can be repeated in this form and asked once in another.",
+  "forms.group.name": "Group name",
+  "forms.group.nameHint": "What this set of questions is, in the plural: Passengers, Income sources.",
+  "forms.group.idLabel": "Group ID",
+  "forms.group.members": "Questions in this group",
+  "forms.group.membersEmpty": "No questions in this group yet.",
+  "forms.group.membersEmptyBody":
+    "A group has to hold at least one question. Pin one from the library and it will appear here.",
+  "forms.group.addQuestion": "Add question from library",
+  "forms.group.memberCountOne": "1 question",
+  "forms.group.memberCount": "{count} questions",
+  // The count source, as a three-way radio. Each option's own sentence says what the
+  // respondent experiences rather than what the field is called, because that is the choice
+  // an author is actually making.
+  "forms.group.countLegend": "How many instances",
+  "forms.group.count.fixed": "Always the same number",
+  "forms.group.count.fixedHint":
+    "Every respondent answers this group exactly this many times. The number is its own limit, so there is no maximum to set.",
+  "forms.group.count.fromAnswer": "From an earlier answer",
+  "forms.group.count.fromAnswerHint":
+    "A number question earlier in the form decides how many instances appear. It has to come before this group and must not itself be inside a group.",
+  "forms.group.count.open": "The respondent adds and removes",
+  "forms.group.count.openHint":
+    "The respondent presses Add to create an instance and Remove to drop one.",
+  "forms.group.fixedCount": "Number of instances",
+  "forms.group.countQuestion": "Count question",
+  "forms.group.countQuestionNone":
+    "No number question is pinned before this group yet. Pin one earlier in the form and it will be offered here.",
+  "forms.group.min": "Minimum instances",
+  "forms.group.max": "Maximum instances",
+  // `max` is REQUIRED on both bounded sources (Q4 as amended by Q14), and the panel says so
+  // HERE rather than leaving `REPEAT_MAX_MISSING` to arrive at publish: with no
+  // installation-wide ceiling, this field is the only bound on how many instances a
+  // respondent can create, so it is a security-relevant declaration and not a nicety.
+  "forms.group.maxRequired": "Required. This is the only limit on how many instances a respondent can create.",
+  "forms.group.maxMissing": "Set a maximum. Until you do, this form cannot be published.",
+  "forms.group.instanceLabel": "Heading for each instance",
+  "forms.group.instanceLabelHint":
+    "Use {n} where the instance's position should go: Passenger {n}. A heading with no {n} is allowed, which suits a group of one.",
+  "forms.group.instanceLabelPreview": "A respondent reads",
+  "forms.group.instanceLabelPreviewEmpty": "Nothing yet: type a heading above.",
+  // The presentation, as a three-way radio. All three are offered because the field is the
+  // kernel's; what sits behind the table option is task 077's and behind the step option is
+  // task 076's, and neither changes a single answer, key or id (ADR-42).
+  "forms.group.presentationLegend": "How the instances are laid out",
+  "forms.group.presentation.stacked": "All instances on one page",
+  "forms.group.presentation.stackedHint":
+    "Each instance is a card, one after another, with Add and Remove beside them.",
+  "forms.group.presentation.perInstanceStep": "One page per instance",
+  "forms.group.presentation.perInstanceStepHint":
+    "The step repeats: the respondent answers one instance, continues, and answers the next.",
+  "forms.group.presentation.table": "A table",
+  "forms.group.presentation.tableHint":
+    "Instances become rows and the group's questions become columns. Only some question types can be a column.",
+  "forms.group.issues": "Issues with this group",
+  // The step editor's boundary rows. A group inside a step's question list is a SPAN rather
+  // than a row, so the grid states where it starts and what it holds; `plan/repeating-
+  // groups-and-table-input.md` §6.2 asks the grid for group boundaries and this is them.
+  "forms.group.boundary": "Repeating group: {label}",
+  "forms.group.boundaryEnd": "End of repeating group {label}",
+  "forms.group.boundarySummary": "{members}, {count}",
+  "forms.group.open": "Open group settings",
+  "forms.group.countSummary.fixed": "always {count}",
+  "forms.group.countSummary.fromAnswer": "from {questionId}, {min} to {max}",
+  "forms.group.countSummary.open": "respondent adds, {min} to {max}",
+  // A missing maximum is NAMED rather than printed as a blank: the field is required on both
+  // bounded sources, and a range reading "1 to " would look like a rendering fault instead of
+  // an unanswered question.
+  "forms.group.countSummary.fromAnswerNoMax": "from {questionId}, no maximum set",
+  "forms.group.countSummary.openNoMax": "respondent adds, no maximum set",
+  "forms.group.railGroups": "Repeating groups",
+  "forms.group.untitled": "Untitled group",
 
   "forms.picker.title": "Add questions to {title}",
   "forms.picker.description":
@@ -905,6 +1004,39 @@ export const messages = {
     "{targets} comes before a question this condition reads. A rule can only show something the respondent has not reached yet, so this rule cannot be published until that target is cleared.",
   "forms.rule.issues": "Issues with this rule",
 
+  // --- scope, which is SHOWN and never authored (ADR-42 §3.4, §6.4) ---
+  //
+  // A rule whose target sits inside a repeating group is evaluated once per live instance,
+  // and a reference to another question in that same group resolves to THAT instance's
+  // answer. No syntax says so, which is what keeps the airline's per-passenger rule an
+  // ordinary rule - and the price is that an author cannot see the scope in the condition
+  // they wrote. This chip is what pays that price, so it is a deliverable rather than a
+  // decoration, and `{noun}` is the author's own word for one instance.
+  "forms.rule.scopePerInstance": "evaluated per {noun}",
+  "forms.rule.scopeNote":
+    "This rule shows something inside {group}, so it is evaluated once for each {noun}. A question it reads from the same group reads that {noun}'s own answer.",
+  // The spanning case is a publish refusal said before the round trip, with the mechanical
+  // remedy beside it; `forms.issue.targetsSpanScopes` is the same thing after it.
+  "forms.rule.scopeSpanning":
+    "This rule shows things in more than one scope, which it cannot do: one rule is evaluated in one scope. Split it into two rules, one per scope - the condition is the same in both.",
+  // The group pickers of the three whole-group operators.
+  "forms.rule.group": "Group",
+  "forms.rule.instanceCompare": "Comparison",
+  "forms.rule.instanceValue": "Number of instances",
+  "forms.rule.compare.equals": "is exactly",
+  "forms.rule.compare.gt": "is more than",
+  "forms.rule.compare.gte": "is at least",
+  "forms.rule.compare.lt": "is fewer than",
+  "forms.rule.compare.lte": "is at most",
+  // What a nested condition under `anyInstance` / `everyInstance` is called, so the tree
+  // says whose answer the branch below it reads.
+  "forms.rule.groupBranch": "For one instance of {group}",
+  // `everyInstance`'s reading, stated at the control as well as in the sentence (Q7). The
+  // editor is where an author decides to use the operator, so it is where the empty-group
+  // reading has to be legible rather than discovered later.
+  "forms.rule.everyInstanceReading":
+    "With no instances at all this is false, not true. Negating it therefore matches a response with no instances, which is worth checking if you are writing a warning.",
+
   "forms.op.answered": "has been answered",
   "forms.op.equals": "equals (the whole answer)",
   "forms.op.notEquals": "does not equal (the whole answer)",
@@ -918,6 +1050,20 @@ export const messages = {
   "forms.op.and": "all of",
   "forms.op.or": "any of",
   "forms.op.not": "not",
+  // --- the three WHOLE-GROUP operators (ADR-42, ADR-03 as amended 2026-09-29) ---
+  //
+  // Worded to say OUT LOUD that they read a group rather than a question, because the
+  // picker that offers them is otherwise a list of twelve question operators with three
+  // strangers in it: an author who picks one and then looks for the Question field needs
+  // the label to have told them there is a Group field instead.
+  "forms.op.anyInstance": "at least one instance of a group matches",
+  "forms.op.everyInstance": "every instance of a group matches",
+  "forms.op.instanceCount": "how many instances a group has",
+  // Why one of the three cannot be chosen here, which is only ever one reason: this form
+  // declares no repeating group, so there is no group for the operator to read. Said as
+  // the state of the FORM rather than as a property of the operator, because the remedy is
+  // on the step editor and not in this dialog.
+  "forms.op.needsGroup": "Add a repeating group to a step before a rule can read one.",
 
   // --- the rules table's read-only sentence (`lib/forms/rule-sentence.ts`) ---
   //
@@ -971,6 +1117,36 @@ export const messages = {
   "forms.sentence.op.gte": "{question} is at least {value}",
   "forms.sentence.op.lt": "{question} is less than {value}",
   "forms.sentence.op.lte": "{question} is at most {value}",
+  // --- the three whole-group reads, and the two sentences that state their own reading ---
+  //
+  // `{group}` is the author's own name for the group and `{noun}` is what ONE instance is
+  // called, derived from their instance-label template ("Passenger {n}" gives "Passenger").
+  // Both are substituted rather than composed, so a locale that needs the count clause
+  // first, or needs no article, rewrites the frame here.
+  "forms.sentence.op.anyInstance": "at least one {group} where {condition}",
+  // IT STATES ITS OWN READING, and that clause is a decision rather than a flourish (Q7,
+  // ruled 2026-09-29). `everyInstance` over a group with NO live instance is FALSE, which
+  // is deliberately not classical universal quantification: "every passenger holds a
+  // passport" is not a true statement about a booking with no passengers. An author reading
+  // a bare "every passenger ..." would supply the classical reading, so the sentence says
+  // the non-vacuous half out loud.
+  "forms.sentence.op.everyInstance":
+    "every {group} where {condition}, and there is at least one {noun}",
+  // THE MIRROR TRAP, and the one an author is MORE likely to write (ADR-42's own note).
+  // Closing the vacuous reading for `everyInstance` makes its negation vacuous: this is
+  // TRUE over an empty group, so "show the warning unless every passenger has a passport"
+  // fires for a booking with no passengers. A warning is usually phrased as a negation, so
+  // this is the sentence that costs somebody a wrong warning if it goes unworded.
+  "forms.sentence.op.notEveryInstance":
+    "not every {group} is one where {condition}, which includes there being no {noun} at all",
+  // `instanceCount` reuses the comparison NAMES of the ordering operators as a field rather
+  // than as a second vocabulary, so these five read as the five `forms.sentence.op.*`
+  // comparisons do, about a count rather than about an answer.
+  "forms.sentence.count.equals": "the number of {group} is exactly {value}",
+  "forms.sentence.count.gt": "the number of {group} is more than {value}",
+  "forms.sentence.count.gte": "the number of {group} is at least {value}",
+  "forms.sentence.count.lt": "the number of {group} is fewer than {value}",
+  "forms.sentence.count.lte": "the number of {group} is at most {value}",
   // The same promise `forms.issue.unknown` makes for a publish code this build has never
   // heard of: an operator with no frame here still renders, and it renders as an
   // admission rather than as its own token dressed up as English.
@@ -1084,6 +1260,58 @@ export const messages = {
   // this is the sentence that says why a value made of spaces is not a value.
   "forms.issue.blankText":
     "This text is only whitespace, so it would reach a respondent as no text at all. Type something, or remove the entry.",
+
+  // --- the repeating group's refusals (ADR-42; Q24 to Q27, ruled 2026-09-29) ---
+  //
+  // Every sentence here names the AUTHORING GESTURE that answers it rather than restating
+  // the code, because each of these closes a shape that used to publish cleanly and never
+  // fire - the worst kind of authoring defect, since nothing anywhere said so. The kernel
+  // owns the verdict; this app owns only the words (R2).
+  "forms.issue.duplicateGroup":
+    "Two repeating groups share an ID, so a rule reading one of them would be ambiguous.",
+  "forms.issue.danglingGroup":
+    "This rule reads a repeating group the form does not have, so it would publish and never fire. Point it at a group this form declares, or remove the condition.",
+  // `max` is REQUIRED on both bounded sources (Q4 as amended by Q14): with no
+  // installation-wide ceiling, a group's own max is the only bound on how many instances a
+  // respondent can create. The panel marks the field required where the author sets it, so
+  // this sentence is the backstop rather than the first warning.
+  "forms.issue.repeatMaxMissing":
+    "This group needs a maximum. Its count is not fixed, so the maximum is the only limit on how many instances a respondent can add.",
+  "forms.issue.repeatMinAboveMax":
+    "This group's minimum is above its maximum, which no instance count can satisfy.",
+  "forms.issue.repeatNesting":
+    "A repeating group cannot sit inside another repeating group.",
+  "forms.issue.repeatCountBackward":
+    "The question this group takes its count from has to come before the whole group, because rules are evaluated in one forward pass. Move the count question earlier, or move the group later.",
+  "forms.issue.repeatCountNotANumber":
+    "A group can only take its instance count from a number question.",
+  "forms.issue.repeatCountInsideGroup":
+    "The question this group takes its count from sits inside a repeating group, so it is answered once per instance and has no single value. Move the count question out of every group.",
+  "forms.issue.instanceLabelPlaceholder":
+    "The instance heading carries a placeholder nothing fills in, so a respondent would read the braces. The only placeholder is {n}, the instance's position in the list.",
+  "forms.issue.repeatOperatorNesting":
+    "One group read sits inside another, which costs the product of the two groups' maxima however small the rule looks. Put the two reads side by side under all of / any of instead of inside one another.",
+  "forms.issue.readsGroupWithoutOperator":
+    "This condition reads a question inside a repeating group, which has one answer per instance rather than one value. Wrap the condition in \"at least one instance\" or \"every instance\" over that group, or point the rule at a target inside the same group.",
+  // RULE_TARGETS_SPAN_SCOPES: the remedy is MECHANICAL and saying so is the point (ADR-42
+  // §3.4). One rule is evaluated in one scope, so a list straddling two has no reading at
+  // all; the split is always possible because the condition is copyable and neither half's
+  // meaning changes.
+  "forms.issue.targetsSpanScopes":
+    "This rule shows things in more than one scope ({scopes}). One rule is evaluated in one scope, so split it into two: copy the condition into a second rule, and give each rule the targets from one scope. Neither rule's meaning changes.",
+  "forms.issue.targetsSpanScopesBare":
+    "This rule shows things in more than one scope. One rule is evaluated in one scope, so split it into two: copy the condition into a second rule, and give each rule the targets from one scope. Neither rule's meaning changes.",
+  // What a target outside every repeating group is called, in the scopes list above.
+  "forms.issue.scopeForm": "outside every repeating group",
+  // REPEAT_EVALUATION_BUDGET_EXCEEDED: it names both groups, both maxima and the product,
+  // and then says what it is NOT about. The obvious reading of a refusal mentioning two
+  // maxima is "my group is too big", and the author's next act would be to shrink a group
+  // for no reason: there is no installation-wide instance ceiling (Q14), this caps no
+  // group's maximum, and two large groups with no rule reading across them publish.
+  "forms.issue.budgetExceeded":
+    "This rule is shown once per {targetGroup} (up to {targetMax}) and reads all of {readGroup} (up to {readMax}) each time, which is {product} combinations every time anything is answered - above the engine's limit of {budget}. This is about this one rule's cost, not about either group's size: neither maximum is too large, and both groups publish fine without a rule that reads across them. Narrow the rule, or show it somewhere outside {targetGroup}.",
+  "forms.issue.tableColumnType":
+    "A table column cannot be this question's type. Change the group's presentation to stacked, or use a question of an allowed type.",
 
   // Warnings (issue #123). Worded apart from the issue list above because the two say
   // different things: an issue is why a publish is refused, a warning is something that

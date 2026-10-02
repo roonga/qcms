@@ -57,5 +57,6 @@ export function SaveNotices({
 const PAUSE_MESSAGES: Readonly<Record<UnsaveableReason, MessageKey>> = {
   noSteps: "forms.save.pausedNoSteps",
   emptyStep: "forms.save.pausedEmptyStep",
+  emptyGroup: "forms.save.pausedEmptyGroup",
   ruleWithoutTarget: "forms.save.pausedNoTarget",
 };

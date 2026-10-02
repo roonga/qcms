@@ -1,6 +1,9 @@
 import { t, type MessageKey } from "../i18n/en.ts";
+import { textOf } from "../questions/definition.ts";
 
-import type { DraftForm, FormIssue, IssuePath } from "./types.ts";
+import { REPEAT_EVALUATION_BUDGET } from "./condition.ts";
+import { findGroup, stepPins } from "./draft.ts";
+import { isDraftGroup, type DraftForm, type FormIssue, type IssuePath } from "./types.ts";
 
 /**
  * Publish issues, turned into something an author can read and reach (task 033).
@@ -79,6 +82,19 @@ export function pinAnchorId(questionId: string): string {
   return `pin-${questionId}`;
 }
 
+/**
+ * The DOM id of one repeating group's boundary row in the step editor.
+ *
+ * A group gets an anchor of its own because it is the subject of eight publish codes that
+ * name no question at all - `REPEAT_MAX_MISSING`, `REPEAT_MIN_ABOVE_MAX`,
+ * `INSTANCE_LABEL_PLACEHOLDER_UNKNOWN` and the rest. Without one, every refusal about a
+ * group's bounds or its label template would render as plain text in the validation panel
+ * with nothing to move focus to, which is the state {@link anchorFor} exists to avoid.
+ */
+export function groupAnchorId(groupId: string): string {
+  return `group-${groupId}`;
+}
+
 /** Every code this build has a sentence for. Anything else gets the fallback. */
 const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   DANGLING_QUESTION_REF: "forms.issue.danglingQuestion",
@@ -94,6 +110,28 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   DUPLICATE_STEP_ID: "forms.issue.duplicateStep",
   DEPRECATED_PIN: "forms.issue.deprecatedPin",
   BLANK_LOCALIZED_TEXT: "forms.issue.blankText",
+  // --- the repeating group's own refusals (ADR-42, Q24 to Q27) ---
+  //
+  // Every one of these is a shape that used to be unsayable rather than illegal, so each
+  // sentence names the authoring gesture that answers it rather than restating the code.
+  // The kernel owns the verdict and this app owns nothing but the wording (R2).
+  DUPLICATE_GROUP_ID: "forms.issue.duplicateGroup",
+  DANGLING_GROUP_REF: "forms.issue.danglingGroup",
+  REPEAT_MAX_MISSING: "forms.issue.repeatMaxMissing",
+  REPEAT_MIN_ABOVE_MAX: "forms.issue.repeatMinAboveMax",
+  REPEAT_NESTING_NOT_ALLOWED: "forms.issue.repeatNesting",
+  REPEAT_COUNT_BACKWARD_REF: "forms.issue.repeatCountBackward",
+  REPEAT_COUNT_NOT_A_NUMBER: "forms.issue.repeatCountNotANumber",
+  REPEAT_COUNT_INSIDE_GROUP: "forms.issue.repeatCountInsideGroup",
+  INSTANCE_LABEL_PLACEHOLDER_UNKNOWN: "forms.issue.instanceLabelPlaceholder",
+  REPEAT_OPERATOR_NESTING_NOT_ALLOWED: "forms.issue.repeatOperatorNesting",
+  RULE_READS_GROUP_WITHOUT_OPERATOR: "forms.issue.readsGroupWithoutOperator",
+  // These two take substitutions, so they are composed by `messageForIssue` from the path
+  // and the draft rather than rendered as fixed prose. They stay in this table because the
+  // table is also the "is this code known to this build" test.
+  RULE_TARGETS_SPAN_SCOPES: "forms.issue.targetsSpanScopes",
+  REPEAT_EVALUATION_BUDGET_EXCEEDED: "forms.issue.budgetExceeded",
+  TABLE_COLUMN_TYPE_NOT_ALLOWED: "forms.issue.tableColumnType",
   // Warnings (issue #123) share this table because they share the wire shape and the
   // renderer: one entry has one sentence, whether it refuses a publish or advises about
   // one. What separates them is where the panel puts them, not how they are read.
@@ -101,10 +139,95 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   PATTERN_CLASS_SET_AMBIGUOUS: "forms.warning.patternClassSet",
 };
 
-/** The sentence explaining one issue's code. */
-export function messageForIssue(issue: FormIssue): string {
+/**
+ * The sentence explaining one issue's code.
+ *
+ * ## Two codes are COMPOSED rather than quoted, and that is the deliverable
+ *
+ * Every other code renders a fixed sentence, because the code alone says what is wrong and
+ * the panel's own anchor says where. Two of the repeating group's do not:
+ *
+ * - **`RULE_TARGETS_SPAN_SCOPES`** has to name the scopes the rule straddles and tell the
+ *   author to **split it into two rules**, which is always possible because the condition is
+ *   copyable and the split changes nothing about what either rule means. A sentence that
+ *   only reported the refusal would leave an author with a rule the kernel will not take and
+ *   no idea that the remedy is mechanical.
+ * - **`REPEAT_EVALUATION_BUDGET_EXCEEDED`** has to name both groups, both maxima and their
+ *   product, and say that the refusal is about **this rule's cost and not about either
+ *   group's size** (Q14 left no installation-wide ceiling, and the budget caps no group's
+ *   `max`). Without that sentence the obvious reading is "my group is too big", and the
+ *   author's next act would be to shrink a group for no reason.
+ *
+ * `draft` is optional because the two composed sentences are the only readers of it: a
+ * caller with no draft to hand gets the same sentence with ids where the names would be,
+ * which is honest rather than blank. The maxima come from the draft's own declarations,
+ * which is also where the author will go to change them.
+ */
+export function messageForIssue(issue: FormIssue, draft?: DraftForm): string {
   const key = ISSUE_MESSAGES[issue.code];
-  return key === undefined ? t("forms.issue.unknown", { code: issue.code }) : t(key);
+  if (key === undefined) return t("forms.issue.unknown", { code: issue.code });
+  if (issue.code === "RULE_TARGETS_SPAN_SCOPES") return spanScopesMessage(issue, draft);
+  if (issue.code === "REPEAT_EVALUATION_BUDGET_EXCEEDED") return budgetMessage(issue, draft);
+  return t(key);
+}
+
+/** What a group is called on screen: the author's own name for it, or its id. */
+export function groupName(groupId: string, draft: DraftForm | undefined): string {
+  if (draft === undefined) return groupId;
+  const found = findGroup(draft, groupId);
+  const label = found === undefined ? "" : textOf(found.group.label, draft.defaultLocale);
+  return label === "" ? groupId : label;
+}
+
+/** One scope of a `show` list: a named group, or the form outside every group. */
+function scopeName(scope: string, draft: DraftForm | undefined): string {
+  return scope === "form" ? t("forms.issue.scopeForm") : groupName(scope, draft);
+}
+
+function spanScopesMessage(issue: FormIssue, draft: DraftForm | undefined): string {
+  const scopes = issue.path?.scopes ?? [];
+  // No scopes on the path is not a state the kernel produces, but this reads bytes off the
+  // wire (`parseIssues`), so the sentence degrades to the remedy rather than to "and ".
+  if (scopes.length === 0) return t("forms.issue.targetsSpanScopesBare");
+  return t("forms.issue.targetsSpanScopes", {
+    scopes: scopes.map((scope) => scopeName(scope, draft)).join(", "),
+  });
+}
+
+function budgetMessage(issue: FormIssue, draft: DraftForm | undefined): string {
+  const path = issue.path;
+  const targetGroup = path?.targetGroup ?? "";
+  const readGroup = path?.readGroup ?? "";
+  const targetMax = declaredMax(targetGroup, draft);
+  const readMax = declaredMax(readGroup, draft);
+  return t("forms.issue.budgetExceeded", {
+    targetGroup: groupName(targetGroup, draft),
+    readGroup: groupName(readGroup, draft),
+    targetMax: maxLabel(targetMax),
+    readMax: maxLabel(readMax),
+    product: targetMax === undefined || readMax === undefined ? "?" : String(targetMax * readMax),
+    budget: REPEAT_EVALUATION_BUDGET,
+  });
+}
+
+/** A group's declared instance ceiling, which for a `fixed` count is the count itself. */
+function declaredMax(groupId: string, draft: DraftForm | undefined): number | undefined {
+  if (draft === undefined || groupId === "") return undefined;
+  const found = findGroup(draft, groupId);
+  if (found === undefined) return undefined;
+  const count = found.group.count;
+  return count.source === "fixed" ? count.count : count.max;
+}
+
+/**
+ * A declared maximum, or the stand-in for a group whose `max` this build cannot read.
+ *
+ * `?` rather than a number: the only way to reach it is a group the draft no longer has or a
+ * bounded source with the field still empty, and printing a 0 there would state a ceiling
+ * nobody set.
+ */
+function maxLabel(max: number | undefined): string {
+  return max === undefined ? "?" : String(max);
 }
 
 /**
@@ -152,6 +275,14 @@ export function anchorFor(issue: FormIssue, draft: DraftForm): string | undefine
   if (path.question !== undefined && isPinnedAnywhere(draft, path.question)) {
     return pinAnchorId(path.question);
   }
+  // A GROUP before its step, and after the question, by the same precedence the rest of
+  // this function follows: the most specific rendered element wins. A refusal about a
+  // group's bounds names no question, and a refusal about its count source names the count
+  // question - which lives OUTSIDE the group, so the question anchor above is the better
+  // destination for that one and this branch is reached only when there is no question.
+  if (path.group !== undefined && findGroup(draft, path.group) !== undefined) {
+    return groupAnchorId(path.group);
+  }
   if (path.step !== undefined && draft.steps.some((step) => step.stepId === path.step)) {
     return stepAnchorId(path.step);
   }
@@ -176,9 +307,12 @@ export function stepOwningAnchor(issue: FormIssue, draft: DraftForm): string | u
   const path = issue.path;
   if (path === undefined) return undefined;
   if (ruleOf(path) !== undefined) return undefined;
+  // A GROUP's own anchor is on its step's screen, exactly as a pin's is, so an issue about a
+  // group bounds or label has to switch the selection before it can focus anything.
+  if (path.group !== undefined) return findGroup(draft, path.group)?.stepId;
   const question = path.question;
   if (question === undefined) return undefined;
-  return draft.steps.find((step) => step.items.some((item) => item.questionId === question))
+  return draft.steps.find((step) => stepPins(step).some((pin) => pin.questionId === question))
     ?.stepId;
 }
 
@@ -220,7 +354,23 @@ export function ruleForIssue(issue: FormIssue, draft: DraftForm): string | undef
 }
 
 function isPinnedAnywhere(draft: DraftForm, questionId: string): boolean {
-  return draft.steps.some((step) => step.items.some((item) => item.questionId === questionId));
+  return draft.steps.some((step) => stepPins(step).some((pin) => pin.questionId === questionId));
+}
+
+/**
+ * The issues that belong to one repeating group: about this group, and not about a rule.
+ *
+ * The same split `issuesForPin` makes, and for the same reason: a rule issue naming a group
+ * (`DANGLING_GROUP_REF`, the budget refusal) is a statement about the RULE, and showing it on
+ * the group panel would invite an author to change a group's bounds to fix a rule.
+ */
+export function issuesForGroup(
+  issues: readonly FormIssue[],
+  groupId: string,
+): readonly FormIssue[] {
+  return issues.filter(
+    (issue) => issue.path?.group === groupId && issue.path?.rule === undefined,
+  );
 }
 
 /** The issues that belong to one rule, including its share of a reported cycle. */
@@ -245,15 +395,21 @@ export function stepIssueCounts(
   draft: DraftForm,
 ): ReadonlyMap<string, number> {
   const stepOfQuestion = new Map<string, string>();
+  const stepOfGroup = new Map<string, string>();
   for (const step of draft.steps) {
-    for (const item of step.items) stepOfQuestion.set(item.questionId, step.stepId);
+    for (const pin of stepPins(step)) stepOfQuestion.set(pin.questionId, step.stepId);
+    for (const item of step.items) {
+      if (isDraftGroup(item)) stepOfGroup.set(item.groupId, step.stepId);
+    }
   }
   const counts = new Map<string, number>();
   for (const issue of issues) {
     const path = issue.path;
     if (path === undefined || ruleOf(path) !== undefined) continue;
     const stepId =
-      path.step ?? (path.question === undefined ? undefined : stepOfQuestion.get(path.question));
+      path.step ??
+      (path.question === undefined ? undefined : stepOfQuestion.get(path.question)) ??
+      (path.group === undefined ? undefined : stepOfGroup.get(path.group));
     if (stepId === undefined) continue;
     counts.set(stepId, (counts.get(stepId) ?? 0) + 1);
   }
@@ -290,7 +446,20 @@ export function parseIssues(raw: unknown): readonly FormIssue[] {
 }
 
 /** The path fields that are plain strings, which is all of them but two. */
-const STRING_PATH_KEYS = ["rule", "step", "question", "option", "target", "locale"] as const;
+const STRING_PATH_KEYS = [
+  "rule",
+  "step",
+  "group",
+  "question",
+  "option",
+  "target",
+  "locale",
+  "placeholder",
+  "outerGroup",
+  "innerGroup",
+  "targetGroup",
+  "readGroup",
+] as const;
 
 /** {@link IssuePath} while it is being assembled: same fields, writable. */
 type MutableIssuePath = {
@@ -319,9 +488,11 @@ function parsePath(raw: unknown): IssuePath | undefined {
   }
   const version = source["version"];
   if (typeof version === "number") path.version = version;
-  const rules = source["rules"];
-  if (Array.isArray(rules)) {
-    path.rules = rules.filter((entry): entry is string => typeof entry === "string");
+  for (const key of ["rules", "scopes"] as const) {
+    const list = source[key];
+    if (Array.isArray(list)) {
+      path[key] = list.filter((entry): entry is string => typeof entry === "string");
+    }
   }
   return Object.keys(path).length === 0 ? undefined : path;
 }

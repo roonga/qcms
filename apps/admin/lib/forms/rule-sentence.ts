@@ -3,12 +3,13 @@ import { textOf } from "../questions/definition.ts";
 
 import type { ReadState } from "../read-state.ts";
 
-import { draftDocumentOrder } from "./draft.ts";
+import { draftDocumentOrder, findGroup, instanceNoun } from "./draft.ts";
 import type {
   DraftAnswerValue,
   DraftCondition,
   DraftForm,
   DraftRule,
+  InstanceCountComparison,
   LeafConditionOp,
   PinnableQuestion,
 } from "./types.ts";
@@ -111,7 +112,7 @@ export interface RuleSentenceSegment {
    * Absent on connectives, punctuation and every stand-in - a stand-in is the absence of a
    * name, so emphasising it would assert one.
    */
-  readonly kind?: "question" | "step" | "value";
+  readonly kind?: "question" | "step" | "group" | "value";
 }
 
 /**
@@ -272,10 +273,115 @@ function renderCondition(
       conjunction,
     );
   }
-  if (condition.op === "not") {
-    return fill("forms.sentence.not", { condition: renderCondition(condition.condition, context) });
+  if (condition.op === "not") return renderNot(condition.condition, context);
+  if (
+    condition.op === "anyInstance" ||
+    condition.op === "everyInstance" ||
+    condition.op === "instanceCount"
+  ) {
+    return renderGroupRead(condition, context);
   }
   return renderLeaf(condition, context);
+}
+
+/**
+ * A `not`, and **the one negation that renders its own reading out loud**.
+ *
+ * `not(everyInstance(G, c))` is **true** over an empty G, because `everyInstance` over an
+ * empty group is false by decision (Q7, ruled 2026-09-29) and this is that same base case
+ * read through `not`. So "show the warning unless every passenger has a passport" fires for a
+ * booking with **no passengers**.
+ *
+ * That is the trap an author is MORE LIKELY to write than the plain form, and the reason is
+ * worth stating where the code is: a warning is usually phrased as a negation. The plain
+ * sentence reads like the interesting case and is the one an implementer remembers to word;
+ * this is the one that costs somebody a wrong warning in production.
+ *
+ * Nothing about the semantics changes here. The sentence is written down where an author meets
+ * it, which is the only place the non-vacuous reading can be discovered rather than documented.
+ */
+function renderNot(
+  inner: DraftCondition,
+  context: SentenceContext,
+): readonly RuleSentenceSegment[] {
+  if (inner.op === "everyInstance") {
+    return fill("forms.sentence.op.notEveryInstance", {
+      group: groupName(inner.groupId, context),
+      noun: [{ text: groupNoun(inner.groupId, context) }],
+      condition: branch(inner.condition, context),
+    });
+  }
+  return fill("forms.sentence.not", { condition: renderCondition(inner, context) });
+}
+
+/** The five comparison frames `instanceCount` reads with, keyed by the field it carries. */
+const COUNT_FRAMES: Record<InstanceCountComparison, MessageKey> = {
+  equals: "forms.sentence.count.equals",
+  gt: "forms.sentence.count.gt",
+  gte: "forms.sentence.count.gte",
+  lt: "forms.sentence.count.lt",
+  lte: "forms.sentence.count.lte",
+};
+
+const COUNT_FRAME_FOR: Readonly<Record<string, MessageKey | undefined>> = COUNT_FRAMES;
+
+/**
+ * One whole-group read, in the words the ruling requires.
+ *
+ * **`everyInstance` states its own reading** ("every X where ..., and there is at least one
+ * X"), because the empty group evaluates to **false** by decision and an author reading the
+ * bare sentence would supply the classical reading instead - under which "every passenger
+ * holds a passport" is true of a booking with no passengers, which is the opposite of what
+ * they meant. The sentence an author reads is the one place that non-vacuous reading can be
+ * visible, so the clause is part of the frame rather than a footnote beside it.
+ *
+ * `anyInstance` needs no such clause: it is false over an empty group under either reading.
+ */
+function renderGroupRead(
+  condition: Extract<DraftCondition, { readonly groupId: string }>,
+  context: SentenceContext,
+): readonly RuleSentenceSegment[] {
+  const group = groupName(condition.groupId, context);
+  const noun = [{ text: groupNoun(condition.groupId, context) }];
+  if (condition.op === "instanceCount") {
+    const frame = COUNT_FRAME_FOR[condition.compare];
+    if (frame === undefined) {
+      return fill("forms.sentence.op.unknown", { op: [{ text: String(condition.compare) }] });
+    }
+    return fill(frame, { group, value: [{ text: String(condition.value) }] });
+  }
+  const frame =
+    condition.op === "anyInstance"
+      ? "forms.sentence.op.anyInstance"
+      : "forms.sentence.op.everyInstance";
+  // `branch` rather than `renderCondition`, so a nested `and`/`or` list is bracketed: "at
+  // least one passenger where (A and B)" and "at least one passenger where A, and B" are
+  // different rules, and these two frames are not self-delimiting the way `not (...)` is.
+  return fill(frame, { group, noun, condition: branch(condition.condition, context) });
+}
+
+/**
+ * A group's display name: the author's own label, or the stand-in that says there is none.
+ *
+ * A group is FORM-OWNED, so unlike a question's label it never depends on the library read -
+ * the same reason a step target reads normally through a failed one (§3 of
+ * `plan/admin-design-contracts.md`: a failed read suppresses only what it made unknowable).
+ * A group the draft does not declare renders as the raw `grp_` id the condition actually
+ * holds, which is honest about being an id and is `DANGLING_GROUP_REF` at publish.
+ */
+function groupName(groupId: string, context: SentenceContext): readonly RuleSentenceSegment[] {
+  const found = findGroup(context.draft, groupId);
+  if (found === undefined) return [{ text: groupId }];
+  const label = textOf(found.group.label, context.draft.defaultLocale);
+  return label === "" ? [{ text: groupId }] : [{ text: label, kind: "group" }];
+}
+
+/** What one instance of a group is called, for the clauses that count instances. */
+function groupNoun(groupId: string, context: SentenceContext): string {
+  const found = findGroup(context.draft, groupId);
+  return found === undefined
+    ? groupId
+    : instanceNoun(found.group, context.draft.defaultLocale);
 }
 
 /** One branch of a combinator, bracketed when it is itself a bare `and`/`or` list. */

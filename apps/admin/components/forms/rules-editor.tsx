@@ -70,7 +70,7 @@ export function RulesEditor({
 }) {
   // A condition has to read a question, so there is nothing to add a rule against until
   // the form pins one. The button says why rather than being silently inert.
-  const firstPinned = draft.steps.flatMap((step) => step.items)[0]?.questionId;
+  const firstPinned = draft.steps.flatMap((step) => stepPins(step))[0]?.questionId;
   const [edited, setEdited] = useState<DraftRule | undefined>(undefined);
 
   // MINTED, NOT ADDED. The rule reaches the draft when Save is pressed and not before, so
