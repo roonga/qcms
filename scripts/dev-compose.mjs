@@ -492,11 +492,14 @@ export function devStackBannerLines({ ports, project, credentials, inContainer }
       "",
     );
   } else {
+    const signInUrl = new URL("/sign-in", url(ports.admin));
+    signInUrl.search = new URLSearchParams(credentials).toString();
     lines.push(
       "  Sign in to the admin with the account this run created:",
       "",
       `      email     ${credentials.email}`,
       `      password  ${credentials.password}`,
+      `      Login     ${signInUrl.href}`,
       "",
       "  It is printed because it is the only copy: nothing writes it to disk. This",
       "  is a local, loopback-only stack, which is the whole reason that is acceptable.",

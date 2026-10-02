@@ -55,6 +55,7 @@ export default async function SignInPage({
           type="email"
           label={t("signIn.email")}
           autoComplete="username"
+          defaultValue={typeof params.email === "string" ? params.email : ""}
           isRequired
         />
         <TextField
@@ -62,6 +63,7 @@ export default async function SignInPage({
           type="password"
           label={t("signIn.password")}
           autoComplete="current-password"
+          defaultValue={typeof params.password === "string" ? params.password : ""}
           isRequired
         />
         <Button type="submit" variant="primary" size="md">
