@@ -28,6 +28,7 @@ import { readFileSync } from "node:fs";
 
 import { readFixtures } from "./support/fixtures.js";
 import { test, expect } from "./support/gates.js";
+import { waitForHydration } from "./support/hydration.js";
 import {
   OTEL_SERVICE_NAMES,
   OTLP_DELIVERY_BUDGET_MS,
@@ -351,6 +352,10 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
   await page.waitForURL(/\/s\/ses_/);
   // The first serve mints the group's `min: 1`, so there is a card to fill.
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  // Wait for hydration before touching a field: a commit is the hydrated handler's
+  // POST (ADR-31), so filling and blurring before it lands posts nothing at all and
+  // the waiter below would sit until the test's own timeout.
+  await waitForHydration(page);
 
   const card = (ordinal: number) => page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
   const answered = (questionId: string): Promise<unknown> =>
@@ -386,6 +391,7 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
   await page.getByRole("button", { name: "Add Vehicle" }).click();
   expect((await roster).status()).toBe(200);
   await expect(page.getByRole("heading", { name: INSTANCE_LABEL })).toBeVisible();
+  await waitForHydration(page);
   const plateTwo = answered("q_rf_plate");
   await card(2).getByLabel("Registration plate").fill("BBB222");
   await card(2).getByLabel("Registration plate").blur();
