@@ -449,7 +449,10 @@ export interface PreviewFlow {
    * step-shaped approximation of them. `lib/forms/preview-views.ts` is the one place this
    * is read, so the pane and the portal cannot disagree about what a page is.
    */
-  readonly visibleStepViews?: readonly { readonly stepId: string; readonly instanceId: string | null }[];
+  readonly visibleStepViews?: readonly {
+    readonly stepId: string;
+    readonly instanceId: string | null;
+  }[];
 }
 
 /**

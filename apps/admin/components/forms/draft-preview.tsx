@@ -492,4 +492,3 @@ function hasVisibleQuestion(
     );
   });
 }
-
