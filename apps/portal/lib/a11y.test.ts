@@ -4,6 +4,7 @@ import { diffFlow, nextFocusTargetAfterRemoval, type FlowView } from "./a11y";
 
 const base: FlowView = {
   stepId: "stp_1",
+  instanceId: null,
   stepIndex: 0,
   visibleQuestions: ["q_a", "q_b"],
 };
@@ -24,7 +25,12 @@ describe("diffFlow", () => {
   });
 
   it("detects a step change between two real steps (both ids non-null and different)", () => {
-    const next: FlowView = { stepId: "stp_2", stepIndex: 1, visibleQuestions: ["q_x"] };
+    const next: FlowView = {
+      stepId: "stp_2",
+      instanceId: null,
+      stepIndex: 1,
+      visibleQuestions: ["q_x"],
+    };
     expect(diffFlow(base, next).stepChanged).toBe(true);
   });
 
@@ -34,11 +40,30 @@ describe("diffFlow", () => {
   });
 
   it("does NOT treat the step going to null (flow ready/complete) as a step change", () => {
-    const next: FlowView = { stepId: null, stepIndex: 1, visibleQuestions: ["q_a"] };
+    const next: FlowView = {
+      stepId: null,
+      instanceId: null,
+      stepIndex: 1,
+      visibleQuestions: ["q_a"],
+    };
     const delta = diffFlow(base, next);
     expect(delta.stepChanged).toBe(false);
     // The branch removal is still reported so it can be announced instead.
     expect(delta.removed).toEqual(["q_b"]);
+  });
+
+  // Task 076: a `perInstanceStep` group's pages are views of ONE step, so the instance
+  // is what tells two of them apart. Without this the Continue from Vehicle 1 to Vehicle
+  // 2 announces nothing and leaves focus where the respondent left it.
+  it("treats a move between two views of one step as a step change", () => {
+    const first: FlowView = { ...base, instanceId: "ins_1" };
+    const second: FlowView = { ...base, instanceId: "ins_2", stepIndex: 1 };
+    expect(diffFlow(first, second).stepChanged).toBe(true);
+  });
+
+  it("does NOT treat an unchanged instance on the same step as a step change", () => {
+    const first: FlowView = { ...base, instanceId: "ins_1" };
+    expect(diffFlow(first, { ...first, stepIndex: 1 }).stepChanged).toBe(false);
   });
 
   it("reports no change when the visible set and step are identical", () => {
