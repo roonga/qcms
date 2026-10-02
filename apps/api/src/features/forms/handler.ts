@@ -956,6 +956,63 @@ interface BenchForm {
   readonly targetGroupId?: GroupId | undefined;
 }
 
+/**
+ * Which groups the bench has to declare: the target's, every one holding a question the
+ * condition reads, and every one a whole-group operator names.
+ *
+ * A group the rule does not touch is left out, because a group the bench declares and nothing
+ * reads is a span the evaluator walks for no verdict.
+ */
+function benchWantedGroups(
+  rule: VisibilityRule,
+  references: readonly QuestionId[],
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+  declared: ReadonlySet<GroupId>,
+  targetGroupId: GroupId | undefined,
+): ReadonlySet<GroupId> {
+  const wanted = new Set<GroupId>();
+  if (targetGroupId !== undefined) wanted.add(targetGroupId);
+  for (const questionId of references) {
+    const groupId = groupOf.get(questionId);
+    if (groupId !== undefined) wanted.add(groupId);
+  }
+  for (const groupId of ruleGroupReferences(rule)) {
+    if (declared.has(groupId)) wanted.add(groupId);
+  }
+  return wanted;
+}
+
+/** The questions the condition reads, split by the container the bench has to put them in. */
+function benchReads(
+  target: QuestionRef,
+  references: readonly QuestionId[],
+  pins: ReadonlyMap<QuestionId, number>,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): {
+  readonly bare: readonly QuestionRef[];
+  readonly byGroup: ReadonlyMap<GroupId, readonly QuestionRef[]>;
+} {
+  const bare: QuestionRef[] = [];
+  const byGroup = new Map<GroupId, QuestionRef[]>();
+  for (const questionId of references) {
+    // The target is excluded from the reads even when the condition reads it: the kernel
+    // refuses a question pinned twice in one form, and a self-reference then correctly reads
+    // as unanswered, which is what a forward pass would do anyway.
+    if (questionId === target.questionId) continue;
+    const version = pins.get(questionId);
+    if (version === undefined) continue;
+    const groupId = groupOf.get(questionId);
+    if (groupId === undefined) {
+      bare.push({ questionId, version });
+      continue;
+    }
+    const existing = byGroup.get(groupId) ?? [];
+    existing.push({ questionId, version });
+    byGroup.set(groupId, existing);
+  }
+  return { bare, byGroup };
+}
+
 function benchForm(
   definition: FormDefinition,
   rule: VisibilityRule,
@@ -967,37 +1024,19 @@ function benchForm(
   const groupOf = questionGroups(definition.steps);
   const byId = new Map(repeatGroups(definition.steps).map((group) => [group.groupId, group]));
   const targetGroupId = groupOf.get(target.questionId);
-
-  // Which groups the bench has to declare, in the author's own document order so the bench's
-  // document order is a sub-order of the draft's rather than a new one.
-  const wanted = new Set<GroupId>();
-  if (targetGroupId !== undefined) wanted.add(targetGroupId);
-  for (const questionId of references) {
-    const groupId = groupOf.get(questionId);
-    if (groupId !== undefined) wanted.add(groupId);
-  }
-  for (const groupId of ruleGroupReferences(rule)) {
-    if (byId.has(groupId)) wanted.add(groupId);
-  }
-
-  const bareReads: QuestionRef[] = [];
-  const readsByGroup = new Map<GroupId, QuestionRef[]>();
-  for (const questionId of references) {
-    // The target is excluded from the reads even when the condition reads it: the kernel
-    // refuses a question pinned twice in one form, and a self-reference then correctly reads
-    // as unanswered, which is what a forward pass would do anyway.
-    if (questionId === target.questionId) continue;
-    const version = pins.get(questionId);
-    if (version === undefined) continue;
-    const groupId = groupOf.get(questionId);
-    if (groupId === undefined) {
-      bareReads.push({ questionId, version });
-      continue;
-    }
-    const existing = readsByGroup.get(groupId) ?? [];
-    existing.push({ questionId, version });
-    readsByGroup.set(groupId, existing);
-  }
+  const wanted = benchWantedGroups(
+    rule,
+    references,
+    groupOf,
+    new Set(byId.keys()),
+    targetGroupId,
+  );
+  const { bare: bareReads, byGroup: readsByGroup } = benchReads(
+    target,
+    references,
+    pins,
+    groupOf,
+  );
 
   const groupItem = (groupId: GroupId): RepeatGroup | undefined => {
     const source = byId.get(groupId);
@@ -1025,21 +1064,36 @@ function benchForm(
   const readItems = [...bareReads, ...readGroups];
   const targetGroup = targetGroupId === undefined ? undefined : groupItem(targetGroupId);
   const targetItems = targetGroup === undefined ? [target] : [targetGroup];
+  /** Whether the target's own group carries any of the questions the condition reads. */
+  const readsInTargetGroup =
+    targetGroupId !== undefined && (readsByGroup.get(targetGroupId) ?? []).length > 0;
 
-  // NO READABLE INPUT means no answer the bench could vary: the condition reads only
-  // questions the draft does not pin and names no group it declares, so there is nothing to
-  // evaluate. A group-only read still counts, because the instance COUNT is a thing the
-  // author can vary (`instanceCount` is the whole case).
-  if (readItems.length === 0) return undefined;
+  // NO READABLE INPUT means no answer the bench could vary: the condition reads only questions
+  // the draft does not pin and names no group it declares, so there is nothing to evaluate. A
+  // group-only read still counts, because the instance COUNT is a thing the author can vary
+  // (`instanceCount` is the whole case), and so does a read that sits in the target's OWN group,
+  // which is the inside-out case and the commonest shape of all.
+  if (readItems.length === 0 && !readsInTargetGroup) return undefined;
+
+  // ONE STEP when every read is inside the target's own group, and that is the inside-out case
+  // rather than a special case: "this passenger is an infant, show this passenger's fare basis"
+  // reads and shows inside one span, so a second step would be a step with no items - which the
+  // kernel refuses (`items.min(1)`) and which would make the bench decline to answer the most
+  // ordinary per-instance rule there is. The group's member order puts the reads before the
+  // target, so the forward pass sees them in that order within each instance.
+  const steps =
+    readItems.length === 0
+      ? [{ stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems }]
+      : [
+          { stepId: BENCH_READS_STEP_ID, title: definition.title, items: readItems },
+          { stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems },
+        ];
 
   const parsed = parseFormDefinition({
     formId: definition.formId,
     defaultLocale: definition.defaultLocale,
     title: definition.title,
-    steps: [
-      { stepId: BENCH_READS_STEP_ID, title: definition.title, items: readItems },
-      { stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems },
-    ],
+    steps,
     rules: [{ ruleId: rule.ruleId, when: rule.when, show: [target.questionId] }],
   });
   if (!parsed.ok) return undefined;
