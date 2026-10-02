@@ -514,9 +514,22 @@ export function StepFlow({
             groupId,
             message: rosterAnnouncement({ op, before, after, instanceId, templates, groupId }),
           });
+          // After an add on a `perInstanceStep` group there is NO destination, because
+          // the new instance is a new view one page further along and nothing on this
+          // page changed (task 076): Continue, Back and Submit are the only things that
+          // move the rendered page (ADR-28), so an Add that carried the respondent onto
+          // the new instance's page would be the page moving by itself. The status
+          // region still announces the addition, which is Q11's announcement half.
+          //
+          // After a REMOVAL nothing special is needed, and that is worth stating: the
+          // view list shrank, the API clamps the committed cursor into it, and Q11's
+          // three destinations fall out of that arithmetic - the instance that took the
+          // removed one's position lands on the same index, the previous instance is
+          // what the clamp reaches when the removed one was last, and an emptied group
+          // leaves one view with no instance whose only candidate is the Add button.
           setPendingFocus(
             op === "add"
-              ? focusAfterAdd(next.minted, groupId)
+              ? focusAfterAdd(next.minted, groupId, next.view.groupId === groupId)
               : focusAfterRemoval(before, instanceId ?? "", groupId),
           );
         } catch {

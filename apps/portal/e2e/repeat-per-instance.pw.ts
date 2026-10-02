@@ -150,3 +150,51 @@ test("the Add control is on the last view and growing the group appends a view",
   // `max: 4`, so the group is full and the control says so rather than disappearing.
   await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
 });
+
+test("an Add announces without moving the page, and a removal clamps onto Q11's destination", async ({
+  page,
+}) => {
+  await startTour(page);
+  await fillPlate(page, "AAA111");
+  await navigate(page, "primary-action");
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+  await fillPlate(page, "CCC333");
+
+  const written = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await written).status()).toBe(200);
+
+  // **The page did not move**, which is ADR-28 and not an omission: Continue, Back and
+  // Submit are the only things that move it, and an Add is not one of them. So the
+  // respondent stays on Vehicle 3 and the indicator tells them a fourth exists.
+  await expect(page.getByRole("heading", { name: "Vehicle 3" })).toBeVisible();
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 4: Vehicle 3");
+  // Q11's announcement half is intact and is what tells them the press worked, since the
+  // new instance's own heading is a page further along and cannot be focused from here.
+  await expect(page.locator(".qcms-repeat__status")).toHaveText("Vehicle 4 added.");
+  // And the new instance's heading is genuinely not in this document, so nothing could
+  // have landed on it.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(1);
+
+  // A removal needs no focus policy of its own here: the view list shrinks, the API
+  // clamps the committed cursor into it, and Q11's destinations fall out of that
+  // arithmetic. Removing the instance this view draws leaves the index naming the one
+  // that took its position, which is Q11's first destination in terms.
+  const removed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Remove Vehicle 3" }).click();
+  expect((await removed).status()).toBe(200);
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  // The ordinals renumbered, so what was Vehicle 4 is now Vehicle 3 and is the page the
+  // respondent is standing on.
+  await expect(page.getByRole("heading", { name: "Vehicle 3" })).toBeVisible();
+  // Three views again, and this is the last of them, so Submit is back on it.
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeEnabled();
+});
