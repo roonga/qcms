@@ -237,6 +237,85 @@ describe("the roster read", () => {
     expect(second.minted).toEqual(first.minted);
   });
 
+  it("returns the whole session's ledger in (occurred_at, instance_id, id) order", async () => {
+    // Issue #1033: the ledger's ordering had only length assertions, so the order
+    // its own doc promises was unasserted. Task 075 is the first consumer to put
+    // the audit beside the roster it audits, and an order nothing checks is an
+    // order that can change under a refactor without failing anything.
+    const sessionId = await seedSession("roster_ledger_order");
+    const bags = GroupId.parse("grp_bags");
+    const t0 = new Date("2026-06-01T00:00:00.000Z");
+
+    // Two groups, one timestamp: `occurred_at` cannot order these, so the whole
+    // session's rows sort by `instance_id` and the two groups interleave. That is
+    // the read's documented behaviour - it is one audit of one session, not a
+    // per-group listing.
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceIds: [ins("b1"), ins("a1")],
+      occurredAt: t0,
+    });
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId: bags,
+      instanceIds: [ins("c1")],
+      occurredAt: t0,
+    });
+    await removeInstance(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceId: ins("a1"),
+      occurredAt: new Date(t0.getTime() + 1000),
+    });
+
+    const ledger = await rosterLedger(testDb.db, sessionId);
+    expect(ledger.map((row) => [row.groupId, row.instanceId, row.event])).toEqual([
+      [pax, ins("a1"), "added"],
+      [pax, ins("b1"), "added"],
+      [bags, ins("c1"), "added"],
+      [pax, ins("a1"), "removed"],
+    ]);
+    // Restricted to one group's `added` rows, the audit agrees with the roster it
+    // audits - the property the two reads' shared leading columns exist for.
+    const roster = await readRoster(testDb.db, sessionId, pax);
+    expect(
+      ledger
+        .filter((row) => row.groupId === pax && row.event === "added")
+        .map((row) => row.instanceId),
+    ).toEqual([...roster.minted]);
+  });
+
+  it("is deterministic, not causal, when a mint and its removal share a timestamp", async () => {
+    // The other half of #1033. `id` is a random v4 uuid, so appending it makes the
+    // sequence repeatable and cannot make the `added` row sort first: an instance
+    // minted and removed inside one transaction gives two rows sharing
+    // `occurred_at` and `instance_id`, and the smaller uuid wins. What this asserts
+    // is therefore what the tiebreaker really buys - the same order on every read -
+    // and the comment on `rosterLedger` no longer claims more than that.
+    const sessionId = await seedSession("roster_ledger_tie");
+    const same = new Date("2026-06-02T00:00:00.000Z");
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceIds: [ins("tie")],
+      occurredAt: same,
+    });
+    await removeInstance(testDb.db, {
+      sessionId,
+      groupId: pax,
+      instanceId: ins("tie"),
+      occurredAt: same,
+    });
+
+    const first = await rosterLedger(testDb.db, sessionId);
+    const second = await rosterLedger(testDb.db, sessionId);
+    expect(first.map((row) => row.id)).toEqual(second.map((row) => row.id));
+    expect(new Set(first.map((row) => row.event))).toEqual(new Set(["added", "removed"]));
+    // `event` is what tells an auditor which row is the mint; the sequence does not.
+    expect(first).toHaveLength(2);
+  });
+
   it("holds an instance id once even when the table carries a repeated added row", async () => {
     const sessionId = await seedSession("roster_dupe");
     await addInstances(testDb.db, { sessionId, groupId: pax, instanceIds: [ins("solo")] });

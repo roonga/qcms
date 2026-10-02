@@ -186,8 +186,20 @@ export async function removeInstance(
  * appended only as the final tiebreaker, which the derived reads do not need and
  * this one does: they see at most one row per instance per group, while the ledger
  * also carries `removed` rows, so an instance minted and removed in the same
- * transaction gives two rows sharing both `occurred_at` and `instance_id`. Without
- * `id` those two have no defined order and an audit could print the removal first.
+ * transaction gives two rows sharing both `occurred_at` and `instance_id`.
+ *
+ * **What `id` buys is determinism, not causal order** (issue #1033, corrected in
+ * task 075). `id` is a random v4 uuid, so appending it makes this read return the
+ * same sequence every time for the same rows, and it does **not** make an `added`
+ * row sort before the `removed` row that followed it: for two rows sharing
+ * `occurred_at` and `instance_id` the winner is whichever uuid happens to be
+ * smaller. An earlier revision of this comment claimed the tiebreaker stopped an
+ * audit printing a removal before its add, and that was wrong. Nothing here can
+ * recover that order, because `occurred_at` defaults to the **transaction**
+ * timestamp and the table carries no sequence (ADR-42 fixes its column set, and
+ * the Code Owner ruled on 2026-10-01 that no ordering column is added). An audit
+ * that needs mint-before-removal reads `event`, which says which is which;
+ * `rosters.integration.test.ts` asserts the order this read does promise.
  */
 export async function rosterLedger(
   exec: Executor,
