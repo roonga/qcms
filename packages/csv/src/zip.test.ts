@@ -108,7 +108,9 @@ describe("zipStream", () => {
   });
 
   it("joins an entry's chunks into one file", async () => {
-    async function* chunked(): AsyncIterable<Uint8Array> {
+    // A plain generator: the entry's content may be either, and this one needs no
+    // await, so making it async would only add a lint suppression.
+    function* chunked(): Iterable<Uint8Array> {
       yield encoder.encode("one,");
       yield encoder.encode("two,");
       yield new Uint8Array(0); // an empty chunk contributes nothing
@@ -123,7 +125,7 @@ describe("zipStream", () => {
     // pass over a keyset-paged query, so asking for entry two before entry one is
     // finished would mean two live cursors and two pages in memory.
     const order: string[] = [];
-    async function* entries(): AsyncIterable<ZipEntry> {
+    function* entries(): Iterable<ZipEntry> {
       order.push("ask:1");
       yield {
         name: "1.csv",
