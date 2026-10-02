@@ -9,9 +9,18 @@ import { waitForHydration } from "./support/hydration.js";
  * The fixture is `repeat-tour`
  * (`apps/api/e2e/support/fixtures/repeat-tour-form.json`): one step, one `open` group at
  * `min: 3, max: 4`, `presentation: "perInstanceStep"`, whose members are a required
- * shortText and an optional number. `min: 3` means the first serve mints three instances,
- * so the step is three **views** before the respondent has done anything, which is this
- * task's exit criterion written as a fixture rather than as a sequence of clicks.
+ * shortText and an optional number, plus one plain **optional** question on the step
+ * itself. `min: 3` means the first serve mints three instances, so the step is three
+ * **views** before the respondent has done anything, which is this task's exit criterion
+ * written as a fixture rather than as a sequence of clicks.
+ *
+ * The plain question is on the step because a step whose every item is a group is
+ * unreachable - a defect of merged code, pinned by
+ * `apps/api/src/features/responses/group-only-step.integration.test.ts` - and it is
+ * optional so that the Continue gate on each view is that view's own plate and nothing
+ * else. A view narrows the step to one instance of the paginating group and to nothing
+ * else, so it appears on every page of the walk, which is asserted below rather than
+ * worked around.
  *
  * Exit criteria proved here: **1** (three views, the indicator says three, Back and
  * Continue traverse them in roster order), **2** (answering never moves the page by
@@ -76,6 +85,10 @@ test("three live instances are three views, in roster order, with one Submit at 
   await expect(page.getByTestId("back-action")).toHaveCount(0);
   // Exit criterion 5: not Submit yet, on either of the first two views.
   await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+  // The step's own question is on this page, and it is outside the instance card: a view
+  // narrows the step to one instance of the PAGINATING group and to nothing else.
+  await expect(page.getByLabel("Depot name")).toBeVisible();
+  await expect(card(page).getByLabel("Depot name")).toHaveCount(0);
 
   // Each instance's own required field, filled on its own page.
   await fillPlate(page, "AAA111");
@@ -86,6 +99,8 @@ test("three live instances are three views, in roster order, with one Submit at 
   await navigate(page, "primary-action");
   await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3: Vehicle 2");
   await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
+  // On every page of the walk, as the narrowing says.
+  await expect(page.getByLabel("Depot name")).toBeVisible();
   // Roster order: Vehicle 1 is not on this page at all, and Vehicle 2's plate is empty
   // rather than carrying Vehicle 1's answer.
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toHaveCount(0);
