@@ -55,4 +55,30 @@ Also out: `role="grid"`, a roving tabindex and any edit-mode keyboard model, all
 
 **One tab stop per cell is the documented cost of the ruled choice**, not a defect to mitigate with script. APG says a grid is what you reach for when "the number of widgets is large", and this design's answer is the group's own `max` instead. Under SEC-16 there is no installation-wide ceiling, so a table's tab-stop count is `columns x max` for whatever its author declared; that is an authoring decision and this task does not second-guess it.
 
+**The admin half lands as two standalone pieces, because its host is task 074's**
+(recorded 2026-10-02, while building). The deliverable above says "Task 074 defers both
+this and the picker below to this task, so nothing here is shared", which is true of the
+files and not of the ordering: the group panel those two pieces are rendered _in_ is 074's,
+and 074 was dispatched in parallel with this task rather than before it. So the column view
+is a component of its own (`apps/admin/components/forms/table-column-view.tsx`) taking the
+member pins, the library and an add handler as props, and the picker's filter is an opt-in
+flag on the existing `LibraryPicker`. Neither reaches into panel state, so they wire up in
+either merge order. **Acceptance case 62 is written `(browser, admin project)` and its
+browser walk opens the picker from the panel's Add-column control**, so that one walk is the
+panel's wiring: the case's substance - the picker offers only the five, says why, and names
+the stacked presentation - is asserted in the admin's jsdom layer here
+(`table-column-view.test.tsx`), and the browser walk belongs to whichever task holds the
+panel when it lands.
+
+**Two as-built details worth stating, both inside the deliverables rather than beside them.**
+A column's help text is drawn **once, on the column header**, and clipped in the cells with
+the label: it is identical down a column, so a three-row table would otherwise repeat it
+three times, and each input keeps its own `aria-describedby` either way. And **the
+row-header column is deliberately not pinned**, which is 2.4.11 read the other way: pinning
+the first column inline-start is the obvious thing to want on a wide table in a horizontal
+scroll box, it obscures a focused cell the browser has just scrolled under it, and
+discharging that needs `scroll-padding-inline-start` equal to that column's width, which
+nothing in CSS knows. The header row and the total footer are pinned, which is what the
+deliverable asks for.
+
 **The 3.3.2 inference is recorded rather than asserted.** H44 says a hidden label satisfies 1.3.1 and 4.1.2 but that for 3.3.2 "the label element must be visible", and no W3C source found states that a visible `<th>` column header discharges 3.3.2 for the input in the cell beneath it. The plan takes that as an inference and names task **030**'s manual screen-reader pass as where it is tested. Do not upgrade the inference to a claim in this task's documentation.
