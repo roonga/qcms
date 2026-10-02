@@ -276,6 +276,16 @@ export function GroupPanel({
  * `setGroupCount` therefore takes a whole value and this is where it is built, carrying across
  * what still applies: the bounds survive a move between the two bounded sources, which is the
  * one carry-over an author would be annoyed to lose.
+ *
+ * ## All three numbers are TEXT FIELDS, and the reason is the maximum
+ *
+ * The kit's `NumberField` has no expression for "no value": it would send a number for a field an
+ * author has not filled in, and `max` must be able to stay EMPTY, because the kernel's schema makes
+ * it optional precisely so a half-filled draft can round-trip through save and reload. Writing a 0
+ * there would store a bound nobody chose and turn a required-field prompt into a group that can
+ * never have an instance. `min` and the fixed count follow it rather than being a second kind of
+ * control in the same three fields, and all three carry `inputMode="numeric"` so a phone keyboard
+ * still offers digits.
  */
 function CountFields({
   draft,

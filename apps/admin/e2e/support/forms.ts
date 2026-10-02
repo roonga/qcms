@@ -602,11 +602,27 @@ export async function movePin(page: Page, questionId: string, version: number): 
  * argument, so a caller that was on the form screen already makes no trip at all.
  */
 async function readingSaveState<T>(page: Page, read: () => Promise<T>): Promise<T> {
-  // Which of the builder's two screens the caller is standing on, read from the rail
-  // rather than tracked, so a spec that navigated by any route still comes back to where
-  // it was. On the rules route no step row is current, so this is `null` and the read
-  // happens where the caller stands - which is right, because that screen has its own
-  // strip.
+  // Which of the builder's screens the caller is standing on, read from the rail rather than
+  // tracked, so a spec that navigated by any route still comes back to where it was. On the rules
+  // route no step and no group row is current, so both are `null` and the read happens where the
+  // caller stands - which is right, because that screen has its own strip.
+  //
+  // A GROUP ROW IS THE THIRD ANSWER (task 074). The builder's third screen is a repeating group's
+  // panel, reached from a row the rail nests under its step, and that panel has no save strip
+  // either - so a caller standing on one needs the same trip the step screens need, and gets put
+  // back on the group rather than on its step.
+  const currentGroup = page.locator('[data-rail-group-select][aria-current="page"]');
+  const group =
+    (await currentGroup.count()) > 0
+      ? await currentGroup.getAttribute("data-rail-group-select")
+      : null;
+  if (group !== null) {
+    await openFormDetails(page);
+    const value = await read();
+    await openGroupPanel(page, group);
+    return value;
+  }
+
   const currentStep = page.locator('[data-rail-step-select][aria-current="page"]');
   const step =
     (await currentStep.count()) > 0

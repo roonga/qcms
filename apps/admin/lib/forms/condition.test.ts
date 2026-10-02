@@ -373,3 +373,77 @@ describe("the kernel constants this app restates", () => {
     expect(REPEAT_EVALUATION_BUDGET).toBe(KERNEL_REPEAT_EVALUATION_BUDGET);
   });
 });
+
+/**
+ * The picker sequences that would otherwise produce a shape publish refuses (task 074).
+ *
+ * `conditionForOp`'s invariant has always been that what it returns PARSES. Task 074 adds a second
+ * obligation to it, because the repeating group brought a refusal that parse cannot see:
+ * `REPEAT_OPERATOR_NESTING_NOT_ALLOWED` (Q25) is a publish verdict on a perfectly parseable tree,
+ * so an operator switch that nested two group reads would hand the author an unpublishable rule
+ * with nothing on screen saying why until the next validate.
+ */
+describe("operator switches around a whole-group read", () => {
+  it("never nests one group read inside another, however the author got there", () => {
+    const counted: DraftCondition = {
+      op: "instanceCount",
+      groupId: GROUP_ID,
+      compare: "gte",
+      value: 2,
+    };
+
+    // The sequence that used to do it: `instanceCount` carries no nested condition, so the
+    // carry-over fell through to the previous NODE and put the count inside the new operator.
+    for (const op of ["anyInstance", "everyInstance"] as const) {
+      const next = conditionForOp(op, QUESTION_ID, "boolean", OPTIONS, counted, GROUP_ID);
+      expect(next).toStrictEqual({
+        op,
+        groupId: GROUP_ID,
+        condition: { op: "answered", questionId: QUESTION_ID },
+      });
+    }
+
+    // And through a combinator, which the kernel refuses just the same.
+    const wrapped: DraftCondition = { op: "and", conditions: [counted] };
+    expect(
+      conditionForOp("anyInstance", QUESTION_ID, "boolean", OPTIONS, wrapped, GROUP_ID),
+    ).toStrictEqual({
+      op: "anyInstance",
+      groupId: GROUP_ID,
+      condition: { op: "answered", questionId: QUESTION_ID },
+    });
+  });
+
+  it("keeps the condition when the author swaps anyInstance for everyInstance", () => {
+    const inner: DraftCondition = { op: "answered", questionId: "q_passport" };
+    const any: DraftCondition = { op: "anyInstance", groupId: GROUP_ID, condition: inner };
+
+    // The same question asked two ways, so losing the condition between them would be the
+    // carry-over an author is most annoyed to lose.
+    expect(
+      conditionForOp("everyInstance", QUESTION_ID, "boolean", OPTIONS, any, GROUP_ID),
+    ).toStrictEqual({ op: "everyInstance", groupId: GROUP_ID, condition: inner });
+  });
+
+  it("WRAPS a group read in `not` rather than unwrapping it", () => {
+    const every: DraftCondition = {
+      op: "everyInstance",
+      groupId: GROUP_ID,
+      condition: { op: "answered", questionId: "q_passport" },
+    };
+
+    // `not(everyInstance(G, c))` is the shape an author writing a warning actually wants, and the
+    // one whose reading the rule sentence spells out because it is TRUE over an empty group.
+    // Unwrapping to `not(c)` would throw the group read away at the moment they reached for the
+    // negation.
+    expect(conditionForOp("not", QUESTION_ID, "boolean", OPTIONS, every)).toStrictEqual({
+      op: "not",
+      condition: every,
+    });
+    // Choosing `not` on a node that is already one keeps the single negation rather than doubling
+    // it, which is the behaviour it always had: the child is the existing `not`'s own child.
+    expect(
+      conditionForOp("not", QUESTION_ID, "boolean", OPTIONS, { op: "not", condition: every }),
+    ).toStrictEqual({ op: "not", condition: every });
+  });
+});
