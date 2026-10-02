@@ -31,6 +31,15 @@
                 "children": "One vehicle at a time"
               },
               {
+                "type": "TextField",
+                "props": {
+                  "label": "Depot name",
+                  "name": "q_pi_depot",
+                  "minLength": 2,
+                  "maxLength": 20
+                }
+              },
+              {
                 "type": "RepeatGroup",
                 "props": {
                   "groupId": "grp_tour",

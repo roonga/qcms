@@ -463,7 +463,7 @@ export async function seedRepeatFleetForm(
  * views and the progress indicator says three without the respondent having done anything
  * - which is the exit criterion as a fixture rather than as a sequence of clicks.
  *
- * Its questions are unique to it (`q_pi_*`), so it never collides with the fleet, the
+ * Its three questions are unique to it (`q_pi_*`), so it never collides with the fleet, the
  * insurance, the kitchen-sink or the author-messages seeds and needs no shared-questions
  * flag.
  */
