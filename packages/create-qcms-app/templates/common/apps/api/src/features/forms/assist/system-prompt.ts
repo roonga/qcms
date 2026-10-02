@@ -20,14 +20,28 @@
 
 import { QUESTION_TYPES, SEMANTICS_VERSION } from "@roonga/qcms-core";
 
-/** Bump on every text change. Logged with each turn; never inferred. */
-export const SYSTEM_PROMPT_VERSION = 1;
+/**
+ * Bump on every text change. Logged with each turn; never inferred.
+ *
+ * **2** since task 074: the three whole-group operators joined
+ * {@link CONDITION_OPERATORS} and the repeating group's own paragraph joined the
+ * draft-shape section. Task 071 had left them undocumented on purpose, because a
+ * proposal cannot invent a `groupId` for a group no author could create; 074 is
+ * the task where an author can create one, so the exclusion went away with it.
+ */
+export const SYSTEM_PROMPT_VERSION = 2;
 
 /**
  * The condition operators of the rules DSL (DOMAIN_SCHEMA §3). Kept in step with
  * `@roonga/qcms-core`'s `Condition` union by `system-prompt.test.ts`: a removed verb
  * fails at runtime when its sample no longer parses, and an added one fails at
  * typecheck when the sample table is missing its key.
+ *
+ * **Sixteen since task 074** (ADR-42, ADR-03 as amended 2026-09-29). The three
+ * whole-group operators are listed last because they read a `groupId` rather than
+ * a `questionId`, which the prompt's own Rules DSL section then spells out: a
+ * model that offered one against a question, or nested one inside another, would
+ * write a draft publish refuses.
  */
 export const CONDITION_OPERATORS = [
   "equals",
@@ -43,6 +57,9 @@ export const CONDITION_OPERATORS = [
   "and",
   "or",
   "not",
+  "anyInstance",
+  "everyInstance",
+  "instanceCount",
 ] as const;
 
 /** Canonical `AnswerValue` encodings (DOMAIN_SCHEMA §2.4), one line per type. */
@@ -95,7 +112,8 @@ ${encodingTable()}
 
 Identifiers:
 - questionId starts \`q_\`, stepId \`stp_\`, optionId \`opt_\`, ruleId \`rul_\`,
-  formId \`frm_\`. Use lowercase snake_case after the prefix.
+  formId \`frm_\`, repeating groupId \`grp_\`. Use lowercase snake_case after the
+  prefix.
 - An id is stable forever and is never reused with a different meaning. When the
   meaning of a question changes, propose a new id rather than redefining an old
   one.
@@ -114,10 +132,48 @@ Rules DSL (evaluation semantics version ${String(SEMANTICS_VERSION)}):
 - Every question a condition reads must appear earlier in the form than the
   thing the rule reveals.
 
+Repeating groups, and the three operators that read one:
+- A step item is either a pinned question or a REPEATING GROUP: a named set of
+  pinned questions answered once per instance, with a groupId, a label, an
+  instanceLabel template carrying \`{n}\`, a count source and a presentation.
+- A question does not know it is repeated. The same library question can be
+  repeated in one form and asked once in another, and nothing about the question
+  definition changes either way. Never propose a new questionId to repeat one.
+- A group may NOT contain a group. Nesting depth is one.
+- The count source is one of: \`fixed\` with a count; \`fromAnswer\` naming a
+  number question that appears strictly BEFORE the group and is not itself
+  inside a group; or \`open\`, which the respondent adds to and removes from.
+  \`fromAnswer\` and \`open\` must BOTH declare a max, because that max is the
+  only limit on how many instances a respondent can create. A fixed count
+  declares no max: the count is the bound.
+- Scope is implicit by POSITION, so a per-instance rule needs no new syntax. A
+  rule whose target sits inside a group is evaluated once per live instance, and
+  a reference to another question in the same group resolves to that instance's
+  answer. Write it as an ordinary condition.
+- Every target of one rule must share one scope: all inside the same group, or
+  all outside every group. A mixed list is rejected at publish; write two rules.
+- Three operators read a WHOLE group and take a groupId, never a questionId:
+  anyInstance and everyInstance each wrap one nested condition, and
+  instanceCount takes compare (equals/gt/gte/lt/lte) and a number.
+- THESE THREE CANNOT NEST. A whole-group operator may not sit inside another
+  one's condition, directly or through and / or / not, because the nested pair
+  costs the product of the two groups' maxima however small the rule looks. Put
+  two group reads side by side under and / or instead. A nested pair is rejected
+  at publish, so do not propose one.
+- everyInstance over a group with NO instances is FALSE, not vacuously true, and
+  it is therefore not the same as not(anyInstance(not c)). Its negation is true
+  over an empty group, so a warning phrased as a negation fires for a response
+  with no instances.
+- A bare reference to a question inside a group, from a rule that is not
+  evaluated inside that same group, has no single value and is rejected at
+  publish. Wrap it in anyInstance or everyInstance over that group.
+- Only name a groupId the draft you are proposing actually declares.
+
 Draft shape:
 - A draft FormDefinition has formId, defaultLocale, title, steps and rules.
-- Steps carry ordered question references, each pinning a published question
-  version. A question you have only just proposed is not published yet, so
+- Steps carry ordered items, each a question reference pinning a published
+  question version or a repeating group holding such references. A question you
+  have only just proposed is not published yet, so
   pinning it will validate as an unpublished-pin issue. That is expected and
   correct: report it plainly rather than working around it.
 - Localized text is a map from locale code to string. Always fill the form's

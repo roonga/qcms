@@ -2,16 +2,18 @@
 
 import { useState, useTransition } from "react";
 
-import { Button, Select } from "@/components/kit";
+import { Button, NumberField, Select } from "@/components/kit";
 import { IDLE_PREVIEW, type PreviewConditionState } from "@/lib/forms/builder-state";
 import {
+  conditionGroupReferences,
   conditionReferences,
   optionIdsOfVersion,
   typeOfPinnedVersion,
   type OperandKind,
 } from "@/lib/forms/condition";
-import { draftDocumentOrder } from "@/lib/forms/draft";
-import type { DraftForm, DraftRule, PinnableQuestion } from "@/lib/forms/types";
+import { countBounds, draftDocumentOrder, draftGroups, questionGroupIds } from "@/lib/forms/draft";
+import { ruleScope } from "@/lib/forms/rule-targets";
+import type { DraftForm, DraftGroup, DraftRule, PinnableQuestion } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 
@@ -22,6 +24,8 @@ type PreviewCondition = (input: {
   draft: DraftForm;
   ruleId: string;
   answers: Record<string, unknown>;
+  /** The hypothetical roster per group, minted by the bench (074, ADR-42 §6.4). */
+  instances: Record<string, readonly string[]>;
 }) => Promise<PreviewConditionState>;
 
 /**
@@ -218,7 +222,31 @@ export function RuleTestBenchPanel({
   );
 }
 
-/** The answers, the run and the verdict: everything both benches share. */
+/**
+ * The answers, the run and the verdict: everything both benches share.
+ *
+ * ## The INSTANCE DIMENSION (task 074, ADR-42 §6.4)
+ *
+ * The bench is the surface where an author discovers that a rule they wrote reads the whole
+ * group rather than one instance, so it has to be able to vary the roster as well as the
+ * answers. Three things follow and all three are visible on the panel:
+ *
+ * 1. **A count per group the rule touches**, so the author sets how many hypothetical
+ *    instances there are. The groups are the ones a whole-group operator names, the ones
+ *    holding a question the condition reads, and the one holding the rule's target.
+ * 2. **One answer control per instance** for a question inside a group, keyed
+ *    `ins_g1_2/q_passport`, because a question inside a group has one answer per instance and
+ *    no single value.
+ * 3. **It is evaluable at ZERO instances**, which is not an edge case but the case the Q7
+ *    ruling exists for: `everyInstance` over an empty group is FALSE rather than vacuously
+ *    true, and its negation is therefore true - the shape an author is more likely to write,
+ *    because a warning is usually phrased as a negation. Setting a count to 0 and pressing Run
+ *    is how that reading becomes discoverable rather than documented.
+ *
+ * The bench mints the instance ids itself rather than asking the API for them, because the same
+ * request carries answers keyed by them: a server-minted id would need a round trip before any
+ * answer could be typed against it. They are positional and exist for one request.
+ */
 function BenchBody({
   draft,
   rule,
@@ -231,37 +259,66 @@ function BenchBody({
   readonly previewCondition: PreviewCondition;
 }) {
   const [answers, setAnswers] = useState<Record<string, OperandValue>>({});
+  const [counts, setCounts] = useState<Readonly<Record<string, number>>>({});
   const [state, setState] = useState<PreviewConditionState>(IDLE_PREVIEW);
   const [isPending, startTransition] = useTransition();
 
   const references = conditionReferences(rule.when);
+  const groups = benchGroups(draft, rule);
+  const instances = benchRoster(groups, counts);
+  const groupOf = questionGroupIds(draft);
+  /** One prompt per answer the bench needs: a key, and the question and instance behind it. */
+  const prompts = benchPrompts(references, groupOf, instances);
 
   return (
     <>
+      {groups.length > 0 && (
+        <fieldset className="qcms-fieldset qcms-fieldset--flat" data-testid="qcms-bench-instances">
+          <legend className="qcms-fieldset__legend">{t("forms.bench.instances")}</legend>
+          <p className="text-sm text-(--color-text-muted)">{t("forms.bench.instancesNote")}</p>
+          <div className="flex flex-wrap items-end gap-3">
+            {groups.map((group) => (
+              <NumberField
+                key={group.groupId}
+                label={t("forms.bench.instanceCount", { group: benchGroupName(draft, group) })}
+                value={counts[group.groupId] ?? countBounds(group.count).min}
+                minValue={0}
+                onChange={(next) => {
+                  setCounts((previous) => ({
+                    ...previous,
+                    [group.groupId]: Number.isFinite(next) ? Math.max(0, Math.trunc(next)) : 0,
+                  }));
+                }}
+              />
+            ))}
+          </div>
+        </fieldset>
+      )}
+
       <fieldset className="qcms-fieldset qcms-fieldset--flat">
         <legend className="qcms-fieldset__legend">{t("forms.bench.answers")}</legend>
-        {references.length === 0 ? (
+        {prompts.length === 0 ? (
           <p className="text-sm text-(--color-text-muted)">{t("forms.bench.noReferences")}</p>
         ) : (
           <div className="flex flex-col gap-3">
-            {references.map((questionId) => (
-              // One marked entry per question the condition reads, whether it
-              // resolves to a control or to the unpinned sentence. The digest's
-              // "reads N questions" is a count of exactly these, so the §3.7
-              // property - the fact in the summary also exists inside the panel -
-              // is a countable claim rather than an argued one (issue 519).
-              <div key={questionId} data-testid="qcms-bench-reference">
+            {prompts.map((prompt) => (
+              // One marked entry per ANSWER the bench needs, which is one per question outside
+              // a group and one per instance inside one. The digest's "reads N questions" is a
+              // count of the questions rather than of these entries, and the two differ exactly
+              // when a group is involved - which is the honest reading of both numbers.
+              <div key={prompt.key} data-testid="qcms-bench-reference">
                 <AnswerControl
                   draft={draft}
                   library={library}
-                  questionId={questionId}
-                  value={answers[questionId]}
+                  questionId={prompt.questionId}
+                  suffix={prompt.suffix}
+                  value={answers[prompt.key]}
                   onChange={(value) => {
                     // Functional form on purpose: the handler outlives the render
                     // it was created in, so spreading the `answers` it closed over
                     // drops any sibling answer set since. Issue #224 is that exact
                     // loss in the question editor, two controls changed in one tick.
-                    setAnswers((previous) => ({ ...previous, [questionId]: value }));
+                    setAnswers((previous) => ({ ...previous, [prompt.key]: value }));
                   }}
                 />
               </div>
@@ -281,7 +338,8 @@ function BenchBody({
                 await previewCondition({
                   draft,
                   ruleId: rule.ruleId,
-                  answers: answersToSend(draft, library, references, answers),
+                  answers: answersToSend(draft, library, prompts, answers),
+                  instances,
                 }),
               );
             });
@@ -301,8 +359,134 @@ function BenchBody({
           </span>
         </p>
       </div>
+
+      <InstanceVerdicts state={state} />
     </>
   );
+}
+
+/**
+ * The per-instance verdict, for a rule the API reports as evaluated per instance.
+ *
+ * `instanceOutcomes` is present exactly when the rule's target sits inside a group, and it is
+ * **empty rather than absent** when that group has no instance - which is the zero-instance case
+ * from the panel's side, and the reason this says so in words rather than rendering nothing. A
+ * list that silently disappeared at zero would leave the author looking at a single verdict with
+ * no sign that it was a verdict about no instances at all.
+ */
+function InstanceVerdicts({ state }: { readonly state: PreviewConditionState }) {
+  const outcomes = state.instanceOutcomes;
+  if (outcomes === undefined) return null;
+  return (
+    <div className="flex flex-col gap-1" data-testid="qcms-bench-instance-outcomes">
+      {outcomes.length === 0 ? (
+        <p className="text-sm text-(--color-text-muted)" data-outcome="noInstances">
+          {t("forms.bench.noInstances")}
+        </p>
+      ) : (
+        <ul className="flex flex-col gap-1">
+          {outcomes.map((entry, index) => (
+            <li
+              key={entry.instanceId}
+              className="text-sm text-(--color-text)"
+              data-instance-outcome={entry.outcome}
+            >
+              {t(
+                entry.outcome === "match"
+                  ? "forms.bench.instanceMatch"
+                  : "forms.bench.instanceNoMatch",
+                { position: index + 1 },
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The repeating groups one rule touches, in the draft's document order.
+ *
+ * Three ways a rule reaches a group, and the bench needs a count for every one of them: a
+ * whole-group operator names it; a bare condition reference sits inside it (the inside-out case,
+ * where scope is implicit by position); or the rule's TARGET sits inside it, which is what makes
+ * the whole rule per-instance. A group the rule does not touch gets no field, because a count
+ * for it would change nothing the bench could report.
+ */
+function benchGroups(draft: DraftForm, rule: DraftRule): readonly DraftGroup[] {
+  const groupOf = questionGroupIds(draft);
+  const wanted = new Set<string>(conditionGroupReferences(rule.when));
+  for (const questionId of conditionReferences(rule.when)) {
+    const groupId = groupOf.get(questionId);
+    if (groupId !== undefined) wanted.add(groupId);
+  }
+  const scope = ruleScope(draft, rule.show);
+  if (scope.kind === "group") wanted.add(scope.groupId);
+  return draftGroups(draft).filter((group) => wanted.has(group.groupId));
+}
+
+/** What a group is called on the bench: the author's own name for it, or its id. */
+function benchGroupName(draft: DraftForm, group: DraftGroup): string {
+  const label = group.label[draft.defaultLocale] ?? Object.values(group.label)[0] ?? "";
+  return label === "" ? group.groupId : label;
+}
+
+/**
+ * The hypothetical instance ids per group, minted positionally.
+ *
+ * `ins_g1_2` is group 1's second instance. The group's index rather than its id keeps the id
+ * short and inside the `ins_[a-z0-9_]+` grammar whatever an author named their group, and
+ * positional minting means a typed answer stays on the same card when the author adds one more
+ * instance. Nothing here is a session's id: these exist for one request and are never stored.
+ */
+function benchRoster(
+  groups: readonly DraftGroup[],
+  counts: Readonly<Record<string, number>>,
+): Record<string, readonly string[]> {
+  const rosters: Record<string, readonly string[]> = {};
+  groups.forEach((group, index) => {
+    const count = counts[group.groupId] ?? countBounds(group.count).min;
+    rosters[group.groupId] = Array.from(
+      { length: Math.max(0, count) },
+      (_entry, at) => `ins_g${String(index + 1)}_${String(at + 1)}`,
+    );
+  });
+  return rosters;
+}
+
+/** One answer the bench prompts for: its key, the question behind it, and which instance. */
+interface BenchPrompt {
+  /** The answer key the API reads: a bare questionId, or `instanceId/questionId`. */
+  readonly key: string;
+  readonly questionId: string;
+  /** What the control's label says after the question, or `""` outside every group. */
+  readonly suffix: string;
+}
+
+/**
+ * The prompts for one condition's references: one per question outside every group, and one per
+ * live hypothetical instance for a question inside one.
+ *
+ * A question inside a group whose count is zero contributes NO prompt, which is the honest
+ * rendering: there is no instance to answer it for. That is also what makes the zero-instance
+ * case readable rather than confusing - the answers fieldset empties, and the verdict below is
+ * about a group with nothing in it.
+ */
+function benchPrompts(
+  references: readonly string[],
+  groupOf: ReadonlyMap<string, string>,
+  instances: Readonly<Record<string, readonly string[]>>,
+): readonly BenchPrompt[] {
+  return references.flatMap((questionId) => {
+    const groupId = groupOf.get(questionId);
+    if (groupId === undefined) return [{ key: questionId, questionId, suffix: "" }];
+    return (instances[groupId] ?? []).map((instanceId, at) => ({
+      key: `${instanceId}/${questionId}`,
+      questionId,
+      suffix: t("forms.bench.instanceSuffix", { position: at + 1 }),
+    }));
+  });
 }
 
 /**
@@ -329,12 +513,21 @@ function AnswerControl({
   draft,
   library,
   questionId,
+  suffix,
   value,
   onChange,
 }: {
   readonly draft: DraftForm;
   readonly library: ReadState<readonly PinnableQuestion[]>;
   readonly questionId: string;
+  /**
+   * Which instance this control answers for, or `""` for a question outside every group.
+   *
+   * It is part of the control's NAME rather than a heading above a group of them, because a
+   * screen reader announces a field by its label: six passenger fields that all answer to
+   * "q_passport@1" are six fields nobody can tell apart.
+   */
+  readonly suffix: string;
   readonly value: OperandValue | undefined;
   readonly onChange: (value: OperandValue) => void;
 }) {
@@ -353,7 +546,7 @@ function AnswerControl({
   return (
     <OperandControl
       kind={control.kind}
-      label={`${questionId}@${String(control.version)}`}
+      label={`${questionId}@${String(control.version)}${suffix}`}
       options={control.options}
       value={value ?? startingAnswer(control.kind, control.options)}
       onChange={onChange}
@@ -411,14 +604,14 @@ function controlFor(
 function answersToSend(
   draft: DraftForm,
   library: ReadState<readonly PinnableQuestion[]>,
-  references: readonly string[],
+  prompts: readonly BenchPrompt[],
   entered: Readonly<Record<string, OperandValue>>,
 ): Record<string, unknown> {
   const payload: Record<string, unknown> = {};
-  for (const questionId of references) {
-    const control = controlFor(draft, library, questionId);
+  for (const prompt of prompts) {
+    const control = controlFor(draft, library, prompt.questionId);
     if (control === undefined) continue;
-    payload[questionId] = entered[questionId] ?? startingAnswer(control.kind, control.options);
+    payload[prompt.key] = entered[prompt.key] ?? startingAnswer(control.kind, control.options);
   }
   return payload;
 }

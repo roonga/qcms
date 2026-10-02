@@ -1,13 +1,7 @@
 import { t } from "../i18n/en.ts";
 import { textOf } from "../questions/definition.ts";
 
-import {
-  eligibleTargets,
-  findGroup,
-  instanceNoun,
-  questionGroupIds,
-  stepPins,
-} from "./draft.ts";
+import { eligibleTargets, findGroup, instanceNoun, questionGroupIds, stepPins } from "./draft.ts";
 import type { DraftForm, DraftGroup } from "./types.ts";
 
 /**

@@ -136,11 +136,13 @@ describe("stepGridRows", () => {
     // The step's own pin is 1 of 1 - a group is ONE neighbour of it, not a run of two - and each
     // member is counted among the group's members. That is what makes the row menu's Move up
     // disabled at a group's first member rather than moving the pin out of the group.
-    expect(pins.map((pin) => [pin.questionId, pin.position, pin.total, pin.groupId])).toStrictEqual([
-      ["q_trip", 1, 1, undefined],
-      ["q_passport", 1, 2, "grp_passengers"],
-      ["q_dob", 2, 2, "grp_passengers"],
-    ]);
+    expect(pins.map((pin) => [pin.questionId, pin.position, pin.total, pin.groupId])).toStrictEqual(
+      [
+        ["q_trip", 1, 1, undefined],
+        ["q_passport", 1, 2, "grp_passengers"],
+        ["q_dob", 2, 2, "grp_passengers"],
+      ],
+    );
   });
 
   it("states the count source and the member count on the boundary", () => {

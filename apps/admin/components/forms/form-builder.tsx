@@ -772,17 +772,13 @@ export function FormBuilder({
                     mutate(renameGroup(draft, selectedGroup.group.groupId, label));
                   }}
                   onInstanceLabel={(template) => {
-                    mutate(
-                      setGroupInstanceLabel(draft, selectedGroup.group.groupId, template),
-                    );
+                    mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
                   }}
                   onCount={(count) => {
                     mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
                   }}
                   onPresentation={(presentation) => {
-                    mutate(
-                      setGroupPresentation(draft, selectedGroup.group.groupId, presentation),
-                    );
+                    mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
                   }}
                   onAddPins={(pins, index) => {
                     mutate(

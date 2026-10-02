@@ -142,9 +142,7 @@ describe("removeGroup", () => {
     const { draft, stepId, groupId } = withGroup();
     const withSibling = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
 
-    expect(pinnedQuestionIds(removeGroup(withSibling, groupId))).toStrictEqual([
-      "q_trip_purpose",
-    ]);
+    expect(pinnedQuestionIds(removeGroup(withSibling, groupId))).toStrictEqual(["q_trip_purpose"]);
   });
 });
 
@@ -204,8 +202,9 @@ describe("movePinWithinStep and moveGroupWithinStep", () => {
     // The step holds [group, q_trip_purpose]. Moving the pin up puts it before the whole span
     // rather than inside it.
     const moved = movePinWithinStep(withSibling, stepId, "q_trip_purpose", -1);
-    expect(moved.steps[0]?.items.map((item) => ("groupId" in item ? item.groupId : item.questionId)))
-      .toStrictEqual(["q_trip_purpose", groupId]);
+    expect(
+      moved.steps[0]?.items.map((item) => ("groupId" in item ? item.groupId : item.questionId)),
+    ).toStrictEqual(["q_trip_purpose", groupId]);
     expect(questionGroupIds(moved).get("q_trip_purpose")).toBeUndefined();
   });
 
@@ -214,8 +213,9 @@ describe("movePinWithinStep and moveGroupWithinStep", () => {
     const withSibling = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
 
     const moved = moveGroupWithinStep(withSibling, stepId, groupId, -1);
-    expect(moved.steps[0]?.items.map((item) => ("groupId" in item ? item.groupId : item.questionId)))
-      .toStrictEqual([groupId, "q_trip_purpose"]);
+    expect(
+      moved.steps[0]?.items.map((item) => ("groupId" in item ? item.groupId : item.questionId)),
+    ).toStrictEqual([groupId, "q_trip_purpose"]);
     expect(moveGroupWithinStep(moved, stepId, groupId, -1)).toStrictEqual(moved);
   });
 });
@@ -246,8 +246,9 @@ describe("setGroupCount", () => {
       max: 9,
     });
 
-    expect(countBounds(findGroup(next, groupId)?.group.count ?? { source: "open", min: 0 }))
-      .toStrictEqual({ min: 1, max: 9 });
+    expect(
+      countBounds(findGroup(next, groupId)?.group.count ?? { source: "open", min: 0 }),
+    ).toStrictEqual({ min: 1, max: 9 });
   });
 });
 
@@ -320,13 +321,10 @@ describe("the pin helpers reaching inside a group", () => {
     const { draft, stepId, groupId } = withGroup();
     const built = addPinAt(draft, stepId, "q_trip_purpose", 1, 0);
 
-    expect(pinnedQuestionIds(built)).toStrictEqual([
-      "q_trip_purpose",
-      "q_full_name",
-      "q_passport",
-    ]);
-    expect(stepPins(built.steps[0] ?? { stepId, title: {}, items: [] }).map((p) => p.version))
-      .toStrictEqual([1, 1, 2]);
+    expect(pinnedQuestionIds(built)).toStrictEqual(["q_trip_purpose", "q_full_name", "q_passport"]);
+    expect(
+      stepPins(built.steps[0] ?? { stepId, title: {}, items: [] }).map((p) => p.version),
+    ).toStrictEqual([1, 1, 2]);
 
     const moved = movePin(built, "q_passport", 3);
     expect(findGroup(moved, groupId)?.group.items).toStrictEqual([
@@ -355,15 +353,22 @@ describe("the pin helpers reaching inside a group", () => {
 describe("draftDocumentOrder with a group in it", () => {
   it("expands a group into a contiguous span of its members, in order", () => {
     const { draft, stepId, groupId } = withGroup();
-    const built = addPinAt(addPinAt(draft, stepId, "q_trip_purpose", 1, 0), stepId, "q_notes", 1, 2);
+    const built = addPinAt(
+      addPinAt(draft, stepId, "q_trip_purpose", 1, 0),
+      stepId,
+      "q_notes",
+      1,
+      2,
+    );
 
-    expect(draftDocumentOrder(built).map((entry) => [entry.questionId, entry.groupId]))
-      .toStrictEqual([
-        ["q_trip_purpose", undefined],
-        ["q_full_name", groupId],
-        ["q_passport", groupId],
-        ["q_notes", undefined],
-      ]);
+    expect(
+      draftDocumentOrder(built).map((entry) => [entry.questionId, entry.groupId]),
+    ).toStrictEqual([
+      ["q_trip_purpose", undefined],
+      ["q_full_name", groupId],
+      ["q_passport", groupId],
+      ["q_notes", undefined],
+    ]);
   });
 });
 
@@ -371,7 +376,13 @@ describe("eligibleTargets over a span", () => {
   /** A step holding a pin, a two-member group, and a pin after it. */
   function spanned(): { draft: DraftForm; groupId: string } {
     const { draft, stepId, groupId } = withGroup();
-    const built = addPinAt(addPinAt(draft, stepId, "q_trip_purpose", 1, 0), stepId, "q_notes", 1, 2);
+    const built = addPinAt(
+      addPinAt(draft, stepId, "q_trip_purpose", 1, 0),
+      stepId,
+      "q_notes",
+      1,
+      2,
+    );
     return { draft: built, groupId };
   }
 

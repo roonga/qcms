@@ -111,11 +111,7 @@ export function StepEditor({
   readonly onMovePin: (questionId: string, version: number) => void;
   readonly onRemovePin: (questionId: string) => void;
   /** Reorder one pin inside its own container, which `groupId` names. */
-  readonly onReorderPin: (
-    questionId: string,
-    delta: -1 | 1,
-    groupId: string | undefined,
-  ) => void;
+  readonly onReorderPin: (questionId: string, delta: -1 | 1, groupId: string | undefined) => void;
   readonly onAddGroup: (label: string) => void;
   readonly onOpenGroup: (groupId: string) => void;
   readonly onMoveGroup: (groupId: string, delta: -1 | 1) => void;

@@ -1024,19 +1024,8 @@ function benchForm(
   const groupOf = questionGroups(definition.steps);
   const byId = new Map(repeatGroups(definition.steps).map((group) => [group.groupId, group]));
   const targetGroupId = groupOf.get(target.questionId);
-  const wanted = benchWantedGroups(
-    rule,
-    references,
-    groupOf,
-    new Set(byId.keys()),
-    targetGroupId,
-  );
-  const { bare: bareReads, byGroup: readsByGroup } = benchReads(
-    target,
-    references,
-    pins,
-    groupOf,
-  );
+  const wanted = benchWantedGroups(rule, references, groupOf, new Set(byId.keys()), targetGroupId);
+  const { bare: bareReads, byGroup: readsByGroup } = benchReads(target, references, pins, groupOf);
 
   const groupItem = (groupId: GroupId): RepeatGroup | undefined => {
     const source = byId.get(groupId);

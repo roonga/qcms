@@ -680,12 +680,62 @@
               "unresolvedAnswers"
             ],
             "example": "ruleNotFound"
+          },
+          "rosters": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "groupId": {
+                  "type": "string",
+                  "example": "grp_passengers"
+                },
+                "instances": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "groupId",
+                "instances"
+              ]
+            }
+          },
+          "targetGroupId": {
+            "type": "string",
+            "example": "grp_passengers"
+          },
+          "instanceOutcomes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "instanceId": {
+                  "type": "string",
+                  "example": "ins_i2"
+                },
+                "outcome": {
+                  "type": "string",
+                  "enum": [
+                    "match",
+                    "noMatch"
+                  ]
+                }
+              },
+              "required": [
+                "instanceId",
+                "outcome"
+              ]
+            }
           }
         },
         "required": [
           "ruleId",
           "references",
-          "outcome"
+          "outcome",
+          "rosters"
         ]
       },
       "PreviewConditionBody": {
@@ -704,7 +754,23 @@
             "additionalProperties": {
               "nullable": true
             },
-            "description": "Hypothetical answers, keyed by questionId (never logged)."
+            "description": "Hypothetical answers, keyed by answer key: a bare questionId, or `instanceId/questionId` for a question inside a repeating group (never logged)."
+          },
+          "instances": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Hypothetical instance ids per groupId, minted by the caller. Absent means every group has no instance.",
+            "example": {
+              "grp_passengers": [
+                "ins_i1",
+                "ins_i2"
+              ]
+            }
           }
         },
         "required": [
@@ -760,12 +826,35 @@
               },
               "complete": {
                 "type": "boolean"
+              },
+              "rosters": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "groupId": {
+                      "type": "string",
+                      "example": "grp_passengers"
+                    },
+                    "instances": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "required": [
+                    "groupId",
+                    "instances"
+                  ]
+                }
               }
             },
             "required": [
               "visibleSteps",
               "visibleQuestions",
-              "complete"
+              "complete",
+              "rosters"
             ]
           }
         },
@@ -787,7 +876,23 @@
             "additionalProperties": {
               "nullable": true
             },
-            "description": "Walk-through answers, keyed by questionId (never logged)."
+            "description": "Walk-through answers, keyed by answer key: a bare questionId, or `instanceId/questionId` inside a repeating group (never logged)."
+          },
+          "instances": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Hypothetical instance ids per groupId, minted by the caller. Absent means every group has no instance.",
+            "example": {
+              "grp_passengers": [
+                "ins_i1",
+                "ins_i2"
+              ]
+            }
           }
         },
         "required": [
