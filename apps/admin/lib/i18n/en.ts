@@ -1051,7 +1051,11 @@ export const messages = {
   // The group pickers of the three whole-group operators.
   "forms.rule.group": "Group",
   "forms.rule.instanceCompare": "Comparison",
-  "forms.rule.instanceValue": "Number of instances",
+  // "Instance count" rather than "Number of instances", which is what the GROUP PANEL's fixed
+  // count field is called. Two fields with one name are two fields a speech-input user cannot
+  // tell apart, and these two mean opposite things: the panel's sets how many instances there
+  // are, and this one is the number a condition compares that count against.
+  "forms.rule.instanceValue": "Instance count",
   "forms.rule.compare.equals": "is exactly",
   "forms.rule.compare.gt": "is more than",
   "forms.rule.compare.gte": "is at least",

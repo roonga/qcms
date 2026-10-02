@@ -342,7 +342,7 @@ export function conditionForOp(
   groupId?: string,
 ): DraftCondition {
   if (op === "not") {
-    return { op, condition: firstChildOf(previous) ?? { op: "answered", questionId } };
+    return { op, condition: notChildOf(previous) ?? { op: "answered", questionId } };
   }
   if (op === "and" || op === "or") {
     return { op, conditions: childrenOf(previous, questionId) };
@@ -354,7 +354,11 @@ export function conditionForOp(
     // at the control rather than explained at publish.
     if (groupId === undefined || groupId === "") return { op: "answered", questionId };
     if (op === "instanceCount") return { op, groupId, compare: "gte", value: 1 };
-    return { op, groupId, condition: firstChildOf(previous) ?? { op: "answered", questionId } };
+    return {
+      op,
+      groupId,
+      condition: groupNestedOf(previous) ?? { op: "answered", questionId },
+    };
   }
   const kind = operandKind(op, type);
   const answered = { op: "answered", questionId } as const;
@@ -411,11 +415,46 @@ function childrenOf(previous: DraftCondition | undefined, questionId: string): D
   return only === undefined ? [previous] : [only];
 }
 
-/** The single child `not` and the two nesting group ops keep, when there is one to keep. */
-function firstChildOf(previous: DraftCondition | undefined): DraftCondition | undefined {
+/**
+ * The child `not` keeps when the author wraps what they already wrote.
+ *
+ * It WRAPS a whole-group read rather than unwrapping it, and that is the one case worth stating:
+ * `not(everyInstance(G, c))` is the shape an author writing a warning actually wants - "show this
+ * unless every passenger has a passport" - and it is the shape whose reading the rule sentence
+ * spells out, because it is TRUE over an empty group. Unwrapping to `not(c)` would silently throw
+ * the group read away at the moment the author reached for the negation.
+ *
+ * `not` over a `not` still unwraps, which is the natural toggle, and a combinator still yields its
+ * first branch.
+ */
+function notChildOf(previous: DraftCondition | undefined): DraftCondition | undefined {
   if (previous === undefined) return undefined;
   if (previous.op === "and" || previous.op === "or") return previous.conditions[0];
-  return nestedOf(previous) ?? previous;
+  if (previous.op === "not") return previous.condition;
+  return previous;
+}
+
+/**
+ * The nested condition a whole-group operator keeps, which may never itself read a group.
+ *
+ * **A whole-group operator may not sit inside another's condition** (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`,
+ * Q25 ruled 2026-09-29), directly or through `and`, `or` and `not`, because the nested pair costs
+ * the product of the two groups' maxima whatever the rule targets. So a candidate carrying a group
+ * read anywhere inside it is dropped for a plain `answered` rather than carried over - which is the
+ * refusal taken at the control, in the one picker sequence that would otherwise produce it:
+ * switching `instanceCount` to `anyInstance` would have nested the count inside the new node.
+ *
+ * Switching between `anyInstance` and `everyInstance` keeps the condition, which is the carry-over
+ * an author would be annoyed to lose: those two are the same question asked two ways.
+ */
+function groupNestedOf(previous: DraftCondition | undefined): DraftCondition | undefined {
+  if (previous === undefined) return undefined;
+  const candidate =
+    previous.op === "and" || previous.op === "or"
+      ? previous.conditions[0]
+      : (nestedOf(previous) ?? previous);
+  if (candidate === undefined) return undefined;
+  return conditionGroupReferences(candidate).length > 0 ? undefined : candidate;
 }
 
 /** The one nested condition `not`, `anyInstance` and `everyInstance` each carry. */
