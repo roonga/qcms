@@ -352,8 +352,7 @@ test("a repeating group exports its ins_ ids and no answer value or instance lab
   // The first serve mints the group's `min: 1`, so there is a card to fill.
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
 
-  const card = (ordinal: number) =>
-    page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
+  const card = (ordinal: number) => page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
   const answered = (questionId: string): Promise<unknown> =>
     page.waitForResponse((response) => {
       if (response.request().method() !== "POST" || response.status() !== 200) return false;

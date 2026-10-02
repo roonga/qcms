@@ -134,10 +134,7 @@ export type ExportExtension = "csv" | "json" | "zip";
  * nothing. So the upstream's own `content-type` decides, and a type this function
  * does not recognise falls back to the requested format rather than guessing.
  */
-export function exportExtension(
-  format: ExportFormat,
-  contentType: string | null,
-): ExportExtension {
+export function exportExtension(format: ExportFormat, contentType: string | null): ExportExtension {
   return contentType !== null && contentType.startsWith("application/zip") ? "zip" : format;
 }
 

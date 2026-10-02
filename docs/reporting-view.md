@@ -34,14 +34,14 @@ against.
 
 One row per **submitted** session.
 
-| Column         | Type               | Semantics                                                                                     |
-| -------------- | ------------------ | --------------------------------------------------------------------------------------------- |
-| `session_id`   | `text`             | The response's session id (`ses_…`). Stable, never reused (R6).                               |
-| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                      |
-| `form_version` | `integer`          | The **pinned** published version the session ran on (I4 - a session never migrates versions). |
-| `submitted_at` | `timestamptz`      | When the submission lock was written (the audit instant, I6/I9).                              |
-| `access_mode`  | `access_mode` enum | How the respondent reached the form: `anonymous` or `secure_link`.                            |
-| `answers`      | `jsonb`            | The locked answer set as an object **keyed by `questionId`**, values in canonical encoding, plus one key per **repeating group** (below).   |
+| Column         | Type               | Semantics                                                                                                                                 |
+| -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_id`   | `text`             | The response's session id (`ses_…`). Stable, never reused (R6).                                                                           |
+| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                                                                  |
+| `form_version` | `integer`          | The **pinned** published version the session ran on (I4 - a session never migrates versions).                                             |
+| `submitted_at` | `timestamptz`      | When the submission lock was written (the audit instant, I6/I9).                                                                          |
+| `access_mode`  | `access_mode` enum | How the respondent reached the form: `anonymous` or `secure_link`.                                                                        |
+| `answers`      | `jsonb`            | The locked answer set as an object **keyed by `questionId`**, values in canonical encoding, plus one key per **repeating group** (below). |
 
 `answers` contains only the **visible** questions' answers the submission locked (I6 - hidden
 questions' answers stay in the append-only ledger and never enter a submission). A submission
@@ -124,7 +124,7 @@ sync.
 | `submitted_at` | `timestamptz` | As in `reporting.responses`.                                                                 |
 | `question_id`  | `text`        | The answered question (`q_…`).                                                               |
 | `value`        | `jsonb`       | That question's canonical answer value (see encodings below).                                |
-| `instance_id`  | `text`        | The repeating-group instance (`ins_…`) the answer belongs to, or `NULL` outside every group.  |
+| `instance_id`  | `text`        | The repeating-group instance (`ins_…`) the answer belongs to, or `NULL` outside every group. |
 
 For a multi-choice question `value` is a JSONB array of option ids - one flat row still holds
 the whole selection (the row grain is the question, not the individual option).

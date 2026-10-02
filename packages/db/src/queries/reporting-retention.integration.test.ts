@@ -266,7 +266,11 @@ describe("the reporting views carry repeated answers", () => {
         { questionId: "q_name", instanceId: first, value: "Ada" },
         { questionId: "q_meal", instanceId: first, value: ["opt_vegan"] as unknown as AnswerValue },
         { questionId: "q_name", instanceId: second, value: "Grace" },
-        { questionId: "q_meal", instanceId: second, value: ["opt_halal"] as unknown as AnswerValue },
+        {
+          questionId: "q_meal",
+          instanceId: second,
+          value: ["opt_halal"] as unknown as AnswerValue,
+        },
       ]),
       submittedAt: new Date("2026-05-01T00:00:00.000Z"),
     });

@@ -137,7 +137,11 @@ function crcFinish(crc: number): number {
 }
 
 /** A little-endian writer over a fixed-size record. */
-function record(size: number): { bytes: Uint8Array; u16: (v: number) => void; u32: (v: number) => void } {
+function record(size: number): {
+  bytes: Uint8Array;
+  u16: (v: number) => void;
+  u32: (v: number) => void;
+} {
   const bytes = new Uint8Array(size);
   const view = new DataView(bytes.buffer);
   let at = 0;

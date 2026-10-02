@@ -129,9 +129,9 @@ describe("export rules", () => {
     expect(exportExtension("csv", "text/csv; charset=utf-8")).toBe("csv");
     expect(exportExtension("csv", null)).toBe("csv");
     expect(exportExtension("json", "application/json; charset=utf-8")).toBe("json");
-    expect(
-      exportFilename("frm_booking", choice({ version: "2", shape: "long" }), "zip"),
-    ).toBe("frm_booking-v2-responses.zip");
+    expect(exportFilename("frm_booking", choice({ version: "2", shape: "long" }), "zip")).toBe(
+      "frm_booking-v2-responses.zip",
+    );
   });
 });
 

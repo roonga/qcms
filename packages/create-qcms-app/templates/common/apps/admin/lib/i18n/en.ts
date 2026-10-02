@@ -1584,7 +1584,8 @@ export const messages = {
     "One file per repeating group beside the main file, downloaded together as a zip when this form has a group. The columns are the questions, so the header does not change when a later version allows more instances.",
   "ops.export.shapeWideHint":
     "One flat file, with a repeating group's answers in numbered columns such as q_passport__1. The number of columns is the maximum this version allows, not the number anybody answered, so a later version that raises that maximum has more columns. Pin the version your pipeline reads.",
-  "ops.export.shapeIgnored": "JSON carries repeated answers inside each record, so it has one shape.",
+  "ops.export.shapeIgnored":
+    "JSON carries repeated answers inside each record, so it has one shape.",
   "ops.export.from": "Submitted from",
   "ops.export.to": "Submitted to",
   "ops.export.dayHint": "Whole days, in UTC.",

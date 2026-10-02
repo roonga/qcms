@@ -296,7 +296,14 @@ describe("responseColumns (the flat file's columns)", () => {
     // the version it bound to.
     const narrow = responseColumns(repeatDefinition(2), "wide").map((c) => c.header);
     const wider = responseColumns(repeatDefinition(4), "wide").map((c) => c.header);
-    expect(narrow).toEqual(["q_booking_ref", "q_name__1", "q_name__2", "q_meal__1", "q_meal__2", "q_notes"]);
+    expect(narrow).toEqual([
+      "q_booking_ref",
+      "q_name__1",
+      "q_name__2",
+      "q_meal__1",
+      "q_meal__2",
+      "q_notes",
+    ]);
     expect(wider).toHaveLength(narrow.length + 4);
     expect(wider).toContain("q_name__4");
     expect(narrow).not.toContain("q_name__3");
