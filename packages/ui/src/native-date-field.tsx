@@ -142,8 +142,15 @@ export function NativeDateField({
         aria-invalid={isInvalid === true ? true : undefined}
         aria-describedby={describedBy}
       />
+      {/*
+        `data-qcms-hint` is a styling anchor and nothing else (task 077). The table
+        presentation clips a cell's label and hint, because both are identical in every
+        cell of a column and the column header carries them once; the vendored controls
+        are reachable through react-aria's own `slot="description"`, and this component
+        is qcms-owned, so it says the same thing in an attribute the sheet may anchor on.
+      */}
       {description === undefined ? null : (
-        <span id={descriptionId} className={styles.description}>
+        <span id={descriptionId} data-qcms-hint="" className={styles.description}>
           {description}
         </span>
       )}
