@@ -75,9 +75,20 @@ export const messages = {
   "repeat.added": "{label} added.",
   "repeat.removed": "{label} removed, {count} remaining.",
   "repeat.removedLast": "{label} removed, none remaining.",
+  // The deploy-skew landing (task 073, reviewed on PR #1034). Shown by the portal's
+  // error page when a page held across a deploy posts an action id this build does not
+  // have: Next refuses the request before the step renders, so this is the whole message
+  // the respondent gets and it has to be complete on its own. It says what happened, what
+  // survived, what did not, and what to do, and it names nothing about the session.
   "repeat.staleStep.title": "This page was out of date",
   "repeat.staleStep.body":
-    "We have updated the form since this page was opened. Your answers are safe. Continue from the step below.",
+    "We have updated this form since the page was opened, so that last change was not made. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
+  "repeat.staleStep.action": "Go back to the form",
+  // The other thing that reaches the portal's error page: a URL that names nothing. It
+  // needs its own words, because a respondent who mistyped a link has nothing out of date.
+  "pageMissing.title": "This page does not exist",
+  "pageMissing.body":
+    "We could not find that page. Please check the address, or go back to the form you were filling in.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",

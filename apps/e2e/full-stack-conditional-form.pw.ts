@@ -298,6 +298,52 @@ test.describe.serial("conditional form journey", () => {
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
+    test("a stale Server Action id lands on the portal's own error page (task 073)", async ({
+      page,
+    }) => {
+      // Asserted HERE and nowhere else, because this is the only suite that runs the
+      // portal as a production build. Next replaces the error component with its own
+      // overlay driver in development, so the dev harness answers this request with an
+      // empty `/_error` document whatever the app ships; a crafted post against the dev
+      // server was how PR #1034's review found ADR-43's claim to be wrong in the first
+      // place, and it is why the correction is verified against the deployed stack.
+      //
+      // The request is what a respondent's browser sends after a deploy: a multipart form
+      // post carrying an action descriptor whose id this build never produced. Next's
+      // action handler validates every id BEFORE dispatch and throws
+      // "Failed to find Server Action", so nothing of the app runs and no session, form or
+      // repeating group is needed to reach it. Multipart and not url-encoded, because Next
+      // treats a url-encoded POST that is not a fetch action as not an action request at
+      // all and simply renders the page.
+      const unknownActionId = "00112233445566778899aabbccddeeff001122334455";
+      const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}`, {
+        maxRedirects: 0,
+        headers: BROWSER_FORM_POST,
+        multipart: {
+          $ACTION_REF_1: "",
+          "$ACTION_1:0": `{"id":"${unknownActionId}","bound":"$@1"}`,
+          "$ACTION_1:1": "[{}]",
+        },
+      });
+
+      expect(response.status()).toBe(500);
+      const body = await response.text();
+      // The three things the page must say, and the way onward. Substrings of the shipped
+      // wording, so a reword that drops one of them fails here as it does in the unit test
+      // beside the page.
+      expect(body, "the respondent is told the page was out of date").toContain(
+        "This page was out of date",
+      );
+      expect(body, "and that saved answers are kept").toContain("is kept");
+      expect(body, "and that unsaved typing is not").toContain("typing again");
+      expect(body, "and offered one way back").toContain('href="."');
+      // Nothing about the session reaches the markup: the page is handed a status code and
+      // nothing else, and the way back is relative so it needs no id.
+      expect(body).not.toMatch(/ses_[0-9a-f]/);
+      // And the framework's own words are not what a respondent reads.
+      expect(body).not.toContain("Failed to find Server Action");
+    });
+
     test("completes the affirmative respondent route", async ({ page }) => {
       // The affirmative branch: number and long text appear, while both false
       // branch controls are absent. Values are posted before advancing each step.

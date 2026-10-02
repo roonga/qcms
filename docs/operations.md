@@ -1131,7 +1131,9 @@ is lost, no roster row is written, and nothing is silently accepted. What a resp
 is add or remove an instance, so a form whose group has `min: 1` still completes and one that
 needs a second instance does not. The symptom in the logs is an `origin.belt.refused` line with
 `beltRoute: "/s/{sessionId}"`, or, when Next refuses before the belt runs, a 500 on a POST to the
-flow page with no belt line at all.
+flow page with no belt line at all. That second shape is also what a **stale action id** looks like
+after a deploy, and it is not a misconfiguration: the respondent gets the portal's own error page
+saying the page was out of date, and a GET of the step carries on.
 
 `docs/deploy-ingress.md` carries the same caution beside the ALB header recipe.
 

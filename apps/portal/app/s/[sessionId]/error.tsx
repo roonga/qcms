@@ -5,23 +5,35 @@ import { t } from "@/lib/i18n/en";
 import { buttonClass } from "@/lib/ui";
 
 /**
- * The flow segment's error boundary, and it exists for one named failure (task 073).
+ * The flow segment's error boundary: the screen for an error thrown **while this segment
+ * renders** (task 073).
  *
- * ## A stale Server Action id
+ * ## What it does NOT catch, which this comment used to claim it did
  *
- * The no-JS Add and Remove of a repeating group is a Next Server Action, and **Next
- * recalculates action ids between builds**: an id is a build-time secret keyed to the
- * deployment. A respondent with scripting off who has a step page open when a new build
- * rolls out posts the id the old build gave them, and Next answers that with an error
- * rather than by running anything. Without a boundary here the respondent would see the
- * framework's error page, which says nothing they can act on.
+ * It does not catch a stale Server Action id. Next recalculates action ids between builds,
+ * so a respondent with scripting off who holds a step page across a deploy posts an id the
+ * new build does not know, and Next's action handler validates every id and **throws
+ * before this segment renders** (`E975`). An App Router error boundary catches what its own
+ * subtree throws while rendering; a request that never got that far reaches no boundary. A
+ * crafted post with an unknown action id showed the framework's 500 instead, which is how
+ * the claim was found to be false (PR #1034's review, 2026-10-02).
  *
- * **Nothing is lost when it happens, and that is a property of the mechanism rather
- * than of this screen.** An Add or Remove commits no answer, so a refused one writes
- * nothing; every answer the respondent had already pressed Continue on is in the ledger;
- * and the roster is server state, so it is whatever it was. What they lose is the values
- * typed into the current step since their last Continue, which is the same thing they
- * would lose by closing the tab, and the step they land on is the current one.
+ * That failure's screen is **`pages/_error.tsx`**, the Pages Router error page, which is
+ * the hook Next consults for a failure answered before the App Router renders. ADR-43's
+ * amendment carries the correction and the two limits that go with it.
+ *
+ * ## What it does catch, and why the screen still reads this way
+ *
+ * Any uncaught error thrown while rendering this segment, whatever the cause: a read that
+ * threw where `page.tsx` did not classify it, a renderer fault on a shape the API served.
+ * Every one of them has the same remedy from the respondent's side, which is to re-read the
+ * step, so the screen says the page was out of date and offers it.
+ *
+ * **Nothing committed is lost when it happens, and that is a property of the mechanism
+ * rather than of this screen.** Every answer the respondent had already pressed Continue on
+ * is in the ledger, and the roster is server state, so it is whatever it was. What they lose
+ * is the values typed into the current step since their last Continue, which is the same
+ * thing they would lose by closing the tab, and the step they land on is the current one.
  *
  * The recovery is deliberately a **link and not a button**: a boundary that needs the
  * `reset()` callback needs JavaScript, and the respondent this screen exists for has
