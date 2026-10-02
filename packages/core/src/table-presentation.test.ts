@@ -56,10 +56,7 @@ function makeQuestion(id: string, type: string): QuestionDefinition {
  * own bound, so no case here trips `REPEAT_MAX_MISSING` on the way to the one
  * refusal it is about.
  */
-function publishGroup(
-  members: readonly Member[],
-  presentation: string,
-): readonly PublishError[] {
+function publishGroup(members: readonly Member[], presentation: string): readonly PublishError[] {
   const questions = members.map((member) => makeQuestion(member.id, member.type));
   const parsed = parseFormDefinition({
     formId: "frm_assets",

@@ -1,0 +1,29 @@
+{
+  "formId": "frm_repeat_table",
+  "defaultLocale": "en",
+  "title": { "en": "Fleet vehicle table" },
+  "steps": [
+    {
+      "stepId": "stp_fleet_table",
+      "title": { "en": "The vehicles on this policy, as a table" },
+      "items": [
+        { "questionId": "q_rep_fleet_name", "version": 1 },
+        {
+          "groupId": "grp_vehicles",
+          "label": { "en": "Vehicles" },
+          "instanceLabel": { "en": "Vehicle {n}" },
+          "presentation": "table",
+          "count": { "source": "open", "min": 1, "max": 9 },
+          "items": [
+            { "questionId": "q_rep_plate", "version": 1 },
+            { "questionId": "q_rep_odometer", "version": 1 },
+            { "questionId": "q_rep_service_date", "version": 1 },
+            { "questionId": "q_rep_garaged", "version": 1 },
+            { "questionId": "q_rep_use", "version": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": []
+}

@@ -1807,3 +1807,20 @@ exports[`A2UIStepRenderer conformance over the golden corpus > renders v4/repeat
   },
 ]
 `;
+
+exports[`A2UIStepRenderer conformance over the golden corpus > renders v4/repeat-table-group/stp_fleet_table and matches its accessibility tree 1`] = `
+[
+  {
+    "name": "Fleet vehicle table",
+    "role": "heading1",
+  },
+  {
+    "name": "The vehicles on this policy, as a table",
+    "role": "heading2",
+  },
+  {
+    "name": "Fleet name",
+    "role": "textbox",
+  },
+]
+`;

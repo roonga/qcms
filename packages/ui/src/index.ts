@@ -18,7 +18,13 @@ export type { NativeFieldKind, NativeFormAction, NativeSubmitOptions } from "./n
 
 export { withDemotedHeadings } from "./heading-demotion.ts";
 
-export { QcmsFieldContext, useQcmsField, useQcmsFormAction } from "./field-context.tsx";
+export {
+  QcmsFieldContext,
+  useQcmsField,
+  useQcmsFormAction,
+  useQcmsLocale,
+  useQcmsValues,
+} from "./field-context.tsx";
 export type {
   A2UIAnswerValue,
   A2UIErrors,
@@ -57,19 +63,31 @@ export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";
  */
 export {
   QcmsRepeatContext,
+  RepeatCell,
+  RepeatCellSchema,
   RepeatGroup,
   RepeatGroupSchema,
   RepeatInstance,
   RepeatInstanceSchema,
+  RepeatRow,
+  RepeatRowSchema,
+  RepeatTable,
+  RepeatTableSchema,
   expandRepeatGroups,
   hasRepeatGroup,
+  repeatTableNode,
   useQcmsRepeat,
 } from "./repeat/index.ts";
 export type {
   QcmsRepeatContextValue,
+  RepeatCellNode,
+  RepeatColumn,
   RepeatExpansion,
   RepeatGroupNode,
   RepeatInstanceNode,
+  RepeatRowNode,
+  RepeatTableInput,
+  RepeatTableNode,
 } from "./repeat/index.ts";
 export {
   addButtonId,
@@ -87,3 +105,19 @@ export {
   rosterOpValue,
 } from "./repeat/repeat-node.ts";
 export type { RosterOp, RosterOpRequest } from "./repeat/repeat-node.ts";
+/**
+ * The table presentation's render-time vocabulary (task 077). `REPEAT_ROW_NODE_TYPE`
+ * is the one a host needs by name: the portal's error summary reads an instance's
+ * label off the expanded tree, and a table-presented group carries that label on its
+ * row rather than on an instance card.
+ */
+export {
+  REPEAT_CELL_NODE_TYPE,
+  REPEAT_ROW_NODE_TYPE,
+  REPEAT_TABLE_LEXICON,
+  REPEAT_TABLE_NODE_TYPE,
+  actionColumnLabel,
+  cellLabelFor,
+  instanceNoun,
+  totalLabelFor,
+} from "./repeat/index.ts";
