@@ -214,6 +214,9 @@
           "rosters": {
             "$ref": "#/components/schemas/RosterProjection"
           },
+          "view": {
+            "$ref": "#/components/schemas/StepViewProjection"
+          },
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           }
@@ -224,6 +227,7 @@
           "a2uiSpecVersion",
           "flowState",
           "rosters",
+          "view",
           "progress"
         ]
       },
@@ -310,12 +314,31 @@
           ]
         }
       },
+      "StepViewProjection": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "nullable": true,
+            "example": "grp_vehicles"
+          },
+          "instanceId": {
+            "type": "string",
+            "nullable": true,
+            "example": "ins_7k2"
+          }
+        },
+        "required": [
+          "groupId",
+          "instanceId"
+        ]
+      },
       "StepProgress": {
         "type": "object",
         "properties": {
           "stepIndex": {
             "type": "integer",
-            "description": "0-based index of the current step within the visible steps; equals totalVisibleSteps when complete."
+            "description": "0-based index of the current step VIEW within the visible step views; equals totalVisibleSteps when complete."
           },
           "totalVisibleSteps": {
             "type": "integer",
@@ -394,6 +417,9 @@
           "rosters": {
             "$ref": "#/components/schemas/RosterProjection"
           },
+          "view": {
+            "$ref": "#/components/schemas/StepViewProjection"
+          },
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           },
@@ -410,6 +436,7 @@
           "a2uiSpecVersion",
           "flowState",
           "rosters",
+          "view",
           "progress",
           "rejected"
         ]
@@ -497,6 +524,9 @@
           "rosters": {
             "$ref": "#/components/schemas/RosterProjection"
           },
+          "view": {
+            "$ref": "#/components/schemas/StepViewProjection"
+          },
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           },
@@ -516,6 +546,7 @@
           "a2uiSpecVersion",
           "flowState",
           "rosters",
+          "view",
           "progress",
           "replayed",
           "minted"

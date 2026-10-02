@@ -359,4 +359,3 @@ function hasVisibleQuestion(
   const visible = new Set(visibleQuestions);
   return step.items.some((pin) => visible.has(pin.questionId));
 }
-

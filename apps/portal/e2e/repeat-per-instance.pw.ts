@@ -43,8 +43,7 @@ async function navigate(page: import("@playwright/test").Page, name: string): Pr
   // GET of the step route with the index the portal wants drawn.
   const read = page.waitForResponse(
     (response) =>
-      response.request().method() === "GET" &&
-      new URL(response.url()).pathname.endsWith("/step"),
+      response.request().method() === "GET" && new URL(response.url()).pathname.endsWith("/step"),
   );
   await page.getByTestId(name).click();
   const response = await read;

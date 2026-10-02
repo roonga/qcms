@@ -988,22 +988,16 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
     await batch(session, [{ questionId: "q_rep_fleet_name", value: "Northern depot" }]);
 
     expect((await getStep(session)).view.instanceId).toBe(live[0]);
-    await batch(session, [
-      { questionId: "q_rep_plate", instanceId: live[0], value: "AAA111" },
-    ]);
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[0], value: "AAA111" }]);
     expect((await getStep(session)).view.instanceId).toBe(live[1]);
-    await batch(session, [
-      { questionId: "q_rep_plate", instanceId: live[1], value: "BBB222" },
-    ]);
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[1], value: "BBB222" }]);
     const third = await getStep(session);
     expect(third.view.instanceId).toBe(live[2]);
     expect(third.progress.stepIndex).toBe(2);
     expect(third.flowState.readyToSubmit).toBe(false);
 
     // The last required answer completes the flow, and the walk is over.
-    await batch(session, [
-      { questionId: "q_rep_plate", instanceId: live[2], value: "CCC333" },
-    ]);
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[2], value: "CCC333" }]);
     expect((await getStep(session)).flowState.readyToSubmit).toBe(true);
   });
 
