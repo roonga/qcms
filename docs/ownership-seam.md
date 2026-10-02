@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (395 files common to both shapes)
+### Scaffolded paths (397 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 384   |
-| `apps/admin/`                                                        | 230   |
+| `apps/`                                                              | 386   |
+| `apps/admin/`                                                        | 232   |
 | `apps/admin/app/`                                                    | 69    |
 | `apps/admin/app/(shell)/`                                            | 51    |
 | `apps/admin/app/(shell)/@rail/`                                      | 21    |
@@ -158,13 +158,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 73    |
-| `apps/admin/components/forms/`                                       | 29    |
+| `apps/admin/components/`                                             | 74    |
+| `apps/admin/components/forms/`                                       | 30    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 81    |
-| `apps/admin/lib/forms/`                                              | 21    |
+| `apps/admin/lib/`                                                    | 82    |
+| `apps/admin/lib/forms/`                                              | 22    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
@@ -230,7 +230,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2231` lines across `348` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2246` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -245,7 +245,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (395)</summary>
+<summary>Every scaffolded file (397)</summary>
 
 ```
 .dockerignore
@@ -356,6 +356,7 @@ apps/admin/components/forms/rules-table.tsx
 apps/admin/components/forms/save-notices.tsx
 apps/admin/components/forms/secure-links.tsx
 apps/admin/components/forms/step-editor.tsx
+apps/admin/components/forms/table-column-view.tsx
 apps/admin/components/forms/validation-panel.tsx
 apps/admin/components/forms/version-history.tsx
 apps/admin/components/forms/version-view.tsx
@@ -420,6 +421,7 @@ apps/admin/lib/forms/rule-sentence.ts
 apps/admin/lib/forms/rule-targets.ts
 apps/admin/lib/forms/settings.ts
 apps/admin/lib/forms/subtree-rail.ts
+apps/admin/lib/forms/table-columns.ts
 apps/admin/lib/forms/types.ts
 apps/admin/lib/forms/version-diff.ts
 apps/admin/lib/hydration.ts

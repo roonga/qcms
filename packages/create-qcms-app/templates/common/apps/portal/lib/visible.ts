@@ -1,5 +1,7 @@
 import type { A2UIStepDocument, AuthorMessages } from "@roonga/qcms-ui";
 import { authorMessagesOf, documentForVisible } from "@roonga/qcms-ui";
+import { REPEAT_INSTANCE_NODE_TYPE } from "@roonga/qcms-ui/repeat-node";
+import { REPEAT_ROW_NODE_TYPE } from "@roonga/qcms-ui/repeat-table-node";
 
 /**
  * The document conventions the portal reads out of a compiled step (task 029).
@@ -255,10 +257,17 @@ export function commitMoments(document: A2UIStepDocument): ReadonlyMap<string, C
  * instance label the entry reads "Vehicle 2: Registration plate needs an answer" and
  * names exactly one field on the page.
  *
- * It reads the `RepeatInstance` nodes the renderer's expansion produced, so the
- * document handed here must be the expanded one - which is also the document whose
- * control names are the qualified names every other map here keys on. A step with no
- * repeating group produces an empty map and costs one walk.
+ * It reads the nodes the renderer's expansion produced, so the document handed here
+ * must be the expanded one - which is also the document whose control names are the
+ * qualified names every other map here keys on. A step with no repeating group
+ * produces an empty map and costs one walk.
+ *
+ * **Two node types carry an instance label, one per presentation** (task 077): the
+ * stacked presentation's `RepeatInstance` card and the table presentation's
+ * `RepeatRow`. They are listed rather than inferred because the consequence of
+ * missing one is silent and specific - a table-presented group's error summary would
+ * read "Registration plate needs an answer" three times over on a three-row step,
+ * which is the 3.3.1 distinctness problem this map exists to solve.
  *
  * The instance ID is never the label: what the map carries is the authored
  * `instanceLabel` with its live ordinal resolved (ADR-42), which is what a respondent
@@ -268,7 +277,8 @@ export function instanceLabels(document: A2UIStepDocument | null): ReadonlyMap<s
   const byField = new Map<string, string>();
   if (document === null) return byField;
   const walk = (node: MutableNode, label: string | undefined): void => {
-    const own = node.type === "RepeatInstance" ? node.props?.label : undefined;
+    const labelled = node.type === REPEAT_INSTANCE_NODE_TYPE || node.type === REPEAT_ROW_NODE_TYPE;
+    const own = labelled ? node.props?.label : undefined;
     const scope = typeof own === "string" ? own : label;
     const name = questionName(node);
     if (name !== undefined && scope !== undefined) byField.set(name, scope);

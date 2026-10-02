@@ -51,6 +51,21 @@ required question cannot be CLEARED without scripting" bullet below is unchanged
 than amended. An emptied required field on an Add post is neither stored nor retracted, and
 `apps/portal/e2e/no-js-repeat.pw.ts` asserts exactly that against the ledger.
 
+**The table presentation rides the same mechanism, unchanged** (task 077, ADR-43). A
+`table`-presented group draws its instances as rows of a native `<table>` and its member
+questions as columns, and a row's Remove is the same `__qop` submit button on the same form:
+the landing is the row's `<th scope="row">` rather than an instance card's heading, reached
+by `autofocus` for the same reason (a 200 answering a POST carries no fragment). It is a
+native `<table>` and never `role="grid"`, and the no-JS path is why that is not a
+preference: APG states as a defining property of the grid pattern that it "Requires the
+author to provide code that manages focus movement inside it", so with scripting off a grid
+is a tab-trap-shaped nothing. The no-JS block of `apps/portal/e2e/repeat-table.pw.ts`
+asserts it at a width above the card reflow, which is the layout the phone project never
+sees. The one new thing the layout needs is a horizontal scroll box: **above the card
+reflow the table's own `overflow-x: auto` box is the only element on a portal page
+permitted to scroll horizontally**, and the page itself still may not, at any width, which
+that spec measures at 390px.
+
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,
 without rapid feedback.** A respondent without scripting must be able to enter, submit
