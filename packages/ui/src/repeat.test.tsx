@@ -195,6 +195,99 @@ describe("expansion clones the template per live instance", () => {
     ]);
   });
 
+  // --- the per-instance step view (task 076, ADR-28 as amended 2026-09-29) ---------
+
+  it("draws one instance for a per-instance step view, keeping its roster ordinal", () => {
+    const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const roster = instances(3);
+    const { container } = render(
+      <A2UIStepRenderer
+        document={document}
+        specVersion={spec}
+        repeat={{
+          rosters: { grp_vehicles: roster },
+          view: { groupId: "grp_vehicles", instanceId: roster[1] },
+        }}
+      />,
+    );
+    // Vehicle 2 alone, and still called Vehicle 2: the ordinal is its place in the FULL
+    // roster, never its place in a one-element list.
+    expect(container.querySelectorAll("[data-qcms-instance]")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Vehicle 2" })).toBeTruthy();
+    expect(names(container).filter((name) => name.startsWith("ins_"))).toEqual([
+      qualifiedFieldName(roster[1], "q_rep_plate"),
+      qualifiedFieldName(roster[1], "q_rep_service_date"),
+      qualifiedFieldName(roster[1], "q_rep_odometer"),
+    ]);
+    // The step's own question is on the page: a view narrows the step to one instance of
+    // the paginating group and to nothing else.
+    expect(names(container)).toContain("q_rep_fleet_name");
+  });
+
+  it("puts the Add control on the last view and on no earlier one", () => {
+    const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const roster = instances(3);
+    const addOn = (instanceId: string): boolean => {
+      const { container } = render(
+        <A2UIStepRenderer
+          document={document}
+          specVersion={spec}
+          repeat={{
+            rosters: { grp_vehicles: roster },
+            opToken: "op_7f3",
+            view: { groupId: "grp_vehicles", instanceId },
+          }}
+          nativeSubmit={{ action: "/s/ses_1/step", submitLabel: "Continue" }}
+        />,
+      );
+      return container.querySelector('[data-qcms-repeat-action="add"]') !== null;
+    };
+    expect(addOn(roster[0])).toBe(false);
+    expect(addOn(roster[1])).toBe(false);
+    // No Add markup at all rather than a disabled button: a disabled Add reads as "this
+    // group is full" to a respondent whose group is not.
+    expect(addOn(roster[2])).toBe(true);
+  });
+
+  it("leaves a stacked group on the same step untouched by the narrowing", () => {
+    // A step may hold a paginating group beside a stacked one. Only the group the view
+    // names is narrowed; every instance of the other belongs on every page.
+    const { document, spec } = goldenStep(COUNT_SOURCES, "stp_drivers");
+    const roster = instances(2);
+    const { container } = render(
+      <A2UIStepRenderer
+        document={document}
+        specVersion={spec}
+        repeat={{
+          rosters: { grp_drivers: roster },
+          view: { groupId: "grp_elsewhere", instanceId: "ins_zz" },
+        }}
+      />,
+    );
+    expect(container.querySelectorAll("[data-qcms-instance]")).toHaveLength(2);
+  });
+
+  it("counts the group's max against the full roster, not the drawn instance", () => {
+    const { document, spec } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const roster = instances(9);
+    const { container } = render(
+      <A2UIStepRenderer
+        document={document}
+        specVersion={spec}
+        repeat={{
+          rosters: { grp_vehicles: roster },
+          opToken: "op_7f3",
+          view: { groupId: "grp_vehicles", instanceId: roster[8] },
+        }}
+        nativeSubmit={{ action: "/s/ses_1/step", submitLabel: "Continue" }}
+      />,
+    );
+    // One instance drawn, nine live, `max: 9`: the Add is offered on the last view and
+    // disabled, because it is the ROSTER that is full and not the page.
+    const add = container.querySelector<HTMLButtonElement>('[data-qcms-repeat-action="add"]');
+    expect(add?.disabled).toBe(true);
+  });
+
   it("documentForVisible keeps the template whole, because it cannot prune it", () => {
     const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
     // Only the qualified names are in the visible set, so pruning the template by

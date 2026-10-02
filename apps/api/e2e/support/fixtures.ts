@@ -363,6 +363,60 @@ export const REPEAT_FLEET_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-
 /** The committed golden compiled A2UI document for the `repeat-fleet` form. */
 export const REPEAT_FLEET_GOLDEN = readFixture(REPEAT_FLEET_COMPILED_PATH) as CompiledForm;
 
+// --- repeat-tour: the per-instance step presentation (task 076) --------------
+
+/**
+ * The `repeat-tour` form: **one step, one repeating group, `presentation:
+ * "perInstanceStep"`**, `open` with `min: 3, max: 4` (task 076, ADR-28 as amended
+ * 2026-09-29, ADR-43).
+ *
+ * It is the fixture the per-instance-step specs drive, on both paths, and its shape is
+ * the exit criterion written as a form. `min: 3` means the first serve mints three
+ * instances, so the one step is **three views** with no respondent action and the progress
+ * indicator says three; `max: 4` leaves the group growable, so the Add control on the last
+ * view has something to do and one more press reaches the refusal.
+ *
+ * The step holds the group and **nothing else**, deliberately. A view narrows the step to
+ * one instance of the paginating group and to nothing else, so a plain question on such a
+ * step would appear on every page of the walk - which is correct, and which is asserted in
+ * `apps/api/src/features/responses/repeat-serving.integration.test.ts` where a browser does
+ * not have to reason about it.
+ *
+ * `q_pi_plate` is **required**, which is what makes the no-JS walk a walk: the server
+ * serves the first view whose instance is incomplete, so each press of the single
+ * readiness-labelled button moves one vehicle forward. `q_pi_odometer` is an optional
+ * number, so a view carries more than one control and the narrowing is visible as a set
+ * rather than as a single field.
+ *
+ * Vehicle domain throughout (043's neutral-domain rule, guarded by
+ * `scripts/check-fixture-domain.mjs`).
+ */
+export const REPEAT_TOUR_DEF = readFixture("apps/api/e2e/support/fixtures/repeat-tour-form.json");
+
+/** The two question definitions the `repeat-tour` form pins. */
+export const REPEAT_TOUR_QUESTIONS: readonly {
+  readonly questionId: string;
+  readonly slug: string;
+  readonly definition: unknown;
+}[] = [
+  {
+    questionId: "q_pi_plate",
+    slug: "pi-plate",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-pi-plate.json"),
+  },
+  {
+    questionId: "q_pi_odometer",
+    slug: "pi-odometer",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-pi-odometer.json"),
+  },
+];
+
+/** Repo-relative path of the `repeat-tour` compiled document (regenerable, see below). */
+export const REPEAT_TOUR_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-tour.a2ui.json";
+
+/** The committed golden compiled A2UI document for the `repeat-tour` form. */
+export const REPEAT_TOUR_GOLDEN = readFixture(REPEAT_TOUR_COMPILED_PATH) as CompiledForm;
+
 // --- sample-library: the composed stack's seeded form (issue #994) ----------
 
 /**
@@ -485,6 +539,13 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
     regenerable: true,
     form: REPEAT_FLEET_DEF,
     questions: REPEAT_FLEET_QUESTIONS.map((question) => question.definition),
+  },
+  {
+    name: "repeat-tour",
+    path: REPEAT_TOUR_COMPILED_PATH,
+    regenerable: true,
+    form: REPEAT_TOUR_DEF,
+    questions: REPEAT_TOUR_QUESTIONS.map((question) => question.definition),
   },
   {
     name: "sample-library",

@@ -30,6 +30,7 @@ import {
   seedInsuranceForm,
   seedKitchenSinkForm,
   seedRepeatFleetForm,
+  seedRepeatTourForm,
   seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
@@ -93,6 +94,11 @@ export interface PortalFixtures {
    * their shape.
    */
   readonly repeatFleetSlug: string;
+  /**
+   * The `repeat-tour` form slug (task 076): one step, one `perInstanceStep` group,
+   * `open` with `min: 3, max: 4`, so the step is three views on the first serve.
+   */
+  readonly repeatTourSlug: string;
   /**
    * The e2e Postgres connection URI, so a spec can open its OWN client and verify
    * persisted answers independently of the API's response echo (task 045, exit
@@ -218,6 +224,7 @@ export async function startApiServer(): Promise<void> {
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
   // Task 073: the repeating group. Five questions of its own, so nothing is shared.
   const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
+  const { slug: repeatTourSlug } = await seedRepeatTourForm(testDb.db);
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -297,6 +304,7 @@ export async function startApiServer(): Promise<void> {
     kitchenSinkSlug,
     authorMessagesSlug,
     repeatFleetSlug,
+    repeatTourSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,
