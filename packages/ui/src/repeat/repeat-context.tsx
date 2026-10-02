@@ -13,7 +13,9 @@ import { createContext, useContext } from "react";
  *   render as named submit buttons (`__qop`) on the step's own form. 4.1.3 does not
  *   apply there - the criterion scopes out messages delivered "via a change in
  *   context", and a whole-page POST and re-render is exactly that - so there is no
- *   live region on that path and the landing is reached by a fragment instead.
+ *   live region on that path and the landing is an `autofocus` attribute instead
+ *   (Q28, ruled 2026-10-01). This sentence used to say "a fragment", which the
+ *   `autofocusId` doc below already contradicted.
  */
 export interface QcmsRepeatContextValue {
   /** Scripted only: ask the host to add an instance to this group. */

@@ -125,6 +125,57 @@ export function resolvedInstanceLabel(
 }
 
 /**
+ * The render-time narrowing a **per-instance step view** is, or `undefined` when this
+ * page is not one (task 076, ADR-28 as amended 2026-09-29).
+ *
+ * The API's projection says which group paginates the drawn step and which single
+ * instance of it this page draws, and both keys are null for every other page. This maps
+ * that pair onto the renderer's own `view` option, which is the one place a narrowing is
+ * expressed, so the two portal paths cannot narrow differently.
+ *
+ * It decides nothing. The cursor, the view list and which view a cursor-less read serves
+ * are all the API's (R2); what the portal does with the answer is draw one instance of a
+ * roster it was already handed in full.
+ */
+export function viewNarrowing(view: {
+  readonly groupId: string | null;
+  readonly instanceId: string | null;
+}): { readonly groupId: string; readonly instanceId: string } | undefined {
+  const { groupId, instanceId } = view;
+  if (groupId === null || instanceId === null) return undefined;
+  return { groupId, instanceId };
+}
+
+/**
+ * The resolved label of the instance a per-instance view draws ("Vehicle 2"), for the
+ * page chrome, or `undefined` when this page draws no instance (task 076, ADR-27).
+ *
+ * The chrome needs it because the progress indicator counts **views**: three vehicles
+ * are "Step 1 of 3" to "Step 3 of 3", and without the instance's name those three lines
+ * are indistinguishable from three ordinary steps of one form. The instance's own
+ * heading says the same thing inside the page; this is what lets the header and the
+ * navigation announcement say it too.
+ *
+ * Resolved against the FULL roster, so the ordinal is the instance's place in the group
+ * rather than its place in a one-element list, and never from the `ins_` id, which is
+ * not something a respondent reads (ADR-42).
+ */
+export function viewInstanceLabel(
+  templates: ReadonlyMap<string, string>,
+  rosters: Readonly<Record<string, readonly string[]>>,
+  view: { readonly groupId: string | null; readonly instanceId: string | null },
+): string | undefined {
+  const narrowed = viewNarrowing(view);
+  if (narrowed === undefined) return undefined;
+  return resolvedInstanceLabel(
+    templates,
+    narrowed.groupId,
+    rosters[narrowed.groupId] ?? [],
+    narrowed.instanceId,
+  );
+}
+
+/**
  * What an Add or Remove hands back for the re-render of the step it posted from (task
  * 073, ADR-43).
  *
