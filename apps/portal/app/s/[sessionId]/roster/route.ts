@@ -33,10 +33,16 @@ import { readSessionToken } from "@/lib/server/session-cookie";
  *
  * It is a state-changing POST from a browser, so SEC-9's origin belt applies exactly as
  * it does to the other five, and `scripts/check-origin-guards.test.ts` derives the set
- * from disk so this route had to be belted or the gate would name it. The no-JS path's
- * Server Action is a different mechanism with a different guard: Next verifies an
- * action's own origin against the `Host`, which is why the portal serves
- * `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01).
+ * from disk so this route had to be belted or the gate would name it. **The no-JS path's
+ * Server Action is belted too** (Code Owner, 2026-10-01, ruling R-B2): it is a different
+ * mechanism, so it reaches the same decision through `isSameOriginAction`, which wraps an
+ * action's `headers()` back into the shape the belt reads. The two paths therefore share
+ * one implementation of the decision, the classification and the refusal line; what
+ * differs is only the refusal a respondent sees, a 403 here and a re-rendered step with a
+ * message there. Next's own action check stands behind the belt rather than instead of it,
+ * and it is why the portal serves `Referrer-Policy: same-origin` (SEC-9 as amended,
+ * 2026-10-01): under `no-referrer` a navigation POST serializes its `Origin` as the
+ * literal `null`, which Next refuses before the action runs.
  */
 export async function POST(
   request: Request,

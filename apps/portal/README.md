@@ -19,10 +19,14 @@ open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. T
   in Next's App Router that answers a POST with the page it was posted from,
   which is what carries a respondent's typed values back without a cookie. It is
   held to the same rules as a route handler, SEC-9's origin belt included
-  (ruling R-B2), and `scripts/check-origin-guards.test.ts` enumerates it. They perform no rule evaluation and no validation authority (that
-  is the API's, always). The portal imports nothing from `@roonga/qcms-core` (asserted
-  by `lib/server/r2-import-surface.test.ts`). The internal API base URL and
-  internal token are server-only (`lib/server/config.ts`).
+  (ruling R-B2), and `scripts/check-origin-guards.test.ts` enumerates it while
+  `lib/server/origin-guard.test.ts` drives it with a refused request.
+
+  They perform no rule evaluation and no validation authority (that is the API's,
+  always). The portal imports nothing from `@roonga/qcms-core` (asserted by
+  `lib/server/r2-import-surface.test.ts`). The internal API base URL and internal
+  token are server-only (`lib/server/config.ts`).
+
 - **Session token.** Held only in an httpOnly, SameSite cookie (`qcms_session`),
   never in client JS; secure in production (`lib/server/cookie-options.ts`). The
   client hydration talks to same-origin BFF proxy routes so the token never

@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
+import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
  * Every state-changing BFF route handler in every Next app carries SEC-9's CSRF belt
@@ -68,9 +69,13 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *     asserts each one calls the belt, exactly as it asserts it of a route handler,
  *     plus the referrer policy each app must serve for its own actions to be admitted
  *     by Next at all. What it cannot read is an action whose belt call is behind a
- *     helper; that is the same shape limit as the route rule above, and the coverage is
- *     named in `apps/portal/lib/server/origin-guard.test.ts`, which drives the real
- *     action with a refused request.
+ *     helper; that is the same shape limit as the route rule above. The behavioural
+ *     coverage is in `apps/portal/lib/server/origin-guard.test.ts`, beside the six route
+ *     handlers it already drives: it calls the real action with a request carrying neither
+ *     a usable `Origin` nor Fetch Metadata and asserts the roster write is never made,
+ *     with a same-origin control beside it. That test exists because removing the belt call
+ *     from the action left the browser suite green (reviewed on PR #1034): a scan that
+ *     reads the call is not a test that the call does anything.
  *   - It cannot know that a route which changes state was spelled `GET`. A handler
  *     that mutates behind a read verb is a different defect, and one no static scan
  *     of verb names can reach.
@@ -387,9 +392,11 @@ function serverActionModules(): string[] {
     for (const relative of trackedFilesUnder(root, { match: /\.tsx?$/ })) {
       const source = readFileSync(`${root}/${relative}`, "utf8");
       // The directive is the first statement of the module, so a mention inside a
-      // comment or a string elsewhere in the file is not one. Matched at the start of
-      // the file, allowing only a leading comment block above it.
-      if (/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/.test(source)) {
+      // comment or a string elsewhere in the file is not one. The scan is shared with
+      // the portal's two equivalents and is a walk rather than one expression, because
+      // the obvious expression backtracks exponentially (CodeQL alerts 22 to 24 on
+      // PR #1034); `scripts/use-server-directive.mjs` carries the reasoning.
+      if (declaresUseServer(source)) {
         found.push(`apps/${app.name}/${relative}`);
       }
     }
@@ -418,9 +425,15 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
     // form data and reaches its own request only through `headers()`; the admin's
     // actions are unreachable without JavaScript and are the case R-B2 left alone, so
     // they are listed as the exception rather than silently skipped.
+    // Comments are BLANKED before the match, which is the #663 rule the route scan above
+    // already follows: with them in, `// isSameOriginAction is not needed here` satisfies
+    // a substring rule as readily as calling it, and this module's own docblock names the
+    // function a dozen times. Reviewed on PR #1034, where the rule accepted the whole
+    // file including its prose.
     const unbelted = SERVER_ACTIONS.filter((path) => {
       const source = readFileSync(`${REPO_ROOT}${path}`, "utf8");
-      return !source.includes(ACTION_BELT) && !source.includes(BELT);
+      const code = stripComments(source.split("\n")).join("\n");
+      return !code.includes(ACTION_BELT) && !code.includes(BELT);
     });
     expect(unbelted).toEqual([
       "apps/admin/app/(shell)/forms/actions.ts",

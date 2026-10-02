@@ -83,6 +83,8 @@ const api = {
   submitAnswer: vi.fn(),
   submitSession: vi.fn(),
   getStep: vi.fn(),
+  // Task 073's roster write, which is what the Server Action's refusal must never reach.
+  rosterOp: vi.fn(),
 };
 
 class FakeApiError extends Error {
@@ -103,6 +105,7 @@ vi.mock("@/lib/server/api", () => ({
   submitAnswer: api.submitAnswer,
   submitSession: api.submitSession,
   getStep: api.getStep,
+  rosterOp: api.rosterOp,
 }));
 
 vi.mock("@/lib/server/session-cookie", () => ({
@@ -111,8 +114,17 @@ vi.mock("@/lib/server/session-cookie", () => ({
   clearSessionToken: () => Promise.resolve(),
 }));
 
+/**
+ * The headers a Server Action sees, set per test (task 073).
+ *
+ * `headers()` is the only way an action reaches its own request, so this is the seam the
+ * action's belt reads; a route handler is handed a `Request` and needs none of it.
+ */
+const { actionHeaders } = vi.hoisted(() => ({ actionHeaders: { current: new Headers() } }));
+
 vi.mock("next/headers", () => ({
   cookies: () => Promise.resolve({ get: () => undefined, set: () => undefined }),
+  headers: () => Promise.resolve(actionHeaders.current),
 }));
 
 /**
@@ -183,6 +195,9 @@ vi.mock("@/lib/server/appearance-form", async () => await import("./appearance-f
 vi.mock("@/lib/server/theme", async () => await import("./theme"));
 vi.mock("@/lib/appearance", async () => await import("../appearance"));
 vi.mock("@/lib/i18n/en", async () => await import("../i18n/en"));
+// Task 073's shared repeat helpers. Mapped like every other `@/` module here, because the
+// portal's vitest project resolves none of them on its own.
+vi.mock("@/lib/repeat", async () => await import("../repeat"));
 vi.mock("@/lib/validation-message", async () => await import("../validation-message"));
 
 const { isSameOriginPost } = await import("./route-helpers");
@@ -541,5 +556,87 @@ describe.each(ROUTES)("$path", (route) => {
     const response = await route.post(refused?.headers ?? {});
     await route.assertRefusal(response);
     expect(route.logged.beltOutcome).toBe(outcomeOnTheWire(response));
+  });
+});
+
+/**
+ * The seventh belted caller: the no-JS Add and Remove, which is a **Server Action** and
+ * not a route handler (task 073, ruling R-B2).
+ *
+ * It is driven here rather than left to the static gate because the two prove different
+ * things, and PR #1034's review showed the difference the hard way: with the belt call
+ * deleted from the action, `scripts/check-origin-guards.test.ts` went red but the whole
+ * browser suite stayed GREEN, because every spec in it posts from a real same-origin page
+ * and so is admitted either way. A scan that reads the call is not a test that the call
+ * does anything. What follows is the behavioural half: a request carrying neither a usable
+ * `Origin` nor Fetch Metadata reaches the action and the roster write is never made.
+ */
+describe("task 073: the Server Action's belt refuses and applies nothing (R-B2)", () => {
+  const SESSION = "ses_c0ffee";
+
+  /** The form a `__qop` press posts: the session, the pressed button, one typed value. */
+  function pressAdd(): FormData {
+    const form = new FormData();
+    form.set("__qsid", SESSION);
+    form.set("__qop", "add:grp_vehicles:op_7f3");
+    form.set("__qk__q_rf_fleet_ref", "string");
+    form.set("q_rf_fleet_ref", "NORTH-1");
+    return form;
+  }
+
+  beforeEach(() => {
+    api.rosterOp.mockReset();
+    api.getStep.mockReset();
+    api.getStep.mockResolvedValue({ rosters: [{ groupId: "grp_vehicles", instances: [] }] });
+    api.rosterOp.mockResolvedValue({ rosters: [], minted: [], replayed: false });
+  });
+
+  it("applies nothing when the request proves no origin, and says so", async () => {
+    // Neither `Sec-Fetch-Site` nor `Origin`: the shape #504 is about, and the one Next's
+    // own action check admits after a warning.
+    actionHeaders.current = new Headers();
+    const { rosterOperation } = await import("../../app/s/[sessionId]/roster-action");
+
+    const state = await rosterOperation({ values: {} }, pressAdd());
+
+    expect(api.rosterOp, "a refused action must not write").not.toHaveBeenCalled();
+    expect(api.getStep, "a refused action must not even read the roster").not.toHaveBeenCalled();
+    // The respondent gets their own step back WITH their typed value and a message, which
+    // is the refusal shape this surface uses: there is no 403 to show on a page that is
+    // the response to its own POST.
+    expect(state.values).toEqual({ q_rf_fleet_ref: "NORTH-1" });
+    expect(state.message).toBeDefined();
+    expect(state.autofocusId).toBeUndefined();
+    // And it is counted, in the same vocabulary every other refusal on this surface uses.
+    const line = emitted.map((raw) => JSON.parse(raw) as Record<string, unknown>).at(-1);
+    expect(line?.msg).toBe("origin.belt.refused");
+    expect(line?.beltRoute).toBe("/s/{sessionId}");
+    expect(line?.beltOutcome).toBe("rendered-unchanged");
+  });
+
+  it("applies the operation when the request proves same origin", async () => {
+    // The control, without which the assertion above passes for any reason at all.
+    actionHeaders.current = new Headers({ "sec-fetch-site": "same-origin" });
+    const { rosterOperation } = await import("../../app/s/[sessionId]/roster-action");
+
+    const state = await rosterOperation({ values: {} }, pressAdd());
+
+    expect(api.rosterOp).toHaveBeenCalledTimes(1);
+    expect(state.message).toBeUndefined();
+    expect(state.values).toEqual({ q_rf_fleet_ref: "NORTH-1" });
+    expect(emitted.filter((raw) => raw.includes("origin.belt.refused"))).toEqual([]);
+  });
+
+  it("refuses a cross-site post, the shape the belt exists for", async () => {
+    actionHeaders.current = new Headers({
+      "sec-fetch-site": "cross-site",
+      origin: "https://evil.test",
+    });
+    const { rosterOperation } = await import("../../app/s/[sessionId]/roster-action");
+
+    const state = await rosterOperation({ values: {} }, pressAdd());
+
+    expect(api.rosterOp).not.toHaveBeenCalled();
+    expect(state.message).toBeDefined();
   });
 });

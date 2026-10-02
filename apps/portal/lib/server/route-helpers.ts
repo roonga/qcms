@@ -75,21 +75,28 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  *
  * ## Exactly what the belt covers, and what it does not
  *
- * Six POST route handlers call this function and nothing else does:
- * `POST /appearance`, `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
- * `POST /s/{sessionId}/roster`, `POST /s/{sessionId}/step` and
- * `POST /s/{sessionId}/submit`.
- * `scripts/check-origin-guards.test.ts` derives that set from disk, so it is a
- * checked statement rather than a count someone kept up to date by hand.
+ * **SEVEN callers**, and the seventh is not a route handler. Six POST route handlers call
+ * this function directly: `POST /appearance`, `POST /f/{formSlug}/start`,
+ * `POST /s/{sessionId}/answers`, `POST /s/{sessionId}/roster`,
+ * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`. The seventh is the no-JS
+ * Add and Remove of a repeating-group instance, a **Next Server Action**
+ * (`app/s/[sessionId]/roster-action.ts`), which reaches the same decision through
+ * {@link isSameOriginAction} below because an action is handed its form data and no
+ * `Request`. `scripts/check-origin-guards.test.ts` derives both sets from disk, so seven
+ * is a checked statement rather than a count someone kept up to date by hand, and
+ * `docs/SECURITY_DESIGN.md` SEC-9 states the same number.
  *
- * `/s/{sessionId}/roster` is the sixth, added by task 073: the SCRIPTED path's Add or
- * Remove of a repeating-group instance. **The no-JS path's Add and Remove is not a
- * route handler at all** and so is not belted here: it is a Next Server Action, and
- * Next verifies an action's origin against the `Host` itself. That is exactly why the
- * portal serves `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01) - under
- * `no-referrer` a navigation POST serializes its `Origin` as `null`, which Next refuses
- * - and `scripts/check-origin-guards.test.ts` carries that reasoning beside the
- * enumeration so the exemption is a checked claim rather than a sentence.
+ * `/s/{sessionId}/roster` is the sixth route, added by task 073: the SCRIPTED path's Add
+ * or Remove. **The no-JS path's Add and Remove is belted too** (Code Owner, 2026-10-01,
+ * ruling R-B2), and it is belted HERE rather than left to Next, because Next's own action
+ * check is weaker in three ways: it admits a request carrying no `Origin` at all after
+ * only a warning, it compares the host while ignoring the scheme, and it never reads
+ * `Sec-Fetch-Site`. Next's check stands behind the belt rather than instead of it.
+ *
+ * Next's check is also why the portal serves `Referrer-Policy: same-origin` (SEC-9 as
+ * amended, 2026-10-01): under `no-referrer` a navigation POST serializes its `Origin` as
+ * the literal `null`, which Next refuses outright, so the action would never run far
+ * enough to be belted.
  *
  * `/appearance` is the no-JS appearance form (issue #195), and it is the one belted
  * route where a refusal costs a respondent nothing they can see: no answer is lost,

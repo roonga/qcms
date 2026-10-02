@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { declaresUseServer } from "../../../../scripts/use-server-directive.mjs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -138,8 +139,6 @@ describe("R2 import surface (strict BFF)", () => {
    * module reads, and a bare `import type` is erased and harmless.
    */
   it("keeps a Server Action out of the @roonga/qcms-ui component graph (task 073)", () => {
-    /** A module whose first statement is the `"use server"` directive. */
-    const USE_SERVER = /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/;
     const REACT_FREE_SUBPATHS = new Set([
       "@roonga/qcms-ui/native-submit",
       "@roonga/qcms-ui/repeat-node",
@@ -183,7 +182,7 @@ describe("R2 import surface (strict BFF)", () => {
       return found;
     };
     const offenders = files
-      .filter(({ text }) => USE_SERVER.test(text))
+      .filter(({ text }) => declaresUseServer(text))
       .flatMap(({ path }) => offendersFrom(path));
     expect(offenders).toEqual([]);
   });

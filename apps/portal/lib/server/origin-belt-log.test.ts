@@ -18,6 +18,7 @@ import {
 // Plain JavaScript with a hand-written declaration file beside it, imported by relative
 // path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
+import { declaresUseServer } from "../../../../scripts/use-server-directive.mjs";
 
 /**
  * The refusal line's own tests (issue #578). `origin-guard.test.ts` covers the other
@@ -135,8 +136,8 @@ function serverActionFiles(): string[] {
   return trackedFilesUnder(APP_DIR, { match: /\.tsx?$/ }).filter((relative) => {
     const source = readFileSync(`${APP_DIR}/${relative}`, "utf8");
     // The directive is the first statement of the module, so a mention in a comment or
-    // a string further down is not one.
-    return /^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/.test(source);
+    // a string further down is not one. Shared with the two other scans that need it.
+    return declaresUseServer(source);
   });
 }
 

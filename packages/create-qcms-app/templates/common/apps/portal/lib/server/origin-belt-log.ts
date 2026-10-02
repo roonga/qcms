@@ -216,11 +216,12 @@ const BELTED_ROUTES: readonly BeltedRoute[] = [
   },
   // The scripted path's Add or Remove of a repeating-group instance (task 073). A
   // hydrated `fetch()` like the answer write beside it, so a refusal is the same 403 a
-  // shape no ordinary respondent produces gets. The no-JS path's Add and Remove is a
-  // Next Server Action rather than a route handler, so it is not in this table and does
-  // not need to be: Next verifies an action's own origin against the `Host`, which is
-  // why the portal serves `Referrer-Policy: same-origin` (SEC-9 as amended, 2026-10-01)
-  // and why `scripts/check-origin-guards.test.ts` states that reasoning.
+  // shape no ordinary respondent produces gets. The NO-JS Add and Remove is belted too
+  // (ruling R-B2) and has its own entry above, `/s/{sessionId}`: it is a Next Server
+  // Action rather than a route handler, so it reaches the belt through
+  // `isSameOriginAction` and its refusal re-renders the step rather than returning a 403.
+  // Both rows exist because both mechanisms refuse, and a refusal nobody can count is a
+  // locked-out respondent nobody can count.
   {
     route: "/s/{sessionId}/roster",
     pattern: /^\/s\/[^/]+\/roster\/?$/,
