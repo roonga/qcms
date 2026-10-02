@@ -306,8 +306,7 @@ function renderNot(
 ): readonly RuleSentenceSegment[] {
   if (inner.op === "everyInstance") {
     return fill("forms.sentence.op.notEveryInstance", {
-      group: groupName(inner.groupId, context),
-      noun: [{ text: groupNoun(inner.groupId, context) }],
+      noun: groupNoun(inner.groupId, context),
       condition: branch(inner.condition, context),
     });
   }
@@ -342,7 +341,7 @@ function renderGroupRead(
   context: SentenceContext,
 ): readonly RuleSentenceSegment[] {
   const group = groupName(condition.groupId, context);
-  const noun = [{ text: groupNoun(condition.groupId, context) }];
+  const noun = groupNoun(condition.groupId, context);
   if (condition.op === "instanceCount") {
     const frame = COUNT_FRAME_FOR[condition.compare];
     if (frame === undefined) {
@@ -357,7 +356,7 @@ function renderGroupRead(
   // `branch` rather than `renderCondition`, so a nested `and`/`or` list is bracketed: "at
   // least one passenger where (A and B)" and "at least one passenger where A, and B" are
   // different rules, and these two frames are not self-delimiting the way `not (...)` is.
-  return fill(frame, { group, noun, condition: branch(condition.condition, context) });
+  return fill(frame, { noun, condition: branch(condition.condition, context) });
 }
 
 /**
@@ -376,12 +375,17 @@ function groupName(groupId: string, context: SentenceContext): readonly RuleSent
   return label === "" ? [{ text: groupId }] : [{ text: label, kind: "group" }];
 }
 
-/** What one instance of a group is called, for the clauses that count instances. */
-function groupNoun(groupId: string, context: SentenceContext): string {
+/**
+ * What ONE instance of a group is called, as a name the table emphasises.
+ *
+ * Emphasised for the same reason a question's label is: it is a name somebody chose. It is taken
+ * from the author's own instance-heading template rather than from the group's label, because the
+ * label is the plural they wrote for the set and these frames are sentences about one instance.
+ */
+function groupNoun(groupId: string, context: SentenceContext): readonly RuleSentenceSegment[] {
   const found = findGroup(context.draft, groupId);
-  return found === undefined
-    ? groupId
-    : instanceNoun(found.group, context.draft.defaultLocale);
+  if (found === undefined) return [{ text: groupId }];
+  return [{ text: instanceNoun(found.group, context.draft.defaultLocale), kind: "group" }];
 }
 
 /** One branch of a combinator, bracketed when it is itself a bare `and`/`or` list. */

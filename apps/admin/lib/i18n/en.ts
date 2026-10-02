@@ -1152,7 +1152,13 @@ export const messages = {
   // called, derived from their instance-label template ("Passenger {n}" gives "Passenger").
   // Both are substituted rather than composed, so a locale that needs the count clause
   // first, or needs no article, rewrites the frame here.
-  "forms.sentence.op.anyInstance": "at least one {group} where {condition}",
+  // `{noun}` rather than `{group}` in the three frames that quantify over instances, and that is
+  // a wording choice with a reason: the group's label is a PLURAL an author wrote for a set
+  // ("Passengers"), and "at least one Passengers" is not English. `{noun}` is what one instance
+  // is called, taken from their own instance-heading template, so these read as sentences about
+  // one instance - which is what the operators are about. The count frames below keep `{group}`,
+  // because a count is about the set.
+  "forms.sentence.op.anyInstance": "at least one {noun} where {condition}",
   // IT STATES ITS OWN READING, and that clause is a decision rather than a flourish (Q7,
   // ruled 2026-09-29). `everyInstance` over a group with NO live instance is FALSE, which
   // is deliberately not classical universal quantification: "every passenger holds a
@@ -1160,14 +1166,14 @@ export const messages = {
   // a bare "every passenger ..." would supply the classical reading, so the sentence says
   // the non-vacuous half out loud.
   "forms.sentence.op.everyInstance":
-    "every {group} where {condition}, and there is at least one {noun}",
+    "every {noun} where {condition}, and there is at least one {noun}",
   // THE MIRROR TRAP, and the one an author is MORE likely to write (ADR-42's own note).
   // Closing the vacuous reading for `everyInstance` makes its negation vacuous: this is
   // TRUE over an empty group, so "show the warning unless every passenger has a passport"
   // fires for a booking with no passengers. A warning is usually phrased as a negation, so
   // this is the sentence that costs somebody a wrong warning if it goes unworded.
   "forms.sentence.op.notEveryInstance":
-    "not every {group} is one where {condition}, which includes there being no {noun} at all",
+    "not every {noun} is one where {condition}, which includes there being no {noun} at all",
   // `instanceCount` reuses the comparison NAMES of the ordering operators as a field rather
   // than as a second vocabulary, so these five read as the five `forms.sentence.op.*`
   // comparisons do, about a count rather than about an answer.
