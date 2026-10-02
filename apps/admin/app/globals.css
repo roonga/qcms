@@ -2132,6 +2132,18 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   border-block-start-width: 2px;
 }
 
+/* The per-instance scope chip (task 074, ADR-42 §3.4). Scope is implicit by position, so
+   this line is the only place a reader learns that a rule runs once per instance. It sits
+   under the sentence it qualifies, in the same cell, for the reason the row's own controls
+   do: a trailing column would put it a variable distance from the rule it is about. */
+.qcms-rule-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-block-start: 0.25rem;
+}
+
 /* ---------------------------------------------------------------------------
    A mutually exclusive choice with a sentence per option (task 074).
 

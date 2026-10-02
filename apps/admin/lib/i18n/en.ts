@@ -1177,6 +1177,21 @@ export const messages = {
   "forms.bench.note":
     "A read-only preview. Answers typed here are evaluated against the draft on your screen and are never saved, never logged, and never seen by a respondent.",
   "forms.bench.answers": "Hypothetical answers",
+  // --- the bench's instance dimension (task 074, ADR-42 §6.4) ---
+  //
+  // The bench is where an author finds out that a rule they wrote reads the whole group rather
+  // than one instance, so it has to be able to vary the roster as well as the answers. The note
+  // names the zero case out loud, because that is the one the Q7 ruling exists for and the one
+  // nobody thinks to try.
+  "forms.bench.instances": "Hypothetical instances",
+  "forms.bench.instancesNote":
+    "Set how many instances each repeating group has. Zero is worth trying: a rule that reads a whole group behaves differently when the group is empty.",
+  "forms.bench.instanceCount": "Instances of {group}",
+  "forms.bench.instanceSuffix": " (instance {position})",
+  "forms.bench.instanceMatch": "Instance {position}: matches",
+  "forms.bench.instanceNoMatch": "Instance {position}: does not match",
+  "forms.bench.noInstances":
+    "This rule is evaluated once per instance, and there are no instances, so it matches nothing.",
   "forms.bench.run": "Run preview",
   "forms.bench.noReferences": "This condition reads no question yet.",
   "forms.bench.unpinned":
