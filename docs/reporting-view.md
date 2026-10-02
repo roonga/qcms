@@ -206,6 +206,14 @@ The role deliberately gets **no** privileges on the `public` schema, so a report
 can never read raw ledger answers, tokens, or auth tables - only the curated, erasure-safe
 views. Point BI/ETL tools at this role.
 
+**The last line is not optional, and migration 0025 is why.** A migration that reshapes a view
+`DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is a new
+object. `ALTER DEFAULT PRIVILEGES` is what re-grants it automatically, so an operator who ran
+the whole recipe above upgrades with nothing to do. An operator who ran only the explicit
+`GRANT SELECT ON ALL TABLES` loses the reporting role's access on such an upgrade and has to
+re-run that grant. Run the `ALTER DEFAULT PRIVILEGES` line as the same role that owns the
+schema and applies migrations, or the default will not apply to the objects migrations create.
+
 ---
 
 ## Stability promise
