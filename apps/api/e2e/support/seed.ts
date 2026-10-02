@@ -49,6 +49,9 @@ import {
   REPEAT_FLEET_DEF,
   REPEAT_FLEET_GOLDEN,
   REPEAT_FLEET_QUESTIONS,
+  REPEAT_TABLE_DEF,
+  REPEAT_TABLE_GOLDEN,
+  REPEAT_TABLE_QUESTIONS,
   AUTHOR_MESSAGES_QUESTIONS,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -445,6 +448,47 @@ export async function seedRepeatFleetForm(
     compiled: REPEAT_FLEET_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: REPEAT_FLEET_GOLDEN.compilerVersion,
     a2uiSpecVersion: REPEAT_FLEET_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  return { formId, slug };
+}
+
+/**
+ * Seed the `repeat-table` form (task 077): one step with a plain required question and
+ * one **repeating group presented as a table** (`open`, `min: 1`, `max: 3`) whose five
+ * columns are exactly the five allowed cell types, plus a published version storing its
+ * committed compiled A2UI (ADR-18).
+ *
+ * Its questions are unique to it (`q_rt_*`), so it never collides with the insurance,
+ * kitchen-sink, author-messages or repeat-fleet seeds and needs no shared-questions
+ * flag.
+ *
+ * It is the fixture that makes the table presentation reachable in a browser at all,
+ * and the reason it is a separate form from `repeat-fleet` is that `repeat-fleet` pins a
+ * `longText` and a `multiChoice`, which a table-presented group is refused at publish
+ * for carrying (`TABLE_COLUMN_TYPE_NOT_ALLOWED`, Q12).
+ */
+export async function seedRepeatTableForm(
+  db: Db,
+  opts: { formId?: string; slug?: string } = {},
+): Promise<SeededForm> {
+  const formId = opts.formId ?? "frm_repeat_table";
+  const slug = opts.slug ?? "repeat-table";
+  for (const question of REPEAT_TABLE_QUESTIONS) {
+    await seedQuestionVersion(
+      db,
+      question.questionId,
+      question.slug,
+      question.definition as QuestionVersionInput["definition"],
+    );
+  }
+  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await insertFormVersion(db, {
+    formId: FormId.parse(formId),
+    definition: REPEAT_TABLE_DEF as FormVersionInput["definition"],
+    compiled: REPEAT_TABLE_GOLDEN as unknown as FormVersionInput["compiled"],
+    compilerVersion: REPEAT_TABLE_GOLDEN.compilerVersion,
+    a2uiSpecVersion: REPEAT_TABLE_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
   return { formId, slug };

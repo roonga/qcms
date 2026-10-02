@@ -363,6 +363,82 @@ export const REPEAT_FLEET_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-
 /** The committed golden compiled A2UI document for the `repeat-fleet` form. */
 export const REPEAT_FLEET_GOLDEN = readFixture(REPEAT_FLEET_COMPILED_PATH) as CompiledForm;
 
+/**
+ * The `repeat-table` form (task 077, ADR-43): the same repeating-group shape as
+ * `repeat-fleet` with `presentation: "table"` and columns of **exactly the five
+ * allowed cell types** (Q12).
+ *
+ * It is a form of its own rather than a second presentation of `repeat-fleet`, for two
+ * reasons. `repeat-fleet` pins a `longText` and a `multiChoice`, which the table
+ * presentation refuses at publish, so the two member lists cannot be one list. And the
+ * specs want both presentations reachable in one browser run, which means two
+ * published forms rather than one form whose presentation a test mutates.
+ *
+ * Its six questions are its own (`q_rt_*`), so it collides with no other seed and needs
+ * no shared-questions flag. The member list is chosen for what it lets a browser
+ * assert:
+ *
+ * - `q_rt_plate` is **required** and carries **help text**, which puts a required
+ *   marker in a cell and a hint on a column header (the hint is on the header rather
+ *   than in every cell, because it is identical down the column);
+ * - `q_rt_odometer` is the **number** column, which is what gives the `<tfoot>` total
+ *   something to total and the tabular-figures selector a column to apply to;
+ * - `q_rt_service_date` is the **date**, which on the no-JS path renders the native
+ *   date fallback (issue #920) inside a table cell;
+ * - `q_rt_garaged` and `q_rt_use` are the **boolean** and **singleChoice**, the two
+ *   column types that render a radio group inside a cell, which is what makes the
+ *   label-clipping selector's "leave an option's own label alone" rule load-bearing.
+ *
+ * `open` with `min: 1, max: 3`, so Add and Remove exist and the refusal is one press
+ * past the second add. Vehicle domain throughout (043's neutral-domain rule, guarded
+ * by `scripts/check-fixture-domain.mjs`).
+ */
+export const REPEAT_TABLE_DEF = readFixture("apps/api/e2e/support/fixtures/repeat-table-form.json");
+
+/** The six question definitions the `repeat-table` form pins. */
+export const REPEAT_TABLE_QUESTIONS: readonly {
+  readonly questionId: string;
+  readonly slug: string;
+  readonly definition: unknown;
+}[] = [
+  {
+    questionId: "q_rt_fleet_ref",
+    slug: "rt-fleet-ref",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-fleet-ref.json"),
+  },
+  {
+    questionId: "q_rt_plate",
+    slug: "rt-plate",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-plate.json"),
+  },
+  {
+    questionId: "q_rt_odometer",
+    slug: "rt-odometer",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-odometer.json"),
+  },
+  {
+    questionId: "q_rt_service_date",
+    slug: "rt-service-date",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-service-date.json"),
+  },
+  {
+    questionId: "q_rt_garaged",
+    slug: "rt-garaged",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-garaged.json"),
+  },
+  {
+    questionId: "q_rt_use",
+    slug: "rt-use",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rt-use.json"),
+  },
+];
+
+/** Repo-relative path of the `repeat-table` compiled document (regenerable, see below). */
+export const REPEAT_TABLE_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-table.a2ui.json";
+
+/** The committed compiled A2UI document for the `repeat-table` form. */
+export const REPEAT_TABLE_GOLDEN = readFixture(REPEAT_TABLE_COMPILED_PATH) as CompiledForm;
+
 // --- sample-library: the composed stack's seeded form (issue #994) ----------
 
 /**
@@ -485,6 +561,13 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
     regenerable: true,
     form: REPEAT_FLEET_DEF,
     questions: REPEAT_FLEET_QUESTIONS.map((question) => question.definition),
+  },
+  {
+    name: "repeat-table",
+    path: REPEAT_TABLE_COMPILED_PATH,
+    regenerable: true,
+    form: REPEAT_TABLE_DEF,
+    questions: REPEAT_TABLE_QUESTIONS.map((question) => question.definition),
   },
   {
     name: "sample-library",
