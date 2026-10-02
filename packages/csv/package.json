@@ -11,7 +11,7 @@
     "!src/**/*.test.*",
     "!src/**/__snapshots__/**"
   ],
-  "description": "Shared CSV field serialization for QCMS exports: RFC 4180 quoting and the spreadsheet formula-injection guard",
+  "description": "Shared encoding for QCMS exports: RFC 4180 CSV fields, the spreadsheet formula-injection guard, and a streaming ZIP container for multi-file exports",
   "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
