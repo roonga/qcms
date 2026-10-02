@@ -1042,7 +1042,11 @@ function repeatDefinition(
     defaultLocale: "en",
     title: { en: "Booking" },
     steps: [
-      { stepId: "stp_trip", title: { en: "Trip" }, items: [{ questionId: "q_rp_trip", version: 1 }] },
+      {
+        stepId: "stp_trip",
+        title: { en: "Trip" },
+        items: [{ questionId: "q_rp_trip", version: 1 }],
+      },
       {
         stepId: "stp_travellers",
         title: { en: "Travellers" },
@@ -1258,9 +1262,7 @@ describe("the admin preview routes with a repeating group (074)", () => {
     });
 
     const body = (await res.json()) as RepeatBenchBody;
-    expect(body.rosters).toStrictEqual([
-      { groupId: "grp_rp_passengers", instances: ["ins_g1_1"] },
-    ]);
+    expect(body.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: ["ins_g1_1"] }]);
   });
 
   it("projects the preview's visible set as ANSWER KEYS, and echoes the roster it used", async () => {

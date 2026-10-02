@@ -308,7 +308,12 @@ export function DraftPreview({
                 Whether that is the case is pure draft geometry - which questions this step
                 pins, intersected with the visible set the API returned - so it needs no
                 knowledge of what an A2UI node means (`renderer-surface.test.ts`). */}
-            {!hasVisibleQuestion(draft, step.stepId, state.preview.flow.visibleQuestions, served) && (
+            {!hasVisibleQuestion(
+              draft,
+              step.stepId,
+              state.preview.flow.visibleQuestions,
+              served,
+            ) && (
               <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-empty">
                 {t("forms.preview.emptyStep")}
               </p>

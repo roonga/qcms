@@ -207,12 +207,10 @@ export function stepGridRows(
     }
     return [
       { kind: "group", group: groupBoundary(item, issues, index + 1, step.items.length) },
-      ...item.items.map(
-        (member, at): StepGridRow => ({
-          kind: "pin",
-          pin: pinRow(member, library, issues, at + 1, item.items.length, item.groupId),
-        }),
-      ),
+      ...item.items.map((member, at): StepGridRow => ({
+        kind: "pin",
+        pin: pinRow(member, library, issues, at + 1, item.items.length, item.groupId),
+      })),
     ];
   });
 }

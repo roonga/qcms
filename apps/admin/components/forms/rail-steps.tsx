@@ -221,9 +221,7 @@ export function RailSteps({
                     <GroupRow
                       groupId={group.groupId}
                       label={
-                        textOf(group.label) === ""
-                          ? t("forms.group.untitled")
-                          : textOf(group.label)
+                        textOf(group.label) === "" ? t("forms.group.untitled") : textOf(group.label)
                       }
                       position={at + 1}
                       total={groupsOf(step).length}

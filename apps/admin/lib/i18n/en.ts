@@ -793,7 +793,8 @@ export const messages = {
   "forms.group.note":
     "The questions in a group are answered once per instance. The questions themselves do not change: the same library question can be repeated in this form and asked once in another.",
   "forms.group.name": "Group name",
-  "forms.group.nameHint": "What this set of questions is, in the plural: Passengers, Income sources.",
+  "forms.group.nameHint":
+    "What this set of questions is, in the plural: Passengers, Income sources.",
   "forms.group.idLabel": "Group ID",
   "forms.group.members": "Questions in this group",
   "forms.group.membersEmpty": "No questions in this group yet.",
@@ -825,7 +826,8 @@ export const messages = {
   // HERE rather than leaving `REPEAT_MAX_MISSING` to arrive at publish: with no
   // installation-wide ceiling, this field is the only bound on how many instances a
   // respondent can create, so it is a security-relevant declaration and not a nicety.
-  "forms.group.maxRequired": "Required. This is the only limit on how many instances a respondent can create.",
+  "forms.group.maxRequired":
+    "Required. This is the only limit on how many instances a respondent can create.",
   "forms.group.maxMissing": "Set a maximum. Until you do, this form cannot be published.",
   "forms.group.instanceLabel": "Heading for each instance",
   "forms.group.instanceLabelHint":
@@ -1308,8 +1310,7 @@ export const messages = {
     "This group needs a maximum. Its count is not fixed, so the maximum is the only limit on how many instances a respondent can add.",
   "forms.issue.repeatMinAboveMax":
     "This group's minimum is above its maximum, which no instance count can satisfy.",
-  "forms.issue.repeatNesting":
-    "A repeating group cannot sit inside another repeating group.",
+  "forms.issue.repeatNesting": "A repeating group cannot sit inside another repeating group.",
   "forms.issue.repeatCountBackward":
     "The question this group takes its count from has to come before the whole group, because rules are evaluated in one forward pass. Move the count question earlier, or move the group later.",
   "forms.issue.repeatCountNotANumber":
@@ -1321,7 +1322,7 @@ export const messages = {
   "forms.issue.repeatOperatorNesting":
     "One group read sits inside another, which costs the product of the two groups' maxima however small the rule looks. Put the two reads side by side under all of / any of instead of inside one another.",
   "forms.issue.readsGroupWithoutOperator":
-    "This condition reads a question inside a repeating group, which has one answer per instance rather than one value. Wrap the condition in \"at least one instance\" or \"every instance\" over that group, or point the rule at a target inside the same group.",
+    'This condition reads a question inside a repeating group, which has one answer per instance rather than one value. Wrap the condition in "at least one instance" or "every instance" over that group, or point the rule at a target inside the same group.',
   // RULE_TARGETS_SPAN_SCOPES: the remedy is MECHANICAL and saying so is the point (ADR-42
   // §3.4). One rule is evaluated in one scope, so a list straddling two has no reading at
   // all; the split is always possible because the condition is copyable and neither half's

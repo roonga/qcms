@@ -7,19 +7,35 @@ import { AmbientSaveStatus, AutosaveFlash } from "@/components/save-model";
 import { AUTOSAVE_DEBOUNCE_MS, useDraftAutosave } from "@/lib/forms/autosave";
 import type { SaveDraftState, SettingsState, ValidateDraftState } from "@/lib/forms/builder-state";
 import {
+  addGroup,
   addPinAt,
+  addPinToGroup,
   addStep,
   blankDraft,
+  findGroup,
+  moveGroupWithinStep,
   movePin,
+  movePinWithinGroup,
   movePinWithinStep,
   moveStep,
+  removeGroup,
   removePin,
   removeStep,
+  renameGroup,
   renameStep,
+  setGroupCount,
+  setGroupInstanceLabel,
+  setGroupPresentation,
 } from "@/lib/forms/draft";
 import { ruleAnchorId, rulesHref, stepAnchorId, stepIssueCounts } from "@/lib/forms/issues";
 import { hasSettingsChange, settingsPatch } from "@/lib/forms/settings";
-import type { DraftForm, FormDetail, FormSettings, PinnableQuestion } from "@/lib/forms/types";
+import {
+  isDraftGroup,
+  type DraftForm,
+  type FormDetail,
+  type FormSettings,
+  type PinnableQuestion,
+} from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
@@ -27,6 +43,7 @@ import type { ReadState } from "@/lib/read-state";
 import { AgentProvenanceTag } from "./agent-provenance-tag";
 import { AssistPanel } from "./assist-panel";
 import { FormSettingsPanel } from "./form-settings-panel";
+import { GroupPanel } from "./group-panel";
 import { RulesLens } from "./rules-lens";
 import { SaveNotices } from "./save-notices";
 import { concurrentNoticeCookie } from "@/lib/builder-notice";
@@ -256,6 +273,23 @@ export function FormBuilder({
     setDraft(next);
   };
 
+  /**
+   * Add a repeating group to a step and open its panel.
+   *
+   * Adding a group is a request to work on it, the same way adding a step is: a fresh group
+   * holds no question and has no maximum, so the author's next two acts are both on the panel
+   * this opens. The guard is for the impossible case rather than a real one - `addGroup`
+   * always appends to the step it names.
+   */
+  function addGroupToStep(stepId: string, label: string) {
+    const next = addGroup(draft, stepId, label);
+    mutate(next);
+    const added = next.steps.find((step) => step.stepId === stepId)?.items.at(-1);
+    if (added !== undefined && isDraftGroup(added)) {
+      setSelection({ kind: "group", stepId, groupId: added.groupId });
+    }
+  }
+
   // The one name for the screen being shown, shared with the breadcrumb so the two cannot
   // drift. `currentScreenName` takes the published snapshot rather than the selection,
   // because that is what the crumb outside this tree can also read.
@@ -362,6 +396,15 @@ export function FormBuilder({
     selection.kind === "step"
       ? draft.steps.find((step) => step.stepId === selection.stepId)
       : undefined;
+  // THE GROUP PANEL'S SUBJECT, resolved the same way and with the same refusal to guess: a
+  // selection naming a group this draft no longer has renders nothing rather than falling
+  // back to its step, because "some other panel" is not what the author asked for.
+  const selectedGroup =
+    selection.kind === "group" ? findGroup(draft, selection.groupId) : undefined;
+  const selectedGroupStep =
+    selectedGroup === undefined
+      ? undefined
+      : draft.steps.find((step) => step.stepId === selectedGroup.stepId);
   // The step rail badges a step only when its count is ABOVE zero, so it has no all-clear
   // to fabricate: with no verdict it renders no badges and asserts nothing, which is the
   // same silence §7's form-subtree rail keeps on the other seven screens when a dry run
@@ -403,8 +446,32 @@ export function FormBuilder({
           // The screen cannot stay on a step that no longer exists, and the form is the
           // one destination that is always there. Falling to a neighbouring step would be
           // choosing on the author's behalf which of the remaining ones they meant.
-          if (selection.kind === "step" && selection.stepId === stepId) {
+          // A GROUP SELECTION GOES WITH ITS STEP, for the same reason and by the same rule:
+          // removing a step takes the groups inside it, so a panel for one of them is a panel
+          // for something that is no longer in the draft.
+          if (selection.kind !== "form" && selection.stepId === stepId) {
             setSelection({ kind: "form" });
+          }
+        },
+        chooseGroup: (stepId: string, groupId: string) => {
+          setSelection({ kind: "group", stepId, groupId });
+        },
+        addGroup: (stepId: string, label: string) => {
+          addGroupToStep(stepId, label);
+        },
+        renameGroup: (groupId: string, label: string) => {
+          mutate(renameGroup(draft, groupId, label));
+        },
+        moveGroup: (stepId: string, groupId: string, delta: -1 | 1) => {
+          mutate(moveGroupWithinStep(draft, stepId, groupId, delta));
+        },
+        removeGroup: (groupId: string) => {
+          mutate(removeGroup(draft, groupId));
+          // Back to the step the group was in, which is the one place that still exists and
+          // is where its member questions used to be - rather than to the form, because the
+          // author was working on a step and has not asked to leave it.
+          if (selection.kind === "group" && selection.groupId === groupId) {
+            setSelection({ kind: "step", stepId: selection.stepId });
           }
         },
       }),
@@ -632,13 +699,94 @@ export function FormBuilder({
                  is what it is to the author: one press of one button.
                  The boundary advances with each pin so the batch lands in the order it was
                  chosen, rather than every pin insetting at `index` and arriving reversed. */
+                  /* The CONTAINER comes with the boundary now (ADR-42): `groupId` is
+                 `undefined` for the step itself and a group id for one of its groups, so one
+                 handler serves both add controls and the row menus inside either. */
+                  onAddPins={(pins, index, groupId) => {
+                    mutate(
+                      pins.reduce(
+                        (next, pin, offset) =>
+                          groupId === undefined
+                            ? addPinAt(
+                                next,
+                                selectedStep.stepId,
+                                pin.questionId,
+                                pin.version,
+                                index + offset,
+                              )
+                            : addPinToGroup(
+                                next,
+                                groupId,
+                                pin.questionId,
+                                pin.version,
+                                index + offset,
+                              ),
+                        draft,
+                      ),
+                    );
+                  }}
+                  onMovePin={(questionId, version) => {
+                    mutate(movePin(draft, questionId, version));
+                  }}
+                  onRemovePin={(questionId) => {
+                    mutate(removePin(draft, questionId));
+                  }}
+                  onReorderPin={(questionId, delta, groupId) => {
+                    mutate(
+                      groupId === undefined
+                        ? movePinWithinStep(draft, selectedStep.stepId, questionId, delta)
+                        : movePinWithinGroup(draft, groupId, questionId, delta),
+                    );
+                  }}
+                  onAddGroup={(label) => {
+                    addGroupToStep(selectedStep.stepId, label);
+                  }}
+                  onOpenGroup={(groupId) => {
+                    setSelection({ kind: "group", stepId: selectedStep.stepId, groupId });
+                  }}
+                  onMoveGroup={(groupId, delta) => {
+                    mutate(moveGroupWithinStep(draft, selectedStep.stepId, groupId, delta));
+                  }}
+                  onRemoveGroup={(groupId) => {
+                    mutate(removeGroup(draft, groupId));
+                  }}
+                />
+              )}
+            </div>
+          )}
+          {/* THE REPEATING GROUP'S PANEL, the builder's third screen (task 074, ADR-42).
+              A panel rather than a route for the reason `lib/forms/builder-bridge.ts` states
+              at length: the rail may carry a same-page panel switch, and a route would make a
+              fourth place a draft is edited for six fields about a span inside one step. */}
+          {selection.kind === "group" && (
+            <div>
+              {selectedGroup === undefined || selectedGroupStep === undefined ? null : (
+                <GroupPanel
+                  draft={draft}
+                  step={selectedGroupStep}
+                  group={selectedGroup.group}
+                  library={library}
+                  issues={issues}
+                  saveFlash={<AutosaveFlash savedAt={lastSavedAt} />}
+                  onRename={(label) => {
+                    mutate(renameGroup(draft, selectedGroup.group.groupId, label));
+                  }}
+                  onInstanceLabel={(template) => {
+                    mutate(setGroupInstanceLabel(draft, selectedGroup.group.groupId, template));
+                  }}
+                  onCount={(count) => {
+                    mutate(setGroupCount(draft, selectedGroup.group.groupId, count));
+                  }}
+                  onPresentation={(presentation) => {
+                    mutate(setGroupPresentation(draft, selectedGroup.group.groupId, presentation));
+                  }}
                   onAddPins={(pins, index) => {
                     mutate(
                       pins.reduce(
                         (next, pin, offset) =>
-                          addPinAt(
+                          addPinToGroup(
                             next,
-                            selectedStep.stepId,
+                            selectedGroup.group.groupId,
                             pin.questionId,
                             pin.version,
                             index + offset,
@@ -654,7 +802,9 @@ export function FormBuilder({
                     mutate(removePin(draft, questionId));
                   }}
                   onReorderPin={(questionId, delta) => {
-                    mutate(movePinWithinStep(draft, selectedStep.stepId, questionId, delta));
+                    mutate(
+                      movePinWithinGroup(draft, selectedGroup.group.groupId, questionId, delta),
+                    );
                   }}
                 />
               )}

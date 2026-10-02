@@ -368,9 +368,7 @@ export function issuesForGroup(
   issues: readonly FormIssue[],
   groupId: string,
 ): readonly FormIssue[] {
-  return issues.filter(
-    (issue) => issue.path?.group === groupId && issue.path?.rule === undefined,
-  );
+  return issues.filter((issue) => issue.path?.group === groupId && issue.path?.rule === undefined);
 }
 
 /** The issues that belong to one rule, including its share of a reported cycle. */
@@ -432,7 +430,10 @@ function stepOwners(draft: DraftForm): {
  */
 function stepForPath(
   path: IssuePath,
-  owners: { readonly byQuestion: ReadonlyMap<string, string>; readonly byGroup: ReadonlyMap<string, string> },
+  owners: {
+    readonly byQuestion: ReadonlyMap<string, string>;
+    readonly byGroup: ReadonlyMap<string, string>;
+  },
 ): string | undefined {
   if (path.step !== undefined) return path.step;
   if (path.question !== undefined) return owners.byQuestion.get(path.question);

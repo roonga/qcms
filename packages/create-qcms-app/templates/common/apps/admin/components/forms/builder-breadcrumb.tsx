@@ -58,6 +58,20 @@ export function currentScreenName(
   if (selection === undefined || selection.kind === "form") return t("forms.tab.builder");
   const step = steps.find((candidate) => candidate.stepId === selection.stepId);
   if (step === undefined) return t("forms.tab.builder");
+  // A GROUP PANEL IS NAMED FOR THE GROUP, not for the step it sits in (task 074). The rail
+  // nests the group under its step, so a crumb reading the step's title would name the row
+  // above the one marked current - the exact defect this function exists to prevent, one level
+  // deeper. A group the draft no longer has falls through to its step, which is where the
+  // builder's own selection handler sends the reader.
+  if (selection.kind === "group") {
+    const group = step.items.find(
+      (item) => "groupId" in item && item.groupId === selection.groupId,
+    );
+    if (group !== undefined && "label" in group) {
+      const label = textOf(group.label);
+      return label === "" ? t("forms.group.untitled") : label;
+    }
+  }
   const title = textOf(step.title);
   return title === "" ? t("forms.steps.untitled") : title;
 }

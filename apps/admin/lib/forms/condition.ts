@@ -459,7 +459,11 @@ function groupNestedOf(previous: DraftCondition | undefined): DraftCondition | u
 
 /** The one nested condition `not`, `anyInstance` and `everyInstance` each carry. */
 function nestedOf(condition: DraftCondition): DraftCondition | undefined {
-  if (condition.op === "not" || condition.op === "anyInstance" || condition.op === "everyInstance") {
+  if (
+    condition.op === "not" ||
+    condition.op === "anyInstance" ||
+    condition.op === "everyInstance"
+  ) {
     return condition.condition;
   }
   return undefined;

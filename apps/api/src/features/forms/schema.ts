@@ -188,13 +188,10 @@ export const PreviewConditionBody = z
 export const PreviewDraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
-    answers: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .openapi({
-        description:
-          "Walk-through answers, keyed by answer key: a bare questionId, or `instanceId/questionId` inside a repeating group (never logged).",
-      }),
+    answers: z.record(z.string(), z.unknown()).optional().openapi({
+      description:
+        "Walk-through answers, keyed by answer key: a bare questionId, or `instanceId/questionId` inside a repeating group (never logged).",
+    }),
     instances: HypotheticalRosters,
   })
   .openapi("PreviewDraftBody");

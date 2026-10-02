@@ -2081,6 +2081,138 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   margin-inline-start: 6px;
 }
 
+/* ---------------------------------------------------------------------------
+   The repeating group's boundary row, and its members under it (task 074, ADR-42).
+
+   A group inside a step's question list is a contiguous SPAN of pins, not a cell, so
+   the boundary is a row spanning the grid that says what the span is and what decides
+   its size, and the member rows that follow it are indented. Drawing it as a nested
+   table would say the opposite of what ADR-42 argues - that a repeated question is a
+   different kind of thing - so the indent is the whole of the visual nesting.
+
+   The surface is `--color-background-muted` rather than a tint of its own: this is a
+   grouping band in a table, which is what that token is for elsewhere in this file,
+   and a new colour would be a token nobody chose.
+   --------------------------------------------------------------------------- */
+.qcms-grouprow > td {
+  background-color: var(--color-background-muted);
+  border-block-start: 1px solid var(--color-border-strong);
+}
+.qcms-grouprow__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.qcms-grouprow__label {
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-grouprow__id .qcms-entityid__value {
+  font-size: 0.76rem;
+  color: var(--color-text-muted);
+}
+.qcms-grouprow__summary {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+/* The member rows, indented from the step's own pins by the one cell that can carry it
+   without moving the grid's columns: the row header. A padding change rather than a
+   margin, because a table cell has no margin box. */
+.qcms-pinrow[data-pin-group] .qcms-pincell--question {
+  padding-inline-start: 1.5rem;
+}
+/* And the span's own left edge, carried down every member row so the group reads as one
+   block rather than as a heading with unrelated rows beneath it. `inset` so it costs no
+   layout and survives beside the error flag the same cell can carry. */
+.qcms-pinrow[data-pin-group] .qcms-pincell--grip {
+  box-shadow: inset 3px 0 0 0 var(--color-border-strong);
+}
+:root.hc .qcms-grouprow > td {
+  border-block-start-width: 2px;
+}
+
+/* The per-instance scope chip (task 074, ADR-42 §3.4). Scope is implicit by position, so
+   this line is the only place a reader learns that a rule runs once per instance. It sits
+   under the sentence it qualifies, in the same cell, for the reason the row's own controls
+   do: a trailing column would put it a variable distance from the rule it is about. */
+.qcms-rule-scope {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem;
+  margin-block-start: 0.25rem;
+}
+
+/* ---------------------------------------------------------------------------
+   A mutually exclusive choice with a sentence per option (task 074).
+
+   A native radio group, for the reason `components/forms/group-panel.tsx` records: the
+   kit has no radio, and the three count sources and three presentations are each a
+   decision whose options change which other fields exist, so all three have to be
+   readable at once. `accent-color` is the one property that themes a platform radio
+   without replacing it, which is what keeps this the platform control rather than a
+   second design language (ADR-22).
+   --------------------------------------------------------------------------- */
+.qcms-choice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+.qcms-choice__legend {
+  padding: 0;
+  margin-block-end: 0.25rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+.qcms-choice__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  /* The whole row is the label, so the pointer target is the option rather than the
+     12px disc: SC 2.5.8's 24px floor is met by the row's own height. */
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  cursor: pointer;
+}
+.qcms-choice__option:hover {
+  background-color: var(--color-surface-hover);
+}
+.qcms-choice__input {
+  accent-color: var(--color-primary);
+  margin-block-start: 0.2rem;
+  flex-shrink: 0;
+}
+.qcms-choice__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.qcms-choice__label {
+  color: var(--color-text);
+  font-size: 0.9rem;
+}
+.qcms-choice__hint {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+/* Selection is carried by the radio's own state, so this is an echo and never the
+   message: `:has` styles the row whose input is checked, and a browser without it shows
+   a checked radio in an unhighlighted row, which is still correct. */
+.qcms-choice__option:has(.qcms-choice__input:checked) {
+  border-color: var(--color-border-strong);
+  background-color: var(--color-background-muted);
+}
+:root.hc .qcms-choice__option {
+  border-width: 2px;
+}
+
 /* Library-owned again: what the engine says about this pin, as text. */
 .qcms-pinissues {
   display: flex;

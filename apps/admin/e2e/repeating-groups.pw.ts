@@ -240,14 +240,16 @@ test("defines a group, walks all three count sources, and round-trips through sa
   await expect(boundary).toContainText("Repeating group: Passengers");
   await expect(boundary).toContainText("2 questions");
   await expect(boundary).toContainText("respondent adds, 1 to 9");
-  await expect(
-    page.locator(`[data-pin-question="${questionIdFor(PASSPORT)}"]`),
-  ).toHaveAttribute("data-pin-group", GROUP_ID);
+  await expect(page.locator(`[data-pin-question="${questionIdFor(PASSPORT)}"]`)).toHaveAttribute(
+    "data-pin-group",
+    GROUP_ID,
+  );
   // The step's own pins are outside it, which is what makes the boundary mean something.
   await openStep(page, "Trip");
-  await expect(
-    page.locator(`[data-pin-question="${questionIdFor(COUNT)}"]`),
-  ).not.toHaveAttribute("data-pin-group", GROUP_ID);
+  await expect(page.locator(`[data-pin-question="${questionIdFor(COUNT)}"]`)).not.toHaveAttribute(
+    "data-pin-group",
+    GROUP_ID,
+  );
 });
 
 test("states the scope on a per-instance rule, and offers all three group operators (case 59)", async ({

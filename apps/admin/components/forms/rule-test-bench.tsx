@@ -11,12 +11,7 @@ import {
   typeOfPinnedVersion,
   type OperandKind,
 } from "@/lib/forms/condition";
-import {
-  countBounds,
-  draftDocumentOrder,
-  draftGroups,
-  questionGroupIds,
-} from "@/lib/forms/draft";
+import { countBounds, draftDocumentOrder, draftGroups, questionGroupIds } from "@/lib/forms/draft";
 import { ruleScope } from "@/lib/forms/rule-targets";
 import type { DraftForm, DraftGroup, DraftRule, PinnableQuestion } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -278,10 +273,7 @@ function BenchBody({
   return (
     <>
       {groups.length > 0 && (
-        <fieldset
-          className="qcms-fieldset qcms-fieldset--flat"
-          data-testid="qcms-bench-instances"
-        >
+        <fieldset className="qcms-fieldset qcms-fieldset--flat" data-testid="qcms-bench-instances">
           <legend className="qcms-fieldset__legend">{t("forms.bench.instances")}</legend>
           <p className="text-sm text-(--color-text-muted)">{t("forms.bench.instancesNote")}</p>
           <div className="flex flex-wrap items-end gap-3">

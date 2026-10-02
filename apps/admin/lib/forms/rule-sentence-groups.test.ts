@@ -328,7 +328,8 @@ describe("targetGroups with a group in the step", () => {
   it("puts a target after the group's whole span in the eligible group for a whole-group read", () => {
     const groups = targetGroups(DRAFT, [], ["grp_passengers"]);
 
-    expect(groups.eligible.flatMap((group) => group.options.map((option) => option.id)))
-      .toStrictEqual(["stp_declaration", "q_declaration"]);
+    expect(
+      groups.eligible.flatMap((group) => group.options.map((option) => option.id)),
+    ).toStrictEqual(["stp_declaration", "q_declaration"]);
   });
 });

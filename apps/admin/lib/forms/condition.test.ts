@@ -270,7 +270,10 @@ describe("whole-group operators", () => {
 
   it("keeps the nested condition when the author changes which group is read", () => {
     const nested: DraftCondition = { op: "answered", questionId: "q_passport" };
-    const moved = withGroupId({ op: "anyInstance", groupId: GROUP_ID, condition: nested }, "grp_bags");
+    const moved = withGroupId(
+      { op: "anyInstance", groupId: GROUP_ID, condition: nested },
+      "grp_bags",
+    );
 
     expect(moved).toStrictEqual({ op: "anyInstance", groupId: "grp_bags", condition: nested });
     expect(parses(moved)).toBe(true);
