@@ -196,28 +196,33 @@ export function responseColumns(
   definition: FormDefinition,
   shape: ExportShape = LONG_SHAPE,
 ): ResponseColumn[] {
-  const columns: ResponseColumn[] = [];
-  for (const step of definition.steps) {
-    for (const item of step.items) {
-      if (!isRepeatGroup(item)) {
-        columns.push({ header: item.questionId, questionId: item.questionId });
-        continue;
-      }
-      if (shape === LONG_SHAPE) continue;
-      const slots = wideSlotCount(item);
-      for (const member of item.items) {
-        for (let index = 1; index <= slots; index += 1) {
-          columns.push({
-            header: indexedColumnHeader(member.questionId, index),
-            questionId: member.questionId,
-            groupId: item.groupId,
-            index,
-          });
-        }
-      }
-    }
-  }
-  return columns;
+  return definition.steps.flatMap((step) =>
+    step.items.flatMap((item) => {
+      if (!isRepeatGroup(item)) return [questionColumn(item.questionId)];
+      return shape === LONG_SHAPE ? [] : indexedColumnsFor(item);
+    }),
+  );
+}
+
+/**
+ * One group's indexed columns in the wide shape: every member question's slot 1
+ * through the group's `max`, members in document order.
+ *
+ * All the indices of one member question are consecutive (`q_passport__1` …
+ * `q_passport__<max>`, then the next member's), which is the layout the plan names
+ * and the one a spreadsheet user can read: a passport column block, not an
+ * interleaving of passports and names.
+ */
+function indexedColumnsFor(group: RepeatGroup): ResponseColumn[] {
+  const slots = wideSlotCount(group);
+  return group.items.flatMap((member) =>
+    Array.from({ length: slots }, (_unused, at) => ({
+      header: indexedColumnHeader(member.questionId, at + 1),
+      questionId: member.questionId,
+      groupId: group.groupId,
+      index: at + 1,
+    })),
+  );
 }
 
 /**

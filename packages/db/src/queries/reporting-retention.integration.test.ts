@@ -60,6 +60,7 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
  */
 function lockedSubmission(
   entries: ReadonlyArray<{ questionId: string; instanceId?: string; value: AnswerValue }>,
+  extraVisible: ReadonlyArray<{ stepId: string; questionId: string; instanceId?: string }> = [],
 ): LockedSubmission {
   return {
     answers: entries.map((e) => ({
@@ -67,8 +68,22 @@ function lockedSubmission(
       ...(e.instanceId === undefined ? {} : { instanceId: InstanceId.parse(e.instanceId) }),
       value: e.value,
     })),
-    // The view reads only `answers`; flowState/contentHash are opaque JSONB here.
-    flowState: { visited: [], hidden: [] },
+    // `flowState.visible` is NOT opaque to the view: it is where the LIVE instance
+    // list comes from, because an instance can be live with no answer at all. So the
+    // fixture carries one visible entry per answered cell, in the same order, which
+    // is what a real `prepareSubmission` produces for a session that answered
+    // everything it was shown. A blank live instance is seeded by passing an entry
+    // list that names it in `extraVisible` instead.
+    flowState: {
+      visible: [
+        ...entries.map((e) => ({
+          stepId: "stp_one",
+          questionId: e.questionId,
+          ...(e.instanceId === undefined ? {} : { instanceId: e.instanceId }),
+        })),
+        ...extraVisible,
+      ],
+    },
     contentHash: "0".repeat(64),
   } as unknown as LockedSubmission;
 }
@@ -337,6 +352,71 @@ describe("the reporting views carry repeated answers", () => {
       [sessionId],
     );
     expect(res.rows[0]!.count).toBe("2");
+  });
+
+  it("keeps a LIVE instance that holds no answer at all, in its roster position", async () => {
+    // An instance a respondent added and left blank is still live (ADR-42) - that is
+    // what makes "Add passenger" a thing a respondent can see happen - and a group whose
+    // members are all optional can submit one. Deriving the instance list from `answers`
+    // would drop it and shift every later instance's ordinal by one in the long CSV
+    // shape, so the list comes from the submission's own `flowState.visible` instead.
+    const { formId, version } = await seedForm("frm_repeat_blank");
+    const blankSession = SessionId.parse("ses_repeat_blank");
+    const middle = InstanceId.parse("ins_blank");
+    await createSession(testDb.db, {
+      sessionId: blankSession,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await markSubmitted(testDb.db, blankSession);
+    await addInstances(testDb.db, {
+      sessionId: blankSession,
+      groupId,
+      instanceIds: [first, middle, second],
+      occurredAt: new Date("2026-05-02T00:00:00.000Z"),
+    });
+    await insertSubmission(testDb.db, {
+      sessionId: blankSession,
+      contentHash: "0".repeat(64),
+      lockedAnswers: lockedSubmission(
+        [
+          { questionId: "q_name", instanceId: first, value: "Ada" },
+          { questionId: "q_name", instanceId: second, value: "Grace" },
+        ],
+        // The blank instance was shown and answered nothing, so it is visible and
+        // absent from `answers`. It sits BETWEEN the two answered ones in roster order.
+        [{ stepId: "stp_one", questionId: "q_name", instanceId: middle }],
+      ),
+      submittedAt: new Date("2026-05-02T00:00:00.000Z"),
+    });
+
+    const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
+      `select answers from reporting.responses where session_id = $1`,
+      [blankSession],
+    );
+    expect(res.rows[0]!.answers).toEqual({
+      grp_passengers: [
+        { instance_id: "ins_p1", q_name: "Ada" },
+        { instance_id: "ins_p2", q_name: "Grace" },
+        // Only its id: live, shown, and answered nothing.
+        { instance_id: "ins_blank" },
+      ],
+    });
+    // So the array's length is the group's live instance count for this session.
+    const counted = await testDb.client.query<{ n: number }>(
+      `select jsonb_array_length(answers -> 'grp_passengers') as n
+         from reporting.responses where session_id = $1`,
+      [blankSession],
+    );
+    expect(counted.rows[0]!.n).toBe(3);
+    // And it contributes no answers_flat row, because it holds no answer.
+    const flat = await testDb.client.query(
+      `select 1 from reporting.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
+      [blankSession],
+    );
+    expect(flat.rowCount).toBe(0);
   });
 
   it("leaves a form with no group byte-identical (acceptance cases 49 and 50)", async () => {

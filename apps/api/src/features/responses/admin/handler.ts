@@ -394,7 +394,9 @@ function zipExportStream(
     }
   }
 
-  async function* entries(): AsyncIterable<ZipEntry> {
+  // A plain generator: deciding WHICH file comes next needs no await, and each
+  // entry's own content is the async iterable that does the paging.
+  function* entries(): Iterable<ZipEntry> {
     yield {
       name: RESPONSES_FILE_NAME,
       content: file(csvHeaderRow(columns), (row) => csvDataRow(row, columns)),

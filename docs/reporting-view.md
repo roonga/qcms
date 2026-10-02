@@ -85,12 +85,18 @@ one key per member question it answered:
 }
 ```
 
-Four properties a consumer can rely on:
+Five properties a consumer can rely on:
 
 - **A form with no repeating group produces a byte-identical `answers` object.** The change is
   additive in fact, not only in principle, and an integration test asserts the exact bytes.
 - **Array order is roster order** - the order the respondent's instances were minted in, with
   removed instances absent. It is the order the submission froze, not a second derivation.
+- **The array holds every LIVE instance, answered or not**, so
+  `jsonb_array_length(answers -> '<groupId>')` is the session's live instance count for that
+  group. An instance a respondent added and left blank is still live, and appears as an object
+  carrying only its `instance_id`. (The live set comes from the submission's own flow state,
+  not from its answers, which is what makes this true and what keeps the long CSV shape's
+  `instance_ordinal` from shifting.)
 - **Only a group key holds an array of objects.** A `multiChoice` answer is also a JSON array,
   but of option id strings, which is how `answers_flat` tells the two apart.
 - **A question outside every group never appears inside an instance object**, and a member

@@ -59,25 +59,38 @@ LEFT JOIN LATERAL (
 		FROM (
 			SELECT
 				"roster"."group_id" AS "group_id",
-				min("repeated"."ordinality") AS "first_seen",
-				jsonb_build_object('instance_id', "repeated"."instance_id")
-					|| jsonb_object_agg("repeated"."question_id", "repeated"."value") AS "instance"
+				"live"."first_seen" AS "first_seen",
+				jsonb_build_object('instance_id', "live"."instance_id")
+					|| COALESCE("cells"."cells", '{}'::jsonb) AS "instance"
 			FROM (
+				-- The LIVE instance set, taken from the submission's own flow state
+				-- rather than from its answers: an instance a respondent added and left
+				-- blank is still live (ADR-42), so deriving the list from `answers`
+				-- would drop it and shift every later instance's ordinal by one.
+				-- `visible` carries one entry per (visible question, live instance) in
+				-- document order with instances in roster order, which is the order the
+				-- locked set froze.
 				SELECT
-					"elem"."item" ->> 'questionId' AS "question_id",
-					"elem"."item" ->> 'instanceId' AS "instance_id",
-					"elem"."item" -> 'value' AS "value",
-					"elem"."ordinality" AS "ordinality"
-				FROM jsonb_array_elements("sub"."locked_answers" -> 'answers')
-					WITH ORDINALITY AS "elem"("item", "ordinality")
-				WHERE "elem"."item" ? 'instanceId'
-			) "repeated"
+					"v"."item" ->> 'instanceId' AS "instance_id",
+					min("v"."ordinality") AS "first_seen"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'flowState' -> 'visible')
+					WITH ORDINALITY AS "v"("item", "ordinality")
+				WHERE "v"."item" ? 'instanceId'
+				GROUP BY "v"."item" ->> 'instanceId'
+			) "live"
 			JOIN (
 				SELECT DISTINCT "agi"."instance_id" AS "instance_id", "agi"."group_id" AS "group_id"
 				FROM "answer_group_instances" "agi"
 				WHERE "agi"."session_id" = "sub"."session_id"
-			) "roster" ON "roster"."instance_id" = "repeated"."instance_id"
-			GROUP BY "roster"."group_id", "repeated"."instance_id"
+			) "roster" ON "roster"."instance_id" = "live"."instance_id"
+			LEFT JOIN LATERAL (
+				-- That instance's answered cells. LEFT, because a live instance with no
+				-- answer at all contributes an object carrying only its id, which is
+				-- what makes jsonb_array_length(answers -> '<groupId>') the live count.
+				SELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value') AS "cells"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
+				WHERE "elem"."item" ->> 'instanceId' = "live"."instance_id"
+			) "cells" ON true
 		) "instances"
 		GROUP BY "instances"."group_id"
 	) "merged"

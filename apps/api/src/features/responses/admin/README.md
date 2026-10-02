@@ -84,7 +84,9 @@ it defaults to **`long`**. It applies to CSV only.
   every question **outside** a group, exactly as before, plus **one file per group**
   named for it (`grp_passengers.csv`) at the group's own grain:
   `session_id, instance_ordinal, instance_id, <member questions in document order>`,
-  one row per `(session, live instance)`, joinable on `session_id`. A version with at
+  one row per `(session, live instance)`, joinable on `session_id`. **Live, not
+  answered**: an instance a respondent added and left blank still owes a row of empty
+  cells, so `instance_ordinal` is its position in the roster and does not shift. A version with at
   least one group answers **`application/zip`** of those files; a version with none
   answers exactly the single `text/csv` file it always did, same bytes and same name.
 - **`shape=wide`**. One flat `responses.csv` with each group's member questions folded

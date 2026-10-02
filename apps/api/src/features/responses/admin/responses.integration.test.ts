@@ -131,7 +131,11 @@ function lockedSubmission(
 ): LockedSubmission {
   return {
     answers: entries.map((e) => ({ questionId: QuestionId.parse(e.questionId), value: e.value })),
-    flowState: { visited: [], hidden: [] },
+    // `visible` is read by `reporting.responses` for the live instance list, so even a
+    // non-repeating fixture carries the shape a real `prepareSubmission` produces.
+    flowState: {
+      visible: entries.map((e) => ({ stepId: "stp_a", questionId: e.questionId })),
+    },
     contentHash: "0".repeat(64),
   } as unknown as LockedSubmission;
 }
@@ -877,7 +881,7 @@ async function seedRepeatSubmitted(opts: {
   formId: FormId;
   formVersion: number;
   sessionId: string;
-  instances: ReadonlyArray<{ instanceId: string; name: string; meal?: string[] }>;
+  instances: ReadonlyArray<{ instanceId: string; name?: string; meal?: string[] }>;
   outside: Record<string, AnswerValue>;
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
@@ -901,11 +905,15 @@ async function seedRepeatSubmitted(opts: {
       value,
     })),
     ...opts.instances.flatMap((instance) => [
-      {
-        questionId: QuestionId.parse("q_name"),
-        instanceId: InstanceId.parse(instance.instanceId),
-        value: instance.name as unknown as AnswerValue,
-      },
+      ...(instance.name === undefined
+        ? []
+        : [
+            {
+              questionId: QuestionId.parse("q_name"),
+              instanceId: InstanceId.parse(instance.instanceId),
+              value: instance.name,
+            },
+          ]),
       ...(instance.meal === undefined
         ? []
         : [
@@ -920,7 +928,25 @@ async function seedRepeatSubmitted(opts: {
   await insertSubmission(testDb.db, {
     sessionId,
     contentHash: "0".repeat(64),
-    lockedAnswers: { answers, flowState: { visited: [], hidden: [] }, contentHash: "0".repeat(64) } as unknown as LockedSubmission,
+    lockedAnswers: {
+      answers,
+      // Every live instance was shown, whether or not it was answered: an instance with
+      // `name: null` below is one a respondent added and left blank, which is still
+      // live (ADR-42) and is where the view's instance list has to come from.
+      flowState: {
+        visible: [
+          ...Object.keys(opts.outside).map((questionId) => ({ stepId: "stp_booking", questionId })),
+          ...opts.instances.flatMap((instance) =>
+            ["q_name", "q_meal"].map((questionId) => ({
+              stepId: "stp_pax",
+              questionId,
+              instanceId: instance.instanceId,
+            })),
+          ),
+        ],
+      },
+      contentHash: "0".repeat(64),
+    } as unknown as LockedSubmission,
     submittedAt: new Date("2026-05-01T00:00:00.000Z"),
   });
   return sessionId;
@@ -979,6 +1005,19 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       outside: { q_booking_ref: "=FIXTURE_PAYLOAD" },
       instances: [{ instanceId: "ins_pax_c", name: "@FIXTURE_PAYLOAD" }],
     });
+    // A booking whose MIDDLE passenger was added and left blank. Still a live instance
+    // (ADR-42), so it owes a row of its own and must not renumber the one after it.
+    await seedRepeatSubmitted({
+      formId,
+      formVersion: 1,
+      sessionId: "ses_book_003",
+      outside: { q_booking_ref: "DEF456" },
+      instances: [
+        { instanceId: "ins_pax_d", name: "Ada" },
+        { instanceId: "ins_pax_e" },
+        { instanceId: "ins_pax_f", name: "Grace" },
+      ],
+    });
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
   it("case 46: the long shape is a zip of responses.csv and one group file, joinable on session_id", async () => {
@@ -997,16 +1036,22 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
     expect(files.get("responses.csv")).toBe(
       "﻿session_id,form_version,submitted_at,access_mode,q_booking_ref,q_notes\r\n" +
         "ses_book_001,1,2026-05-01T00:00:00.000Z,anonymous,ABC123,window seats\r\n" +
-        "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD,\r\n",
+        "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD,\r\n" +
+        "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,\r\n",
     );
 
-    // The group file is one row per (session, live instance), joinable on
-    // session_id, with the guard applied there too.
+    // The group file is one row per (session, LIVE instance), joinable on session_id,
+    // with the guard applied there too. `ses_book_003`'s middle passenger is the one
+    // that matters: added, left blank, still live, so it owes an ordinal-2 row of empty
+    // cells and the passenger after it is 3 rather than 2.
     expect(files.get("grp_passengers.csv")).toBe(
       "﻿session_id,instance_ordinal,instance_id,q_name,q_meal\r\n" +
         "ses_book_001,1,ins_pax_a,Ada,opt_vegan\r\n" +
         'ses_book_001,2,ins_pax_b,"Lovelace, Grace",opt_halal;opt_kosher\r\n' +
-        "ses_book_002,1,ins_pax_c,'@FIXTURE_PAYLOAD,\r\n",
+        "ses_book_002,1,ins_pax_c,'@FIXTURE_PAYLOAD,\r\n" +
+        "ses_book_003,1,ins_pax_d,Ada,\r\n" +
+        "ses_book_003,2,ins_pax_e,,\r\n" +
+        "ses_book_003,3,ins_pax_f,Grace,\r\n",
     );
 
     // Joinable: every group row's session is a row of the flat file.
@@ -1020,7 +1065,7 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
     );
     for (const line of files.get("grp_passengers.csv")!.split("\r\n").slice(1)) {
       if (line === "") continue;
-      expect(sessions.has(line.split(",")[0]!)).toBe(true);
+      expect(sessions.has(line.split(",")[0])).toBe(true);
     }
   });
 
@@ -1037,7 +1082,12 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         'ses_book_001,1,2026-05-01T00:00:00.000Z,anonymous,ABC123,Ada,"Lovelace, Grace",' +
         "opt_vegan,opt_halal;opt_kosher,window seats\r\n" +
         "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD," +
-        "'@FIXTURE_PAYLOAD,,,,\r\n",
+        "'@FIXTURE_PAYLOAD,,,,\r\n" +
+        // The blank middle instance holds an indexed SLOT rather than being skipped: v1
+        // declares `max: 2`, so only two slots exist and the third passenger has no
+        // column of her own. That is the documented bound at work, not a dropped answer -
+        // the long shape is the one with a row per instance.
+        "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,Ada,,,,\r\n",
     );
 
     // The same form at a version whose `max` is higher: four slots per member

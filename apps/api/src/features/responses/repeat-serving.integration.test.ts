@@ -930,7 +930,11 @@ describe("the response.submitted payload carries instances inside answers and no
       "submittedAt",
     ]);
 
-    const { answers: _answers, ...rest } = payload;
+    // Everything but the key the redaction drops, serialized, so the assertions below
+    // are about the whole remainder rather than about members somebody remembered.
+    const rest = Object.fromEntries(
+      Object.entries(payload).filter(([member]) => member !== "answers"),
+    );
     const outside = JSON.stringify(rest);
     for (const plate of plates) expect(outside).not.toContain(plate);
     expect(outside).not.toContain("North depot");
