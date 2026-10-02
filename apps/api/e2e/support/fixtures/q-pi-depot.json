@@ -1,0 +1,7 @@
+{
+  "type": "shortText",
+  "questionId": "q_pi_depot",
+  "label": { "en": "Depot name" },
+  "required": false,
+  "constraints": { "minLength": 2, "maxLength": 20 }
+}

@@ -12,6 +12,10 @@
       },
       "items": [
         {
+          "questionId": "q_pi_depot",
+          "version": 1
+        },
+        {
           "groupId": "grp_tour",
           "label": {
             "en": "Vehicles"
