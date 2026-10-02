@@ -79,7 +79,16 @@ function answerPosted(page: import("@playwright/test").Page, questionId: string)
   });
 }
 
-/** Fill one cell by its own accessible name and wait for the answer it commits. */
+/**
+ * Fill one cell by its own accessible name and wait for the answer it commits.
+ *
+ * `getByRole("textbox")` and not `getByLabel`, and the difference is the vendored
+ * `NumberField`: its stepper buttons are wired to the field's label through
+ * `aria-labelledby`, so three elements in that cell are "labelled" by the cell's own
+ * name and a label query is ambiguous there. The role narrows it to the one control a
+ * respondent types into, which is also what the `number` question compiles to
+ * (`textbox`, not `spinbutton`, as the conformance snapshots record).
+ */
 async function fillCell(
   page: import("@playwright/test").Page,
   ordinal: number,
@@ -88,9 +97,11 @@ async function fillCell(
   value: string,
 ): Promise<void> {
   const posted = answerPosted(page, questionId);
-  const cell = row(page, ordinal).locator(`td[data-qcms-column="${questionId}"]`);
-  await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).fill(value);
-  await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).blur();
+  const field = row(page, ordinal)
+    .locator(`td[data-qcms-column="${questionId}"]`)
+    .getByRole("textbox", { name: `Vehicle ${String(ordinal)}, ${label}` });
+  await field.fill(value);
+  await field.blur();
   await posted;
 }
 
@@ -218,37 +229,82 @@ test("case 44: a focused cell in the first row is not obscured by the pinned hea
   await plate.focus();
   await expect(plate).toBeFocused();
 
-  const covered = await plate.evaluate((element) => {
+  // TWO READINGS OF THE SAME CRITERION, because each one alone has a blind spot.
+  //
+  // The GEOMETRY is the direct statement: the focused control's box may not intersect
+  // any pinned cell's box. It is the assertion that would fail if the header ever
+  // detached and came to rest over the first row, which is the whole failure mode
+  // 2.4.11 names, and it is independent of what the browser decides to paint on top.
+  //
+  // The HIT TEST catches what geometry cannot: anything else painted over the control,
+  // whatever it is and wherever it came from. It samples points well INSIDE the box
+  // rather than at its corners, because a control with a border radius does not occupy
+  // its own corners - a point 2px in from one lands outside the rounded shape and hits
+  // the container, which is a true fact about rounded rectangles and not an obscuring
+  // element. And a hit is only obscuring when it is OUTSIDE the focused element's own
+  // ancestor-or-descendant chain: the field wrapper the control sits in is painted
+  // behind it, never over it.
+  const report = await plate.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const inset = 2;
+    const pinned = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
+    const overlapping = pinned
+      .map((cell) => cell.getBoundingClientRect())
+      .filter(
+        (rect) =>
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.left < box.right &&
+          rect.right > box.left &&
+          rect.top < box.bottom &&
+          rect.bottom > box.top,
+      ).length;
     const points = [
-      { x: box.left + inset, y: box.top + inset },
-      { x: box.right - inset, y: box.top + inset },
-      { x: box.left + inset, y: box.bottom - inset },
-      { x: box.right - inset, y: box.bottom - inset },
       { x: box.left + box.width / 2, y: box.top + box.height / 2 },
+      { x: box.left + box.width * 0.25, y: box.top + box.height / 2 },
+      { x: box.left + box.width * 0.75, y: box.top + box.height / 2 },
+      { x: box.left + box.width / 2, y: box.top + box.height * 0.3 },
+      { x: box.left + box.width / 2, y: box.top + box.height * 0.7 },
     ];
-    return points
+    const covered = points
       .map((point) => document.elementFromPoint(point.x, point.y))
-      .filter((hit) => hit !== element && !element.contains(hit))
+      .filter(
+        (hit) => hit !== element && !element.contains(hit) && !(hit?.contains(element) ?? false),
+      )
       .map((hit) => (hit === null ? "nothing" : `${hit.tagName}.${hit.className}`));
+    return { overlapping, covered };
   });
-  expect(covered, "something is painted over the focused cell").toEqual([]);
+  expect(report.overlapping, "a pinned header or footer cell overlaps the focused cell").toBe(0);
+  expect(report.covered, "something is painted over the focused cell").toEqual([]);
 
   // The same for the landing an Add produces, which is the row header rather than a cell:
   // a focus destination the pinned header covers is the same failure one element over.
-  const added = await row(page, 2).getAttribute("data-qcms-instance");
   await rosterPress(page, ADD);
-  await expect(page.locator(":focus")).toHaveAttribute("id", /^ins_/);
   const landed = page.locator(":focus");
+  await expect(landed).toHaveAttribute("id", /^ins_/);
   await expect(landed).toHaveText("Vehicle 3");
-  expect(added).toMatch(/^ins_/);
-  const headingCovered = await landed.evaluate((element) => {
+  const landingReport = await landed.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const hit = document.elementFromPoint(box.left + 4, box.top + box.height / 2);
-    return hit === element || element.contains(hit) ? null : (hit?.tagName ?? "nothing");
+    const pinned = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
+    const overlapping = pinned
+      .map((rect) => rect.getBoundingClientRect())
+      .filter(
+        (rect) =>
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.left < box.right &&
+          rect.right > box.left &&
+          rect.top < box.bottom &&
+          rect.bottom > box.top,
+      ).length;
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    const covered =
+      hit === element || element.contains(hit) || (hit?.contains(element) ?? false)
+        ? null
+        : (hit?.tagName ?? "nothing");
+    return { overlapping, covered };
   });
-  expect(headingCovered, "the pinned header covers the row the Add landed on").toBeNull();
+  expect(landingReport.overlapping, "a pin overlaps the row the Add landed on").toBe(0);
+  expect(landingReport.covered, "the pinned header covers the row the Add landed on").toBeNull();
 });
 
 test("a per-row Remove clears the 44px target floor (2.5.8)", async ({ page }) => {
