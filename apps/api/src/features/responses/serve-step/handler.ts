@@ -37,8 +37,10 @@ import {
   type FlowState,
   type FormDefinition,
   type FrozenSnapshot,
+  countBounds,
   type GroupId,
   type InstanceId,
+  isRepeatGroup,
   parseInstanceId,
   parseQuestionId,
   parseSessionId,
@@ -725,6 +727,43 @@ async function applyOneAnswer(
  * single-answer route spends from (SEC-16). It is spent before the transaction opens,
  * so a refused batch never takes the lock.
  */
+/**
+ * The largest number of answers one step of this form can legitimately carry.
+ *
+ * For each repeating group on the step, the `max` its author declared times the questions
+ * in it, plus every question on the step outside a group. That is the bound the Code Owner
+ * sized the batch allowance to on 2026-10-02 (ruling Q29), and it is read from the PINNED
+ * snapshot, so it is the author's own declaration rather than anything a caller can state.
+ *
+ * It is the whole FORM's largest step rather than the step the request names, and that is
+ * deliberate: it is one number per form, it cannot be made larger by naming another step,
+ * and a batch is refused by the step's own content anyway (every entry is resolved against
+ * the snapshot and checked for visibility). Computing it per step would make the ceiling
+ * depend on a `step` query parameter the caller supplies, which is a knob this does not
+ * need to grow.
+ *
+ * A group whose `max` is absent cannot happen on a published form: `max` is required
+ * (Q4/Q14), and `countBounds` is the one place that is read. An absent one would make the
+ * bound the member count alone, which is the smallest honest answer rather than an
+ * unbounded one.
+ */
+function stepAnswerBound(snapshot: LoadedSnapshot): number {
+  const steps = snapshot.frozen.definition.steps;
+  const bounds = steps.map((step) => {
+    let total = 0;
+    for (const item of step.items) {
+      if (isRepeatGroup(item)) {
+        const { max } = countBounds(item.count);
+        total += item.items.length * (max ?? 1);
+      } else {
+        total += 1;
+      }
+    }
+    return total;
+  });
+  return Math.max(1, ...bounds);
+}
+
 export function makeBatchAnswersHandler(
   deps: Deps,
 ): RouteHandler<typeof batchAnswersRoute, ApiEnv> {
@@ -743,8 +782,10 @@ export function makeBatchAnswersHandler(
     // whole request as the single-answer route does.
     const targets = body.answers.map((entry) => answerTarget(snapshot, entry));
 
-    // Per ENTRY, not per request, and before the lock (SEC-16).
-    await spendAnswerAllowance(deps, sessionId, targets.length);
+    // Per ENTRY, not per request, and before the lock (SEC-16). The ceiling for one batch
+    // is the STEP's own bound (ruling Q29), so a valid step always fits whatever the
+    // installation's per-answer default is, and a request above the bound is refused.
+    await spendAnswerAllowance(deps, sessionId, targets.length, stepAnswerBound(snapshot));
 
     const result = await deps.db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);

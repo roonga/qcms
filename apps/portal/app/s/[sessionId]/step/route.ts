@@ -304,7 +304,18 @@ export async function POST(
     // API having accepted them, so they are carried into the re-render rather than
     // dropped to a transient failure - which is the silent reload issue #920 exists to
     // remove, met here from the other side.
-    await writeStepContext({ values, errors: {}, constraints: {}, missingRequired: [] });
+    // With a NOTICE, which is the half this used to be missing (ruling Q29, 2026-10-02).
+    // The values come back either way, but a step that re-renders unchanged and says
+    // nothing is the silent reload issue #920 removed from the required-answer path: a
+    // respondent whose batch was refused by the rate limiter saw their own answers and no
+    // reason, and pressing Continue again produced the same silence.
+    await writeStepContext({
+      values,
+      errors: {},
+      constraints: {},
+      missingRequired: [],
+      notice: "step.notSaved",
+    });
     return backToStep(request, sessionId);
   }
 

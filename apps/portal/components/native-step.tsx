@@ -205,9 +205,27 @@ export function NativeStep({
     initial.flowState.visibleQuestions,
   );
 
+  // A page-level notice for a round trip that wrote nothing and has nothing per field to
+  // say: a refused batch (ruling Q29). It is a KEY in the cookie, looked up here, because
+  // the catalogue is where the portal's wording lives; an unrecognised key renders nothing,
+  // so a cookie from an earlier build cannot put a blank banner on the page.
+  const notice = context?.notice === "step.notSaved" ? t("step.notSaved") : undefined;
+
   return (
     <PortalShell progress={progress}>
       <div className="flex flex-col gap-6">
+        {notice === undefined ? null : (
+          // `role="alert"`, like the error summary beside it: the respondent arrived at a
+          // freshly rendered page, so this is the one thing on it they did not ask for and
+          // it has to be announced rather than only painted.
+          <div
+            role="alert"
+            data-testid="step-notice"
+            className="rounded-(--radius-card) border border-(--color-danger) bg-(--color-danger-subtle) p-4"
+          >
+            <p className="text-sm text-(--color-danger-fg)">{notice}</p>
+          </div>
+        )}
         {errorEntries.length > 0 ? (
           <div
             role="alert"

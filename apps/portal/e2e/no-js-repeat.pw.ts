@@ -136,6 +136,8 @@ async function craftStepPost(
     form,
     maxRedirects: 0,
   });
+  // A 303 either way: the route redirects back to the step whether the API accepted the
+  // batch or refused it, and what differs is the context cookie it writes first.
   expect(response.status(), "the crafted whole-step post").toBe(303);
 }
 
@@ -402,6 +404,57 @@ test("the browser refuses a plate below the question's floor, inside a group as 
   expect(posts()).toBe(0);
   await rosterPress(page, ADD);
   await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
+});
+
+test("a refused whole-step post comes back with a message and every typed value", async ({
+  page,
+}) => {
+  // The other half of ruling Q29 (2026-10-02): a batch the API refuses outright has no
+  // refused FIELD to hang a message on, so the step used to re-render unchanged and say
+  // nothing. That is the silent reload issue #920 removed from the required-answer path, and
+  // a respondent whose Continue was refused by the rate limiter met it every time.
+  //
+  // Driven by writing the route's own context cookie rather than by provoking a refusal,
+  // and both halves of that are deliberate. A refusal is UNREACHABLE from a real form here:
+  // the ceiling a batch is measured against is the step's own bound, which is by
+  // construction the most a legitimate step can carry, and the browser harness raises every
+  // other limiter to a million. So what is left to assert in a browser is the half a browser
+  // can see, which is that the shape the route writes reaches the respondent as a visible,
+  // announced message with their values intact. That the ROUTE writes it on a 429 is
+  // asserted in `lib/server/step-required.test.ts`, where the refusal can be injected.
+  const sessionId = await startNoJsRepeat(page);
+  await page.getByLabel("Fleet reference").fill("NORTH-1");
+  await page.context().addCookies([
+    {
+      name: "qcms_step_ctx",
+      value: JSON.stringify({
+        values: { q_rf_fleet_ref: "NORTH-1" },
+        errors: {},
+        constraints: {},
+        missingRequired: [],
+        notice: "step.notSaved",
+      }),
+      url: page.url(),
+    },
+  ]);
+
+  await page.goto(`/s/${sessionId}`);
+
+  const notice = page.getByTestId("step-notice");
+  await expect(notice).toBeVisible();
+  await expect(notice).toContainText("Nothing was saved");
+  // Announced, not only painted: the respondent arrived at a freshly rendered page and this
+  // is the one thing on it they did not ask for.
+  await expect(notice).toHaveAttribute("role", "alert");
+  // And the value rides the re-render, which is what the notice is telling them.
+  await expect(page.getByLabel("Fleet reference")).toHaveValue("NORTH-1");
+
+  const db = await openDb(databaseUrl);
+  try {
+    expect(await db.instanceAnswerRows(sessionId)).toEqual([]);
+  } finally {
+    await db.close();
+  }
 });
 
 test("the group renders one card per live instance with a legend and a heading", async ({

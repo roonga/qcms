@@ -18,9 +18,10 @@ import { buttonClass } from "@/lib/ui";
  * crafted post with an unknown action id showed the framework's 500 instead, which is how
  * the claim was found to be false (PR #1034's review, 2026-10-02).
  *
- * That failure's screen is **`pages/_error.tsx`**, the Pages Router error page, which is
- * the hook Next consults for a failure answered before the App Router renders. ADR-43's
- * amendment carries the correction and the two limits that go with it.
+ * **Nor does anything else this app can write.** A production build answers that request
+ * with `500 text/plain "Internal Server Error"`: an App Router `app/500/page.tsx` and a
+ * Pages Router `pages/_error.tsx` were both tried and neither is consulted. ADR-43's
+ * amendment carries the measurements, and the respondent's recovery is a reload.
  *
  * ## What it does catch, and why the screen still reads this way
  *

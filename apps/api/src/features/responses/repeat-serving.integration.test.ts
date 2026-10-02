@@ -122,6 +122,49 @@ const DEFINITION: FormDefinition = (() => {
   return parsed.value;
 })();
 
+/**
+ * A second form whose ONE step can legitimately carry more answers than the shipped
+ * per-session allowance (task 073, ruling Q29, 2026-10-02).
+ *
+ * Its bound is 1 + 3 members x `max: 4` = **13**, against a production default of 10 answers
+ * per 5 seconds. The first fixture above cannot show this: its bound is 7, so every valid
+ * batch of it fits the default and the defect Copilot found on PR #1034 is invisible. That
+ * defect was that a no-JS Continue spends one unit per entry against an unchanged `max`, so a
+ * populated repeating step was refused with a 429 and, because every retry re-posts the same
+ * set into the same fixed window, refused forever.
+ */
+const WIDE_DEFINITION: FormDefinition = (() => {
+  const parsed = parseFormDefinition({
+    formId: "frm_repeat_wide",
+    defaultLocale: "en",
+    title: { en: "A wide fleet" },
+    steps: [
+      {
+        stepId: "stp_wide",
+        title: { en: "A wide fleet" },
+        items: [
+          { questionId: FLEET.questionId, version: 1 },
+          {
+            groupId: "grp_wide",
+            label: { en: "Vehicles" },
+            instanceLabel: { en: "Vehicle {n}" },
+            presentation: "stacked",
+            count: { source: "open", min: 1, max: 4 },
+            items: [
+              { questionId: PLATE.questionId, version: 1 },
+              { questionId: ODOMETER.questionId, version: 1 },
+              { questionId: NOTES.questionId, version: 1 },
+            ],
+          },
+        ],
+      },
+    ],
+    rules: [],
+  });
+  if (!parsed.ok) throw new Error(`wide fixture did not parse: ${JSON.stringify(parsed.error)}`);
+  return parsed.value;
+})();
+
 const QUESTIONS = [FLEET, PLATE, ODOMETER, NOTES];
 
 let testDb: TestDb;
@@ -129,6 +172,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let formId: FormId;
+let wideFormId: FormId;
 let compiled: ReturnType<typeof compileForm>;
 let seeded = 0;
 
@@ -165,6 +209,22 @@ beforeAll(async () => {
   if (!draft.ok) throw new Error(`fixture did not publish: ${JSON.stringify(draft.error)}`);
   compiled = compileForm(draft.value.snapshot, {});
 
+  const wideDraft = compileDraft({
+    definition: WIDE_DEFINITION,
+    resolveQuestion: (questionId, version) =>
+      version === 1
+        ? QUESTIONS.filter((q) => q.questionId === questionId).map((definition) => ({
+            questionId,
+            version,
+            definition,
+          }))[0]
+        : undefined,
+    publishedQuestionVersions: new Map(QUESTIONS.map((q) => [q.questionId, new Set([1])])),
+  });
+  if (!wideDraft.ok)
+    throw new Error(`wide fixture did not publish: ${JSON.stringify(wideDraft.error)}`);
+  const wideCompiled = compileForm(wideDraft.value.snapshot, {});
+
   formId = FormId.parse("frm_repeat_serving");
   await createForm(testDb.db, { formId, slug: "two-fleets", defaultLocale: "en" });
   await insertFormVersion(testDb.db, {
@@ -173,6 +233,17 @@ beforeAll(async () => {
     compiled,
     compilerVersion: compiled.compilerVersion,
     a2uiSpecVersion: compiled.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+
+  wideFormId = FormId.parse("frm_repeat_wide");
+  await createForm(testDb.db, { formId: wideFormId, slug: "wide-fleet", defaultLocale: "en" });
+  await insertFormVersion(testDb.db, {
+    formId: wideFormId,
+    definition: WIDE_DEFINITION,
+    compiled: wideCompiled,
+    compilerVersion: wideCompiled.compilerVersion,
+    a2uiSpecVersion: wideCompiled.a2uiSpecVersion,
     semanticsVersion: "1",
   });
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -199,6 +270,27 @@ async function newSession(): Promise<Session> {
   await createSession(testDb.db, {
     sessionId,
     formId,
+    formVersion: 1,
+    accessMode: "anonymous",
+    expiresAt: new Date(NOW.getTime() + 86_400_000),
+  });
+  const [signingKey] = await importSessionKeys(deps.config);
+  const token = await mintSessionToken(
+    sessionId,
+    new Date(NOW.getTime() + 86_400_000),
+    signingKey!,
+  );
+  current = { sessionId, token };
+  return current;
+}
+
+/** A session on the wide form, whose step bound (13) exceeds the shipped max (10). */
+async function newWideSession(): Promise<Session> {
+  seeded += 1;
+  const sessionId = SessionId.parse(`ses_wide_${String(seeded)}`);
+  await createSession(testDb.db, {
+    sessionId,
+    formId: wideFormId,
     formVersion: 1,
     accessMode: "anonymous",
     expiresAt: new Date(NOW.getTime() + 86_400_000),
@@ -464,6 +556,88 @@ describe("the batch answer endpoint (Q20, acceptance case 36)", () => {
     const five = Array.from({ length: 5 }, () => entry);
     expect((await batch(session, five)).status).toBe(200);
     expect((await batch(session, five)).status).toBe(200);
+  });
+});
+
+describe("a whole step fits the allowance, at the SHIPPED defaults (Q29)", () => {
+  // `validEnv()` sets no rate-limit overrides, so every case here runs against the
+  // production default of ten answers per five seconds per session
+  // (`DEFAULTS.rlAnswersPerSession`). That is the whole point: PR #1034 found that a no-JS
+  // Continue spends one unit per entry against that unchanged `max`, so a populated
+  // repeating step was refused with a 429 and, because every retry re-posts the same set
+  // into the same fixed window, refused for good. The Code Owner's ruling of 2026-10-02
+  // sizes one batch's ceiling to the step's own bound instead.
+
+  /** Every answer a fully populated wide step carries: 1 plain + 3 members x 4 instances. */
+  async function wholeWideStep(
+    session: Session,
+  ): Promise<{ questionId: string; instanceId?: string; value: unknown }[]> {
+    // Grow the group to its `max` first, which is what a respondent does before Continue.
+    for (let press = 0; press < 3; press += 1) {
+      const res = await roster(session, { op: "add", groupId: "grp_wide", opToken: token() });
+      expect(res.status, "growing the group to max").toBe(200);
+    }
+    const instances = instancesOf(await getStep(session), "grp_wide");
+    expect(instances, "the group is at its max of four").toHaveLength(4);
+    const entries: { questionId: string; instanceId?: string; value: unknown }[] = [
+      { questionId: "q_rep_fleet_name", value: "North depot" },
+    ];
+    for (const [index, instanceId] of instances.entries()) {
+      entries.push({ questionId: "q_rep_plate", instanceId, value: `AAA${String(index)}11` });
+      entries.push({ questionId: "q_rep_odometer", instanceId, value: 10_000 + index });
+      entries.push({ questionId: "q_rep_notes", instanceId, value: `Note ${String(index)}` });
+    }
+    return entries;
+  }
+
+  it("accepts a populated step of 13 answers against a max of 10", async () => {
+    const session = await newWideSession();
+    await getStep(session);
+    expect(deps.config.rateLimit.answersPerSession.max, "the shipped default").toBe(10);
+
+    const entries = await wholeWideStep(session);
+    expect(entries, "the step's own bound").toHaveLength(13);
+
+    const { status, body } = await batch(session, entries);
+
+    // 200 under the ruling; 429 before it, which is the regression this holds shut.
+    expect(status).toBe(200);
+    expect(body.rejected).toEqual([]);
+    expect(await answerLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(13);
+  });
+
+  it("refuses a batch ABOVE the step's bound, whatever the configured max", async () => {
+    // The other half of the ruling: the ceiling is the step's bound, not a blank cheque. The
+    // entries are legitimate cells repeated, so what refuses this is the COUNT and nothing
+    // about the content.
+    const session = await newWideSession();
+    await getStep(session);
+    const entries = await wholeWideStep(session);
+    const instanceId = entries[1]?.instanceId;
+    const over = [...entries, { questionId: "q_rep_plate", instanceId, value: "ZZZ999" }];
+
+    const { status } = await batch(session, over);
+
+    expect(status).toBe(429);
+    // And nothing was written: the spend happens before any entry is applied.
+    expect(await answerLedger(testDb.db, SessionId.parse(session.sessionId))).toHaveLength(0);
+  });
+
+  it("sizes the bound per FORM, so a narrow step gets no wider allowance", async () => {
+    // The first fixture's step bound is 7 (1 plain + 2 members x max 2 + 1 member x max 2),
+    // which is BELOW the configured max of 10. The ceiling is the larger of the two, so this
+    // form keeps its configured allowance and a batch above its own bound is still refused:
+    // the ruling raises the floor for a wide step without lowering anything for a narrow one.
+    const session = await newSession();
+    const served = await getStep(session);
+    const vehicle = instancesOf(served, "grp_vehicles")[0]!;
+    const over = Array.from({ length: 8 }, () => ({
+      questionId: "q_rep_plate",
+      instanceId: vehicle,
+      value: "ABC123",
+    }));
+
+    expect((await batch(session, over)).status).toBe(429);
   });
 });
 

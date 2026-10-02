@@ -75,20 +75,21 @@ export const messages = {
   "repeat.added": "{label} added.",
   "repeat.removed": "{label} removed, {count} remaining.",
   "repeat.removedLast": "{label} removed, none remaining.",
-  // The deploy-skew landing (task 073, reviewed on PR #1034). Shown by the portal's
-  // error page when a page held across a deploy posts an action id this build does not
-  // have: Next refuses the request before the step renders, so this is the whole message
-  // the respondent gets and it has to be complete on its own. It says what happened, what
-  // survived, what did not, and what to do, and it names nothing about the session.
+  // The flow segment's error boundary (task 073). It is NOT the deploy-skew landing, which
+  // no page of this app can be: Next throws before the segment renders and a production
+  // build answers a bare 500 (ADR-43's amendment). What reaches this screen is an error
+  // thrown while the segment renders, and the remedy is the same, which is to re-read the
+  // step. The body says what survived, because a respondent arriving here has no other way
+  // to know.
   "repeat.staleStep.title": "This page was out of date",
   "repeat.staleStep.body":
-    "We have updated this form since the page was opened, so that last change was not made. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
-  "repeat.staleStep.action": "Go back to the form",
+    "We could not show that step. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
   // The other thing that reaches the portal's error page: a URL that names nothing. It
   // needs its own words, because a respondent who mistyped a link has nothing out of date.
-  "pageMissing.title": "This page does not exist",
-  "pageMissing.body":
-    "We could not find that page. Please check the address, or go back to the form you were filling in.",
+  // The page-level notice for a whole-step post the API refused outright (task 073, ruling
+  // Q29). It has to say that nothing was saved, because the respondent is looking at a step
+  // that still holds everything they typed and has no other way to tell.
+  "step.notSaved": "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",

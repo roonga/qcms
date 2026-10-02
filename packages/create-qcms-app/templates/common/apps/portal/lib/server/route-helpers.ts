@@ -274,6 +274,24 @@ export interface StepContext {
    * earlier build still reads.
    */
   readonly missingRequired?: readonly string[];
+  /**
+   * A page-level notice for a round trip that wrote NOTHING and has nothing per field to
+   * say (task 073, ruling Q29, 2026-10-02).
+   *
+   * The one shape that needs it is a refused batch: a 429, a 5xx or a lost session refuses
+   * the whole request, so there is no refused field to hang a message on, and the
+   * re-render would otherwise be the same step with the same values and no explanation.
+   * That is the silent reload issue #920 removed from the required-answer path, met here
+   * from the other side, and it is what the Code Owner's ruling means by "not `errors: {}`
+   * and silence".
+   *
+   * A KEY rather than a sentence, because the catalogue is where the portal's wording
+   * lives and a cookie is not a place to put prose. The re-render looks it up; an
+   * unrecognised key is ignored, so a cookie written by an earlier build still reads.
+   *
+   * Optional for the same reason as the two fields above.
+   */
+  readonly notice?: string;
 }
 
 /** Translate an API error into a same-status JSON response the client can branch on. */
@@ -456,6 +474,11 @@ const stepContextSchema = z.object({
     .array(z.unknown())
     .transform((raw) => raw.filter((q) => typeof q === "string"))
     .optional(),
+  // A catalogue KEY for a page-level notice (task 073, ruling Q29). Forgeable like every
+  // other member, and the worst a forged one buys is one of the portal's own sentences on
+  // the forger's own render: the view matches the key against the ones it knows and renders
+  // nothing for anything else, so there is no way to put chosen text on the page.
+  notice: z.string().optional(),
 });
 
 /**
@@ -482,5 +505,9 @@ export async function readStepContext(): Promise<StepContext | undefined> {
     errors: parsed.data.errors ?? {},
     constraints: parsed.data.constraints ?? {},
     missingRequired: parsed.data.missingRequired ?? [],
+    // Spread rather than always present, because `StepContext.notice` is optional and an
+    // explicit `undefined` would make "no notice" and "a notice this build does not know"
+    // read differently to a caller testing for the key.
+    ...(parsed.data.notice === undefined ? {} : { notice: parsed.data.notice }),
   };
 }

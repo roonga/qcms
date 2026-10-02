@@ -150,7 +150,12 @@ async function postStep(fields: readonly (readonly [string, string])[]): Promise
 }
 
 /** The re-render context the route left for the next page render. */
-function writtenContext(): { missingRequired?: unknown; errors?: unknown; values?: unknown } {
+function writtenContext(): {
+  missingRequired?: unknown;
+  errors?: unknown;
+  values?: unknown;
+  notice?: unknown;
+} {
   return JSON.parse(cookieJar.get(STEP_CTX_COOKIE) ?? "{}") as Record<string, unknown>;
 }
 
@@ -320,6 +325,28 @@ describe("a required question left blank is reported, not silently reloaded (iss
     expect(response.status).toBe(303);
     expect(writtenContext().values).toEqual({ q_full_name: "Ada Lovelace" });
     expect(api.submitSession).not.toHaveBeenCalled();
+    // AND a message, which is the half this case was missing (ruling Q29, 2026-10-02).
+    // A refused batch has no refused field to hang one on, so without this the step came
+    // back with the respondent's own answers, no errors and no explanation - and a
+    // respondent whose Continue was refused by the rate limiter met that every time they
+    // pressed it. A KEY, because the catalogue is where the portal's wording lives.
+    expect(writtenContext().notice).toBe("step.notSaved");
+    expect(writtenContext().errors).toEqual({});
+  });
+
+  it("writes NO notice when the round trip succeeded", async () => {
+    // Without this the assertion above passes for a route that notices everything, and a
+    // banner saying nothing was saved would sit on top of a step that saved everything.
+    api.batchAnswers.mockResolvedValue(
+      projection({ visibleQuestions: ["q_full_name"], readyToSubmit: false }),
+    );
+
+    await postStep([
+      ["__qk__q_full_name", "string"],
+      ["q_full_name", "Ada Lovelace"],
+    ]);
+
+    expect(writtenContext().notice).toBeUndefined();
   });
 
   it("carries the typed values on the ordinary not-ready path", async () => {

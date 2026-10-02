@@ -145,12 +145,26 @@ export async function spendAnswerAllowance(
   deps: Deps,
   sessionId: string,
   entries: number,
+  stepBound: number,
 ): Promise<void> {
   const { windowMs, max } = deps.config.rateLimit.answersPerSession;
+  // A batch may spend up to the STEP's own bound (Code Owner, 2026-10-02, ruling Q29), so
+  // the effective ceiling for this request is whichever is larger. Without that, a valid
+  // step was permanently un-continuable under the shipped defaults: `max` is 10 answers per
+  // 5 seconds, a step with a three-instance group of four members posts 13 entries, every
+  // retry re-posts the same set into the same fixed window, and the respondent met a 429
+  // forever. Found by Copilot and confirmed by the reviewer on PR #1034.
+  //
+  // It is a FLOOR and not a replacement: an installation that raises `max` above the bound
+  // keeps its own number. And the bound is the author's own declaration, `max` times the
+  // member count per group plus the step's other fields, so it cannot be inflated by a
+  // caller: a request over it is refused below before a unit is spent.
+  const ceiling = Math.max(max, stepBound);
+  if (entries > stepBound) throw errors.tooManyRequests();
   const key = answersSessionKey(sessionId);
   let count = 0;
   for (let spent = 0; spent < entries; spent += 1) {
     ({ count } = await deps.rateLimitStore.hit(key, windowMs));
   }
-  if (count > max) throw errors.tooManyRequests();
+  if (count > ceiling) throw errors.tooManyRequests();
 }

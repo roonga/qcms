@@ -298,23 +298,28 @@ test.describe.serial("conditional form journey", () => {
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
-    test("a stale Server Action id lands on the portal's own error page (task 073)", async ({
+    test("a stale Server Action id is refused by the framework, and leaks nothing (task 073)", async ({
       page,
     }) => {
-      // Asserted HERE and nowhere else, because this is the only suite that runs the
-      // portal as a production build. Next replaces the error component with its own
-      // overlay driver in development, so the dev harness answers this request with an
-      // empty `/_error` document whatever the app ships; a crafted post against the dev
-      // server was how PR #1034's review found ADR-43's claim to be wrong in the first
-      // place, and it is why the correction is verified against the deployed stack.
+      // Asserted HERE and nowhere else, because this is the only suite that runs the portal
+      // as a production build, and the behaviour differs from development: `next dev`
+      // replaces the error component with its overlay driver, so a dev probe says nothing
+      // about what a respondent receives.
       //
-      // The request is what a respondent's browser sends after a deploy: a multipart form
-      // post carrying an action descriptor whose id this build never produced. Next's
-      // action handler validates every id BEFORE dispatch and throws
-      // "Failed to find Server Action", so nothing of the app runs and no session, form or
-      // repeating group is needed to reach it. Multipart and not url-encoded, because Next
-      // treats a url-encoded POST that is not a fetch action as not an action request at
-      // all and simply renders the page.
+      // What it receives, measured on 2026-10-02 while reviewing PR #1034: a bare
+      // `500 text/plain`. Next recalculates action ids between builds, so a page held across
+      // a deploy posts an id this build does not know; the action handler validates every id
+      // BEFORE dispatch and throws, so no page of this app renders - not the flow segment's
+      // error boundary, which catches only what its own subtree throws while rendering, and
+      // not an App Router `app/500/page.tsx` or a Pages Router `pages/_error.tsx`, both of
+      // which were tried against this build and neither of which is consulted. ADR-43's
+      // amendment carries that correction; this test is what holds it true.
+      //
+      // The request is what the browser sends: a MULTIPART post carrying an action
+      // descriptor whose id was never built. Multipart matters, because Next treats a
+      // url-encoded POST that is not a fetch action as not an action request at all and
+      // simply renders the page. No session, form or repeating group is needed to reach it,
+      // since the id check happens before anything of the app runs.
       const unknownActionId = "00112233445566778899aabbccddeeff001122334455";
       const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}`, {
         maxRedirects: 0,
@@ -328,20 +333,17 @@ test.describe.serial("conditional form journey", () => {
 
       expect(response.status()).toBe(500);
       const body = await response.text();
-      // The three things the page must say, and the way onward. Substrings of the shipped
-      // wording, so a reword that drops one of them fails here as it does in the unit test
-      // beside the page.
-      expect(body, "the respondent is told the page was out of date").toContain(
-        "This page was out of date",
+      // The assertions that matter are about what is NOT in it. The framework's own words
+      // name the deployment and must not reach a respondent (SEC-13's spirit: a public
+      // surface discloses nothing about the build), and no session identifier appears.
+      expect(body, "the framework's deployment wording stays in the log").not.toContain(
+        "Failed to find Server Action",
       );
-      expect(body, "and that saved answers are kept").toContain("is kept");
-      expect(body, "and that unsaved typing is not").toContain("typing again");
-      expect(body, "and offered one way back").toContain('href="."');
-      // Nothing about the session reaches the markup: the page is handed a status code and
-      // nothing else, and the way back is relative so it needs no id.
       expect(body).not.toMatch(/ses_[0-9a-f]/);
-      // And the framework's own words are not what a respondent reads.
-      expect(body).not.toContain("Failed to find Server Action");
+      // And it is a dead end rather than a redirect loop: a respondent's recovery is a GET
+      // of the step, which still serves it. Asserted positively so "nothing is rendered"
+      // cannot quietly become "something broken is rendered".
+      expect(body.length, "a bare framework 500 rather than a page").toBeLessThan(200);
     });
 
     test("completes the affirmative respondent route", async ({ page }) => {
