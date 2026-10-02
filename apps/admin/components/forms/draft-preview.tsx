@@ -347,11 +347,25 @@ function hasVisibleQuestion(
   draft: DraftForm | null,
   stepId: string,
   visibleQuestions: readonly string[],
+  rosters: Readonly<Record<string, readonly string[]>>,
 ): boolean {
   const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
   if (step === undefined) return true;
+  // THE QUALIFIED KEY, not the bare question id (ADR-42, ADR-43). The visible set the API
+  // sends carries `ins_7k2/q_passport` for a question inside a repeating group, because a
+  // rule targeting inside a group is evaluated once per live instance and a member can be
+  // visible in one instance and hidden in another. So a pin inside a group is looked for
+  // under every instance of that group's preview roster, and a pin outside one is looked for
+  // under its bare id, byte-identically to before.
   const visible = new Set(visibleQuestions);
-  return step.items.some((pin) => visible.has(pin.questionId));
+  const groupOf = draft === null ? new Map<string, string>() : questionGroupIds(draft);
+  return stepPins(step).some((pin) => {
+    const groupId = groupOf.get(pin.questionId);
+    if (groupId === undefined) return visible.has(pin.questionId);
+    return (rosters[groupId] ?? []).some((instanceId) =>
+      visible.has(`${instanceId}/${pin.questionId}`),
+    );
+  });
 }
 
 /**
