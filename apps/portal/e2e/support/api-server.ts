@@ -30,6 +30,7 @@ import {
   seedInsuranceForm,
   seedKitchenSinkForm,
   seedRepeatFleetForm,
+  seedRepeatTableForm,
   seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
@@ -93,6 +94,15 @@ export interface PortalFixtures {
    * their shape.
    */
   readonly repeatFleetSlug: string;
+  /**
+   * The `repeat-table` form slug (task 077): the same group shape presented as a
+   * **table**, with columns of exactly the five allowed cell types (Q12).
+   *
+   * A form of its own rather than a second presentation of `repeat-fleet`, because
+   * that form pins a `longText` and a `multiChoice` and a table-presented group is
+   * refused at publish for carrying either.
+   */
+  readonly repeatTableSlug: string;
   /**
    * The e2e Postgres connection URI, so a spec can open its OWN client and verify
    * persisted answers independently of the API's response echo (task 045, exit
@@ -218,6 +228,8 @@ export async function startApiServer(): Promise<void> {
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
   // Task 073: the repeating group. Five questions of its own, so nothing is shared.
   const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
+  // Task 077: the table presentation. Six questions of its own, so nothing is shared.
+  const { slug: repeatTableSlug } = await seedRepeatTableForm(testDb.db);
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -297,6 +309,7 @@ export async function startApiServer(): Promise<void> {
     kitchenSinkSlug,
     authorMessagesSlug,
     repeatFleetSlug,
+    repeatTableSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,

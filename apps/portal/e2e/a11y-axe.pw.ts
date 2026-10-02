@@ -381,6 +381,22 @@ test("axe: completion page has zero violations", async ({ page }) => {
   await expectNoAxeViolations(page, "completion (hydrated render)");
 });
 
+/**
+ * Press a repeating group's Add or Remove and ASSERT the roster write's status.
+ *
+ * Shared by the two repeat cases below (the stacked group and the table presentation)
+ * rather than written twice: waiting for a 200 specifically would turn a belt refusal or
+ * a rate limit into a bare timeout with nothing to act on.
+ */
+async function pressRoster(page: Page, name: string): Promise<void> {
+  const written = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name }).click();
+  expect((await written).status(), `POST /roster for "${name}"`).toBe(200);
+}
+
 test("a repeating group is axe-clean at one instance, at three, and after a removal", async ({
   page,
 }) => {
@@ -397,24 +413,58 @@ test("a repeating group is axe-clean at one instance, at three, and after a remo
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
   await expectNoAxeViolations(page, "repeating group at min (hydrated)");
 
-  const press = async (name: string): Promise<void> => {
-    const written = page.waitForResponse(
-      (response) =>
-        response.request().method() === "POST" &&
-        /\/roster$/.test(new URL(response.url()).pathname),
-    );
-    await page.getByRole("button", { name }).click();
-    expect((await written).status(), `POST /roster for "${name}"`).toBe(200);
-  };
-  await press("Add Vehicle");
-  await press("Add Vehicle");
+  await pressRoster(page, "Add Vehicle");
+  await pressRoster(page, "Add Vehicle");
   await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(3);
   // At `max: 3` the Add control is present and disabled, which is a state of its own:
   // a disabled control still has to carry its name.
   await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
   await expectNoAxeViolations(page, "repeating group at max, three instances");
 
-  await press("Remove Vehicle 2");
+  await pressRoster(page, "Remove Vehicle 2");
   await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(2);
   await expectNoAxeViolations(page, "repeating group after a removal, renumbered");
+});
+
+test("a FILLED table-presented group is axe-clean at every viewport project", async ({ page }) => {
+  // Acceptance case 45 (task 077). It lives here rather than in `repeat-table.pw.ts`
+  // because the case is about every viewport project and this spec is the one the config
+  // already runs on all three - the phone project is in the card layout and the tablet
+  // and desktop ones are in the table layout, so one test covers both renderings of the
+  // same markup without a second project list to keep in step.
+  //
+  // FILLED, which is the case's own wording and not thoroughness: an empty table and a
+  // filled one are different trees. A filled numeric column draws the `<tfoot>` total,
+  // which is a row of cells that are not inputs, and a filled cell's control carries its
+  // value and its description wiring.
+  const { repeatTableSlug } = readFixtures();
+  await page.goto(`/f/${repeatTableSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await waitForHydration(page);
+  await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(1);
+
+  await pressRoster(page, "Add Vehicle");
+  await expect(page.locator("tbody tr[data-qcms-instance]")).toHaveCount(2);
+
+  const fill = async (ordinal: number, column: string, label: string, value: string) => {
+    const posted = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.status() === 200 &&
+        /\/answers$/.test(new URL(response.url()).pathname),
+    );
+    const cell = page
+      .locator("tbody tr[data-qcms-instance]")
+      .nth(ordinal - 1)
+      .locator(`td[data-qcms-column="${column}"]`);
+    await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).fill(value);
+    await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).blur();
+    await posted;
+  };
+  await fill(1, "q_rt_plate", "Registration plate", "AAA111");
+  await fill(1, "q_rt_odometer", "Odometer reading", "1200");
+  await fill(2, "q_rt_plate", "Registration plate", "BBB222");
+  await expect(page.locator('tfoot td[data-qcms-column="q_rt_odometer"]')).toContainText("1,200");
+  await expectNoAxeViolations(page, "table presentation, filled, with a column total");
 });

@@ -1,0 +1,7 @@
+{
+  "type": "shortText",
+  "questionId": "q_rt_fleet_ref",
+  "label": { "en": "Fleet reference" },
+  "required": true,
+  "constraints": { "minLength": 2, "maxLength": 20 }
+}
