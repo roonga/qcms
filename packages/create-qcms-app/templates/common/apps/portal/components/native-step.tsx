@@ -4,7 +4,13 @@ import { useActionState } from "react";
 
 import { PortalShell } from "@/components/portal-shell";
 import { rosterOperation } from "@/app/s/[sessionId]/roster-action";
-import { NO_ROSTER_ACTION, SESSION_FIELD } from "@/lib/repeat";
+import {
+  instanceLabelTemplates,
+  viewInstanceLabel,
+  viewNarrowing,
+  NO_ROSTER_ACTION,
+  SESSION_FIELD,
+} from "@/lib/repeat";
 import {
   errorSummaryEntries,
   missingOnStep,
@@ -143,12 +149,23 @@ export function NativeStep({
   );
   const visibleSet = new Set(initial.flowState.visibleQuestions);
   const rosters = rosterMap(initial.rosters);
+  // The per-instance step view this page is, or `undefined` for every ordinary page
+  // (task 076). The API named it; the only thing the portal does with it is draw one
+  // instance of a roster it was handed in full, and put the group's Add control on the
+  // last view alone (`expandRepeatGroups`). Without scripting there is **no Back**
+  // (ADR-28's 2026-08-31 amendment), so the server chose this view: the first whose
+  // instance is incomplete.
+  const view = viewNarrowing(initial.view);
+  // The chrome's name for this view ("Vehicle 2"), read off the STORED document's
+  // template so it is the same substitution the renderer makes, and absent on every
+  // page that is not a per-instance one (ADR-27).
+  const viewLabel = viewInstanceLabel(instanceLabelTemplates(stepDocument), rosters, initial.view);
   const expanded =
     stepDocument === null
       ? null
       : expandRepeatGroups(
           documentForVisible(stepDocument, initial.flowState.visibleQuestions).root,
-          { rosters, visible: visibleSet, opToken },
+          { rosters, visible: visibleSet, opToken, ...(view !== undefined ? { view } : {}) },
         );
 
   const expandedDocument: A2UIStepDocument | null =
@@ -212,7 +229,7 @@ export function NativeStep({
   const notice = context?.notice === "step.notSaved" ? t("step.notSaved") : undefined;
 
   return (
-    <PortalShell progress={progress}>
+    <PortalShell progress={{ ...progress, ...(viewLabel === undefined ? {} : { label: viewLabel }) }}>
       <div className="flex flex-col gap-6">
         {notice === undefined ? null : (
           // `role="alert"`, like the error summary beside it: the respondent arrived at a
@@ -284,6 +301,10 @@ export function NativeStep({
               rosters,
               visible: visibleSet,
               opToken,
+              // The same narrowing the pre-expansion above already applied. The
+              // renderer's own expansion is idempotent, so this is what keeps the two
+              // in step if a document ever reaches it unexpanded.
+              ...(view !== undefined ? { view } : {}),
               ...(rosterState.autofocusId !== undefined
                 ? { autofocusId: rosterState.autofocusId }
                 : {}),

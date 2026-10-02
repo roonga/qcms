@@ -28,6 +28,8 @@ Task 071 built the list this task's cursor walks, and left **two edges for this 
 
 Changing either is a change to `packages/core/src/evaluate-rules.ts`'s `stepViews`, and it belongs here because the cursor is what gives a view its meaning.
 
+**Both were KEPT**, and the reasons are recorded in `stepViews` beside the code and in ADR-28's amendment. The decisive one for the first edge is ADR-28's own rule that answering never moves the rendered page by itself: the cursor is a 0-based index into this list, so a list an answer could shorten by hiding a member would renumber the pages ahead of the respondent, which is the one property the cursor exists to hold. The second is kept because the cursor has to agree with the list it indexes, and `paginatingGroup` in the API reads the same way, pinned by a test rather than by a comment.
+
 **The no-JS path it inherits is a Server Action, not a route branch** (Q28, ruled 2026-10-01). Task 073's Add and Remove posts to a Next Server Action on the step form, which re-renders in the same 200 response and lands focus by `autofocus` rather than by a fragment, and the portal serves `Referrer-Policy: same-origin` so that Next admits it. This task adds the Add control to the last view and changes none of that: the control is the same `__qop` submit button on the same form, and the view it lands on is the one the action's re-render draws.
 
 ## Exit criteria
@@ -40,6 +42,7 @@ Changing either is a change to `packages/core/src/evaluate-rules.ts`'s `stepView
 4. A form with no repeating group produces the same view list, the same progress numbers and the same navigation it produces today, asserted against the existing fixtures.
 5. Submit appears on the last view and nowhere earlier, including when the last view belongs to an instance rather than to a plain step.
 6. `pnpm verify` green; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` green, run detached, since this touches `apps/portal` and `apps/admin`.
+7. **Q29's bound still admits a per-instance view.** A view posts one instance's fields plus the step's own, and the batch allowance is sized per form as the maximum over its steps, so a valid view always fits and a request above the bound is still refused (ruling Q29, 2026-10-02).
 
 ## Files and areas
 
@@ -60,3 +63,9 @@ Also out: a compound cursor on the wire, which was refused. Any Back control on 
 **The no-JS half is the part with a decision in it**, because ADR-28's amendment removes the control the hydrated path uses to move backwards. **Serving the first incomplete view is confirmed by the Code Owner (2026-09-29)**, so it is the rule to implement rather than a reading to revisit; if it turns out to interact badly with a group whose instances are all complete but whose step has other questions, raise that rather than inventing a second rule beside it.
 
 **`visibleStepViews` already exists as an optional field** from 071 and is absent for a form with no group. Keep it absent: a form with no repeating group must produce a `FlowState` with no new key present, which is an acceptance case 071 owns and this task must not break.
+
+## What the build settled, added here so the record matches the code
+
+- **With no cursor and no incomplete instance, the LAST view of the step is served.** The ruled sentence names the first incomplete instance and is silent when there is none, which happens when the step is still current for a reason outside the group. The walk is forward-only on that path, so its end is the honest place to stand, and the end is the one view carrying the Add control, so an open group a respondent has filled can still grow. It is a reading rather than a ruling and is recorded as one in `servedView` and in ADR-28's amendment.
+- **A view narrows the step to one instance of the paginating group and to nothing else.** The step's own questions, and every instance of any other group on the step, are on every page of the walk. Putting a step's plain question on the first page only would be a second rule beside the ruled one, and nothing has ruled it; an author who does not want a question repeated across the pages puts it on its own step.
+- **The admin half is split against task 074.** `DraftStep.items` is a pin list until 074 widens it, so no draft can carry a group and there is no presentation to switch; 074 owns the group panel (where the switch belongs) and `draft-preview.tsx`'s expansion with a locally minted roster. What this task delivered on that side is the preview's **page list**, `apps/admin/lib/forms/preview-views.ts`, walking views when the endpoint sends them and steps when it does not, plus `visibleStepViews` on the preview projection. The presentation switch is 074's to add into its own panel.

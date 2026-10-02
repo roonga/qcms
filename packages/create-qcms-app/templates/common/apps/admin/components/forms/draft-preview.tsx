@@ -12,9 +12,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Button } from "@/components/kit";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
+import { previewViews } from "@/lib/forms/preview-views";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
-import type { CompiledStep, DraftForm } from "@/lib/forms/types";
+import type { DraftForm } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -144,15 +145,20 @@ export function DraftPreview({
     setStepIndex(0);
   }, []);
 
-  const visibleSteps = useMemo(
-    () => orderVisibleSteps(state.preview?.documents ?? [], state.preview?.flow.visibleSteps ?? []),
+  // The pane's page list, which after task 076 is a list of **views** rather than of
+  // steps: a `perInstanceStep` group paginates one step into one page per live instance,
+  // so Previous and Next move one view and the "of N" counts views. For a draft with no
+  // repeating group the kernel emits no view list and this is `visibleSteps` in document
+  // order, which is the sequence this pane already walked.
+  const views = useMemo(
+    () => previewViews(state.preview?.documents ?? [], state.preview?.flow),
     [state.preview],
   );
 
-  // A branch can remove the step the author is standing on. Clamping during render rather
+  // A branch can remove the view the author is standing on. Clamping during render rather
   // than in an effect avoids painting one frame of an out-of-range step.
-  const index = visibleSteps.length === 0 ? 0 : Math.min(stepIndex, visibleSteps.length - 1);
-  const step = visibleSteps[index];
+  const index = views.length === 0 ? 0 : Math.min(stepIndex, views.length - 1);
+  const step = views[index]?.step;
 
   return (
     <section
@@ -236,7 +242,7 @@ export function DraftPreview({
           <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-step">
             {t("forms.preview.stepOf", {
               index: index + 1,
-              total: visibleSteps.length,
+              total: views.length,
               title: stepTitle(draft, step.stepId),
             })}
           </p>
@@ -297,7 +303,7 @@ export function DraftPreview({
             <Button
               variant="secondary"
               size="md"
-              isDisabled={index >= visibleSteps.length - 1}
+              isDisabled={index >= views.length - 1}
               onPress={() => {
                 setStepIndex(index + 1);
               }}
@@ -354,18 +360,3 @@ function hasVisibleQuestion(
   return step.items.some((pin) => visible.has(pin.questionId));
 }
 
-/**
- * The compiled documents for the steps the flow says are visible, in the form's own step
- * order.
- *
- * Order comes from `documents` rather than from `visibleSteps` on purpose: the compiled
- * documents are emitted in the definition's step order, which is the order a respondent
- * walks them in, and a projection list is a set rather than a sequence.
- */
-function orderVisibleSteps(
-  documents: readonly CompiledStep[],
-  visibleSteps: readonly string[],
-): readonly CompiledStep[] {
-  const visible = new Set(visibleSteps);
-  return documents.filter((document) => visible.has(document.stepId));
-}
