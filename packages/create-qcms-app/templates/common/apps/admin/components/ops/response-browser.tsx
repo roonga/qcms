@@ -11,8 +11,14 @@ import { FlagTag } from "@/components/ops/ops-tags";
 import { answerPreviewText } from "@/lib/ops/answers";
 import type { AppliedFilters } from "@/lib/ops/browse";
 import { responsePageLink } from "@/lib/ops/browse";
-import type { ExportChoice, ExportFormat } from "@/lib/ops/export";
-import { exportQuery, isExportable, versionRequired } from "@/lib/ops/export";
+import type { ExportChoice, ExportFormat, ExportShape } from "@/lib/ops/export";
+import {
+  DEFAULT_EXPORT_SHAPE,
+  exportQuery,
+  isExportable,
+  shapeApplies,
+  versionRequired,
+} from "@/lib/ops/export";
 import type { ResponsePage } from "@/lib/ops/types";
 import { OperatorDateTime } from "@/components/operator-time";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -393,12 +399,14 @@ function ExportDialog({
   readonly onClose: () => void;
 }) {
   const [format, setFormat] = useState<ExportFormat>("csv");
+  const [shape, setShape] = useState<ExportShape>(DEFAULT_EXPORT_SHAPE);
   const [version, setVersion] = useState(initialVersion);
   const [from, setFrom] = useState(initialFrom);
   const [to, setTo] = useState(initialTo);
 
-  const choice: ExportChoice = { format, version, from, to };
+  const choice: ExportChoice = { format, version, from, to, shape };
   const needsVersion = versionRequired(format);
+  const needsShape = shapeApplies(format);
   const ready = isExportable(choice) && versions.length > 0;
 
   return (
@@ -420,6 +428,30 @@ function ExportDialog({
           ]}
           onChange={(next) => {
             setFormat(next === "json" ? "json" : "csv");
+          }}
+        />
+        <Select
+          label={t("ops.export.shape")}
+          value={shape}
+          isDisabled={!needsShape}
+          // The chosen shape's own consequence, not a general note: the wide shape's
+          // header is the version's declared maximum, so it moves when that moves,
+          // and an operator automating one has to pin the version. Shown here
+          // rather than only in `docs/` because this control is where the choice is
+          // made (Q17).
+          description={
+            !needsShape
+              ? t("ops.export.shapeIgnored")
+              : shape === "wide"
+                ? t("ops.export.shapeWideHint")
+                : t("ops.export.shapeLongHint")
+          }
+          items={[
+            { label: t("ops.export.shapeLong"), value: "long" },
+            { label: t("ops.export.shapeWide"), value: "wide" },
+          ]}
+          onChange={(next) => {
+            setShape(next === "wide" ? "wide" : "long");
           }}
         />
         <Select

@@ -66,6 +66,22 @@ import {
 const ANSWER_CANARY = "Zzcanaryqx Redactowski";
 
 /**
+ * The canary a repeated answer carries (task 075, acceptance case 53). A second
+ * string, so a failure says which walk leaked: this one rides in as a `longText`
+ * inside an instance of `grp_vehicles`, where the field's own name is
+ * `ins_.../q_rf_notes`.
+ */
+const REPEAT_ANSWER_CANARY = "Zzrepeatqx Redactowski notes";
+
+/**
+ * The instance label the fixture renders, which is **authored `LocalizedText`** and
+ * is therefore excluded from every exported signal by §8a already. It is hunted for
+ * explicitly because an instance's heading is the one piece of repeat UI text that a
+ * span name or an error message could plausibly pick up.
+ */
+const INSTANCE_LABEL = "Vehicle 2";
+
+/**
  * Batch export plus receiver write: poll rather than sleep a fixed amount, on the
  * budget the exporters' own configuration implies (issue #901). This was a literal
  * 20s, the twin of the one `apps/admin/e2e/otel-logs.pw.ts` failed on twice in a week;
@@ -317,4 +333,97 @@ test("a secure-link token is redacted out of the exported span, not just absent"
     `the portal should export the link route with its token replaced by the pattern; ${linkSpanNote}`,
   ).toBeGreaterThan(0);
   expect(readCapturedPayloads()).not.toContain(invalidToken);
+});
+
+test("a repeating group exports its ins_ ids and no answer value or instance label", async ({
+  page,
+}) => {
+  // Acceptance case 53 of `plan/repeating-groups-and-table-input.md`. SEC-13 permits
+  // `ins_` as a pseudonymous correlator beside `frm_`, `stp_`, `q_` and `ses_`: it is a
+  // random, opaque, session-scoped branded id carrying no respondent content. **No
+  // value, no count and no label follows it**, and that is what this asserts - the
+  // allowlists are over attribute KEYS and never inspect a value, so the thing that can
+  // go wrong is a repeat value reaching an allowlisted field, not an id being stripped.
+  const { repeatFleetSlug } = readFixtures();
+
+  await page.goto(`/f/${repeatFleetSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  // The first serve mints the group's `min: 1`, so there is a card to fill.
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+
+  const card = (ordinal: number) =>
+    page.locator("fieldset[data-qcms-instance]").nth(ordinal - 1);
+  const answered = (questionId: string): Promise<unknown> =>
+    page.waitForResponse((response) => {
+      if (response.request().method() !== "POST" || response.status() !== 200) return false;
+      if (!/\/answers$/.test(new URL(response.url()).pathname)) return false;
+      const body = response.request().postDataJSON() as { questionId?: unknown } | null;
+      const posted = typeof body?.questionId === "string" ? body.questionId : "";
+      return posted.endsWith(questionId);
+    });
+
+  await page.getByLabel("Fleet reference").fill("NORTH-1");
+  await page.getByLabel("Fleet reference").blur();
+
+  const plateOne = answered("q_rf_plate");
+  await card(1).getByLabel("Registration plate").fill("AAA111");
+  await card(1).getByLabel("Registration plate").blur();
+  await plateOne;
+
+  // The canary goes in the repeated longText, so it travels under a qualified answer
+  // key (`ins_.../q_rf_notes`) rather than a bare questionId.
+  const noted = answered("q_rf_notes");
+  await card(1).getByLabel("Anything else about this vehicle?").fill(REPEAT_ANSWER_CANARY);
+  await card(1).getByLabel("Anything else about this vehicle?").blur();
+  await noted;
+
+  // A second instance, so the roster is more than one and the label the test hunts for
+  // is actually rendered.
+  const roster = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await roster).status()).toBe(200);
+  await expect(page.getByRole("heading", { name: INSTANCE_LABEL })).toBeVisible();
+  const plateTwo = answered("q_rf_plate");
+  await card(2).getByLabel("Registration plate").fill("BBB222");
+  await card(2).getByLabel("Registration plate").blur();
+  await plateTwo;
+
+  const submitted = page.waitForResponse(
+    (response) => response.url().includes("/submit") && response.request().method() === "POST",
+  );
+  await page.getByTestId("primary-action").click();
+  const requestId = (await submitted).headers()["x-request-id"];
+  await page.waitForURL(/\/done/);
+  expect(requestId, "the portal must echo x-request-id").toBeTruthy();
+
+  // Wait for the submit's exported span, so "nothing leaked" is measured against
+  // telemetry that actually arrived rather than against an empty receiver.
+  const { note } = await waitForSpans(
+    "the API's submit SERVER span for the repeating form",
+    (all) =>
+      all.some(
+        (span) =>
+          span.serviceName === OTEL_SERVICE_NAMES.api &&
+          span.kind === SPAN_KIND_SERVER &&
+          span.attributes["qcms.request_id"] === requestId,
+      ),
+  );
+
+  const payloads = readCapturedPayloads();
+  expect(payloads.length, `the receiver should have captured payloads; ${note}`).toBeGreaterThan(0);
+  // No answer value, from either the plain question or the repeated one.
+  expect(payloads).not.toContain(REPEAT_ANSWER_CANARY);
+  expect(payloads).not.toContain("AAA111");
+  expect(payloads).not.toContain("BBB222");
+  // No instance LABEL: it is authored LocalizedText, which §8a excludes outright.
+  expect(payloads).not.toContain(INSTANCE_LABEL);
+  for (const log of [SERVER_LOG_FILES.api, SERVER_LOG_FILES.portal]) {
+    const text = readFileSync(log, "utf8");
+    expect(text).not.toContain(REPEAT_ANSWER_CANARY);
+    expect(text).not.toContain(INSTANCE_LABEL);
+  }
 });

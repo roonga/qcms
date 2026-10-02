@@ -45,11 +45,26 @@ import {
   type ReportingResponseRow,
   SessionNotFoundError,
 } from "@roonga/qcms-db";
+import { zipStream, type ZipEntry } from "@roonga/qcms-csv";
 
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
-import { csvDataRow, csvHeaderRow, questionIdsInDocumentOrder, UTF8_BOM } from "./csv.js";
+import {
+  csvDataRow,
+  csvHeaderRow,
+  groupDataRows,
+  groupFileColumns,
+  groupFileName,
+  groupHeaderRow,
+  LONG_SHAPE,
+  responseColumns,
+  RESPONSES_FILE_NAME,
+  UTF8_BOM,
+  type ExportShape,
+  type GroupFileColumns,
+  type ResponseColumn,
+} from "./csv.js";
 import type {
   eraseRoute,
   exportRoute,
@@ -257,20 +272,34 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
       throw fail.invalidQuery("version is required for CSV export");
     }
     const version = filter.version;
+    const shape: ExportShape = q.shape ?? LONG_SHAPE;
     const formVersion = await getFormVersion(deps.db, formId, version);
     if (formVersion === undefined) throw fail.versionNotFound();
-    const columns = questionIdsInDocumentOrder(formVersion.definition satisfies FormDefinition);
+    const definition = formVersion.definition satisfies FormDefinition;
+    const columns = responseColumns(definition, shape);
+    const groups = shape === LONG_SHAPE ? groupFileColumns(definition) : [];
+    const pageFilter = { formId, version, from: filter.from, to: filter.to };
+    const name = `${formId}-v${String(version)}-responses`;
 
-    const stream = csvExportStream(
-      deps,
-      { formId, version, from: filter.from, to: filter.to },
-      columns,
-    );
-    return new Response(stream, {
+    // The long shape of a version with at least one repeating group is more than
+    // one file, so it downloads as a zip. A version with none downloads exactly
+    // the single file it always did - same bytes, same content type, same name -
+    // so no existing adopter's pipeline moves (Q17).
+    if (groups.length > 0) {
+      return new Response(zipExportStream(deps, pageFilter, columns, groups), {
+        status: 200,
+        headers: {
+          "content-type": "application/zip",
+          "content-disposition": `attachment; filename="${name}.zip"`,
+        },
+      });
+    }
+
+    return new Response(csvExportStream(deps, pageFilter, columns), {
       status: 200,
       headers: {
         "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="${formId}-v${String(version)}-responses.csv"`,
+        "content-disposition": `attachment; filename="${name}.csv"`,
       },
     });
   };
@@ -292,7 +321,7 @@ interface ExportFilter {
 function csvExportStream(
   deps: Deps,
   filter: ExportFilter,
-  columns: readonly string[],
+  columns: readonly ResponseColumn[],
 ): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let after: SessionId | undefined;
@@ -323,6 +352,62 @@ function csvExportStream(
       }
     },
   });
+}
+
+/**
+ * The long shape of a version with repeating groups: a zip of `responses.csv` and
+ * one file per group, each file its own pass over the reporting view (task 075).
+ *
+ * **One pass per file rather than one pass filling several buffers**, because a zip
+ * entry has to be written whole before the next one starts and the alternative is
+ * holding every group's rows in memory until the flat file is finished. The cost is
+ * `1 + groups` keyset scans of the same filtered rows; the benefit is that the
+ * export stays O(page) in memory exactly as the single-file export is, which is the
+ * property `responses.integration.test.ts` pins at ten thousand responses.
+ *
+ * `zipStream` pulls each entry only once the previous one is written, so the passes
+ * are sequential by construction and never two cursors at once.
+ */
+function zipExportStream(
+  deps: Deps,
+  filter: ExportFilter,
+  columns: readonly ResponseColumn[],
+  groups: readonly GroupFileColumns[],
+): ReadableStream<Uint8Array> {
+  const encoder = new TextEncoder();
+
+  /** One file's bytes: its header, then one chunk per keyset page. */
+  async function* file(
+    header: string,
+    body: (row: ReportingResponseRow) => string,
+  ): AsyncIterable<Uint8Array> {
+    yield encoder.encode(UTF8_BOM + header);
+    let after: SessionId | undefined;
+    for (;;) {
+      const rows = await nextPage(deps, filter, after);
+      if (rows.length === 0) return;
+      let chunk = "";
+      for (const row of rows) chunk += body(row);
+      if (chunk !== "") yield encoder.encode(chunk);
+      after = lastSessionId(rows);
+      if (rows.length < EXPORT_PAGE_SIZE) return;
+    }
+  }
+
+  async function* entries(): AsyncIterable<ZipEntry> {
+    yield {
+      name: RESPONSES_FILE_NAME,
+      content: file(csvHeaderRow(columns), (row) => csvDataRow(row, columns)),
+    };
+    for (const group of groups) {
+      yield {
+        name: groupFileName(group.groupId),
+        content: file(groupHeaderRow(group), (row) => groupDataRows(row, group)),
+      };
+    }
+  }
+
+  return zipStream(entries());
 }
 
 /**

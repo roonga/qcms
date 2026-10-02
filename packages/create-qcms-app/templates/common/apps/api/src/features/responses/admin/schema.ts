@@ -73,12 +73,32 @@ export const ListResponsesQuery = z.object({
     .openapi({ param: { name: "pageSize", in: "query" }, example: "50" }),
 });
 
-/** `GET /admin/forms/:id/export` parameters. `version` is required for CSV. */
+/**
+ * `GET /admin/forms/:id/export` parameters. `version` is required for CSV.
+ *
+ * `shape` is CSV-only and defaults to `long` (Q17, ruled 2026-09-29 by the Code
+ * Owner). It picks between the long shape - `responses.csv` for every question
+ * outside a repeating group, plus one file per group, zipped when the version has
+ * one - and the wide shape, a single flat file with each group's member questions
+ * folded in as indexed columns (`q_passport__1` … `q_passport__<max>`).
+ *
+ * **A wide export's header is the version's `max`, so it changes when `max`
+ * changes.** Raise a group's `max` in a later version and that version's wide
+ * export has more columns, silently, from a consumer's point of view. The
+ * `version` requirement above is what makes a wide export automatable at all: a
+ * consumer that automates one **pins the version it bound to**, and a consumer
+ * that wants a header which does not move takes the long shape, which is the
+ * default for that reason.
+ */
 export const ExportQuery = z.object({
   format: z
     .enum(["csv", "json"])
     .optional()
     .openapi({ param: { name: "format", in: "query" }, example: "csv" }),
+  shape: z
+    .enum(["long", "wide"])
+    .optional()
+    .openapi({ param: { name: "shape", in: "query" }, example: "long" }),
   version: z
     .string()
     .optional()

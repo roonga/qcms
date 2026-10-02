@@ -1572,6 +1572,19 @@ export const messages = {
   "ops.export.versionRequired":
     "CSV has one column per question of a single version, so a version is required.",
   "ops.export.versionIgnored": "JSON records carry their own version, so no version is needed.",
+  // The CSV shape (task 075, ruling Q17). The long shape is the default and is
+  // offered first. The wide shape's description is the one place an operator meets
+  // the cost before paying it: its header is the version's declared maximum number
+  // of instances, so it changes when that maximum changes, and a pipeline reading it
+  // has to pin the version it was built against.
+  "ops.export.shape": "CSV shape",
+  "ops.export.shapeLong": "Long (default)",
+  "ops.export.shapeWide": "Wide",
+  "ops.export.shapeLongHint":
+    "One file per repeating group beside the main file, downloaded together as a zip when this form has a group. The columns are the questions, so the header does not change when a later version allows more instances.",
+  "ops.export.shapeWideHint":
+    "One flat file, with a repeating group's answers in numbered columns such as q_passport__1. The number of columns is the maximum this version allows, not the number anybody answered, so a later version that raises that maximum has more columns. Pin the version your pipeline reads.",
+  "ops.export.shapeIgnored": "JSON carries repeated answers inside each record, so it has one shape.",
   "ops.export.from": "Submitted from",
   "ops.export.to": "Submitted to",
   "ops.export.dayHint": "Whole days, in UTC.",
