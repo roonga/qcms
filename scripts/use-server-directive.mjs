@@ -9,7 +9,7 @@
  * **It is a scan and not a regular expression, and that is the point.** The obvious
  * pattern, `/^(?:\s|\/\/[^\n]*\n|\/\*[\s\S]*?\*\/)*["']use server["']/`, backtracks
  * exponentially: the alternation can split one run of comment characters in exponentially
- * many ways, so a file beginning `/*` followed by many `*​/​/​*` repetitions hangs the
+ * many ways, so a file whose head is a long run of block-comment opens and closes hangs the
  * matcher. CodeQL flagged all three copies on PR #1034 (alerts 22, 23 and 24). The input
  * here is the repository's own source, so the exposure was a slow gate rather than a
  * vulnerability, but a linear walk is the same number of lines and removes the question.

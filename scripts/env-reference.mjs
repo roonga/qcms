@@ -449,7 +449,10 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "10",
     description:
-      "Answers one session may submit per window (a burst ceiling, about 2/s sustained).",
+      "Answers one session may submit per window (a burst ceiling, about 2/s sustained). One " +
+      "**batch** spends one unit per entry and may spend up to the step's own bound even where " +
+      "that exceeds this number, so a valid step always fits (ruling Q29); raising this above " +
+      "the bound keeps your number.",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_WINDOW_MS",

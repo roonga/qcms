@@ -89,7 +89,8 @@ export const messages = {
   // The page-level notice for a whole-step post the API refused outright (task 073, ruling
   // Q29). It has to say that nothing was saved, because the respondent is looking at a step
   // that still holds everything they typed and has no other way to tell.
-  "step.notSaved": "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
+  "step.notSaved":
+    "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",
