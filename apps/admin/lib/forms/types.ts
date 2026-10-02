@@ -440,6 +440,16 @@ export interface PreviewFlow {
   readonly complete: boolean;
   /** The hypothetical roster the projection was computed with, per group (074). */
   readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
+  /**
+   * The ADR-28 cursor's page list (task 076, Q22), present exactly when the draft holds a
+   * repeating group and absent otherwise.
+   *
+   * A step paginated by a `perInstanceStep` group contributes one view per live instance,
+   * so the preview's Previous and Next walk the pages a respondent walks rather than a
+   * step-shaped approximation of them. `lib/forms/preview-views.ts` is the one place this
+   * is read, so the pane and the portal cannot disagree about what a page is.
+   */
+  readonly visibleStepViews?: readonly { readonly stepId: string; readonly instanceId: string | null }[];
 }
 
 /**
