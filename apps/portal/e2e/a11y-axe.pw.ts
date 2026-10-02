@@ -454,12 +454,16 @@ test("a FILLED table-presented group is axe-clean at every viewport project", as
         response.status() === 200 &&
         /\/answers$/.test(new URL(response.url()).pathname),
     );
-    const cell = page
+    // `getByRole("textbox")` and not `getByLabel`: the vendored `NumberField` wires its
+    // stepper buttons to the field's label through `aria-labelledby`, so three elements in
+    // that cell carry the cell's own name and a label query is ambiguous there.
+    const field = page
       .locator("tbody tr[data-qcms-instance]")
       .nth(ordinal - 1)
-      .locator(`td[data-qcms-column="${column}"]`);
-    await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).fill(value);
-    await cell.getByLabel(`Vehicle ${String(ordinal)}, ${label}`).blur();
+      .locator(`td[data-qcms-column="${column}"]`)
+      .getByRole("textbox", { name: `Vehicle ${String(ordinal)}, ${label}` });
+    await field.fill(value);
+    await field.blur();
     await posted;
   };
   await fill(1, "q_rt_plate", "Registration plate", "AAA111");
