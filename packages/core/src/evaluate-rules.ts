@@ -744,9 +744,33 @@ export function evaluateRules(
  * is one view per live instance.
  *
  * A step carrying such a group with an empty roster contributes one view with a
- * null instance, so a visible step is never absent from the list. Task 076 owns
- * the cursor that walks these and the presentation that produces them; what
- * this task owes is the roster-driven list itself.
+ * null instance, so a visible step is never absent from the list.
+ *
+ * ## The two edges task 071 left open, decided by task 076
+ *
+ * Both were left to the cursor's owner on the review of PR #1016 (2026-09-29),
+ * because the cursor is what gives a view its meaning. Both are **kept exactly as
+ * 071 wrote them**, and the reasons belong here rather than in a commit message.
+ *
+ * 1. **The list is derived from the roster, and per-instance visibility never
+ *    prunes it.** A live instance contributes a view whether or not a rule has
+ *    hidden some of its members, which is a deliberate disagreement with
+ *    `visibleSteps` (derived from `visible`, so a step with nothing visible is
+ *    absent from that one). The decisive reason is ADR-28's own rule that
+ *    **answering never moves the rendered page by itself**: the cursor is a
+ *    0-based index into this list, so if a view could vanish because an answer
+ *    hid a member, answering vehicle 2's question could renumber vehicle 3's page
+ *    and slide the respondent onto it. Pruning would buy one empty page avoided
+ *    and sell the one property the cursor exists to hold.
+ * 2. **Only the FIRST `perInstanceStep` group in a step paginates it.** A step
+ *    holding two of them is not a shape any presentation has defined, and picking
+ *    the first is a reading the cursor can agree with. `paginatingGroup` in
+ *    `apps/api/src/features/responses/serve-step/handler.ts` reads the same way,
+ *    and a test pins the two together rather than a comment.
+ *
+ * The step's own visibility is still the outer gate, so a step with nothing
+ * visible contributes no view even with a live roster, and the two fields agree
+ * about that much.
  */
 function stepViews(
   form: FormDefinition,

@@ -1445,6 +1445,116 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
       { stepId: "stp_pax", instanceId: "ins_b" },
     ]);
   });
+
+  // The first of the two edges task 071 left to task 076 (review of PR #1016,
+  // 2026-09-29), kept as it was: the view list is derived from the ROSTER, so a rule
+  // that hides a member in one instance changes what that instance's page holds and
+  // never whether it exists. The reason is ADR-28's own rule that answering never
+  // moves the rendered page by itself: the cursor is an index into this list, so a
+  // list an answer could shorten would renumber the pages ahead of the respondent.
+  it("keeps one view per live instance when a rule hides a member inside the group", () => {
+    const gated: TestGroup = {
+      groupId: "grp_pax",
+      items: [
+        { id: "q_dob", type: "date", required: true },
+        { id: "q_fare", type: "boolean" },
+      ],
+      count: { source: "open", min: 0, max: 9 },
+    };
+    const paginated = build(
+      [["stp_pax", [{ ...gated, presentation: "perInstanceStep" }]]],
+      // Per instance: `q_fare` shows only where that instance's own date is answered.
+      [{ ruleId: "rul_fare", when: { op: "answered", questionId: "q_dob" }, show: ["q_fare"] }],
+    );
+    const views = [
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ];
+    const none = evalOk(paginated, answersOf([]), rosterOf([["grp_pax", ["ins_a", "ins_b"]]]));
+    expect(none.visibleStepViews).toEqual(views);
+    // `q_fare` is hidden in instance b and visible in instance a, and the view list is
+    // the same list: two views, same order, same length, so the cursor did not move.
+    const one = evalOk(
+      paginated,
+      answersOf([["ins_a/q_dob", "1990-05-01"]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    expect(one.visibleStepViews).toEqual(views);
+    expect(one.visible).toContainEqual({
+      stepId: "stp_pax",
+      questionId: "q_fare",
+      instanceId: "ins_a",
+    });
+    expect(one.visible).not.toContainEqual({
+      stepId: "stp_pax",
+      questionId: "q_fare",
+      instanceId: "ins_b",
+    });
+  });
+
+  // The second edge, also kept: a step holding two `perInstanceStep` groups is not a
+  // shape any presentation has defined, so the FIRST one paginates it and the second is
+  // drawn inside every one of its pages. The API's `paginatingGroup` reads the same way,
+  // which is what keeps the cursor and the list it indexes talking about one group.
+  it("paginates a step on the FIRST perInstanceStep group when it holds two", () => {
+    const second: TestGroup = {
+      groupId: "grp_bags",
+      items: [{ id: "q_bag", type: "shortText" }],
+      count: { source: "open", min: 0, max: 9 },
+    };
+    const twoGroups = build(
+      [
+        [
+          "stp_pax",
+          [
+            { ...PAX_GROUP, presentation: "perInstanceStep" },
+            { ...second, presentation: "perInstanceStep" },
+          ],
+        ],
+      ],
+      [],
+    );
+    const state = evalOk(
+      twoGroups,
+      answersOf([["ins_a/q_dob", "1990-05-01"]]),
+      rosterOf([
+        ["grp_pax", ["ins_a", "ins_b"]],
+        ["grp_bags", ["ins_x", "ins_y", "ins_z"]],
+      ]),
+    );
+    // Two views from `grp_pax`, never three from `grp_bags` and never six from both.
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ]);
+  });
+
+  // The outer gate the two fields DO agree about: a step with nothing visible is absent
+  // from `visibleSteps` and contributes no view either, live roster or not.
+  it("emits no view for a step whose every question is hidden", () => {
+    const hidden = build(
+      [
+        ["stp_gate", [{ id: "q_gate", type: "boolean" }]],
+        ["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]],
+      ],
+      // The whole group is behind a gate outside it, so every member of every instance
+      // is hidden and the step has nothing to draw.
+      [
+        {
+          ruleId: "rul_gate",
+          when: { op: "equals", questionId: "q_gate", value: true },
+          show: ["q_dob", "q_fare"],
+        },
+      ],
+    );
+    const state = evalOk(
+      hidden,
+      answersOf([["q_gate", false]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    expect(state.visibleSteps).toEqual(["stp_gate"]);
+    expect(state.visibleStepViews).toEqual([{ stepId: "stp_gate", instanceId: null }]);
+  });
 });
 
 // --------------------------------------------------------------------------
