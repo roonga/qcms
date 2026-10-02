@@ -12,6 +12,10 @@
  * 072 handed to this task: one mint per group per transaction, and an answer naming a
  * dead instance being refused.
  *
+ * **Task 075 added the outbox payload walk at the end** (acceptance case 51), because this
+ * is the API suite's only real repeating form: a walk of a payload built from a fixture
+ * with no group would assert the property on data that cannot break it.
+ *
  * The fixture is built here rather than read from `packages/core/fixtures`, and that is
  * deliberate: the kernel's fixture forms are asserted to pin only questions from its own
  * canonical set, and two `open` groups in one form is a shape only this file needs (case
@@ -52,6 +56,7 @@ import type { Deps } from "../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../test-support.js";
 import { importSessionKeys, mintSessionToken } from "./session-token.js";
 import { registerServeStep } from "./serve-step/route.js";
+import { registerSubmit } from "./submit/route.js";
 
 const NOW = new Date("2026-10-01T00:00:00.000Z");
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
@@ -179,7 +184,9 @@ let seeded = 0;
 beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), env: validEnv() });
-  app = createApp(deps, PUBLIC_ONLY, { groups: { public: [registerServeStep] } });
+  app = createApp(deps, PUBLIC_ONLY, {
+    groups: { public: [registerServeStep, registerSubmit] },
+  });
   internalToken = internalTokenFor(deps.config);
 
   for (const question of QUESTIONS) {
@@ -827,5 +834,113 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
       { questionId: "q_rep_plate", instanceId: vehicle, value: "ABC123" },
     ]);
     expect(answered.status).toBe(200);
+  });
+});
+
+// --- task 075: the outbox payload (acceptance case 51, ADR-17, SEC-16) -------
+
+describe("the response.submitted payload carries instances inside answers and nowhere else", () => {
+  /** The payload the submit transaction enqueued, read from the outbox row itself. */
+  async function enqueuedPayload(sessionId: string): Promise<Record<string, unknown>> {
+    const res = await testDb.client.query<{
+      event_type: string;
+      payload: Record<string, unknown>;
+    }>(`select event_type, payload from outbox where payload->>'sessionId' = $1`, [sessionId]);
+    expect(res.rowCount).toBe(1);
+    expect(res.rows[0]!.event_type).toBe("response.submitted");
+    return res.rows[0]!.payload;
+  }
+
+  /** Answer the whole step on a fresh session and submit it. */
+  async function submitFilledSession(): Promise<{ session: Session; plates: string[] }> {
+    const session = await newSession();
+    // Serve first: the first serve is what mints each group's `min`, and an Add before
+    // it would race that mint. Then add a second vehicle, so the payload has to tell
+    // two instances of the same question apart.
+    await getStep(session);
+    await roster(session, { op: "add", groupId: "grp_vehicles", opToken: token() });
+    const served = await getStep(session);
+    const vehicles = instancesOf(served, "grp_vehicles");
+    const incident = instancesOf(served, "grp_incidents")[0]!;
+    expect(vehicles).toHaveLength(2);
+
+    // `maxLength: 8` on `q_rep_plate`, so the fixture plates are plate-shaped.
+    const plates = ["AAA111", "BBB222"];
+    const { status } = await batch(session, [
+      { questionId: "q_rep_fleet_name", value: "North depot" },
+      ...vehicles.flatMap((instanceId, at) => [
+        { questionId: "q_rep_plate", instanceId, value: plates[at] },
+        { questionId: "q_rep_odometer", instanceId, value: 1000 * (at + 1) },
+      ]),
+      { questionId: "q_rep_notes", instanceId: incident, value: "A kerbed wheel." },
+    ]);
+    expect(status).toBe(200);
+
+    const submitted = await app.request(`/sessions/${session.sessionId}/submit`, {
+      method: "POST",
+      headers: headers(session),
+      body: JSON.stringify({}),
+    });
+    expect(submitted.status).toBe(200);
+    return { session, plates };
+  }
+
+  it("carries each instance's answers as LockedAnswer entries with an instanceId", async () => {
+    const { session, plates } = await submitFilledSession();
+    const payload = await enqueuedPayload(session.sessionId);
+
+    const answers = payload["answers"] as Array<{
+      questionId: string;
+      instanceId?: string;
+      value: unknown;
+    }>;
+    // Both vehicles are present, told apart by instance and not collapsed to one.
+    const platesInPayload = answers
+      .filter((entry) => entry.questionId === "q_rep_plate")
+      .map((entry) => entry.value);
+    expect(platesInPayload).toEqual(plates);
+    const instanceIds = new Set(
+      answers.filter((entry) => entry.instanceId !== undefined).map((entry) => entry.instanceId),
+    );
+    expect(instanceIds.size).toBe(3); // two vehicles and one incident
+    // The question outside every group carries NO instanceId key at all, which is what
+    // keeps a non-repeating form's payload and content hash byte-identical.
+    const fleet = answers.find((entry) => entry.questionId === "q_rep_fleet_name")!;
+    expect("instanceId" in fleet).toBe(false);
+  });
+
+  it("carries no respondent content outside the answers member (the walk)", async () => {
+    // This is the assertion the redaction depends on and nothing else states. Erasure
+    // and the retention sweep both redact by dropping exactly ONE jsonb key,
+    // `payload - 'answers'`, and migration 0016's CHECK enforces that a redacted payload
+    // holds no `answers` key. Content in a sibling member - `groups`, `rows`,
+    // `instances` - would escape both, silently, and the first anyone would know is a
+    // subject-access request answered with data that was supposed to be erased.
+    const { session, plates } = await submitFilledSession();
+    const payload = await enqueuedPayload(session.sessionId);
+
+    // The member set is exactly this. A new sibling fails here rather than in
+    // production, which is the point of asserting the keys rather than their contents.
+    expect(Object.keys(payload).sort()).toEqual([
+      "answers",
+      "contentHash",
+      "formId",
+      "formVersion",
+      "sessionId",
+      "submittedAt",
+    ]);
+
+    const { answers: _answers, ...rest } = payload;
+    const outside = JSON.stringify(rest);
+    for (const plate of plates) expect(outside).not.toContain(plate);
+    expect(outside).not.toContain("North depot");
+    expect(outside).not.toContain("kerbed");
+    // No instance id and no roster outside `answers` either: an `ins_` id is a
+    // permitted correlator in telemetry (SEC-13) and is still respondent-derived
+    // state, so the one place it may sit in this payload is the key redaction drops.
+    expect(outside).not.toContain("ins_");
+    // And no count. "How many vehicles" is disclosive on its own (Q19).
+    const counts = Object.values(rest).filter((value) => typeof value === "number");
+    expect(counts).toEqual([1]); // formVersion, and nothing else numeric
   });
 });

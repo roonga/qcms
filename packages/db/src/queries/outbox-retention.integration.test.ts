@@ -69,8 +69,10 @@ let seq = 0;
 /**
  * A form, one active webhook, and one queued event. `answers: false` seeds a
  * `form.published` event instead: the same lifecycle, no respondent content.
+ * `repeat: true` seeds the payload shape a repeating form enqueues (task 075): the
+ * `answers` member is a `LockedAnswer[]` whose entries may carry an `instanceId`.
  */
-async function seedEvent(options: { answers?: boolean } = {}): Promise<Seeded> {
+async function seedEvent(options: { answers?: boolean; repeat?: boolean } = {}): Promise<Seeded> {
   seq += 1;
   const formId = FormId.parse(`frm_retain_${seq}`);
   await createForm(testDb.db, { formId, slug: `retain-${seq}`, defaultLocale: "en" });
@@ -92,7 +94,14 @@ async function seedEvent(options: { answers?: boolean } = {}): Promise<Seeded> {
           formVersion: 1,
           submittedAt: "2026-01-02T03:04:05.000Z",
           contentHash: "0".repeat(64),
-          answers: { q_name: "Ada Lovelace", q_age: 36 },
+          answers:
+            options.repeat === true
+              ? [
+                  { questionId: "q_booking_ref", value: "ABC123" },
+                  { questionId: "q_name", instanceId: "ins_pax_a", value: "Ada Lovelace" },
+                  { questionId: "q_name", instanceId: "ins_pax_b", value: "Grace Hopper" },
+                ]
+              : { q_name: "Ada Lovelace", q_age: 36 },
         }
       : { formId, formVersion: 1 },
   });
@@ -185,6 +194,32 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
       [deliveryId],
     );
     expect(delivery.rows[0]!.delivered_at).toEqual(LONG_AGO);
+  });
+
+  it("drops a repeat payload's instances with the same one-key drop (task 075, case 52)", async () => {
+    // The sweep's half of Q19. It redacts by `payload - 'answers'`, exactly as erasure
+    // does, so it is complete for a repeating form only while every repeated value sits
+    // inside that key. A sibling member holding instance ids, a roster or a count would
+    // survive this drop and still satisfy migration 0016's CHECK.
+    const seeded = await seedEvent({ repeat: true });
+    const deliveryId = await addDelivery(seeded);
+    await markDeliveryDelivered(testDb.db, deliveryId, LONG_AGO);
+    await markDelivered(testDb.db, seeded.outboxId, LONG_AGO);
+
+    const before = await outboxRow(seeded.outboxId);
+    expect(JSON.stringify(before.payload["answers"])).toContain("ins_pax_b");
+
+    await redactAgedOutboxPayloads(testDb.db, HORIZON);
+
+    const after = await outboxRow(seeded.outboxId);
+    expect(after.payload).not.toHaveProperty("answers");
+    expect(after.payloadRedactedAt).not.toBeNull();
+    const remaining = JSON.stringify(after.payload);
+    expect(remaining).not.toContain("ins_");
+    expect(remaining).not.toContain("Lovelace");
+    expect(remaining).not.toContain("ABC123");
+    // No count either: the only number left is the form version.
+    expect(Object.values(after.payload).filter((value) => typeof value === "number")).toEqual([1]);
   });
 
   it("leaves an event inside the redelivery window alone", async () => {
