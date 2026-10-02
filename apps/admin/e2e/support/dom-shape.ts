@@ -74,6 +74,50 @@ export function withDemotedHeadings(shape: DomShape, by: number): DomShape {
   };
 }
 
+/**
+ * Return `shape` with every instance id rewritten to its position in first-encounter order
+ * (task 074, ADR-42).
+ *
+ * ## Why an instance id has to be normalized for the fidelity comparison
+ *
+ * It is a GENERATED IDENTITY, which is the same category this module already drops `id`,
+ * `aria-labelledby` and the react-aria values for. An `InstanceId` is session-scoped and minted
+ * once: the portal's roster comes out of the session's instance ledger (`ins_7k2`) and the
+ * admin preview mints its own hypothetical one (`ins_p1`), because a preview has no session to
+ * take one from. The two will never match and nothing about the rendering depends on their
+ * matching - an instance id appears in a field `name`, a DOM id, an error-summary anchor and a
+ * `__qop` button value, and in no heading, legend, label or caption a respondent reads.
+ *
+ * ## Why positional rather than erased
+ *
+ * Erasing it - mapping every `ins_*` to one sentinel - would stop the comparison noticing that
+ * the two sides rendered a DIFFERENT NUMBER of instances, or the same instances in a different
+ * order, which is exactly what the expansion under test decides. Numbering by first encounter
+ * keeps the assertion total: two trees normalize alike only when they carry the same instances,
+ * in the same order, in the same places.
+ *
+ * Attribute values only. An id is never a label, so it is never in text.
+ */
+export function withNormalizedInstanceIds(shape: DomShape): DomShape {
+  const seen = new Map<string, string>();
+  const rewrite = (value: string): string =>
+    value.replaceAll(/ins_[a-z0-9_]+/g, (found) => {
+      const known = seen.get(found);
+      if (known !== undefined) return known;
+      const placeholder = `ins_instance_${String(seen.size + 1)}`;
+      seen.set(found, placeholder);
+      return placeholder;
+    });
+  const walk = (node: DomShape): DomShape => ({
+    ...node,
+    attrs: Object.fromEntries(
+      Object.entries(node.attrs).map(([name, value]) => [name, rewrite(value)]),
+    ),
+    children: node.children.map(walk),
+  });
+  return walk(shape);
+}
+
 /** Every heading tag in `shape`, in document order. */
 export function headingTags(shape: DomShape): string[] {
   const own = isHeadingTag(shape.tag) ? [shape.tag] : [];

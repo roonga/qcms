@@ -851,3 +851,56 @@ export async function moveStep(page: Page, title: string, action: "up" | "down")
     .getByRole("menuitem", { name: action === "up" ? "Move up" : "Move down", exact: true })
     .click();
 }
+
+/**
+ * Add a repeating group to the open step, and land on its panel (task 074, ADR-42).
+ *
+ * Three gestures, the same shape Add step has: open the dialog, name the group, commit. The
+ * trigger and the commit are deliberately NOT the same string - "Add repeating group" opens and
+ * "Add" commits - because an exact-name lookup matching both would be ambiguous while the dialog
+ * is on screen.
+ *
+ * Adding a group is a request to work on it, so the builder selects it: a fresh group holds no
+ * question and has no maximum, and both of those are set on the panel this lands on.
+ */
+export async function addRepeatGroup(page: Page, label: string): Promise<void> {
+  await waitForHydration(page);
+  await page.getByRole("button", { name: "Add repeating group", exact: true }).click();
+  await fillStable(field(page, "New group name"), label);
+  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await expect(page.getByRole("heading", { name: `Repeating group: ${label}` })).toBeVisible();
+}
+
+/**
+ * Open one repeating group's panel from the rail.
+ *
+ * The rail nests a group under the step that holds it, and the row is a BUTTON that switches the
+ * panel beside the rail rather than an anchor that navigates (`docs/admin-constraints.md`). The
+ * group panel exists only on the builder, so unlike `openStep` there is no second shape to fall
+ * back to.
+ */
+export async function openGroupPanel(page: Page, label: string): Promise<void> {
+  await openRail(page);
+  await page.getByRole("button", { name: `Open repeating group ${label}` }).click();
+  await expect(page.getByRole("heading", { name: `Repeating group: ${label}` })).toBeVisible();
+}
+
+/** The group panel currently on screen, which every group-scoped control is found inside. */
+export function groupPanel(page: Page): Locator {
+  return page.getByTestId("qcms-group-panel");
+}
+
+/**
+ * Choose one of a `ChoiceGroup`'s radios by its visible label.
+ *
+ * A native radio wearing `accent-color`, not a kit control (`components/forms/group-panel.tsx`
+ * records why: the kit has no radio, and all three options have to be readable at once because
+ * each changes which other fields exist). react-aria is not involved, so the label press is the
+ * ordinary one and the assertion reads the input's own checked state.
+ */
+export async function chooseRadio(page: Page, label: string): Promise<void> {
+  await waitForHydration(page);
+  const radio = page.getByRole("radio", { name: label, exact: true });
+  await page.getByText(label, { exact: true }).click();
+  await expect(radio).toBeChecked();
+}
