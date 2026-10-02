@@ -87,11 +87,15 @@ export const messages = {
   "ids.copy.webhook": "Copy webhook id {id}",
   "ids.copy.form": "Copy form id {id}",
   "ids.copy.question": "Copy question id {id}",
+  // A repeating group's id is DERIVED from the author's own name for it, exactly as a form's
+  // and a question's are, so it renders whole and takes the derived rule (`lib/entity-id.ts`).
+  "ids.copy.group": "Copy group id {id}",
   "ids.copied.session": "Copied session id {id}",
   "ids.copied.link": "Copied link id {id}",
   "ids.copied.webhook": "Copied webhook id {id}",
   "ids.copied.form": "Copied form id {id}",
   "ids.copied.question": "Copied question id {id}",
+  "ids.copied.group": "Copied group id {id}",
 
   // The colour-mode control (task 055; a menu since 032). Every label an operator
   // reads goes through here, mode names included (ADR-27) - a control that exists to
@@ -1465,6 +1469,10 @@ export const messages = {
   "forms.preview.stepOf": "Step {index} of {total}: {title}",
   "forms.preview.previous": "Previous step",
   "forms.preview.next": "Next step",
+  // The preview's own instance dimension (074, ADR-42 §6.5). A roster is state the server owns
+  // at serve time, so a preview has none: the pane mints one from each group's `min`, and this
+  // field is the count the author types instead.
+  "forms.preview.instances": "Instances of {group}",
   "forms.preview.reset": "Reset answers",
   "forms.preview.loading": "Compiling the draft...",
   "forms.preview.unavailable": "This draft cannot be previewed yet.",

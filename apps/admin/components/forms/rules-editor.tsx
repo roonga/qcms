@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/kit";
 import type { PreviewConditionState } from "@/lib/forms/builder-state";
-import { newRule, removeRule, upsertRule } from "@/lib/forms/draft";
+import { newRule, removeRule, stepPins, upsertRule } from "@/lib/forms/draft";
 import { NEW_RULE_HASH } from "@/lib/forms/issues";
 import type { DraftForm, DraftRule, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";

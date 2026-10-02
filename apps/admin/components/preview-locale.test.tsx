@@ -76,7 +76,7 @@ const DRAFT_PREVIEW: DraftPreviewPayload = {
   documents: [STEP],
   compilerVersion: "0.1.0",
   a2uiSpecVersion: "1.0.0",
-  flow: { visibleSteps: [STEP.stepId], visibleQuestions: ["q_born_on"], complete: false },
+  flow: { visibleSteps: [STEP.stepId], visibleQuestions: ["q_born_on"], complete: false, rosters: [] },
 };
 
 const SNAPSHOT = {
