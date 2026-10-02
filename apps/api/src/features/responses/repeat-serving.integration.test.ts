@@ -573,6 +573,54 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
     ]);
   });
 
+  it("refuses a removal naming an instance this session never minted", async () => {
+    // Finding 5 of PR #1034's review. A well-formed `ins_` id this roster never minted
+    // appended a `removed` row under a key no roster lists: nothing was disclosed and no
+    // derived list moved, because every read starts from `minted`, but the table is
+    // append-only and only an erasure clears it. The caller obligation on
+    // `removeRosterInstance` is discharged in `applyRosterOp` now rather than documented.
+    const session = await newSession();
+    const served = await getStep(session);
+    const mine = instancesOf(served, "grp_vehicles")[0]!;
+    const forged = `ins_${"a".repeat(32)}`;
+
+    const res = await roster(session, {
+      op: "remove",
+      groupId: "grp_vehicles",
+      instanceId: forged,
+      opToken: token(),
+    });
+
+    expect(res.status).toBe(404);
+    expect((res.body as unknown as { error: { code: string } }).error.code).toBe(
+      "UNKNOWN_INSTANCE",
+    );
+    // Nothing appended, and the token NOT spent: a refusal records nothing, so the
+    // respondent's own next press with a fresh token is unaffected.
+    const ledger = await rosterLedger(testDb.db, SessionId.parse(session.sessionId));
+    expect(ledger.filter((row) => row.instanceId === forged)).toEqual([]);
+    expect(instancesOf(await getStep(session), "grp_vehicles")).toEqual([mine]);
+  });
+
+  it("refuses a removal of an instance another session minted", async () => {
+    // The same check from the direction that matters: two live sessions on the same form,
+    // and one may not remove the other's instance even though the id is real.
+    const mine = await newSession();
+    const theirs = await newSession();
+    const theirVehicle = instancesOf(await getStep(theirs), "grp_vehicles")[0]!;
+    await getStep(mine);
+
+    const res = await roster(mine, {
+      op: "remove",
+      groupId: "grp_vehicles",
+      instanceId: theirVehicle,
+      opToken: token(),
+    });
+
+    expect(res.status).toBe(404);
+    expect(instancesOf(await getStep(theirs), "grp_vehicles")).toEqual([theirVehicle]);
+  });
+
   it("refuses a group the form does not declare", async () => {
     const session = await newSession();
     await getStep(session);

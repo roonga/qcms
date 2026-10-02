@@ -281,6 +281,9 @@ export type RosterRefusalCode =
   /** An Add on a group whose count source is not `open`: its size is not the
    * respondent's to change. */
   | "REPEAT_NOT_ADDABLE"
+  /** A Remove naming an instance this session's roster never minted: the caller
+   * obligation on {@link removeRosterInstance}, enforced rather than trusted. */
+  | "UNKNOWN_INSTANCE"
   /** An Add that would take the group past the `max` its author declared
    * (SEC-16: the per-form bound is the only bound there is). */
   | "REPEAT_MAX_REACHED";
@@ -565,6 +568,20 @@ export async function applyRosterOp(
   }
   if (input.group.count.source !== "open") return { ok: false, code: "REPEAT_NOT_ADDABLE" };
   if (input.op === "remove") {
+    // The caller obligation on `removeRosterInstance` above, DISCHARGED here rather than
+    // documented. A removal naming an id this session's roster never minted would append a
+    // `removed` row under a key no roster lists: nothing is disclosed and no derived list
+    // moves, because every read starts from `minted`, but the table is append-only and
+    // only an erasure clears it, so a forged id would leave a row forever. The roster is
+    // already in hand - the route needs it to render the Remove control at all - so this
+    // is a lookup rather than a query. Raised in review of PR #1034, finding 5.
+    //
+    // A removal of an instance that WAS minted and is already removed still appends, which
+    // is the no-op the docblock above describes: the respondent pressed the button, the log
+    // records it, and no derived list moves.
+    if (!(input.roster?.minted ?? []).includes(input.instanceId)) {
+      return { ok: false, code: "UNKNOWN_INSTANCE" };
+    }
     await removeInstance(exec, {
       sessionId: input.sessionId,
       groupId: input.group.groupId,

@@ -128,6 +128,31 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: false,
   },
   {
+    // Task 073's whole-step write: one Continue in one request and one lock. It goes
+    // through the same `authorizedSessionId` as the single write beside it, and it is
+    // listed here because the matrix is the statement of that, not an inference from it
+    // (PR #1034, finding 6).
+    name: "POST /sessions/{id}/answers/batch",
+    row: "step-answer-submit",
+    group: "public",
+    method: "POST",
+    path: (ctx) => `/sessions/${ctx.sessionId}/answers/batch`,
+    body: { answers: [{ questionId: "q_driver_age", value: 40 }] },
+    anonymousReachable: false,
+  },
+  {
+    // Task 073's roster operation: the scripted Add or Remove of a repeating-group
+    // instance. A write with its own rate class and its own one-time token, and session
+    // authorization is the first thing it passes.
+    name: "POST /sessions/{id}/roster",
+    row: "step-answer-submit",
+    group: "public",
+    method: "POST",
+    path: (ctx) => `/sessions/${ctx.sessionId}/roster`,
+    body: { op: "add", groupId: "grp_vehicles", opToken: "op_000000000000000000000000" },
+    anonymousReachable: false,
+  },
+  {
     name: "POST /sessions/{id}/submit",
     row: "step-answer-submit",
     group: "public",

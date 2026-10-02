@@ -30,6 +30,21 @@ const SECURITY_DESIGN = fileURLToPath(
 );
 
 /**
+ * The shipped respondent OpenAPI document, which enumerates every route this API serves
+ * on the respondent channel.
+ *
+ * Read so the session-authed route set can be DERIVED rather than listed a second time
+ * (PR #1034, finding 6). Until this existed, `SURFACES` was a hand-kept list and the loop
+ * closed only against the §3.2 table: task 073 added two session-authed writes,
+ * `/answers/batch` and `/roster`, and the whole matrix suite stayed green over both. The
+ * document is generated from the app's own registrars and guarded for freshness by
+ * `src/openapi-document.test.ts`, so deriving from it is deriving from the routes.
+ */
+const RESPONDENT_OPENAPI = fileURLToPath(
+  new URL("../../../../docs/openapi/respondent.json", import.meta.url),
+);
+
+/**
  * The §3.2 Action column, verbatim, mapped to the `MatrixRow` that represents it.
  *
  * Keyed on the document's exact wording on purpose. Reword a row and this map
@@ -112,6 +127,37 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       (row) => !documented.has(row),
     );
     expect(orphans, "SURFACES probes a row §3.2 does not list").toEqual([]);
+  });
+
+  it("probes every session-scoped route the API serves (PR #1034, finding 6)", () => {
+    // Derived from the shipped document, so a new `/sessions/...` route is a red gate
+    // until the matrix says what it does under every credential shape. `POST /sessions`
+    // itself is the anonymous session create, which `surfaces.ts` lists under its own row,
+    // so the derivation covers the ones that take an id in the path.
+    const document = JSON.parse(readFileSync(RESPONDENT_OPENAPI, "utf8")) as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+    const VERBS = new Set(["get", "post", "put", "patch", "delete"]);
+    const served: string[] = [];
+    for (const [path, operations] of Object.entries(document.paths)) {
+      if (!path.startsWith("/sessions/{")) continue;
+      for (const verb of Object.keys(operations)) {
+        if (VERBS.has(verb)) served.push(`${verb.toUpperCase()} ${path}`);
+      }
+    }
+    expect(
+      served.length,
+      "the document served no session-scoped route, so this proves nothing",
+    ).toBeGreaterThan(3);
+
+    // `surfaces.ts` names a path template in `name` and builds the real path in `path`;
+    // the template is what compares, and `{id}` is the document's spelling of it.
+    const probed = new Set(SURFACES.map((surface) => surface.name));
+    const unprobed = served.filter((route) => !probed.has(route));
+    expect(
+      unprobed,
+      "a session-scoped route has no entry in SURFACES, so no credential shape is asserted against it",
+    ).toEqual([]);
   });
 
   it("covers every admin slice, so no mounted group escapes the gate probes", () => {

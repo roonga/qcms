@@ -73,7 +73,12 @@ import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import { spendAnswerAllowance } from "../rate-limits.js";
-import { applyRosterOp, loadRosters, mintDueAndLoadRosters } from "../roster.js";
+import {
+  applyRosterOp,
+  loadRosters,
+  mintDueAndLoadRosters,
+  type RosterRefusalCode,
+} from "../roster.js";
 import { parseSemanticsVersion, unsupportedSemanticsVersion } from "../semantics-version.js";
 import { authenticateSession } from "../session-token.js";
 // Type-only (erased at runtime, so no import cycle with route.ts).
@@ -99,6 +104,8 @@ const fail = {
     new ApiError("REPEAT_MAX_REACHED", 409, "This group is already at the size its author allows"),
   instanceRequired: (): ApiError =>
     new ApiError("INVALID_INSTANCE_ID", 400, "A removal names the instance to remove"),
+  unknownInstance: (): ApiError =>
+    new ApiError("UNKNOWN_INSTANCE", 404, "No such instance in this session's roster"),
   crossSession: (): ApiError =>
     new ApiError("unauthorized", 401, "Session token does not match this session"),
 } as const;
@@ -809,6 +816,20 @@ export function makeBatchAnswersHandler(
  * It has its own rate limit beside the answer write (SEC-16), and it rides the same
  * origin belt, because the roster operation IS a step POST (SEC-9).
  */
+/**
+ * One roster refusal onto this surface's error envelope.
+ *
+ * A function rather than a ternary because there are three outcomes now and a ternary
+ * silently folds an unmapped code onto whichever branch is last: the removal check added
+ * in review of PR #1034 would have been reported as `REPEAT_NOT_ADDABLE`, which says the
+ * group's size is not the respondent's to change, about a group where it is.
+ */
+function rosterRefusal(code: RosterRefusalCode): ApiError {
+  if (code === "REPEAT_MAX_REACHED") return fail.maxReached();
+  if (code === "UNKNOWN_INSTANCE") return fail.unknownInstance();
+  return fail.notAddable();
+}
+
 export function makeRosterOpHandler(deps: Deps): RouteHandler<typeof rosterOpRoute, ApiEnv> {
   return async (c) => {
     const { id } = c.req.valid("param");
@@ -845,9 +866,7 @@ export function makeRosterOpHandler(deps: Deps): RouteHandler<typeof rosterOpRou
           ? { op: "remove" as const, instanceId: instanceId! }
           : { op: "add" as const }),
       });
-      if (!outcome.ok) {
-        throw outcome.code === "REPEAT_MAX_REACHED" ? fail.maxReached() : fail.notAddable();
-      }
+      if (!outcome.ok) throw rosterRefusal(outcome.code);
       const projection = await projectWithRosters(tx, snapshot, sessionId, answers, requestedIndex);
       return {
         ...projection,
