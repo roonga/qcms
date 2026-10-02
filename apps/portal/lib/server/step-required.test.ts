@@ -42,7 +42,7 @@ afterEach(() => {
 
 const api = {
   startSession: vi.fn(),
-  submitAnswer: vi.fn(),
+  batchAnswers: vi.fn(),
   submitSession: vi.fn(),
   getStep: vi.fn(),
 };
@@ -60,7 +60,7 @@ class FakeApiError extends Error {
 vi.mock("@/lib/server/api", () => ({
   ApiError: FakeApiError,
   startSession: api.startSession,
-  submitAnswer: api.submitAnswer,
+  batchAnswers: api.batchAnswers,
   submitSession: api.submitSession,
   getStep: api.getStep,
 }));
@@ -109,6 +109,12 @@ function projection(options: {
   readonly readyToSubmit?: boolean;
   readonly missingRequired?: readonly string[];
   readonly visibleQuestions?: readonly string[];
+  readonly rejected?: readonly {
+    readonly questionId: string;
+    readonly instanceId?: string;
+    readonly code: string;
+    readonly details?: unknown;
+  }[];
 }) {
   return {
     step: null,
@@ -120,6 +126,15 @@ function projection(options: {
       visibleQuestions: options.visibleQuestions ?? [],
       missingRequired: options.missingRequired ?? [],
     },
+    rosters: [],
+    /**
+     * The entries the batch refused (task 073, Q20). A 422 on one cell is a REJECTION
+     * inside a 200 rather than a thrown error, because the batch applies the entries
+     * around it: a respondent who mistyped one field of nine passengers must not lose
+     * the other fifty-three. The whole request throws only when nothing was applied at
+     * all - a lost session, a 5xx, or a 429 for a batch that did not fit the window.
+     */
+    rejected: options.rejected ?? [],
   };
 }
 
@@ -135,7 +150,12 @@ async function postStep(fields: readonly (readonly [string, string])[]): Promise
 }
 
 /** The re-render context the route left for the next page render. */
-function writtenContext(): { missingRequired?: unknown; errors?: unknown; values?: unknown } {
+function writtenContext(): {
+  missingRequired?: unknown;
+  errors?: unknown;
+  values?: unknown;
+  notice?: unknown;
+} {
   return JSON.parse(cookieJar.get(STEP_CTX_COOKIE) ?? "{}") as Record<string, unknown>;
 }
 
@@ -148,7 +168,7 @@ describe("a required question left blank is reported, not silently reloaded (iss
   it("carries the API's missing-required set for the fields the posted form asked", async () => {
     // Nothing is posted for the date, so no answer call is made at all: the gap is
     // only visible in the projection the API returns for the answer that WAS posted.
-    api.submitAnswer.mockResolvedValue(
+    api.batchAnswers.mockResolvedValue(
       projection({ missingRequired: ["q_dob"], visibleQuestions: ["q_full_name", "q_dob"] }),
     );
 
@@ -178,7 +198,7 @@ describe("a required question left blank is reported, not silently reloaded (iss
       ["q_dob", ""],
     ]);
 
-    expect(api.submitAnswer).not.toHaveBeenCalled();
+    expect(api.batchAnswers).not.toHaveBeenCalled();
     expect(api.getStep).toHaveBeenCalledTimes(1);
     expect(writtenContext().missingRequired).toEqual(["q_dob"]);
   });
@@ -187,7 +207,7 @@ describe("a required question left blank is reported, not silently reloaded (iss
     // The #919 marker aimed at a required question: the field is marked as answered
     // and arrives empty, so the route posts the ADR-33 retraction, the API accepts it
     // (a retraction is not a validation outcome) and immediately reports the gap.
-    api.submitAnswer.mockResolvedValue(
+    api.batchAnswers.mockResolvedValue(
       projection({ missingRequired: ["q_dob"], visibleQuestions: ["q_dob"] }),
     );
 
@@ -197,7 +217,9 @@ describe("a required question left blank is reported, not silently reloaded (iss
       ["q_dob", ""],
     ]);
 
-    expect(api.submitAnswer).toHaveBeenCalledWith(SESSION_ID, "respondent-bearer", "q_dob", null);
+    expect(api.batchAnswers).toHaveBeenCalledWith(SESSION_ID, "respondent-bearer", [
+      { questionId: "q_dob", value: null },
+    ]);
     expect(writtenContext().missingRequired).toEqual(["q_dob"]);
   });
 
@@ -205,7 +227,7 @@ describe("a required question left blank is reported, not silently reloaded (iss
     // `missingRequired` is flow-wide and cursor-independent. A required question on a
     // step ahead, or one a just-changed branch has only now revealed, must not be
     // accused before the respondent has been shown it.
-    api.submitAnswer.mockResolvedValue(
+    api.batchAnswers.mockResolvedValue(
       projection({
         missingRequired: ["q_accident_count"],
         visibleQuestions: ["q_at_fault_accident", "q_accident_count"],
@@ -223,14 +245,21 @@ describe("a required question left blank is reported, not silently reloaded (iss
   it("leaves a question the API refused with its own 422 message instead", async () => {
     // A refused answer is missing an answer too, by construction. The kernel's message
     // about the value it refused says more than "this needs an answer", so it wins.
-    api.submitAnswer.mockRejectedValue(
-      new FakeApiError(422, "INVALID_ANSWER", {
-        questionId: "q_dob",
-        errors: [{ code: "VALUE_ABOVE_MAX", constraint: "max", message: "Too late" }],
+    api.batchAnswers.mockResolvedValue(
+      projection({
+        missingRequired: ["q_dob"],
+        visibleQuestions: ["q_dob"],
+        rejected: [
+          {
+            questionId: "q_dob",
+            code: "INVALID_ANSWER",
+            details: {
+              questionId: "q_dob",
+              errors: [{ code: "VALUE_ABOVE_MAX", constraint: "max", message: "Too late" }],
+            },
+          },
+        ],
       }),
-    );
-    api.getStep.mockResolvedValue(
-      projection({ missingRequired: ["q_dob"], visibleQuestions: ["q_dob"] }),
     );
 
     await postStep([
@@ -243,19 +272,29 @@ describe("a required question left blank is reported, not silently reloaded (iss
     expect(context.errors).toEqual({ q_dob: "Too late" });
   });
 
-  it("keeps the refusals and the typed values when the projection read FAILS", async () => {
-    // The narrow regression this change introduced and then closed (reviewer finding).
-    // When every posted answer is refused there is no projection in hand, so the route
-    // reads one; if that read throws, the round must still re-render with the 422 and
-    // the value the respondent typed. Returning before the write would hand them the
-    // silent reload this whole change exists to remove.
-    api.submitAnswer.mockRejectedValue(
-      new FakeApiError(422, "INVALID_ANSWER", {
-        questionId: "q_full_name",
-        errors: [{ code: "PATTERN_MISMATCH", constraint: "pattern", message: "Letters only" }],
+  it("keeps a refusal and the typed value in the same round (reviewer finding)", async () => {
+    // A refused entry and an accepted projection arrive together now: the batch applies
+    // what it can and lists what it refused, so the re-render has both the 422's
+    // message and the value the respondent typed. The narrow case this replaced - every
+    // answer refused, so no projection in hand and a second read needed - cannot arise
+    // any more, because a per-entry refusal is part of a 200.
+    api.batchAnswers.mockResolvedValue(
+      projection({
+        visibleQuestions: ["q_full_name"],
+        rejected: [
+          {
+            questionId: "q_full_name",
+            code: "INVALID_ANSWER",
+            details: {
+              questionId: "q_full_name",
+              errors: [
+                { code: "PATTERN_MISMATCH", constraint: "pattern", message: "Letters only" },
+              ],
+            },
+          },
+        ],
       }),
     );
-    api.getStep.mockRejectedValue(new FakeApiError(503, "UPSTREAM"));
 
     const response = await postStep([
       ["__qk__q_full_name", "string"],
@@ -266,17 +305,52 @@ describe("a required question left blank is reported, not silently reloaded (iss
     const context = writtenContext();
     expect(context.errors).toEqual({ q_full_name: "Letters only" });
     expect(context.values).toEqual({ q_full_name: "Ada1" });
-    // The missing-required half is the only casualty of the failed read: it is the
-    // API's to give, so with no projection the route reports none rather than guessing.
-    expect(context.missingRequired).toEqual([]);
-    // And nothing was submitted on a guess about readiness.
     expect(api.submitSession).not.toHaveBeenCalled();
   });
 
-  it("keeps the typed values when the read fails and nothing was refused", async () => {
-    // The same protection one step further out: no refusals either, so the only thing
-    // worth carrying is what the respondent typed, and it is carried.
-    api.submitAnswer.mockResolvedValue(
+  it("keeps the typed values when the whole BATCH is refused", async () => {
+    // The same protection at the only level a refusal can now reach the whole round: a
+    // lost session, a 5xx, or a 429 for a batch that did not fit the window's remaining
+    // allowance (SEC-16). Nothing was written, and the values the respondent typed do
+    // not depend on the API having accepted them, so they are carried rather than
+    // dropped to a transient failure - the silent reload issue #920 exists to remove,
+    // met from the other side.
+    api.batchAnswers.mockRejectedValue(new FakeApiError(429, "rate_limited"));
+
+    const response = await postStep([
+      ["__qk__q_full_name", "string"],
+      ["q_full_name", "Ada Lovelace"],
+    ]);
+
+    expect(response.status).toBe(303);
+    expect(writtenContext().values).toEqual({ q_full_name: "Ada Lovelace" });
+    expect(api.submitSession).not.toHaveBeenCalled();
+    // AND a message, which is the half this case was missing (ruling Q29, 2026-10-02).
+    // A refused batch has no refused field to hang one on, so without this the step came
+    // back with the respondent's own answers, no errors and no explanation - and a
+    // respondent whose Continue was refused by the rate limiter met that every time they
+    // pressed it. A KEY, because the catalogue is where the portal's wording lives.
+    expect(writtenContext().notice).toBe("step.notSaved");
+    expect(writtenContext().errors).toEqual({});
+  });
+
+  it("writes NO notice when the round trip succeeded", async () => {
+    // Without this the assertion above passes for a route that notices everything, and a
+    // banner saying nothing was saved would sit on top of a step that saved everything.
+    api.batchAnswers.mockResolvedValue(
+      projection({ visibleQuestions: ["q_full_name"], readyToSubmit: false }),
+    );
+
+    await postStep([
+      ["__qk__q_full_name", "string"],
+      ["q_full_name", "Ada Lovelace"],
+    ]);
+
+    expect(writtenContext().notice).toBeUndefined();
+  });
+
+  it("carries the typed values on the ordinary not-ready path", async () => {
+    api.batchAnswers.mockResolvedValue(
       projection({ visibleQuestions: ["q_full_name"], readyToSubmit: false }),
     );
     api.getStep.mockRejectedValue(new FakeApiError(503, "UPSTREAM"));
@@ -286,16 +360,16 @@ describe("a required question left blank is reported, not silently reloaded (iss
       ["q_full_name", "Ada Lovelace"],
     ]);
 
-    // `submitAnswer` returned a projection here, so this asserts the ordinary
-    // not-ready path still carries values; the read is never even reached.
+    // The batch returned a projection, so the extra read is never even reached.
     expect(writtenContext().values).toEqual({ q_full_name: "Ada Lovelace" });
+    expect(api.getStep).not.toHaveBeenCalled();
     expect(api.submitSession).not.toHaveBeenCalled();
   });
 
   it("submits the session untouched when the API reports no gap", async () => {
     // The behaviour that must not regress: a complete step still submits on the same
     // POST, with no extra round trip introduced by the gap read.
-    api.submitAnswer.mockResolvedValue(
+    api.batchAnswers.mockResolvedValue(
       projection({ readyToSubmit: true, visibleQuestions: ["q_dob"] }),
     );
     api.submitSession.mockResolvedValue({

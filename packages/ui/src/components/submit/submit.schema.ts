@@ -15,6 +15,15 @@ export const SubmitButtonSchema = z.object({
       label: z.string(),
       /** Host-app class (ADR-26 adopter theming); the control is otherwise unstyled. */
       className: z.string().optional(),
+      /**
+       * The URL this control posts to, overriding the form's own action (task 073).
+       *
+       * Present only when the form's action is a Next Server Action, which is how a
+       * step carrying a repeating group answers an Add or Remove in a 200 re-render.
+       * Continue must still reach the whole-step BFF route and its 303, and
+       * `formaction` on a submit button is HTML's own way of saying so.
+       */
+      formAction: z.string().optional(),
     })
     .strict()
     .optional(),

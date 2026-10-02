@@ -46,6 +46,9 @@ import type { TestDb } from "@roonga/qcms-db/testing";
 import {
   AUTHOR_MESSAGES_DEF,
   AUTHOR_MESSAGES_GOLDEN,
+  REPEAT_FLEET_DEF,
+  REPEAT_FLEET_GOLDEN,
+  REPEAT_FLEET_QUESTIONS,
   AUTHOR_MESSAGES_QUESTIONS,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -230,6 +233,16 @@ const STALE_PIN_QUESTIONS = [
  * belongs to, so a clone is the only way to reuse one; structural, so the shared
  * fixture constants the other seeds hand to `createQuestionVersion` are untouched.
  */
+/**
+ * A fixture's definition with its id stamped on, stored **verbatim**.
+ *
+ * Nothing parses it against `QuestionDefinition` on the way in, so a fixture has to be
+ * written the way the schema would have left it. In particular the schema `prefault`s an
+ * empty `constraints` object for every question type, and a stored definition without one
+ * crashes the kernel's validator where it destructures the field: a `multiChoice` fixture
+ * that left `constraints` out answered 500 rather than refusing anything, which is how
+ * this was found. Spell the optional objects out.
+ */
 function questionDefinitionFor(
   questionId: QuestionId,
   definition: QuestionVersionInput["definition"],
@@ -393,6 +406,45 @@ export async function seedAuthorMessagesForm(
     compiled: AUTHOR_MESSAGES_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: AUTHOR_MESSAGES_GOLDEN.compilerVersion,
     a2uiSpecVersion: AUTHOR_MESSAGES_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  return { formId, slug };
+}
+
+/**
+ * Seed the `repeat-fleet` form (task 073): one step with a plain required question and
+ * one **repeating group** (`open`, `min: 1`, `max: 3`), plus a published version storing
+ * its committed golden compiled A2UI (ADR-18).
+ *
+ * Its questions are unique to it, so it never collides with the insurance,
+ * kitchen-sink or author-messages seeds and needs no shared-questions flag.
+ *
+ * This is the fixture that makes the repeating group reachable in a browser at all.
+ * Until it existed the whole feature was green everywhere while no fixture form
+ * compiled a `RepeatGroup`, which is exactly how the four no-JS dead ends of issues
+ * #920, #974, #18 and #988 each stayed invisible until a fixture carried the shape.
+ */
+export async function seedRepeatFleetForm(
+  db: Db,
+  opts: { formId?: string; slug?: string } = {},
+): Promise<SeededForm> {
+  const formId = opts.formId ?? "frm_repeat_fleet";
+  const slug = opts.slug ?? "repeat-fleet";
+  for (const question of REPEAT_FLEET_QUESTIONS) {
+    await seedQuestionVersion(
+      db,
+      question.questionId,
+      question.slug,
+      question.definition as QuestionVersionInput["definition"],
+    );
+  }
+  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await insertFormVersion(db, {
+    formId: FormId.parse(formId),
+    definition: REPEAT_FLEET_DEF as FormVersionInput["definition"],
+    compiled: REPEAT_FLEET_GOLDEN as unknown as FormVersionInput["compiled"],
+    compilerVersion: REPEAT_FLEET_GOLDEN.compilerVersion,
+    a2uiSpecVersion: REPEAT_FLEET_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
   return { formId, slug };

@@ -51,11 +51,29 @@
  * objects**, and no constraint is added. So the three points above are the whole
  * of the mechanism rather than a stopgap, which is why each one carries a test.
  *
- * **What this module does not do.** It does not serve a step, render anything or
- * decide an HTTP envelope; the serving loop and both respondent paths are task
- * 073, which calls {@link mintForServedGroup}, {@link addRosterInstance} and
- * {@link removeRosterInstance} from its routes and maps
- * {@link RosterRefusalCode} onto its own error envelope.
+ * **What task 073 added here.** The serving glue: {@link mintDueAndLoadRosters},
+ * which mints whatever a serve or an answer write has made due and returns the live
+ * map in one call, and {@link applyRosterOp}, which is the respondent's Add or
+ * Remove **behind its one-time operation token**. Everything above it is still 072's
+ * and unchanged.
+ *
+ * **The token, in one paragraph, because it is the part that is easy to get wrong.**
+ * The no-JS roster operation answers its POST with a **200 re-render** rather than a
+ * 303 (ADR-43, confirmed by the Code Owner on 2026-09-30): the values that must
+ * survive an Add are the whole step rather than a refused subset, and the whole step
+ * at nine instances does not fit a 4 KB cookie, so the carrier is the POST body and
+ * the response is a page. A POST whose response is a page can be replayed by a reload
+ * or by Back, and replaying an Add would add a second instance. So the rendered page
+ * mints a token into each `__qop` button's value, this module records it with the row
+ * it writes, and a token already spent is a **no-op that returns the roster as it
+ * stands**. A **refused** Add records nothing, so a refusal cannot be replayed into an
+ * acceptance either. The check and the write are one decision because the caller holds
+ * the session's advisory lock, which is why no database constraint is needed (the
+ * roster's own no-duplicates rule was ruled into code on 2026-09-30 for the same
+ * reason).
+ *
+ * It does not decide an HTTP envelope: the routes are task 073's and they map
+ * {@link RosterRefusalCode} onto the API's error shape.
  */
 
 import {
@@ -69,6 +87,8 @@ import {
   type RosterMap,
   type SessionId,
   type Step,
+  type StepId,
+  isRepeatGroup,
   repeatGroups,
 } from "@roonga/qcms-core";
 import {
@@ -78,6 +98,7 @@ import {
   readRoster,
   readRosters,
   removeInstance,
+  rosterOpApplied,
 } from "@roonga/qcms-db";
 
 /**
@@ -260,6 +281,9 @@ export type RosterRefusalCode =
   /** An Add on a group whose count source is not `open`: its size is not the
    * respondent's to change. */
   | "REPEAT_NOT_ADDABLE"
+  /** A Remove naming an instance this session's roster never minted: the caller
+   * obligation on {@link removeRosterInstance}, enforced rather than trusted. */
+  | "UNKNOWN_INSTANCE"
   /** An Add that would take the group past the `max` its author declared
    * (SEC-16: the per-form bound is the only bound there is). */
   | "REPEAT_MAX_REACHED";
@@ -433,4 +457,148 @@ export async function removeRosterInstance(
     groupId: input.groupId,
     instanceId: input.instanceId,
   });
+}
+
+/**
+ * Mint whatever this request has made due, and return the live `RosterMap`.
+ *
+ * **Which groups are due, and why it is not "all of them".** A mint is auditable and
+ * a roster row is permanent, so an instance is minted when the respondent can
+ * actually be asked for it and not before:
+ *
+ * - **the groups on the step being rendered** - a `fixed` group mints its `count` and
+ *   an `open` group mints `min` (or one, when `min` is 0) the first time its own step
+ *   is served, so a respondent sees a card to fill rather than an empty group with a
+ *   button;
+ * - **every `fromAnswer` group in the form, wherever it sits** - its target follows
+ *   the count answer, which is written on a step that is by construction earlier than
+ *   the group's own (publish refuses a count question that does not precede the
+ *   group's whole span), so the mint has to happen on the write of that answer rather
+ *   than on the serve of a step the respondent has not reached.
+ *
+ * Idempotent, because {@link mintForServedGroup} is: it compares against the rows
+ * ever **minted** rather than against the live set, so serving the same step twice
+ * mints nothing the second time and a `fromAnswer` count lowered and raised again
+ * re-lives the instance it already has instead of minting a fourth.
+ *
+ * **One re-read, and only when something was written.** The roster order is
+ * `(occurred_at, instance_id)` and every row one mint writes shares a timestamp, so
+ * the order of a batch is the read's to decide; assembling it in memory would give
+ * this call a different answer from the next read of the same rows.
+ *
+ * The caller owns the transaction (R5) and is expected to hold the session's advisory
+ * lock, as the answer write does: two concurrent serves of one step would otherwise
+ * each see an empty roster and each mint a full set.
+ */
+export async function mintDueAndLoadRosters(
+  exec: Executor,
+  input: {
+    sessionId: SessionId;
+    steps: readonly Step[];
+    /** The step this request renders, or `null` when the flow draws none. */
+    renderStep: StepId | null;
+    answers: AnswerMap;
+  },
+): Promise<RosterMap> {
+  const rows = await readRosters(exec, input.sessionId);
+  const onRenderStep = new Set<GroupId>(
+    input.steps
+      .filter((step) => step.stepId === input.renderStep)
+      .flatMap((step) => step.items.filter(isRepeatGroup).map((group) => group.groupId)),
+  );
+  let minted = false;
+  for (const group of repeatGroups(input.steps)) {
+    const due = group.count.source === "fromAnswer" || onRenderStep.has(group.groupId);
+    if (!due) continue;
+    const roster = rows.get(group.groupId);
+    const shortfall = mintTarget(group.count, input.answers) - (roster?.minted.length ?? 0);
+    if (shortfall <= 0) continue;
+    await addInstances(exec, {
+      sessionId: input.sessionId,
+      groupId: group.groupId,
+      instanceIds: mintDistinct(shortfall, roster?.minted ?? []),
+    });
+    minted = true;
+  }
+  return deriveRosters(
+    input.steps,
+    minted ? await readRosters(exec, input.sessionId) : rows,
+    input.answers,
+  );
+}
+
+/** The outcome of a respondent's roster operation. */
+export type RosterOpResult =
+  | {
+      readonly ok: true;
+      /** True when the token had already been spent: nothing was written. */
+      readonly replayed: boolean;
+      readonly minted: readonly InstanceId[];
+    }
+  | { readonly ok: false; readonly code: RosterRefusalCode };
+
+/**
+ * The respondent's Add or Remove, behind its one-time operation token.
+ *
+ * The token is checked **first**, before the group's own rules, so a replay of a post
+ * that was accepted is a no-op whatever the roster looks like now: a respondent who
+ * adds a ninth instance, reaches `max`, and then reloads the response must not be
+ * told their reload was refused - the operation already happened and the page they
+ * are looking at is its result.
+ *
+ * A **refusal** records nothing, so it is not idempotent and does not need to be: a
+ * replayed refused Add is refused again, which is the same answer.
+ *
+ * `min` is not enforced on a removal, deliberately: a group below `min` is refused at
+ * submit (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), so a respondent can empty a group,
+ * rebuild it, and only be stopped at the end.
+ */
+export async function applyRosterOp(
+  exec: Executor,
+  input: {
+    sessionId: SessionId;
+    group: RepeatGroup;
+    roster: GroupRoster | undefined;
+    answers: AnswerMap;
+    opToken: string;
+  } & ({ readonly op: "add" } | { readonly op: "remove"; readonly instanceId: InstanceId }),
+): Promise<RosterOpResult> {
+  if (await rosterOpApplied(exec, input.sessionId, input.opToken)) {
+    return { ok: true, replayed: true, minted: [] };
+  }
+  if (input.group.count.source !== "open") return { ok: false, code: "REPEAT_NOT_ADDABLE" };
+  if (input.op === "remove") {
+    // The caller obligation on `removeRosterInstance` above, DISCHARGED here rather than
+    // documented. A removal naming an id this session's roster never minted would append a
+    // `removed` row under a key no roster lists: nothing is disclosed and no derived list
+    // moves, because every read starts from `minted`, but the table is append-only and
+    // only an erasure clears it, so a forged id would leave a row forever. The roster is
+    // already in hand - the route needs it to render the Remove control at all - so this
+    // is a lookup rather than a query. Raised in review of PR #1034, finding 5.
+    //
+    // A removal of an instance that WAS minted and is already removed still appends, which
+    // is the no-op the docblock above describes: the respondent pressed the button, the log
+    // records it, and no derived list moves.
+    if (!(input.roster?.minted ?? []).includes(input.instanceId)) {
+      return { ok: false, code: "UNKNOWN_INSTANCE" };
+    }
+    await removeInstance(exec, {
+      sessionId: input.sessionId,
+      groupId: input.group.groupId,
+      instanceId: input.instanceId,
+      opToken: input.opToken,
+    });
+    return { ok: true, replayed: false, minted: [] };
+  }
+  const live = liveInstances(input.group.count, input.roster, input.answers);
+  const { max } = countBounds(input.group.count);
+  if (max !== undefined && live.length >= max) return { ok: false, code: "REPEAT_MAX_REACHED" };
+  const instanceId = mintDistinct(1, input.roster?.minted ?? [])[0]!;
+  await addInstances(exec, {
+    sessionId: input.sessionId,
+    groupId: input.group.groupId,
+    instanceIds: [instanceId],
+    opToken: input.opToken,
+  });
+  return { ok: true, replayed: false, minted: [instanceId] };
 }

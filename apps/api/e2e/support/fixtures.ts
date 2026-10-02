@@ -295,6 +295,74 @@ export const AUTHOR_MESSAGES_COMPILED_PATH =
 /** The committed golden compiled A2UI document for the `author-messages` form. */
 export const AUTHOR_MESSAGES_GOLDEN = readFixture(AUTHOR_MESSAGES_COMPILED_PATH) as CompiledForm;
 
+// --- repeat-fleet: a repeating group on the respondent surface (task 073) ----
+
+/**
+ * The `repeat-fleet` form: one step holding a plain required question and one
+ * **repeating group** whose count source is `open`, `min: 1`, `max: 3` (ADR-42, ADR-43).
+ *
+ * It is the fixture the portal's repeat specs drive, on both paths. Its four members are
+ * chosen for what they let a browser assert rather than for coverage's own sake:
+ *
+ * - `q_rf_plate` is **required**, so the Add button's `formnovalidate` is load-bearing
+ *   (a respondent who has not filled vehicle 1 must still be able to add vehicle 2), and
+ *   so the ruled "an Add post writes no answer and retracts nothing" has a required
+ *   field to prove it against;
+ * - `q_rf_service_date` is an optional **date**, which on the no-JS path renders the
+ *   native date fallback (issue #920), so a repeated instance is proved to reach that
+ *   substitution too;
+ * - `q_rf_notes` is a **longText** and `q_rf_extras` a **multiChoice**, which is
+ *   acceptance case 38: the stacked presentation allows every question type, and these
+ *   are the two the table presentation refuses (Q12's deliberate asymmetry).
+ *
+ * `max: 3` keeps the refusal one press away from the second add, and `min: 1` means the
+ * first serve mints a card rather than showing an empty group with a button.
+ *
+ * Vehicle domain throughout (043's neutral-domain rule, guarded by
+ * `scripts/check-fixture-domain.mjs`). The compiled golden is generated from these
+ * definitions via the a2ui-compiler and committed alongside them.
+ */
+export const REPEAT_FLEET_DEF = readFixture("apps/api/e2e/support/fixtures/repeat-fleet-form.json");
+
+/** The five question definitions the `repeat-fleet` form pins. */
+export const REPEAT_FLEET_QUESTIONS: readonly {
+  readonly questionId: string;
+  readonly slug: string;
+  readonly definition: unknown;
+}[] = [
+  {
+    questionId: "q_rf_fleet_ref",
+    slug: "rf-fleet-ref",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rf-fleet-ref.json"),
+  },
+  {
+    questionId: "q_rf_plate",
+    slug: "rf-plate",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rf-plate.json"),
+  },
+  {
+    questionId: "q_rf_service_date",
+    slug: "rf-service-date",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rf-service-date.json"),
+  },
+  {
+    questionId: "q_rf_notes",
+    slug: "rf-notes",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rf-notes.json"),
+  },
+  {
+    questionId: "q_rf_extras",
+    slug: "rf-extras",
+    definition: readFixture("apps/api/e2e/support/fixtures/q-rf-extras.json"),
+  },
+];
+
+/** Repo-relative path of the `repeat-fleet` compiled document (regenerable, see below). */
+export const REPEAT_FLEET_COMPILED_PATH = "apps/api/e2e/support/fixtures/repeat-fleet.a2ui.json";
+
+/** The committed golden compiled A2UI document for the `repeat-fleet` form. */
+export const REPEAT_FLEET_GOLDEN = readFixture(REPEAT_FLEET_COMPILED_PATH) as CompiledForm;
+
 // --- sample-library: the composed stack's seeded form (issue #994) ----------
 
 /**
@@ -410,6 +478,13 @@ export const COMPILED_FIXTURES: readonly CompiledFixture[] = [
     regenerable: true,
     form: AUTHOR_MESSAGES_DEF,
     questions: AUTHOR_MESSAGES_QUESTIONS.map((question) => question.definition),
+  },
+  {
+    name: "repeat-fleet",
+    path: REPEAT_FLEET_COMPILED_PATH,
+    regenerable: true,
+    form: REPEAT_FLEET_DEF,
+    questions: REPEAT_FLEET_QUESTIONS.map((question) => question.definition),
   },
   {
     name: "sample-library",

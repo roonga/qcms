@@ -122,6 +122,13 @@ const MULTI_VIEWPORT_SPECS = [
   "**/kitchen-sink-flow.pw.ts",
   "**/a11y-axe.pw.ts",
   "**/a11y-keyboard.pw.ts",
+  // Task 073: the stacked presentation's ruling is ONE INPUT PER ROW at every width,
+  // "not at a desktop width, not in the admin preview, not in a card that happens to
+  // hold two short fields" (Q12). A rule about every width is provable only across
+  // widths, so this spec runs on all three projects: the Pixel 7 at 390 and the
+  // tablet and desktop widths above it. The phone project alone would leave the
+  // ruling's own wording unasserted.
+  "**/repeat-stacked.pw.ts",
 ];
 
 export default defineConfig({

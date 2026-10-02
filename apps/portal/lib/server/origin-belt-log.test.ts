@@ -18,6 +18,7 @@ import {
 // Plain JavaScript with a hand-written declaration file beside it, imported by relative
 // path the way `apps/api/e2e/support/check-fixture-domain.test.ts` imports its gate.
 import { trackedFilesUnder } from "../../../../scripts/tracked-files.mjs";
+import { declaresUseServer } from "../../../../scripts/use-server-directive.mjs";
 
 /**
  * The refusal line's own tests (issue #578). `origin-guard.test.ts` covers the other
@@ -85,6 +86,9 @@ const OUTCOME_VOCABULARY = [
   "redirect-to-entry",
   "redirect-to-root",
   "redirect-to-step",
+  // Task 073: a refused Server Action re-renders the step it was pressed on with a
+  // message and nothing applied, which is neither a redirect nor a 403.
+  "rendered-unchanged",
   "forbidden",
 ];
 
@@ -118,19 +122,59 @@ function concreteUrl(template: string): string {
 }
 
 /**
- * Every portal route file that exports a state-changing handler, as a path template.
+ * Every `"use server"` module under `APP_DIR`, as paths relative to it.
+ *
+ * A **Server Action** is a state-changing entry point that is not a `route.ts`, and
+ * since task 073 the portal has one: the no-JS Add and Remove of a repeating group. It
+ * runs SEC-9's belt itself (Code Owner, 2026-10-01, R-B2), so it belongs in the
+ * enumeration below rather than beside it, or the table's two-directional check would
+ * report the action's own `BeltRoute` entry as an orphan.
+ *
+ * Enumerated through git for the same reason the route walk is.
+ */
+function serverActionFiles(): string[] {
+  return trackedFilesUnder(APP_DIR, { match: /\.tsx?$/ }).filter((relative) => {
+    const source = readFileSync(`${APP_DIR}/${relative}`, "utf8");
+    // The directive is the first statement of the module, so a mention in a comment or
+    // a string further down is not one. Shared with the two other scans that need it.
+    return declaresUseServer(source);
+  });
+}
+
+/**
+ * The Next path template a Server Action runs against: the PAGE that declares it.
+ *
+ * `s/[sessionId]/roster-action.ts` gives `/s/{sessionId}`, because an action is posted
+ * to the route of the page whose form carries it rather than to a path of its own. That
+ * is also why its belt entry cannot be derived by `templateOf`, which reads a
+ * `route.ts`'s own directory.
+ */
+function actionTemplateOf(relativePath: string): string {
+  const segments = relativePath.split("/").slice(0, -1);
+  return `/${segments.map((s) => s.replace(/^\[(.+)]$/, "{$1}")).join("/")}`;
+}
+
+/**
+ * Every portal entry point that changes state, as a path template: the route files
+ * exporting a mutating handler, plus every Server Action.
  *
  * This is the enumeration. It reads the tree rather than a list, so a belted route
- * added tomorrow appears here without anyone remembering this file exists.
+ * added tomorrow appears here without anyone remembering this file exists - and since
+ * task 073 that includes a Server Action added tomorrow, which is the shape Next makes
+ * easiest to add and the belt hardest to remember.
  */
-const MUTATING_ROUTE_TEMPLATES: string[] = routeFiles(APP_DIR, "")
-  .filter((relative) => {
-    const source = readFileSync(`${APP_DIR}/${relative}`, "utf8");
-    return source
-      .split("\n")
-      .some((line) => MUTATING_VERBS.has(EXPORTED_HANDLER.exec(line)?.[1] ?? ""));
-  })
-  .map(templateOf)
+const MUTATING_ROUTE_TEMPLATES: string[] = [
+  ...routeFiles(APP_DIR, "")
+    .filter((relative) => {
+      const source = readFileSync(`${APP_DIR}/${relative}`, "utf8");
+      return source
+        .split("\n")
+        .some((line) => MUTATING_VERBS.has(EXPORTED_HANDLER.exec(line)?.[1] ?? ""));
+    })
+    .map(templateOf),
+  ...serverActionFiles().map(actionTemplateOf),
+]
+  .filter((template, index, all) => all.indexOf(template) === index)
   .sort((a, b) => a.localeCompare(b));
 
 describe("the belted route set is the one on disk", () => {
@@ -160,7 +204,6 @@ describe("the belted route set is the one on disk", () => {
     // One bounded segment per parameter: a nested path under the same prefix is a
     // different route and must not be counted as this one.
     expect(classifyRoute(`${PORTAL_BASE}/s/ses_1/step/extra`)).toBe("unrecognized");
-    expect(classifyRoute(`${PORTAL_BASE}/s/ses_1`)).toBe("unrecognized");
     expect(classifyRoute(`${PORTAL_BASE}/l/lnk_1`)).toBe("unrecognized");
     // `/appearance` is the one belted route with no dynamic segment, so its pattern is
     // the one most likely to be written as a prefix by accident.

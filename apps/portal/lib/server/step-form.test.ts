@@ -207,3 +207,75 @@ describe("decodeStepForm reports the questions the form asked (issue #920)", () 
     expect(decodeStepForm(form(["website", ""])).fields).toEqual([]);
   });
 });
+
+describe("the roster operation, the fourth reserved name (task 073, ADR-43)", () => {
+  it("decodes the pressed Add button", () => {
+    const { rosterOp, answers } = decodeStepForm(
+      form(["__qk__q_t", "string"], ["q_t", "Ada"], ["__qop", "add:grp_vehicles:op_7f3"]),
+    );
+    expect(rosterOp).toEqual({ op: "add", groupId: "grp_vehicles", token: "op_7f3" });
+    // The answers are still decoded, because the typed values have to be carried
+    // back into the re-render. What does NOT happen is the caller forwarding them to
+    // the ledger: an Add or Remove post commits no answer (Code Owner, 2026-09-30).
+    expect(answers).toEqual([{ questionId: "q_t", value: "Ada" }]);
+  });
+
+  it("decodes the pressed Remove button, instance and all", () => {
+    const { rosterOp } = decodeStepForm(form(["__qop", "remove:grp_vehicles:ins_7k2:op_7f3"]));
+    expect(rosterOp).toEqual({
+      op: "remove",
+      groupId: "grp_vehicles",
+      instanceId: "ins_7k2",
+      token: "op_7f3",
+    });
+  });
+
+  it("is absent on an ordinary Continue", () => {
+    expect(decodeStepForm(form(["__qk__q_t", "string"], ["q_t", "Ada"])).rosterOp).toBeUndefined();
+  });
+
+  it("never lands in extras and is never read as an answer", () => {
+    const { extras, answers, fields } = decodeStepForm(
+      form(["__qop", "add:grp_vehicles:op_7f3"], ["website", ""]),
+    );
+    expect(extras).toEqual({ website: "" });
+    expect(answers).toEqual([]);
+    expect(fields).toEqual([]);
+  });
+
+  it("drops a value that is not exactly the shape the buttons write", () => {
+    for (const hostile of ["", "add", "add:grp:op:extra", "remove:grp:op_7f3", "drop:grp:op_7f3"]) {
+      expect(decodeStepForm(form(["__qop", hostile])).rosterOp, hostile).toBeUndefined();
+    }
+  });
+
+  it("takes the first of two, which a browser cannot produce", () => {
+    // Only the pressed button contributes its name and value, so two entries is a
+    // forged post. Either operation is one the API would accept from the same
+    // respondent in their own session, so the first is taken and the API judges it.
+    const { rosterOp } = decodeStepForm(
+      form(["__qop", "add:grp_a:op_1"], ["__qop", "add:grp_b:op_2"]),
+    );
+    expect(rosterOp).toEqual({ op: "add", groupId: "grp_a", token: "op_1" });
+  });
+
+  it("carries instance-qualified field names through unchanged", () => {
+    // The qualified name is the field's whole identity below the API (ADR-43): this
+    // decoder keys on one opaque string and learns nothing about instances.
+    const { answers, fields } = decodeStepForm(
+      form(
+        ["__qk__ins_7k2/q_plate", "string"],
+        ["ins_7k2/q_plate", "ABC123"],
+        ["__qk__ins_9m4/q_plate", "string"],
+        ["__qa__ins_9m4/q_plate", "1"],
+        ["ins_9m4/q_plate", ""],
+      ),
+    );
+    expect(fields).toEqual(["ins_7k2/q_plate", "ins_9m4/q_plate"]);
+    expect(answers).toEqual([
+      { questionId: "ins_7k2/q_plate", value: "ABC123" },
+      // Marked as answered and arrived empty: the respondent cleared THAT CELL.
+      { questionId: "ins_9m4/q_plate", value: null },
+    ]);
+  });
+});

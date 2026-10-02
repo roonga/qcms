@@ -9,6 +9,7 @@ import {
 
 import { honeypotNode } from "./honeypot.js";
 import { questionToNode, type TextResolver } from "./mapping.js";
+import { repeatGroupNode } from "./repeat-group.js";
 import type { A2UIDocument, A2UINode } from "./types.js";
 
 /**
@@ -109,13 +110,13 @@ export const staticStepResolver: StepResolver = {
     children.push(heading("h2", context.resolveText(step.title)));
     for (const item of step.items) {
       // A repeating group compiles to a `RepeatGroup` TEMPLATE node the renderer
-      // clones once per live instance, and that node is **task 073's**: ADR-42's
-      // Note on ADR-01 keeps the compiler answer-blind, so it cannot expand a
-      // group, and the new node type moves `A2UI_SPEC_VERSION` and opens a new
-      // golden generation. Task 071 is the kernel half only, so a group
-      // contributes nothing here yet and the seven committed golden documents
-      // stay byte-identical.
+      // clones once per live instance (task 073, ADR-43). ADR-42's Note on ADR-01
+      // keeps the compiler answer-blind, so it cannot expand a group: an instance
+      // count is answer-dependent and this function knows no answers.
       if (isRepeatGroup(item)) {
+        children.push(
+          repeatGroupNode(item, context.resolveQuestion, context.resolveText, context.locale),
+        );
         continue;
       }
       children.push(

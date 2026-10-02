@@ -63,6 +63,32 @@ export const messages = {
   // and is never modified.
   "errorSummary.namedCustom": "{label}: {message}",
   "answer.invalid": "That answer is not valid.",
+  // The repeating group's own controls and refusals (task 073). The Add and Remove
+  // labels themselves are NOT here: they are compiled into the stored document from
+  // the compiler's lexicon (ADR-36's precedent), so a published form keeps the wording
+  // it was published with. What lives here is the portal's own chrome: what a refused
+  // operation says, and what the polite status region announces.
+  "errorSummary.inInstance": "{instance}: {message}",
+  "repeat.maxReached": "You have added as many as this form allows.",
+  "repeat.notAddable": "This part of the form is not one you can add to.",
+  "repeat.failed": "We could not make that change. Please try again.",
+  "repeat.added": "{label} added.",
+  "repeat.removed": "{label} removed, {count} remaining.",
+  "repeat.removedLast": "{label} removed, none remaining.",
+  // The flow segment's error boundary (task 073). It is NOT the deploy-skew landing, which
+  // no page of this app can be: Next throws before the segment renders and a production
+  // build answers a bare 500 (ADR-43's amendment). What reaches this screen is an error
+  // thrown while the segment renders, and the remedy is the same, which is to re-read the
+  // step. The body says what survived, because a respondent arriving here has no other way
+  // to know.
+  "repeat.staleStep.title": "This page was out of date",
+  "repeat.staleStep.body":
+    "We could not show that step. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
+  // The page-level notice for a whole-step post the API refused outright (task 073, ruling
+  // Q29). It has to say that nothing was saved, because the respondent is looking at a step
+  // that still holds everything they typed and has no other way to tell.
+  "step.notSaved":
+    "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",
   "session.lost.title": "Something went wrong",
   "session.lost.body": "We could not reach the server. Please try again.",

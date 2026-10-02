@@ -25,6 +25,12 @@ export interface RosterEventRow {
   groupId: GroupId;
   instanceId: InstanceId;
   event: RosterEvent;
+  /**
+   * The one-time roster-operation token this row was written under (task 073,
+   * ADR-43), or `null` for a mint and for every row written before the column
+   * existed. See the table's own doc for why it is recorded rather than derived.
+   */
+  opToken: string | null;
   occurredAt: Date;
 }
 
@@ -106,6 +112,8 @@ export async function addInstances(
     sessionId: SessionId;
     groupId: GroupId;
     instanceIds: readonly InstanceId[];
+    /** The respondent operation this mint answers, when one did (task 073). */
+    opToken?: string;
     occurredAt?: Date;
   },
 ): Promise<RosterEventRow[]> {
@@ -123,6 +131,7 @@ export async function addInstances(
         groupId: input.groupId,
         instanceId,
         event: "added" as const,
+        ...(input.opToken !== undefined ? { opToken: input.opToken } : {}),
         ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
       })),
     )
@@ -145,6 +154,8 @@ export async function removeInstance(
     sessionId: SessionId;
     groupId: GroupId;
     instanceId: InstanceId;
+    /** The respondent operation this removal answers (task 073). */
+    opToken?: string;
     occurredAt?: Date;
   },
 ): Promise<RosterEventRow> {
@@ -155,6 +166,7 @@ export async function removeInstance(
       groupId: input.groupId,
       instanceId: input.instanceId,
       event: "removed",
+      ...(input.opToken !== undefined ? { opToken: input.opToken } : {}),
       ...(input.occurredAt ? { occurredAt: input.occurredAt } : {}),
     })
     .returning();
@@ -298,4 +310,35 @@ export async function readRoster(
     minted,
     present: minted.filter((instanceId) => latest.get(instanceId) === "added"),
   };
+}
+
+/**
+ * Whether this session has already applied a roster-operation token (task 073,
+ * ADR-43).
+ *
+ * The one line that makes a replayed `__qop` post a **no-op**. The no-JS roster
+ * operation answers its POST with a 200 page rather than a 303, so a reload or a
+ * Back can resubmit it; the rendered page minted a token into the button's value,
+ * this read asks whether it has been spent, and a spent token returns the roster as
+ * it stands instead of adding a second instance.
+ *
+ * **Scoped to the session**, so a token is meaningless outside the session it was
+ * minted in and cannot be replayed into another one. The caller runs this and its
+ * write inside the session's advisory lock, which is what makes "check then write"
+ * one decision and is why no database constraint is needed (see the column's doc and
+ * the 2026-09-30 ruling that keeps the roster's invariants in code).
+ */
+export async function rosterOpApplied(
+  exec: Executor,
+  sessionId: SessionId,
+  opToken: string,
+): Promise<boolean> {
+  const rows = await exec
+    .select({ id: answerGroupInstances.id })
+    .from(answerGroupInstances)
+    .where(
+      and(eq(answerGroupInstances.sessionId, sessionId), eq(answerGroupInstances.opToken, opToken)),
+    )
+    .limit(1);
+  return rows.length > 0;
 }

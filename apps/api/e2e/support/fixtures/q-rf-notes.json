@@ -1,0 +1,6 @@
+{
+  "type": "longText",
+  "questionId": "q_rf_notes",
+  "label": { "en": "Anything else about this vehicle?" },
+  "constraints": { "maxLength": 200 }
+}

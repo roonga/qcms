@@ -1,0 +1,8 @@
+{
+  "type": "shortText",
+  "questionId": "q_rep_plate",
+  "label": { "en": "Registration plate" },
+  "help": { "en": "As printed on the plate, without spaces" },
+  "required": true,
+  "constraints": { "minLength": 3, "maxLength": 8 }
+}

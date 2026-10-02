@@ -218,9 +218,24 @@ One caution that costs a real debugging session. When an ALB response header att
 configured, the load balancer **overwrites** the header if the target already set one, and adds it
 otherwise. QCMS's apps already set `Content-Security-Policy`, `X-Content-Type-Options`,
 `Referrer-Policy` and `frame-ancestors` themselves (SEC-9, delivered by tasks 017/029/031), and
-the portal's CSP is nonce-based. So set the HSTS attribute, and **leave the CSP and
-`X-Content-Type-Options` attributes empty**: filling them in replaces a per-response policy that
-knows the nonce with a static string that does not, and the portal's own scripts stop executing.
+the portal's CSP is nonce-based. So set the HSTS attribute, and **leave the CSP,
+`X-Content-Type-Options` and `Referrer-Policy` attributes empty**: filling in the CSP replaces a
+per-response policy that knows the nonce with a static string that does not, and the portal's own
+scripts stop executing.
+
+**`Referrer-Policy` is the one of those four that the portal's own behaviour now depends on, and
+overriding it breaks a respondent flow rather than a header check.** Since task 073 the portal
+serves `Referrer-Policy: same-origin`, because the no-JS Add and Remove of a repeating group is a
+Next Server Action and Next refuses an action whose `Origin` is the literal `null`, which is what
+`no-referrer` makes a form navigation send (SEC-9 as amended, 2026-10-01). An ingress that
+overrides the header to `no-referrer`, or to anything that suppresses the same-origin referrer,
+makes every no-JS Add and Remove fail. **It fails closed**: the respondent sees the step come back
+with "We could not make that change" and nothing is written, so no answer is lost and nothing is
+silently accepted, but the group cannot grow. The same applies to the **`Host` header**: Next
+compares the action request's `Origin` to `Host` or `X-Forwarded-Host`, so an ingress that rewrites
+the host without passing the real one through refuses the same posts for the same reason. Pass the
+real `Host` (or set `X-Forwarded-Host`), and leave the portal's `Referrer-Policy` alone. The admin
+and the API keep `no-referrer` and may be overridden to it harmlessly.
 
 ### What the ALB does not give you
 

@@ -10,13 +10,23 @@ open registration links, hydrating into the shared `@roonga/qcms-ui` renderer. T
   (ADR-26 rules one out on both surfaces: the admin reads through server
   components and mutates through Server Actions). Minimal client state: the flow
   page hydrates to post answers per question and re-render branching.
-- **Strict BFF (R2).** Route handlers under `app/**/route.ts` and the modules in
-  `lib/server/` do proxy + session + credential duty ONLY: they attach the SEC-4
-  internal token and the session bearer, forward to the internal API, and shape
-  the result. They perform no rule evaluation and no validation authority (that
-  is the API's, always). The portal imports nothing from `@roonga/qcms-core` (asserted
-  by `lib/server/r2-import-surface.test.ts`). The internal API base URL and
-  internal token are server-only (`lib/server/config.ts`).
+- **Strict BFF (R2).** Route handlers under `app/**/route.ts`, the modules in
+  `lib/server/`, and since task 073 **one Server Action** do proxy + session +
+  credential duty ONLY: they attach the SEC-4 internal token and the session
+  bearer, forward to the internal API, and shape the result. The action is
+  `app/s/[sessionId]/roster-action.ts`, the no-JS Add and Remove of a repeating
+  group (ADR-43 as amended): it exists because a Server Action is the only thing
+  in Next's App Router that answers a POST with the page it was posted from,
+  which is what carries a respondent's typed values back without a cookie. It is
+  held to the same rules as a route handler, SEC-9's origin belt included
+  (ruling R-B2), and `scripts/check-origin-guards.test.ts` enumerates it while
+  `lib/server/origin-guard.test.ts` drives it with a refused request.
+
+  They perform no rule evaluation and no validation authority (that is the API's,
+  always). The portal imports nothing from `@roonga/qcms-core` (asserted by
+  `lib/server/r2-import-surface.test.ts`). The internal API base URL and internal
+  token are server-only (`lib/server/config.ts`).
+
 - **Session token.** Held only in an httpOnly, SameSite cookie (`qcms_session`),
   never in client JS; secure in production (`lib/server/cookie-options.ts`). The
   client hydration talks to same-origin BFF proxy routes so the token never

@@ -85,13 +85,17 @@ async function continueOrSubmit(page: Page): Promise<void> {
  * browser this helper stands in for actually sends, and a helper that drove the route
  * with headers no browser produces would be testing a client that does not exist.
  *
- * `Origin: null` is deliberate and is not a placeholder. The portal serves
- * `Referrer-Policy: no-referrer`, and per Fetch a navigation POST under that policy
- * serializes its origin as the literal string `null`. That is precisely why the belt
- * reads `Sec-Fetch-Site` first, so this pair is the real shape of a legitimate no-JS
- * Start, `null` origin and all.
+ * **The `Origin` is the portal's own, and it used to be the literal `null`.** Per
+ * Fetch, a navigation POST under `Referrer-Policy: no-referrer` serializes its origin
+ * as `null`, and the portal served that policy until task 073; it now serves
+ * `same-origin` (Code Owner, 2026-10-01, SEC-9 as amended), because Next's Server
+ * Action check compares `Origin` to the `Host` and refuses `null`, and the no-JS roster
+ * operation of a repeating group is a Server Action. So the real shape of a legitimate
+ * no-JS Start now carries this portal's real origin, and that is what this helper
+ * sends. The belt still reads `Sec-Fetch-Site` first and its acceptance rule is
+ * unchanged, so the pair is what matters rather than either header alone.
  */
-const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: "null" } as const;
+const BROWSER_FORM_POST = { "sec-fetch-site": "same-origin", origin: PORTAL_URL } as const;
 
 /** Start a portal session through the form's BFF endpoint and follow its redirect. */
 async function startPortalSession(page: Page, formSlug: string): Promise<void> {
@@ -292,6 +296,54 @@ test.describe.serial("conditional form journey", () => {
       // The assertion that matters. The redirect only says what the respondent sees;
       // this says no session was minted, which is the state change being refused.
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
+    });
+
+    test("a stale Server Action id is refused by the framework, and leaks nothing (task 073)", async ({
+      page,
+    }) => {
+      // Asserted HERE and nowhere else, because this is the only suite that runs the portal
+      // as a production build, and the behaviour differs from development: `next dev`
+      // replaces the error component with its overlay driver, so a dev probe says nothing
+      // about what a respondent receives.
+      //
+      // What it receives, measured on 2026-10-02 while reviewing PR #1034: a bare
+      // `500 text/plain`. Next recalculates action ids between builds, so a page held across
+      // a deploy posts an id this build does not know; the action handler validates every id
+      // BEFORE dispatch and throws, so no page of this app renders - not the flow segment's
+      // error boundary, which catches only what its own subtree throws while rendering, and
+      // not an App Router `app/500/page.tsx` or a Pages Router `pages/_error.tsx`, both of
+      // which were tried against this build and neither of which is consulted. ADR-43's
+      // amendment carries that correction; this test is what holds it true.
+      //
+      // The request is what the browser sends: a MULTIPART post carrying an action
+      // descriptor whose id was never built. Multipart matters, because Next treats a
+      // url-encoded POST that is not a fetch action as not an action request at all and
+      // simply renders the page. No session, form or repeating group is needed to reach it,
+      // since the id check happens before anything of the app runs.
+      const unknownActionId = "00112233445566778899aabbccddeeff001122334455";
+      const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}`, {
+        maxRedirects: 0,
+        headers: BROWSER_FORM_POST,
+        multipart: {
+          $ACTION_REF_1: "",
+          "$ACTION_1:0": `{"id":"${unknownActionId}","bound":"$@1"}`,
+          "$ACTION_1:1": "[{}]",
+        },
+      });
+
+      expect(response.status()).toBe(500);
+      const body = await response.text();
+      // The assertions that matter are about what is NOT in it. The framework's own words
+      // name the deployment and must not reach a respondent (SEC-13's spirit: a public
+      // surface discloses nothing about the build), and no session identifier appears.
+      expect(body, "the framework's deployment wording stays in the log").not.toContain(
+        "Failed to find Server Action",
+      );
+      expect(body).not.toMatch(/ses_[0-9a-f]/);
+      // And it is a dead end rather than a redirect loop: a respondent's recovery is a GET
+      // of the step, which still serves it. Asserted positively so "nothing is rendered"
+      // cannot quietly become "something broken is rendered".
+      expect(body.length, "a bare framework 500 rather than a page").toBeLessThan(200);
     });
 
     test("completes the affirmative respondent route", async ({ page }) => {

@@ -475,11 +475,15 @@ Validated at boot by `apps/api/src/config.ts`, which collects every problem and 
 | `QCMS_RL_SESSION_CREATE_WINDOW_MS`  | optional     | `3600000 (1h)`                                   | Rate-limit window for `POST /sessions`. Keyed by the client address the portal BFF vouched for: see `QCMS_RL_SESSION_CREATE_MAX`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `QCMS_RL_SESSION_CREATE_MAX`        | optional     | `20`                                             | Sessions one client address may start per window. The limiter keys on the address the portal BFF vouched for, which it resolves from the ingress's `X-Forwarded-For` by counting `QCMS_PORTAL_TRUSTED_PROXY_HOPS` entries from the right - a client-supplied value cannot move the bucket. **Behind no ingress at all** (the local Compose quickstart, or a deployment where the ingress writes no forwarded header) there is no address to vouch for and every respondent shares one `unknown-ip` bucket, making this a whole-deployment ceiling of 20 session starts per hour: set the ingress up per `docs/deploy-ingress.md`, or raise this to your expected peak.                                                                                                                                                                                                                                                                                                                                     |
 | `QCMS_RL_ANSWERS_SESSION_WINDOW_MS` | optional     | `5000`                                           | Rate-limit window for answer submission, keyed by session.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| `QCMS_RL_ANSWERS_SESSION_MAX`       | optional     | `10`                                             | Answers one session may submit per window (a burst ceiling, about 2/s sustained).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `QCMS_RL_ANSWERS_SESSION_MAX`       | optional     | `10`                                             | Answers one session may submit per window (a burst ceiling, about 2/s sustained). One **batch** spends one unit per entry and may spend up to the step's own bound even where that exceeds this number, so a valid step always fits (ruling Q29); raising this above the bound keeps your number.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `QCMS_RL_ANSWERS_IP_WINDOW_MS`      | optional     | `60000`                                          | Rate-limit window for answer submission, keyed the same way as `QCMS_RL_SESSION_CREATE_MAX` and subject to the same no-ingress caveat.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `QCMS_RL_ANSWERS_IP_MAX`            | optional     | `300`                                            | Answers that may be submitted per window across every session sharing one client address: the wide backstop against many-session floods from one source. Keyed and caveated exactly as `QCMS_RL_SESSION_CREATE_MAX`; the per-session limits above are unaffected either way, because a session id is always visible.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `QCMS_RL_SUBMIT_SESSION_WINDOW_MS`  | optional     | `60000`                                          | Rate-limit window for `POST /sessions/{id}/submit`, keyed by session.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `QCMS_RL_SUBMIT_SESSION_MAX`        | optional     | `5`                                              | Submit attempts one session may make per window.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `QCMS_RL_ROSTER_SESSION_WINDOW_MS`  | optional     | `5000`                                           | Rate-limit window for `POST /sessions/{id}/roster`, keyed by session: the repeating-group Add and Remove (task 073, SEC-16). It has its own class rather than riding the answer write's, because adding an instance is a distinct action that is cheap to repeat; it limits how FAST a bounded operation may be repeated and never how large it may become, since the size bound is the group's author-set `max`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `QCMS_RL_ROSTER_SESSION_MAX`        | optional     | `10`                                             | Roster operations one session may make per window. The answer write's shape rather than the submit's, because a respondent filling a nine-passenger booking presses Add many times in a flow.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `QCMS_RL_ROSTER_IP_WINDOW_MS`       | optional     | `60000`                                          | Rate-limit window for `POST /sessions/{id}/roster`, keyed by the vouched client address.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `QCMS_RL_ROSTER_IP_MAX`             | optional     | `300`                                            | Roster operations that may be made per window across every session sharing one client address, caveated exactly as `QCMS_RL_ANSWERS_IP_MAX`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `QCMS_FLAG_AGENT_AUTHORING`         | optional     | `none`                                           | Agent-assisted authoring provider (ADR-25, task 041): `none`, `anthropic`, `openai`, `google`, `openai-compatible`, or `fake` (the deterministic test provider). `none` leaves the assist routes unmounted entirely, so a request to them 404s and no chat panel renders. Set the same value on the `admin` service. Full guide: `docs/agent-authoring.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `QCMS_AGENT_MODEL`                  | conditional  | -                                                | The model provider's own model id, never interpreted here. Required when `QCMS_FLAG_AGENT_AUTHORING` names a real provider, ignored otherwise.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `QCMS_AGENT_API_KEY` (secret)       | conditional  | -                                                | Model provider key (SEC-7 inventory). Required when `QCMS_FLAG_AGENT_AUTHORING` names a real provider, **except** when `QCMS_AGENT_BASE_URL` points at a local endpoint (loopback, a private-range address, `host.docker.internal`, or a `.local`/`.localhost`/`.internal` hostname), because a locally hosted model has no key to give. Never logged and never echoed in a boot error.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
@@ -951,22 +955,34 @@ grep 'origin.belt.refused' <portal stdout>
 
 The respondent is on an old browser in both cases.
 
-**Cause.** The portal's five state-changing BFF routes carry a CSRF belt (SEC-9,
-`isSameOriginPost` in `apps/portal/lib/server/route-helpers.ts`). It admits a request that
-either declares `Sec-Fetch-Site: same-origin` or `none`, or carries an `Origin` header
-matching the portal's own base URL. A browser that sends no Fetch Metadata request headers
-can do neither on an ordinary HTML form POST: the portal sends `Referrer-Policy:
-no-referrer`, and under that policy a form navigation serializes its `Origin` as the
-literal string `null`. Such a request cannot prove it is same-site, so it is refused.
+**Cause.** The portal's state-changing entry points carry a CSRF belt (SEC-9,
+`isSameOriginPost` in `apps/portal/lib/server/route-helpers.ts`): six BFF route handlers
+and, since task 073, one Next Server Action, the no-JS Add and Remove of a repeating
+group. It admits a request that either declares `Sec-Fetch-Site: same-origin` or `none`,
+or carries an `Origin` header matching the portal's own base URL.
 
-**Which requests this actually affects.** Only the three endpoints a browser reaches by
-submitting an HTML form:
+**This narrowed on 2026-10-01 and the runbook's own premise moved with it.** The portal
+used to send `Referrer-Policy: no-referrer`, under which a form navigation serializes its
+`Origin` as the literal string `null`, so a browser sending no Fetch Metadata could prove
+neither thing and was always refused. The portal now sends `same-origin` (SEC-9 as
+amended, for the Server Action above, whose own framework check refuses a null origin), so
+a form navigation from a portal page carries the real origin and **a Fetch-Metadata-less
+browser is admitted by the `Origin` leg**. What is still refused is a request carrying
+`Origin: null` or no `Origin` at all, because an attacker's page can produce either.
+
+So the symptom below is now a narrower population than the figures further down measure:
+browsers that send neither signal. Issue #1024 re-measures it.
+
+**Which requests this actually affects.** Only the endpoints a browser reaches by
+submitting an HTML form, and only when that browser sends neither Fetch Metadata nor a
+matching `Origin`:
 
 | Endpoint                   | Reached by                                                         | The refusal looks like                                                              |
 | -------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
 | `POST /f/{formSlug}/start` | the Begin button on the entry page, **with or without JavaScript** | 303 back to `/f/{formSlug}?state=error`, which renders "This form is not available" |
 | `POST /s/{sessionId}/step` | the no-JS whole-step form (Continue / Back / Submit)               | 303 back to the same step, no message, answers not re-populated                     |
 | `POST /appearance`         | the no-JS appearance form's Apply button (issue #195)              | 303 to the site root, appearance unchanged, no message                              |
+| the `__qop` Server Action  | the no-JS Add and Remove of a repeating group (task 073)           | the same step re-rendered with "We could not make that change", nothing applied     |
 
 The appearance row is the one refusal that moves a respondent off the page they were
 reading. A refused request cannot be sent back to the page it named, because a request
@@ -976,8 +992,9 @@ answer and no session, but it costs their place as well as the colour mode or le
 face they were reaching for, so a burst of `beltOutcome: "redirect-to-root"` beside
 `beltFetchSite: "absent"` is the same old-browser population as the rows above it.
 
-The other two state-changing routes, `POST /s/{sessionId}/answers` and
-`POST /s/{sessionId}/submit`, are called only by the hydrated page through `fetch()`. That
+The other three state-changing routes, `POST /s/{sessionId}/answers`,
+`POST /s/{sessionId}/roster` and `POST /s/{sessionId}/submit`, are called only by the
+hydrated page through `fetch()`. That
 is a CORS-mode request, which carries a real `Origin` whatever the referrer policy says,
 so those two are unaffected.
 
@@ -1049,12 +1066,19 @@ carry an unusually large unattributed share (33% and 15% of their traffic respec
 against 3.6% worldwide), mostly Yandex and Whale, so their apparent 1.78% and 0.89% rest on
 a much smaller measured base than the other rows.
 
-**This is deliberate.** The only signal such a request carries is `Origin: null`, and any
-attacker's page can produce that too by declaring `Referrer-Policy: no-referrer` on itself.
-Admitting `null` would therefore admit the forged request alongside the honest one, so the
-belt would stop protecting exactly the clients that cannot prove themselves. Refusing is
-the safe direction: a respondent who cannot submit can be helped, while a submission forged
-under a respondent's session cannot be unmade.
+**This is deliberate.** A request carrying `Origin: null`, or no `Origin` at all, is
+refused because any attacker's page can produce both: `null` by declaring
+`Referrer-Policy: no-referrer` on itself, and an absent origin by being a client that sends
+neither signal. Admitting either would admit the forged request alongside the honest one,
+so the belt would stop protecting exactly the clients that cannot prove themselves.
+Refusing is the safe direction: a respondent who cannot submit can be helped, while a
+submission forged under a respondent's session cannot be unmade.
+
+**What changed on 2026-10-01 is which honest requests still land here.** The portal's move
+to `Referrer-Policy: same-origin` means a Fetch-Metadata-less browser posting from a portal
+page now sends the portal's **real** origin, which an attacker's page cannot forge, so the
+belt admits it. The rule above is unchanged and only its population narrowed (ruling R-B1);
+issue #1024 measures what is left.
 
 **What you can do about it.**
 
@@ -1076,18 +1100,73 @@ under a respondent's session cannot be unmade.
 4. **Advise an upgrade.** There is no configuration switch: the belt is unconditional and
    QCMS ships no variable that relaxes it. On desktop, any current browser works. On iOS,
    it takes an iOS update, because the browser app makes no difference.
-5. **Tell us if it matters for your population.** The trade-off is tracked in issue #504,
-   and the alternatives (a same-origin form token on the no-JS path, which does not depend
-   on Fetch Metadata) are deliberately held until there is measured need rather than
-   adopted in advance. A deployment that recruits respondents in one of the concentrated
-   regions above is exactly the evidence that would move it.
+5. **Tell us if it matters for your population.** The trade-off is tracked in issue #504.
+   **Part of it has already moved**: since 2026-10-01 the portal sends
+   `Referrer-Policy: same-origin`, so a browser that sends no Fetch Metadata but does send
+   a real `Origin` from a portal page is now admitted, and the refused set is browsers
+   sending neither. Issue **#1024** re-measures that remaining population. The further
+   alternative (a same-origin form token on the no-JS path, which depends on neither
+   header) is still deliberately held until there is measured need rather than adopted in
+   advance. A deployment that recruits respondents in one of the concentrated regions above
+   is exactly the evidence that would move it.
+
+#### What an ingress must not override
+
+**Two things an ingress in front of the portal must leave alone, or the no-JS Add and Remove of a
+repeating group stops working** (task 073, SEC-9 as amended 2026-10-01).
+
+1. **The portal's `Referrer-Policy: same-origin`.** The no-JS Add and Remove is a Next Server
+   Action, and Next refuses an action request whose `Origin` is the literal `null`, which is what
+   a stricter `no-referrer` makes a form navigation send. An ingress that sets the header itself
+   overwrites the app's value (an AWS ALB response-header attribute does exactly that), so leave
+   that attribute empty. The **admin and the API** keep `no-referrer` and may be overridden to it
+   harmlessly.
+2. **The real `Host`.** Next compares the action request's `Origin` to `Host` or
+   `X-Forwarded-Host`, so an ingress that rewrites the host without passing the real one through
+   refuses the same posts. Caddy's `reverse_proxy` preserves it; a hand-rolled proxy may not.
+
+**It fails closed, and that is worth knowing before you go looking for data loss.** A refused
+operation re-renders the step with "We could not make that change" and writes nothing: no answer
+is lost, no roster row is written, and nothing is silently accepted. What a respondent cannot do
+is add or remove an instance, so a form whose group has `min: 1` still completes and one that
+needs a second instance does not. The symptom in the logs is an `origin.belt.refused` line with
+`beltRoute: "/s/{sessionId}"`, or, when Next refuses before the belt runs, a 500 on a POST to the
+flow page with no belt line at all. That second shape is also what a **stale action id** looks like
+after a deploy, and it is not a misconfiguration.
+
+**What the respondent gets in that case, measured against a production build rather than inferred**
+(Code Owner, 2026-10-02; ADR-43's amendment carries the measurements, and issue #1035 tracks giving
+them a page of our own):
+
+- **a bare `500` with `Content-Type: text/plain` and the body `Internal Server Error`.** No page of
+  the portal renders. Next recalculates Server Action ids between builds, so a page held across a
+  deploy posts an id the new build does not know, and Next's action handler throws before the flow
+  segment renders. An App Router error boundary catches what its own subtree throws while
+  rendering, so it is never reached; an App Router `app/500/page.tsx` and a Pages Router
+  `pages/_error.tsx` were both tried against a production build and neither is consulted.
+- **the framework's own wording stays in the server log**, not on the page, so nothing about the
+  deployment is disclosed.
+- **the recovery is a reload**, and the respondent has to find it themselves: a GET of the step
+  still serves it. Every answer they had already pressed Continue on is in the ledger and the
+  roster is server state, so neither is at risk.
+- **the values they had typed into that step since their last Continue are lost**, because those
+  were in the refused request's body and nowhere else. An Add or Remove commits no answer, so
+  nothing already saved is affected, but do not tell a respondent on a support call that they lost
+  nothing.
+
+So a lone 500 on a POST to a flow page, with no belt line beside it and a deploy in the window, is
+this and needs no action beyond knowing a respondent may have retyped a step.
+
+`docs/deploy-ingress.md` carries the same caution beside the ALB header recipe.
 
 #### The refusal line
 
 Every belt refusal writes exactly one `warn` line to the portal's stdout, and an admitted
 request writes none, so a count of these lines is a count of refused requests. One line per
-refusal is a property of the belt itself rather than of the five route handlers, so a route
-added later is covered without anyone remembering to instrument it.
+refusal is a property of the belt itself rather than of the route handlers, so an entry
+point added later is covered without anyone remembering to instrument it - including a Next
+Server Action, which is not a route handler at all and which the portal acquired in task
+073 (ruling R-B2).
 
 ```json
 {
@@ -1102,20 +1181,26 @@ added later is covered without anyone remembering to instrument it.
 }
 ```
 
-| Field           | What it holds                                                                                                                                                                                                                                                          |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `beltRoute`     | Which route refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}/answers`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                                                                                                              |
-| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                                                                                                              |
-| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                                                                                                       |
-| `beltOutcome`   | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step), `redirect-to-root` (dropped at the site root with their appearance unchanged) or `forbidden` (a 403 to a hydrated `fetch()`) |
+| Field           | What it holds                                                                                                                                                                                                                                                                                                                                                                                          |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `beltRoute`     | Which entry point refused, as a path template: `/appearance`, `/f/{formSlug}/start`, `/s/{sessionId}` (the `__qop` Server Action, which runs against the flow page), `/s/{sessionId}/answers`, `/s/{sessionId}/roster`, `/s/{sessionId}/step` or `/s/{sessionId}/submit`                                                                                                                               |
+| `beltFetchSite` | How `Sec-Fetch-Site` read: `absent`, `same-site`, `cross-site`, or `other` for a token that is not one of the spec's four                                                                                                                                                                                                                                                                              |
+| `beltOrigin`    | How `Origin` read against the portal's own base URL: `absent`, `null`, `mismatch`, or `unverifiable` if `QCMS_PORTAL_BASE_URL` could not be read                                                                                                                                                                                                                                                       |
+| `beltOutcome`   | What the respondent got: `redirect-to-entry` (the "This form is not available" page), `redirect-to-step` (bounced back to the same step), `redirect-to-root` (dropped at the site root with their appearance unchanged), `rendered-unchanged` (the step re-rendered with a message and nothing applied, which is what a refused Server Action produces) or `forbidden` (a 403 to a hydrated `fetch()`) |
 
 **Reading the two signals together is the point.** They separate the old browser from the
 forged request, which is the distinction the absence of a log line could never make:
 
-- `beltFetchSite: "absent"` with `beltOrigin: "null"` or `"absent"` is a **browser that
-  sends no Fetch Metadata**: the population this whole runbook is about. On
+- `beltFetchSite: "absent"` with `beltOrigin: "absent"` is a **browser that sends no
+  Fetch Metadata and no origin either**: the population this whole runbook is about. On
   `/f/{formSlug}/start` or `/s/{sessionId}/step` that is almost certainly a real
   respondent who is now stuck.
+- `beltFetchSite: "absent"` with `beltOrigin: "null"` meant the same thing until
+  2026-10-01 and now means something else. The portal sends
+  `Referrer-Policy: same-origin`, so its own pages send a real origin and classify as
+  `match`; a `null` origin now indicates a post from a page that suppressed its own
+  referrer or from a **sandboxed** context, which is what an attacker's page looks like.
+  Treat a burst of it as the forged-request case below rather than as stuck respondents.
 - `beltFetchSite: "cross-site"` or `beltOrigin: "mismatch"` is a request that **named a
   foreign origin**. That is a forged POST or a misconfigured embed, and the belt did
   exactly its job.
@@ -1216,8 +1301,13 @@ The fields read the same as the portal's. What is different is the base rate und
 them, and that changes the conclusion rather than shading it:
 
 - **On the portal there is an accepted population.** About 1.6% of browsers send no Fetch
-  Metadata, that floor was accepted deliberately (issue #504), and `beltFetchSite:
-"absent"` with `beltOrigin: "null"` or `"absent"` is very likely one of them.
+  Metadata, that floor was accepted deliberately (issue #504), and on the portal
+  `beltFetchSite: "absent"` with `beltOrigin: "absent"` is very likely one of them. Since
+  2026-10-01 the portal admits such a browser when it sends a matching `Origin`, so the
+  refused portal population is narrower than that figure and `beltOrigin: "null"` there now
+  points at a sandboxed or `no-referrer` page rather than an old browser (issue #1024).
+  **None of that applies to the admin**, which keeps `Referrer-Policy: no-referrer`, so its
+  own form posts still arrive with `Origin: null` and that pair is the ordinary shape here.
 - **On the admin there is no accepted population.** The admin is not a public surface: it
   is reached by a known, small set of staff. The same old-browser shape can occur here, but
   it is one identifiable person you can call rather than a rate you have to live with, and

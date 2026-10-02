@@ -30,7 +30,7 @@
     "@opentelemetry/sdk-logs": "^0.222.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "@opentelemetry/sdk-trace": "^2.11.0",
-    "@roonga/qcms-a2ui-compiler": "^0.2.0",
+    "@roonga/qcms-a2ui-compiler": "^0.3.0",
     "@roonga/qcms-core": "^0.0.0",
     "@roonga/qcms-csv": "^0.0.0",
     "@roonga/qcms-db": "^0.0.0",

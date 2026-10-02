@@ -211,6 +211,9 @@
           "flowState": {
             "$ref": "#/components/schemas/FlowStateProjection"
           },
+          "rosters": {
+            "$ref": "#/components/schemas/RosterProjection"
+          },
           "progress": {
             "$ref": "#/components/schemas/StepProgress"
           }
@@ -220,6 +223,7 @@
           "values",
           "a2uiSpecVersion",
           "flowState",
+          "rosters",
           "progress"
         ]
       },
@@ -252,6 +256,7 @@
             "items": {
               "type": "string"
             },
+            "description": "The currently-visible fields of the rendered step, as ANSWER KEYS: a bare questionId outside every repeating group, and `instanceId/questionId` inside one (ADR-42, ADR-43). A rule targeting inside a group is evaluated once per live instance, so a member question can be visible in one instance and hidden in another and only the qualified key can say which.",
             "example": [
               "q_at_fault_accident",
               "q_accident_count"
@@ -262,6 +267,7 @@
             "items": {
               "type": "string"
             },
+            "description": "The visible required fields still unanswered, as answer keys, on the same rule as visibleQuestions: one entry per unanswered (instance, question) inside a group rather than one per question.",
             "example": [
               "q_accident_count"
             ]
@@ -277,6 +283,32 @@
           "missingRequired",
           "readyToSubmit"
         ]
+      },
+      "RosterProjection": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "groupId": {
+              "type": "string",
+              "example": "grp_passengers"
+            },
+            "instances": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "example": [
+                "ins_7k2",
+                "ins_9m4"
+              ]
+            }
+          },
+          "required": [
+            "groupId",
+            "instances"
+          ]
+        }
       },
       "StepProgress": {
         "type": "object",
@@ -303,6 +335,12 @@
             "minLength": 1,
             "example": "q_at_fault_accident"
           },
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Which instance of a repeating group this answer belongs to (ADR-42). Absent for a question outside every group, which keeps the body byte-identical for every form that has none. A retraction names an instance too, and clears that cell alone (ADR-33's Note).",
+            "example": "ins_7k2"
+          },
           "value": {
             "nullable": true,
             "description": "The answer value; validated against the pinned question. Literal null retracts the answer (the question becomes unanswered; the ledger records the retraction). An empty value (\"\" or []) is not an answer and is rejected with EMPTY_ANSWER_NOT_ALLOWED; send null to clear an answer."
@@ -310,6 +348,213 @@
         },
         "required": [
           "questionId"
+        ],
+        "additionalProperties": false
+      },
+      "BatchAnswerResponse": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/StepDocument"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              ]
+            },
+            "description": "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding (an NFC string for shortText, longText, date and singleChoice; a finite number; a boolean; a duplicate-free array of optionIds for multiChoice). Absent keys are unanswered (including retracted answers), and a value is never null. Display data only; the flow projection stays the sole authority on visibility and readiness.",
+            "example": {
+              "q_at_fault_accident": true,
+              "q_accident_count": 2
+            }
+          },
+          "a2uiSpecVersion": {
+            "type": "string"
+          },
+          "flowState": {
+            "$ref": "#/components/schemas/FlowStateProjection"
+          },
+          "rosters": {
+            "$ref": "#/components/schemas/RosterProjection"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/StepProgress"
+          },
+          "rejected": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BatchAnswerRejection"
+            }
+          }
+        },
+        "required": [
+          "step",
+          "values",
+          "a2uiSpecVersion",
+          "flowState",
+          "rosters",
+          "progress",
+          "rejected"
+        ]
+      },
+      "BatchAnswerRejection": {
+        "type": "object",
+        "properties": {
+          "questionId": {
+            "type": "string"
+          },
+          "instanceId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string",
+            "example": "INVALID_ANSWER"
+          },
+          "details": {
+            "nullable": true
+          }
+        },
+        "required": [
+          "questionId",
+          "code"
+        ]
+      },
+      "BatchAnswerBody": {
+        "type": "object",
+        "properties": {
+          "answers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SubmitAnswerBody"
+            },
+            "minItems": 1,
+            "maxItems": 2000,
+            "description": "The step's answers, in the order the form asked them. Each entry is exactly a single-answer body, including the null retraction and the optional instanceId."
+          }
+        },
+        "required": [
+          "answers"
+        ],
+        "additionalProperties": false
+      },
+      "RosterOpResponse": {
+        "type": "object",
+        "properties": {
+          "step": {
+            "$ref": "#/components/schemas/StepDocument"
+          },
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^opt_[a-z0-9_]+$"
+                  }
+                }
+              ]
+            },
+            "description": "The answers the server currently holds for this step's visible questions, keyed by questionId, in canonical AnswerValue encoding (an NFC string for shortText, longText, date and singleChoice; a finite number; a boolean; a duplicate-free array of optionIds for multiChoice). Absent keys are unanswered (including retracted answers), and a value is never null. Display data only; the flow projection stays the sole authority on visibility and readiness.",
+            "example": {
+              "q_at_fault_accident": true,
+              "q_accident_count": 2
+            }
+          },
+          "a2uiSpecVersion": {
+            "type": "string"
+          },
+          "flowState": {
+            "$ref": "#/components/schemas/FlowStateProjection"
+          },
+          "rosters": {
+            "$ref": "#/components/schemas/RosterProjection"
+          },
+          "progress": {
+            "$ref": "#/components/schemas/StepProgress"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "minted": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "step",
+          "values",
+          "a2uiSpecVersion",
+          "flowState",
+          "rosters",
+          "progress",
+          "replayed",
+          "minted"
+        ]
+      },
+      "RosterOpBody": {
+        "type": "object",
+        "properties": {
+          "op": {
+            "type": "string",
+            "enum": [
+              "add",
+              "remove"
+            ],
+            "example": "add"
+          },
+          "groupId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "grp_passengers"
+          },
+          "instanceId": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Required for `remove`; refused for `add`.",
+            "example": "ins_7k2"
+          },
+          "opToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The one-time operation token this page minted. A token already applied is a no-op that returns the current roster.",
+            "example": "op_7f3a2b1c"
+          }
+        },
+        "required": [
+          "op",
+          "groupId",
+          "opToken"
         ],
         "additionalProperties": false
       },
@@ -744,6 +989,238 @@
           },
           "422": {
             "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/answers/batch": {
+      "post": {
+        "summary": "Submit a whole step's answers in one request, under one session lock (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "example": 1
+            },
+            "required": false,
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "name": "step",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchAnswerBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The batch was applied; the updated flow projection follows, with any refused entries listed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BatchAnswerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}/roster": {
+      "post": {
+        "summary": "Add or remove one instance of a repeating group; writes no answer (session-token authed)",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_9f3a2b1c"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "nullable": true,
+              "minimum": 0,
+              "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+              "example": 1
+            },
+            "required": false,
+            "description": "0-based index of the visible step to render (the explicit navigation cursor, ADR-28). Clamped to the visible range; omit to serve the first incomplete step.",
+            "name": "step",
+            "in": "query"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RosterOpBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The roster operation was applied, or replayed as a no-op; the updated flow projection follows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterOpResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limited",
             "content": {
               "application/json": {
                 "schema": {

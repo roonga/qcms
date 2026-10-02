@@ -64,6 +64,38 @@ export const answerGroupInstances = pgTable(
      * pinned in SQL beside the triggers that keep the rows honest.
      */
     event: text("event").$type<RosterEvent>().notNull(),
+    /**
+     * The one-time roster-operation token the rendered page minted into the
+     * `__qop` button this row came from (task 073, ADR-43), or NULL for a row no
+     * respondent operation wrote.
+     *
+     * **Why the token is recorded here rather than derived.** The no-JS roster
+     * operation answers its POST with a **200 re-render** rather than a 303,
+     * because the values that have to survive the round trip are the whole step
+     * and the whole step at nine instances does not fit a 4 KB cookie. A POST
+     * whose response is a page can be replayed by a reload or by Back, and
+     * replaying an Add would add a second instance. So the token is minted per
+     * render, recorded with the row it wrote, and a token already present is a
+     * no-op that returns the roster as it stands. ADR-43 states it in exactly
+     * those terms: "the API records the token with the roster row".
+     *
+     * It is **not a credential**: it is scoped to the session it was minted in,
+     * it is worthless to anyone who cannot already post to that session, and
+     * refusing a replay is its only job. It carries no respondent content.
+     *
+     * NULL for a mint (`mintForServedGroup` is idempotent against the rows it
+     * already wrote and needs no token) and for any row written before this
+     * column existed. It is deliberately **unconstrained** in the database: the
+     * "one row per token" invariant is cross-row, so expressing it in SQL would
+     * mean a partial UNIQUE index or a third trigger, and that would be a fifth
+     * guard on a table ADR-40's amendment counts four for. The Code Owner ruled
+     * the roster's own no-duplicates invariant into code for exactly that reason
+     * on 2026-09-30, and this invariant is held the same way: the API checks it
+     * inside the session's advisory lock, where the check and the write are one
+     * decision. ADR-40 stays at seventeen guards, eight foreign keys and
+     * twenty-five per-environment objects.
+     */
+    opToken: text("op_token"),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),

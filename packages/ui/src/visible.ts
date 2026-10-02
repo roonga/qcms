@@ -1,4 +1,5 @@
 import type { A2UIStepDocument } from "./A2UIStepRenderer.tsx";
+import { REPEAT_GROUP_NODE_TYPE } from "./repeat/repeat-node.ts";
 
 /**
  * Project a compiled step document onto an authoritative visible set.
@@ -21,6 +22,16 @@ import type { A2UIStepDocument } from "./A2UIStepRenderer.tsx";
  * questionId, per the a2ui mapping); such a node is dropped unless its name is in
  * the visible set. Layout and text nodes (no `name`) are always kept, with their
  * children pruned recursively. The root is never a question node, so it survives.
+ *
+ * **A `RepeatGroup` template is kept whole and pruned nowhere here** (task 073,
+ * ADR-42, ADR-43), and that is a necessity rather than an exemption. A rule whose
+ * target is inside a group is evaluated once per **live instance**, so a member
+ * question can be visible in instance 1 and hidden in instance 2; the visible set is
+ * therefore a set of **qualified** names (`ins_7k2/q_plate`) and a template's bare
+ * `q_plate` can never be in it. Pruning here would delete every member control before
+ * the renderer had a chance to clone one. `expandRepeatGroups` prunes each clone
+ * against this same set instead, where the instance is known, which is exactly what
+ * "the qualified name is the field's whole identity below the API" means at this seam.
  */
 
 interface MutableNode {
@@ -35,6 +46,9 @@ function questionName(node: MutableNode): string | undefined {
 }
 
 function pruneNode(node: MutableNode, visible: ReadonlySet<string>): MutableNode | null {
+  // A repeating group's members are pruned per instance by the renderer's expansion,
+  // against the qualified names this set actually holds. See the docblock above.
+  if (node.type === REPEAT_GROUP_NODE_TYPE) return { ...node };
   const name = questionName(node);
   if (name !== undefined && !visible.has(name)) return null;
 

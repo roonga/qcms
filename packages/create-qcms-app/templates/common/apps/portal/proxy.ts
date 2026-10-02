@@ -47,7 +47,34 @@ export function proxy(request: NextRequest): NextResponse {
   response.headers.set(REQUEST_ID_HEADER, requestId);
   response.headers.set("Content-Security-Policy", csp);
   response.headers.set("X-Content-Type-Options", "nosniff");
-  response.headers.set("Referrer-Policy", "no-referrer");
+  // `same-origin` and not `no-referrer`, and on THIS surface the difference is a
+  // mechanism rather than a privacy preference (Code Owner, 2026-10-01, SEC-9 as
+  // amended; task 073).
+  //
+  // The no-JS Add and Remove of a repeating group is a **Next Server Action** on the
+  // step form (ADR-43 as amended): the action runs and the page re-renders in the same
+  // 200 response, which is what carries the respondent's typed values back with no
+  // cookie and no redirect. Next's action handler checks the request's `Origin`
+  // against the `Host` (or `X-Forwarded-Host`) itself, and under `no-referrer` a
+  // navigation POST serializes its `Origin` as the literal string `null` (Fetch), which
+  // Next compares to the host and refuses with `Invalid Server Actions request`. So
+  // under the old value the no-JS roster operation was aborted by the framework before
+  // any QCMS code ran, and the only in-framework relief,
+  // `serverActions.allowedOrigins: ['null']`, would admit EVERY null-origin POST,
+  // including a cross-site one from any page that declares `no-referrer` on itself.
+  // That was refused.
+  //
+  // `same-origin` sends a referrer to same-origin requests and none cross-origin, so
+  // nothing a third party can see changes: Turnstile and any outbound link still get no
+  // `Referer`. What same-origin requests now carry is this page's own URL, which is
+  // already in those requests' own paths (`/s/{sessionId}` posting to
+  // `/s/{sessionId}/step`), and secure-link entry never renders: `/l/{token}` is a GET
+  // that answers 303, so the token cannot become a `Referer`.
+  //
+  // **The admin and the API keep `no-referrer`**, which is why this is set here rather
+  // than shared: neither has a Server Action on a no-JS path, and the admin's own belt
+  // reasoning depends on its form posts arriving with `Origin: null`.
+  response.headers.set("Referrer-Policy", "same-origin");
   response.headers.set("X-Frame-Options", "DENY");
   return response;
 }

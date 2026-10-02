@@ -38,32 +38,65 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  * explicit. It records classifications only, never a header value: see
  * `./origin-belt-log.ts` for why every field it emits is a constant.
  *
- * ## Why `Sec-Fetch-Site` is read first, and the `Origin` fallback is nearly dead
+ * ## Why `Sec-Fetch-Site` is read first, and what the `Origin` fallback now reaches
  *
  * Not "for older clients", which is what the admin copy's comment used to imply and
- * which is actively misleading here. `proxy.ts` sets `Referrer-Policy: no-referrer`
- * on every portal response, and per Fetch a navigation POST (which is what a no-JS
- * `<form method="post">` is) serializes its `Origin` as the literal string `null`
- * under that policy. So on the portal's own no-JS path a current browser sends
- * `Origin: null` and the `Origin` comparison below can never match: `Sec-Fetch-Site`
- * is the header actually doing the work. The admin learned this the expensive way
- * (`docs/RETRO.md`, the 031 entry: better-auth answered 403 to 100% of legitimate
- * sign-ins for exactly this reason).
+ * which is actively misleading on the admin. On the portal the reasoning changed with
+ * the policy, so both halves are written out.
  *
- * The `Origin` branch is still live for the **hydrated** path, because `fetch()`
- * requests are mode `cors`, which the referrer-policy rewrite above does not touch,
- * so those carry the real origin. (Written without the parentheses until issue #663
- * taught the admin twin's `r2-import-surface.test.ts` to blank comments before scanning
- * for a call to the global. The portal's own R2 test still does not carry that rule at
- * all, which is its own asymmetry and its own issue.)
+ * **Until task 073 the portal sent `Referrer-Policy: no-referrer`**, and per Fetch a
+ * navigation POST (which is what a no-JS `<form method="post">` is) serializes its
+ * `Origin` as the literal string `null` under that policy. So on the no-JS path a
+ * current browser sent `Origin: null`, the `Origin` comparison below could never
+ * match, and `Sec-Fetch-Site` was the only header doing any work. The admin learned
+ * that the expensive way and still lives there (`docs/RETRO.md`, the 031 entry:
+ * better-auth answered 403 to 100% of legitimate sign-ins for exactly this reason).
+ *
+ * **The portal now sends `same-origin`** (Code Owner, 2026-10-01, SEC-9 as amended),
+ * because Next's Server Action handler compares a request's `Origin` to the `Host` and
+ * refuses `null`, and the no-JS roster operation of a repeating group is a Server
+ * Action (ADR-43 as amended, task 073). A navigation POST from a portal page therefore
+ * now carries this portal's real origin, so the `Origin` branch below is **live on the
+ * no-JS path too** rather than nearly dead.
+ *
+ * **What that does NOT change is the order or the acceptance rule.** `Sec-Fetch-Site`
+ * is read first because it is the stronger signal: it distinguishes a same-origin
+ * navigation from a cross-site one, while `Origin` only says who claims to have sent
+ * the request. And `null` must still be refused, because a page can declare
+ * `no-referrer` on itself to produce it. The rule is unchanged and only the set it
+ * refuses has narrowed (ruling R-B1).
+ *
+ * The `Origin` branch was already live for the **hydrated** path, because `fetch()`
+ * requests are mode `cors`, which no referrer policy touches, so those always carried
+ * the real origin. (Written without the parentheses until issue #663 taught the admin
+ * twin's `r2-import-surface.test.ts` to blank comments before scanning for a call to
+ * the global. The portal's own R2 test still does not carry that rule at all, which is
+ * its own asymmetry and its own issue.)
  *
  * ## Exactly what the belt covers, and what it does not
  *
- * Five POST route handlers call this function and nothing else does:
- * `POST /appearance`, `POST /f/{formSlug}/start`, `POST /s/{sessionId}/answers`,
- * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`.
- * `scripts/check-origin-guards.test.ts` derives that set from disk, so it is a
- * checked statement rather than a count someone kept up to date by hand.
+ * **SEVEN callers**, and the seventh is not a route handler. Six POST route handlers call
+ * this function directly: `POST /appearance`, `POST /f/{formSlug}/start`,
+ * `POST /s/{sessionId}/answers`, `POST /s/{sessionId}/roster`,
+ * `POST /s/{sessionId}/step` and `POST /s/{sessionId}/submit`. The seventh is the no-JS
+ * Add and Remove of a repeating-group instance, a **Next Server Action**
+ * (`app/s/[sessionId]/roster-action.ts`), which reaches the same decision through
+ * {@link isSameOriginAction} below because an action is handed its form data and no
+ * `Request`. `scripts/check-origin-guards.test.ts` derives both sets from disk, so seven
+ * is a checked statement rather than a count someone kept up to date by hand, and
+ * `docs/SECURITY_DESIGN.md` SEC-9 states the same number.
+ *
+ * `/s/{sessionId}/roster` is the sixth route, added by task 073: the SCRIPTED path's Add
+ * or Remove. **The no-JS path's Add and Remove is belted too** (Code Owner, 2026-10-01,
+ * ruling R-B2), and it is belted HERE rather than left to Next, because Next's own action
+ * check is weaker in three ways: it admits a request carrying no `Origin` at all after
+ * only a warning, it compares the host while ignoring the scheme, and it never reads
+ * `Sec-Fetch-Site`. Next's check stands behind the belt rather than instead of it.
+ *
+ * Next's check is also why the portal serves `Referrer-Policy: same-origin` (SEC-9 as
+ * amended, 2026-10-01): under `no-referrer` a navigation POST serializes its `Origin` as
+ * the literal `null`, which Next refuses outright, so the action would never run far
+ * enough to be belted.
  *
  * `/appearance` is the no-JS appearance form (issue #195), and it is the one belted
  * route where a refusal costs a respondent nothing they can see: no answer is lost,
@@ -77,13 +110,25 @@ import { logOriginBeltRefusal } from "./origin-belt-log";
  *
  * ## What this refuses that a respondent might not expect
  *
- * A browser that sends no `Sec-Fetch-Site` at all (Fetch Metadata predates Safari
- * 16.4 and Firefox 90) is refused, because the only other signal it sends is that
- * same `Origin: null`, which an attacker's page can also produce by declaring
- * `Referrer-Policy: no-referrer` on itself. Failing closed is the right side to err
- * on for a security belt, and it matches the admin twin, but it is a real cost on a
- * public respondent surface rather than a free one: see the `Referrer-Policy`
- * follow-up noted on issue #487.
+ * A browser that sends no `Sec-Fetch-Site` (Fetch Metadata predates Safari 16.4 and
+ * Firefox 90) is refused **only if it also sends no matching `Origin`**, which since
+ * 2026-10-01 is a narrower set than it was. Failing closed is the right side to err on
+ * for a security belt, and it matches the admin twin, but it is a real cost on a public
+ * respondent surface rather than a free one: the `Referrer-Policy` follow-up noted on
+ * issue #487 is what the Code Owner settled on 2026-10-01 (SEC-9 as amended), and it is
+ * what narrowed this.
+ *
+ * **The rule itself has deliberately not moved** (ruling R-B1). Its old justification
+ * was that such a browser's only other signal is `Origin: null`, which an attacker's
+ * page can also produce by declaring `Referrer-Policy: no-referrer` on itself, so the
+ * two were indistinguishable. Under the portal's `same-origin` policy an honest
+ * Fetch-Metadata-less browser posting from a portal page sends this portal's **real**
+ * origin, which an attacker's page cannot forge, and the `Origin` leg below admits it.
+ * What is still refused is a request carrying `null` or no `Origin` at all, because an
+ * attacker's page can produce either. Whether that remaining set is still worth the
+ * same accepted cost is a measurement question rather than a logic one, and it is
+ * filed: issue #1024 re-measures the population, and issue #504's analysis is what it
+ * updates.
  *
  * **This is not only the no-JS path**, which is how issue #504 framed it after
  * reading an earlier version of this comment (corrected in issue #579).
@@ -129,6 +174,37 @@ export function isSameOriginPost(request: Request): boolean {
   const allowed = admitsAsSameOrigin(request);
   if (!allowed) logOriginBeltRefusal(request);
   return allowed;
+}
+
+/**
+ * The same belt, for a caller that has headers rather than a `Request`: a **Next
+ * Server Action** (task 073, ADR-43 as amended).
+ *
+ * An action is handed its form data and nothing else, so its own request reaches it
+ * only through `headers()`. This wraps those headers, plus the path the action runs
+ * against, back into the shape the belt reads, so the decision, the classification and
+ * the refusal line are the ONE implementation rather than a second one written for the
+ * action's shape.
+ *
+ * **It is belted at all because Next's own action check is weaker in three ways**
+ * (Code Owner, 2026-10-01, ruling R-B2). Next compares the request's `Origin` to the
+ * `Host` or `X-Forwarded-Host`, and: it **admits a request carrying no `Origin` at
+ * all** after only a warning; it compares the host while **ignoring the scheme**; and
+ * it **never reads `Sec-Fetch-Site`**. The belt refuses an absent and a `null` origin,
+ * reads Fetch Metadata first, and compares against the full configured base URL
+ * including its scheme. So the action gets the belt like every other state-changing
+ * entry point, and Next's check stands behind it rather than instead of it.
+ */
+export function isSameOriginAction(headers: Headers, pathname: string): boolean {
+  let url: string;
+  try {
+    url = new URL(pathname, portalBaseUrl()).toString();
+  } catch {
+    // An unreadable base URL is a configuration fault, and the belt fails closed on
+    // one exactly as `classifyOrigin` reports `unverifiable` rather than throwing.
+    return false;
+  }
+  return isSameOriginPost(new Request(url, { method: "POST", headers }));
 }
 
 /**
@@ -198,6 +274,24 @@ export interface StepContext {
    * earlier build still reads.
    */
   readonly missingRequired?: readonly string[];
+  /**
+   * A page-level notice for a round trip that wrote NOTHING and has nothing per field to
+   * say (task 073, ruling Q29, 2026-10-02).
+   *
+   * The one shape that needs it is a refused batch: a 429, a 5xx or a lost session refuses
+   * the whole request, so there is no refused field to hang a message on, and the
+   * re-render would otherwise be the same step with the same values and no explanation.
+   * That is the silent reload issue #920 removed from the required-answer path, met here
+   * from the other side, and it is what the Code Owner's ruling means by "not `errors: {}`
+   * and silence".
+   *
+   * A KEY rather than a sentence, because the catalogue is where the portal's wording
+   * lives and a cookie is not a place to put prose. The re-render looks it up; an
+   * unrecognised key is ignored, so a cookie written by an earlier build still reads.
+   *
+   * Optional for the same reason as the two fields above.
+   */
+  readonly notice?: string;
 }
 
 /** Translate an API error into a same-status JSON response the client can branch on. */
@@ -380,6 +474,11 @@ const stepContextSchema = z.object({
     .array(z.unknown())
     .transform((raw) => raw.filter((q) => typeof q === "string"))
     .optional(),
+  // A catalogue KEY for a page-level notice (task 073, ruling Q29). Forgeable like every
+  // other member, and the worst a forged one buys is one of the portal's own sentences on
+  // the forger's own render: the view matches the key against the ones it knows and renders
+  // nothing for anything else, so there is no way to put chosen text on the page.
+  notice: z.string().optional(),
 });
 
 /**
@@ -406,5 +505,9 @@ export async function readStepContext(): Promise<StepContext | undefined> {
     errors: parsed.data.errors ?? {},
     constraints: parsed.data.constraints ?? {},
     missingRequired: parsed.data.missingRequired ?? [],
+    // Spread rather than always present, because `StepContext.notice` is optional and an
+    // explicit `undefined` would make "no notice" and "a notice this build does not know"
+    // read differently to a caller testing for the key.
+    ...(parsed.data.notice === undefined ? {} : { notice: parsed.data.notice }),
   };
 }

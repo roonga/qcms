@@ -45,7 +45,7 @@ function findGoldenRoot(): string {
 }
 
 const GOLDEN_ROOT = findGoldenRoot();
-const VERSIONS = ["v1", "v2", "v3"] as const;
+const VERSIONS = ["v1", "v2", "v3", "v4"] as const;
 
 export function loadGoldenForms(): Array<{
   version: string;
@@ -81,4 +81,46 @@ export function loadGoldenSteps(): GoldenStep[] {
     }
   }
   return steps;
+}
+
+/**
+ * A synthetic live roster for every `RepeatGroup` in one golden document, so a suite
+ * driven by the corpus renders a group's member controls instead of an empty group
+ * (task 073).
+ *
+ * A compiled `RepeatGroup` is a TEMPLATE: with no roster the renderer draws the
+ * group's chrome and no instance, which is correct and renders none of the member
+ * controls. Every corpus-derived suite that asserts something about "every control"
+ * therefore needs instances, and the ids are made up here rather than read from
+ * anywhere because a roster is session state that no compiled document carries.
+ *
+ * The ids look exactly like real ones (`ins_` + hex, `packages/core/src/ids.ts`), so a
+ * qualified field name built from one is the same shape the portal produces.
+ */
+export function syntheticRoster(
+  document: A2UIStepDocument,
+  count = 1,
+): Record<string, readonly string[]> {
+  const rosters: Record<string, readonly string[]> = {};
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const child of node) walk(child);
+      return;
+    }
+    if (typeof node !== "object" || node === null) return;
+    const record = node as Record<string, unknown>;
+    const props = record["props"];
+    if (record["type"] === "RepeatGroup" && typeof props === "object" && props !== null) {
+      const groupId = (props as Record<string, unknown>)["groupId"];
+      if (typeof groupId === "string") {
+        rosters[groupId] = Array.from(
+          { length: count },
+          (_unused, index) => `ins_${groupId.replaceAll(/[^a-z0-9]/gu, "")}${String(index + 1)}`,
+        );
+      }
+    }
+    for (const value of Object.values(record)) walk(value);
+  };
+  walk(document.root);
+  return rosters;
 }

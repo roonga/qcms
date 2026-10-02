@@ -4,6 +4,7 @@ import { ApiError, getStep } from "@/lib/server/api";
 import { t } from "@/lib/i18n/en";
 import { readStepContext } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
+import { newOperationToken } from "@/lib/server/operation-token";
 
 /**
  * The flow page (`/s/:sessionId`). SSR-first (ADR-26): the BFF reads the session
@@ -31,7 +32,19 @@ export default async function FlowPage({
   try {
     const step = await getStep(sessionId, token);
     const context = await readStepContext();
-    return <ProgressiveStep sessionId={sessionId} initial={step} context={context} />;
+    // One roster-operation token per page render (task 073, ADR-43). Minted here, on
+    // the server, so the SSR and the first client render agree, and recorded by the API
+    // with the roster row it writes, so a post that arrives twice applies once. It is
+    // not a credential: it is meaningless outside the session it was minted in, and
+    // refusing a replay is its only job.
+    return (
+      <ProgressiveStep
+        sessionId={sessionId}
+        initial={step}
+        context={context}
+        opToken={newOperationToken()}
+      />
+    );
   } catch (error) {
     return <ReadFailure error={error} />;
   }

@@ -27,8 +27,26 @@
  * joins `v1/` as retained. A snapshot published under `0.1.0` is served from its
  * stored bytes and never recompiled, so a stamp change reshapes what the compiler
  * emits NEXT and nothing that already exists.
+ *
+ * Bumped 0.2.0 → 0.3.0 in task 073 (ADR-42, ADR-43): a repeating group now compiles
+ * to a `RepeatGroup` **template** node the renderer clones per live instance, which
+ * is a node type the mapping did not carry, so `golden/v4/` is the new current
+ * generation and `golden/v3/` joins `v1/` and `v2/` as retained.
+ *
+ * **`A2UI_SPEC_VERSION` does NOT move with it, and that is the honeypot's
+ * precedent rather than an omission.** ADR-18's amendment of 2026-09-30 reads
+ * "`A2UI_SPEC_VERSION` and `COMPILER_VERSION` both move", and the constant below
+ * cannot: it is the installed `@a2ra/core` **package** version, asserted against
+ * `node_modules/@a2ra/core/package.json` by `version.test.ts`, and `RepeatGroup` is
+ * deliberately a **qcms-owned** node type rather than an `@a2ra/core` registry
+ * component (ADR-43, the `HONEYPOT_NODE_TYPE` precedent), so no vendored schema
+ * moved and the pinned dependency did not either. Task 026 added the `Honeypot`
+ * node type on exactly these terms and moved this constant alone. Moving the spec
+ * stamp would mean bumping the vendored dependency, which is not what a new qcms
+ * node type is; the generation the amendment asks for is opened by this stamp.
+ * Reported to the Code Owner with task 073.
  */
-export const COMPILER_VERSION = "0.2.0";
+export const COMPILER_VERSION = "0.3.0";
 
 /**
  * The pinned `@a2ra/core` package version whose Zod schemas the compiled output

@@ -19,6 +19,14 @@ export {
 } from "./mapping.js";
 
 export {
+  REMOVE_LABEL_PLACEHOLDER,
+  REPEAT_ACTION_LEXICON,
+  REPEAT_GROUP_NODE_TYPE,
+  addItemNoun,
+  repeatGroupNode,
+} from "./repeat-group.js";
+
+export {
   staticStepResolver,
   type StepResolver,
   type StepResolverContext,

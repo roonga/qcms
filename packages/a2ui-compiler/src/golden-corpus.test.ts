@@ -17,6 +17,7 @@ import { parseNode } from "@a2ra/core";
 import { describe, expect, it } from "vitest";
 
 import { compileForm } from "./compile.js";
+import { REPEAT_GROUP_NODE_TYPE } from "./repeat-group.js";
 import type { A2UINode, CompiledForm } from "./types.js";
 
 /**
@@ -35,6 +36,11 @@ import type { A2UINode, CompiledForm } from "./types.js";
  * - `v3/` - compiler `0.2.0`, issue #186: every compiled heading carries `size`
  *   and `weight`, so a form title and a step title stop rendering at body size
  *   and body weight.
+ * - `v4/` - compiler `0.3.0`, task 073 (ADR-42, ADR-43): a repeating group compiles
+ *   to a `RepeatGroup` TEMPLATE node carrying its member controls once, which the
+ *   renderer clones per live instance. The seven forms carried across from `v3/`
+ *   have no group, so their **documents are byte-identical** there and only the
+ *   `compilerVersion` stamp moves (acceptance case 5, asserted below).
  *
  * Every earlier generation stays committed as the faithful record of what that
  * compiler produced, and is still asserted spec-valid below. They are never
@@ -59,7 +65,7 @@ const CORE_FIXTURES = fileURLToPath(new URL("../../core/fixtures/", import.meta.
  * forms may pin only questions from it).
  */
 const LOCAL_FIXTURES = fileURLToPath(new URL("../fixtures/corpus/", import.meta.url));
-const GOLDEN_DIR = fileURLToPath(new URL("../golden/v3/", import.meta.url));
+const GOLDEN_DIR = fileURLToPath(new URL("../golden/v4/", import.meta.url));
 
 /**
  * The frozen generations, oldest first, and what is still true of each. Retained
@@ -75,9 +81,29 @@ const RETAINED_GENERATIONS: readonly {
   readonly compiler: string;
   readonly hasHoneypot: boolean;
   readonly hasHeadingTypography: boolean;
+  readonly hasRepeatGroup: boolean;
 }[] = [
-  { dir: "v1", compiler: "0.0.0", hasHoneypot: false, hasHeadingTypography: false },
-  { dir: "v2", compiler: "0.1.0", hasHoneypot: true, hasHeadingTypography: false },
+  {
+    dir: "v1",
+    compiler: "0.0.0",
+    hasHoneypot: false,
+    hasHeadingTypography: false,
+    hasRepeatGroup: false,
+  },
+  {
+    dir: "v2",
+    compiler: "0.1.0",
+    hasHoneypot: true,
+    hasHeadingTypography: false,
+    hasRepeatGroup: false,
+  },
+  {
+    dir: "v3",
+    compiler: "0.2.0",
+    hasHoneypot: true,
+    hasHeadingTypography: true,
+    hasRepeatGroup: false,
+  },
 ];
 
 /**
@@ -103,6 +129,14 @@ const CORPUS: readonly {
   { fixture: "deep-nesting-rules.json", golden: "deep-nesting-rules.a2ui.json" },
   { fixture: "author-messages.json", golden: "author-messages.a2ui.json", local: true },
   { fixture: "boolean-labels.json", golden: "boolean-labels.a2ui.json", local: true },
+  // Task 073's two, appended for generation `v4/`: the `RepeatGroup` template node.
+  // `repeat-open-group` is the respondent-driven shape (`open`, min 1, max 9) and
+  // carries the Add and Remove wording; `repeat-count-sources` covers the other two
+  // count sources and puts `longText` and `multiChoice` inside a group, which the
+  // stacked presentation allows and the table presentation refuses (acceptance case
+  // 38, Q12).
+  { fixture: "repeat-open-group.json", golden: "repeat-open-group.a2ui.json", local: true },
+  { fixture: "repeat-count-sources.json", golden: "repeat-count-sources.a2ui.json", local: true },
 ];
 
 function readJson(...segments: string[]): unknown {
@@ -227,7 +261,7 @@ function headingLevel(node: A2UINode): string | undefined {
   return typeof as === "string" && /^h[1-6]$/u.test(as) ? as : undefined;
 }
 
-describe("A2UI golden corpus (v3 - current generation)", () => {
+describe("A2UI golden corpus (v4 - current generation)", () => {
   for (const { fixture, golden, local } of CORPUS) {
     describe(golden, () => {
       const compiled = compileForm(buildSnapshot(fixture, local === true), {});
@@ -337,7 +371,7 @@ describe("A2UI golden corpus (v3 - current generation)", () => {
  */
 describe.each(RETAINED_GENERATIONS)(
   "A2UI golden corpus ($dir - retained, compiler $compiler)",
-  ({ dir, hasHoneypot, hasHeadingTypography }) => {
+  ({ dir, hasHoneypot, hasHeadingTypography, hasRepeatGroup }) => {
     const generationDir = fileURLToPath(new URL(`../golden/${dir}/`, import.meta.url));
 
     // Iterated from disk, not from CORPUS: each retained generation is a closed
@@ -363,7 +397,84 @@ describe.each(RETAINED_GENERATIONS)(
         const headings = nodes.filter((node) => headingLevel(node) !== undefined);
         expect(headings.length).toBeGreaterThan(0);
         expect(headings.some((node) => node.props?.size !== undefined)).toBe(hasHeadingTypography);
+
+        expect(nodes.some((node) => node.type === REPEAT_GROUP_NODE_TYPE)).toBe(hasRepeatGroup);
       });
     }
   },
 );
+
+/**
+ * Acceptance case 5 (task 073): **the seven pre-073 golden documents are
+ * byte-identical in the new generation.**
+ *
+ * "Byte-identical" is asserted over the `documents` member, which is the compiled
+ * A2UI itself, because the enclosing file also carries the `compilerVersion` stamp
+ * and that stamp is exactly what a new generation moves (`golden/README.md`: the
+ * review diff between two generations "must show the intended mapping change and
+ * the `compilerVersion` stamp, and nothing else"). So this asserts both halves: the
+ * documents are equal byte for byte, and the whole-file difference is the stamp and
+ * nothing else.
+ *
+ * It is the proof that the `RepeatGroup` node is additive. None of the seven forms
+ * declares a repeating group, so a form with no group must compile in v4 to exactly
+ * what it compiled to in v3.
+ */
+describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () => {
+  const V3_DIR = fileURLToPath(new URL("../golden/v3/", import.meta.url));
+  const carriedOver = readdirSync(V3_DIR)
+    .filter((file) => file.endsWith(".a2ui.json"))
+    .sort();
+
+  it("carries all seven", () => {
+    expect(carriedOver).toHaveLength(7);
+  });
+
+  for (const golden of carriedOver) {
+    it(`${golden} has byte-identical documents in v4`, () => {
+      const before = JSON.parse(readFileSync(path.join(V3_DIR, golden), "utf8")) as CompiledForm;
+      const after = JSON.parse(readFileSync(path.join(GOLDEN_DIR, golden), "utf8")) as CompiledForm;
+      expect(JSON.stringify(after.documents, null, 2)).toBe(
+        JSON.stringify(before.documents, null, 2),
+      );
+      // And the only difference in the whole file is the stamp.
+      expect({ ...after, compilerVersion: before.compilerVersion }).toEqual(before);
+      expect(after.compilerVersion).not.toBe(before.compilerVersion);
+    });
+  }
+});
+
+/**
+ * Acceptance case 34, the compiled-document half: **a repeat step carries exactly
+ * one honeypot decoy, and the `RepeatGroup` template carries none.**
+ *
+ * Expansion is a template **clone**, so a decoy inside the template would be cloned
+ * once per live instance and a ten-instance step would post ten `website` fields.
+ * The compiler appends the decoy to the step's `Flex` after the group node (task
+ * 026, ADR-12), so it is outside the template by construction; this is the
+ * assertion that keeps it there. The ten-instance half of the case is asserted on
+ * the DOM in `@roonga/qcms-ui` and in the portal's browser suite.
+ */
+describe("the honeypot is never inside a RepeatGroup template (case 34)", () => {
+  const REPEAT_CORPUS = CORPUS.filter((entry) => entry.fixture.startsWith("repeat-"));
+
+  it("covers both repeat corpus forms", () => {
+    expect(REPEAT_CORPUS).toHaveLength(2);
+  });
+
+  for (const { fixture, golden, local } of REPEAT_CORPUS) {
+    it(`${golden} keeps its one decoy outside every template`, () => {
+      const compiled = compileForm(buildSnapshot(fixture, local === true), {});
+      let groups = 0;
+      for (const doc of compiled.documents) {
+        const nodes = walk(doc.root);
+        expect(nodes.filter((node) => node.type === "Honeypot")).toHaveLength(1);
+        for (const group of nodes.filter((node) => node.type === REPEAT_GROUP_NODE_TYPE)) {
+          groups += 1;
+          expect(walk(group).some((node) => node.type === "Honeypot")).toBe(false);
+        }
+      }
+      expect(groups).toBeGreaterThan(0);
+    });
+  }
+});

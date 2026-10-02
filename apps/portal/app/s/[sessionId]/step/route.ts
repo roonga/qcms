@@ -1,12 +1,15 @@
 import type { A2UIAnswerValue } from "@roonga/qcms-ui";
+import { INSTANCE_NAME_SEPARATOR } from "@roonga/qcms-ui/repeat-node";
 import { NextResponse } from "next/server";
 
+import { splitFieldKey } from "../../../../lib/repeat";
 import { t } from "@/lib/i18n/en";
 import {
   ApiError,
+  batchAnswers,
   getStep,
-  submitAnswer,
   submitSession,
+  type BatchRejection,
   type StepResponse,
 } from "@/lib/server/api";
 import {
@@ -95,74 +98,76 @@ export async function GET(
   }
 }
 
-/**
- * The API's typed 422 detail, surfaced in the field's error slot (WCAG 3.3): the
- * kernel's own message, else the generic catalog entry. This is the DEFAULT
- * wording; an author message for the same constraint wins over it at render time
- * (`native-step`), which is where the compiled document is in hand (task 048).
- */
-function answerErrorMessage(error: ApiError): string {
-  return defaultAnswerMessage(firstAnswerRejection(error.details), t("answer.invalid"));
-}
-
-/**
- * Record one refusal of a single answer against the question it names, and say whether
- * the whole-step round can carry on.
- *
- * Three outcomes, and only the last ends the round:
- *
- * - a typed **422** is the respondent's to fix, so it fills that question's error slot
- *   (WCAG 3.3) and the remaining answers still go;
- * - **QUESTION_NOT_VISIBLE** is not a failure at all. A whole-step post carries fields
- *   rendered before this round's own answers changed a branch, so a question this round
- *   just hid is silently dropped - including a clear for it (issue #127), which the API
- *   refuses behind the same visibility gate as any other write;
- * - anything else (session lost or expired, a 5xx) means nothing more can usefully be
- *   posted, so the caller re-renders the page.
- *
- * Its own function so `forwardAnswers` reads as the loop it is. A non-`ApiError` is
- * rethrown rather than classified: it is a defect here, not an answer the API refused.
- */
-function recordRejection(
-  error: unknown,
-  questionId: string,
-  errors: Record<string, string>,
-  constraints: Record<string, string>,
-): boolean {
-  if (!(error instanceof ApiError)) throw error;
-  if (error.status === 422) {
-    errors[questionId] = answerErrorMessage(error);
-    const constraint = firstAnswerRejection(error.details)?.constraint;
-    if (constraint !== undefined) constraints[questionId] = constraint;
-    return true;
-  }
-  return error.code === "QUESTION_NOT_VISIBLE";
-}
-
 /** The outcome of forwarding a step's decoded answers to the API. */
 interface Forwarded {
   /** Submitted values, kept so a re-render re-populates the form. */
   readonly values: Record<string, A2UIAnswerValue>;
-  /** Per-question typed validation errors (422s), for the error slots. */
+  /** Per-field typed validation errors (422s), for the error slots. */
   readonly errors: Record<string, string>;
   /** Which constraint each 422 named, so the re-render can pick the author's wording. */
   readonly constraints: Record<string, string>;
-  /** The last projection the API returned (its `readyToSubmit` is authoritative). */
+  /** The projection the API returned for the batch (its `readyToSubmit` is authoritative). */
   readonly last: StepResponse | undefined;
   /** A non-recoverable API error (session lost/expired/5xx): re-render the page. */
   readonly fatal: boolean;
 }
 
 /**
- * Forward each decoded answer to the API's per-question endpoint (the sole
- * validator, R2). Collects submitted values and typed 422 errors; skips a
- * question hidden by a just-changed branch trigger; stops on any other API error.
+ * Record one refused batch entry against the field it names.
+ *
+ * The API returns a refusal per entry rather than failing the request, so this is the
+ * same three-outcome classification the per-answer loop had, minus the third: a 422 is
+ * the respondent's to fix and fills that field's error slot (WCAG 3.3), and
+ * `QUESTION_NOT_VISIBLE` is not a failure at all - a whole-step post carries fields
+ * rendered before this round's own answers changed a branch, so a field this round just
+ * hid is silently dropped, including a clear for it (issue #127). A fatal error is now
+ * a failed REQUEST rather than a failed entry, which is what the `catch` around the
+ * call handles.
+ */
+function recordBatchRejection(
+  rejection: BatchRejection,
+  errors: Record<string, string>,
+  constraints: Record<string, string>,
+): void {
+  if (rejection.code === "QUESTION_NOT_VISIBLE") return;
+  // The answer key, which is the field's whole identity below the API: a bare
+  // questionId outside a repeating group and `instanceId/questionId` inside one. It is
+  // the string the error slot, the summary anchor and the field's own id all use.
+  const field = fieldKey(rejection.questionId, rejection.instanceId);
+  errors[field] = defaultAnswerMessage(
+    firstAnswerRejection(rejection.details),
+    t("answer.invalid"),
+  );
+  const constraint = firstAnswerRejection(rejection.details)?.constraint;
+  if (constraint !== undefined) constraints[field] = constraint;
+}
+
+/** `ins_7k2/q_plate`, or the bare question id outside every group (ADR-42, Q15). */
+function fieldKey(questionId: string, instanceId?: string): string {
+  return instanceId === undefined
+    ? questionId
+    : `${instanceId}${INSTANCE_NAME_SEPARATOR}${questionId}`;
+}
+
+/**
+ * Forward a step's decoded answers to the API's **batch** endpoint (task 073, Q20,
+ * ADR-43): one request, one session lock, one flow evaluation.
+ *
+ * **Why it changed.** This used to make one `POST /sessions/{id}/answers` per decoded
+ * answer, sequentially, each taking the session's advisory lock and re-evaluating the
+ * whole flow. That was fine for a step of six questions and is not fine for a repeating
+ * group: nine passengers times six questions is fifty-four round trips and fifty-four
+ * advisory locks for one Continue. The batch is the same answers, the same validation,
+ * the same authority (R2 - the API is still the sole validator) and one call.
  *
  * A decoded `null` is a RETRACTION rather than a value (issue #127): the field was
- * marked as holding an answer and arrived empty, so the respondent cleared it. It
- * travels on the same call, to the same endpoint, with the same body the scripted
- * path posts for the same gesture - one ledger call for both transports, which is
- * the whole point of the marker.
+ * marked as holding an answer and arrived empty, so the respondent cleared it. It rides
+ * the batch as `value: null`, the same body the scripted path posts for the same
+ * gesture, so both transports still reach one ledger semantics.
+ *
+ * **The rate limit is per entry, not per request** (SEC-16), so a 429 here means the
+ * batch did not fit the window's remaining allowance and **nothing was applied** - the
+ * caller re-renders with the values the respondent typed and no answer written.
  */
 async function forwardAnswers(
   sessionId: string,
@@ -172,7 +177,6 @@ async function forwardAnswers(
   const values: Record<string, A2UIAnswerValue> = {};
   const errors: Record<string, string> = {};
   const constraints: Record<string, string> = {};
-  let last: StepResponse | undefined;
   for (const answer of answers) {
     // A retraction is deliberately NOT recorded as a re-render value. The cookie
     // exists to re-show what the API does not hold; here the API holds nothing
@@ -181,15 +185,25 @@ async function forwardAnswers(
     // it would also have to survive JSON, where an `undefined` member vanishes -
     // see `mergeStepValues` on why absent and cleared are different renders.
     if (answer.value !== null) values[answer.questionId] = answer.value as A2UIAnswerValue;
-    try {
-      last = await submitAnswer(sessionId, token, answer.questionId, answer.value);
-    } catch (error) {
-      if (!recordRejection(error, answer.questionId, errors, constraints)) {
-        return { values, errors, constraints, last, fatal: true };
-      }
-    }
   }
-  return { values, errors, constraints, last, fatal: false };
+  if (answers.length === 0) return { values, errors, constraints, last: undefined, fatal: false };
+  try {
+    const result = await batchAnswers(
+      sessionId,
+      token,
+      answers.map((answer) => ({ ...splitFieldKey(answer.questionId), value: answer.value })),
+    );
+    for (const rejection of result.rejected) {
+      recordBatchRejection(rejection, errors, constraints);
+    }
+    return { values, errors, constraints, last: result, fatal: false };
+  } catch (error) {
+    if (!(error instanceof ApiError)) throw error;
+    // Every refusal of the whole REQUEST is fatal to this round: a lost or expired
+    // session, a 5xx, or a 429 for a batch that did not fit the window. None of them
+    // wrote anything, so the caller re-renders the step with what the respondent typed.
+    return { values, errors, constraints, last: undefined, fatal: true };
+  }
 }
 
 /**
@@ -283,7 +297,27 @@ export async function POST(
     answers,
   );
 
-  if (fatal) return backToStep(request, sessionId);
+  if (fatal) {
+    // The batch request itself was refused: a lost or expired session, a 5xx, or a 429
+    // for a batch that did not fit the window's remaining allowance (SEC-16). None of
+    // them wrote anything, and the values the respondent typed do not depend on the
+    // API having accepted them, so they are carried into the re-render rather than
+    // dropped to a transient failure - which is the silent reload issue #920 exists to
+    // remove, met here from the other side.
+    // With a NOTICE, which is the half this used to be missing (ruling Q29, 2026-10-02).
+    // The values come back either way, but a step that re-renders unchanged and says
+    // nothing is the silent reload issue #920 removed from the required-answer path: a
+    // respondent whose batch was refused by the rate limiter saw their own answers and no
+    // reason, and pressing Continue again produced the same silence.
+    await writeStepContext({
+      values,
+      errors: {},
+      constraints: {},
+      missingRequired: [],
+      notice: "step.notSaved",
+    });
+    return backToStep(request, sessionId);
+  }
 
   // The authoritative projection: the one the API returned for the last answer
   // written, or a fresh read when this round wrote none (every field blank, or every

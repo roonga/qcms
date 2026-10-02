@@ -113,6 +113,15 @@ export const NATIVE_FIELD_ANSWERED_VALUE = "1";
  */
 export type NativeFieldKind = "string" | "number" | "radio" | "multi";
 
+/**
+ * A Next Server Action, as React renders it into a `<form action>` (task 073).
+ *
+ * Typed structurally rather than imported, because `@roonga/qcms-ui` depends on no
+ * framework: what React needs is a function it can recognise as a form action, and
+ * what the host supplies is `useActionState`'s second return value.
+ */
+export type NativeFormAction = (formData: FormData) => void;
+
 /** Options that turn the renderer into its natively-submittable mode (opt-in). */
 export interface NativeSubmitOptions {
   /** The same-origin BFF route the native `<form>` POSTs to. */
@@ -123,6 +132,53 @@ export interface NativeSubmitOptions {
   readonly submitLabel: string;
   /** Optional class for the submit control, so the host app themes it (ADR-26). */
   readonly submitClassName?: string;
+  /**
+   * The **form's own** action, when the step carries a repeating group (task 073,
+   * ADR-43 as amended, Code Owner 2026-10-01): a Next Server Action that applies the
+   * respondent's Add or Remove and re-renders the step in the same 200 response.
+   *
+   * ## Why the form and not the buttons
+   *
+   * One form has to reach two destinations without scripting: Continue goes to the
+   * whole-step BFF route and answers a 303, and an Add or Remove goes to the Server
+   * Action and answers a 200 carrying the typed values back. HTML's mechanism for that
+   * is `formaction` on the submit control, and there are two ways round:
+   *
+   * - the action on the **form** and a plain URL `formaction` on the Continue control,
+   *   which is what this is;
+   * - the action on each `__qop` **button** through `formAction`.
+   *
+   * The first is chosen because it puts React nowhere near the `__qop` buttons. Those
+   * buttons carry `name="__qop"` and a value, which is the ruled mechanism (Q9), and a
+   * plain `<button name value>` contributes its pair to the form data set only when it
+   * is the submitter - pure HTML, no framework behaviour to rely on. It is also the
+   * shape React documents progressive enhancement for: the hidden action fields are
+   * rendered into the form, so a scripting-disabled browser posts them.
+   *
+   * When this is absent the renderer behaves exactly as it did before task 073: the
+   * node carries the string `action` and the submit control carries no `formaction`.
+   * A step with no repeating group therefore renders byte-identically.
+   *
+   * It does **not** ride the A2UI node's props, and it cannot: a node's props are the
+   * stored document's data, validated by a Zod schema and serialisable by construction.
+   * It travels in the field context instead, which is the same seam `values` and
+   * `errors` use.
+   */
+  readonly formAction?: NativeFormAction;
+  /**
+   * Hidden inputs to render as the form's first children, as `{ name: value }`.
+   *
+   * This is how a Server Action gets its per-request context without being bound. A
+   * bound action cannot go to `useActionState`: Next compares a bound reference's
+   * signature asynchronously and that comparison never settles inside a server render,
+   * so the POST never gets a response and the process accumulates promises until it dies
+   * with `RangeError: Map maximum size exceeded`. A hidden input is the plain-HTML way to
+   * carry the same value, and it posts with every submit of the form including Continue.
+   *
+   * These names are the host's, and the host's own decoder has to reserve them so they
+   * are not mistaken for answers.
+   */
+  readonly hiddenFields?: Readonly<Record<string, string>>;
 }
 
 /** Normalize an `A2Node`'s `children` union to a plain array of child nodes. */
@@ -146,12 +202,21 @@ function toChildArray(children: A2Node["children"]): A2Node[] {
 export function withNativeSubmit(root: A2Node, opts: NativeSubmitOptions): A2Node {
   const submitProps: Record<string, unknown> = { label: opts.submitLabel };
   if (opts.submitClassName !== undefined) submitProps.className = opts.submitClassName;
+  // With a Server Action on the form (task 073), the submit control is what keeps
+  // Continue pointed at the BFF route: `formaction` on a submit button overrides the
+  // form's action for that button alone, and it is a plain URL string, so a
+  // scripting-disabled browser follows it with no framework involvement.
+  if (opts.formAction !== undefined) submitProps.formAction = opts.action;
   const submitNode: A2Node = { type: SUBMIT_NODE_TYPE, props: submitProps };
 
   const props: Record<string, unknown> = {
     ...(root.props ?? {}),
-    action: opts.action,
     method: opts.method ?? "post",
   };
+  // The node's `action` is the string the vendored `Form` renders. It is omitted when
+  // a Server Action is supplied, because the action is a function and a node prop
+  // carries stored, serialisable data only: the adapter reads the function from the
+  // field context instead.
+  if (opts.formAction === undefined) props.action = opts.action;
   return { ...root, props, children: [...toChildArray(root.children), submitNode] };
 }

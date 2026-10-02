@@ -1,0 +1,218 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_drivers",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1",
+                  "size": "2xl",
+                  "weight": "bold"
+                },
+                "children": "Count sources"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "The two named drivers"
+              },
+              {
+                "type": "NumberField",
+                "props": {
+                  "label": "How many vehicles are on the policy?",
+                  "name": "q_rep_vehicle_count",
+                  "isRequired": true,
+                  "minValue": 0,
+                  "maxValue": 5,
+                  "step": 1
+                }
+              },
+              {
+                "type": "RepeatGroup",
+                "props": {
+                  "groupId": "grp_drivers",
+                  "label": "Named drivers",
+                  "instanceLabel": "Driver {n}",
+                  "presentation": "stacked",
+                  "countSource": "fixed",
+                  "min": 2,
+                  "max": 2
+                },
+                "children": [
+                  {
+                    "type": "RadioGroup",
+                    "props": {
+                      "label": "Is this vehicle garaged overnight?",
+                      "name": "q_rep_garaged",
+                      "isRequired": true
+                    },
+                    "children": [
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "true",
+                          "label": "Yes"
+                        }
+                      },
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "false",
+                          "label": "No"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "RadioGroup",
+                    "props": {
+                      "label": "How is this vehicle used?",
+                      "name": "q_rep_use",
+                      "isRequired": true
+                    },
+                    "children": [
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "opt_private",
+                          "label": "Private"
+                        }
+                      },
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "opt_business",
+                          "label": "Business"
+                        }
+                      },
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "opt_mixed",
+                          "label": "A mix of both"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "stepId": "stp_incidents",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "One entry per vehicle"
+              },
+              {
+                "type": "RepeatGroup",
+                "props": {
+                  "groupId": "grp_incidents",
+                  "label": "Incidents",
+                  "instanceLabel": "Incident {n}",
+                  "presentation": "stacked",
+                  "countSource": "fromAnswer",
+                  "min": 0,
+                  "max": 5
+                },
+                "children": [
+                  {
+                    "type": "TextArea",
+                    "props": {
+                      "label": "What happened?",
+                      "name": "q_rep_notes",
+                      "maxLength": 400
+                    }
+                  },
+                  {
+                    "type": "CheckboxGroup",
+                    "props": {
+                      "label": "Which parts were replaced?",
+                      "name": "q_rep_extras",
+                      "orientation": "vertical"
+                    },
+                    "children": [
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_windscreen",
+                          "label": "Windscreen"
+                        }
+                      },
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_panel",
+                          "label": "Body panel"
+                        }
+                      },
+                      {
+                        "type": "Checkbox",
+                        "props": {
+                          "value": "opt_mirror",
+                          "label": "Wing mirror"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.3.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

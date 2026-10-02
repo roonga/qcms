@@ -1,6 +1,6 @@
 "use client";
 
-import { A2UIStepRenderer } from "@roonga/qcms-ui";
+import { A2UIStepRenderer, expandRepeatGroups } from "@roonga/qcms-ui";
 import type { A2UIAnswerValue, A2UIErrors, A2UIStepDocument, A2UIValues } from "@roonga/qcms-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
@@ -9,6 +9,7 @@ import { HydrationMarker } from "@/components/hydration-marker";
 import { PortalShell } from "@/components/portal-shell";
 import {
   diffFlow,
+  cssEscape,
   focusQuestion,
   nextFocusTargetAfterRemoval,
   questionIdOf,
@@ -48,8 +49,15 @@ import {
   messagesOf,
   DEFAULT_COMMIT_MOMENT,
 } from "@/lib/visible";
+import { rosterMap } from "@/lib/rosters";
+import {
+  focusAfterAdd,
+  focusAfterRemoval,
+  instanceLabelTemplates,
+  resolvedInstanceLabel,
+} from "@/lib/repeat";
 import type { CommitMoment } from "@/lib/visible";
-import type { StepResponse } from "@/lib/server/api";
+import type { RosterOpResponse, StepResponse } from "@/lib/server/api";
 
 /** A JSON body, or `undefined` when the response carries none (never throws). */
 async function readJsonSafely(res: Response): Promise<unknown> {
@@ -182,6 +190,44 @@ function recoverFocus(args: {
  * `StepResponse` is imported type-only, so no server module reaches the client
  * bundle (enforced by the R2 import-surface test).
  */
+/**
+ * The whole sentence a roster change announces (4.1.3, Q11).
+ *
+ * A whole sentence and never a changing number: 4.1.3's own Understanding warns that
+ * updating only the digit in "3 items" can announce just "three". The instance's own
+ * label is what names it, because the `ins_` id is never something a respondent reads
+ * (ADR-42).
+ *
+ * A removed instance is named from the roster it had BEFORE the removal, which is the
+ * only place its ordinal still exists. An instance with no resolvable label - a group
+ * the stored document does not declare, which is drift rather than a state - makes the
+ * sentence name the group instead of naming an opaque id.
+ */
+function rosterAnnouncement(input: {
+  readonly op: "add" | "remove";
+  readonly before: readonly string[];
+  readonly after: readonly string[];
+  readonly instanceId: string | undefined;
+  readonly templates: ReadonlyMap<string, string>;
+  readonly groupId: string;
+}): string {
+  const { op, before, after, instanceId, templates, groupId } = input;
+  if (op === "add") {
+    const added = after.find((id) => !before.includes(id));
+    const label =
+      added === undefined ? undefined : resolvedInstanceLabel(templates, groupId, after, added);
+    return t("repeat.added", { label: label ?? groupId });
+  }
+  const label =
+    instanceId === undefined
+      ? undefined
+      : resolvedInstanceLabel(templates, groupId, before, instanceId);
+  const named = label ?? groupId;
+  return after.length === 0
+    ? t("repeat.removedLast", { label: named })
+    : t("repeat.removed", { label: named, count: after.length });
+}
+
 export function StepFlow({
   sessionId,
   initial,
@@ -208,6 +254,14 @@ export function StepFlow({
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [announcement, setAnnouncement] = useState("");
+  // The repeating group's own state (task 073): which group a roster write is in
+  // flight for, the whole sentence its `role="status"` region announces, and the
+  // element the next render lands focus on.
+  const [busyGroup, setBusyGroup] = useState<string | undefined>(undefined);
+  const [rosterStatus, setRosterStatus] = useState<
+    { readonly groupId: string; readonly message: string } | undefined
+  >(undefined);
+  const [pendingFocus, setPendingFocus] = useState<string | undefined>(undefined);
   const valuesRef = useRef<A2UIValues>(values);
   valuesRef.current = values;
   // The last server projection, read inside queued callbacks so a navigation or
@@ -246,12 +300,28 @@ export function StepFlow({
   // (issue #31). Derived from the FULL document, not the visibility-pruned copy,
   // so a question the projection is about to reveal is already classified.
   // Recomputed only when the step document changes, not on every keystroke.
+  // The live roster per group, as the API derived it (ADR-42): the renderer clones a
+  // `RepeatGroup` template once per live instance from this. The portal derives nothing
+  // from it and could not - liveness is a function of the count source and the API
+  // computes it above the evaluator (R2).
+  const rosters = useMemo(() => rosterMap(snapshot.rosters), [snapshot.rosters]);
+  // The EXPANDED document, and the expansion happens here rather than being left to the
+  // renderer because two other things have to read the same names. A repeated question's
+  // field name is `ins_7k2/q_plate` after expansion, and that string is what the commit
+  // moments below key on and what the error summary anchors at. Expanding once and
+  // handing the same tree to all three is what keeps them one set of strings; the
+  // renderer's own expansion is idempotent, so it leaves this alone.
+  const expandedStep = useMemo<A2UIStepDocument | null>(() => {
+    const step = snapshot.step as unknown as A2UIStepDocument | null;
+    if (step === null) return null;
+    return { stepId: step.stepId, root: expandRepeatGroups(step.root, { rosters }) };
+  }, [snapshot.step, rosters]);
   const moments = useMemo(
     () =>
-      snapshot.step === null
+      expandedStep === null
         ? (new Map() as ReadonlyMap<string, CommitMoment>)
-        : commitMoments(snapshot.step as unknown as A2UIStepDocument),
-    [snapshot.step],
+        : commitMoments(expandedStep),
+    [expandedStep],
   );
 
   // Flow-level accessibility (task 030): the step content region (for focus
@@ -383,6 +453,80 @@ export function StepFlow({
       });
     },
     [sendAnswer],
+  );
+
+  /**
+   * The respondent's Add or Remove on the scripted path (task 073, ADR-43).
+   *
+   * It writes no answer, exactly as the no-JS path's Server Action writes none: every
+   * answer on this path has already been committed at its own ADR-31 commit moment, so
+   * an Add or Remove has nothing to carry. It rides the same serial queue as an answer
+   * post, so it cannot overtake an in-flight commit of the field the respondent has
+   * just left, and the roster it lands on is the one the API returns.
+   *
+   * Focus and the announcement are decided HERE and not by the renderer, because they
+   * are properties of what just happened rather than of what is on screen: after an add
+   * the new instance's heading, and after a removal the instance that took its place,
+   * else the previous one, else the group's Add button (Q11, ruled 2026-09-29). The
+   * destination is computed from the roster BEFORE the operation, which is the only
+   * place the removed instance's position exists.
+   */
+  const applyRosterOp = useCallback(
+    (op: "add" | "remove", groupId: string, instanceId: string | undefined): void => {
+      const before = rosterMap(snapshotRef.current.rosters)[groupId] ?? [];
+      setBusyGroup(groupId);
+      queueRef.current = queueRef.current.then(async () => {
+        try {
+          const res = await fetch(`/s/${encodeURIComponent(sessionId)}/roster`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              op,
+              groupId,
+              ...(instanceId !== undefined ? { instanceId } : {}),
+              step: snapshotRef.current.progress.stepIndex,
+            }),
+          });
+          if (res.status !== 200) {
+            setRosterStatus({ groupId, message: t("repeat.failed") });
+            return;
+          }
+          const next = (await res.json()) as RosterOpResponse;
+          snapshotRef.current = next;
+          setSnapshot(next);
+          const after = rosterMap(next.rosters)[groupId] ?? [];
+          const templates = instanceLabelTemplates(next.step as unknown as A2UIStepDocument | null);
+          setRosterStatus({
+            groupId,
+            message: rosterAnnouncement({ op, before, after, instanceId, templates, groupId }),
+          });
+          setPendingFocus(
+            op === "add"
+              ? focusAfterAdd(next.minted, groupId)
+              : focusAfterRemoval(before, instanceId ?? "", groupId),
+          );
+        } catch {
+          setRosterStatus({ groupId, message: t("repeat.failed") });
+        } finally {
+          setBusyGroup(undefined);
+        }
+      });
+    },
+    [sessionId],
+  );
+
+  const addInstance = useCallback(
+    (groupId: string): void => {
+      applyRosterOp("add", groupId, undefined);
+    },
+    [applyRosterOp],
+  );
+
+  const removeInstance = useCallback(
+    (groupId: string, instanceId: string): void => {
+      applyRosterOp("remove", groupId, instanceId);
+    },
+    [applyRosterOp],
   );
 
   const handleChange = useCallback(
@@ -607,8 +751,14 @@ export function StepFlow({
   // the document gave no label is named by its position among this step's visible
   // questions instead, which is why the visible set travels with the call (issue
   // #326 - the constant that stood there made every label-less entry identical).
+  // The EXPANDED document, not the stored one. Every name the API reports as missing
+  // inside a repeating group is qualified (`instanceId/questionId`), and only the expanded
+  // tree carries nodes under those names, so the stored tree yields neither the question's
+  // label nor the instance's: each entry degrades to "Question 2 needs an answer" with no
+  // vehicle named, which is the WCAG 3.3.1 distinctness failure the instance prefix exists
+  // to prevent.
   const missingEntries = missingRequiredEntries(
-    snapshot.step as unknown as A2UIStepDocument | null,
+    expandedStep,
     missing,
     snapshot.flowState.visibleQuestions,
   );
@@ -671,6 +821,27 @@ export function StepFlow({
       errorSummaryRef.current?.focus();
     }
   }, [showMissing, missing.length]);
+
+  /**
+   * Land focus where the roster operation said (Q11), after the render that drew it.
+   *
+   * It is a separate effect from the flow-diff one above because it is not a flow
+   * change: the step, the visible set and the answers are all as they were, and only
+   * the group grew or shrank. Reading it after the render is what makes the destination
+   * exist - the heading of an instance added a moment ago is not in the DOM until this
+   * projection has painted.
+   *
+   * The same destination is expressed as an `autofocus` attribute on the no-JS path,
+   * where there is no render to wait for and no script to move focus, so the two paths
+   * land in the same place by construction rather than by two rules.
+   */
+  useEffect(() => {
+    if (pendingFocus === undefined) return;
+    setPendingFocus(undefined);
+    const container = fieldsRef.current;
+    const target = container?.querySelector<HTMLElement>(`[id="${cssEscape(pendingFocus)}"]`);
+    target?.focus();
+  }, [pendingFocus, snapshot]);
 
   const focusMissingField = useCallback(
     (questionId: string) => (event: MouseEvent<HTMLAnchorElement>) => {
@@ -736,13 +907,21 @@ export function StepFlow({
           <div ref={fieldsRef}>
             <A2UIStepRenderer
               document={documentForVisible(
-                snapshot.step as unknown as A2UIStepDocument,
+                expandedStep as A2UIStepDocument,
                 snapshot.flowState.visibleQuestions,
               )}
               values={values}
               errors={errors}
               onChange={handleChange}
               onBlur={handleBlur}
+              repeat={{
+                rosters,
+                visible: new Set(snapshot.flowState.visibleQuestions),
+                onAdd: addInstance,
+                onRemove: removeInstance,
+                ...(rosterStatus !== undefined ? { status: rosterStatus } : {}),
+                ...(busyGroup !== undefined ? { busyGroupId: busyGroup } : {}),
+              }}
               // The respondent-facing controls run on the portal's own locale rather than
               // on the renderer package's `en-US` default (ADR-27, issue #729): this prop
               // feeds react-aria's `I18nProvider`, so it decides the date field's segment

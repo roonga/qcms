@@ -29,6 +29,7 @@ import {
   seedAuthorMessagesForm,
   seedInsuranceForm,
   seedKitchenSinkForm,
+  seedRepeatFleetForm,
   seedUnpublishedPinForm,
   startTestDb,
   MOUNT,
@@ -81,6 +82,17 @@ export interface PortalFixtures {
    * ADR-32 validation messages and ADR-36 boolean label overrides.
    */
   readonly authorMessagesSlug: string;
+  /**
+   * The `repeat-fleet` form slug (task 073): one step with a plain required question
+   * and one repeating group (`open`, `min: 1`, `max: 3`) whose members include a
+   * required shortText, an optional date, a longText and a multiChoice.
+   *
+   * It exists because a repeating group is unreachable in a browser without a fixture
+   * that compiles one, and the four no-JS dead ends of issues #920, #974, #18 and #988
+   * each stayed invisible to every gate for exactly as long as no fixture carried
+   * their shape.
+   */
+  readonly repeatFleetSlug: string;
   /**
    * The e2e Postgres connection URI, so a spec can open its OWN client and verify
    * persisted answers independently of the API's response echo (task 045, exit
@@ -178,6 +190,12 @@ export async function startApiServer(): Promise<void> {
     QCMS_RL_ANSWERS_IP_MAX: "1000000",
     QCMS_RL_SESSION_CREATE_MAX: "1000000",
     QCMS_RL_SUBMIT_SESSION_MAX: "1000000",
+    // The repeating group's roster operation has its own class (task 073, SEC-16), and it
+    // has to be raised with the rest: the clock is frozen, so a fixed window never
+    // advances and the production ceiling of ten per session would refuse a spec that
+    // presses Add more than ten times across one session's lifetime.
+    QCMS_RL_ROSTER_SESSION_MAX: "1000000",
+    QCMS_RL_ROSTER_IP_MAX: "1000000",
     // Task 041: the deterministic fake assistant provider. It calls no network and
     // needs no key, so the browser suite exercises the real assist slice - route,
     // tool allowlist, SSE relay - without a provider account. The rate limit is
@@ -198,6 +216,8 @@ export async function startApiServer(): Promise<void> {
   // Task 048: author-supplied validation messages (ADR-32) and boolean label
   // overrides (ADR-36). Its own four questions, so nothing is shared.
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
+  // Task 073: the repeating group. Five questions of its own, so nothing is shared.
+  const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
 
   const nowMs = NOW.getTime();
   const oneHour = 60 * 60 * 1000;
@@ -276,6 +296,7 @@ export async function startApiServer(): Promise<void> {
     slug,
     kitchenSinkSlug,
     authorMessagesSlug,
+    repeatFleetSlug,
     databaseUrl: testDb.connectionUri,
     validToken,
     expiredToken,

@@ -25,6 +25,8 @@
 - **The theming and token work** `docs/COMPONENT_GUIDELINES.md` binds for a layout: treatments in `packages/ui/src/theme-components.css` beneath the ADR-38 scope carrier, the font sweep, the tabular-figures selector for a numeric column, and lint coverage.
 - **A changeset** for `@roonga/qcms-ui`, and one for `@roonga/qcms-core` if the publish code lands here rather than with 071.
 
+**The per-row Remove it renders rides task 073's mechanism unchanged** (Q28, ruled 2026-10-01): without scripting it is a `__qop` submit button on the step's own form, the form's action is a Next Server Action that re-renders in the same 200, and focus lands by `autofocus` on the ruled destination rather than by a fragment. A row's focus handle is therefore an `autofocus` target like an instance card's heading, and 2.4.11's sticky-header proof applies to the row the landing reaches.
+
 ## Exit criteria
 
 Acceptance cases **39 to 45, and 62** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others; case 62 is the filtered library picker, which belongs here because it is this task's refusal being surfaced. Plus:

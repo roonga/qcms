@@ -449,7 +449,10 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "10",
     description:
-      "Answers one session may submit per window (a burst ceiling, about 2/s sustained).",
+      "Answers one session may submit per window (a burst ceiling, about 2/s sustained). One " +
+      "**batch** spends one unit per entry and may spend up to the step's own bound even where " +
+      "that exceeds this number, so a valid step always fits (ruling Q29); raising this above " +
+      "the bound keeps your number.",
   },
   {
     name: "QCMS_RL_ANSWERS_IP_WINDOW_MS",
@@ -480,6 +483,38 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "5",
     description: "Submit attempts one session may make per window.",
+  },
+  {
+    name: "QCMS_RL_ROSTER_SESSION_WINDOW_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "5000",
+    description:
+      "Rate-limit window for `POST /sessions/{id}/roster`, keyed by session: the repeating-group Add and Remove (task 073, SEC-16). It has its own class rather than riding the answer write's, because adding an instance is a distinct action that is cheap to repeat; it limits how FAST a bounded operation may be repeated and never how large it may become, since the size bound is the group's author-set `max`.",
+  },
+  {
+    name: "QCMS_RL_ROSTER_SESSION_MAX",
+    process: "api",
+    requirement: "optional",
+    fallback: "10",
+    description:
+      "Roster operations one session may make per window. The answer write's shape rather than the submit's, because a respondent filling a nine-passenger booking presses Add many times in a flow.",
+  },
+  {
+    name: "QCMS_RL_ROSTER_IP_WINDOW_MS",
+    process: "api",
+    requirement: "optional",
+    fallback: "60000",
+    description:
+      "Rate-limit window for `POST /sessions/{id}/roster`, keyed by the vouched client address.",
+  },
+  {
+    name: "QCMS_RL_ROSTER_IP_MAX",
+    process: "api",
+    requirement: "optional",
+    fallback: "300",
+    description:
+      "Roster operations that may be made per window across every session sharing one client address, caveated exactly as `QCMS_RL_ANSWERS_IP_MAX`.",
   },
   {
     name: "QCMS_FLAG_AGENT_AUTHORING",

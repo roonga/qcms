@@ -124,15 +124,23 @@ function refererPath(referer: string | undefined, baseUrl: string | undefined): 
  * Where the appearance form's 303 points: the page the respondent submitted it from.
  *
  * Precedence is the hidden field, then the `Referer`, then the site root, and the
- * order is not arbitrary. **The portal sends `Referrer-Policy: no-referrer` on every
- * response (`proxy.ts`), so on this deployment the header is simply absent** - a form
- * navigation carries no `Referer` at all, which is also why the same policy makes
- * `Origin: null` the shape the CSRF belt has to reason about
- * (`lib/server/origin-belt-log.ts`). The hidden field is therefore what actually
- * carries the return target here, and the header leg exists for a deployment that
- * relaxes that policy at its own ingress. Both are respondent-controllable strings and
- * both go through the same check, so which one supplied the value changes nothing
- * about what is allowed.
+ * order is not arbitrary.
+ *
+ * **The `Referer` leg is live on this deployment since task 073.** The portal used to
+ * send `Referrer-Policy: no-referrer`, under which a form navigation carries no
+ * `Referer` at all, so the hidden field was the only thing that ever supplied the
+ * return target and this leg existed for a deployment that relaxed the policy at its
+ * ingress. The portal now sends `same-origin` (Code Owner, 2026-10-01, SEC-9 as
+ * amended, because Next's Server Action check refuses a null origin), so a same-origin
+ * form navigation does carry the submitting page's URL and this leg can now answer.
+ *
+ * **Nothing about what is allowed changed, which is why the ordering survived the
+ * policy change untouched.** The hidden field still wins, because it is what the form
+ * declares rather than what the browser happened to send; both are
+ * respondent-controllable strings; and both go through the same `internalPath` check,
+ * so which one supplied the value changes nothing about what is admitted. A `Referer`
+ * naming a foreign origin, a different scheme, a sibling subdomain or the appearance
+ * route itself still falls back to the site root.
  *
  * Total: there is always an answer, and the worst case is the site root.
  */

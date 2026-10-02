@@ -5,6 +5,13 @@ import {
   NATIVE_FIELD_KIND_PREFIX,
   type NativeFieldKind,
 } from "@roonga/qcms-ui/native-submit";
+import {
+  parseRosterOpValue,
+  ROSTER_OP_FIELD,
+  type RosterOpRequest,
+} from "@roonga/qcms-ui/repeat-node";
+
+import { SESSION_FIELD } from "../repeat";
 
 /**
  * Whole-step form decoding for the no-JS submit route (task 044).
@@ -21,6 +28,29 @@ import {
  * A field with no kind tag is not an answer - it is the anti-abuse honeypot decoy
  * (026), returned verbatim in `extras` so the caller can forward it into the
  * session-submit body where the API's honeypot check reads it.
+ *
+ * ## The roster operation, the fourth reserved name (task 073, ADR-43, Q9)
+ *
+ * `__qop` joins `__qk__`, `__qa__` and the honeypot's `website` as a name this
+ * decoder reserves. It is how a respondent adds or removes an instance of a repeating
+ * group **without scripting**: the Add and Remove controls are named **submit
+ * buttons** on the step's own form, and a `<button name value>` contributes its name
+ * and value to the form data set **only when it is the button that submitted the
+ * form**. So a whole-step POST carries every field on the step plus **at most one**
+ * `__qop` entry, or none, and no ordering rule and no repeated name is relied on
+ * anywhere.
+ *
+ * The value is `add:grp_passengers:op_7f3` or
+ * `remove:grp_passengers:ins_7k2:op_7f3`, and the last part is the **one-time
+ * operation token** the rendered page minted. Decoding it here is still a pure
+ * transport mapping: whether the group exists, whether the instance belongs to this
+ * session and whether the token has been spent are all the API's to decide, against
+ * the pinned snapshot and the roster rather than against a regular expression.
+ *
+ * **An `__qop` post commits NO answers** (Code Owner, 2026-09-30), and that is the
+ * caller's rule rather than this module's: the answers are still decoded, because the
+ * typed values have to be carried back into the re-render, and the caller is what
+ * does not forward them to the ledger.
  *
  * ## Clearing an answer without JavaScript (issue #127)
  *
@@ -83,6 +113,35 @@ export interface DecodedAnswer {
 /** The result of decoding a whole-step form POST. */
 export interface DecodedStepForm {
   readonly answers: readonly DecodedAnswer[];
+  /**
+   * The roster operation this post carried, when it carried one (task 073, ADR-43).
+   *
+   * At most one, by construction rather than by a rule this decoder enforces: only
+   * the pressed submit button contributes its name and value. A post carrying two
+   * `__qop` entries is therefore not a shape a browser produces, and the first is
+   * taken - a forged second entry can only name an operation the API would accept from
+   * the same respondent anyway, in their own session, and it is refused or applied on
+   * its own merits either way.
+   */
+  readonly rosterOp?: RosterOpRequest;
+  /**
+   * The session the form was rendered for, from the reserved `__qsid` hidden input.
+   * A label rather than a credential: see {@link SESSION_FIELD}.
+   */
+  readonly sessionId?: string;
+  /**
+   * The fields the respondent CLEARED on this post, each with the wire kind the renderer
+   * tagged it with. A subset of `answers`, where each appears with `value: null`.
+   *
+   * It exists because one caller has to RE-RENDER the post rather than forward it: the
+   * `__qop` Server Action, which writes no answer and hands the step back. A field the
+   * respondent emptied has to come back empty rather than showing the answer the API still
+   * holds (`plan/repeating-groups-and-table-input.md` section 4.2), and what empty looks
+   * like depends on the kind: an empty selection is `[]` and an empty anything-else is
+   * `""`. The kind is the only thing that carries that distinction, and it does not belong
+   * on `answers`, whose shape is the API's request body.
+   */
+  readonly cleared: Readonly<Record<string, NativeFieldKind>>;
   /** Non-answer fields (the honeypot decoy) to forward to the submit body. */
   readonly extras: Readonly<Record<string, string>>;
   /**
@@ -135,35 +194,61 @@ function decodeValue(kind: NativeFieldKind, raws: readonly string[]): unknown {
   }
 }
 
-/** The raw values (grouped by name), the kind tags, and the answered markers. */
+/** The raw values (grouped by name), the kind tags, the answered markers, the op. */
 interface Partitioned {
   readonly rawByName: ReadonlyMap<string, string[]>;
   readonly kindByName: ReadonlyMap<string, NativeFieldKind>;
   readonly answered: ReadonlySet<string>;
+  readonly rosterOp: RosterOpRequest | undefined;
+  readonly sessionId: string | undefined;
 }
 
-/** Split form entries into raw value groups, `__qk__` kinds and `__qa__` markers. */
+/** Split form entries into raw value groups, `__qk__` kinds, `__qa__` markers, `__qop`. */
 function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned {
   const rawByName = new Map<string, string[]>();
   const kindByName = new Map<string, NativeFieldKind>();
   const answered = new Set<string>();
-  for (const [key, entry] of entries) {
-    if (typeof entry !== "string") continue; // ignore any file parts
+  let rosterOp: RosterOpRequest | undefined;
+  let sessionId: string | undefined;
+  /**
+   * The two reserved WHOLE-name fields, taken before anything else so that neither can
+   * land in `extras` or be mistaken for an answer or for the honeypot: the form's own
+   * session and the pressed Add or Remove button (073). Returns true when the entry was
+   * one of them and is therefore spent.
+   */
+  const takeReserved = (key: string, entry: string): boolean => {
+    if (key === SESSION_FIELD) {
+      sessionId ??= entry;
+      return true;
+    }
+    if (key === ROSTER_OP_FIELD) {
+      rosterOp ??= parseRosterOpValue(entry);
+      return true;
+    }
+    return false;
+  };
+  /** The two reserved PREFIXES: a field's wire kind, and its answered marker. */
+  const takePrefixed = (key: string, entry: string): boolean => {
     if (key.startsWith(NATIVE_FIELD_KIND_PREFIX)) {
       const name = key.slice(NATIVE_FIELD_KIND_PREFIX.length);
       if (KINDS.has(entry)) kindByName.set(name, entry as NativeFieldKind);
-      continue;
+      return true;
     }
     if (key.startsWith(NATIVE_FIELD_ANSWERED_PREFIX)) {
       // Presence is the signal; the value is not read (see the prefix's docblock).
       answered.add(key.slice(NATIVE_FIELD_ANSWERED_PREFIX.length));
-      continue;
+      return true;
     }
+    return false;
+  };
+  for (const [key, entry] of entries) {
+    if (typeof entry !== "string") continue; // ignore any file parts
+    if (takeReserved(key, entry) || takePrefixed(key, entry)) continue;
     const list = rawByName.get(key);
     if (list === undefined) rawByName.set(key, [entry]);
     else list.push(entry);
   }
-  return { rawByName, kindByName, answered };
+  return { rawByName, kindByName, answered, rosterOp, sessionId };
 }
 
 /**
@@ -172,8 +257,9 @@ function partition(entries: Iterable<[string, FormDataEntryValue]>): Partitioned
  * and unknown kind tags are ignored.
  */
 export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>): DecodedStepForm {
-  const { rawByName, kindByName, answered } = partition(entries);
+  const { rawByName, kindByName, answered, rosterOp, sessionId } = partition(entries);
   const answers: DecodedAnswer[] = [];
+  const cleared: Record<string, NativeFieldKind> = {};
   const fields = [...kindByName.keys()];
 
   // Iterate the KIND TAGS, not the posted values. A control can be an answer field
@@ -189,6 +275,7 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     } else if (answered.has(name)) {
       // Marked as answered and arrived carrying nothing: the respondent cleared it.
       answers.push({ questionId: name, value: null });
+      cleared[name] = kind;
     }
     // Otherwise: never answered, still not answered. Nothing to post.
   }
@@ -204,5 +291,12 @@ export function decodeStepForm(entries: Iterable<[string, FormDataEntryValue]>):
     extras[name] = raws[0] ?? "";
   }
 
-  return { answers, extras, fields };
+  return {
+    answers,
+    extras,
+    fields,
+    cleared,
+    ...(rosterOp !== undefined ? { rosterOp } : {}),
+    ...(sessionId !== undefined ? { sessionId } : {}),
+  };
 }

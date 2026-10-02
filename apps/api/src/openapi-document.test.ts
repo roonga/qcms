@@ -409,10 +409,13 @@ const allSurfaces = createApp(
   { groups: appGroups },
 ).getOpenAPIDocument({ openapi: "3.0.3", info: { title: "all surfaces", version: "0" } });
 
+// Task 073 moved the respondent count from 3 to 5 and the all-surfaces one from 17
+// to 19: the batch answer write and the roster operation each add a request body
+// (`BatchAnswerBody`, `RosterOpBody`), and both are `z.strictObject`.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
-  ["respondent", readCommitted("respondent"), 3],
+  ["respondent", readCommitted("respondent"), 5],
   ["admin", committedAdmin, 12],
-  ["all surfaces with every flag on", allSurfaces, 17],
+  ["all surfaces with every flag on", allSurfaces, 19],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {

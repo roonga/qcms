@@ -119,8 +119,12 @@ export async function POST(request: Request): Promise<Response> {
   // parsed the body on the refusal path so a refused respondent could land back on their
   // own page; PR #859's review was right that a request which cannot prove its origin
   // should not choose the redirect either. The cost is that the small population of
-  // browsers sending no Fetch Metadata is dropped at the site root rather than left where
-  // they were, which `docs/operations.md` records as the symptom to expect.
+  // browsers sending neither Fetch Metadata nor a matching `Origin` is dropped at the
+  // site root rather than left where they were, which `docs/operations.md` records as
+  // the symptom to expect. It narrowed on 2026-10-01: the portal serves
+  // `Referrer-Policy: same-origin`, so a Fetch-Metadata-less browser posting from a
+  // portal page now sends a real origin and is admitted (issue #1024 re-measures what
+  // is left).
   if (!isSameOriginPost(request)) return seeOther(DEFAULT_RETURN);
 
   const form = await readForm(request);

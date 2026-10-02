@@ -39,7 +39,7 @@ afterEach(() => {
 /** The internal API client: the seam every "what did the server hear?" assertion reads. */
 const api = {
   startSession: vi.fn(),
-  submitAnswer: vi.fn(),
+  batchAnswers: vi.fn(),
   submitSession: vi.fn(),
   getStep: vi.fn(),
 };
@@ -57,7 +57,7 @@ class FakeApiError extends Error {
 vi.mock("@/lib/server/api", () => ({
   ApiError: FakeApiError,
   startSession: api.startSession,
-  submitAnswer: api.submitAnswer,
+  batchAnswers: api.batchAnswers,
   submitSession: api.submitSession,
   getStep: api.getStep,
 }));
@@ -116,6 +116,8 @@ function projection(readyToSubmit: boolean) {
     progress: { stepIndex: 0, totalVisibleSteps: 1 },
     a2uiSpecVersion: "1.0",
     flowState: { readyToSubmit, visibleQuestions: [], missingRequired: [] },
+    rosters: [],
+    rejected: [],
   };
 }
 
@@ -134,15 +136,33 @@ async function postStep(
   return await stepRoute.POST(request, { params: Promise.resolve({ sessionId: SESSION_ID }) });
 }
 
-/** Every `submitAnswer` call as `[questionId, value]`, in the order they were made. */
+/**
+ * The batch's entries as `[answerKey, value]`, in the order the form asked them.
+ *
+ * One call, not one per answer, since task 073 moved Continue onto the batch endpoint
+ * (Q20): a nine-passenger step used to make fifty-four sequential calls and fifty-four
+ * advisory locks for one Continue. The assertion is still "what did the server hear",
+ * which is what this file is about; only the shape of the call changed.
+ */
 function posted(): [string, unknown][] {
-  return api.submitAnswer.mock.calls.map((call) => [call[2] as string, call[3]]);
+  const calls = api.batchAnswers.mock.calls;
+  if (calls.length === 0) return [];
+  expect(calls).toHaveLength(1);
+  const entries = calls[0]![2] as readonly {
+    questionId: string;
+    instanceId?: string;
+    value: unknown;
+  }[];
+  return entries.map((entry) => [
+    entry.instanceId === undefined ? entry.questionId : `${entry.instanceId}/${entry.questionId}`,
+    entry.value,
+  ]);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
   cookieJar.clear();
-  api.submitAnswer.mockResolvedValue(projection(false));
+  api.batchAnswers.mockResolvedValue(projection(false));
   api.getStep.mockResolvedValue(projection(false));
 });
 
@@ -158,12 +178,9 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
     // respondent empties this control and blurs it (issue #98). One gesture, one
     // ledger call, whichever transport carried it.
     expect(posted()).toEqual([["q_full_name", null]]);
-    expect(api.submitAnswer).toHaveBeenCalledWith(
-      SESSION_ID,
-      "respondent-bearer",
-      "q_full_name",
-      null,
-    );
+    expect(api.batchAnswers).toHaveBeenCalledWith(SESSION_ID, "respondent-bearer", [
+      { questionId: "q_full_name", value: null },
+    ]);
   });
 
   it("posts NOTHING for the same empty field when the form did not mark it", async () => {
@@ -176,7 +193,7 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
       ["q_full_name", ""],
     ]);
 
-    expect(api.submitAnswer).not.toHaveBeenCalled();
+    expect(api.batchAnswers).not.toHaveBeenCalled();
   });
 
   it("retracts an emptied multiChoice, which posts no field of its own at all", async () => {
@@ -251,7 +268,7 @@ describe("the no-JS route retracts a marked field submitted empty (issue #127)",
       { "sec-fetch-site": "cross-site", origin: "https://evil.example" },
     );
 
-    expect(api.submitAnswer).not.toHaveBeenCalled();
+    expect(api.batchAnswers).not.toHaveBeenCalled();
     expect(response.status).toBe(303);
   });
 });

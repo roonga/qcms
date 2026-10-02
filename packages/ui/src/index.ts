@@ -14,11 +14,11 @@ export {
   SUBMIT_NODE_TYPE,
   withNativeSubmit,
 } from "./native-submit.ts";
-export type { NativeFieldKind, NativeSubmitOptions } from "./native-submit.ts";
+export type { NativeFieldKind, NativeFormAction, NativeSubmitOptions } from "./native-submit.ts";
 
 export { withDemotedHeadings } from "./heading-demotion.ts";
 
-export { QcmsFieldContext, useQcmsField } from "./field-context.tsx";
+export { QcmsFieldContext, useQcmsField, useQcmsFormAction } from "./field-context.tsx";
 export type {
   A2UIAnswerValue,
   A2UIErrors,
@@ -45,3 +45,45 @@ export { compilesUnderV, toVSafePattern } from "./v-safe-pattern.ts";
 
 export { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 export type { HoneypotNode } from "./honeypot/honeypot.schema.ts";
+
+/**
+ * The repeating group (task 073, ADR-42, ADR-43): the two node types, the `__qop`
+ * wire vocabulary, the render-time expansion and the behaviour context.
+ *
+ * The node vocabulary is also published on the React-free `./repeat-node` subpath, as
+ * `./native-submit` already is, because the portal's server-only BFF decoder reads
+ * `__qop` off a form POST and a Server Component must not pull a client component
+ * into its graph through a transitive import.
+ */
+export {
+  QcmsRepeatContext,
+  RepeatGroup,
+  RepeatGroupSchema,
+  RepeatInstance,
+  RepeatInstanceSchema,
+  expandRepeatGroups,
+  hasRepeatGroup,
+  useQcmsRepeat,
+} from "./repeat/index.ts";
+export type {
+  QcmsRepeatContextValue,
+  RepeatExpansion,
+  RepeatGroupNode,
+  RepeatInstanceNode,
+} from "./repeat/index.ts";
+export {
+  addButtonId,
+  INSTANCE_NAME_SEPARATOR,
+  INSTANCE_ORDINAL_PLACEHOLDER,
+  REMOVE_LABEL_PLACEHOLDER,
+  REPEAT_GROUP_NODE_TYPE,
+  REPEAT_INSTANCE_NODE_TYPE,
+  ROSTER_OPS,
+  ROSTER_OP_FIELD,
+  instanceLabelFor,
+  parseRosterOpValue,
+  qualifiedFieldName,
+  removeLabelFor,
+  rosterOpValue,
+} from "./repeat/repeat-node.ts";
+export type { RosterOp, RosterOpRequest } from "./repeat/repeat-node.ts";

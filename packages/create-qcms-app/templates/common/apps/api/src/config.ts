@@ -271,6 +271,20 @@ export interface Config {
     /** `POST /sessions/{id}/submit` - per session (e.g. 5/min). */
     readonly submitPerSession: RateLimitClass;
     /**
+     * `POST /sessions/{id}/roster` - per session (task 073, SEC-16).
+     *
+     * The roster operation gets its **own** limit rather than riding the answer
+     * write's, because adding an instance is a distinct action that is cheap to
+     * repeat. It limits how fast a bounded operation may be repeated, never how large
+     * it may become: the size bound is the group's author-set `max` and there is no
+     * installation-wide ceiling above it (Q14). Under ADR-40 rate limits stay
+     * installation-wide (finding F6), so this is one more typed setting and not a
+     * per-environment one.
+     */
+    readonly rosterPerSession: RateLimitClass;
+    /** `POST /sessions/{id}/roster` - per client IP (the same wide backstop). */
+    readonly rosterPerIp: RateLimitClass;
+    /**
      * `POST /forms/{id}/draft/assist` - per admin principal (041). A per-deployment
      * ceiling on agent turns: the upstream call is the expensive, billable one, and
      * an authenticated author is still a rate-limit subject.
@@ -1016,6 +1030,14 @@ const DEFAULTS = {
   rlAnswersPerSession: { windowMs: 5_000, max: 10 }, // ≈2/s sustained, burst 10 / session
   rlAnswersPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
   rlSubmitPerSession: { windowMs: 60_000, max: 5 }, // 5 submit attempts / min / session
+  // The roster operation (073, SEC-16). Deliberately the ANSWER write's shape rather
+  // than the submit's: an Add or a Remove is a per-keystroke-scale gesture a
+  // respondent filling a nine-passenger booking makes many times, not a once-per-flow
+  // one, so the sustained-plus-burst pair is the right model and the numbers match the
+  // answer write's. It is a limit on the RATE of a bounded operation, never a second
+  // ceiling on its size.
+  rlRosterPerSession: { windowMs: 5_000, max: 10 }, // burst 10 roster ops / session
+  rlRosterPerIp: { windowMs: 60_000, max: 300 }, // wide per-IP flood backstop
   rlAgentAssist: { windowMs: 60_000, max: 10 }, // 10 agent turns / min / admin principal (041)
   agentMaxSteps: 8, // tool-loop steps per agent turn before the loop stops (041)
   outboxIntervalMs: 5_000,
@@ -1266,6 +1288,13 @@ export function loadConfig(env: Env): Config {
         DEFAULTS.rlSubmitPerSession,
         issues,
       ),
+      rosterPerSession: parseRateClass(
+        env,
+        "QCMS_RL_ROSTER_SESSION",
+        DEFAULTS.rlRosterPerSession,
+        issues,
+      ),
+      rosterPerIp: parseRateClass(env, "QCMS_RL_ROSTER_IP", DEFAULTS.rlRosterPerIp, issues),
       agentAssist: parseRateClass(env, "QCMS_RL_AGENT_ASSIST", DEFAULTS.rlAgentAssist, issues),
     },
     scheduler: {

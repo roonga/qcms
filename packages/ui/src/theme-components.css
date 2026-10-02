@@ -354,6 +354,164 @@
 }
 
 /* --------------------------------------------------------------------------
+   Repeating group, stacked presentation (task 073, ADR-42, ADR-43, Q12).
+
+   THE RULING THIS SECTION IMPLEMENTS: one input per row. A single column inside
+   an instance card, with NO two fields side by side at any width - not at a
+   desktop width, not in the admin preview, not for two short fields. It is a
+   Code Owner ruling of 2026-09-30 and not a default, so it is written as one
+   declaration a reviewer can check rather than as a grid that happens to be one
+   column at the widths anybody looked at. Two reasons, and the first decides it:
+   a side-by-side pair inside a repeated card makes the reading order and the tab
+   order diverge from the visual order the moment a rule hides one of the pair in
+   one instance and not in another, which is exactly what per-instance branching
+   does; and one column everywhere is one layout to prove rather than two, which
+   is the same reasoning `playwright.config.ts` encodes by running every spec on
+   the phone project.
+
+   THE LEGEND TRAP, found while building the concept pages rather than reasoned
+   about. With the card's border on the `<fieldset>`, a `<legend>` renders in the
+   fieldset's legend slot and CUTS that border. `float: left; width: 100%` takes
+   the legend out of the slot and puts it inside the card as an ordinary block,
+   while it stays the fieldset's accessible name. The `::after` clears the float
+   so the fields start below it.
+
+   The card, the gaps and the radii are all tokens (ADR-30), so density and the
+   corners preset reach a repeat card like every other surface.
+   -------------------------------------------------------------------------- */
+
+[data-qcms-theme-scope] .qcms-repeat {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-field-gap);
+  /* The containing block for the status region below, which is positioned out of flow.
+     Without it that region resolves against the initial containing block, which is the
+     trap that cost 136 unexplained pixels of document width on a concept page. */
+  position: relative;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__instance {
+  margin: 0;
+  padding: var(--space-section-pad);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  min-inline-size: 0;
+  /* `flow-root` rather than the fieldset's default, and for one specific reason: a
+     `<legend>` gets the fieldset's special legend slot only while the fieldset is
+     `display: block`, and a legend in that slot CUTS the card's border. Any other display
+     value puts the legend back in normal flow, where it is an ordinary block, and the
+     card's border stays whole. */
+  display: flow-root;
+}
+
+/* Full width so the heading reads as a block at the top of the card while the element
+   stays the fieldset's `<legend>`, and therefore its accessible name.
+
+   NOT FLOATED, and that is the whole point of this comment, because floating it is the
+   obvious way to do this and it breaks the card from the inside. A float of `width: 100%`
+   leaves no room beside itself, and the fields below are a GRID, which establishes its own
+   formatting context and therefore sits BESIDE floats rather than under them. The grid
+   resolved to zero width, every field overflowed it, the document's content became wider
+   than the device, and Chromium's mobile layout zoomed the whole page out to fit (0.75 on a
+   Pixel 7, a layout viewport of 546px against a 412px device). That is a 1.4.10 reflow
+   failure on its own, and it also made the group's Add button unclickable, because under a
+   page scale a click point computed in layout pixels lands somewhere else entirely: every
+   press was reported as "fieldset intercepts pointer events", naming a card that was never
+   in the way. Keep the legend in normal flow. */
+[data-qcms-theme-scope] .qcms-repeat__legend {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__heading {
+  margin: 0 0 var(--space-stack);
+  font-weight: 600;
+}
+
+/* A focus ring on the heading, because Q11 moves focus to it after an add or a
+   removal and a focus destination with no visible indicator fails 2.4.7. */
+[data-qcms-theme-scope] .qcms-repeat__heading:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* ONE INPUT PER ROW. A single column at every width; the track is fixed at one column
+   deliberately, with no media query anywhere that widens it.
+
+   `minmax(0, 1fr)` and not `1fr`, and the difference is the whole card's behaviour on a
+   phone. `1fr` means `minmax(auto, 1fr)`, and that `auto` floor is the item's MIN-CONTENT
+   width, so the widest field in the group sets a floor the column cannot go below. A date
+   question is three spinbuttons and a calendar button in a row, which is wide, so the floor
+   came out at about 619px: wider than a 412px phone. The page then has a min-content width
+   it cannot meet, Chromium's mobile emulation zooms the whole document out to fit (0.67 on a
+   Pixel 7), and that is a 1.4.10 reflow failure, not a cosmetic one. `minmax(0, 1fr)` lets
+   the column shrink and the fields wrap inside it.
+
+   It also cost a day of debugging, which is worth recording because the symptom named
+   something else entirely. Under that page scale Playwright's click point and its hit test
+   disagree by the scale factor, so every press of the group's Add button was reported as
+   "fieldset intercepts pointer events" with the arithmetic landing the click inside the card
+   above. The page scale was the cause; the fieldset was a bystander. */
+[data-qcms-theme-scope] .qcms-repeat__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-field-gap);
+}
+
+/* A grid item's automatic minimum is its min-content size, which is the same blowout one
+   level down: the column may shrink, and the field inside it has to be allowed to shrink
+   with it. */
+[data-qcms-theme-scope] .qcms-repeat__fields > * {
+  min-inline-size: 0;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-start: var(--space-field-gap);
+}
+
+[data-qcms-theme-scope] .qcms-repeat__actions--add {
+  justify-content: flex-start;
+  margin-block-start: 0;
+}
+
+/* Add and Remove sit at the portal's control-height floor, which is 44px at the
+   default density and clears WCAG 2.5.8's 24px minimum at every density. */
+[data-qcms-theme-scope] .qcms-repeat__button {
+  min-height: var(--space-control-h);
+  padding-inline: var(--space-control-pad-x);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  /* A visually hidden label inside a positioned box resolves against the initial
+     containing block and widens the DOCUMENT, which is the horizontal page
+     scroll the portal forbids. One declaration prevents it, and it is here
+     rather than only in the table presentation because this button may carry one
+     too. */
+  position: relative;
+}
+
+[data-qcms-theme-scope] .qcms-repeat__button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* The polite status region is announced, never drawn: it carries no box, so an
+   empty region occupies nothing and a filled one does not move the page. */
+[data-qcms-theme-scope] .qcms-repeat__status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
    FORCED COLORS / Windows High Contrast Mode (issue #28).
 
    Under `forced-colors: active` the user agent replaces the palette with the

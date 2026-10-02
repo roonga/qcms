@@ -25,10 +25,13 @@ export function ProgressiveStep({
   sessionId,
   initial,
   context,
+  opToken,
 }: {
   readonly sessionId: string;
   readonly initial: StepResponse;
   readonly context?: StepContext | undefined;
+  /** The one-time roster-operation token this page render minted (task 073). */
+  readonly opToken: string;
 }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => {
@@ -38,5 +41,5 @@ export function ProgressiveStep({
   if (hydrated) {
     return <StepFlow sessionId={sessionId} initial={initial} />;
   }
-  return <NativeStep sessionId={sessionId} initial={initial} context={context} />;
+  return <NativeStep sessionId={sessionId} initial={initial} context={context} opToken={opToken} />;
 }

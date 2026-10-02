@@ -1,0 +1,7 @@
+{
+  "type": "number",
+  "questionId": "q_rep_vehicle_count",
+  "label": { "en": "How many vehicles are on the policy?" },
+  "required": true,
+  "constraints": { "min": 0, "max": 5, "integer": true }
+}

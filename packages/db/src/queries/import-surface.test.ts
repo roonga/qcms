@@ -82,6 +82,7 @@ describe("query helper import surface", () => {
     "readRoster",
     "readRosters",
     "rosterLedger",
+    "rosterOpApplied",
     // submissions
     "insertSubmission",
     "getSubmission",

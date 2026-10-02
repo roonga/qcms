@@ -14,7 +14,7 @@ import {
 import type { CheckboxGroupNode } from "./components/a2ui/checkbox/index.ts";
 import { DatePicker, DatePickerSchema } from "./components/a2ui/date-picker/index.ts";
 import type { DatePickerNode } from "./components/a2ui/date-picker/index.ts";
-import { Form, FormSchema } from "./components/a2ui/form/index.ts";
+import { FormSchema } from "./components/a2ui/form/index.ts";
 import { Flex, FlexSchema } from "./components/a2ui/layout/index.ts";
 import { NumberField, NumberFieldSchema } from "./components/a2ui/number-field/index.ts";
 import type { NumberFieldNode } from "./components/a2ui/number-field/index.ts";
@@ -30,11 +30,15 @@ import type { TextFieldNode } from "./components/a2ui/text-field/index.ts";
 import { SubmitButton, SubmitButtonSchema } from "./components/submit/index.ts";
 import type { A2UIAnswerValue } from "./field-context.tsx";
 import { useQcmsField, useQcmsNativeSubmit } from "./field-context.tsx";
+import { FormField } from "./form-field.tsx";
 import { Honeypot } from "./honeypot/Honeypot.tsx";
 import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 import { NativeDateField } from "./native-date-field.tsx";
 import { NativeNumberField } from "./native-number-field.tsx";
 import { NativeSelectField } from "./native-select-field.tsx";
+import { RepeatGroup } from "./repeat/RepeatGroup.tsx";
+import { RepeatInstance } from "./repeat/RepeatInstance.tsx";
+import { RepeatGroupSchema, RepeatInstanceSchema } from "./repeat/repeat.schema.ts";
 import {
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_ANSWERED_VALUE,
@@ -822,7 +826,8 @@ function SelectField(props: Readonly<SelectProps>) {
 
 /**
  * The lean, explicit registry - only the components the compiler emits
- * (a2ui-mapping.md) plus the qcms `Honeypot` node (task 026) and the
+ * (a2ui-mapping.md) plus the qcms `Honeypot` node (task 026), the `RepeatGroup`
+ * template and its render-time `RepeatInstance` (task 073) and the
  * render-time-only `SubmitButton` used by native submit mode (task 044). Never
  * `defaultRegistry` (ADR-22): a smaller, auditable surface. `strict` means the
  * a2ra renderer validates every node against its schema before rendering.
@@ -841,7 +846,13 @@ function SelectField(props: Readonly<SelectProps>) {
 function buildV1Registry(): ComponentRegistry {
   return createRegistry(
     {
-      Form: { component: Form, schema: FormSchema },
+      // The qcms adapter rather than the vendored `Form` directly, and only because a
+      // form's action may be a FUNCTION: without scripting a repeating group's Add and
+      // Remove post to a Next Server Action (task 073, ADR-43 as amended). It delegates
+      // to the vendored component whenever no function action is supplied, which is
+      // every step with no group and every step on the scripted path, so the vendored
+      // bytes still render the conformance corpus.
+      Form: { component: FormField, schema: FormSchema },
       Flex: { component: Flex, schema: FlexSchema },
       Text: { component: Text, schema: TextSchema },
       TextField: { component: TextFieldField, schema: withAuthorMessages(TextFieldSchema) },
@@ -857,6 +868,15 @@ function buildV1Registry(): ComponentRegistry {
       Checkbox: { component: Checkbox, schema: CheckboxSchema },
       Select: { component: SelectField, schema: withAuthorMessages(SelectSchema) },
       Honeypot: { component: Honeypot, schema: HoneypotSchema },
+      // The repeating group (task 073, ADR-42, ADR-43). `RepeatGroup` is the
+      // compiler's TEMPLATE node; `RepeatInstance` exists only after
+      // `expandRepeatGroups` has cloned that template per live instance, so the
+      // stored bytes never carry one. Both are qcms-owned node types on the
+      // `Honeypot` precedent rather than `@a2ra/core` registry components: nothing
+      // upstream describes a container cloned per instance, and the vendored props
+      // objects are `.strict()` (ADR-22).
+      RepeatGroup: { component: RepeatGroup, schema: RepeatGroupSchema },
+      RepeatInstance: { component: RepeatInstance, schema: RepeatInstanceSchema },
       SubmitButton: { component: SubmitButton, schema: SubmitButtonSchema },
     },
     { strict: true },

@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext } from "react";
 
+import type { NativeFormAction } from "./native-submit.ts";
+
 /**
  * The canonical answer encodings this renderer round-trips (task 002,
  * DOMAIN_SCHEMA §2.4), expressed structurally so `@roonga/qcms-ui` stays decoupled
@@ -33,6 +35,31 @@ export type A2UIErrors = Readonly<Record<string, string | undefined>>;
 export interface QcmsFieldContextValue {
   readonly values: A2UIValues;
   readonly errors: A2UIErrors;
+  /**
+   * The form's own action when it is a function rather than a URL (task 073): a Next
+   * Server Action that applies the respondent's Add or Remove and re-renders the step
+   * in the same 200 response.
+   *
+   * It travels here rather than on the root `Form` node's props, and that is a
+   * constraint rather than a preference: a node's props are the stored document's
+   * data, validated by a Zod schema and serialisable by construction, so a function
+   * cannot ride there. This is the same seam `values` and `errors` already use.
+   */
+  readonly formAction?: NativeFormAction;
+  /**
+   * Form-level hidden inputs the host needs in every post of this form (task 073),
+   * rendered as the form's first children.
+   *
+   * It exists because a Server Action must be a STABLE module-level reference. The
+   * obvious way to give an action a per-session argument is `action.bind(null, id)`,
+   * and passing that to `useActionState` hangs the server render: Next compares a bound
+   * reference's signature asynchronously, and in a server render that comparison never
+   * settles, so the response never arrives and the process accumulates promises until it
+   * dies with `RangeError: Map maximum size exceeded`. A hidden input carries the same
+   * value with no bound reference, which is also the plain-HTML way to give one form
+   * several pieces of context.
+   */
+  readonly formHiddenFields?: Readonly<Record<string, string>>;
   /** Fires the canonical `AnswerValue` for `name` (or `undefined` when cleared). */
   readonly onChange: (name: string, value: A2UIAnswerValue | undefined) => void;
   /** Fires when focus leaves the control (touched semantics; policy is 029/030). */
@@ -92,4 +119,28 @@ export function useQcmsNativeSubmit(): boolean {
     throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
   }
   return ctx.native;
+}
+
+/**
+ * The form's action when the host supplied a function rather than a URL (task 073), or
+ * `undefined` when the stored node's string `action` is what the form renders.
+ */
+export function useQcmsFormAction(): NativeFormAction | undefined {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.formAction;
+}
+
+/**
+ * The form-level hidden inputs the host asked for, or `undefined` when it asked for
+ * none, which is every step with no repeating group.
+ */
+export function useQcmsFormHiddenFields(): Readonly<Record<string, string>> | undefined {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.formHiddenFields;
 }

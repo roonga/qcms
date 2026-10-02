@@ -2,7 +2,7 @@ import type { A2UIErrors, A2UIStepDocument } from "@roonga/qcms-ui";
 
 import { t } from "./i18n/en";
 import { authorMessageFor } from "./validation-message";
-import { messagesOf, questionLabels, questionPositions } from "./visible";
+import { instanceLabels, messagesOf, questionLabels, questionPositions } from "./visible";
 
 /**
  * The error-summary entries for a blocked Continue/Submit, for both portal
@@ -91,6 +91,27 @@ function unlabelledMessage(position: number | undefined, body: string): string {
 }
 
 /**
+ * Prefix an entry with its instance's label when the field is inside a repeating group
+ * (task 073): "Vehicle 2: Registration plate needs an answer".
+ *
+ * Without it a three-vehicle step would draw the same sentence three times and no link
+ * would name one field, which is the WCAG 3.3.1 distinctness problem `unlabelledMessage`
+ * above already solves for label-less questions. It applies to both compositions, as the
+ * last step of each, so the two paths cannot word it differently.
+ *
+ * `instances` is empty for a step with no group, and then this is the identity.
+ */
+function withInstance(
+  instances: ReadonlyMap<string, string>,
+  field: string,
+  message: string,
+): string {
+  const instance = instances.get(field);
+  if (instance === undefined) return message;
+  return t("errorSummary.inInstance", { instance, message });
+}
+
+/**
  * The hydrated flow's summary: one entry per still-missing required question
  * (issue #21), in `missing`'s order, which is the API's authoritative
  * missing-required set in document order - so the links read in the same order as
@@ -108,6 +129,7 @@ export function missingRequiredEntries(
   const labels = document === null ? undefined : questionLabels(document);
   const messages = messagesOf(document);
   const positions = questionPositions(document, visibleQuestions);
+  const instances = instanceLabels(document);
   return missing.map((questionId) => {
     const label = labels?.get(questionId);
     const authored = authorMessageFor(messages.get(questionId), "required");
@@ -122,7 +144,7 @@ export function missingRequiredEntries(
     } else {
       message = t("errorSummary.namedCustom", { label, message: authored });
     }
-    return { questionId, message };
+    return { questionId, message: withInstance(instances, questionId, message) };
   });
 }
 
@@ -145,16 +167,15 @@ export function errorSummaryEntries(
   if (entries.length === 0) return [];
   const labels = document === null ? undefined : questionLabels(document);
   const positions = questionPositions(document, visibleQuestions);
+  const instances = instanceLabels(document);
   return entries.map(([questionId, message]) => {
     const label = labels?.get(questionId);
     const body = message as string;
-    return {
-      questionId,
-      message:
-        label === undefined
-          ? unlabelledMessage(positions.get(questionId), body)
-          : t("errorSummary.namedCustom", { label, message: body }),
-    };
+    const named =
+      label === undefined
+        ? unlabelledMessage(positions.get(questionId), body)
+        : t("errorSummary.namedCustom", { label, message: body });
+    return { questionId, message: withInstance(instances, questionId, named) };
   });
 }
 

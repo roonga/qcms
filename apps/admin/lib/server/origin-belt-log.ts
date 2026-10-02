@@ -16,11 +16,16 @@ import { serverLogger } from "./logger.ts";
  * is not the same, and reading this one as a quieter copy of that one gets the
  * operational value backwards:
  *
- *   - The portal's line makes an **accepted risk observable**. A measured floor of
- *     around 1.6% of browsers send no Fetch Metadata and are refused on the portal's
- *     scriptless form path; accepting that population was a decision, and being unable to
- *     see it was not part of the decision. That population is a PORTAL one: no-JS is a
- *     respondent requirement, and the admin requires JavaScript (Code Owner, 2026-09-27).
+ *   - The portal's line makes an **accepted risk observable**. Around 1.6% of browsers
+ *     send no Fetch Metadata, and those that **also send no matching `Origin`** are
+ *     refused on the portal's scriptless form path; accepting that population was a
+ *     decision, and being unable to see it was not part of the decision. The 1.6% is an
+ *     upper bound rather than the refused population, and has been since 2026-10-01,
+ *     when the portal moved to `Referrer-Policy: same-origin` and its `Origin` leg
+ *     started admitting a Fetch-Metadata-less browser posting from a portal page (issue
+ *     #1024 re-measures what is left). That population is a PORTAL one either way: no-JS
+ *     is a respondent requirement, and the admin requires JavaScript (Code Owner,
+ *     2026-09-27).
  *   - This line is **attack detection**. Every route it covers is an authentication
  *     route: sign-in, sign-out, the TOTP challenge, TOTP enrolment, recovery-code
  *     confirmation and the password change. A burst of refusals against

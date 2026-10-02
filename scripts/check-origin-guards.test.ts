@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { trackedFilesUnder } from "./tracked-files.mjs";
+import { declaresUseServer } from "./use-server-directive.mjs";
 
 /**
  * Every state-changing BFF route handler in every Next app carries SEC-9's CSRF belt
@@ -57,8 +58,24 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  *     shape in this repo is `if (!isSameOriginPost(request)) return ...`, where the
  *     answer cannot be discarded silently, unlike the returned-Response guard that
  *     rule 1 of the admin's test had to defend against.
- *   - It reads route handlers. Server actions are out of scope and do not need the
- *     belt: Next verifies the origin of every action call itself.
+ *   - It reads route handlers. **A Server Action is a state-changing entry point too,
+ *     and it is NOT exempt from the belt.** This file said the opposite until task 073:
+ *     "Server actions are out of scope and do not need the belt: Next verifies the
+ *     origin of every action call itself." Next does verify it, and the Code Owner
+ *     ruled on 2026-10-01 (R-B2) that the verification is not enough, because it
+ *     **admits a request carrying no `Origin` at all** after only a warning, compares
+ *     the host while **ignoring the scheme**, and **never reads `Sec-Fetch-Site`**. The
+ *     rule below therefore enumerates every `"use server"` module in the tree and
+ *     asserts each one calls the belt, exactly as it asserts it of a route handler,
+ *     plus the referrer policy each app must serve for its own actions to be admitted
+ *     by Next at all. What it cannot read is an action whose belt call is behind a
+ *     helper; that is the same shape limit as the route rule above. The behavioural
+ *     coverage is in `apps/portal/lib/server/origin-guard.test.ts`, beside the six route
+ *     handlers it already drives: it calls the real action with a request carrying neither
+ *     a usable `Origin` nor Fetch Metadata and asserts the roster write is never made,
+ *     with a same-origin control beside it. That test exists because removing the belt call
+ *     from the action left the browser suite green (reviewed on PR #1034): a scan that
+ *     reads the call is not a test that the call does anything.
  *   - It cannot know that a route which changes state was spelled `GET`. A handler
  *     that mutates behind a read verb is a different defect, and one no static scan
  *     of verb names can reach.
@@ -360,6 +377,128 @@ describe("issue #487: state-changing BFF route handlers carry SEC-9's CSRF belt"
  * passing. So they are written here. Without these, a parser that silently stopped
  * matching anything would report the whole tree green.
  */
+
+/**
+ * Every `"use server"` module in the Next apps, as repo-relative paths.
+ *
+ * Enumerated through git for the same reason the route walk is: a build leaves
+ * `.next` and a dev server leaves `.next-dev`, both of which a filesystem walk reads as
+ * source, and both contain generated action modules.
+ */
+function serverActionModules(): string[] {
+  const found: string[] = [];
+  for (const app of APPS) {
+    const root = `${REPO_ROOT}apps/${app.name}`;
+    for (const relative of trackedFilesUnder(root, { match: /\.tsx?$/ })) {
+      const source = readFileSync(`${root}/${relative}`, "utf8");
+      // The directive is the first statement of the module, so a mention inside a
+      // comment or a string elsewhere in the file is not one. The scan is shared with
+      // the portal's two equivalents and is a walk rather than one expression, because
+      // the obvious expression backtracks exponentially (CodeQL alerts 22 to 24 on
+      // PR #1034); `scripts/use-server-directive.mjs` carries the reasoning.
+      if (declaresUseServer(source)) {
+        found.push(`apps/${app.name}/${relative}`);
+      }
+    }
+  }
+  return found.sort((a, b) => a.localeCompare(b));
+}
+
+const SERVER_ACTIONS = serverActionModules();
+
+/**
+ * The `Referrer-Policy` each app serves, read out of its proxy, so the claim above is
+ * checked against the code rather than against a comment.
+ */
+function referrerPolicyOf(app: string): string | undefined {
+  const source = readFileSync(`${REPO_ROOT}apps/${app}/proxy.ts`, "utf8");
+  return /"Referrer-Policy",\s*"([^"]+)"/.exec(source)?.[1];
+}
+
+/** The belt, as an action calls it: the headers variant (task 073, R-B2). */
+const ACTION_BELT = "isSameOriginAction(";
+
+describe("task 073: a Server Action carries the belt too (R-B2)", () => {
+  it("calls the belt in every action that changes state", () => {
+    // The same rule the route handlers are held to, over the other entry-point shape.
+    // The portal's action calls the headers variant, because an action is handed its
+    // form data and reaches its own request only through `headers()`; the admin's
+    // actions are unreachable without JavaScript and are the case R-B2 left alone, so
+    // they are listed as the exception rather than silently skipped.
+    // Comments are BLANKED before the match, which is the #663 rule the route scan above
+    // already follows: with them in, `// isSameOriginAction is not needed here` satisfies
+    // a substring rule as readily as calling it, and this module's own docblock names the
+    // function a dozen times. Reviewed on PR #1034, where the rule accepted the whole
+    // file including its prose.
+    const unbelted = SERVER_ACTIONS.filter((path) => {
+      const source = readFileSync(`${REPO_ROOT}${path}`, "utf8");
+      const code = stripComments(source.split("\n")).join("\n");
+      return !code.includes(ACTION_BELT) && !code.includes(BELT);
+    });
+    expect(unbelted).toEqual([
+      "apps/admin/app/(shell)/forms/actions.ts",
+      "apps/admin/app/(shell)/questions/actions.ts",
+      "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/webhooks/actions.ts",
+    ]);
+  });
+
+  it("finds the actions in the tree, and they are exactly these", () => {
+    // An exact list rather than a superset, and deliberately so. A Server Action is a
+    // request entry point that SEC-9's belt does not cover, so a second one on the
+    // PORTAL is a decision someone has to take rather than a file someone can add: this
+    // assertion is where it is taken, and where the referrer-policy premise below is
+    // re-checked against it.
+    expect(SERVER_ACTIONS).toEqual([
+      "apps/admin/app/(shell)/forms/actions.ts",
+      "apps/admin/app/(shell)/questions/actions.ts",
+      "apps/admin/app/(shell)/responses/actions.ts",
+      "apps/admin/app/(shell)/webhooks/actions.ts",
+      // The no-JS Add and Remove of a repeating group (task 073, ADR-43 as amended).
+      // The one action in this repository reachable WITHOUT scripting, which is the
+      // whole of why the portal's referrer policy had to move.
+      "apps/portal/app/s/[sessionId]/roster-action.ts",
+    ]);
+  });
+
+  /**
+   * The premise behind "Next verifies the origin itself", asserted per app rather than
+   * stated once, because the two apps depend on it differently.
+   *
+   * Next compares an action request's `Origin` to the `Host` or `X-Forwarded-Host` and
+   * refuses a mismatch. Per Fetch, a **navigation** POST under
+   * `Referrer-Policy: no-referrer` serializes its `Origin` as the literal `null`, which
+   * Next refuses; a `fetch()` is mode `cors` and carries the real origin whatever the
+   * referrer policy says.
+   *
+   * So the rule is not "an app with an action must relax the policy". It is:
+   *
+   * - **the portal** has an action invoked by a no-JS form navigation, so it must serve
+   *   a policy that sends an origin to itself, and it serves `same-origin` (Code Owner,
+   *   2026-10-01, SEC-9 as amended);
+   * - **the admin** requires JavaScript by design, so every action call there is a
+   *   `fetch()` from hydrated React and carries a real origin under any policy. It
+   *   keeps `no-referrer`, which its own belt reasoning depends on.
+   *
+   * Both directions are pinned, so relaxing the admin's policy or tightening the
+   * portal's is a red rather than a silent change to what Next admits.
+   */
+  it("serves same-origin on the portal, whose action is reachable without scripting", () => {
+    expect(referrerPolicyOf("portal")).toBe("same-origin");
+  });
+
+  it("keeps no-referrer on the admin, whose actions are only ever reached by fetch()", () => {
+    expect(referrerPolicyOf("admin")).toBe("no-referrer");
+  });
+
+  it("has an action on every app it read a policy for", () => {
+    // Guards the pair above against going vacuous: if the enumeration silently stopped
+    // finding anything, the two assertions would still pass while checking nothing
+    // about an action. This asserts each named app actually has one.
+    const apps = new Set(SERVER_ACTIONS.map((path) => path.split("/")[1]));
+    expect([...apps].sort((a, b) => a.localeCompare(b))).toEqual(["admin", "portal"]);
+  });
+});
 
 const GUARDED = [
   "export async function POST(request: Request): Promise<Response> {",

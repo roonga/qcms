@@ -5,6 +5,8 @@ import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 import { serverLogger } from "./logger";
 
+import { splitFieldKey } from "../repeat";
+
 /**
  * The strict BFF's internal API client (task 029, R2).
  *
@@ -49,13 +51,55 @@ export interface ApiProgress {
  */
 export type ApiHeldValues = Readonly<Record<string, A2UIAnswerValue>>;
 
+/**
+ * One repeating group's live instance roster (task 073, ADR-42, ADR-43): already
+ * derived and already truncated by the API, in roster order.
+ *
+ * This is how the roster reaches the renderer. A compiled `RepeatGroup` is a
+ * **template** carrying its member controls once - the compiler is answer-blind and
+ * an instance count is answer-dependent - so the renderer clones it per live
+ * instance, and the roster travels beside the document exactly as `values` do. The
+ * portal reads it and derives nothing from it (R2).
+ */
+export interface ApiGroupRoster {
+  readonly groupId: string;
+  readonly instances: readonly string[];
+}
+
 /** GET /sessions/:id/step and POST /sessions/:id/answers both return this shape. */
 export interface StepResponse {
   readonly step: ApiStepDocument | null;
   readonly values: ApiHeldValues;
   readonly a2uiSpecVersion: string;
   readonly flowState: ApiFlowState;
+  readonly rosters: readonly ApiGroupRoster[];
   readonly progress: ApiProgress;
+}
+
+/** One entry of a batch, and one entry the batch refused. */
+export interface BatchAnswerEntry {
+  readonly questionId: string;
+  readonly instanceId?: string;
+  readonly value: unknown;
+}
+
+export interface BatchRejection {
+  readonly questionId: string;
+  readonly instanceId?: string;
+  readonly code: string;
+  readonly details?: unknown;
+}
+
+/** POST /sessions/:id/answers/batch: the projection, plus what it refused. */
+export interface BatchAnswerResponse extends StepResponse {
+  readonly rejected: readonly BatchRejection[];
+}
+
+/** POST /sessions/:id/roster: the projection, plus what the operation did. */
+export interface RosterOpResponse extends StepResponse {
+  /** True when the one-time token had already been spent: nothing was written. */
+  readonly replayed: boolean;
+  readonly minted: readonly string[];
 }
 
 /** POST /sessions success (201). */
@@ -231,7 +275,11 @@ export async function submitAnswer(
     {
       method: "POST",
       headers,
-      body: JSON.stringify({ questionId, value }),
+      // The qualified name is taken apart HERE, at the one boundary that cares: above
+      // this call a field is `instanceId/questionId` throughout (task 073, Q15), and the
+      // API takes the two parts separately. Posting the whole name as the question is a
+      // 404 `UNKNOWN_QUESTION`, which is how this was found.
+      body: JSON.stringify({ ...splitFieldKey(questionId), value }),
       cache: "no-store",
     },
     headers[REQUEST_ID_HEADER],
@@ -258,4 +306,78 @@ export async function submitSession(
     headers[REQUEST_ID_HEADER],
   );
   return readJson<SubmitResponse>(res);
+}
+
+/**
+ * Submit a whole step's answers in one request (task 073, Q20, ADR-43).
+ *
+ * One request, one session lock, one flow evaluation, instead of one call per answer:
+ * nine passengers times six questions is fifty-four sequential round trips and
+ * fifty-four advisory locks for one Continue. The API refuses entries individually and
+ * lists them in `rejected`, so a mistyped cell does not lose the other fifty-three,
+ * and it spends the per-session answer allowance **per entry** rather than per request
+ * (SEC-16), so a 429 here means the batch did not fit the window and nothing was
+ * applied.
+ *
+ * The answer key rides as `{questionId, instanceId?}` rather than as the joined
+ * `ins_7k2/q_plate` string: the join is the RENDERER's encoding of one field's
+ * identity, and the API's own vocabulary is the pair. Splitting it here is the one
+ * place the BFF touches the encoding, and it is a transport mapping rather than a
+ * judgement (R2).
+ */
+export async function batchAnswers(
+  sessionId: string,
+  token: string,
+  answers: readonly BatchAnswerEntry[],
+  stepIndex?: number,
+): Promise<BatchAnswerResponse> {
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId/answers/batch",
+    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers/batch${stepQuery(stepIndex)}`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ answers }),
+      cache: "no-store",
+    },
+    headers[REQUEST_ID_HEADER],
+  );
+  return readJson<BatchAnswerResponse>(res);
+}
+
+/**
+ * Add or remove one instance of a repeating group (task 073, ADR-43).
+ *
+ * **It commits no answers.** The typed values ride the step POST and reach the ledger
+ * only on Continue, under the ordinary validation an ordinary Continue does.
+ *
+ * `opToken` is the one-time operation token the rendered page minted. The API records
+ * it with the roster row, so a replayed post applies nothing and comes back
+ * `replayed: true` with the roster as it stands.
+ */
+export async function rosterOp(
+  sessionId: string,
+  token: string,
+  body: {
+    readonly op: "add" | "remove";
+    readonly groupId: string;
+    readonly instanceId?: string;
+    readonly opToken: string;
+  },
+  stepIndex?: number,
+): Promise<RosterOpResponse> {
+  const headers = await baseHeaders(token);
+  const res = await loggedFetch(
+    "/sessions/:sessionId/roster",
+    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/roster${stepQuery(stepIndex)}`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    headers[REQUEST_ID_HEADER],
+  );
+  return readJson<RosterOpResponse>(res);
 }

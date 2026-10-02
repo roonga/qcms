@@ -243,3 +243,43 @@ export function commitMoments(document: A2UIStepDocument): ReadonlyMap<string, C
   });
   return moments;
 }
+
+/**
+ * Map each field of an **expanded** repeating group to its instance's resolved label:
+ * `ins_7k2/q_plate` to "Vehicle 2" (task 073).
+ *
+ * The error summary needs it. An entry naming a repeated question by its own label
+ * alone would read "Registration plate needs an answer" three times over on a
+ * three-vehicle step, which is the WCAG 3.3.1 distinctness problem issue #326 already
+ * solved once for label-less questions, arrived at from the other side. With the
+ * instance label the entry reads "Vehicle 2: Registration plate needs an answer" and
+ * names exactly one field on the page.
+ *
+ * It reads the `RepeatInstance` nodes the renderer's expansion produced, so the
+ * document handed here must be the expanded one - which is also the document whose
+ * control names are the qualified names every other map here keys on. A step with no
+ * repeating group produces an empty map and costs one walk.
+ *
+ * The instance ID is never the label: what the map carries is the authored
+ * `instanceLabel` with its live ordinal resolved (ADR-42), which is what a respondent
+ * reads everywhere else on the page.
+ */
+export function instanceLabels(document: A2UIStepDocument | null): ReadonlyMap<string, string> {
+  const byField = new Map<string, string>();
+  if (document === null) return byField;
+  const walk = (node: MutableNode, label: string | undefined): void => {
+    const own = node.type === "RepeatInstance" ? node.props?.label : undefined;
+    const scope = typeof own === "string" ? own : label;
+    const name = questionName(node);
+    if (name !== undefined && scope !== undefined) byField.set(name, scope);
+    const { children } = node;
+    if (children === undefined || typeof children === "string") return;
+    if (Array.isArray(children)) {
+      for (const child of children) walk(child, scope);
+      return;
+    }
+    walk(children, scope);
+  };
+  walk(document.root, undefined);
+  return byField;
+}
