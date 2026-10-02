@@ -55,6 +55,8 @@ import {
   focusAfterRemoval,
   instanceLabelTemplates,
   resolvedInstanceLabel,
+  viewInstanceLabel,
+  viewNarrowing,
 } from "@/lib/repeat";
 import type { CommitMoment } from "@/lib/visible";
 import type { RosterOpResponse, StepResponse } from "@/lib/server/api";
@@ -108,6 +110,11 @@ const flowViewOf = (snapshot: StepResponse): FlowView => ({
   // The RENDERED step document's id (the explicit cursor's step, ADR-28), not
   // flowState.currentStep (the derived first-incomplete step, which may differ).
   stepId: snapshot.step?.stepId ?? null,
+  // The instance this page draws, when a `perInstanceStep` group paginates the step
+  // (task 076). Two views of one step share a step id, so without this a Continue from
+  // Vehicle 1 to Vehicle 2 would be no navigation at all: nothing announced and focus
+  // left on the control the respondent had just left.
+  instanceId: snapshot.view.instanceId,
   stepIndex: snapshot.progress.stepIndex,
   visibleQuestions: snapshot.flowState.visibleQuestions,
 });
@@ -311,11 +318,18 @@ export function StepFlow({
   // moments below key on and what the error summary anchors at. Expanding once and
   // handing the same tree to all three is what keeps them one set of strings; the
   // renderer's own expansion is idempotent, so it leaves this alone.
+  // The per-instance step view this page is, or `undefined` for every ordinary page
+  // (task 076, ADR-28 as amended 2026-09-29). The API named it; the portal draws one
+  // instance of the roster it was handed in full and derives nothing else (R2).
+  const view = useMemo(() => viewNarrowing(snapshot.view), [snapshot.view]);
   const expandedStep = useMemo<A2UIStepDocument | null>(() => {
     const step = snapshot.step as unknown as A2UIStepDocument | null;
     if (step === null) return null;
-    return { stepId: step.stepId, root: expandRepeatGroups(step.root, { rosters }) };
-  }, [snapshot.step, rosters]);
+    return {
+      stepId: step.stepId,
+      root: expandRepeatGroups(step.root, { rosters, ...(view !== undefined ? { view } : {}) }),
+    };
+  }, [snapshot.step, rosters, view]);
   const moments = useMemo(
     () =>
       expandedStep === null
@@ -735,7 +749,19 @@ export function StepFlow({
   const total = snapshot.progress.totalVisibleSteps;
   const isFirstStep = stepIndex <= 0;
   const isFinalStep = stepIndex >= total - 1;
-  const progress = { current: stepIndex + 1, total };
+  // The chrome's name for a per-instance view ("Vehicle 2"), from the STORED document's
+  // template, so the header says which vehicle rather than only "Step 2 of 3" (ADR-27).
+  // Absent on every page that is not one.
+  const viewLabel = viewInstanceLabel(
+    instanceLabelTemplates(snapshot.step as unknown as A2UIStepDocument | null),
+    rosters,
+    snapshot.view,
+  );
+  const progress = {
+    current: stepIndex + 1,
+    total,
+    ...(viewLabel === undefined ? {} : { label: viewLabel }),
+  };
   const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
 
   // The error summary lists only the CURRENT step's still-missing required
@@ -786,7 +812,10 @@ export function StepFlow({
         becameReady,
         next.stepIndex,
         snapshot.progress.totalVisibleSteps,
-        headingText,
+        // The instance's own name on a per-instance view, else the step's heading. The
+        // three views of one step share that heading, so announcing it would say the
+        // same sentence three times for three different vehicles (task 076, ADR-27).
+        viewLabel ?? headingText,
       ),
     );
 
@@ -916,6 +945,9 @@ export function StepFlow({
               onBlur={handleBlur}
               repeat={{
                 rosters,
+                // The same narrowing the memo above already applied; the renderer's own
+                // expansion is idempotent, so this only keeps the two in step.
+                ...(view !== undefined ? { view } : {}),
                 visible: new Set(snapshot.flowState.visibleQuestions),
                 onAdd: addInstance,
                 onRemove: removeInstance,

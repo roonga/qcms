@@ -24,6 +24,11 @@ export const messages = {
   "action.submit": "Submit",
 
   "progress.step": "Step {current} of {total}",
+  // The per-instance step presentation's chrome (task 076, ADR-27, ADR-28 as amended
+  // 2026-09-29). The indicator counts VIEWS, so a three-vehicle group is three of them;
+  // naming the instance is what keeps those three pages legible as three vehicles rather
+  // than as three unrelated steps of one form. An ordinary step keeps `progress.step`.
+  "progress.stepNamed": "Step {current} of {total}: {label}",
 
   // The bare-root landing (`app/page.tsx`), whose heading is the brand name.
   "home.body": "Open your questionnaire from the link you were sent.",

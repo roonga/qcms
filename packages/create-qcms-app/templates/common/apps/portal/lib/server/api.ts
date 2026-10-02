@@ -66,6 +66,23 @@ export interface ApiGroupRoster {
   readonly instances: readonly string[];
 }
 
+/**
+ * Which **view** the response draws (task 076, ADR-28 as amended 2026-09-29, Q22).
+ *
+ * A `perInstanceStep` group paginates one step into one page per live instance, so the
+ * cursor indexes views rather than steps and the response has to say which view it is.
+ * Both keys are `null` for every other page, which is every page of every form with no
+ * such group, so the no-group render is unchanged.
+ *
+ * The portal narrows the roster it was handed to this one instance and derives nothing
+ * else from it (R2): which views exist, which one to serve when no cursor is given, and
+ * whether another instance may be added are all answers the API has already given.
+ */
+export interface ApiStepView {
+  readonly groupId: string | null;
+  readonly instanceId: string | null;
+}
+
 /** GET /sessions/:id/step and POST /sessions/:id/answers both return this shape. */
 export interface StepResponse {
   readonly step: ApiStepDocument | null;
@@ -73,6 +90,7 @@ export interface StepResponse {
   readonly a2uiSpecVersion: string;
   readonly flowState: ApiFlowState;
   readonly rosters: readonly ApiGroupRoster[];
+  readonly view: ApiStepView;
   readonly progress: ApiProgress;
 }
 
