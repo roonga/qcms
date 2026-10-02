@@ -115,7 +115,11 @@ export type DraftStepItem = DraftPin | DraftGroup;
  * mutation module at all.
  */
 export function isDraftGroup(item: DraftStepItem): item is DraftGroup {
-  return "groupId" in item && item.groupId !== undefined;
+  // The VALUE test, and the widening read rather than `"groupId" in item`: a draft is bytes the
+  // API sent, so a pin written with an explicit `groupId: undefined` carries the key, and the
+  // key test alone would treat it as a group and lose its question. `DraftPin` declares no
+  // `groupId` at all, so the narrowing read is what makes the runtime check expressible.
+  return typeof (item as { readonly groupId?: unknown }).groupId === "string";
 }
 
 /** One step of the working draft. `items` may be empty while it is being filled. */
@@ -423,8 +427,19 @@ export interface CompiledStep {
 /** The forward-pass projection (ADR-16) the preview endpoint returns with the documents. */
 export interface PreviewFlow {
   readonly visibleSteps: readonly string[];
+  /**
+   * The visible fields as ANSWER KEYS: a bare `questionId` outside every repeating group, and
+   * `instanceId/questionId` inside one (ADR-42, ADR-43).
+   *
+   * The qualified form is what the renderer's repeat expansion prunes each instance's clone
+   * against, and it is the identical projection the portal receives - which is the property
+   * that keeps the preview's DOM the portal's DOM rather than a resemblance to it. A form with
+   * no repeating group carries the byte-identical bare list it always did.
+   */
   readonly visibleQuestions: readonly string[];
   readonly complete: boolean;
+  /** The hypothetical roster the projection was computed with, per group (074). */
+  readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
 }
 
 /**

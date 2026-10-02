@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Button, Dialog, Menu, TextField } from "@/components/kit";
 import { menuClasses } from "@/components/menu-slots";
 import { useBuilderRail } from "@/lib/forms/builder-bridge";
-import { stepAnchorId } from "@/lib/forms/issues";
+import { groupAnchorId, stepAnchorId } from "@/lib/forms/issues";
+import { isDraftGroup, type DraftGroup, type DraftStep } from "@/lib/forms/types";
 import { issueCountLabel, type RailItem } from "@/lib/forms/subtree-rail";
 import { t } from "@/lib/i18n/en";
 import { textOf } from "@/lib/questions/definition";
@@ -203,6 +204,47 @@ export function RailSteps({
                 builder.remove(step.stepId);
               }}
             />
+            {/* THE REPEATING GROUPS INSIDE THIS STEP, nested one level further (task 074,
+                ADR-42). They are listed under their step because that is where they sit in
+                document order, and their position decides where their whole span sits - so a
+                flat list beside the steps would be a second ordering of one list. A group's
+                MEMBER questions are not rows here, for the same reason a step's pins never
+                were: the rail navigates containers, and the grid lists what is in them. */}
+            {groupsOf(step).length > 0 && (
+              <ol
+                className="qcms-rail__group qcms-rail-steps__groups"
+                aria-label={t("forms.group.railGroups")}
+                data-rail-group="groups"
+              >
+                {groupsOf(step).map((group, at) => (
+                  <li key={group.groupId}>
+                    <GroupRow
+                      groupId={group.groupId}
+                      label={
+                        textOf(group.label) === ""
+                          ? t("forms.group.untitled")
+                          : textOf(group.label)
+                      }
+                      position={at + 1}
+                      total={groupsOf(step).length}
+                      isSelected={
+                        builder.selection.kind === "group" &&
+                        builder.selection.groupId === group.groupId
+                      }
+                      onSelect={() => {
+                        builder.chooseGroup(step.stepId, group.groupId);
+                      }}
+                      onMove={(delta) => {
+                        builder.moveGroup(step.stepId, group.groupId, delta);
+                      }}
+                      onRemove={() => {
+                        builder.removeGroup(group.groupId);
+                      }}
+                    />
+                  </li>
+                ))}
+              </ol>
+            )}
           </li>
         ))}
       </ol>
@@ -439,6 +481,126 @@ function StepRow({
               }}
             >
               {t("forms.steps.confirmRemove")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              onPress={() => {
+                setRemoving(false);
+              }}
+            >
+              {t("forms.action.cancel")}
+            </Button>
+          </div>
+        </Dialog>
+      )}
+    </div>
+  );
+}
+
+/** The repeating groups one step holds, in document order. */
+function groupsOf(step: DraftStep): readonly DraftGroup[] {
+  return step.items.filter(isDraftGroup);
+}
+
+/**
+ * One repeating group's row: a button that opens its panel, and a menu that acts on it.
+ *
+ * A button rather than an anchor, for the rule the step row follows
+ * (`docs/admin-constraints.md`: an anchor navigates, a button acts) - choosing a group
+ * switches the panel beside the rail on the screen the reader is already standing on.
+ *
+ * RENAME IS NOT HERE, and that is the one way this row differs from a step's. A group's name
+ * is the first field of its own panel, which this row opens, so a rename dialog would be a
+ * second way to type one string - and `rail-steps.tsx`'s own note on the Add step dialog says
+ * why two drafts of one title is the defect to avoid. A step has no panel of its own, which is
+ * why its row has to carry one.
+ */
+function GroupRow({
+  groupId,
+  label,
+  position,
+  total,
+  isSelected,
+  onSelect,
+  onMove,
+  onRemove,
+}: {
+  readonly groupId: string;
+  readonly label: string;
+  readonly position: number;
+  readonly total: number;
+  readonly isSelected: boolean;
+  readonly onSelect: () => void;
+  readonly onMove: (delta: -1 | 1) => void;
+  readonly onRemove: () => void;
+}) {
+  const [removing, setRemoving] = useState(false);
+  return (
+    <div className="qcms-rail-steps__row">
+      <button
+        type="button"
+        className="qcms-rail__link qcms-rail-steps__select"
+        data-rail-group-select={label}
+        data-rail-group-id={groupId}
+        aria-current={isSelected ? "page" : undefined}
+        onClick={onSelect}
+      >
+        {/* The accessible name is the whole sentence and the visible composite is hidden from
+            the tree, so it is not read twice - the same shape the step row uses, and
+            deliberately the same shape: a reader who has learned one has learned both. */}
+        <span className="qcms-visually-hidden">{t("forms.group.select", { label })}</span>
+        <span aria-hidden="true">{label}</span>
+      </button>
+
+      <Menu
+        triggerLabel={t("forms.group.menu", { label })}
+        trigger={<span aria-hidden="true">{"\u22ee"}</span>}
+        menuLabel={t("forms.group.menu", { label })}
+        classNames={menuClasses("qcms-rail-steps__menu")}
+        disabledKeys={disabledCommands(position, total)}
+        onAction={(key) => {
+          if (key === "up") onMove(-1);
+          else if (key === "down") onMove(1);
+          else if (key === "remove") setRemoving(true);
+        }}
+        items={[
+          { id: "up", label: t("forms.group.moveUp") },
+          { id: "down", label: t("forms.group.moveDown") },
+          { id: "remove", label: t("forms.group.remove") },
+        ]}
+      />
+
+      {/* The focus destination for a group-scoped publish refusal, for the reason the step's
+          own anchor exists: `anchorFor` sends an issue about a group's bounds or its instance
+          heading here, and the rail is the one part of this route every screen shows. The grid
+          carries the same id on its boundary row, which is not a collision - the boundary row
+          only exists while that step is selected, and `document.getElementById` resolving to
+          whichever is in the tree is exactly the behaviour both call sites want. */}
+      <span id={groupAnchorId(groupId)} tabIndex={-1} className="qcms-visually-hidden">
+        {label}
+      </span>
+
+      {removing && (
+        <Dialog
+          isOpen
+          role="alertdialog"
+          title={t("forms.group.confirmRemoveTitle", { label })}
+          description={t("forms.group.confirmRemoveBody")}
+          onOpenChange={(isOpen: boolean) => {
+            if (!isOpen) setRemoving(false);
+          }}
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              size="md"
+              onPress={() => {
+                onRemove();
+                setRemoving(false);
+              }}
+            >
+              {t("forms.group.confirmRemove")}
             </Button>
             <Button
               variant="ghost"

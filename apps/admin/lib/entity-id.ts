@@ -37,7 +37,7 @@
  */
 
 /** Every entity whose id an admin table renders in an identifying cell. */
-export type EntityIdKind = "session" | "link" | "webhook" | "form" | "question";
+export type EntityIdKind = "session" | "link" | "webhook" | "form" | "question" | "group";
 
 /**
  * The kinds minted as random bytes, uniformly long.
@@ -47,6 +47,11 @@ export type EntityIdKind = "session" | "link" | "webhook" | "form" | "question";
  * renders whole.
  */
 const OPAQUE_KINDS: readonly EntityIdKind[] = ["session", "link", "webhook"];
+
+// `grp_` joins the DERIVED kinds (task 074), by the same reading of the same property that
+// put `frm_` there: `addGroup` in `lib/forms/draft.ts` mints a group id out of the name the
+// author typed, exactly as `formIdFromSlug` mints a form id out of a slug, so a group id has
+// no length convention and a prefix of one is indistinguishable from a whole one.
 
 /** Whether this kind's ids are opaque, and therefore abbreviated in a table cell. */
 export function isOpaqueEntityKind(kind: EntityIdKind): boolean {

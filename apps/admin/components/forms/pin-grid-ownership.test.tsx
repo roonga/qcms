@@ -104,6 +104,10 @@ async function render(step: DraftStep, issues: readonly FormIssue[] = []): Promi
       onMovePin={() => undefined}
       onRemovePin={() => undefined}
       onReorderPin={() => undefined}
+        onAddGroup={() => undefined}
+        onOpenGroup={() => undefined}
+        onMoveGroup={() => undefined}
+        onRemoveGroup={() => undefined}
     />,
   );
 }

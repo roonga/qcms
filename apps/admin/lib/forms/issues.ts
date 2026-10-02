@@ -394,26 +394,50 @@ export function stepIssueCounts(
   issues: readonly FormIssue[],
   draft: DraftForm,
 ): ReadonlyMap<string, number> {
-  const stepOfQuestion = new Map<string, string>();
-  const stepOfGroup = new Map<string, string>();
-  for (const step of draft.steps) {
-    for (const pin of stepPins(step)) stepOfQuestion.set(pin.questionId, step.stepId);
-    for (const item of step.items) {
-      if (isDraftGroup(item)) stepOfGroup.set(item.groupId, step.stepId);
-    }
-  }
+  const owners = stepOwners(draft);
   const counts = new Map<string, number>();
   for (const issue of issues) {
     const path = issue.path;
     if (path === undefined || ruleOf(path) !== undefined) continue;
-    const stepId =
-      path.step ??
-      (path.question === undefined ? undefined : stepOfQuestion.get(path.question)) ??
-      (path.group === undefined ? undefined : stepOfGroup.get(path.group));
+    const stepId = stepForPath(path, owners);
     if (stepId === undefined) continue;
     counts.set(stepId, (counts.get(stepId) ?? 0) + 1);
   }
   return counts;
+}
+
+/** Which step owns each pinned question and each repeating group. */
+function stepOwners(draft: DraftForm): {
+  readonly byQuestion: ReadonlyMap<string, string>;
+  readonly byGroup: ReadonlyMap<string, string>;
+} {
+  const byQuestion = new Map<string, string>();
+  const byGroup = new Map<string, string>();
+  for (const step of draft.steps) {
+    for (const pin of stepPins(step)) byQuestion.set(pin.questionId, step.stepId);
+    for (const item of step.items) {
+      if (isDraftGroup(item)) byGroup.set(item.groupId, step.stepId);
+    }
+  }
+  return { byQuestion, byGroup };
+}
+
+/**
+ * The step one issue counts against: the one it names, the one holding the question it names,
+ * or the one holding the group it names.
+ *
+ * In that order, and the order is the specificity the paths carry rather than a preference: a
+ * code that names a step names the step it is about, and a group-scoped code names its step
+ * only indirectly.
+ */
+function stepForPath(
+  path: IssuePath,
+  owners: { readonly byQuestion: ReadonlyMap<string, string>; readonly byGroup: ReadonlyMap<string, string> },
+): string | undefined {
+  if (path.step !== undefined) return path.step;
+  if (path.question !== undefined) return owners.byQuestion.get(path.question);
+  if (path.group !== undefined) return owners.byGroup.get(path.group);
+  return undefined;
 }
 
 /**
