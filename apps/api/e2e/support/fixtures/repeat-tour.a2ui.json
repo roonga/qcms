@@ -1,0 +1,85 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_tour",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1",
+                  "size": "2xl",
+                  "weight": "bold"
+                },
+                "children": "Depot inspection"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "One vehicle at a time"
+              },
+              {
+                "type": "RepeatGroup",
+                "props": {
+                  "groupId": "grp_tour",
+                  "label": "Vehicles",
+                  "instanceLabel": "Vehicle {n}",
+                  "presentation": "perInstanceStep",
+                  "countSource": "open",
+                  "min": 3,
+                  "max": 4,
+                  "addLabel": "Add Vehicle",
+                  "removeLabel": "Remove {label}"
+                },
+                "children": [
+                  {
+                    "type": "TextField",
+                    "props": {
+                      "label": "Registration plate",
+                      "name": "q_pi_plate",
+                      "isRequired": true,
+                      "minLength": 3,
+                      "maxLength": 8
+                    }
+                  },
+                  {
+                    "type": "NumberField",
+                    "props": {
+                      "label": "Odometer reading",
+                      "name": "q_pi_odometer",
+                      "minValue": 0,
+                      "maxValue": 999999
+                    }
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.3.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

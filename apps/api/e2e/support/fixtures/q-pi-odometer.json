@@ -1,0 +1,7 @@
+{
+  "type": "number",
+  "questionId": "q_pi_odometer",
+  "label": { "en": "Odometer reading" },
+  "required": false,
+  "constraints": { "min": 0, "max": 999999 }
+}
