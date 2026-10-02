@@ -58,14 +58,37 @@ export function focusAfterRemoval(
   return addButtonId(groupId);
 }
 
-/** Where focus lands after an add: the instance the operation minted (Q11). */
-export function focusAfterAdd(minted: readonly string[], groupId: string): string {
-  // `minted` is the operation's own report of what it created, which is the only
-  // trustworthy answer: a REPLAYED post minted nothing, because the one-time token had
-  // already been spent, and the honest landing is then the group's Add button - the
-  // instance the first post created is already on the page and focus has not moved since.
-  // It replaced a diff of the rosters before and after, which gave the right answer only
-  // when the read before the operation saw exactly the same set the operation did.
+/**
+ * Where focus lands after an add: the instance the operation minted (Q11).
+ *
+ * `minted` is the operation's own report of what it created, which is the only
+ * trustworthy answer: a REPLAYED post minted nothing, because the one-time token had
+ * already been spent, and the honest landing is then the group's Add button - the
+ * instance the first post created is already on the page and focus has not moved since.
+ * It replaced a diff of the rosters before and after, which gave the right answer only
+ * when the read before the operation saw exactly the same set the operation did.
+ *
+ * **`paginated` is a `perInstanceStep` group, and then there is NO destination at all**
+ * (task 076, and it is a reading of Q11 rather than a departure from it). Q11 names the
+ * new instance's heading, which presupposes that the new instance appears on the page it
+ * was added from. Under this presentation it does not: the new instance is a new **view**,
+ * one page further along, so the heading Q11 names is not in this document and neither is
+ * the Add button, which the expansion puts on the last view and this page is no longer it.
+ *
+ * Nothing moves, and that is ADR-28 rather than a gap. Continue, Back and Submit are the
+ * only things that move the rendered page; an Add is not one of them, so an Add that
+ * carried the respondent onto the new instance's page would be the page moving by itself,
+ * which is the rule ADR-28 exists to state. The respondent presses Continue to reach the
+ * new vehicle, the progress indicator says "of 4" immediately, and on the scripted path
+ * the `role="status"` region announces the addition - which is Q11's announcement half,
+ * intact. Raised to the Code Owner with task 076 rather than settled here.
+ */
+export function focusAfterAdd(
+  minted: readonly string[],
+  groupId: string,
+  paginated = false,
+): string | undefined {
+  if (paginated) return undefined;
   return minted[0] ?? addButtonId(groupId);
 }
 

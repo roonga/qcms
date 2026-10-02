@@ -169,11 +169,16 @@ export async function rosterOperation(
       };
     }
     // After an add, the new instance's heading, named by the operation's own `minted`
-    // report rather than inferred.
-    return {
-      values,
-      autofocusId: focusAfterAdd(result.minted, operation.groupId),
-    };
+    // report rather than inferred - EXCEPT on a `perInstanceStep` group, where the new
+    // instance is a new view one page further along and so is not in this document at
+    // all (task 076). `focusAfterAdd` returns no destination there, and the re-render
+    // carries no `autofocus`: a whole-page POST and re-render is a change of context the
+    // respondent's software already surfaces, which is the same citation that says this
+    // path needs no live region. Whether the group paginates is the step projection's
+    // own answer, read off the page the respondent pressed on.
+    const paginated = before.view.groupId === operation.groupId;
+    const autofocusId = focusAfterAdd(result.minted, operation.groupId, paginated);
+    return { values, ...(autofocusId === undefined ? {} : { autofocusId }) };
   } catch (error) {
     if (!(error instanceof ApiError)) throw error;
     // A refused operation still re-renders the step with every typed value, which is

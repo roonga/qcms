@@ -230,7 +230,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2255` lines across `349` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2262` lines across `349` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
