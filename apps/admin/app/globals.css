@@ -2171,34 +2171,40 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
 }
 .qcms-choice__option {
   display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  /* The whole row is the label, so the pointer target is the option rather than the
-     12px disc: SC 2.5.8's 24px floor is met by the row's own height. */
+  flex-direction: column;
+  gap: 1px;
   padding: 0.35rem 0.5rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface);
-  cursor: pointer;
 }
 .qcms-choice__option:hover {
   background-color: var(--color-surface-hover);
 }
+/* The label is the whole first LINE of the option rather than the 12px disc, so SC 2.5.8's
+   24px floor is met by the line's own height. The description is deliberately outside it:
+   a `<label>` contributes its whole text content to the input's accessible name, so a
+   sentence inside it would make every option announce as its label plus its explanation
+   (`components/forms/group-panel.tsx`). */
+.qcms-choice__row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-block-size: 24px;
+  cursor: pointer;
+}
 .qcms-choice__input {
   accent-color: var(--color-primary);
-  margin-block-start: 0.2rem;
   flex-shrink: 0;
-}
-.qcms-choice__text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
 }
 .qcms-choice__label {
   color: var(--color-text);
   font-size: 0.9rem;
 }
 .qcms-choice__hint {
+  /* Indented to the label's own text edge, so the sentence reads as belonging to the option
+     above it rather than to the group. */
+  padding-inline-start: calc(0.5rem + 13px);
   color: var(--color-text-muted);
   font-size: 0.8rem;
 }

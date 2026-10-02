@@ -520,9 +520,14 @@ function wholeNumber(text: string, fallback: number): number {
  * upstream `a2-react-aria` change rather than this task's.
  *
  * `name` groups the inputs so the browser gives the group one tab stop with arrow-key
- * traversal inside it, which is the behaviour a hand-built group most often loses. The
- * description is wired with `aria-describedby` rather than left as adjacent text, so it is
- * announced with the option it belongs to.
+ * traversal inside it, which is the behaviour a hand-built group most often loses.
+ *
+ * **The description sits OUTSIDE the `<label>`**, and that is the detail a hand-built group gets
+ * wrong: a `<label>` wrapping an input contributes its whole text content to the input's
+ * accessible name, so a sentence inside it makes every option announce as its label followed by
+ * its own explanation - and makes an exact-name lookup for the option impossible, for a test and
+ * for speech input alike. It is wired with `aria-describedby` instead, which is what announces a
+ * description as a description.
  */
 function ChoiceGroup<T extends string>({
   name,
@@ -547,25 +552,25 @@ function ChoiceGroup<T extends string>({
       {options.map((option) => {
         const hintId = `${name}-${option.value}-hint`;
         return (
-          <label key={option.value} className="qcms-choice__option" data-value={option.value}>
-            <input
-              type="radio"
-              className="qcms-choice__input"
-              name={name}
-              value={option.value}
-              checked={option.value === value}
-              aria-describedby={hintId}
-              onChange={() => {
-                onChange(option.value);
-              }}
-            />
-            <span className="qcms-choice__text">
+          <div key={option.value} className="qcms-choice__option" data-value={option.value}>
+            <label className="qcms-choice__row">
+              <input
+                type="radio"
+                className="qcms-choice__input"
+                name={name}
+                value={option.value}
+                checked={option.value === value}
+                aria-describedby={hintId}
+                onChange={() => {
+                  onChange(option.value);
+                }}
+              />
               <span className="qcms-choice__label">{option.label}</span>
-              <span id={hintId} className="qcms-choice__hint">
-                {option.description}
-              </span>
+            </label>
+            <span id={hintId} className="qcms-choice__hint">
+              {option.description}
             </span>
-          </label>
+          </div>
         );
       })}
     </fieldset>
