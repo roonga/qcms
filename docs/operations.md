@@ -1132,8 +1132,30 @@ is add or remove an instance, so a form whose group has `min: 1` still completes
 needs a second instance does not. The symptom in the logs is an `origin.belt.refused` line with
 `beltRoute: "/s/{sessionId}"`, or, when Next refuses before the belt runs, a 500 on a POST to the
 flow page with no belt line at all. That second shape is also what a **stale action id** looks like
-after a deploy, and it is not a misconfiguration: the respondent gets the portal's own error page
-saying the page was out of date, and a GET of the step carries on.
+after a deploy, and it is not a misconfiguration.
+
+**What the respondent gets in that case, measured against a production build rather than inferred**
+(Code Owner, 2026-10-02; ADR-43's amendment carries the measurements, and issue #1035 tracks giving
+them a page of our own):
+
+- **a bare `500` with `Content-Type: text/plain` and the body `Internal Server Error`.** No page of
+  the portal renders. Next recalculates Server Action ids between builds, so a page held across a
+  deploy posts an id the new build does not know, and Next's action handler throws before the flow
+  segment renders. An App Router error boundary catches what its own subtree throws while
+  rendering, so it is never reached; an App Router `app/500/page.tsx` and a Pages Router
+  `pages/_error.tsx` were both tried against a production build and neither is consulted.
+- **the framework's own wording stays in the server log**, not on the page, so nothing about the
+  deployment is disclosed.
+- **the recovery is a reload**, and the respondent has to find it themselves: a GET of the step
+  still serves it. Every answer they had already pressed Continue on is in the ledger and the
+  roster is server state, so neither is at risk.
+- **the values they had typed into that step since their last Continue are lost**, because those
+  were in the refused request's body and nowhere else. An Add or Remove commits no answer, so
+  nothing already saved is affected, but do not tell a respondent on a support call that they lost
+  nothing.
+
+So a lone 500 on a POST to a flow page, with no belt line beside it and a deploy in the window, is
+this and needs no action beyond knowing a respondent may have retyped a step.
 
 `docs/deploy-ingress.md` carries the same caution beside the ALB header recipe.
 

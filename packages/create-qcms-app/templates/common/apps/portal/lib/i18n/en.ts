@@ -84,8 +84,6 @@ export const messages = {
   "repeat.staleStep.title": "This page was out of date",
   "repeat.staleStep.body":
     "We could not show that step. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
-  // The other thing that reaches the portal's error page: a URL that names nothing. It
-  // needs its own words, because a respondent who mistyped a link has nothing out of date.
   // The page-level notice for a whole-step post the API refused outright (task 073, ruling
   // Q29). It has to say that nothing was saved, because the respondent is looking at a step
   // that still holds everything they typed and has no other way to tell.
