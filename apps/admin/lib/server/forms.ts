@@ -7,9 +7,14 @@ import type {
   PreviewRoster,
 } from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
+import { REPEAT_PRESENTATIONS } from "../forms/types.ts";
 import type {
   CompiledStep,
   DraftForm,
+  DraftGroup,
+  DraftPin,
+  DraftRepeatCount,
+  DraftStepItem,
   DraftPreview,
   FormDetail,
   FormIssue,
@@ -689,19 +694,109 @@ function parseSteps(raw: unknown): DraftForm["steps"] {
     .map((entry) => ({
       stepId: entry["stepId"] as string,
       title: (entry["title"] ?? {}) as DraftForm["title"],
-      items: parsePins(entry["items"]),
+      items: parseStepItems(entry["items"]),
     }));
 }
 
-function parsePins(raw: unknown): DraftForm["steps"][number]["items"] {
+/**
+ * A step's item list: pinned questions and repeating groups, in document order (ADR-42).
+ *
+ * ## This is where a group would be lost, and was
+ *
+ * The item list used to be filtered to the entries carrying a `questionId`, which was total
+ * while a step held nothing else. With the union it silently DROPS every repeating group on the
+ * way back from the API - so a group survived until the first reload and then the builder opened
+ * on a step that had been emptied, with autosave paused about a step the author had filled. The
+ * browser walk for acceptance case 58 is what found it, which is the argument for that case
+ * reloading rather than asserting the screen it had just typed into.
+ *
+ * The union is discriminated by the disjoint required keys the kernel chose (`questionId` against
+ * `groupId`), so this reads the same discriminator the schema does rather than a tag nobody sends.
+ */
+function parseStepItems(raw: unknown): DraftForm["steps"][number]["items"] {
+  if (!Array.isArray(raw)) return [];
+  const items: DraftStepItem[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    const group = typeof record["groupId"] === "string" ? parseGroup(record) : undefined;
+    if (group !== undefined) {
+      items.push(group);
+      continue;
+    }
+    if (typeof record["groupId"] === "string") continue;
+    const pin = parsePin(record);
+    if (pin !== undefined) items.push(pin);
+  }
+  return items;
+}
+
+function parsePin(record: Record<string, unknown>): DraftPin | undefined {
+  if (typeof record["questionId"] !== "string" || typeof record["version"] !== "number") {
+    return undefined;
+  }
+  return { questionId: record["questionId"], version: record["version"] };
+}
+
+/** A step's pins alone, which is what a group's member list is: a group holds no group (Q13). */
+function parsePins(raw: unknown): readonly DraftPin[] {
   return objectsWith(raw, "questionId")
-    .filter(
-      (entry) => typeof entry["questionId"] === "string" && typeof entry["version"] === "number",
-    )
-    .map((entry) => ({
-      questionId: entry["questionId"] as string,
-      version: entry["version"] as number,
-    }));
+    .map(parsePin)
+    .filter((pin): pin is DraftPin => pin !== undefined);
+}
+
+/**
+ * One repeating group, or `undefined` when its count source is not one this build can read.
+ *
+ * **Nothing is invented for an unreadable count.** Falling back to, say, `open` with a minimum of
+ * zero would look tolerant and would be the worst outcome available: the panel would show that
+ * invented source, the next autosave would store it, and an author's `fixed` count would be gone
+ * with no press to have reported it. Dropping the group instead leaves the step short, which
+ * pauses autosave and says so - loud rather than silent, which is the stance this file's own
+ * docblock takes for a malformed pin.
+ */
+function parseGroup(record: Record<string, unknown>): DraftGroup | undefined {
+  const count = parseRepeatCount(record["count"]);
+  if (count === undefined) return undefined;
+  const presentation = REPEAT_PRESENTATIONS.find(
+    (candidate) => candidate === record["presentation"],
+  );
+  return {
+    groupId: record["groupId"] as string,
+    label: (record["label"] ?? {}) as DraftForm["title"],
+    instanceLabel: (record["instanceLabel"] ?? {}) as DraftForm["title"],
+    items: parsePins(record["items"]),
+    count,
+    // The kernel's schema defaults it, so an older stored draft may carry no value at all.
+    presentation: presentation ?? "stacked",
+  };
+}
+
+/**
+ * A group's count source, read as given.
+ *
+ * `max` is carried through only when it is a number, which is what keeps the required-field state
+ * readable after a reload: the kernel makes it optional precisely so a half-filled draft can
+ * round-trip, so an absent `max` has to arrive back absent rather than as a zero.
+ */
+function parseRepeatCount(raw: unknown): DraftRepeatCount | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const source = raw as Record<string, unknown>;
+  const max = typeof source["max"] === "number" ? { max: source["max"] } : {};
+  if (source["source"] === "fixed" && typeof source["count"] === "number") {
+    return { source: "fixed", count: source["count"] };
+  }
+  if (typeof source["min"] !== "number") return undefined;
+  if (source["source"] === "open") return { source: "open", min: source["min"], ...max };
+  if (source["source"] === "fromAnswer" && typeof source["questionId"] === "string") {
+    return {
+      source: "fromAnswer",
+      questionId: source["questionId"],
+      min: source["min"],
+      ...max,
+    };
+  }
+  return undefined;
 }
 
 function parseRules(raw: unknown): DraftForm["rules"] {
