@@ -361,12 +361,19 @@ function csvExportStream(
  * **One pass per file rather than one pass filling several buffers**, because a zip
  * entry has to be written whole before the next one starts and the alternative is
  * holding every group's rows in memory until the flat file is finished. The cost is
- * `1 + groups` keyset scans of the same filtered rows; the benefit is that the
- * export stays O(page) in memory exactly as the single-file export is, which is the
- * property `responses.integration.test.ts` pins at ten thousand responses.
+ * `1 + groups` keyset scans of the same filtered rows.
  *
- * `zipStream` pulls each entry only once the previous one is written, so the passes
- * are sequential by construction and never two cursors at once.
+ * **What the memory bound is, stated exactly.** `zipStream` runs one unit of work
+ * per `pull` and a `pull` takes one chunk, so a chunk here is one keyset page and
+ * the queued bytes are one page plus two small records, exactly as the single-file
+ * path at {@link csvExportStream} is. That is a property of `zipStream` rather than
+ * of this function, and `@roonga/qcms-csv`'s demand test is what holds it: an
+ * earlier revision walked a whole entry inside one `pull` and queued the whole file,
+ * because `controller.enqueue` never blocks and a `ReadableStream` applies
+ * backpressure only by withholding the next `pull`.
+ *
+ * `zipStream` also asks for each entry only once the previous one is closed, so the
+ * passes are sequential by construction and never two cursors at once.
  */
 function zipExportStream(
   deps: Deps,

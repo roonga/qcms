@@ -147,6 +147,45 @@ describe("zipStream", () => {
     expect(order).toEqual(["ask:1", "write:1", "ask:2", "write:2"]);
   });
 
+  it("produces at most one chunk ahead of demand, so the memory bound is real", async () => {
+    // The property the export's O(page) claim rests on, and the one an earlier
+    // revision of this module did not have. A web `ReadableStream` applies
+    // backpressure ONLY by withholding the next `pull`: `enqueue` never blocks. A
+    // `pull` that walked a whole entry therefore fetched and queued every page of
+    // that file the moment the first byte was read, and a probe queued 12.8 MB
+    // behind a single 43-byte read.
+    //
+    // The generator counts its own yields, which is what makes this a demand test
+    // rather than an ordering one: `produced` only moves when the producer is asked.
+    let produced = 0;
+    function* counted(): Iterable<Uint8Array> {
+      for (let index = 0; index < 200; index += 1) {
+        produced += 1;
+        yield encoder.encode("x".repeat(1024));
+      }
+    }
+
+    const reader = zipStream([{ name: "big.csv", content: counted() }]).getReader();
+    // The first read is the local header: the stream filled its queue with one
+    // chunk on construction, and that chunk is the header, so nothing has been
+    // asked of the content yet.
+    const first = await reader.read();
+    expect(first.value?.length).toBe(30 + "big.csv".length);
+    expect(produced).toBe(0);
+
+    // Taking it lets exactly one more `pull` run, which takes exactly one chunk.
+    // Then nothing: no reader, no demand, no production.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(produced).toBe(1);
+
+    // And one more read moves it by one more, rather than by the rest of the file.
+    await reader.read();
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(produced).toBe(2);
+
+    await reader.cancel();
+  });
+
   it("is byte-deterministic: no clock reaches the archive", async () => {
     const first = await collect(zipStream([text("a.csv", "x")]));
     const second = await collect(zipStream([text("a.csv", "x")]));

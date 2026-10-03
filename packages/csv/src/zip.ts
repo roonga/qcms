@@ -33,8 +33,15 @@
  * known until the entry's last byte. So each entry sets general-purpose flag bit 3
  * and writes zeroes there, then writes a **data descriptor** after the data with
  * the real values; the central directory at the end carries them too. This is the
- * standard streaming-writer shape (APPNOTE 4.3.9) and it is why nothing is
- * buffered beyond one chunk.
+ * standard streaming-writer shape (APPNOTE 4.3.9), and it is what makes a
+ * single forward pass possible at all: without it the writer would have to know an
+ * entry's size before writing its first byte, which means buffering the entry.
+ *
+ * What bounds the memory is the **one unit of work per `pull`** rule on
+ * {@link zipStream} rather than the descriptor: see that function's own note, and
+ * the demand test beside it. What this module itself holds is one chunk, the
+ * entry's name, and one 46-byte central-directory record per entry already
+ * written.
  *
  * ## Determinism
  *
@@ -232,13 +239,39 @@ function tooLarge(what: string): Error {
   );
 }
 
+/** The entry being written: its header fields, and where its content has got to. */
+interface OpenEntry {
+  readonly name: Uint8Array;
+  readonly label: string;
+  readonly offset: number;
+  readonly content: AsyncIterator<Uint8Array> | Iterator<Uint8Array>;
+  /** The running CRC-32, carried pre-inverted (see {@link crcUpdate}). */
+  crc: number;
+  size: number;
+}
+
 /**
  * A ZIP archive of `entries`, as a web `ReadableStream` of bytes.
  *
- * The entries are consumed **in order and lazily**: the next entry's content is
- * only asked for once the previous one has been written, which is what lets the
- * caller make each entry its own pass over a keyset-paged query without ever
- * holding two of them.
+ * **One unit of work per `pull`, and that is the whole of the memory bound.** A
+ * web `ReadableStream` applies backpressure by **not calling `pull` again**:
+ * `controller.enqueue` never blocks and never waits for a reader. So a `pull`
+ * that walked a whole entry would fetch and queue every page of that file the
+ * moment the first byte was asked for, however little the consumer had read -
+ * the export would be O(file) in the stream's queue and the claim that it is
+ * O(page) would be false. An earlier revision of this module did exactly that,
+ * and a probe queued 12.8 MB behind a single 43-byte read.
+ *
+ * So the current entry and its content iterator live in closure state, and each
+ * `pull` does one thing: open the next entry (its local header), or take one
+ * chunk from the open entry's content, or close it (its data descriptor), or
+ * finish the archive (the central directory). Demand therefore propagates one
+ * chunk at a time all the way back to whatever produces the content, which for
+ * the response export is one keyset page per chunk.
+ *
+ * The entries are still consumed **in order and lazily**: the next entry is only
+ * asked for once the previous one is closed, which is what lets the caller make
+ * each entry its own pass over a paged query without ever holding two of them.
  */
 export function zipStream(
   entries: AsyncIterable<ZipEntry> | Iterable<ZipEntry>,
@@ -247,6 +280,7 @@ export function zipStream(
   const sync = source === null ? (entries as Iterable<ZipEntry>)[Symbol.iterator]() : null;
   const written: WrittenEntry[] = [];
   let offset = 0;
+  let open: OpenEntry | undefined;
   let finished = false;
 
   async function nextEntry(): Promise<ZipEntry | undefined> {
@@ -254,43 +288,84 @@ export function zipStream(
     return result.done === true ? undefined : result.value;
   }
 
+  /** The content iterator for one entry, whichever protocol it offers. */
+  function contentIterator(entry: ZipEntry): AsyncIterator<Uint8Array> | Iterator<Uint8Array> {
+    const content = entry.content;
+    return Symbol.asyncIterator in content
+      ? content[Symbol.asyncIterator]()
+      : content[Symbol.iterator]();
+  }
+
+  /** Open the next entry and enqueue its local header, or finish the archive. */
+  async function openNext(controller: ReadableStreamDefaultController<Uint8Array>): Promise<void> {
+    const entry = await nextEntry();
+    if (entry === undefined) {
+      controller.enqueue(centralDirectory(written, offset));
+      controller.close();
+      finished = true;
+      return;
+    }
+    const name = encoder.encode(entry.name);
+    const header = localHeader(name);
+    open = {
+      name,
+      label: entry.name,
+      offset,
+      content: contentIterator(entry),
+      crc: 0xffff_ffff,
+      size: 0,
+    };
+    controller.enqueue(header);
+    offset += header.length;
+  }
+
+  /** Close the open entry: its data descriptor, and its central-directory record. */
+  function closeOpen(
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    entry: OpenEntry,
+  ): void {
+    const crc = crcFinish(entry.crc);
+    const descriptor = dataDescriptor(crc, entry.size);
+    controller.enqueue(descriptor);
+    offset += descriptor.length;
+    if (offset > UINT32_MAX) throw tooLarge("the archive");
+    if (written.length >= UINT16_MAX) {
+      throw new Error("zipStream: an archive may hold at most 65,535 entries");
+    }
+    written.push({ name: entry.name, crc, size: entry.size, offset: entry.offset });
+    open = undefined;
+  }
+
   return new ReadableStream<Uint8Array>({
     async pull(controller) {
       if (finished) return;
-      const entry = await nextEntry();
+      const entry = open;
       if (entry === undefined) {
-        controller.enqueue(centralDirectory(written, offset));
-        controller.close();
-        finished = true;
+        await openNext(controller);
         return;
       }
-      // One entry per `pull`, which bounds the chunk the stream hands downstream
-      // to this entry's own content chunks plus two small records.
-      const name = encoder.encode(entry.name);
-      const start = offset;
-      const header = localHeader(name);
-      controller.enqueue(header);
-      offset += header.length;
-
-      let crc = 0xffff_ffff;
-      let size = 0;
-      for await (const chunk of entry.content) {
+      // Exactly one NON-EMPTY chunk per `pull`. Empty chunks are skipped inside
+      // this call rather than returned from it, and that is a correctness
+      // requirement rather than a tidy-up: a `pull` that enqueues nothing is not
+      // called again - the implementation only re-pulls when something happened
+      // during the pull - so returning on an empty chunk stalls the stream with a
+      // read request outstanding. Skipping them costs nothing against the memory
+      // bound, because an empty chunk is no bytes.
+      for (;;) {
+        const step = await entry.content.next();
+        if (step.done === true) {
+          closeOpen(controller, entry);
+          return;
+        }
+        const chunk = step.value;
         if (chunk.length === 0) continue;
-        crc = crcUpdate(crc, chunk);
-        size += chunk.length;
-        if (size > UINT32_MAX) throw tooLarge(`entry "${entry.name}"`);
+        entry.crc = crcUpdate(entry.crc, chunk);
+        entry.size += chunk.length;
+        if (entry.size > UINT32_MAX) throw tooLarge(`entry "${entry.label}"`);
+        offset += chunk.length;
         controller.enqueue(chunk);
+        return;
       }
-      offset += size;
-      const finalCrc = crcFinish(crc);
-      const descriptor = dataDescriptor(finalCrc, size);
-      controller.enqueue(descriptor);
-      offset += descriptor.length;
-      if (offset > UINT32_MAX) throw tooLarge("the archive");
-      if (written.length >= UINT16_MAX) {
-        throw new Error("zipStream: an archive may hold at most 65,535 entries");
-      }
-      written.push({ name, crc: finalCrc, size, offset: start });
     },
   });
 }

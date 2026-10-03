@@ -16,7 +16,8 @@
  * everything here is pure string work.
  */
 
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -28,13 +29,50 @@ import {
   replaceReportingViewStatements,
 } from "./reporting-views.js";
 
-const MIGRATION = fileURLToPath(
-  new URL("../migrations/0025_reporting_repeat_grain.sql", import.meta.url),
-);
+const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
 
-describe("the generator and migration 0025 agree", () => {
-  const file = readFileSync(MIGRATION, "utf8");
+/**
+ * The marker a generated reporting-view migration carries in its preamble, and the
+ * one this test finds it by.
+ *
+ * **Derived rather than named, because the migration chain is append-only.** The next
+ * reshape of these views appends a migration and leaves the one before it applied and
+ * untouched, so a test naming `0025` by hand would have to be retargeted by hand - and
+ * a lane that forgot would either edit an applied migration or ship a generator nothing
+ * compares. Tasks 064 and 068 move this body again, which makes that a near certainty
+ * rather than a hypothetical. So the rule is in the code: the **highest-numbered**
+ * migration that names the generator is the one whose body the generator must still
+ * produce. The brief's "no test hard-codes a migration number" is the same rule.
+ */
+const GENERATOR_MARKER = "packages/db/src/reporting-views.ts";
+
+/** The newest migration generated from `reporting-views.ts`, by filename order. */
+function latestGeneratedMigration(): { name: string; body: string } {
+  const named = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
+    .map((entry) => entry.name)
+    .sort()
+    .map((name) => ({ name, body: readFileSync(path.join(MIGRATIONS_DIR, name), "utf8") }))
+    .filter((file) => file.body.includes(GENERATOR_MARKER));
+  const newest = named.at(-1);
+  if (newest === undefined) {
+    throw new Error(`no migration in ${MIGRATIONS_DIR} names ${GENERATOR_MARKER}`);
+  }
+  return newest;
+}
+
+describe("the generator and its newest migration agree", () => {
+  const migration = latestGeneratedMigration();
+  const file = migration.body;
   const generated = reportingViewMigrationSql({ reporting: "reporting" });
+
+  it("found exactly the migration whose body the generator owns", () => {
+    // Derivation, asserted: a filter that matched nothing would make every
+    // assertion below vacuous, and a filter that matched the wrong file would
+    // compare the generator against somebody else's SQL.
+    expect(migration.name).toMatch(/^\d{4}_.*\.sql$/);
+    expect(file).toContain('CREATE VIEW "reporting"."responses"');
+  });
 
   it("ends with exactly the generated body", () => {
     expect(file.endsWith(generated)).toBe(true);
@@ -48,8 +86,8 @@ describe("the generator and migration 0025 agree", () => {
     expect(offending).toEqual([]);
   });
 
-  it("names the migration in the preamble, so a reader finds the generator", () => {
-    expect(file).toContain("packages/db/src/reporting-views.ts");
+  it("names the generator in the preamble, which is how this test found it", () => {
+    expect(file).toContain(GENERATOR_MARKER);
   });
 });
 

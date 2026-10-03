@@ -1005,18 +1005,18 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       outside: { q_booking_ref: "=FIXTURE_PAYLOAD" },
       instances: [{ instanceId: "ins_pax_c", name: "@FIXTURE_PAYLOAD" }],
     });
-    // A booking whose MIDDLE passenger was added and left blank. Still a live instance
+    // A booking whose FIRST passenger was added and left blank. Still a live instance
     // (ADR-42), so it owes a row of its own and must not renumber the one after it.
+    //
+    // Two instances rather than three, and that is deliberate: v1 declares `max: 2`,
+    // so three is a state the API refuses (SEC-16) and a fixture in it would be
+    // asserting the export's behaviour on something the system cannot produce.
     await seedRepeatSubmitted({
       formId,
       formVersion: 1,
       sessionId: "ses_book_003",
       outside: { q_booking_ref: "DEF456" },
-      instances: [
-        { instanceId: "ins_pax_d", name: "Ada" },
-        { instanceId: "ins_pax_e" },
-        { instanceId: "ins_pax_f", name: "Grace" },
-      ],
+      instances: [{ instanceId: "ins_pax_d" }, { instanceId: "ins_pax_e", name: "Grace" }],
     });
   }, CONTAINER_BOOT_TIMEOUT_MS);
 
@@ -1040,18 +1040,17 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,\r\n",
     );
 
-    // The group file is one row per (session, LIVE instance), joinable on session_id,
-    // with the guard applied there too. `ses_book_003`'s middle passenger is the one
-    // that matters: added, left blank, still live, so it owes an ordinal-2 row of empty
-    // cells and the passenger after it is 3 rather than 2.
+    // The group file is one row per (session, live instance), joinable on session_id,
+    // with the guard applied there too. `ses_book_003`'s first passenger is the one
+    // that matters: added, left blank, still live, so it owes an ordinal-1 row of empty
+    // cells and the passenger after it is 2 rather than 1.
     expect(files.get("grp_passengers.csv")).toBe(
       "﻿session_id,instance_ordinal,instance_id,q_name,q_meal\r\n" +
         "ses_book_001,1,ins_pax_a,Ada,opt_vegan\r\n" +
         'ses_book_001,2,ins_pax_b,"Lovelace, Grace",opt_halal;opt_kosher\r\n' +
         "ses_book_002,1,ins_pax_c,'@FIXTURE_PAYLOAD,\r\n" +
-        "ses_book_003,1,ins_pax_d,Ada,\r\n" +
-        "ses_book_003,2,ins_pax_e,,\r\n" +
-        "ses_book_003,3,ins_pax_f,Grace,\r\n",
+        "ses_book_003,1,ins_pax_d,,\r\n" +
+        "ses_book_003,2,ins_pax_e,Grace,\r\n",
     );
 
     // Joinable: every group row's session is a row of the flat file.
@@ -1083,11 +1082,11 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
         "opt_vegan,opt_halal;opt_kosher,window seats\r\n" +
         "ses_book_002,1,2026-05-01T00:00:00.000Z,anonymous,'=FIXTURE_PAYLOAD," +
         "'@FIXTURE_PAYLOAD,,,,\r\n" +
-        // The blank middle instance holds an indexed SLOT rather than being skipped: v1
-        // declares `max: 2`, so only two slots exist and the third passenger has no
-        // column of her own. That is the documented bound at work, not a dropped answer -
-        // the long shape is the one with a row per instance.
-        "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,Ada,,,,\r\n",
+        // The blank first instance holds its indexed SLOT rather than being skipped, so
+        // the named passenger is in `q_name__2` and not in `q_name__1`. The wide shape
+        // addresses an instance by position, so a blank one has to keep its position or
+        // every later column would mean a different passenger.
+        "ses_book_003,1,2026-05-01T00:00:00.000Z,anonymous,DEF456,,Grace,,,\r\n",
     );
 
     // The same form at a version whose `max` is higher: four slots per member

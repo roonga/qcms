@@ -91,12 +91,14 @@ Five properties a consumer can rely on:
   additive in fact, not only in principle, and an integration test asserts the exact bytes.
 - **Array order is roster order** - the order the respondent's instances were minted in, with
   removed instances absent. It is the order the submission froze, not a second derivation.
-- **The array holds every LIVE instance, answered or not**, so
-  `jsonb_array_length(answers -> '<groupId>')` is the session's live instance count for that
-  group. An instance a respondent added and left blank is still live, and appears as an object
-  carrying only its `instance_id`. (The live set comes from the submission's own flow state,
-  not from its answers, which is what makes this true and what keeps the long CSV shape's
-  `instance_ordinal` from shifting.)
+- **The array holds every instance that was live and SHOWN, answered or not**, so
+  `jsonb_array_length(answers -> '<groupId>')` is the count of those. An instance a respondent
+  added and left blank appears as an object carrying only its `instance_id`, which is what
+  keeps the long CSV shape's `instance_ordinal` from shifting past a blank one. The list comes
+  from the submission's own flow state rather than from its answers, and "shown" is the exact
+  word: an instance **all** of whose member questions are hidden by a rule has no visible
+  entry, so it is absent here as its answers would be (I6), and the ordinals of the instances
+  after it close up. A group with one unconditional member question cannot reach that state.
 - **Only a group key holds an array of objects.** A `multiChoice` answer is also a JSON array,
   but of option id strings, which is how `answers_flat` tells the two apart.
 - **A question outside every group never appears inside an instance object**, and a member
@@ -190,29 +192,42 @@ non-submitted or erased data.
 the `reporting` schema and nothing else. A sample least-privilege grant:
 
 ```sql
--- One-time, as a superuser/owner. Replace the password with a value from your
--- secret store - never commit a real credential.
+-- One-time, as a role that may create roles and grant on `reporting`. Replace the
+-- password with a value from your secret store - never commit a real credential.
 CREATE ROLE qcms_reporting LOGIN PASSWORD '<from-secret-store>';
 
 -- Read-only on the reporting views only; no access to the operational tables.
 GRANT USAGE ON SCHEMA reporting TO qcms_reporting;
 GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO qcms_reporting;
 
--- Ensure future reporting views are readable too (additive changes only).
-ALTER DEFAULT PRIVILEGES IN SCHEMA reporting GRANT SELECT ON TABLES TO qcms_reporting;
+-- And on whatever a later migration creates there, so there is no grant step to
+-- remember after an upgrade. `FOR ROLE qcms_migrate` is load-bearing: a default
+-- privilege binds to ONE granting role, and the role that creates a reporting view
+-- is the one that applies migrations, not the one running this recipe. Name the
+-- migrating role your deployment uses (`docs/operations.md` calls it
+-- `qcms_migrate`); without it this line covers only views this session's own role
+-- creates, which is none of them.
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA reporting
+  GRANT SELECT ON TABLES TO qcms_reporting;
 ```
 
 The role deliberately gets **no** privileges on the `public` schema, so a reporting consumer
 can never read raw ledger answers, tokens, or auth tables - only the curated, erasure-safe
 views. Point BI/ETL tools at this role.
 
-**The last line is not optional, and migration 0025 is why.** A migration that reshapes a view
-`DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is a new
-object. `ALTER DEFAULT PRIVILEGES` is what re-grants it automatically, so an operator who ran
-the whole recipe above upgrades with nothing to do. An operator who ran only the explicit
-`GRANT SELECT ON ALL TABLES` loses the reporting role's access on such an upgrade and has to
-re-run that grant. Run the `ALTER DEFAULT PRIVILEGES` line as the same role that owns the
-schema and applies migrations, or the default will not apply to the objects migrations create.
+**The last statement is not optional, and migration 0025 is why.** A migration that reshapes a
+view `DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is
+a new object. The `ALTER DEFAULT PRIVILEGES` above is what re-grants it automatically, so an
+operator who ran the whole recipe upgrades with nothing to do. Two ways to get it wrong, both
+silent until a consumer's query fails:
+
+- **Running only the explicit `GRANT SELECT ON ALL TABLES`.** That grant covers the views that
+  existed when it ran and nothing else, so the reporting role loses access at this upgrade and
+  the grant has to be re-run.
+- **Omitting `FOR ROLE`.** A default privilege binds to one granting role, and without
+  `FOR ROLE` that role is whoever runs the statement. The views are created by the role that
+  applies migrations, so a default set by a superuser running this recipe never applies to
+  them. The app-role recipe in `docs/operations.md` has the same clause for the same reason.
 
 ---
 

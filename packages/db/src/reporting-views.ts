@@ -69,9 +69,18 @@
  * the list from `answers` would drop that instance and shift every later
  * instance's ordinal by one in the long CSV shape. `visible` carries one entry per
  * (visible question, live instance), which is the submission's own record of what
- * was live, so it is both complete and already in the right order. A consequence
- * worth knowing: `jsonb_array_length(answers -> '<groupId>')` is therefore the
- * session's live instance count for that group.
+ * it showed, so it is both complete and already in the right order.
+ *
+ * **It is therefore "live and shown" rather than "live", and the gap is one case.**
+ * An instance **all** of whose member questions are hidden by a rule has no
+ * `visible` entry, so it is absent here exactly as its answers would be (I6) and
+ * the ordinals after it close up. A group with one unconditional member question
+ * cannot reach that state, and nothing in the locked submission records an instance
+ * that contributed nothing to it, so the alternative would be re-deriving liveness
+ * from the roster and the count source at read time - a second evaluator inside a
+ * view. `docs/reporting-view.md` states the qualifier for a consumer.
+ * `jsonb_array_length(answers -> '<groupId>')` is the count of instances live and
+ * shown.
  */
 
 /** A view in the reporting schema, with its documented column list in order. */

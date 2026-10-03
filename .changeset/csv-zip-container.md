@@ -11,10 +11,17 @@ fields and the spreadsheet formula-injection guard), so the container sits besid
 than becoming a second place export bytes are decided.
 
 - **Fetch-pure** (R4): a web `ReadableStream`, no `node:zlib` and no `node:stream`.
-- **Streaming**: entries are stored (method 0) with general-purpose flag bit 3 and a data
-  descriptor after each entry's bytes, so nothing is buffered and the caller can make each
-  entry its own pass over a paged query. An entry's content is only pulled once the previous
-  entry is written.
+- **Streaming, with demand propagated per chunk**: entries are stored (method 0) with
+  general-purpose flag bit 3 and a data descriptor after each entry's bytes, which is what
+  lets an entry be written without knowing its size first. The memory bound is that the
+  writer does **one unit of work per `pull`** and a `pull` takes at most one chunk, so what
+  it holds is one chunk, the open entry's name, and one 46-byte record per entry already
+  written. That matters because `controller.enqueue` never blocks and a `ReadableStream`
+  applies backpressure only by withholding the next `pull`, so a writer that walked a whole
+  entry per `pull` would queue the whole file regardless of demand. A unit test reads one
+  chunk, waits, and asserts the producer advanced by one.
+- An entry's content is only asked for once the previous entry is closed, so a caller can
+  make each entry its own pass over a paged query without ever holding two of them.
 - **Deterministic**: every entry takes a fixed DOS timestamp, so two archives of the same data
   are byte-identical and a golden test can assert bytes.
 - **Bounded, and checked**: the archive is plain, not ZIP64, so no entry and no archive may
