@@ -7,8 +7,8 @@ import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import {
   domShape,
   headingTags,
-  withDemotedHeadings,
   withNormalizedInstanceIds,
+  type DomShape,
 } from "./support/dom-shape.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
 import {
@@ -131,12 +131,15 @@ test("defines a group, walks all three count sources, and round-trips through sa
   formId = await createForm(page, FORM_SLUG, "Booking");
 
   await addStep(page, "Trip");
-  await pinQuestions(page, [
-    { questionId: questionIdFor(COUNT), version: 1 },
-    { questionId: questionIdFor(PURPOSE), version: 1 },
-  ]);
+  await pinQuestion(page, questionIdFor(COUNT), 1);
 
+  // THE GROUP SITS BESIDE AN ORDINARY QUESTION, which is the shape the financial case in
+  // `plan/repeating-groups-and-table-input.md` section 1.3 describes ("an income-source loop sits
+  // beside other questions") and the shape this walk needs: a step whose only item is a group is
+  // the subject of ruling Q30, fixed inside this wave by task 076, and a walk that depended on it
+  // would be testing another task's change rather than this one's authoring.
   await addStep(page, "Travellers");
+  await pinQuestion(page, questionIdFor(PURPOSE), 1);
   await addRepeatGroup(page, GROUP);
   const panel = groupPanel(page);
   await expect(panel).toHaveAttribute("data-group-id", GROUP_ID);
@@ -254,9 +257,9 @@ test("defines a group, walks all three count sources, and round-trips through sa
     "data-pin-group",
     GROUP_ID,
   );
-  // The step's own pins are outside it, which is what makes the boundary mean something.
-  await openStep(page, "Trip");
-  await expect(page.locator(`[data-pin-question="${questionIdFor(COUNT)}"]`)).not.toHaveAttribute(
+  // The step's own pin is outside the span, which is what makes the boundary mean something: the
+  // same step holds a question and a group, and only one of the two rows is marked.
+  await expect(page.locator(`[data-pin-question="${questionIdFor(PURPOSE)}"]`)).not.toHaveAttribute(
     "data-pin-group",
     GROUP_ID,
   );
@@ -478,23 +481,34 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.goto(`http://localhost:${String(PORTAL_PORT)}/f/${FORM_SLUG}`);
   await portal.getByRole("button", { name: "Start" }).click();
   await portal.waitForURL(/\/s\/ses_/);
-  // Walk to the step the group is on: the trip questions come first. The cursor's forward
-  // control is addressed by its testid rather than by its name, which is the convention
+  // Walk to the step the group is on: the trip question comes first. The cursor's forward control
+  // is addressed by its testid rather than by its name, which is the convention
   // `apps/portal/e2e/support/kitchen-sink.ts` sets - the control is "Continue" or "Submit"
-  // depending on where in the walk it sits, and the waits that matter are on the served step.
+  // depending on where in the walk it sits. The wait is on the DOM the next step renders rather
+  // than on the fetch behind it: what this test is about is what the two surfaces DRAW, and a
+  // response predicate is a second thing that can be wrong about a step that arrived.
   await expect(portal.getByText("E2E Number question")).toBeVisible({ timeout: 60_000 });
-  const served = portal.waitForResponse(
-    (response) =>
-      response.url().includes("/step") &&
-      response.request().method() === "GET" &&
-      response.status() === 200,
-  );
   await portal.getByTestId("primary-action").click();
-  await served;
   await expect(portal.getByRole("heading", { name: GROUP })).toBeVisible({ timeout: 60_000 });
   await expect(portal.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
+  // ONE MEMBER ANSWERED, on both sides, before either shape is read. The per-instance rule case 59
+  // authored shows the fare question inside the instance that answered its passport, so a walk
+  // that compared the unanswered state would be comparing two surfaces' PRUNING rather than their
+  // expansion - and the expansion is what this case is about. Answering it also exercises the
+  // per-instance answer key end to end: the reveal only happens if `ins_x/q_passport` reached the
+  // evaluator as that instance's answer and nobody else's.
+  await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
+  await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();
+  await expect(portal.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toBeVisible({
+    timeout: 60_000,
+  });
   await waitForRenderedStep(portal);
-  const respondent = withNormalizedInstanceIds(await domShape(rendererRoot(portal)));
+  // A RESPONDENT CAN CHANGE THE ROSTER, which is the other half of the one difference the
+  // comparison normalises below: the portal passes `onAdd` and `onRemove`, so the group's own
+  // controls are live.
+  await expect(portal.locator('[data-qcms-repeat-action="add"]')).toBeEnabled();
+  await expect(portal.locator('[data-qcms-repeat-action="remove"]').first()).toBeEnabled();
+  const respondent = comparable(await domShape(rendererRoot(portal)));
   await portal.close();
 
   // --- the author's side ----------------------------------------------------
@@ -505,21 +519,56 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await expect(surface.getByRole("heading", { name: "Passenger 1" })).toBeVisible({
     timeout: 60_000,
   });
-  const author = withNormalizedInstanceIds(await domShape(surface.locator("form").first()));
+  // HIDDEN UNTIL THIS INSTANCE ANSWERS, which is the per-instance rule read through the preview's
+  // own roster: the fare question is the rule's target, the rule is evaluated once per live
+  // instance, and nothing has been answered yet.
+  await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toHaveCount(0);
+  await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
+  await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();
+  await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toBeVisible({
+    timeout: 60_000,
+  });
+  // WAIT FOR REACT TO OWN THE PREVIEW before reading it. The pane re-renders on every answer and
+  // every instance count, and a step switch re-mounts the rendered document - so a shape read too
+  // early is the server-rendered form of the vendored controls, missing the `tabindex`, `type` and
+  // `value` React attaches. Comparing that against a hydrated tree fails for a reason that is not
+  // fidelity, which is the same trap `waitForRenderedStep` exists for on the other side.
+  await page.waitForFunction(() => {
+    const forms = document.querySelectorAll('[data-testid="qcms-preview-surface"] form');
+    const form = forms[0];
+    if (form === undefined) return false;
+    return Object.keys(form).some((key) => key.startsWith("__reactFiber$"));
+  });
+  // AND AN AUTHOR CANNOT. The preview passes no `onAdd` or `onRemove`, so the group's controls
+  // render inert: the roster here is the author's hypothesis, set by the instance-count field
+  // under the frame, not a respondent's to change. Stated as an assertion before the deep
+  // comparison normalises it, so a preview that started handing a respondent's controls to an
+  // author fails here rather than passing quietly.
+  await expect(surface.locator('[data-qcms-repeat-action="add"]')).toBeDisabled();
+  await expect(surface.locator('[data-qcms-repeat-action="remove"]').first()).toBeDisabled();
+  const author = comparable(await domShape(surface.locator("form").first()));
 
   // A sanity check first, so a failure below reads as a divergence rather than as two empty trees
   // agreeing with each other.
   expect(author.children.length, "the preview should render the group").toBeGreaterThan(0);
 
-  // The embed's one deliberate difference, stated before the deep comparison so a regression in
-  // it reads as "the headings moved" rather than as an unexplained tree diff. A group's own label
-  // is an h3 and an instance's is an h4 as the page; embedded, they are an h4 and an h5.
-  expect(headingTags(author), "the embedded preview demotes by exactly one level").toEqual(
-    headingTags(withDemotedHeadings(respondent, 1)),
+  // The embed's deliberate differences, stated before the deep comparison so a regression in
+  // either reads as "the headings moved" rather than as an unexplained tree diff.
+  //
+  // As the page, the compiled step carries the form title as `h1`, the step title as `h2`, the
+  // group's own label as `h3` and each instance's as `h4`. Embedded, the first three move down
+  // one - and the INSTANCE's does not, because it is clamped: an instance heading is a node PROP
+  // whose schema enum stops at `h4` (`packages/ui/src/repeat/repeat.schema.ts`), so there is no
+  // `h5` for the demotion to reach. That is 073's documented tail behaviour rather than slack in
+  // this test, and it is encoded here rather than normalised away so a preview that stopped
+  // demoting the group's label, or started demoting it twice, still fails.
+  expect(headingTags(respondent), "the compiled step should carry headings").toContain("h4");
+  expect(headingTags(author), "the embedded preview demotes by one, clamping the instance").toEqual(
+    headingTags(asEmbedded(respondent)),
   );
   expect(headingTags(author), "an embedded document must not claim the page").not.toContain("h1");
 
-  expect(author).toEqual(withDemotedHeadings(respondent, 1));
+  expect(author).toEqual(asEmbedded(respondent));
 });
 
 /**
@@ -535,6 +584,82 @@ async function setInstanceCount(field: Locator, count: string): Promise<void> {
   await field.fill(count);
   await field.press("Enter");
   await expect(field).toHaveValue(count);
+}
+
+/**
+ * One side of the comparison, normalised for the two things that are not the renderer's.
+ *
+ * **Instance ids** are a generated identity, which `withNormalizedInstanceIds` rewrites
+ * positionally: the portal's come out of the session's instance ledger and the preview mints its
+ * own, because a preview has no session to take one from.
+ *
+ * **`tabindex` goes**, and that is this walk's own addition rather than a general rule. The portal
+ * plants a focus handle on the step's heading when the CURSOR navigates - `step-flow.tsx` sets
+ * `tabIndex = -1` and focuses it, so a keyboard or screen-reader user starts at the top of the new
+ * step - and this walk reaches the group's step by pressing Continue. The preview's step switch is
+ * not a session navigation and plants nothing. That difference is the cursor's behaviour, not the
+ * renderer's, so it is dropped here rather than asserted as a divergence; the non-repeating
+ * comparison in `forms-publish.pw.ts` never navigates and so never meets it.
+ *
+ * **`disabled` goes on the ROSTER CONTROLS ONLY**, and the two surfaces genuinely differ there:
+ * the portal hands the renderer `onAdd` and `onRemove` and the preview hands it neither, because a
+ * preview's roster is the author's hypothesis, set by the instance-count field under the frame. It
+ * is asserted on both sides before this normalisation rather than merely dropped, so a preview
+ * that started offering a respondent's controls to an author still fails. Nothing else's
+ * `disabled` is touched: a disabled INPUT would be a real divergence in what a respondent can
+ * answer.
+ */
+function comparable(shape: DomShape): DomShape {
+  const normalise = (node: DomShape): DomShape => {
+    const isRosterAction = node.attrs["data-qcms-repeat-action"] !== undefined;
+    return {
+      ...node,
+      attrs: Object.fromEntries(
+        Object.entries(node.attrs).filter(
+          ([name]) => name !== "tabindex" && !(isRosterAction && name === "disabled"),
+        ),
+      ),
+      children: node.children.map(normalise),
+    };
+  };
+  return normalise(withNormalizedInstanceIds(shape));
+}
+
+/** The deepest level a repeat instance's heading can carry (`repeat.schema.ts`'s own enum). */
+const INSTANCE_HEADING_CEILING = 4;
+
+/** The deepest level any heading can carry. */
+const HEADING_FLOOR = 6;
+
+/**
+ * The respondent's shape as an EMBED renders it: every heading one level lower, except an
+ * instance's, which is clamped.
+ *
+ * `withDemotedHeadings` from `support/dom-shape.ts` is the general rule and is what the
+ * non-repeating fidelity comparison uses (`forms-publish.pw.ts`). A document carrying a repeating
+ * group needs one exception on top of it, and it is the renderer's rather than this test's: an
+ * instance's heading is a node PROP constrained to `h1..h4`, so an embedded document cannot push
+ * it to `h5` the way it pushes the group's own `Text` heading. The instance heading is the one
+ * inside the instance's `<legend>` (`packages/ui/src/repeat/RepeatInstance.tsx`), which is what
+ * the ceiling keys on.
+ */
+function asEmbedded(shape: DomShape): DomShape {
+  const walk = (node: DomShape, ceiling: number): DomShape => {
+    const inner = node.tag === "legend" ? INSTANCE_HEADING_CEILING : ceiling;
+    return {
+      ...node,
+      tag: demotedTag(node.tag, inner),
+      children: node.children.map((child) => walk(child, inner)),
+    };
+  };
+  return walk(shape, HEADING_FLOOR);
+}
+
+/** One tag, one level lower, never past `ceiling`. A non-heading tag is returned as it is. */
+function demotedTag(tag: string, ceiling: number): string {
+  const level = /^h([1-6])$/u.exec(tag)?.[1];
+  if (level === undefined) return tag;
+  return `h${String(Math.min(Number(level) + 1, ceiling))}`;
 }
 
 /** The rendered step on the portal, which is the subtree the comparison reads. */
