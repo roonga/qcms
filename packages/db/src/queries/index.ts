@@ -175,6 +175,7 @@ export {
   backoffDelayMs,
   computeBackoff,
   enqueue,
+  enqueueInEnvironment,
   claimDue,
   markDelivered,
   recordFailure,

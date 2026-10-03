@@ -8,7 +8,7 @@ import { FormId, LinkId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
 import {
   answerLedger,
   appendAnswer,
@@ -271,6 +271,7 @@ describe("questions helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_taken");
     const sessionId = SessionId.parse("ses_taken");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -388,6 +389,7 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     const { formId, version } = await seedPublishedForm("frm_session");
     const sessionId = SessionId.parse("ses_pin");
     const created = await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -415,6 +417,7 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     const mk = async (suffix: string, expiresAt: Date, terminal: boolean): Promise<SessionId> => {
       const sessionId = SessionId.parse(`ses_expire_${suffix}`);
       await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
         sessionId,
         formId,
         formVersion: version,
@@ -445,6 +448,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-link-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_basic");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -474,6 +478,7 @@ describe("secure links helpers", () => {
     });
     const linkId = LinkId.parse("lnk_revoke_scope");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId: ownerForm,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -496,6 +501,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-consume-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_once");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -511,6 +517,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-link-list-slug", defaultLocale: "en" });
     for (const [i, tag] of ["a", "b", "c"].entries()) {
       await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
         linkId: LinkId.parse(`lnk_list_${tag}`),
         formId,
         // Distinct createdAt ordering is defaultNow(); insert order is a→b→c, so
@@ -584,6 +591,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_answers");
     const sessionId = SessionId.parse("ses_answers");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -632,6 +640,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_retract");
     const sessionId = SessionId.parse("ses_retract");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -708,6 +717,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_retract_check");
     const sessionId = SessionId.parse("ses_retract_check");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -737,6 +747,7 @@ describe("submissions helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_submission");
     const sessionId = SessionId.parse("ses_submission");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -833,6 +844,7 @@ describe("concurrency (live, pooled connections)", () => {
     const { formId, version } = await seedPublishedForm("frm_concurrent_answers");
     const sessionId = SessionId.parse("ses_concurrent_answers");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -865,6 +877,7 @@ describe("concurrency (live, pooled connections)", () => {
     await createForm(testDb.db, { formId, slug: "frm-race-link-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_race");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),

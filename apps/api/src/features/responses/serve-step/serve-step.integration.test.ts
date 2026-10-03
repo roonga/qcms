@@ -35,7 +35,7 @@ import {
   latestAnswers,
   markSubmitted,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -476,6 +476,7 @@ describe("a no-JS whole-step round, at the ledger (issue #127)", () => {
     const sessionId = SessionId.parse(id);
     const expiresAt = new Date(NOW.getTime() + TTL_MS);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse("frm_auto_quote"),
       formVersion: 1,
@@ -914,6 +915,7 @@ describe("typed rejects (exit criterion 3)", () => {
     // so the token verifies but the session is expired-by-time.
     const sessionId = SessionId.parse("ses_expired00000000");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse("frm_auto_quote"),
       formVersion: 1,
@@ -971,6 +973,7 @@ describe("the stored semanticsVersion gates serving and answering (ADR-16)", () 
     const sessionId = SessionId.parse(id);
     const expiresAt = new Date(NOW.getTime() + TTL_MS);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse(formId),
       formVersion: 1,

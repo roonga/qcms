@@ -38,7 +38,7 @@ import {
   listQuestionVersions,
   publishQuestionVersion,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -195,6 +195,7 @@ describe("full authoring loop (exit criterion 1)", () => {
     // a session pins v1 (I4: the pin is structural, never migrates)
     const sessionId = SessionId.parse("ses_loop_v1_session_aaaa");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse("frm_loop"),
       formVersion: 1,

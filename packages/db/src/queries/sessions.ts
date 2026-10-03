@@ -27,6 +27,11 @@ export interface SessionRow {
   formVersion: number;
   accessMode: AccessMode;
   linkId: LinkId | null;
+  /**
+   * The environment this session lives in, pinned to its own schema by the per-schema
+   * `CHECK (environment = '<env>')` and carried into the composite link key (Q46).
+   */
+  environment: string;
   status: SessionStatus;
   expiresAt: Date;
   createdAt: Date;
@@ -45,6 +50,16 @@ export type _SessionRowMatchesTable = AssignableTo<SessionRow, typeof sessions.$
  * pin is structural, which is how Invariant I4 ("a session never migrates form
  * versions") is enforced: the only write path that sets `form_version` is this
  * insert, so a session can never move to another version (R1).
+ *
+ * **`environment` is required and must be the environment this connection's pool
+ * serves** (Q46). The row lands in `data_<env>` by search path, and the per-schema
+ * `CHECK (environment = '<env>')` refuses it if the two disagree - which is the point:
+ * a mismatch is a constraint violation rather than a row that quietly claims to be
+ * somewhere it is not. When `linkId` is set, the composite foreign key additionally
+ * requires the link's own row to name the same environment, so a link minted for one
+ * environment cannot start a session in another however the request reached the
+ * handler. A **public session has a NULL `linkId`** and skips that key by design; the
+ * CHECK still pins it.
  */
 export async function createSession(
   exec: Executor,
@@ -54,6 +69,7 @@ export async function createSession(
     formVersion: number;
     accessMode: AccessMode;
     expiresAt: Date;
+    environment: string;
     linkId?: LinkId;
   },
 ): Promise<SessionRow> {
@@ -65,6 +81,7 @@ export async function createSession(
       formVersion: input.formVersion,
       accessMode: input.accessMode,
       expiresAt: input.expiresAt,
+      environment: input.environment,
       ...(input.linkId ? { linkId: input.linkId } : {}),
     })
     .returning();

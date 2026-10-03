@@ -51,7 +51,7 @@ import {
   webhookDeliveries,
   type DeliveryRow,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -630,6 +630,7 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
     const sessionId = SessionId.parse(`ses_erase_pass_${suffix}`);
     const answer = `answer-${suffix}`;
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,

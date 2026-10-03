@@ -1,1 +1,0 @@
-ALTER TABLE "outbox" ADD CONSTRAINT "outbox_redacted_payload_has_no_answers" CHECK ("outbox"."payload_redacted_at" is null or not jsonb_exists("outbox"."payload", 'answers'));

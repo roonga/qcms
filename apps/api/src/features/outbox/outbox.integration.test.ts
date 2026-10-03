@@ -49,7 +49,7 @@ import {
   webhookDeliveries,
   type DeliveryAttemptRecord,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -355,6 +355,7 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
   async function seedErasableSession(sessionId: string): Promise<SessionId> {
     const parsed = SessionId.parse(sessionId);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: parsed,
       formId: FORM_ERASED,
       formVersion: erasedFormVersion,
@@ -787,6 +788,7 @@ describe("form scope on redeliver (issue #305)", () => {
   async function seedOwnerSession(sessionId: string): Promise<SessionId> {
     const parsed = SessionId.parse(sessionId);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: parsed,
       formId: FORM_SCOPE_OWNER,
       formVersion: ownerVersion,

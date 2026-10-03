@@ -4,7 +4,7 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
 import {
   addInstances,
   answerLedger,
@@ -80,6 +80,7 @@ async function seedSubmittedWithLedger(
   sessionId: SessionId,
 ): Promise<void> {
   await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version,
@@ -335,6 +336,7 @@ describe("eraseSession - post-erasure state (I11, exit criterion 2)", () => {
     const { formId, version } = await seedForm("frm_erase_inprogress");
     const sessionId = SessionId.parse("ses_erase_inprogress");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,

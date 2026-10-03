@@ -33,7 +33,7 @@ import {
   insertSubmission,
   markSubmitted,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -150,6 +150,7 @@ async function seedSubmitted(opts: {
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
     formVersion: 1,
@@ -612,6 +613,7 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     const formId = await seedForm("frm_unflag_nosub", [["stp_a", ["q_name"]]]);
     const sessionId = SessionId.parse("ses_unflag_nosub");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: 1,
