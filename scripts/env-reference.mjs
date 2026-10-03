@@ -752,6 +752,14 @@ export const ENV_REFERENCE = [
 
   // --- Admin (BFF) -----------------------------------------------------------
   {
+    name: "QCMS_DEV_LOGIN_PREFILL",
+    process: "admin",
+    requirement: "optional",
+    fallback: "disabled",
+    description:
+      "Only the exact value `true` enables password query-string prefill on the admin sign-in page. Set by `docker-compose.dev-tools.yml` for the local `pnpm dev:up` credential link; absent from the base deployment. Leave unset outside the local dev stack. Email prefill does not require this flag.",
+  },
+  {
     name: "QCMS_FLAG_AGENT_AUTHORING",
     process: "admin",
     requirement: "optional",
