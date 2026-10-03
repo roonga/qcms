@@ -25,7 +25,7 @@ interface PgClient {
   query<R>(text: string, values?: readonly unknown[]): Promise<QueryResult<R>>;
 }
 interface PgClientCtor {
-  new (config: { connectionString: string }): PgClient;
+  new (config: { connectionString: string; options?: string }): PgClient;
 }
 
 const { Client } = apiRequire("pg") as { Client: PgClientCtor };
@@ -43,9 +43,25 @@ export interface AnswerRow {
   readonly answeredAt: string;
 }
 
-/** Open a connected client to the e2e database. Remember to `close()` it. */
+/**
+ * Open a connected client to the e2e database. Remember to `close()` it.
+ *
+ * **The search path is not optional since ADR-40.** Every data-plane table -
+ * `sessions`, `answers`, `submissions` - lives in `data_<env>`, one copy per
+ * environment, and is declared unqualified so the connection chooses which one it
+ * reaches. A client that sets no `search_path` resolves `answers` to nothing at all
+ * and every read below fails with `relation "answers" does not exist`.
+ *
+ * `prod` is the environment the API serves every request from until tasks 065 and 066
+ * land (Q53), so it is the one holding the rows these assertions are about. `control`
+ * follows it, exactly as an API pool connects, so a read of `forms` or `form_versions`
+ * resolves too.
+ */
 export async function openDb(databaseUrl: string): Promise<Db> {
-  const client = new Client({ connectionString: databaseUrl });
+  const client = new Client({
+    connectionString: databaseUrl,
+    options: "-c search_path=data_prod,control",
+  });
   await client.connect();
   return new Db(client);
 }

@@ -157,13 +157,24 @@ interface ErrBody {
   error: { code: string; message: string; details?: { issues?: Issue[]; target?: string } };
 }
 
-/** Count `form.published` outbox events for a given formId. */
-async function publishedEventCount(formId: string): Promise<number> {
+/**
+ * How many outbox rows exist in **every** environment's data schema, across all event
+ * types (ADR-40, Q60).
+ *
+ * Counted per schema rather than through the search path, and over every event type rather
+ * than `form.published` alone. Publishing queues nothing at all since Q60, so the question
+ * is no longer "did the right event land" but "did anything land anywhere", and a count
+ * scoped to the one type this handler used to write would go on passing if it started
+ * writing a differently named one. Naming both schemas is what makes "in any environment"
+ * real: the control pool that publishes has no search path into a data schema, so a count
+ * taken through one would be reading nothing and finding nothing.
+ */
+async function outboxRowsInEveryEnvironment(): Promise<number> {
   const result = await testDb.client.query(
-    `select count(*)::int as n from outbox where event_type = 'form.published' and payload->>'formId' = $1`,
-    [formId],
+    `select (select count(*) from data_test.outbox)
+          + (select count(*) from data_prod.outbox) as n`,
   );
-  return (result.rows[0] as { n: number }).n;
+  return Number((result.rows[0] as { n: string | number }).n);
 }
 
 // --- exit criterion 1: the full loop ----------------------------------------
@@ -197,20 +208,12 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(v1.version).toBe(1);
     expect(typeof v1.publishedAt).toBe("string");
 
-    // The event landed in the ENVIRONMENT's outbox, named explicitly (ADR-40, Q49).
-    // Publishing runs on the control pool, whose search path is `control` alone and
-    // whose role holds `INSERT` on each `data_<env>.outbox` and no `SELECT` anywhere in
-    // a data schema - so the handler calls `enqueueInEnvironment`, the one named carve
-    // out of criterion 3's resolution half, rather than `enqueue`, which ends in a
-    // `RETURNING` the grant refuses. `publishedEventCount` reads the same row through
-    // the search path; this reads it by schema, so a helper that silently wrote to some
-    // other schema would fail here rather than pass both.
-    const enqueued = await testDb.client.query(
-      `select count(*)::int as n from data_${DEFAULT_TEST_ENVIRONMENT}.outbox
-       where event_type = 'form.published' and payload->>'formId' = 'frm_loop'`,
-    );
-    expect((enqueued.rows[0] as { n: number }).n).toBe(1);
-    expect(await publishedEventCount("frm_loop")).toBe(1);
+    // **A successful publish queues nothing, in any environment** (Code Owner, Q60). Under
+    // ADR-40 a version lives once in `control` and what makes it live somewhere is a
+    // release (065), so `form.published` had nobody to tell. This is the assertion that
+    // says so: the 200 above proves publishing still works on the control credential, and
+    // this proves it reached no environment's outbox to do it.
+    expect(await outboxRowsInEveryEnvironment()).toBe(0);
 
     // a session pins v1 (I4: the pin is structural, never migrates)
     const sessionId = SessionId.parse("ses_loop_v1_session_aaaa");
@@ -294,7 +297,7 @@ describe("publish failure is atomic (exit criterion 2)", () => {
     // nothing persisted: no version row, the draft is intact, no outbox event
     expect(await listFormVersions(testDb.db, FormId.parse("frm_bw"))).toHaveLength(0);
     expect(await getDraft(testDb.db, FormId.parse("frm_bw"))).toBeDefined();
-    expect(await publishedEventCount("frm_bw")).toBe(0);
+    expect(await outboxRowsInEveryEnvironment()).toBe(0);
   });
 });
 
@@ -463,7 +466,7 @@ describe("publish is all-or-nothing (exit criterion 5)", () => {
     // Nothing committed: no version row, the draft is intact, no outbox event.
     expect(await listFormVersions(testDb.db, FormId.parse("frm_atom"))).toHaveLength(0);
     expect(await getDraft(testDb.db, FormId.parse("frm_atom"))).toBeDefined();
-    expect(await publishedEventCount("frm_atom")).toBe(0);
+    expect(await outboxRowsInEveryEnvironment()).toBe(0);
   });
 });
 
@@ -1007,9 +1010,9 @@ describe("draft preview: the dry-run compile the admin renders (034)", () => {
   });
 
   it("writes nothing: no version, no outbox event, and the draft is untouched", async () => {
-    const before = await publishedEventCount(formId);
+    const before = await outboxRowsInEveryEnvironment();
     await preview(formId, { definition, answers: { q_preview_choice: "opt_yes" } });
-    expect(await publishedEventCount(formId)).toBe(before);
+    expect(await outboxRowsInEveryEnvironment()).toBe(before);
 
     const detail = (await (await get(`/forms/${formId}`)).json()) as {
       draft: { title: Record<string, string> };
