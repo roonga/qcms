@@ -14,7 +14,8 @@ import { waitForHydration } from "./support/hydration.js";
  * Acceptance cases owned here: **41** (the 390px reflow to one card per row, every input
  * keeping its accessible name, and no horizontal page scroll), **43** (the column total
  * is drawn, is not an input, and reaches no answer row) and **44** (a focused cell in the
- * first row is not obscured by the pinned header). Case **45** - axe on a filled table at
+ * first row is not obscured, which this table satisfies by pinning nothing). Case **45** -
+ * axe on a filled table at
  * every viewport project - lives in `a11y-axe.pw.ts`, which the config already runs on
  * all three projects, so it is asserted where that property is already expressed rather
  * than by widening this file's project list. Cases 39 and 40 are proved in jsdom
@@ -213,7 +214,7 @@ test("case 41: at 390px the table reflows to one card per row and the page does 
   await expect(plateLabel).toBeVisible();
 });
 
-test("case 44: a focused cell in the first row is not obscured by the pinned header", async ({
+test("case 44: nothing is pinned, so no focused cell can be obscured (2.4.11)", async ({
   page,
 }) => {
   await page.setViewportSize(TABLE_VIEWPORT);
@@ -221,33 +222,47 @@ test("case 44: a focused cell in the first row is not obscured by the pinned hea
   await rosterPress(page, ADD);
 
   // 2.4.11 Focus Not Obscured, new at 2.2, whose Understanding names "sticky footers,
-  // sticky headers" in terms. The header row and the total footer are both pinned, so
-  // the criterion is asserted as the property rather than as the declaration: whatever
-  // the browser paints at the focused cell's own corners has to be the focused control
-  // and not a header or a footer cell.
+  // sticky headers" in terms.
+  //
+  // THE CRITERION HOLDS BY CONSTRUCTION HERE, BECAUSE THIS TABLE PINS NOTHING (Code
+  // Owner, 2026-10-03). An earlier version of this layout declared `position: sticky`
+  // on the header row and the total footer, and both were inert: sticky resolves
+  // against the nearest scrollport, which is the table's `overflow-x: auto` box, and
+  // that box's block size is its content's, so it never scrolls on the block axis and
+  // neither cell ever detached. The ruling deleted the declarations rather than
+  // constraining the box's height to make them work, because the pin's own geometry is
+  // what creates the obscuring risk. `packages/ui/src/theme-components.css` carries the
+  // reasoning beside the rules.
+  //
+  // SO THIS TEST IS A GUARD AGAINST A FUTURE PIN, and it is written to be sensitive to
+  // one rather than to describe today's layout. It fails the moment a header or footer
+  // cell is given a `position` that takes it out of flow and lands it over row 1, which
+  // is exactly the mechanism a reintroduced `position: sticky` plus a constrained box
+  // height would produce. It is stated as two readings because each alone has a blind
+  // spot: the geometry catches an out-of-flow cell resting over the focused one
+  // whatever is painted, and the hit test catches anything else painted over it
+  // whatever its geometry.
   const plate = page.getByRole("textbox", { name: "Vehicle 1, Registration plate" });
   await plate.focus();
   await expect(plate).toBeFocused();
 
-  // TWO READINGS OF THE SAME CRITERION, because each one alone has a blind spot.
-  //
-  // The GEOMETRY is the direct statement: the focused control's box may not intersect
-  // any pinned cell's box. It is the assertion that would fail if the header ever
-  // detached and came to rest over the first row, which is the whole failure mode
-  // 2.4.11 names, and it is independent of what the browser decides to paint on top.
-  //
-  // The HIT TEST catches what geometry cannot: anything else painted over the control,
-  // whatever it is and wherever it came from. It samples points well INSIDE the box
-  // rather than at its corners, because a control with a border radius does not occupy
-  // its own corners - a point 2px in from one lands outside the rounded shape and hits
-  // the container, which is a true fact about rounded rectangles and not an obscuring
-  // element. And a hit is only obscuring when it is OUTSIDE the focused element's own
-  // ancestor-or-descendant chain: the field wrapper the control sits in is painted
-  // behind it, never over it.
+  // First, the claim the rest of the test rests on, asserted rather than assumed: no
+  // header or footer cell is out of flow. This is the assertion that would have caught
+  // the inert pins, from the other side, and the one that fails first if they return.
+  const positions = await page
+    .locator("thead th, thead td, tfoot th, tfoot td")
+    .evaluateAll((cells) => [
+      ...new Set(cells.map((cell) => globalThis.getComputedStyle(cell).position)),
+    ]);
+  expect(positions.length).toBeGreaterThan(0);
+  expect(positions, "a header or footer cell is out of flow: read the 2.4.11 note").toEqual([
+    "static",
+  ]);
+
   const report = await plate.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const pinned = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
-    const overlapping = pinned
+    const chrome = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
+    const overlapping = chrome
       .map((cell) => cell.getBoundingClientRect())
       .filter(
         (rect) =>
@@ -258,6 +273,12 @@ test("case 44: a focused cell in the first row is not obscured by the pinned hea
           rect.top < box.bottom &&
           rect.bottom > box.top,
       ).length;
+    // Points well INSIDE the box rather than at its corners, because a control with a
+    // border radius does not occupy its own corners: a point 2px in from one lands
+    // outside the rounded shape and hits the container, which is a true fact about
+    // rounded rectangles and not an obscuring element. And a hit is only obscuring when
+    // it is OUTSIDE the focused element's own ancestor-or-descendant chain: the field
+    // wrapper the control sits in is painted behind it, never over it.
     const points = [
       { x: box.left + box.width / 2, y: box.top + box.height / 2 },
       { x: box.left + box.width * 0.25, y: box.top + box.height / 2 },
@@ -273,20 +294,21 @@ test("case 44: a focused cell in the first row is not obscured by the pinned hea
       .map((hit) => (hit === null ? "nothing" : `${hit.tagName}.${hit.className}`));
     return { overlapping, covered };
   });
-  expect(report.overlapping, "a pinned header or footer cell overlaps the focused cell").toBe(0);
+  expect(report.overlapping, "a header or footer cell overlaps the focused cell").toBe(0);
   expect(report.covered, "something is painted over the focused cell").toEqual([]);
 
-  // The same for the landing an Add produces, which is the row header rather than a cell:
-  // a focus destination the pinned header covers is the same failure one element over.
+  // And the same for the landing an Add produces, which is the row header rather than a
+  // cell: a focus destination covered by table chrome is the same failure one element
+  // over, and it is the destination a respondent arrives at without having asked to.
   await rosterPress(page, ADD);
   const landed = page.locator(":focus");
   await expect(landed).toHaveAttribute("id", /^ins_/);
   await expect(landed).toHaveText("Vehicle 3");
   const landingReport = await landed.evaluate((element) => {
     const box = element.getBoundingClientRect();
-    const pinned = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
-    const overlapping = pinned
-      .map((rect) => rect.getBoundingClientRect())
+    const chrome = [...document.querySelectorAll("thead th, thead td, tfoot th, tfoot td")];
+    const overlapping = chrome
+      .map((cell) => cell.getBoundingClientRect())
       .filter(
         (rect) =>
           rect.width > 0 &&
@@ -303,8 +325,8 @@ test("case 44: a focused cell in the first row is not obscured by the pinned hea
         : (hit?.tagName ?? "nothing");
     return { overlapping, covered };
   });
-  expect(landingReport.overlapping, "a pin overlaps the row the Add landed on").toBe(0);
-  expect(landingReport.covered, "the pinned header covers the row the Add landed on").toBeNull();
+  expect(landingReport.overlapping, "table chrome overlaps the row the Add landed on").toBe(0);
+  expect(landingReport.covered, "something covers the row the Add landed on").toBeNull();
 });
 
 test("a per-row Remove clears the 44px target floor (2.5.8)", async ({ page }) => {
