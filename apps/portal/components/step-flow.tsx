@@ -91,6 +91,21 @@ async function isSupersededSemantics(res: Response): Promise<boolean> {
   return errorCodeOf(await readJsonSafely(res)) === "UNSUPPORTED_SEMANTICS_VERSION";
 }
 
+/**
+ * Whether a refusal is the API saying "that question is not currently visible"
+ * (issue #1041).
+ *
+ * It shares the 409 with the semantics refusal, which is why it is read by CODE and not
+ * by status: one is terminal and the other is a client that posted a control the current
+ * projection has already hidden. Telling them apart is what stops a stray field painting
+ * the lost-session notice, which says something untrue and invites a retry that cannot
+ * help.
+ */
+async function isNotVisible(res: Response): Promise<boolean> {
+  if (res.status !== 409) return false;
+  return errorCodeOf(await readJsonSafely(res)) === "QUESTION_NOT_VISIBLE";
+}
+
 /** The localized branch-change announcement for an inserted/removed count. */
 function branchAnnouncement(added: readonly string[], removed: readonly string[]): string {
   if (added.length > 0) {
@@ -433,6 +448,17 @@ export function StepFlow({
         }
         if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+          return false;
+        }
+        if (await isNotVisible(res)) {
+          // The API refused a field the flow does not show (issue #1041). It is not a
+          // failure the respondent caused or can act on, and it is not the lost session
+          // that `setFailed` paints: it means this client posted a control the current
+          // projection has already hidden, which a stray reference to a pruned node can
+          // still do. Re-reading the step rather than saying "we could not reach the
+          // server" is the honest answer - the projection the API just evaluated is the
+          // authority on what is on screen (R2), so adopting it removes the control.
+          await doNavigate("current");
           return false;
         }
         setFailed(true);

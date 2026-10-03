@@ -43,5 +43,15 @@
       ]
     }
   ],
-  "rules": []
+  "rules": [
+    {
+      "ruleId": "rul_pi_odometer",
+      "when": {
+        "op": "equals",
+        "questionId": "q_pi_plate",
+        "value": "AAA111"
+      },
+      "show": ["q_pi_odometer"]
+    }
+  ]
 }

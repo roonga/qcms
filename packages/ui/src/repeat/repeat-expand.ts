@@ -275,21 +275,76 @@ function isExpanded(node: A2Node): boolean {
 }
 
 /**
+ * Prune an **already expanded** group's instances against the visible set (issue #1041).
+ *
+ * ## Why an expanded group needs its own pruning pass
+ *
+ * A host may expand before pruning, and the hydrated portal does: `step-flow.tsx`
+ * expands once with the roster and hands the same tree to `commitMoments` and to the
+ * error summary, which both need the WHOLE document. The pruning therefore has to happen
+ * on the way into the renderer, and until this function existed it happened nowhere at
+ * all: {@link expandRepeatGroups} returned an expanded group untouched, and
+ * `documentForVisible` skips a `RepeatGroup` subtree by design, because it cannot tell a
+ * template's bare member names from an instance's qualified ones. So a member hidden in
+ * one instance by a per-instance rule stayed on screen on that path, while the no-JS
+ * path - which composes the two the other way round - was correct.
+ *
+ * ## It compares the name AS IT STANDS
+ *
+ * An expanded instance's controls already carry qualified names (`ins_7k2/q_passport`),
+ * which is exactly what the API's visible set holds, so this tests the name it finds and
+ * never re-qualifies it. That is the one difference from {@link keepControl}, which runs
+ * on a template whose names are still bare.
+ *
+ * Returns the node unchanged, referentially, when nothing is pruned, so the common case
+ * costs no new object and `useMemo` downstream still sees the tree it saw before.
+ */
+function pruneExpanded(node: A2Node, visible: ReadonlySet<string>): A2Node {
+  let pruned = false;
+  const children = childArray(node.children);
+  const next = children.map((child) => {
+    if (child.type !== REPEAT_INSTANCE_NODE_TYPE) return child;
+    const controls = childArray(child.children);
+    const kept = controls.filter((control) => {
+      const name = stringProp(control, "name");
+      // A node with no name of its own is structure rather than a field: the group's
+      // heading, a `RadioGroup`'s `Radio` leaves. It is never pruned by name.
+      return name === undefined || visible.has(name);
+    });
+    if (kept.length === controls.length) return child;
+    pruned = true;
+    return { ...child, children: kept };
+  });
+  return pruned ? { ...node, children: next } : node;
+}
+
+/**
  * Return a render-time copy of `root` whose every `RepeatGroup` template is expanded
  * into one `RepeatInstance` per live instance.
  *
- * **Idempotent**: a group whose children are already instances is returned as it is,
- * so a host that expanded before pruning and a renderer that expands defensively
- * cannot double-expand. A document with no group is returned **referentially
- * unchanged**, so every existing render is byte-identical and `useMemo` downstream
- * sees the same node it saw before.
+ * **Idempotent**: a group whose children are already instances is never expanded a
+ * second time, so a host that expanded before pruning and a renderer that expands
+ * defensively cannot double-expand. Such a group is still **pruned** against `visible`
+ * when one is given, because that is the only place a host which expanded first can have
+ * it done (issue #1041); it is returned referentially unchanged when nothing is pruned.
+ * A document with no group is returned **referentially unchanged**, so every existing
+ * render is byte-identical and `useMemo` downstream sees the node it saw before.
  */
 export function expandRepeatGroups(root: A2Node, expansion: RepeatExpansion = {}): A2Node {
   let touched = false;
   const walk = (node: A2Node): A2Node => {
-    if (node.type === REPEAT_GROUP_NODE_TYPE && !isExpanded(node)) {
-      touched = true;
-      return expandGroup(node, expansion);
+    if (node.type === REPEAT_GROUP_NODE_TYPE) {
+      if (!isExpanded(node)) {
+        touched = true;
+        return expandGroup(node, expansion);
+      }
+      // Already expanded, by a host that expanded before pruning. Idempotence still
+      // holds - no instance is cloned twice - but the visible set has to be applied
+      // here or nowhere (issue #1041).
+      if (expansion.visible === undefined) return node;
+      const narrowed = pruneExpanded(node, expansion.visible);
+      if (narrowed !== node) touched = true;
+      return narrowed;
     }
     const children = node.children;
     if (children === undefined || typeof children === "string") return node;
