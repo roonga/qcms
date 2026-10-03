@@ -93,18 +93,24 @@ describe("capture, against real query helpers", () => {
           accessMode: "secure_link",
           expiresAt: new Date(ISO),
           linkId: "lnk_01",
+          // Q46's `environment`, `NOT NULL` on the table and pinned to the schema the
+          // row sits in by a CHECK. `createSession` runs on an environment pool, so the
+          // value is that connection's own environment.
+          environment: "prod",
         },
       ],
     });
 
     expect(result.statements).toHaveLength(1);
     const [statement] = result.statements;
+    // Unqualified, which is ADR-40's data plane: the connection's `search_path` chooses
+    // `data_prod` or `data_test`, and no query helper names a data schema.
     expect(statement.sql).toContain('insert into "sessions"');
     // `status` and `created_at` are column defaults, so they are `default` in the
     // values list rather than parameters. That distinction is invisible in the builder.
-    expect(statement.sql).toContain("values ($1, $2, $3, $4, $5, default, $6, default)");
+    expect(statement.sql).toContain("values ($1, $2, $3, $4, $5, $6, default, $7, default)");
     expect(statement.sql).toContain('returning "session_id"');
-    expect(statement.params).toEqual(["ses_01", "frm_01", 3, "secure_link", "lnk_01", ISO]);
+    expect(statement.params).toEqual(["ses_01", "frm_01", 3, "secure_link", "lnk_01", "prod", ISO]);
   });
 
   it("renders an update with its where and returning", async () => {
@@ -167,12 +173,15 @@ describe("capture, against real query helpers", () => {
   it("renders a raw sql template executed through db.execute, parameters and all", async () => {
     const result = await capture({
       name: "listResponses",
-      args: [{ formId: "frm_01", status: "submitted", limit: 25, offset: 0 }],
+      // The environment comes first, because `reporting_<env>` is on **no** search path
+      // (ADR-40, Q52): it is the one schema a query helper has to name, and it names the
+      // environment it was handed rather than one of its own choosing.
+      args: ["prod", { formId: "frm_01", status: "submitted", limit: 25, offset: 0 }],
     });
 
     expect(result.statements).toHaveLength(2);
     const [page, total] = result.statements;
-    expect(page.sql).toContain("from reporting.responses r");
+    expect(page.sql).toContain('from "reporting_prod"."responses" r');
     expect(page.sql).toContain("where r.form_id = $1");
     expect(page.sql).toContain("order by r.submitted_at desc, r.session_id desc");
     expect(page.sql).toContain("limit $2 offset $3");

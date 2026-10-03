@@ -197,6 +197,21 @@ describe("full authoring loop (exit criterion 1)", () => {
     expect(v1.version).toBe(1);
     expect(typeof v1.publishedAt).toBe("string");
 
+    // The event landed in the ENVIRONMENT's outbox, named explicitly (ADR-40, Q49).
+    // Publishing runs on the control pool, whose search path is `control` alone and
+    // whose role holds `INSERT` on each `data_<env>.outbox` and no `SELECT` anywhere in
+    // a data schema - so the handler calls `enqueueInEnvironment`, the one named carve
+    // out of criterion 3's resolution half, rather than `enqueue`, which ends in a
+    // `RETURNING` the grant refuses. `publishedEventCount` reads the same row through
+    // the search path; this reads it by schema, so a helper that silently wrote to some
+    // other schema would fail here rather than pass both.
+    const enqueued = await testDb.client.query(
+      `select count(*)::int as n from data_${DEFAULT_TEST_ENVIRONMENT}.outbox
+       where event_type = 'form.published' and payload->>'formId' = 'frm_loop'`,
+    );
+    expect((enqueued.rows[0] as { n: number }).n).toBe(1);
+    expect(await publishedEventCount("frm_loop")).toBe(1);
+
     // a session pins v1 (I4: the pin is structural, never migrates)
     const sessionId = SessionId.parse("ses_loop_v1_session_aaaa");
     await createSession(testDb.db, {

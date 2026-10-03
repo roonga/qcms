@@ -412,9 +412,10 @@ export function createEnvironmentStatements(environment: string): string[] {
  *
  *   - **`qcms_app_<env>`** holds DML on its own `data_<env>` and nothing in any other
  *     environment's; `USAGE` on its own `reporting_<env>` with `SELECT` on that
- *     schema's views and on no other environment's (Q52); and on `control` exactly
- *     **six** `SELECT`s plus one `UPDATE`, so a defect on the anonymous respondent path
- *     cannot rewrite a grant row or a staff session.
+ *     schema's views and on no other environment's (Q52); and on `control` the named
+ *     read list plus one `UPDATE`, so a defect on the anonymous respondent path cannot
+ *     rewrite a grant row or a staff session. That list is **five** `SELECT`s today and
+ *     **six** once task 065 creates `form_releases`; see {@link CONTROL_READ_TABLES}.
  *   - **`qcms_app_control`** holds `INSERT` on this environment's `outbox` and **nothing
  *     else in any data schema** (Q49), because a release record and its `form.released`
  *     event commit in one transaction. `USAGE` on the schema is the unavoidable
@@ -441,9 +442,10 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,
-    // The six SELECTs of Q40 as amended by Q48. `question_versions` is on the list
-    // because `getQuestionVersion` runs on every step served and every submission;
-    // without it every respondent request fails on permission.
+    // The `control` reads of Q40 as amended by Q48: five today, six once 065 lands.
+    // `question_versions` is on the list because `getQuestionVersion` runs on every
+    // step served and every submission; without it every respondent request fails on
+    // permission.
     ...CONTROL_READ_TABLES.filter(
       (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
     ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
@@ -483,8 +485,9 @@ export function grantEnvironmentStatements(environment: string): string[] {
 }
 
 /**
- * The six `control` tables an environment role may read (Q40 as amended by Q48).
+ * The `control` tables an environment role may read (Q40 as amended by Q48).
  *
+ * **Five are granted at this task's landing and the sixth arrives with task 065.**
  * `form_releases` is **task 065's** table and does not exist yet, so its grant is
  * guarded on the table existing rather than left out: the list is the decision, and a
  * grant that had to be remembered when 065 landed would be a boundary nobody wrote

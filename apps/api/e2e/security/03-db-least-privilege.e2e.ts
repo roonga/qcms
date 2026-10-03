@@ -302,6 +302,20 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     expect(await hasSchemaUsage(`reporting_${environment}`, CONTROL_ROLE)).toBe(false);
   });
 
+  it("holds USAGE on `control` and on every data schema, and on nothing else QCMS named", async () => {
+    // **Schema `USAGE` is the grant a table-privilege listing cannot show**, and it is
+    // required: without it a statement fails on the schema before it reaches the table,
+    // whatever the table grants say. So it is asserted per schema rather than inferred
+    // from the reads working, and it is asserted in both directions, because a `USAGE`
+    // nobody meant to grant is how a role ends up able to name a schema it has no
+    // business in.
+    expect(await hasSchemaUsage("control", CONTROL_ROLE)).toBe(true);
+    for (const environment of ENVIRONMENTS) {
+      expect(await hasSchemaUsage(`data_${environment}`, CONTROL_ROLE)).toBe(true);
+      expect(await hasSchemaUsage(`reporting_${environment}`, CONTROL_ROLE)).toBe(false);
+    }
+  });
+
   it("is refused a read of an answer, which is the property the split buys", async () => {
     const client = clients.get(CONTROL_ROLE);
     const refusal = await refusalFor(client!, `select * from data_prod.answers limit 1`);
@@ -342,6 +356,19 @@ describe.each(ENVIRONMENTS)(
     it("holds nothing at all in another environment's data schema", async () => {
       expect(await tablePrivileges(`data_${other}`, role)).toEqual({});
       expect(await hasSchemaUsage(`data_${other}`, role)).toBe(false);
+    });
+
+    it("holds schema USAGE on exactly the three schemas it reaches, and no fourth", async () => {
+      // The grant a table listing cannot show, asserted per schema and in both
+      // directions. `control` and its own `data_<env>` are what every respondent
+      // statement needs before any table privilege is consulted; its own
+      // `reporting_<env>` is Q52's; another environment's two are refused, which is the
+      // privilege half of the isolation claim rather than a `search_path` default.
+      expect(await hasSchemaUsage("control", role)).toBe(true);
+      expect(await hasSchemaUsage(`data_${environment}`, role)).toBe(true);
+      expect(await hasSchemaUsage(`reporting_${environment}`, role)).toBe(true);
+      expect(await hasSchemaUsage(`data_${other}`, role)).toBe(false);
+      expect(await hasSchemaUsage(`reporting_${other}`, role)).toBe(false);
     });
 
     it("is refused a schema-qualified read of another environment's answers (criterion 3)", async () => {
@@ -414,6 +441,16 @@ describe.each(ENVIRONMENTS)(
       // per-environment set and a change to the closed value set is one migration rather
       // than one per environment. What a role needs is USAGE, which Postgres requires to
       // write a value of an enum.
+      //
+      // **This assertion would pass without the baseline's grant, and it is still worth
+      // making.** `PUBLIC` holds type `USAGE` by default, so on a stock cluster a DML
+      // write needs no explicit grant at all and a per-role catalogue read reports the
+      // privilege as held either way. What the explicit grant buys is the deployment
+      // that hardened its database by revoking type usage from `PUBLIC`: without it
+      // every session insert there would fail on a permission error naming a type
+      // nobody had thought about. So the grant is stated in `grantEnvironmentStatements`
+      // and this is the line that says the requirement exists; the write below is what
+      // proves the path works end to end.
       expect([...DATA_PLANE_ENUM_TYPES]).toEqual(["access_mode", "session_status"]);
       for (const type of DATA_PLANE_ENUM_TYPES) {
         const res = await owner.query<{ has: boolean }>(
@@ -557,6 +594,26 @@ describe("`public` is empty, unreachable and un-writable (criterion 2)", () => {
     );
     expect(tables.rows).toEqual([]);
   });
+
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)])(
+    "still reports USAGE on it for %s, through PUBLIC, and that is the emptiness above doing the work",
+    async (role) => {
+      // **Recorded rather than fixed, because it is the honest reading of the catalogue.**
+      // Postgres grants `USAGE` on `public` to `PUBLIC` by default, so every role holds
+      // it whether or not the baseline says so, and a per-role read reports it as held.
+      // Criterion 2 is "`public` is on no search path and `CREATE` on it is granted to
+      // nobody" - both asserted below - and what makes the residual `USAGE` worth
+      // nothing is the assertion above: a schema holding no object is a schema `USAGE`
+      // conveys no access to. Revoking it from `PUBLIC` would also reach `drizzle`'s own
+      // bookkeeping schema's callers and the reporting consumer, for no privilege
+      // anybody could exercise, so the baseline revokes `CREATE` alone.
+      const res = await owner.query<{ has: boolean }>(
+        `select has_schema_privilege($1, 'public', 'USAGE') as has`,
+        [role],
+      );
+      expect(res.rows[0]?.has).toBe(true);
+    },
+  );
 
   it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)])(
     "grants %s no CREATE on it",

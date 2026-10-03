@@ -29,8 +29,8 @@
  * Nothing is dropped because nothing is moved, and nothing is moved because the
  * baseline creates each table where it belongs the first time (Q41). Every existing
  * database is deleted and recreated by hand; there is no upgrade path and none is
- * written (Q22). `migrations.test.ts` asserts the absence of both keywords across the
- * whole migration tree, so this property is executable rather than a convention.
+ * written (Q22). `migration-chain.test.ts` asserts the absence of both keywords across
+ * the whole migration tree, so this property is executable rather than a convention.
  */
 
 import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
