@@ -145,9 +145,11 @@ test("the Add on the last view grows the group and the walk gains a view", async
   }
   await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
 
-  // The Add rides 073's Server Action: the same `__qop` button, the same form, a 200
-  // re-render carrying the typed values back, and the focus landing by `autofocus` on the
-  // new instance's heading rather than by a URL fragment (Q28).
+  // The Add rides 073's Server Action: the same `__qop` button, the same form, and a 200
+  // re-render carrying the typed values back (Q28). **It lands no `autofocus`**, and that
+  // is deliberate for a paginating group (Q31, ruled 2026-10-03): the new instance is a
+  // view one page further along, so the heading Q11 names is not in this document, and
+  // nothing on this page changed for focus to move to.
   await card(page).getByLabel("Registration plate").fill("CCC333");
   await rosterPress(page, ADD);
 

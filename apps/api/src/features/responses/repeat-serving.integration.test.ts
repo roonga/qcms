@@ -1160,9 +1160,17 @@ describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
     expect((await getStep(session, 0)).view.instanceId).toBe(live[0]);
   });
 
-  it("leaves a form with no repeating group counting steps exactly as before", async () => {
-    // Exit criterion 4, asserted against the two-group fixture's SIBLING case: the
-    // `two-fleets` form has groups but no paginating one, so its one step is one view.
+  it("counts one view per visible step for a form whose groups do not paginate", async () => {
+    // Renamed from "leaves a form with no repeating group counting steps exactly as
+    // before", which this fixture could not show: `two-fleets` HAS two groups, both
+    // stacked. What it does show is the other half of the same property - a group that
+    // does not paginate contributes no extra view - and that is worth its own case.
+    //
+    // **The evidence for exit criterion 4 is elsewhere and is stronger**: the whole of
+    // `serve-step/serve-step.integration.test.ts` drives group-less forms through this
+    // projection, and making `stepViewsOf`'s fallback return `[]` fails 10 of its 27
+    // tests. That is what pins "a form with no repeating group produces the same view
+    // list, the same progress numbers and the same navigation it produced today".
     const session = await newSession();
     const body = await getStep(session);
     expect(body.progress.totalVisibleSteps).toBe(1);

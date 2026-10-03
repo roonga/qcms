@@ -130,8 +130,21 @@ function announcementText(
   stepIndex: number,
   total: number,
   headingText: string | undefined,
+  /**
+   * True when the page chrome's own polite region already names this page (task 076): a
+   * per-instance step view, where the indicator reads "Step 2 of 3: Vehicle 2".
+   *
+   * The step-change sentence is then **not** announced here, and that closes a real
+   * double announcement rather than tidying one (reviewer finding, 2026-10-03). The
+   * progress indicator carries `aria-live="polite"` and its text changes on every
+   * navigation, so a sentence identical to it from this region makes a screen reader say
+   * the same thing twice on every Continue. The indicator keeps it, because it is also
+   * visible; this region keeps everything the indicator cannot say - a branch insertion
+   * or removal, and becoming ready to submit.
+   */
+  namedByIndicator: boolean,
 ): string {
-  if (delta.stepChanged) {
+  if (delta.stepChanged && !namedByIndicator) {
     const current = stepIndex + 1;
     return headingText
       ? t("announce.stepChange", { current, total, title: headingText })
@@ -488,6 +501,15 @@ export function StepFlow({
   const applyRosterOp = useCallback(
     (op: "add" | "remove", groupId: string, instanceId: string | undefined): void => {
       const before = rosterMap(snapshotRef.current.rosters)[groupId] ?? [];
+      // Whether this group paginates the step, read from the view the respondent PRESSED
+      // ON and never from the one the operation returns, which is the reading the no-JS
+      // Server Action takes. The difference is not cosmetic: an EMPTY paginated roster
+      // projects `view.groupId: null`, because that page draws no instance, so the
+      // post-operation view would call the first Add to such a group paginated after the
+      // fact and withhold the focus destination for the one case where the new instance
+      // IS drawn on the page it was added from. That was a regression against 073 and
+      // `min: 0` reaches it (reviewer finding, 2026-10-03).
+      const paginatedBefore = snapshotRef.current.view.groupId === groupId;
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
         try {
@@ -529,7 +551,7 @@ export function StepFlow({
           // leaves one view with no instance whose only candidate is the Add button.
           setPendingFocus(
             op === "add"
-              ? focusAfterAdd(next.minted, groupId, next.view.groupId === groupId)
+              ? focusAfterAdd(next.minted, groupId, paginatedBefore)
               : focusAfterRemoval(before, instanceId ?? "", groupId),
           );
         } catch {
@@ -825,10 +847,10 @@ export function StepFlow({
         becameReady,
         next.stepIndex,
         snapshot.progress.totalVisibleSteps,
-        // The instance's own name on a per-instance view, else the step's heading. The
-        // three views of one step share that heading, so announcing it would say the
-        // same sentence three times for three different vehicles (task 076, ADR-27).
-        viewLabel ?? headingText,
+        headingText,
+        // On a per-instance view the indicator already says "Step 2 of 3: Vehicle 2", so
+        // this region says nothing about the move and the sentence is heard once.
+        viewLabel !== undefined,
       ),
     );
 
