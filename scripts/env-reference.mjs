@@ -870,7 +870,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the two least-privilege roles below, and nothing that serves traffic holds it (SEC-10).",
+      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the least-privilege roles below - the migration role, the control role and one per environment - and nothing that serves traffic holds it (SEC-10).",
   },
   {
     name: "QCMS_DB_MIGRATE_PASSWORD",
@@ -914,24 +914,25 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "test,prod",
     description:
-      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere.",
+      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere. It must include `prod`: every request and every newly minted link resolves there until the `/<env>/` route prefix and the admin switcher exist (ADR-40, Q53).",
   },
   {
-    name: "QCMS_DEFAULT_ENVIRONMENT",
-    process: "api",
-    requirement: "optional",
-    fallback: "prod",
-    description:
-      "Which environment a respondent request is served from. An interim setting: ADR-40 takes the request's environment from the `/<env>/` route prefix (task 066) and from the administrator's switcher (task 065), and until those exist every such request resolves here.",
-  },
-  {
-    name: "QCMS_DATABASE_URL_<ENV>",
+    name: "QCMS_DATABASE_URL_TEST",
     process: "api",
     requirement: "required",
     fallback: "",
     secret: true,
     description:
-      "One connection string per environment named in `QCMS_ENVIRONMENTS`, upper-cased (`QCMS_DATABASE_URL_PROD`). Each connects as that environment's own `qcms_app_<env>` role. Never read from the database: a credential the database hands out is a credential the database can be made to hand out.",
+      "The `test` environment's connection string, connecting as `qcms_app_test`. There is one `QCMS_DATABASE_URL_<ENV>` per name in `QCMS_ENVIRONMENTS`, upper-cased, so an environment created later needs a new variable of the same shape. Never read from the database: a credential the database hands out is a credential the database can be made to hand out.",
+  },
+  {
+    name: "QCMS_DATABASE_URL_PROD",
+    process: "api",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "The `prod` environment's connection string, connecting as `qcms_app_prod`. See `QCMS_DATABASE_URL_TEST` for the naming rule.",
   },
   {
     name: "QCMS_DB_NAME",
@@ -946,7 +947,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "qcms",
     description:
-      "Bootstrap superuser created on first boot of the Postgres volume. It creates the split roles and is used for nothing else (SEC-10).",
+      "Bootstrap superuser created on first boot of the Postgres volume. It creates the least-privilege roles and is used for nothing else (SEC-10).",
   },
   {
     name: "QCMS_POSTGRES_IMAGE",

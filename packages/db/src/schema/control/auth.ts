@@ -185,9 +185,10 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
  * ## The fields below are read off better-auth 1.7.6, not remembered
  *
  * `dist/plugins/organization/organization.mjs:704-840` <!-- expect: const schema = { -->
- * declares `organization`, `member` and `invitation`, and
- * `:585-660` <!-- expect: const teamSchema = teamSupport --> declares `team` and
- * `teamMember` when `teams.enabled` is on (`:419`). <!-- expect: const teamSupport = opts.teams?.enabled -->
+ * declares `organization`, `member` and `invitation`.
+ * `dist/plugins/organization/organization.mjs:585-660` <!-- expect: const teamSchema = teamSupport -->
+ * declares `team` and `teamMember`, and only when `teams.enabled` is on:
+ * `dist/plugins/organization/organization.mjs:419`. <!-- expect: const teamSupport = opts.teams?.enabled -->
  * Every model also carries the core `id` primary key.
  *
  * ## What the library's check does and does not look at

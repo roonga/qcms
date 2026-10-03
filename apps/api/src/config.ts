@@ -23,6 +23,8 @@
 
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
 import { environmentDatabaseUrlVariableName } from "@roonga/qcms-db/environment";
+
+import { INTERIM_REQUEST_ENVIRONMENT } from "./environments.js";
 import {
   DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
@@ -212,19 +214,6 @@ export interface Config {
    * in a change window.
    */
   readonly environments: readonly EnvironmentConfig[];
-  /**
-   * Which environment a respondent request is served from until task 066 exists.
-   *
-   * **This is an interim seam and is meant to be one line.** ADR-40 says the request's
-   * environment comes from the `/<env>/` route group on the respondent side (Q21, task
-   * 066) and from the administrator's switcher on the authoring side (Q6, task 065),
-   * and neither exists when this task lands. Rather than invent either, the API resolves
-   * every respondent request to this one environment, so the pool selection, the grants
-   * and the per-environment tests are all real and only the *choosing* is deferred.
-   * `QCMS_DEFAULT_ENVIRONMENT`, default `prod`, which is the environment with no address
-   * prefix and no entry restriction.
-   */
-  readonly defaultEnvironment: string;
   readonly mount: MountFlags;
   /**
    * Public base URL of the respondent portal (`QCMS_PORTAL_BASE_URL`), used to
@@ -1319,13 +1308,18 @@ export function loadConfig(env: Env): Config {
 
   const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const environments = parseEnvironments(env, issues);
-  const defaultEnvironment = (env.QCMS_DEFAULT_ENVIRONMENT ?? "prod").trim();
+  // Q53: until tasks 065 and 066 land, every request and every newly minted link is
+  // `prod`, so a configuration that does not carry it could not serve a request at all.
+  // The constant lives in `environments.ts` beside the pool selection it governs; this
+  // is the boot check that the set can satisfy it.
   if (
     environments.length > 0 &&
-    !environments.some((environment) => environment.name === defaultEnvironment)
+    !environments.some((environment) => environment.name === INTERIM_REQUEST_ENVIRONMENT)
   ) {
     issues.push(
-      `QCMS_DEFAULT_ENVIRONMENT names ${defaultEnvironment}, which QCMS_ENVIRONMENTS does not list`,
+      `QCMS_ENVIRONMENTS must include ${INTERIM_REQUEST_ENVIRONMENT}: every request and every ` +
+        "newly minted link resolves to it until the /<env>/ route prefix and the admin " +
+        "switcher exist (ADR-40, Q53)",
     );
   }
   const mount = parseMount(env, issues);
@@ -1342,7 +1336,6 @@ export function loadConfig(env: Env): Config {
   const config: Config = {
     databaseUrl,
     environments,
-    defaultEnvironment,
     mount,
     portalBaseUrl,
     webhooks: {

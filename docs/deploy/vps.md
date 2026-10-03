@@ -97,7 +97,9 @@ openssl rand -base64 32
 # --- secrets: generate each independently, 32+ chars ---
 QCMS_DB_PASSWORD=...            # bootstrap superuser; creates the two roles below
 QCMS_DB_MIGRATE_PASSWORD=...    # qcms_migrate: owns the schema, migrates (SEC-10)
-QCMS_DB_APP_PASSWORD=...        # qcms_app: what the API runs as, no DDL (SEC-10)
+QCMS_DB_APP_CONTROL_PASSWORD=... # qcms_app_control: the API's control pool, no DDL (SEC-10)
+QCMS_DB_APP_TEST_PASSWORD=...   # qcms_app_test: the API's test pool, its own data schema only
+QCMS_DB_APP_PROD_PASSWORD=...   # qcms_app_prod: the API's prod pool, its own data schema only
 QCMS_LINK_KEYS=...
 QCMS_SESSION_KEYS=...
 QCMS_INTERNAL_TOKEN=...

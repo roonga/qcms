@@ -113,8 +113,12 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   "control",
   "reporting",
   "public",
-  // The address rule itself: prod is the unprefixed shape.
-  UNDROPPABLE_ENVIRONMENT,
+  // The address rule itself: prod is the unprefixed shape, so a prefixed `prod` would be
+  // a second spelling of one thing. Written as a literal rather than as
+  // `UNDROPPABLE_ENVIRONMENT`, though the two are the same word: they are two different
+  // rules that happen to land on it, and this list is read as data by
+  // `scripts/reserved-environment-names.test.ts`, which checks it against the routes.
+  "prod",
 ];
 
 /**
@@ -251,12 +255,20 @@ export async function createEnvironment(
       `);
     }
 
+    // DDL cannot be parameterized: a schema, a table and a constraint name are
+    // identifiers, and Postgres has no bind parameter for one. What makes these
+    // statements safe is what they are BUILT from rather than how they are sent: every
+    // identifier comes from `src/schema/data/`, which is source code, interpolated with
+    // one environment name that has already passed `refuseEnvironmentName` above -
+    // `^[a-z][a-z0-9]*$`, length-checked, and not reserved. There is no other input.
     for (const statement of createEnvironmentStatements(input.name)) {
+      // check-security-hygiene: allow generated DDL over a name already refused unless it matches ^[a-z][a-z0-9]*$
       await tx.execute(sql.raw(statement));
     }
     // The grants, and the migrate-only revokes with them, so a role created here cannot
     // arrive holding `two_factor_resets` (Q40). Both are guarded on the role existing.
     for (const statement of grantEnvironmentStatements(input.name)) {
+      // check-security-hygiene: allow generated GRANT statements over the same refused name
       await tx.execute(sql.raw(statement));
     }
 
@@ -365,7 +377,10 @@ export async function dropEnvironment(
   }
 
   await exec.transaction(async (tx) => {
+    // Two `DROP SCHEMA` statements over a name that is a row in `control.environments`
+    // and has passed the character rule; identifiers cannot be bound as parameters.
     for (const statement of dropEnvironmentStatements(name)) {
+      // check-security-hygiene: allow DROP SCHEMA over a name read from control.environments
       await tx.execute(sql.raw(statement));
     }
     await tx.execute(

@@ -30,10 +30,27 @@ export * from "./reporting-views.js";
 
 // The grant model, exported so the least-privilege suite asserts the lists the
 // generator emits rather than a second hand-kept copy of them (criterion 6b).
+// The operator commands that create and drop an environment (ADR-40, Q1, Q24, Q42).
+// Exported from the package surface rather than reachable only through the CLI, so the
+// API's own integration tests can create an environment the way an operator does.
+export {
+  type CreatedEnvironment,
+  type DropRefusal,
+  type EnvironmentSettings,
+  RESERVED_ENVIRONMENT_NAMES,
+  UNDROPPABLE_ENVIRONMENT,
+  createEnvironment,
+  dropEnvironment,
+  maxEnvironmentNameLength,
+  ownsControlSchema,
+  refuseEnvironmentName,
+} from "./environment/command.js";
+
 export {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   CONTROL_READ_TABLES_NOT_YET_CREATED,
+  DATA_PLANE_ENUM_TYPES,
   environmentObjectNames,
   type EnvironmentObjectNames,
 } from "./environment/sql.js";

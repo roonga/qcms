@@ -96,12 +96,26 @@ const SAFE_EVENTS = new Set([
   // files, chosen by the request but never written by it.
   "origin.belt.refused",
   "outbox delivery pass",
+  // One environment's delivery pass failed and the loop stepped over it (ADR-40, Q2).
+  // The deliverer starts once per process and iterates the live environment set, so a
+  // pass that ended the whole sweep on one environment's blip would stop another's queue
+  // draining. Exported by name because "which environment's outbox is not moving" is the
+  // question this line exists to answer, and `application.event` answers none of it; the
+  // only field beside the error is `environment`, which is an operator's own name for a
+  // schema and carries no respondent content.
+  "outbox delivery pass failed",
   "outbox payload answers redacted",
   "request",
   "retention sweep",
   "scheduler task failed",
   "shutdown complete",
   "shutting down",
+  // The configured environment set and `control.environments` disagree (ADR-40,
+  // criterion 6a). A boot-time misconfiguration an operator has to see by name: the body
+  // is built from environment NAMES only - never a connection string, never a credential
+  // (SEC-8) - and collapsing it to `application.event` would hide the one line that says
+  // why an environment is being served from nowhere.
+  "the environment set and the configuration disagree",
   "unhandled error",
 ]);
 

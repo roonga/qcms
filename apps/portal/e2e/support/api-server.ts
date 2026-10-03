@@ -181,6 +181,11 @@ export async function startApiServer(): Promise<void> {
     // (task 035). See FIXED_APP_KEY.
     QCMS_APP_KEY: FIXED_APP_KEY,
     DATABASE_URL: testDb.connectionUri,
+    // One pool per environment plus a control pool (ADR-40, Q2). One container, one
+    // credential: what differs per pool is the search path it connects with.
+    QCMS_ENVIRONMENTS: "test,prod",
+    QCMS_DATABASE_URL_TEST: testDb.connectionUri,
+    QCMS_DATABASE_URL_PROD: testDb.connectionUri,
     QCMS_MOUNT: "all",
     // better-auth lives here since task 056, so the composed API carries the admin's
     // identity provider. Both values are the ADMIN's, not this API's: the browser only

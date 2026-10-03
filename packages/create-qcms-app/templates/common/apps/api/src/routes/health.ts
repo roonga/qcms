@@ -64,7 +64,7 @@ async function probeDb(deps: Deps): Promise<boolean> {
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => resolve(false), timeoutMs);
   });
-  const probe = deps.db
+  const probe = deps.databases.control
     .execute(sql`select 1`)
     .then(() => true)
     .catch(() => false);

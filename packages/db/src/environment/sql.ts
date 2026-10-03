@@ -113,7 +113,7 @@ function columnDefault(value: unknown): string {
   if (typeof value === "number" || typeof value === "bigint") return String(value);
   if (typeof value === "boolean") return String(value);
   if (value === null) return "NULL";
-  throw new Error(`the per-environment generator cannot render the default ${String(value)}`);
+  throw new Error(`the per-environment generator cannot render a ${typeof value} column default`);
 }
 
 /** One column's line inside `CREATE TABLE`. */
@@ -133,9 +133,42 @@ function indexColumn(column: Partial<IndexedColumn | SQL>): string {
   const indexed = column as Partial<IndexedColumn>;
   const config = indexed.indexConfig;
   const order = config?.order === "desc" ? " DESC" : "";
-  const nulls = config?.nulls === "first" ? " NULLS FIRST" : order === "" ? "" : " NULLS LAST";
+  // Postgres's own defaults: ASC implies NULLS LAST and DESC implies NULLS FIRST, so
+  // the clause is written only where it is not already what the sort order gives.
+  let nulls = "";
+  if (config?.nulls === "first") nulls = " NULLS FIRST";
+  else if (order !== "") nulls = " NULLS LAST";
   return `${quote(requireName(indexed.name, "an index column"))}${order}${nulls}`;
 }
+
+/**
+ * Every enum type a data-plane table's column is declared with.
+ *
+ * **The types are created once, in `control`, exactly as the trigger functions are**
+ * (Code Owner, 2026-09-29, Q54). They are not per environment and are not part of the
+ * per-environment set: `data_test.sessions` and `data_prod.sessions` both use
+ * `control.access_mode`, so the closed set of values is one declaration and a change to
+ * it is one migration rather than one per environment.
+ *
+ * What each environment role does need is **`USAGE` on the type**, which Postgres
+ * requires to write a value of it. `PUBLIC` holds that by default, so the grant below is
+ * strictly speaking redundant on a stock cluster - and it is emitted anyway, because a
+ * deployment that hardened its database by revoking type usage from `PUBLIC` would
+ * otherwise see every session insert fail with a permission error naming a type nobody
+ * had thought about. Stating it makes the requirement visible and costs one statement.
+ */
+function dataPlaneEnumTypes(): string[] {
+  const names = new Set<string>();
+  for (const table of DATA_PLANE_TABLES) {
+    for (const column of getTableConfig(table).columns) {
+      if (column.columnType === "PgEnumColumn") names.add(column.getSQLType());
+    }
+  }
+  return [...names].sort();
+}
+
+/** The enum types in `control` that every environment's `sessions` rows are written with. */
+export const DATA_PLANE_ENUM_TYPES: readonly string[] = dataPlaneEnumTypes();
 
 /** The names of every object the generator emits for one environment. */
 export interface EnvironmentObjectNames {
@@ -278,10 +311,11 @@ function indexSql(environment: string): string[] {
       const settings = index.config;
       const columns = settings.columns.map((column) => indexColumn(column)).join(",");
       const where = settings.where === undefined ? "" : ` WHERE ${render(settings.where)}`;
+      const tableName = getTableName(table);
+      const name = quote(requireName(settings.name, `an index on ${tableName}`));
+      const unique = settings.unique ? "UNIQUE " : "";
       statements.push(
-        `CREATE ${settings.unique ? "UNIQUE " : ""}INDEX ` +
-          `${quote(requireName(settings.name, `an index on ${getTableName(table)}`))} ` +
-          `ON ${quote(schema)}.${quote(getTableName(table))} ` +
+        `CREATE ${unique}INDEX ${name} ON ${quote(schema)}.${quote(tableName)} ` +
           `USING ${settings.method}(${columns})${where};`,
       );
     }
@@ -413,8 +447,15 @@ export function grantEnvironmentStatements(environment: string): string[] {
     ...CONTROL_READ_TABLES.filter(
       (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
     ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
-    // One-time link consumption (`consumeSecureLink`).
+    // One-time link consumption (`consumeSecureLink`). Deliberately no `INSERT`: an
+    // environment role redeems and consumes a link, it never mints one. Minting runs on
+    // the control pool (Q53).
     `GRANT UPDATE ON ${quote(CONTROL_SCHEMA)}.${quote("secure_links")} TO ${quote(role)}`,
+    // Q54: the two enum types live once in `control`, and writing a value of one needs
+    // USAGE on it.
+    ...DATA_PLANE_ENUM_TYPES.map(
+      (type) => `GRANT USAGE ON TYPE ${quote(CONTROL_SCHEMA)}.${quote(type)} TO ${quote(role)}`,
+    ),
   ];
 
   const controlRoleGrants = [

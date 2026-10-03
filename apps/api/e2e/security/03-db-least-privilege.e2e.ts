@@ -52,6 +52,7 @@ import {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   CONTROL_READ_TABLES_NOT_YET_CREATED,
+  DATA_PLANE_ENUM_TYPES,
 } from "@roonga/qcms-db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -139,7 +140,10 @@ async function tablePrivileges(
     [schema, role],
   );
   const byTable: Record<string, string[]> = {};
-  for (const row of res.rows) (byTable[row.table_name] ??= []).push(row.privilege_type);
+  for (const row of res.rows) {
+    const privileges = (byTable[row.table_name] ??= []);
+    privileges.push(row.privilege_type);
+  }
   return byTable;
 }
 
@@ -403,6 +407,63 @@ describe.each(ENVIRONMENTS)(
         }
       },
     );
+
+    it("holds USAGE on the two enum types, which live once in `control` (Q54)", async () => {
+      // The types are created once, exactly as the trigger functions are, and both
+      // environments' `sessions` tables use them - so they are not part of the
+      // per-environment set and a change to the closed value set is one migration rather
+      // than one per environment. What a role needs is USAGE, which Postgres requires to
+      // write a value of an enum.
+      expect([...DATA_PLANE_ENUM_TYPES]).toEqual(["access_mode", "session_status"]);
+      for (const type of DATA_PLANE_ENUM_TYPES) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_type_privilege($1, $2, 'USAGE') as has`,
+          [role, `control.${type}`],
+        );
+        expect(res.rows[0]?.has, `${role} needs USAGE on control.${type}`).toBe(true);
+      }
+    });
+
+    it("can actually write a session row, which is the test of every grant above", async () => {
+      // The end-to-end shape of the respondent path's first write: a form and a version
+      // read from `control`, a row inserted into this environment's own `sessions` with
+      // both enum types and the Q46 `environment` column. A grant missing anywhere in the
+      // chain - the schema, the table, the type, the crossing foreign key's target -
+      // surfaces here rather than at a respondent's first request.
+      const formId = `frm_grant_${environment}`;
+      await owner.query(
+        `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
+        [formId],
+      );
+      await owner.query(
+        `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version, a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
+        [formId],
+      );
+      await clients.get(role)!.query(
+        `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+        [`ses_grant_${environment}`, formId, environment],
+      );
+      const written = await owner.query<{ environment: string }>(
+        `select environment from data_${environment}.sessions where session_id = $1`,
+        [`ses_grant_${environment}`],
+      );
+      expect(written.rows[0]?.environment).toBe(environment);
+    });
+
+    it("cannot mint a secure link, only redeem one (Q53)", async () => {
+      // An environment role holds SELECT and UPDATE on `control.secure_links` and no
+      // INSERT: it redeems and consumes a link, it never creates one. Minting runs on the
+      // control pool.
+      const refusal = await refusalFor(
+        clients.get(role)!,
+        `insert into control.secure_links (link_id, form_id, expires_at, environment)
+         values ('lnk_probe', 'frm_probe', now(), '${environment}')`,
+      );
+      expect(refusal).toMatch(/permission denied/i);
+    });
 
     it("reads its own reporting views and no other environment's (Q52)", async () => {
       expect(await hasSchemaUsage(`reporting_${environment}`, role)).toBe(true);

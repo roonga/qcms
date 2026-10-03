@@ -331,6 +331,14 @@ jobs:
       - run: pnpm check:ports
         if: env.PLAN_ONLY != 'true'
 
+      # The control-plane and data-plane table-name sets stay disjoint (ADR-40,
+      # criterion 3a). The search path is `data_<env>, control` with the data plane
+      # first, so a name declared in both would resolve to the environment's copy with
+      # no error, no warning and a control-plane read that quietly became a
+      # per-environment one.
+      - run: pnpm check:schema-disjoint
+        if: env.PLAN_ONLY != 'true'
+
       # No machine-specific path in committed content (issue #268). The rule is as old
       # as the port rule and decayed the same way: it existed only in prose, so PR #265
       # shipped 21 fixtures naming one developer's home directory and an automated

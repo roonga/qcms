@@ -26,7 +26,9 @@ const BASELINE = fileURLToPath(
 const current = readFileSync(BASELINE, "utf8");
 const markerStart = current.indexOf(HAND_AUTHORED_MARKER.split("\n")[0] ?? "");
 const generated =
-  markerStart === -1 ? `${current.trimEnd()}\n--> statement-breakpoint\n` : current.slice(0, markerStart);
+  markerStart === -1
+    ? `${current.trimEnd()}\n--> statement-breakpoint\n`
+    : current.slice(0, markerStart);
 
 writeFileSync(BASELINE, `${generated}${baselineHandAuthoredSql()}\n`, "utf8");
 process.stdout.write(`wrote the hand-authored half of ${BASELINE}\n`);

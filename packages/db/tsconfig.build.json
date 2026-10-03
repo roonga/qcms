@@ -1,5 +1,12 @@
 {
   "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // Restated, because `tsconfig.json` widens `rootDir` to the package root so ESLint's
+    // type-aware rules can open the authoring-time emitter under `scripts/`. What is
+    // PUBLISHED is `src` alone, and a wider root here would emit `dist/src/...` and move
+    // every path in the `exports` map.
+    "rootDir": "src"
+  },
   "include": ["src"],
   // `src/testing/**` used to be excluded here, so the `./testing` export had to point at
   // raw TypeScript and could only be loaded by a transforming runner (issues #382, #407).
