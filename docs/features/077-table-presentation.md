@@ -20,7 +20,7 @@
 - **`TABLE_COLUMN_TYPE_NOT_ALLOWED`**, refusing `longText` and `multiChoice` as columns at publish. The five allowed cell types are `shortText`, `number`, `date`, `boolean` and `singleChoice`. **The refusal names the stacked presentation**, which allows all seven types, so an author refused here has somewhere to go.
 - **The admin's column view of the member list**, which is the whole of the "column editor" (plan section 6.3): there is no table question, so the view is the group's member list rendered as columns, each row a column showing its label, its underlying question and its type, with the type **shown rather than chosen** because it is the question's own. Adding a column is adding a question to the group. **Task 074 defers both this and the picker below to this task**, so nothing here is shared.
 - **The filtered library picker**, which offers only the five allowed types, says why, and names the stacked presentation as the alternative.
-- **Sticky header and footer proved against 2.4.11 Focus Not Obscured**, new at 2.2 and named in its Understanding as covering "sticky footers, sticky headers": a focused cell in the first visible row must not be hidden by a pinned header row or a pinned total footer.
+- ~~**Sticky header and footer proved against 2.4.11 Focus Not Obscured**~~ - **withdrawn, and replaced by its own criterion** (Code Owner, 2026-10-03, on the review of this task's PR). **2.4.11 Focus Not Obscured holds by construction, because this table pins nothing.** The deliverable as written was built and the declarations were inert: `position: sticky` resolves against the nearest scrollport, which is the table's `overflow-x: auto` box, and that box's block size is its content's, so it never scrolls on the block axis and neither the header row nor the total footer ever detached. Deleting both blocks changed no test, which is how the review found them. The ruling deletes the pin rather than making it real: making it real means constraining that box's block size to create a vertical scrollport inside a form step, and then discharging the obscuring risk the pin itself introduces with a `scroll-padding-block` nobody can prove exceeds every theme's control height. The pin's benefit is bounded by the group's own `max`, which SEC-16 leaves to the author, and the card reflow already drops the header on a phone. What survives is the **criterion**, asserted as a guard against a future pin rather than as a description of today's layout: `repeat-table.pw.ts` asserts that no header or footer cell is out of flow, that none overlaps the focused cell's box, and that nothing outside the focused element's own chain is painted over it, on a focused first-row cell and on the row header an Add lands focus on.
 - **Target size (2.5.8)**: a per-row Remove control is the control most likely to fall below the portal's 44px `--space-control-h` floor, and it does not.
 - **The theming and token work** `docs/COMPONENT_GUIDELINES.md` binds for a layout: treatments in `packages/ui/src/theme-components.css` beneath the ADR-38 scope carrier, the font sweep, the tabular-figures selector for a numeric column, and lint coverage.
 - **A changeset** for `@roonga/qcms-ui`, and one for `@roonga/qcms-core` if the publish code lands here rather than with 071.
@@ -54,5 +54,37 @@ Also out: `role="grid"`, a roving tabindex and any edit-mode keyboard model, all
 ## Notes for the executor
 
 **One tab stop per cell is the documented cost of the ruled choice**, not a defect to mitigate with script. APG says a grid is what you reach for when "the number of widgets is large", and this design's answer is the group's own `max` instead. Under SEC-16 there is no installation-wide ceiling, so a table's tab-stop count is `columns x max` for whatever its author declared; that is an authoring decision and this task does not second-guess it.
+
+**The admin half lands as two standalone pieces, because its host is task 074's**
+(recorded 2026-10-02, while building). The deliverable above says "Task 074 defers both
+this and the picker below to this task, so nothing here is shared", which is true of the
+files and not of the ordering: the group panel those two pieces are rendered _in_ is 074's,
+and 074 was dispatched in parallel with this task rather than before it. So the column view
+is a component of its own (`apps/admin/components/forms/table-column-view.tsx`) taking the
+member pins, the library and an add handler as props, and the picker's filter is an opt-in
+flag on the existing `LibraryPicker`. Neither reaches into panel state, so they wire up in
+either merge order.
+
+**Acceptance case 62's browser walk is carried by whichever of 077 and 074 merges second**
+(Code Owner, 2026-10-03). The case is written `(browser, admin project)` and its walk opens
+the filtered picker from the group panel's Add-column control, so it needs 077's column view
+and 074's group panel on `main` together and can be written by neither lane alone: at the
+merge base there is no group in the admin's draft model at all. The case's substance - the
+picker offers only the five allowed types, says why the others are absent, and names the
+stacked presentation as the alternative - is asserted in the admin's jsdom layer here
+(`table-column-view.test.tsx`, `picker-selection.test.ts`), and the second lane to land adds
+the walk on its rebase. It is an **exit criterion of that lane** rather than a note, so it
+cannot fall between the two.
+
+**Two as-built details worth stating, both inside the deliverables rather than beside them.**
+A column's help text is drawn **once, on the column header**, and clipped in the cells with
+the label: it is identical down a column, so a three-row table would otherwise repeat it
+three times, and each input keeps its own `aria-describedby` either way. And **nothing in the table is pinned at all**, which is
+the withdrawn deliverable above read forward: the row-header column is not pinned
+inline-start either, and that is the same criterion once more. Pinning the first column is
+the obvious thing to want on a wide table in a horizontal scroll box, and it is the one pin
+this layout could actually support, which is exactly why it is refused: a focused cell the
+browser scrolls under a pinned first column IS obscured, and discharging that needs
+`scroll-padding-inline-start` equal to that column's width, which nothing in CSS knows.
 
 **The 3.3.2 inference is recorded rather than asserted.** H44 says a hidden label satisfies 1.3.1 and 4.1.2 but that for 3.3.2 "the label element must be visible", and no W3C source found states that a visible `<th>` column header discharges 3.3.2 for the input in the cell beneath it. The plan takes that as an inference and names task **030**'s manual screen-reader pass as where it is tested. Do not upgrade the inference to a claim in this task's documentation.

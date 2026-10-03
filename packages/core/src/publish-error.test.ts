@@ -256,12 +256,25 @@ const samples: { raw: unknown; location: string }[] = [
     },
     location: 'count question "q_accident_count" of group "grp_holdings"',
   },
+  {
+    raw: {
+      code: "TABLE_COLUMN_TYPE_NOT_ALLOWED",
+      message: "A table column is one of five cell types; present this group as stacked instead",
+      path: {
+        group: "grp_holdings",
+        question: "q_holding_note",
+        step: "stp_holdings",
+        type: "longText",
+      },
+    },
+    location: 'column "q_holding_note" of group "grp_holdings" in step "stp_holdings"',
+  },
 ];
 
 describe("PublishError", () => {
   it("codes and union variants stay in lockstep (compile-time)", () => {
     expect(codesInLockstep).toBe(true);
-    expect(PublishErrorCode.options).toHaveLength(26);
+    expect(PublishErrorCode.options).toHaveLength(27);
   });
 
   it.each(

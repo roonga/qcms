@@ -5,9 +5,18 @@ import {
   REPEAT_GROUP_NODE_TYPE,
   REPEAT_INSTANCE_NODE_TYPE,
   instanceLabelFor,
-  qualifiedFieldName,
   removeLabelFor,
 } from "./repeat-node.ts";
+import { repeatTableNode, type RepeatTableInput } from "./repeat-table-expand.ts";
+import { REPEAT_TABLE_NODE_TYPE } from "./repeat-table-node.ts";
+import {
+  childArray,
+  keepControl,
+  mapChildren,
+  numberProp,
+  qualifyNames,
+  stringProp,
+} from "./repeat-walk.ts";
 
 /**
  * Render-time expansion of a `RepeatGroup` template (task 073, ADR-42, ADR-43).
@@ -80,72 +89,38 @@ const INSTANCE_HEADING_LEVEL = "h4" as const;
 type HeadingLevel = typeof GROUP_HEADING_LEVEL | typeof INSTANCE_HEADING_LEVEL;
 
 /**
- * Map a node's `children` union. A text body and an absent body are returned as they
- * are; a single child is mapped; an array is mapped elementwise.
+ * The **stacked** presentation's children: the group's own heading followed by one
+ * `RepeatInstance` per live instance (task 073, Q12 first half).
  *
- * Split in two, exactly as `heading-demotion.ts` splits the same walk, so each
- * function has one declared result type: a single conditional chain over this union
- * is the shape the lint refuses, and for a good reason - it is the place a mapped
- * text body would silently become a node.
+ * It takes the same input shape the table presentation does, so the two layouts are
+ * two readings of one set of facts rather than two sets of facts that happen to
+ * agree.
  */
-function mapNodeChildren(
-  children: A2Node | A2Node[],
-  map: (child: A2Node) => A2Node,
-): A2Node | A2Node[] {
-  return Array.isArray(children) ? children.map(map) : map(children);
-}
-
-function mapChildren(
-  children: A2Node["children"],
-  map: (child: A2Node) => A2Node,
-): A2Node["children"] {
-  const isNodes = children !== undefined && typeof children !== "string";
-  return isNodes ? mapNodeChildren(children, map) : children;
-}
-
-function childArray(children: A2Node["children"]): readonly A2Node[] {
-  if (children === undefined || typeof children === "string") return [];
-  return Array.isArray(children) ? children : [children];
-}
-
-function stringProp(node: A2Node, key: string): string | undefined {
-  const value: unknown = node.props?.[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function numberProp(node: A2Node, key: string): number | undefined {
-  const value: unknown = node.props?.[key];
-  return typeof value === "number" ? value : undefined;
-}
-
-/**
- * Rewrite one member control's `name` to its qualified form, recursively, so a
- * control whose own children carry no name (a `RadioGroup`'s `Radio` leaves, a
- * `CheckboxGroup`'s `Checkbox` leaves) is copied unchanged beneath it.
- *
- * Only the `name` prop moves. Every other compiled prop - `label`, `description`,
- * `isRequired`, the constraint hints, the author's `messages` - is the stored
- * content and is carried across untouched, which is what makes an instance's control
- * identical to the same question outside a group (ADR-42: a question does not know
- * that it is repeated).
- */
-function qualifyNames(node: A2Node, instanceId: string): A2Node {
-  const mapped = mapChildren(node.children, (child) => qualifyNames(child, instanceId));
-  const name = stringProp(node, "name");
-  if (name === undefined) return { ...node, children: mapped };
-  return {
-    ...node,
-    props: { ...node.props, name: qualifiedFieldName(instanceId, name) },
-    children: mapped,
-  };
-}
-
-/** Whether a cloned control survives this instance's visible set. */
-function keepControl(node: A2Node, instanceId: string, visible?: ReadonlySet<string>): boolean {
-  if (visible === undefined) return true;
-  const name = stringProp(node, "name");
-  if (name === undefined) return true;
-  return visible.has(qualifiedFieldName(instanceId, name));
+function stackedChildren(input: RepeatTableInput): A2Node[] {
+  const children: A2Node[] = [];
+  if (input.label !== "") children.push(groupHeading(input.label, GROUP_HEADING_LEVEL));
+  input.instances.forEach((instanceId, index) => {
+    const resolved = instanceLabelFor(input.instanceLabelTemplate, index + 1);
+    const instanceProps: Record<string, unknown> = {
+      groupId: input.groupId,
+      instanceId,
+      label: resolved,
+      ordinal: index + 1,
+      headingAs: INSTANCE_HEADING_LEVEL,
+    };
+    if (input.removable && input.removeLabelTemplate !== undefined) {
+      instanceProps.removeLabel = removeLabelFor(input.removeLabelTemplate, resolved);
+    }
+    if (input.removable && input.opToken !== undefined) instanceProps.opToken = input.opToken;
+    children.push({
+      type: REPEAT_INSTANCE_NODE_TYPE,
+      props: instanceProps,
+      children: input.template
+        .filter((control) => keepControl(control, instanceId, input.visible))
+        .map((control) => qualifyNames(control, instanceId)),
+    });
+  });
+  return children;
 }
 
 /** A `Text` heading node carrying the group's own authored label. */
@@ -181,30 +156,29 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
   // empty a group, rebuild it, and only be stopped at the end. The control is offered
   // whenever the source is `open`.
   const removable = addable;
+  const presentation = stringProp(node, "presentation") ?? "stacked";
 
-  const children: A2Node[] = [];
-  if (label !== "") children.push(groupHeading(label, GROUP_HEADING_LEVEL));
-  instances.forEach((instanceId, index) => {
-    const resolved = instanceLabelFor(instanceLabelTemplate, index + 1);
-    const instanceProps: Record<string, unknown> = {
-      groupId: groupId ?? "",
-      instanceId,
-      label: resolved,
-      ordinal: index + 1,
-      headingAs: INSTANCE_HEADING_LEVEL,
-    };
-    if (removable && removeLabelTemplate !== undefined) {
-      instanceProps.removeLabel = removeLabelFor(removeLabelTemplate, resolved);
-    }
-    if (removable && expansion.opToken !== undefined) instanceProps.opToken = expansion.opToken;
-    children.push({
-      type: REPEAT_INSTANCE_NODE_TYPE,
-      props: instanceProps,
-      children: template
-        .filter((control) => keepControl(control, instanceId, expansion.visible))
-        .map((control) => qualifyNames(control, instanceId)),
-    });
-  });
+  // The TABLE presentation (task 077, Q10 and Q12): rows and columns rather than one
+  // card per instance, and a `<caption>` rather than a heading node, so the group's
+  // own label is said once. Everything outside those children - the Add control, the
+  // scripted path's `role="status"` region, the render-time facts below - is the same
+  // chrome the stacked presentation gets, because none of it is about the layout.
+  // One set of facts, read by either layout. The conditional spreads are what
+  // `exactOptionalPropertyTypes` asks for: an absent key and a key holding
+  // `undefined` are not the same thing to a node prop a `.strict()` schema parses.
+  const input: RepeatTableInput = {
+    groupId: groupId ?? "",
+    label,
+    instanceLabelTemplate,
+    removable,
+    instances,
+    template,
+    ...(removeLabelTemplate === undefined ? {} : { removeLabelTemplate }),
+    ...(expansion.visible === undefined ? {} : { visible: expansion.visible }),
+    ...(expansion.opToken === undefined ? {} : { opToken: expansion.opToken }),
+  };
+  const children: A2Node[] =
+    presentation === "table" ? [repeatTableNode(input)] : stackedChildren(input);
 
   const props: Record<string, unknown> = {
     groupId: groupId ?? "",
@@ -224,9 +198,11 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
   return { type: REPEAT_GROUP_NODE_TYPE, props, children };
 }
 
-/** Whether this node has already been expanded (its children are instances). */
+/** Whether this node has already been expanded (its children are instances or rows). */
 function isExpanded(node: A2Node): boolean {
-  return childArray(node.children).some((child) => child.type === REPEAT_INSTANCE_NODE_TYPE);
+  return childArray(node.children).some(
+    (child) => child.type === REPEAT_INSTANCE_NODE_TYPE || child.type === REPEAT_TABLE_NODE_TYPE,
+  );
 }
 
 /**

@@ -1,0 +1,153 @@
+{
+  "documents": [
+    {
+      "stepId": "stp_fleet_table",
+      "root": {
+        "type": "Form",
+        "children": [
+          {
+            "type": "Flex",
+            "props": {
+              "direction": "column",
+              "gap": "md"
+            },
+            "children": [
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h1",
+                  "size": "2xl",
+                  "weight": "bold"
+                },
+                "children": "Fleet cover, as a table"
+              },
+              {
+                "type": "Text",
+                "props": {
+                  "as": "h2",
+                  "size": "xl",
+                  "weight": "semibold"
+                },
+                "children": "The vehicles on this policy"
+              },
+              {
+                "type": "TextField",
+                "props": {
+                  "label": "Fleet reference",
+                  "name": "q_rt_fleet_ref",
+                  "isRequired": true,
+                  "minLength": 2,
+                  "maxLength": 20
+                }
+              },
+              {
+                "type": "RepeatGroup",
+                "props": {
+                  "groupId": "grp_vehicles",
+                  "label": "Vehicles",
+                  "instanceLabel": "Vehicle {n}",
+                  "presentation": "table",
+                  "countSource": "open",
+                  "min": 1,
+                  "max": 3,
+                  "addLabel": "Add Vehicle",
+                  "removeLabel": "Remove {label}"
+                },
+                "children": [
+                  {
+                    "type": "TextField",
+                    "props": {
+                      "label": "Registration plate",
+                      "description": "As printed on the plate, without spaces",
+                      "name": "q_rt_plate",
+                      "isRequired": true,
+                      "minLength": 3,
+                      "maxLength": 8
+                    }
+                  },
+                  {
+                    "type": "NumberField",
+                    "props": {
+                      "label": "Odometer reading",
+                      "name": "q_rt_odometer",
+                      "minValue": 0,
+                      "maxValue": 999999,
+                      "step": 1
+                    }
+                  },
+                  {
+                    "type": "DatePicker",
+                    "props": {
+                      "label": "Last service date",
+                      "name": "q_rt_service_date",
+                      "granularity": "day",
+                      "minValue": "2000-01-01",
+                      "maxValue": "2100-12-31"
+                    }
+                  },
+                  {
+                    "type": "RadioGroup",
+                    "props": {
+                      "label": "Garaged overnight?",
+                      "name": "q_rt_garaged"
+                    },
+                    "children": [
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "true",
+                          "label": "Yes"
+                        }
+                      },
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "false",
+                          "label": "No"
+                        }
+                      }
+                    ]
+                  },
+                  {
+                    "type": "RadioGroup",
+                    "props": {
+                      "label": "Main use",
+                      "name": "q_rt_use"
+                    },
+                    "children": [
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "opt_private",
+                          "label": "Private"
+                        }
+                      },
+                      {
+                        "type": "Radio",
+                        "props": {
+                          "value": "opt_business",
+                          "label": "Business"
+                        }
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "type": "Honeypot",
+                "props": {
+                  "name": "website",
+                  "autoComplete": "off",
+                  "ariaHidden": true,
+                  "tabIndex": -1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "compilerVersion": "0.3.0",
+  "a2uiSpecVersion": "1.0.0-preview.7"
+}

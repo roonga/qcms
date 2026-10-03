@@ -512,6 +512,320 @@
 }
 
 /* --------------------------------------------------------------------------
+   Repeating group, TABLE presentation (task 077, ADR-43, Q10, plan section 4.5).
+
+   A NATIVE `<table>` AND NEVER `role="grid"`. APG states as a defining property
+   of the grid pattern that it "Requires the author to provide code that manages
+   focus movement inside it", so with scripting off a grid is a tab-trap-shaped
+   nothing and this surface's no-JS claim is unqualified. Nothing in this section
+   may grow a roving tabindex or an edit mode; the markup that goes with it is in
+   `repeat/RepeatTable.tsx`, `RepeatRow.tsx` and `RepeatCell.tsx`.
+
+   THE 136 PIXELS. `position: relative` on the scroll box and on every cell is
+   not an incidental declaration, because this design puts a visually hidden
+   `<label>` in EVERY cell. A visually hidden label positioned with
+   `position: absolute` inside an `overflow-x: auto` box with no positioned
+   ancestor resolves against the initial containing block, lands past the viewport
+   edge and widens the DOCUMENT, which is exactly the horizontal page scroll the
+   portal forbids (1.4.10 Reflow). It cost 136 unexplained pixels on a concept
+   page and 863 on an admin table, and it is caught by a width assertion rather
+   than by axe, which is why the assertion exists.
+
+   THE SCROLL BOX IS THE ONLY ELEMENT ON A PORTAL PAGE PERMITTED TO SCROLL
+   HORIZONTALLY, and only above the card reflow. Below it there is nothing to
+   scroll, because a card is one column wide.
+   -------------------------------------------------------------------------- */
+
+[data-qcms-theme-scope] .qcms-repeat-table {
+  /* The containing block for every hidden label beneath it. See above. */
+  position: relative;
+  overflow-x: auto;
+  inline-size: 100%;
+  /* NO BLOCK-SIZE CONSTRAINT, and nothing here may add one without reading the
+     2.4.11 paragraph below first: `overflow-x: auto` makes this box a scroll
+     container in BOTH axes, so constraining its height creates a vertical
+     scrollport inside a form step, and that is the geometry a `position: sticky`
+     header needs in order to come to rest over a focused cell. */
+}
+
+[data-qcms-theme-scope] .qcms-repeat-table__table {
+  inline-size: 100%;
+  /* `separate` with zero spacing rather than `collapse`, so each cell owns its own
+     border box: the per-cell `position: relative` below is what contains every
+     visually hidden label (see THE 136 PIXELS), and a collapsed border does not
+     paint on a positioned cell. */
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* The group's own label, and the table's accessible name. It is the ONLY place
+   that label appears, which is why the expansion emits no heading node for a
+   table-presented group: a heading carrying the same words above a caption says
+   the collection's name twice for no navigational gain. */
+[data-qcms-theme-scope] .qcms-repeat-table__caption {
+  text-align: start;
+  font-weight: 600;
+  margin-block-end: var(--space-stack);
+}
+
+[data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
+  /* The containing block for this cell's hidden label. See THE 136 PIXELS. */
+  position: relative;
+  padding: var(--space-stack);
+  text-align: start;
+  vertical-align: top;
+  border-block-end: 1px solid var(--color-border);
+  /* A cell may shrink below its content's min-content width, for the same reason
+     the stacked presentation's grid track is `minmax(0, 1fr)`: a date control is
+     three spinbuttons and a calendar button in a row, and a floor at its
+     min-content width gives the page a width it cannot meet, at which point
+     Chromium's mobile emulation zooms the whole document out and that is a 1.4.10
+     failure rather than a cosmetic one (task 073 measured 0.75 on a Pixel 7). */
+  min-inline-size: 0;
+}
+
+/* NOTHING IN THIS TABLE IS PINNED, and that is a ruling rather than an omission
+   (Code Owner, 2026-10-03, on the review of task 077).
+
+   The first version of this section pinned the header row and the total footer
+   with `position: sticky`. Both declarations were INERT: `position: sticky`
+   resolves against the nearest scrollport, which is the `overflow-x: auto` box
+   above, and that box's block size is its content's, so it never scrolls on the
+   block axis and neither cell ever detached. The header scrolled off the top of
+   the viewport with the page exactly as a static one does, and deleting both
+   blocks changed no test - which is how the review found them.
+
+   So the pin is gone rather than made real, and 2.4.11 Focus Not Obscured is
+   satisfied the simpler way: with nothing pinned, nothing can come to rest over a
+   focused cell. Making it real would have meant constraining this box's height to
+   create the scrollport, which puts a vertical scroller inside a form step, and
+   then discharging the very obscuring risk the pin introduces with a
+   `scroll-padding-block` nobody can prove is larger than every theme's control
+   height. The pin's benefit is bounded by the group's own `max`, which SEC-16
+   leaves to the author, and the card reflow already drops the header on a phone.
+
+   The same reasoning is why the row-header column is not pinned inline-start,
+   which is the one pin this layout's horizontal scroll box could actually
+   support: a focused cell the browser scrolls under a pinned first column IS
+   obscured, and discharging that needs `scroll-padding-inline-start` equal to
+   that column's width, which nothing in CSS knows.
+
+   `apps/portal/e2e/repeat-table.pw.ts` records the consequence for the case-44
+   assertion and keeps an assertion that would catch a future pin. */
+[data-qcms-theme-scope] .qcms-repeat-table__table thead :is(th, td) {
+  background-color: var(--color-surface);
+  font-weight: 600;
+  border-block-end: 2px solid var(--color-border-strong);
+}
+
+[data-qcms-theme-scope] .qcms-repeat-table__table tfoot :is(th, td) {
+  background-color: var(--color-surface);
+  border-block-end: 0;
+  border-block-start: 2px solid var(--color-border-strong);
+}
+
+/* The column's help text, under its label in the header rather than in every cell. */
+[data-qcms-theme-scope] .qcms-repeat-table__colhint {
+  display: block;
+  margin-block-start: var(--space-stack);
+  font-size: var(--type-hint);
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+/* A row header identifies its row; it is not a heading, so it does not shout. */
+[data-qcms-theme-scope] .qcms-repeat-table__rowhead {
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+/* Q11 moves focus to the row header after an add or a removal, and without
+   scripting the same landing is `autofocus` on it, so a focus destination with no
+   visible indicator would fail 2.4.7. */
+[data-qcms-theme-scope] .qcms-repeat-table__rowhead:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+/* FIGURE-WIDTH DIGITS ON A NUMERIC COLUMN, header and total included. The inputs
+   inside the cells already take `--type-numeric` from the sweep further up this
+   sheet, through `[data-qcms-field]`; a column header and a computed total are
+   text rather than controls, so they are not in that selector and would otherwise
+   be the two cells in the column whose digits did not line up. */
+[data-qcms-theme-scope] .qcms-repeat-table__cell--num {
+  font-feature-settings: var(--type-numeric);
+}
+
+/* EVERY CELL CARRIES A REAL `<label>`, CLIPPED HERE AND SHOWN AT THE REFLOW.
+
+   `scope` and `headers` associate a CELL with its header cells, which serves
+   1.3.1 for the table's structure, and no source found claims they contribute to
+   the INPUT's accessible name - and the input is what a respondent's assistive
+   technology is on while they type (H44, APG's naming practice). The reflow then
+   removes the header cells altogether, so a name that came from a header
+   relationship would go with them. So the label is real in both layouts and only
+   its painting changes, which is what keeps the accessibility tree identical at
+   every width.
+
+   ONE DOCUMENTED GAP, recorded rather than argued around: H44 says a hidden label
+   satisfies 1.3.1 and 4.1.2 but that for 3.3.2 Labels or Instructions "the label
+   element must be visible", and no W3C source found states that a visible
+   `<th>` column header discharges 3.3.2 for the input in the cell beneath it.
+   That is an INFERENCE, and task 030's manual screen-reader pass is where it is
+   tested rather than asserted. Do not write it down as a claim.
+
+   The clip is the same recipe `.qcms-repeat__status` uses: 1px, `overflow:
+   hidden`, `clip-path: inset(50%)`, which keeps the element in the accessibility
+   tree where `display: none` and `visibility: hidden` would both remove it. */
+/* THE SELECTOR CHAIN IS `[data-qcms-field] > * > …`, AND THE DEPTH IS THE WHOLE
+   POINT. `[data-qcms-field]` is the `display: contents` wrapper the registry puts
+   round one question, and its single element child is the control's own root, so
+   this reaches a control's own label and hint and nothing nested inside it. Three
+   things it must NOT reach, each of which it did at some point while this was
+   being written and each of which a render test now refuses:
+
+     - an OPTION's label. A `Radio` and a `Checkbox` each render a `<label>` round
+       their own input, and a `boolean` or `singleChoice` column is a cell full of
+       them; clipping those leaves a choice column whose options have no names.
+     - a DATE SEGMENT. The day, month and year are `<span role="spinbutton" id>`
+       elements and the first of them is its parent's first child, so a selector
+       written one level shallower clipped the month.
+     - an ERROR MESSAGE. Clipping a field error would be a 3.3.1 failure.
+
+   The question's own label is `:is(label, span):first-child` because the vendored
+   controls disagree about the element and both answers are correct: react-aria
+   renders a `<label for>` for a labelable control (TextField, NumberField, and the
+   qcms native fallbacks) and a `<span>` wired by `aria-labelledby` for a grouped
+   one (DatePicker, RadioGroup), since `<label for>` cannot name a group. */
+[data-qcms-theme-scope] .qcms-repeat-table__hidden,
+[data-qcms-theme-scope] .qcms-repeat-table__cell-name,
+[data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > :is(label, span):first-child,
+/* The hint, clipped for the same reason the label is: it is identical in every cell
+   of a column, and the column header carries it once. `slot="description"` is
+   react-aria's own anchor; `data-qcms-hint` is the qcms native fallbacks' spelling
+   of the same thing. The input keeps its `aria-describedby` either way, so nothing
+   is taken out of the accessibility tree. */
+[data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"],
+[data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint] {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* A control inside a cell fills it and may shrink with it. */
+[data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * {
+  min-inline-size: 0;
+  inline-size: 100%;
+}
+
+[data-qcms-theme-scope] .qcms-repeat-table__actions {
+  text-align: end;
+  white-space: nowrap;
+}
+
+/* --------------------------------------------------------------------------
+   THE CARD REFLOW (1.4.10 Reflow), one card per row.
+
+   WHY 40rem AND NOT 390px. The plan designs the reflow at 390px and the phone
+   project this suite runs every spec on is a Pixel 7 at 412px, so the boundary
+   has to be above both; the tablet project is 768px and has room for a table, so
+   it has to be below that. 40rem (640px) is the whole of the interval's
+   reasoning, and it is the same step the admin's own compact breakpoint uses.
+
+   `display: block` on the table parts is what produces the cards, and it has a
+   consequence that is the POINT rather than a side effect: the elements stop
+   being a table in the accessibility tree, the header cells stop being headers,
+   and every cell's own `<label>` becomes the only thing naming its input. That is
+   why the label is real at both widths. The WAI tables tutorial asks for exactly
+   this: "On small screens ... responsive tables often change format. Ensure that
+   the structural relationship is available in all formats."
+
+   The column headers are `display: none` here rather than clipped, because their
+   text is already in each cell's label and reading the whole header row before
+   the first card would be the duplication the labels exist to avoid.
+   -------------------------------------------------------------------------- */
+@media (max-width: 40rem) {
+  [data-qcms-theme-scope] .qcms-repeat-table {
+    /* Nothing overflows a one-column card, so there is no scroll box to be the
+       exception to the portal's no-horizontal-scroll rule. */
+    overflow-x: visible;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tbody,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tfoot,
+  [data-qcms-theme-scope] .qcms-repeat-table__table tr,
+  [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
+    display: block;
+    inline-size: auto;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table thead {
+    display: none;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table tr {
+    margin-block-end: var(--space-field-gap);
+    padding: var(--space-section-pad);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
+    /* `relative` is still the containing block for this cell's hidden label, which
+       is visible here but still positioned by the rule above it. */
+    position: relative;
+    padding: 0;
+    border: 0;
+    margin-block-end: var(--space-field-gap);
+  }
+
+  /* The card's own heading: the same `<th scope="row">` that is the row header
+     above the reflow, and the same `autofocus` landing. */
+  [data-qcms-theme-scope] .qcms-repeat-table__rowhead {
+    font-weight: 600;
+    margin-block-end: var(--space-stack);
+  }
+
+  /* Every hidden name is now the visible one. */
+  [data-qcms-theme-scope] .qcms-repeat-table__cell-name,
+  [data-qcms-theme-scope]
+    .qcms-repeat-table__cell
+    [data-qcms-field]
+    > *
+    > :is(label, span):first-child,
+  [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [slot="description"],
+  [data-qcms-theme-scope] .qcms-repeat-table__cell [data-qcms-field] > * > [data-qcms-hint] {
+    position: static;
+    inline-size: auto;
+    block-size: auto;
+    overflow: visible;
+    clip-path: none;
+    white-space: normal;
+  }
+
+  /* The actions column header stays clipped: the buttons under it are each named
+     in full ("Remove Asset 3"), so a visible "Remove" above them would name the
+     column twice over in a layout that has no columns. */
+  [data-qcms-theme-scope] .qcms-repeat-table__actions {
+    text-align: start;
+    margin-block-end: 0;
+  }
+
+  [data-qcms-theme-scope] .qcms-repeat-table__cell-name {
+    display: block;
+    font-size: var(--type-label);
+    color: var(--color-text-muted);
+  }
+}
+
+/* --------------------------------------------------------------------------
    FORCED COLORS / Windows High Contrast Mode (issue #28).
 
    Under `forced-colors: active` the user agent replaces the palette with the

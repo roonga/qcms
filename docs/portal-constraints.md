@@ -19,9 +19,12 @@ to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.
 required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
 `apps/portal/e2e/no-js-select.pw.ts` (a singleChoice question above the compiler's option
 threshold), `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer),
-`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195) and
+`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195),
 `apps/portal/e2e/no-js-repeat.pw.ts` (a repeating group: adding an instance, removing one,
-and the whole walk to the receipt). Read those eight as the definition of the claim.
+and the whole walk to the receipt) and the no-JS block of
+`apps/portal/e2e/repeat-table.pw.ts` (the same group presented as a table, at a width
+above the card reflow, which is the layout the phone project never sees). Read those nine
+as the definition of the claim.
 
 **All four of its qualifiers are gone, and each one was a control whose form value the
 respondent could not reach.** A form with a required date completed only from issue #920
@@ -50,6 +53,26 @@ the roster operation and **commits no answer**, so `formnovalidate` gives up not
 required question cannot be CLEARED without scripting" bullet below is unchanged rather
 than amended. An emptied required field on an Add post is neither stored nor retracted, and
 `apps/portal/e2e/no-js-repeat.pw.ts` asserts exactly that against the ledger.
+
+**The table presentation rides the same mechanism, unchanged** (task 077, ADR-43). A
+`table`-presented group draws its instances as rows of a native `<table>` and its member
+questions as columns, and a row's Remove is the same `__qop` submit button on the same form:
+the landing is the row's `<th scope="row">` rather than an instance card's heading, reached
+by `autofocus` for the same reason (a 200 answering a POST carries no fragment). It is a
+native `<table>` and never `role="grid"`, and the no-JS path is why that is not a
+preference: APG states as a defining property of the grid pattern that it "Requires the
+author to provide code that manages focus movement inside it", so with scripting off a grid
+is a tab-trap-shaped nothing. The spec that asserts it, `apps/portal/e2e/repeat-table.pw.ts`,
+is in the list above rather than only here, because that list is what a reader is told to
+read.
+
+The one new thing the layout needs is a horizontal scroll box: **above the card reflow the
+table's own `overflow-x: auto` box is the only element on a portal page permitted to scroll
+horizontally**, and the page itself still may not, at any width, which that spec measures at
+390px. **Nothing in the table is pinned** (Code Owner, 2026-10-03): a `position: sticky`
+header inside that box would need the box's own block size constrained before it did
+anything at all, and a pinned header is the geometry that creates a 2.4.11 obscuring risk,
+so the criterion is satisfied by having no pin rather than by discharging one.
 
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,

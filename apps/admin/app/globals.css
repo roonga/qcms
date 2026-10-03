@@ -3768,6 +3768,16 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   gap: 1rem;
   max-block-size: 58vh;
 }
+/* The sentence explaining a FILTERED library (task 077): the table presentation's
+   column picker offers five of the seven question types, and a filtered library looks
+   exactly like a short one, so the reason is said before the list rather than after it.
+   Muted and small, because it is the dialog's standing note and not a failure. */
+.qcms-picker__note {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--color-text-muted);
+}
+
 .qcms-table--picker {
   flex: 1 1 auto;
   /* The floor, so a tall selection cannot squeeze the library out of existence. */

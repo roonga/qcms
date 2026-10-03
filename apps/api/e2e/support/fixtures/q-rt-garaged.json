@@ -1,0 +1,5 @@
+{
+  "type": "boolean",
+  "questionId": "q_rt_garaged",
+  "label": { "en": "Garaged overnight?" }
+}

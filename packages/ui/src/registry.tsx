@@ -36,9 +36,17 @@ import { HoneypotSchema } from "./honeypot/honeypot.schema.ts";
 import { NativeDateField } from "./native-date-field.tsx";
 import { NativeNumberField } from "./native-number-field.tsx";
 import { NativeSelectField } from "./native-select-field.tsx";
+import { RepeatCell } from "./repeat/RepeatCell.tsx";
 import { RepeatGroup } from "./repeat/RepeatGroup.tsx";
 import { RepeatInstance } from "./repeat/RepeatInstance.tsx";
+import { RepeatRow } from "./repeat/RepeatRow.tsx";
+import { RepeatTable } from "./repeat/RepeatTable.tsx";
 import { RepeatGroupSchema, RepeatInstanceSchema } from "./repeat/repeat.schema.ts";
+import {
+  RepeatCellSchema,
+  RepeatRowSchema,
+  RepeatTableSchema,
+} from "./repeat/repeat-table.schema.ts";
 import {
   NATIVE_FIELD_ANSWERED_PREFIX,
   NATIVE_FIELD_ANSWERED_VALUE,
@@ -877,6 +885,19 @@ function buildV1Registry(): ComponentRegistry {
       // objects are `.strict()` (ADR-22).
       RepeatGroup: { component: RepeatGroup, schema: RepeatGroupSchema },
       RepeatInstance: { component: RepeatInstance, schema: RepeatInstanceSchema },
+      // The TABLE presentation's three render-time node types (task 077, ADR-43). A
+      // native `<table>` has a fixed element nesting and the a2ra renderer renders a
+      // node's children with no wrapper of its own, so a cell element needs a node:
+      // `RepeatTable` is the scroll box, caption, column headers and total footer,
+      // `RepeatRow` is one `<tr>` with its `<th scope="row">` focus handle, and
+      // `RepeatCell` is one `<td>` holding a member control or, where a per-instance
+      // rule hid it, nothing. They are NOT the vendored `Table`, which is a react-aria
+      // `Table` rendering `role="grid"` and managing focus with script: ADR-43 refuses
+      // that outright, and what the vendored component contributes here is its style
+      // map rather than its markup.
+      RepeatTable: { component: RepeatTable, schema: RepeatTableSchema },
+      RepeatRow: { component: RepeatRow, schema: RepeatRowSchema },
+      RepeatCell: { component: RepeatCell, schema: RepeatCellSchema },
       SubmitButton: { component: SubmitButton, schema: SubmitButtonSchema },
     },
     { strict: true },

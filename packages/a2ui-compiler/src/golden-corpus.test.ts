@@ -137,6 +137,15 @@ const CORPUS: readonly {
   // 38, Q12).
   { fixture: "repeat-open-group.json", golden: "repeat-open-group.a2ui.json", local: true },
   { fixture: "repeat-count-sources.json", golden: "repeat-count-sources.a2ui.json", local: true },
+  // Task 077's one, appended for the same generation: `presentation: "table"` over
+  // exactly the five allowed cell types (`shortText`, `number`, `date`, `boolean`,
+  // `singleChoice`, Q12). No compiler code moved for it - the template node already
+  // carries `presentation`, and the table is a RENDER-time expansion of the same
+  // stored bytes - so this is an appended corpus entry rather than a new generation
+  // and `COMPILER_VERSION` stays where task 073 left it. It is also the document the
+  // renderer's table tests drive, so the shapes they assert are the shapes the
+  // compiler emits rather than a hand-written approximation of them.
+  { fixture: "repeat-table-group.json", golden: "repeat-table-group.a2ui.json", local: true },
 ];
 
 function readJson(...segments: string[]): unknown {
@@ -458,8 +467,11 @@ describe("v4 carries the pre-073 corpus across byte-identically (case 5)", () =>
 describe("the honeypot is never inside a RepeatGroup template (case 34)", () => {
   const REPEAT_CORPUS = CORPUS.filter((entry) => entry.fixture.startsWith("repeat-"));
 
-  it("covers both repeat corpus forms", () => {
-    expect(REPEAT_CORPUS).toHaveLength(2);
+  it("covers every repeat corpus form", () => {
+    // Two from task 073 (the open group and the three count sources) and one from
+    // task 077 (the table presentation). The count is asserted rather than trusted so
+    // that a form appended without a decoy assertion is a failure here.
+    expect(REPEAT_CORPUS).toHaveLength(3);
   });
 
   for (const { fixture, golden, local } of REPEAT_CORPUS) {

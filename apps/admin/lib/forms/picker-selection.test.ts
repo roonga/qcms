@@ -175,3 +175,38 @@ describe("the chosen pane", () => {
     expect(chosenDetail(LIBRARY, [{ questionId: "q_vanished", version: 1 }])).toEqual([]);
   });
 });
+
+describe("the table-column type filter (task 077, Q12)", () => {
+  it("offers only the allowed types and leaves the rest out entirely", () => {
+    // Filtered OUT rather than listed-and-disabled, which is the opposite of what this
+    // module does for a deprecated or already-pinned version. Those are states of a row an
+    // author might expect to be choosable, so the row has to be there to carry the reason;
+    // a type that cannot be a column is a different kind of question, and a list
+    // two-sevenths of which can never be chosen is a list the author reads past. The
+    // sentence saying why the others are absent is the dialog's, not this module's.
+    const allowed = ["shortText", "number", "date"];
+    const rows = pinnableRows(LIBRARY, DRAFT, "", allowed);
+    // `q_smoker` is a boolean, which this call's list does not admit, so it is absent;
+    // every number row survives, versions and all.
+    expect(rows.map((row) => rowId(row.questionId, row.version))).toEqual([
+      "q_systolic@1",
+      "q_systolic@2",
+      "q_systolic@3",
+      "q_height@1",
+    ]);
+  });
+
+  it("composes with the search rather than replacing it", () => {
+    expect(pinnableRows(LIBRARY, DRAFT, "height", ["number"]).map((row) => row.questionId)).toEqual(
+      ["q_height"],
+    );
+    expect(pinnableRows(LIBRARY, DRAFT, "smoker", ["number"])).toEqual([]);
+  });
+
+  it("lists everything when no filter is given, which is every existing caller", () => {
+    // The same call with no fourth argument at all, which is every existing caller.
+    expect(pinnableRows(LIBRARY, DRAFT, "").map((row) => row.questionId)).toEqual(
+      ROWS.map((row) => row.questionId),
+    );
+  });
+});
