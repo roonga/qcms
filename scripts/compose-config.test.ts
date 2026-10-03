@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -271,6 +272,36 @@ describe("least-privilege database roles (SEC-10, issues #492 and #995)", () => 
     const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
     expect(sql).toContain("pg_depend");
     expect(sql).toContain("d.deptype IN ('a', 'i')");
+  });
+
+  it("excludes the system schemas with a LIKE escape that is ONE backslash", () => {
+    // **A one-character defect that takes the whole stack down, and it took this one
+    // down.** The ownership handover walks `pg_namespace` and skips the system schemas
+    // with `nspname NOT LIKE 'pg\_%'`. A YAML block scalar processes no escapes and
+    // Compose interpolation escapes only `$`, so that text reaches psql unchanged and the
+    // `\_` is LIKE's escape for a literal underscore, which is what excludes `pg_catalog`
+    // and `pg_toast`.
+    //
+    // Doubled to `'pg\\_%'` the pattern becomes an escaped BACKSLASH followed by any one
+    // character, so it matches nothing at all, no system schema is excluded, and the loop
+    // emits `ALTER SCHEMA pg_catalog OWNER TO qcms_migrate`. Under `ON_ERROR_STOP` that
+    // aborts the one-shot with exit 3, and neither `migrate` nor `api` ever starts. The
+    // file looks entirely reasonable either way, which is why this is asserted rather than
+    // trusted: the doubling is what a careless edit, or a scripted replacement over the
+    // file, produces.
+    //
+    // Read as TEXT and over both copies, unlike the assertions above. What is being
+    // checked is a character sequence inside a block scalar, and the scaffold's generated
+    // copy has to carry it too - a scaffolded project whose database roles one-shot fails
+    // is a project that never starts at all.
+    for (const path of [
+      "docker-compose.yml",
+      "packages/create-qcms-app/templates/common/docker-compose.yml",
+    ]) {
+      const text = readFileSync(join(REPOSITORY_ROOT, path), "utf8");
+      expect(text, path).toContain("NOT LIKE 'pg\\_%'");
+      expect(text, path).not.toContain("NOT LIKE 'pg\\\\_%'");
+    }
   });
 });
 

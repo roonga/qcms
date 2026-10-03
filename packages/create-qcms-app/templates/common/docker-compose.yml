@@ -152,15 +152,25 @@ services:
         -- not usable here: the bootstrap role is the initdb superuser, so it also owns
         -- pinned catalog objects and Postgres refuses ("cannot reassign ownership of
         -- objects owned by role ... because they are required by the database system").
+        --
+        -- `'pg\_%'` carries exactly ONE backslash and must not be "corrected" to two.
+        -- A YAML block scalar processes no escapes and Compose interpolation escapes only
+        -- `$`, so this text reaches psql as written, where `\_` is LIKE's escape for a
+        -- literal underscore. That is what excludes `pg_catalog` and `pg_toast`. Doubled,
+        -- the pattern is an escaped backslash followed by any one character, matches
+        -- nothing, and this loop then emits `ALTER SCHEMA pg_catalog OWNER TO
+        -- qcms_migrate`, which under ON_ERROR_STOP aborts the one-shot with exit 3 so that
+        -- `migrate` and `api` never start. `scripts/compose-config.test.ts` asserts the
+        -- single form, in this file and in the scaffold's copy.
         SELECT format('ALTER SCHEMA %I OWNER TO qcms_migrate', nspname)
         FROM pg_namespace
-        WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
+        WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
           AND nspowner <> 'qcms_migrate'::regrole\gexec
 
         SELECT format('ALTER TABLE %I.%I OWNER TO qcms_migrate', n.nspname, c.relname)
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
-          AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
           AND c.relowner <> 'qcms_migrate'::regrole
           AND NOT (c.relkind = 'S' AND EXISTS (
                 SELECT 1 FROM pg_depend d
@@ -171,13 +181,13 @@ services:
         SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO qcms_migrate',
                       n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+        WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
           AND p.proowner <> 'qcms_migrate'::regrole\gexec
 
         SELECT format('ALTER TYPE %I.%I OWNER TO qcms_migrate', n.nspname, t.typname)
         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
         WHERE t.typtype = 'e'
-          AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
+          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
           AND t.typowner <> 'qcms_migrate'::regrole\gexec
 
         -- `public` holds no QCMS object at all under ADR-40 and is on no search path, so

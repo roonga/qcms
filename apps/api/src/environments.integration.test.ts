@@ -4,7 +4,11 @@ import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcm
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { loadConfig } from "./config.js";
-import { assertEnvironmentsMatch, openDatabases } from "./environments.js";
+import {
+  EnvironmentSetMismatchError,
+  assertEnvironmentsMatch,
+  openDatabases,
+} from "./environments.js";
 import { validEnv } from "./test-support.js";
 
 /**
@@ -161,9 +165,47 @@ describe("an environment created after boot (Q59)", { timeout: TIMEOUT_MS }, () 
     // rather than on a misconfiguration.
     const { databases, pools } = openDatabases(configFor(["test", "prod", "dev", "staging"]));
     try {
-      await expect(assertEnvironmentsMatch(databases)).rejects.toThrow(
+      const refusal = await assertEnvironmentsMatch(databases).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(refusal).toBeInstanceOf(EnvironmentSetMismatchError);
+      expect((refusal as Error).message).toMatch(
         /configured but absent from control.environments: staging/,
       );
+    } finally {
+      await Promise.all(pools.map((pool) => pool.end()));
+    }
+  });
+
+  it("tells a disagreement apart from a database it could not read, which is what decides the boot", async () => {
+    // **The type is the mechanism, not a nicety.** `main.ts` exits non-zero on a
+    // disagreement, because criterion 6a says refuse and ADR-24's contract is to fail fast
+    // on deployment configuration; it warns and binds on anything else, because anything
+    // else is usually a database that is not up yet and `/ready` already reports that.
+    // Without the distinction the refusal would have to cover all errors or none, and both
+    // are wrong: all is a crash loop on a cold database, none lets the two lists disagree
+    // in silence.
+    //
+    // An unreachable port rather than a stopped container, so the container the rest of
+    // this file depends on stays up. The port is inside the QCMS allocation for this seat
+    // and is bound by nothing (`scripts/check-ports.mjs`).
+    const unreachable = loadConfig(
+      validEnv({
+        DATABASE_URL: "postgres://qcms:synthetic@127.0.0.1:1/qcms",
+        QCMS_ENVIRONMENTS: "test,prod",
+        QCMS_DATABASE_URL_TEST: testDb.connectionUri,
+        QCMS_DATABASE_URL_PROD: testDb.connectionUri,
+      }),
+    );
+    const { databases, pools } = openDatabases(unreachable);
+    try {
+      const failure = await assertEnvironmentsMatch(databases).then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      expect(failure).toBeInstanceOf(Error);
+      expect(failure).not.toBeInstanceOf(EnvironmentSetMismatchError);
     } finally {
       await Promise.all(pools.map((pool) => pool.end()));
     }

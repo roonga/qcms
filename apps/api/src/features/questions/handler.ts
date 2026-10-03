@@ -56,7 +56,11 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { createQuestionWithFirstDraft, requireQuestionDefinition } from "./create.js";
+import {
+  createQuestionWithFirstDraft,
+  requireQuestionDefinition,
+  requireUnusedQuestionId,
+} from "./create.js";
 import type {
   createQuestionRoute,
   createVersionRoute,
@@ -153,6 +157,11 @@ export function makeCreateQuestionHandler(
   return async (c) => {
     const body = c.req.valid("json");
     const definition = requireQuestionDefinition(body.definition);
+
+    // R6's answer-ledger half, once per environment in the live set and BEFORE the
+    // transaction: those reads are on the environment pools and a transaction is one
+    // connection (ADR-40, Q1 - see `requireUnusedQuestionId` for why the rule splits).
+    await requireUnusedQuestionId(deps.databases, definition.questionId);
 
     // The identity check, the identity row and the first draft version are one
     // atomic decision, and they live in `create.ts` so 041's accept can make the

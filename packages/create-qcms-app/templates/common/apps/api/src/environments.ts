@@ -161,6 +161,28 @@ export function openDatabases(config: Config): {
 }
 
 /**
+ * The configured environment set and `control.environments` disagree (criterion 6a).
+ *
+ * **A type rather than a message, because the caller has to tell this apart from the
+ * database being unreachable**, and the two want opposite handling. A disagreement is a
+ * configuration fault that will not fix itself and that nothing downstream reports: it
+ * refuses the boot. A failed read is very often a database that is not up yet - which is
+ * the ordinary case on a Compose start, `depends_on` or not - and killing the process for
+ * it would turn a few seconds of waiting into a crash loop. `/ready` is what covers that
+ * one, and it covers it already.
+ *
+ * Without the distinction the boot refusal could only be all or nothing, and both choices
+ * are wrong: fatal on any error is a crash loop, fatal on none leaves the two lists free
+ * to disagree silently, which is exactly what criterion 6a forbids.
+ */
+export class EnvironmentSetMismatchError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "EnvironmentSetMismatchError";
+  }
+}
+
+/**
  * Refuse to boot when the configured environment set and `control.environments`
  * disagree (criterion 6a).
  *
@@ -174,6 +196,9 @@ export function openDatabases(config: Config): {
  *
  * Read on the **control** pool, which is the one connection the process has before any
  * environment pool is known to be usable.
+ *
+ * Throws {@link EnvironmentSetMismatchError} on a disagreement and whatever the driver
+ * threw on a failed read; see that type for why the caller needs them apart.
  */
 export async function assertEnvironmentsMatch(databases: Databases): Promise<void> {
   // A raw fragment rather than a query helper: this runs before the process is known to
@@ -196,6 +221,8 @@ export async function assertEnvironmentsMatch(databases: Databases): Promise<voi
         `present in control.environments but not configured: ${missingCredential.join(", ")}`,
       );
     }
-    throw new Error(`the environment set and the configuration disagree (${parts.join("; ")})`);
+    throw new EnvironmentSetMismatchError(
+      `the environment set and the configuration disagree (${parts.join("; ")})`,
+    );
   }
 }
