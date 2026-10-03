@@ -114,8 +114,16 @@ const SAFE_EVENTS = new Set([
   // criterion 6a). A boot-time misconfiguration an operator has to see by name: the body
   // is built from environment NAMES only - never a connection string, never a credential
   // (SEC-8) - and collapsing it to `application.event` would hide the one line that says
-  // why an environment is being served from nowhere.
+  // why an environment is being served from nowhere. That one **refuses the boot**, so
+  // this record is the last thing the process writes.
   "the environment set and the configuration disagree",
+  // The check could not run at all, as against finding a disagreement. Its own line,
+  // because the two outcomes are handled opposite ways: a disagreement refuses the boot,
+  // and this is usually a database that is not up yet, so the process warns and binds.
+  // Collapsing it would leave an operator unable to tell "the sets disagree" from "the
+  // sets were never compared", which is the difference between a fault and an unknown. The
+  // body is the driver's error and no connection string (SEC-8).
+  "could not check the environment set against control.environments",
   "unhandled error",
 ]);
 

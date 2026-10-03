@@ -34,7 +34,11 @@ import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";
 import type { Deps } from "./deps.js";
-import { assertEnvironmentsMatch, openDatabases } from "./environments.js";
+import {
+  EnvironmentSetMismatchError,
+  assertEnvironmentsMatch,
+  openDatabases,
+} from "./environments.js";
 import { createJsonLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { createOutboxScheduler } from "./schedulers/outbox.js";
@@ -79,11 +83,29 @@ export function main(telemetry: Telemetry): void {
 
   // Criterion 6a: the configured set and `control.environments` must agree, in both
   // directions, or this process would serve an environment from nowhere or open a pool
-  // whose search path resolves to nothing. Off to the side of the bind, because a
-  // failure here is a configuration failure the operator has to see in the log rather
-  // than a reason for the container to have no port open at all.
+  // whose search path resolves to nothing.
+  //
+  // **A disagreement is fatal and a failed read is not**, which is the whole reason
+  // `EnvironmentSetMismatchError` is a type. The criterion is "refuses to boot" and
+  // ADR-24's contract is to parse deployment configuration at boot and fail fast, so a set
+  // that disagrees takes the process down rather than leaving a line in a log nobody is
+  // reading - every other configuration fault already exits non-zero through `serve.ts`.
+  // Any other failure here is usually a database that is not up yet, which is the ordinary
+  // case on a Compose start and which `/ready` already reports, so it warns and the
+  // process goes on to bind.
+  //
+  // Off to the side of the bind rather than awaited before it, deliberately: this is the
+  // process's first query, and making the port depend on it would mean a cold database
+  // produced a container with nothing listening instead of one answering `/ready` with the
+  // reason.
   void assertEnvironmentsMatch(databases).catch((error: unknown) => {
-    logger.error("the environment set and the configuration disagree", { err: error });
+    if (error instanceof EnvironmentSetMismatchError) {
+      logger.error("the environment set and the configuration disagree", { err: error });
+      process.exit(1);
+    }
+    logger.warn("could not check the environment set against control.environments", {
+      err: error,
+    });
   });
 
   const deps: Deps = {

@@ -26,6 +26,7 @@ import type { ApiEnv } from "../../../openapi.js";
 import {
   checkQuestionDefinition,
   createQuestionWithFirstDraft,
+  requireUnusedQuestionId,
   type DefinitionRefusal,
 } from "../../questions/create.js";
 import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../handler.js";
@@ -368,6 +369,21 @@ export function makeAcceptProposalHandler(
         slug: entry.slug ?? slugFor(checked.definition.questionId),
       };
     });
+
+    // R6's answer-ledger half, once per proposed question per environment in the live set,
+    // and before the transaction opens for the same reason validation is: those reads are on
+    // the environment pools, a transaction is one connection, and no transaction should be
+    // opened for a proposal that is going to be refused (ADR-40, Q1).
+    for (const question of proposed) {
+      try {
+        await requireUnusedQuestionId(deps.databases, question.definition.questionId);
+      } catch (error) {
+        // The same record the in-transaction refusals get below, for the same reason: an
+        // R6 refusal is an outcome of the accept and has to be attributable to a question.
+        logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
+        throw error;
+      }
+    }
 
     const stored = await deps.databases.control.transaction(async (tx) => {
       const created: CreatedQuestion[] = [];

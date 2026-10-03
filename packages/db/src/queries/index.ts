@@ -52,6 +52,7 @@ export {
   updateDraftDefinition,
   listQuestions,
   isQuestionIdTaken,
+  isQuestionIdInAnswerLedger,
 } from "./questions.js";
 
 export {

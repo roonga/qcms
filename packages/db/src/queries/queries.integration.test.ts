@@ -52,6 +52,7 @@ import {
   insertSubmission,
   isRetraction,
   retractAnswer,
+  isQuestionIdInAnswerLedger,
   isQuestionIdTaken,
   latestAnswers,
   listDeadLetters,
@@ -267,13 +268,22 @@ describe("questions helpers", () => {
     await expect(listVersionsForQuestions(testDb.db, [])).resolves.toEqual([]);
   });
 
-  it("reports questionId use, including historic answer rows (R6)", async () => {
+  it("reports questionId use in the library and in an answer ledger, as two halves (R6)", async () => {
+    // **R6 is one rule asked on two planes since ADR-40.** It used to be one `union all`
+    // over `control.questions` and `answers`, and that statement cannot exist any more: the
+    // authoring connection's search path is `control` alone and its role holds no read on
+    // any data-plane table, which is the property Q40 exists to buy. So the library half is
+    // `isQuestionIdTaken` on the control plane, the ledger half is
+    // `isQuestionIdInAnswerLedger` on an environment's own pool, and
+    // `apps/api/src/features/questions/create.ts` runs the second once per environment in
+    // the live set (Q1).
     const questionId = QuestionId.parse("q_taken");
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(false);
     await createQuestion(testDb.db, { questionId, slug: "q-taken-slug" });
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(true);
 
-    // An id surviving only in the answer ledger still counts as taken.
+    // An id surviving ONLY in the answer ledger - its question deprecated or erased - is
+    // still refused, which is the half the split had to keep working.
     const { formId, version } = await seedPublishedForm("frm_taken");
     const sessionId = SessionId.parse("ses_taken");
     await createSession(testDb.db, {
@@ -286,7 +296,15 @@ describe("questions helpers", () => {
     });
     const historic = QuestionId.parse("q_historic_only");
     await appendAnswer(testDb.db, { sessionId, questionId: historic, value: "x" });
-    expect(await isQuestionIdTaken(testDb.db, historic)).toBe(true);
+    expect(await isQuestionIdInAnswerLedger(testDb.db, historic)).toBe(true);
+
+    // And the library half does NOT see it, which is what makes the second call necessary
+    // rather than belt and braces: a caller that dropped it would reuse this id silently.
+    expect(await isQuestionIdTaken(testDb.db, historic)).toBe(false);
+
+    // The ledger half is scoped to the connection's own environment, so an id the library
+    // holds but no respondent ever answered is absent from it.
+    expect(await isQuestionIdInAnswerLedger(testDb.db, questionId)).toBe(false);
   });
 });
 
