@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Alert, Button, Dialog, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
-import { conditionReferences } from "@/lib/forms/condition";
+import { conditionGroupReferences, conditionReferences } from "@/lib/forms/condition";
 import { upsertRule } from "@/lib/forms/draft";
 import { issuesForRule, messageForIssue } from "@/lib/forms/issues";
 import { ruleScope, scopeChipLabel } from "@/lib/forms/rule-targets";
@@ -130,6 +130,11 @@ export function RuleWizard({
   // Computed once and shared by the three phases, so the target grouping, the backward
   // flag and the bench cannot disagree about what this condition reads.
   const references = conditionReferences(edited.when);
+  // The other half of what this rule reads (ADR-42 section 3.4). A whole-group operator reads
+  // all of its group, so its cut through document order is the end of that group's SPAN rather
+  // than any one member's position - which is why the two lists travel separately rather than
+  // being concatenated into one.
+  const groupReferences = conditionGroupReferences(edited.when);
   // The draft AS THE AUTHOR HAS IT, which is what the target geometry and the bench are
   // questions about. Without this the "Then show" list would be grouped against the stored
   // condition and the bench would preview a rule the author has already changed.
@@ -191,6 +196,7 @@ export function RuleWizard({
               draft={working}
               rule={edited}
               references={references}
+              groupReferences={groupReferences}
               onChange={(show) => {
                 setEdited((current) => ({ ...current, show }));
               }}

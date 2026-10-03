@@ -15,6 +15,7 @@ import {
   addRepeatGroup,
   addRule,
   addStep,
+  chooseConditionOperator,
   chooseOption,
   chooseRadio,
   closeRuleEditor,
@@ -26,6 +27,7 @@ import {
   openGroupPanel,
   openRulePhase,
   openStep,
+  pinQuestion,
   pinQuestions,
   rule,
   savedStamp,
@@ -146,6 +148,14 @@ test("defines a group, walks all three count sources, and round-trips through sa
     { questionId: questionIdFor(PASSPORT), version: 1 },
     { questionId: questionIdFor(FARE), version: 1 },
   ]);
+
+  // A STEP AFTER THE GROUP'S WHOLE SPAN, which the next two tests need and this one needs for
+  // the `fromAnswer` picker to be the only forward-only question on screen: a rule that reads
+  // the whole group may only target something that follows all of it (forward-only rule 2), so
+  // without a question after the span there is nothing such a rule could legally show.
+  await addStep(page, "Declaration");
+  await pinQuestion(page, questionIdFor(DECLARATION), 1);
+  await openGroupPanel(page, GROUP);
 
   // --- the count source, all three of them ---------------------------------
   //
@@ -289,7 +299,7 @@ test("states the scope on a per-instance rule, and offers all three group operat
 
   // `instanceCount` is a group picker, a comparison picker and a number. The comparison reuses
   // the ORDERING operators' own names as a field rather than a second vocabulary.
-  await chooseOption(groupRule, "Operator", "how many instances a group has");
+  await chooseConditionOperator(groupRule, "how many instances a group has");
   await expect(groupRule.getByRole("button", { name: /Group$/u })).toBeVisible();
   await chooseOption(groupRule, "Comparison", "is at least");
   await fillStable(groupRule.getByRole("textbox", { name: "Instance count" }), "2");
@@ -297,13 +307,13 @@ test("states the scope on a per-instance rule, and offers all three group operat
   // `anyInstance` is a group picker plus a NESTED condition, which is the editor's own recursion:
   // the nested tree is addressed as child 0 exactly as `not`'s is, so it reuses the depth
   // accounting rather than keeping a second one.
-  await chooseOption(groupRule, "Operator", "at least one instance of a group matches");
+  await chooseConditionOperator(groupRule, "at least one instance of a group matches");
   await expect(groupRule).toContainText(`For one instance of Passenger`);
   await expect(groupRule.getByRole("button", { name: /Question$/u })).toBeVisible();
 
   // `everyInstance` states its EMPTY-GROUP READING at the control, because the editor is where
   // an author decides to use the operator (Q7, ruled 2026-09-29).
-  await chooseOption(groupRule, "Operator", "every instance of a group matches");
+  await chooseConditionOperator(groupRule, "every instance of a group matches");
   // The nested condition reads a question INSIDE the group, which resolves per instance - the
   // airline's "every passenger holds a passport" written as an ordinary condition.
   await chooseOption(groupRule, "Question", `${questionIdFor(PASSPORT)}@1`);
@@ -342,7 +352,11 @@ test("evaluates a rule against hypothetical instances, including zero (case 60)"
 
   // The `everyInstance` rule, which is the one the Q7 ruling exists for.
   await chooseOption(bench, "Rule", wholeGroupRuleId);
-  const instances = bench.getByRole("spinbutton", { name: `Instances of ${GROUP}` });
+  // A TEXTBOX, not a spinbutton: the kit's `NumberField` is the vendored react-aria control,
+  // which renders a text input flanked by its own Decrease and Increase buttons rather than a
+  // native `<input type="number">` (ADR-22 - the admin composes the vendored stack and does not
+  // substitute a platform control for it).
+  const instances = bench.getByRole("textbox", { name: `Instances of ${GROUP}` });
   await expect(instances).toBeVisible();
 
   // --- ZERO INSTANCES, which is the ruled case and the one nobody thinks to try ---
@@ -350,7 +364,7 @@ test("evaluates a rule against hypothetical instances, including zero (case 60)"
   // `everyInstance` over a group with no live instance is FALSE, not vacuously true: "every
   // passenger holds a passport" is not a true statement about a booking with no passengers. The
   // bench is where that becomes discoverable rather than documented.
-  await instances.fill("0");
+  await setInstanceCount(instances, "0");
   await bench.getByRole("button", { name: "Run preview" }).click();
   await expect(bench.getByTestId("qcms-bench-outcome")).toHaveAttribute("data-outcome", "noMatch", {
     timeout: 30_000,
@@ -360,7 +374,7 @@ test("evaluates a rule against hypothetical instances, including zero (case 60)"
   await expect(bench.getByTestId("qcms-bench-reference")).toHaveCount(0);
 
   // --- two instances, answered -------------------------------------------
-  await instances.fill("2");
+  await setInstanceCount(instances, "2");
   const prompts = bench.getByTestId("qcms-bench-reference");
   await expect(prompts).toHaveCount(2);
   // One control per instance, named for the instance it answers: six passenger fields that all
@@ -389,8 +403,8 @@ test("evaluates a rule against hypothetical instances, including zero (case 60)"
   // that a rule they wrote reads one instance rather than the whole group, and the other way
   // round.
   await chooseOption(bench, "Rule", perInstanceRuleId);
-  const perInstanceCount = bench.getByRole("spinbutton", { name: `Instances of ${GROUP}` });
-  await perInstanceCount.fill("2");
+  const perInstanceCount = bench.getByRole("textbox", { name: `Instances of ${GROUP}` });
+  await setInstanceCount(perInstanceCount, "2");
   await fillStable(
     bench.getByRole("textbox", { name: `${questionIdFor(PASSPORT)}@1 (instance 2)` }),
     "PA2",
@@ -404,7 +418,7 @@ test("evaluates a rule against hypothetical instances, including zero (case 60)"
   // And at zero instances it says so in words rather than rendering nothing: a list that
   // disappeared would leave the author looking at one verdict with no sign that it was a verdict
   // about no instances at all.
-  await perInstanceCount.fill("0");
+  await setInstanceCount(perInstanceCount, "0");
   await bench.getByRole("button", { name: "Run preview" }).click();
   await expect(outcomes).toContainText("there are no instances", { timeout: 30_000 });
 });
@@ -497,6 +511,21 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
 
   expect(author).toEqual(withDemotedHeadings(respondent, 1));
 });
+
+/**
+ * Set one group's hypothetical instance count, and wait for the control to have committed it.
+ *
+ * `fill` alone is not enough and the reason is the control rather than the test: the kit's
+ * `NumberField` is the vendored react-aria one, which commits its value on blur or Enter rather
+ * than on each keystroke (a half-typed "1" on the way to "12" is not a value anyone meant). A
+ * bare fill therefore leaves the component holding its previous number and the panel showing the
+ * previous roster - which reads as the bench ignoring the field.
+ */
+async function setInstanceCount(field: Locator, count: string): Promise<void> {
+  await field.fill(count);
+  await field.press("Enter");
+  await expect(field).toHaveValue(count);
+}
 
 /** The rendered step on the portal, which is the subtree the comparison reads. */
 function rendererRoot(page: Page): Locator {
