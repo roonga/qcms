@@ -32,5 +32,10 @@ dist
 # forbids all three, so the fix is to keep the files out of the image, never to add
 # the dependency that would satisfy their imports.
 **/e2e
+# pnpm's frozen install requires every workspace manifest recorded in the lockfile.
+# Keep the e2e workspace manifest, but exclude its browser sources from image builds.
+!apps/e2e
+apps/e2e/**
+!apps/e2e/package.json
 **/*.test.ts
 **/*.test.tsx

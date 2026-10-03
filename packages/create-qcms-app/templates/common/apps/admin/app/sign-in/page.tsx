@@ -46,6 +46,12 @@ export default async function SignInPage({
 
   const params = await searchParams;
   const error = authFailureMessage(params);
+  // Only the local dev Compose overlay enables credential links. NODE_ENV cannot
+  // distinguish it from a deployment because dev:up runs production images too.
+  const password =
+    process.env.QCMS_DEV_LOGIN_PREFILL === "true" && typeof params.password === "string"
+      ? params.password
+      : "";
 
   return (
     <AuthScreen title={t("signIn.title")} error={error}>
@@ -55,6 +61,7 @@ export default async function SignInPage({
           type="email"
           label={t("signIn.email")}
           autoComplete="username"
+          defaultValue={typeof params.email === "string" ? params.email : ""}
           isRequired
         />
         <TextField
@@ -62,6 +69,7 @@ export default async function SignInPage({
           type="password"
           label={t("signIn.password")}
           autoComplete="current-password"
+          defaultValue={password}
           isRequired
         />
         <Button type="submit" variant="primary" size="md">

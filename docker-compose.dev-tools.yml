@@ -250,6 +250,8 @@ services:
 
   admin:
     environment:
+      # Local credential links from dev:up; never enabled by the base deployment.
+      QCMS_DEV_LOGIN_PREFILL: "true"
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-http://lgtm:4318}
     depends_on:
       lgtm:
