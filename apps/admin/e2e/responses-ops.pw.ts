@@ -224,6 +224,19 @@ test.describe("admin operations: responses, erasure, webhooks", () => {
     await dialog.getByRole("button", { name: /Version$/ }).click();
     await page.getByRole("option", { name: "v1", exact: true }).click();
 
+    // The CSV shape control (task 075, ruling Q17). Its description is the one place
+    // an operator meets the wide shape's cost BEFORE paying it: the header is the
+    // version's declared maximum number of instances, so it moves when that moves,
+    // and a pipeline reading it has to pin the version it was built against. That
+    // sentence is the deliverable, so it is asserted rather than assumed present.
+    const shapeControl = dialog.getByRole("button", { name: /CSV shape$/ });
+    await expect(dialog).toContainText("the header does not change");
+    await shapeControl.click();
+    await page.getByRole("option", { name: "Wide", exact: true }).click();
+    await expect(dialog).toContainText("Pin the version your pipeline reads");
+    await shapeControl.click();
+    await page.getByRole("option", { name: "Long (default)", exact: true }).click();
+
     const [download] = await Promise.all([
       page.waitForEvent("download"),
       dialog.getByTestId("qcms-export-download").click(),

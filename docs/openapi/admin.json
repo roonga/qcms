@@ -3674,6 +3674,19 @@
           {
             "schema": {
               "type": "string",
+              "enum": [
+                "long",
+                "wide"
+              ],
+              "example": "long"
+            },
+            "required": false,
+            "name": "shape",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
               "example": "2"
             },
             "required": false,

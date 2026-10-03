@@ -59,6 +59,39 @@ describe("sanitizeAttributes", () => {
     });
   });
 
+  it("keeps an ins_ instance id as a pseudonymous correlator (task 075, SEC-13)", () => {
+    // `ins_` joins `frm_`, `stp_`, `q_` and `ses_` as a permitted correlator: an
+    // instance id is random, opaque, session-scoped and carries no respondent content.
+    // Nothing is added to the allowlist for it, and that is the point - the allowlist is
+    // over attribute KEYS and never inspects a value, so an id inside a route or a
+    // statement survives exactly as a `ses_` id does. **No value, no count and no label
+    // follows it**: an instance label is authored `LocalizedText`, which §8a excludes,
+    // and a count is respondent-derived.
+    const attributes: Attributes = {
+      "http.route": "/sessions/:sessionId/answers/batch",
+      "url.path": "/sessions/ses_abc/answers/batch",
+      "db.statement": "insert into answers (session_id, instance_id, value) values ($1, $2, $3)",
+      "qcms.request_id": "req-ins_7k2",
+    };
+    sanitizeAttributes(attributes);
+    expect(attributes["qcms.request_id"]).toBe("req-ins_7k2");
+    expect(attributes["db.statement"]).toContain("instance_id");
+  });
+
+  it("drops an instance label and a repeated answer value, however they are keyed", () => {
+    const attributes: Attributes = {
+      "http.request.method": "POST",
+      // The repeat-shaped leaks: an instance's rendered heading, the roster's size, and
+      // an answer value under a qualified key. None is named in the allowlist, so all
+      // three are deleted rather than inspected.
+      "qcms.instance_label": "Passenger 2",
+      "qcms.instance_count": 9,
+      "answer.ins_7k2/q_passport": "P1234567",
+    };
+    sanitizeAttributes(attributes);
+    expect(Object.keys(attributes)).toEqual(["http.request.method"]);
+  });
+
   it("drops every attribute the allowlist does not name", () => {
     const attributes: Attributes = {
       "http.request.method": "GET",

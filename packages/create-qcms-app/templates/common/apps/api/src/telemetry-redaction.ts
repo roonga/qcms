@@ -8,8 +8,17 @@
  *
  * Never in any signal: respondent answer values, `LocalizedText` content,
  * secure-link tokens (`lnk_`), the SEC-4 internal token, auth secrets. Branded
- * ids (`frm_`, `stp_`, `q_`, `ses_`) are permitted as pseudonymous correlators -
- * they are random and opaque, and they are what makes a trace worth reading.
+ * ids (`frm_`, `stp_`, `q_`, `ses_`, `ins_`) are permitted as pseudonymous
+ * correlators - they are random and opaque, and they are what makes a trace worth
+ * reading.
+ *
+ * `ins_`, a repeating-group instance id, joined that list in task 075 and needed no
+ * change below, which is the thing worth knowing rather than the entry itself: the
+ * allowlist is over attribute **keys** and never inspects a value, so an instance id
+ * inside `http.route`, `db.statement` or `qcms.request_id` survives exactly as a
+ * `ses_` id does. **No value, no count and no label follows it**: an instance label is
+ * authored `LocalizedText` (excluded above) and an instance count is respondent-derived
+ * (SEC-16, Q19 ruled 2026-09-29).
  *
  * Two deliberate consequences of the allowlist, both narrower than "keep the
  * useful bits":

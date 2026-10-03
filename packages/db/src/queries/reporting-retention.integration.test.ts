@@ -1,12 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
-import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
+import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
+import { reportingViewColumns } from "../reporting-views.js";
 import { erasureTombstones } from "../schema/index.js";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
 import {
+  addInstances,
   appendAnswer,
   createForm,
   createSession,
@@ -47,14 +49,41 @@ async function seedForm(id: string): Promise<{ formId: FormId; version: number }
   return { formId, version: v.version };
 }
 
-/** Build a LockedSubmission whose canonical answers key by questionId. */
+/**
+ * Build a LockedSubmission whose canonical answers key by questionId, and by
+ * instance where one is given (task 071's optional `LockedAnswer.instanceId`).
+ *
+ * The `instanceId` key is **absent** rather than `undefined` when the entry has
+ * none, which is the property the byte-identical claim for a non-repeating form
+ * rests on: `canonicalJson` omits an `undefined` member, so the two spellings
+ * hash the same, but the stored JSONB would not hold the same bytes.
+ */
 function lockedSubmission(
-  entries: ReadonlyArray<{ questionId: string; value: AnswerValue }>,
+  entries: ReadonlyArray<{ questionId: string; instanceId?: string; value: AnswerValue }>,
+  extraVisible: ReadonlyArray<{ stepId: string; questionId: string; instanceId?: string }> = [],
 ): LockedSubmission {
   return {
-    answers: entries.map((e) => ({ questionId: QuestionId.parse(e.questionId), value: e.value })),
-    // The view reads only `answers`; flowState/contentHash are opaque JSONB here.
-    flowState: { visited: [], hidden: [] },
+    answers: entries.map((e) => ({
+      questionId: QuestionId.parse(e.questionId),
+      ...(e.instanceId === undefined ? {} : { instanceId: InstanceId.parse(e.instanceId) }),
+      value: e.value,
+    })),
+    // `flowState.visible` is NOT opaque to the view: it is where the LIVE instance
+    // list comes from, because an instance can be live with no answer at all. So the
+    // fixture carries one visible entry per answered cell, in the same order, which
+    // is what a real `prepareSubmission` produces for a session that answered
+    // everything it was shown. A blank live instance is seeded by passing an entry
+    // list that names it in `extraVisible` instead.
+    flowState: {
+      visible: [
+        ...entries.map((e) => ({
+          stepId: "stp_one",
+          questionId: e.questionId,
+          ...(e.instanceId === undefined ? {} : { instanceId: e.instanceId }),
+        })),
+        ...extraVisible,
+      ],
+    },
     contentHash: "0".repeat(64),
   } as unknown as LockedSubmission;
 }
@@ -64,7 +93,7 @@ async function seedSubmitted(
   formId: FormId,
   version: number,
   sessionId: SessionId,
-  entries: ReadonlyArray<{ questionId: string; value: AnswerValue }>,
+  entries: ReadonlyArray<{ questionId: string; instanceId?: string; value: AnswerValue }>,
   accessMode: "anonymous" | "secure_link" = "anonymous",
 ): Promise<void> {
   await createSession(testDb.db, {
@@ -191,15 +220,236 @@ describe("reporting.answers_flat view", () => {
     );
     expect(res.rowCount).toBe(0);
   });
+
+  it("reports a null instance_id for every answer outside a group", async () => {
+    const res = await testDb.client.query<{ question_id: string; instance_id: string | null }>(
+      `select question_id, instance_id from reporting.answers_flat
+        where session_id = $1 order by question_id`,
+      ["ses_report_submitted"],
+    );
+    expect(res.rows.map((r) => r.instance_id)).toEqual([null, null, null, null]);
+  });
+});
+
+// --- repeating groups (task 075, Q18; acceptance cases 49 and 50) -----------
+
+describe("the reporting views carry repeated answers", () => {
+  const groupId = GroupId.parse("grp_passengers");
+  const first = InstanceId.parse("ins_p1");
+  const second = InstanceId.parse("ins_p2");
+  const sessionId = SessionId.parse("ses_repeat_report");
+
+  beforeAll(async () => {
+    const { formId, version } = await seedForm("frm_repeat_report");
+    await createSession(testDb.db, {
+      sessionId,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await markSubmitted(testDb.db, sessionId);
+    // The roster is what tells the view which group an instance belongs to: a
+    // LockedAnswer names the instance and not the group.
+    await addInstances(testDb.db, {
+      sessionId,
+      groupId,
+      instanceIds: [first, second],
+      occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+    });
+    await insertSubmission(testDb.db, {
+      sessionId,
+      contentHash: "0".repeat(64),
+      // Document order for questions, roster order for instances (ADR-42 5.3).
+      lockedAnswers: lockedSubmission([
+        { questionId: "q_booking_ref", value: "ABC123" },
+        { questionId: "q_name", instanceId: first, value: "Ada" },
+        { questionId: "q_meal", instanceId: first, value: ["opt_vegan"] as unknown as AnswerValue },
+        { questionId: "q_name", instanceId: second, value: "Grace" },
+        {
+          questionId: "q_meal",
+          instanceId: second,
+          value: ["opt_halal"] as unknown as AnswerValue,
+        },
+      ]),
+      submittedAt: new Date("2026-05-01T00:00:00.000Z"),
+    });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  it("keeps BOTH answers for one repeated questionId (the jsonb_object_agg fix)", async () => {
+    // The assertion this task exists for. Before the fix, `jsonb_object_agg` kept
+    // ONE of the two `q_name` answers, with no error and no warning, so this read
+    // returned a single scalar under `q_name` and the second passenger's name was
+    // gone from every reporting consumer and every export.
+    const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
+      `select answers from reporting.responses where session_id = $1`,
+      [sessionId],
+    );
+    expect(res.rows[0]!.answers).toEqual({
+      q_booking_ref: "ABC123",
+      grp_passengers: [
+        { instance_id: "ins_p1", q_name: "Ada", q_meal: ["opt_vegan"] },
+        { instance_id: "ins_p2", q_name: "Grace", q_meal: ["opt_halal"] },
+      ],
+    });
+  });
+
+  it("shows the pre-075 aggregate losing one of them, against the same row", async () => {
+    // The same expression migration 0003 shipped, run against the submission the
+    // test above reads. It is here because the failure this task fixes is SILENT:
+    // nothing threw, nothing warned, and the only way to see it is to watch the
+    // old aggregate hand back one answer where two were locked. Keeping it pins
+    // the reason the view is shaped the way it is now.
+    const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
+      `select (
+         select jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value')
+           from jsonb_array_elements("sub"."locked_answers" -> 'answers') as "elem"("item")
+       ) as answers
+       from submissions "sub" where "sub"."session_id" = $1`,
+      [sessionId],
+    );
+    const collapsed = res.rows[0]!.answers;
+    expect(Object.keys(collapsed).sort()).toEqual(["q_booking_ref", "q_meal", "q_name"]);
+    // One scalar where two passengers answered, and no trace of the other.
+    expect(collapsed["q_name"]).toBe("Grace");
+  });
+
+  it("orders the group's array by the locked set's roster order", async () => {
+    const res = await testDb.client.query<{ ids: string[] }>(
+      `select array_agg(inst ->> 'instance_id' order by ord) as ids
+         from reporting.responses r,
+              jsonb_array_elements(r.answers -> 'grp_passengers') with ordinality as e(inst, ord)
+        where r.session_id = $1`,
+      [sessionId],
+    );
+    expect(res.rows[0]!.ids).toEqual(["ins_p1", "ins_p2"]);
+  });
+
+  it("unpivots to one answers_flat row per (session, question, instance)", async () => {
+    const res = await testDb.client.query<{
+      question_id: string;
+      instance_id: string | null;
+      value: unknown;
+    }>(
+      `select question_id, instance_id, value from reporting.answers_flat
+        where session_id = $1
+        order by instance_id nulls first, question_id`,
+      [sessionId],
+    );
+    expect(res.rows).toEqual([
+      { question_id: "q_booking_ref", instance_id: null, value: "ABC123" },
+      { question_id: "q_meal", instance_id: "ins_p1", value: ["opt_vegan"] },
+      { question_id: "q_name", instance_id: "ins_p1", value: "Ada" },
+      { question_id: "q_meal", instance_id: "ins_p2", value: ["opt_halal"] },
+      { question_id: "q_name", instance_id: "ins_p2", value: "Grace" },
+    ]);
+  });
+
+  it("keeps a multiChoice selection as one row, not one row per option", async () => {
+    // The group array and a multiChoice value are both JSONB arrays, so the
+    // unpivot tells them apart structurally (an array of objects against an array
+    // of option id strings). Getting that wrong would silently change the grain
+    // of every multiChoice answer in the long projection.
+    const res = await testDb.client.query<{ count: string }>(
+      `select count(*)::text as count from reporting.answers_flat
+        where session_id = $1 and question_id = 'q_meal'`,
+      [sessionId],
+    );
+    expect(res.rows[0]!.count).toBe("2");
+  });
+
+  it("keeps a LIVE instance that holds no answer at all, in its roster position", async () => {
+    // An instance a respondent added and left blank is still live (ADR-42) - that is
+    // what makes "Add passenger" a thing a respondent can see happen - and a group whose
+    // members are all optional can submit one. Deriving the instance list from `answers`
+    // would drop it and shift every later instance's ordinal by one in the long CSV
+    // shape, so the list comes from the submission's own `flowState.visible` instead.
+    const { formId, version } = await seedForm("frm_repeat_blank");
+    const blankSession = SessionId.parse("ses_repeat_blank");
+    const middle = InstanceId.parse("ins_blank");
+    await createSession(testDb.db, {
+      sessionId: blankSession,
+      formId,
+      formVersion: version,
+      accessMode: "anonymous",
+      expiresAt: new Date(Date.now() + 86_400_000),
+    });
+    await markSubmitted(testDb.db, blankSession);
+    await addInstances(testDb.db, {
+      sessionId: blankSession,
+      groupId,
+      instanceIds: [first, middle, second],
+      occurredAt: new Date("2026-05-02T00:00:00.000Z"),
+    });
+    await insertSubmission(testDb.db, {
+      sessionId: blankSession,
+      contentHash: "0".repeat(64),
+      lockedAnswers: lockedSubmission(
+        [
+          { questionId: "q_name", instanceId: first, value: "Ada" },
+          { questionId: "q_name", instanceId: second, value: "Grace" },
+        ],
+        // The blank instance was shown and answered nothing, so it is visible and
+        // absent from `answers`. It sits BETWEEN the two answered ones in roster order.
+        [{ stepId: "stp_one", questionId: "q_name", instanceId: middle }],
+      ),
+      submittedAt: new Date("2026-05-02T00:00:00.000Z"),
+    });
+
+    const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
+      `select answers from reporting.responses where session_id = $1`,
+      [blankSession],
+    );
+    expect(res.rows[0]!.answers).toEqual({
+      grp_passengers: [
+        { instance_id: "ins_p1", q_name: "Ada" },
+        { instance_id: "ins_p2", q_name: "Grace" },
+        // Only its id: live, shown, and answered nothing.
+        { instance_id: "ins_blank" },
+      ],
+    });
+    // So the array's length is the group's live instance count for this session.
+    const counted = await testDb.client.query<{ n: number }>(
+      `select jsonb_array_length(answers -> 'grp_passengers') as n
+         from reporting.responses where session_id = $1`,
+      [blankSession],
+    );
+    expect(counted.rows[0]!.n).toBe(3);
+    // And it contributes no answers_flat row, because it holds no answer.
+    const flat = await testDb.client.query(
+      `select 1 from reporting.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
+      [blankSession],
+    );
+    expect(flat.rowCount).toBe(0);
+  });
+
+  it("leaves a form with no group byte-identical (acceptance cases 49 and 50)", async () => {
+    // Byte-identical rather than merely equal: `answers::text` is the stored
+    // JSONB's own rendering, so this fails if the view starts emitting a nested
+    // array, a null `instance_id` member or a reordered object for a
+    // non-repeating form.
+    const res = await testDb.client.query<{ answers: string }>(
+      `select answers::text as answers from reporting.responses where session_id = $1`,
+      ["ses_report_submitted"],
+    );
+    expect(res.rows[0]!.answers).toBe(
+      '{"q_num": 42, "q_bool": true, "q_text": "hello", "q_multi": ["opt_a", "opt_b"]}',
+    );
+  });
 });
 
 describe("reporting contract - no column drift", () => {
   // The documented contract in docs/reporting-view.md. Assert the live view
   // column lists (ordinal order) match, so the doc can never silently drift.
-  const EXPECTED: Record<string, string[]> = {
-    responses: ["session_id", "form_id", "form_version", "submitted_at", "access_mode", "answers"],
-    answers_flat: ["session_id", "form_id", "form_version", "submitted_at", "question_id", "value"],
-  };
+  //
+  // Since task 075 the expected lists come from `reportingViewColumns`, the same
+  // module the migration body is generated from, rather than from a literal here.
+  // Under ADR-40 the view set is per environment and after task 068 per
+  // workspace, so a literal in a test would have to be duplicated per schema the
+  // moment there is more than one - and a duplicate is what drifts.
+  const EXPECTED: Record<string, string[]> = Object.fromEntries(
+    reportingViewColumns.map((view) => [view.name, [...view.columns]]),
+  );
 
   it("matches the live reporting schema view columns", async () => {
     const res = await testDb.client.query<{ table_name: string; column_name: string }>(

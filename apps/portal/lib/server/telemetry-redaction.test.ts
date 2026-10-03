@@ -43,6 +43,14 @@ describe("redactPath", () => {
     expect(redactPath("GET /s/ses_abc123")).toBe("GET /s/ses_abc123");
     expect(redactPath("/f/vehicle-insurance-quote")).toBe("/f/vehicle-insurance-quote");
   });
+
+  it("leaves an ins_ instance id alone too (task 075, SEC-13)", () => {
+    // `ins_` joins the permitted correlators: random, opaque, session-scoped, and
+    // carrying no respondent content. Nothing is added to this module for it, which is
+    // the assertion - only `lnk_`, a credential in a path, is rewritten, so a new
+    // branded id needs no change here and this pins that it did not accidentally get one.
+    expect(redactPath("POST /s/ses_abc123/op/ins_7k2")).toBe("POST /s/ses_abc123/op/ins_7k2");
+  });
 });
 
 describe("sanitizeAttributes", () => {
@@ -74,6 +82,21 @@ describe("sanitizeAttributes", () => {
     sanitizeAttributes(attributes);
     expect(JSON.stringify(attributes)).not.toContain("lnk_tok_secret");
     expect(attributes["http.target"]).toBe("/l/[token]");
+  });
+
+  it("drops an instance label and a repeated answer value (task 075)", () => {
+    // The repeat-shaped leaks, none of them named in the allowlist and therefore all
+    // deleted without being inspected: an instance's rendered heading (authored
+    // `LocalizedText`, which SEC-13 excludes outright), the roster's size, and an answer
+    // value under a qualified field name.
+    const attributes: Attributes = {
+      "http.method": "POST",
+      "qcms.instance_label": "Vehicle 2",
+      "qcms.instance_count": 3,
+      "form.field.ins_7k2/q_rf_notes": "A kerbed wheel.",
+    };
+    sanitizeAttributes(attributes);
+    expect(Object.keys(attributes)).toEqual(["http.method"]);
   });
 
   it("drops everything the allowlist does not name", () => {

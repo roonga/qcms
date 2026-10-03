@@ -20,3 +20,9 @@ export * as schema from "./schema/index.js";
 // call - every helper takes a Drizzle handle or transaction as its first
 // argument. Shape-preserving reads and writes only (R3, R5).
 export * from "./queries/index.js";
+
+// The `reporting` view set's DDL generator and its documented column lists (task
+// 075). Deliberately not re-exported through `schema/index.ts`, which is the
+// module `drizzle-kit generate` diffs: the views are hand-authored SQL, so they
+// sit beside the schema rather than inside it.
+export * from "./reporting-views.js";

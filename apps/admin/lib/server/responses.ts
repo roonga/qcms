@@ -44,9 +44,14 @@ export interface ResponseFilters {
   readonly pageSize?: number;
 }
 
-/** The export dialog's choices. `version` is required by the API for CSV. */
+/**
+ * The export dialog's choices. `version` is required by the API for CSV.
+ *
+ * `shape` is CSV-only and absent means the API's own default, `long` (task 075).
+ */
 export interface ExportRequest {
   readonly format: "csv" | "json";
+  readonly shape?: "long" | "wide";
   readonly version?: string;
   readonly from?: string;
   readonly to?: string;
@@ -134,6 +139,7 @@ export function exportResponses(
 ): Promise<Response> {
   const path: AdminApiPath = `/forms/${encodeURIComponent(formId)}/export${query({
     format: request.format,
+    shape: request.shape,
     version: request.version,
     from: request.from,
     to: request.to,

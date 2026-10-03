@@ -33,16 +33,44 @@ import { dayEnd, dayFilter, dayStart, versionFilter } from "./response-filters.t
 /** The formats the export route offers. */
 export type ExportFormat = "csv" | "json";
 
+/**
+ * The two CSV shapes the API offers (Q17, ruled 2026-09-29 by the Code Owner).
+ *
+ * - **`long`**, the default: `responses.csv` for every question outside a repeating
+ *   group, plus one file per group at its own grain. A form with a group downloads
+ *   as a zip; a form with none downloads exactly the single file it always did.
+ * - **`wide`**: one flat file with each group's member questions folded in as
+ *   indexed columns, `q_passport__1` through `q_passport__<max>`.
+ *
+ * **The wide shape's header is the version's `max`, so it changes when `max`
+ * changes.** That is why the dialog says so, in `ops.export.shapeWide`: an operator
+ * automating a wide export has to pin the version their pipeline bound to, and an
+ * operator who wants a header that does not move takes the long shape. The rule is
+ * documented here, on the API route, and in `plan/repeating-groups-and-table-input.md`
+ * section 5.5, because a consumer can meet it at any of the three.
+ */
+export type ExportShape = "long" | "wide";
+
+/** The default shape, the same default the API applies when the parameter is absent. */
+export const DEFAULT_EXPORT_SHAPE: ExportShape = "long";
+
 /** What the export dialog collected. */
 export interface ExportChoice {
   readonly format: ExportFormat;
   readonly version: string;
   readonly from: string;
   readonly to: string;
+  /** Absent means the default, which is what a caller written before 075 sends. */
+  readonly shape?: ExportShape;
 }
 
 /** Whether a version must be chosen before this format can be exported. */
 export function versionRequired(format: ExportFormat): boolean {
+  return format === "csv";
+}
+
+/** Whether the shape control applies at all: CSV has two shapes, JSON has one. */
+export function shapeApplies(format: ExportFormat): boolean {
   return format === "csv";
 }
 
@@ -64,6 +92,11 @@ export function exportQuery(choice: ExportChoice): string {
   if (versionRequired(choice.format) && choice.version.trim() !== "") {
     search.set("version", choice.version.trim());
   }
+  // `shape` is dropped for JSON for the reason `version` is: switching format must
+  // not smuggle a parameter whose control the dialog is showing as disabled.
+  if (shapeApplies(choice.format) && choice.shape !== undefined) {
+    search.set("shape", choice.shape);
+  }
   if (choice.from.trim() !== "") search.set("from", dayStart(choice.from.trim()));
   if (choice.to.trim() !== "") search.set("to", dayEnd(choice.to.trim()));
   return `?${search.toString()}`;
@@ -77,10 +110,32 @@ export function exportQuery(choice: ExportChoice): string {
  * folder. No timestamp: it would make the name unstable between two exports of the
  * same data, which is worse for an operator diffing them.
  */
-export function exportFilename(formId: string, choice: ExportChoice): string {
+export function exportFilename(
+  formId: string,
+  choice: ExportChoice,
+  extension: ExportExtension = choice.format,
+): string {
   const version =
     versionRequired(choice.format) && choice.version !== "" ? `-v${choice.version}` : "";
-  return `${formId}${version}-responses.${choice.format}`;
+  return `${formId}${version}-responses.${extension}`;
+}
+
+/** The extensions a finished export can land under. */
+export type ExportExtension = "csv" | "json" | "zip";
+
+/**
+ * The extension the download should carry, read from what the API actually sent.
+ *
+ * Needed since task 075, because the long shape of a form with a repeating group is
+ * **several files in a zip** and this app cannot tell from the request which it will
+ * get: whether a version has a group is a property of the pinned definition, which
+ * only the API has read. Naming the file from the request would offer a `.csv` whose
+ * bytes are an archive, and an operator would open it in a spreadsheet and see
+ * nothing. So the upstream's own `content-type` decides, and a type this function
+ * does not recognise falls back to the requested format rather than guessing.
+ */
+export function exportExtension(format: ExportFormat, contentType: string | null): ExportExtension {
+  return contentType !== null && contentType.startsWith("application/zip") ? "zip" : format;
 }
 
 /**

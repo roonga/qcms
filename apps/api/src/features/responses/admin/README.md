@@ -12,7 +12,7 @@ and `@roonga/qcms-db` helpers (014/016/023). This is **not** the deferred `/api/
 | --------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /admin/forms/:id/responses`                    | `responses:read`   | Paginated submitted responses from `reporting.responses`. Filters: `version`, `from`, `to`, `flagged`.                                                                |
 | `GET /admin/forms/:id/responses/:sessionId`         | `responses:read`   | Full detail: locked answers, the append-only **answer ledger** (audit history), `contentHash`.                                                                        |
-| `GET /admin/forms/:id/export`                       | `responses:export` | `?format=csv\|json&version=&from=&to=`. Streamed (see **Export**).                                                                                                    |
+| `GET /admin/forms/:id/export`                       | `responses:export` | `?format=csv\|json&shape=long\|wide&version=&from=&to=`. Streamed (see **Export**).                                                                                   |
 | `POST /admin/forms/:id/responses/:sessionId/erase`  | `responses:erase`  | Body `{ reason }`; calls `eraseSession` (016). Returns the tombstone. Idempotent. Form-scoped (#305): a session of another form takes the same 404 as an unknown one. |
 | `GET /admin/erasures`                               | `responses:read`   | Tombstone list (compliance evidence). Filter: `formId`.                                                                                                               |
 | `POST /admin/forms/:id/responses/:sessionId/unflag` | `responses:erase`  | Release a withheld (flagged, 020) response: clear the flag and enqueue `response.submitted`. Form-scoped (#305), as erase is.                                         |
@@ -72,6 +72,45 @@ none near the whole size.
     BOM-less file and mojibakes non-ASCII answers; the BOM makes it detect UTF-8.
     Other tools ignore it.
   - An unanswered question is an empty cell.
+
+### The two CSV shapes (task 075, ruling Q17)
+
+A **repeating group** is answered once per instance (ADR-42), so "one column per
+questionId" has no answer for a member question: an open-ended group has no column
+count until the data is read. `shape` picks between the two the Code Owner ruled, and
+it defaults to **`long`**. It applies to CSV only.
+
+- **`shape=long`** (the default). `responses.csv` carries the metadata columns and
+  every question **outside** a group, exactly as before, plus **one file per group**
+  named for it (`grp_passengers.csv`) at the group's own grain:
+  `session_id, instance_ordinal, instance_id, <member questions in document order>`,
+  one row per `(session, instance live and shown)`, joinable on `session_id`.
+  **Live, not answered**: an instance a respondent added and left blank still owes a
+  row of empty cells, so `instance_ordinal` does not shift past it. "Shown" is the
+  qualifier: an instance all of whose member questions a rule hid has no row, exactly
+  as its answers would have none (I6). `docs/reporting-view.md` carries the detail. A version with at
+  least one group answers **`application/zip`** of those files; a version with none
+  answers exactly the single `text/csv` file it always did, same bytes and same name.
+- **`shape=wide`**. One flat `responses.csv` with each group's member questions folded
+  back in as indexed columns, `q_passport__1` through `q_passport__<max>`. Columns past
+  a session's live instance count are empty.
+
+The guard (issue #470) and the `;` multiChoice join apply in **every** file of **both**
+shapes.
+
+**What a wide export costs, and why it is an option rather than the default.** A wide
+header is **the version's declared `max`, not the data**: a group with `max: 500`
+produces 500 columns per member question whether any session filled two of them or
+none, and **raising `max` in a later version gives that version's wide export more
+columns** - silently, from a consumer's point of view. Under SEC-16 there is no
+installation-wide ceiling above `max` (Q14), so nothing stops an author declaring the
+500 that makes a four-question group 2000 columns.
+
+The `version` requirement above is the whole mitigation, and it already exists:
+**a consumer that automates a wide export pins the version it bound to.** A consumer
+that wants a header which does not move takes the long shape, whose header is the
+member question list rather than the member list times a bound. The export screen says
+the same thing, in the shape control's own description.
 
 Answer **values are never logged** (SEC-8); the export is the only place answer
 content leaves the system on this surface, and only to an authenticated admin.

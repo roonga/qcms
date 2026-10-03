@@ -38,7 +38,15 @@
  *
  * Cell contents are export payload and are never logged (SEC-8): nothing here
  * takes a logger, and callers must not add one.
+ *
+ * Since task 075 the package also carries the **container** a multi-file export
+ * needs: the long CSV shape for a form with a repeating group is `responses.csv`
+ * plus one file per group, so it downloads as a zip. See `./zip.ts`, which is here
+ * for the same reason the field helpers are - the export's byte-level encoding is
+ * one thing in one place.
  */
+
+export * from "./zip.js";
 
 /**
  * The leading characters a spreadsheet may read as the start of a formula.

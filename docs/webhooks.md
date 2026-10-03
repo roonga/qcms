@@ -116,10 +116,51 @@ small envelope.
     "formVersion": 3,
     "submittedAt": "2026-07-20T02:04:59.000Z",
     "contentHash": "…", // idempotency key (stable per submission)
-    "answers": { "q_name": "Ada" },
+    // The locked answer set, in document order. An ARRAY of entries, not an object
+    // keyed by questionId: one questionId can be answered more than once (below).
+    "answers": [{ "questionId": "q_name", "value": "Ada" }],
   },
 }
 ```
+
+#### Repeating groups: the instance rides inside `answers`
+
+A **repeating group** is answered once per instance (ADR-42), so one `questionId` can
+appear several times in one submission. Each entry then carries an `instanceId`
+(`ins_…`), and the key is **absent** for every question outside a group:
+
+```jsonc
+{
+  "eventType": "response.submitted",
+  "payload": {
+    "sessionId": "ses_…",
+    "formId": "frm_booking",
+    "formVersion": 3,
+    "submittedAt": "2026-07-20T02:04:59.000Z",
+    "contentHash": "…",
+    "answers": [
+      { "questionId": "q_booking_ref", "value": "ABC123" },
+      { "questionId": "q_name", "instanceId": "ins_7k2", "value": "Ada Lovelace" },
+      { "questionId": "q_meal", "instanceId": "ins_7k2", "value": ["opt_vegan"] },
+      { "questionId": "q_name", "instanceId": "ins_9q4", "value": "Grace Hopper" },
+      { "questionId": "q_meal", "instanceId": "ins_9q4", "value": ["opt_halal"] },
+    ],
+  },
+}
+```
+
+Four things a consumer can rely on, and one it must not expect:
+
+- **Order is meaning.** Document order for questions, roster order for instances. The
+  array is canonical, which is why it is an array.
+- **An instance id is stable and session-scoped.** It is the join key for the rows of
+  one instance, and it is never reused with another meaning (R6).
+- **A form with no repeating group is byte-identical to before**, because the
+  `instanceId` key is absent rather than null. The `contentHash` is therefore unchanged
+  too.
+- **Nothing about repetition sits outside `answers`.** There is no `groups` member, no
+  `rows`, no `instances` and no instance count anywhere in the envelope, and that is a
+  deliberate guarantee rather than an omission - see the retention note below.
 
 Headers:
 
@@ -223,6 +264,18 @@ redelivered, so the delivery it belongs to has stopped for good. `CHECK` constra
 `outbox_redacted_payload_has_no_answers` (migration `0016`) makes the marker's meaning
 a database rule rather than a convention: a row cannot claim to be redacted while its
 answers are still in it. Full reasoning: `docs/erasure.md`.
+
+**This is why every repeated value sits inside `answers` and nowhere else.** Both
+redactions above drop exactly one jsonb key, `payload - 'answers'`, and the `CHECK`
+above is written in terms of that one key. A design that put instances in a sibling
+member - `groups`, `rows`, `instances` - would escape both, silently, and the first
+anyone would know is a subject-access request answered with data that was supposed to
+be erased. **After redaction the payload therefore holds no instance id, no roster and
+no count** (ruled 2026-09-29, Q19): a count is not an answer, but "how many
+dependants" and "how many passengers" are disclosive on their own, so the guarantee is
+kept as "after redaction there is no respondent-derived value of any kind". A consumer
+adding a field to this payload reads that rule rather than inferring it from an
+absence.
 
 Both stamp `last_response_snippet_redacted_at` and neither touches the rest of the
 record, so "this delivery failed with a 400, ten times, at these instants" is still

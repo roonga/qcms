@@ -9,8 +9,9 @@ read-only SQL surface for BI/ETL/warehouse consumers, shipping in place of the d
 is **versioned documentation, not an implementation detail**: it changes only under the rules
 below.
 
-It is created by migration `0003_reporting_view.sql` as two views under a dedicated
-`reporting` Postgres schema:
+It is created by migration `0003_reporting_view.sql`, and reshaped for repeating groups by
+`0025_reporting_repeat_grain.sql` (task 075), as two views under a dedicated `reporting`
+Postgres schema:
 
 - **`reporting.responses`** - one row per submitted response, answers in a wide JSONB column.
 - **`reporting.answers_flat`** - the same data unpivoted to long format, one row per answer.
@@ -18,20 +19,29 @@ It is created by migration `0003_reporting_view.sql` as two views under a dedica
 Both exclude **in-progress**, **expired**, and **erased** sessions **by construction** (see
 [Row inclusion](#row-inclusion)).
 
+**The DDL is generated, not literal.** Both view bodies come from `reportingViewStatements()`
+in `packages/db/src/reporting-views.ts`, which takes its schema names as arguments; migration
+0025's body is that function's output, and a unit test fails if the two fall out of step. The
+reason is ADR-40: the data plane becomes a schema per environment and the view set goes with
+it (`reporting_<env>`), with a set per workspace after task 068, so the same DDL has to be
+creatable more than once under more than one name. The documented column lists below are
+`reportingViewColumns` in that module, which the drift test compares the live catalogue
+against.
+
 ---
 
 ## `reporting.responses`
 
 One row per **submitted** session.
 
-| Column         | Type               | Semantics                                                                                     |
-| -------------- | ------------------ | --------------------------------------------------------------------------------------------- |
-| `session_id`   | `text`             | The response's session id (`ses_…`). Stable, never reused (R6).                               |
-| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                      |
-| `form_version` | `integer`          | The **pinned** published version the session ran on (I4 - a session never migrates versions). |
-| `submitted_at` | `timestamptz`      | When the submission lock was written (the audit instant, I6/I9).                              |
-| `access_mode`  | `access_mode` enum | How the respondent reached the form: `anonymous` or `secure_link`.                            |
-| `answers`      | `jsonb`            | The locked answer set as an object **keyed by `questionId`**, values in canonical encoding.   |
+| Column         | Type               | Semantics                                                                                                                                 |
+| -------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `session_id`   | `text`             | The response's session id (`ses_…`). Stable, never reused (R6).                                                                           |
+| `form_id`      | `text`             | The form the session answered (`frm_…`).                                                                                                  |
+| `form_version` | `integer`          | The **pinned** published version the session ran on (I4 - a session never migrates versions).                                             |
+| `submitted_at` | `timestamptz`      | When the submission lock was written (the audit instant, I6/I9).                                                                          |
+| `access_mode`  | `access_mode` enum | How the respondent reached the form: `anonymous` or `secure_link`.                                                                        |
+| `answers`      | `jsonb`            | The locked answer set as an object **keyed by `questionId`**, values in canonical encoding, plus one key per **repeating group** (below). |
 
 `answers` contains only the **visible** questions' answers the submission locked (I6 - hidden
 questions' answers stay in the append-only ledger and never enter a submission). A submission
@@ -55,26 +65,82 @@ with no visible answers yields `{}`.
 }
 ```
 
+### Repeating groups (task 075, ADR-42)
+
+A **repeating group** is answered once per instance, so one `questionId` can hold several
+answers in one response. Those answers are **not** keyed by `questionId` at the top level -
+they would collide. Instead `answers` gains **one key per `groupId`**, holding an **ordered
+array** of instance objects. Each instance object carries its own `instance_id` (`ins_…`) plus
+one key per member question it answered:
+
+```json
+{
+  "answers": {
+    "q_booking_ref": "ABC123",
+    "grp_passengers": [
+      { "instance_id": "ins_7k2", "q_name": "Ada Lovelace", "q_meal": ["opt_vegan"] },
+      { "instance_id": "ins_9q4", "q_name": "Grace Hopper", "q_meal": ["opt_halal"] }
+    ]
+  }
+}
+```
+
+Five properties a consumer can rely on:
+
+- **A form with no repeating group produces a byte-identical `answers` object.** The change is
+  additive in fact, not only in principle, and an integration test asserts the exact bytes.
+- **Array order is roster order** - the order the respondent's instances were minted in, with
+  removed instances absent. It is the order the submission froze, not a second derivation.
+- **The array holds every instance that was live and SHOWN, answered or not**, so
+  `jsonb_array_length(answers -> '<groupId>')` is the count of those. An instance a respondent
+  added and left blank appears as an object carrying only its `instance_id`, which is what
+  keeps the long CSV shape's `instance_ordinal` from shifting past a blank one. The list comes
+  from the submission's own flow state rather than from its answers, and "shown" is the exact
+  word: an instance **all** of whose member questions are hidden by a rule has no visible
+  entry, so it is absent here as its answers would be (I6), and the ordinals of the instances
+  after it close up. A group with one unconditional member question cannot reach that state.
+- **Only a group key holds an array of objects.** A `multiChoice` answer is also a JSON array,
+  but of option id strings, which is how `answers_flat` tells the two apart.
+- **A question outside every group never appears inside an instance object**, and a member
+  question of a group never appears at the top level.
+
+Before 075 this view aggregated with `jsonb_object_agg(… ->> 'questionId', … -> 'value')`,
+which **silently kept one** of two answers for the same `questionId` - no error and no
+warning. Any deployment that ran a repeating group against the 0003 views lost repeated
+answers from reporting and from export; 0025 is what closes that.
+
 ---
 
 ## `reporting.answers_flat`
 
 The long-format projection of `reporting.responses` - one row per **(submitted session,
-questionId, value)**. Derived directly from `reporting.responses`, so it inherits its row
+questionId, instanceId)**. Derived directly from `reporting.responses`, so it inherits its row
 inclusion exactly (submitted-only, non-erased); there is no second exclusion rule to keep in
 sync.
 
-| Column         | Type          | Semantics                                                     |
-| -------------- | ------------- | ------------------------------------------------------------- |
-| `session_id`   | `text`        | As in `reporting.responses`.                                  |
-| `form_id`      | `text`        | As in `reporting.responses`.                                  |
-| `form_version` | `integer`     | As in `reporting.responses`.                                  |
-| `submitted_at` | `timestamptz` | As in `reporting.responses`.                                  |
-| `question_id`  | `text`        | The answered question (`q_…`). One row per question.          |
-| `value`        | `jsonb`       | That question's canonical answer value (see encodings below). |
+| Column         | Type          | Semantics                                                                                    |
+| -------------- | ------------- | -------------------------------------------------------------------------------------------- |
+| `session_id`   | `text`        | As in `reporting.responses`.                                                                 |
+| `form_id`      | `text`        | As in `reporting.responses`.                                                                 |
+| `form_version` | `integer`     | As in `reporting.responses`.                                                                 |
+| `submitted_at` | `timestamptz` | As in `reporting.responses`.                                                                 |
+| `question_id`  | `text`        | The answered question (`q_…`).                                                               |
+| `value`        | `jsonb`       | That question's canonical answer value (see encodings below).                                |
+| `instance_id`  | `text`        | The repeating-group instance (`ins_…`) the answer belongs to, or `NULL` outside every group. |
 
 For a multi-choice question `value` is a JSONB array of option ids - one flat row still holds
 the whole selection (the row grain is the question, not the individual option).
+
+**`instance_id` was appended in task 075** and is the long projection's half of repeating
+groups (ADR-42). The grain is now `(session, questionId, instanceId)`: a question answered in
+three instances of one group is three rows, told apart by `instance_id`, and every question
+outside a group is one row with `instance_id IS NULL`. `GROUP BY session_id, question_id`
+without `instance_id` therefore aggregates across instances, which is sometimes what a
+consumer wants and is never what it used to mean.
+
+Appending a column is a **minor** release under the [stability promise](#stability-promise): a
+consumer selecting explicit columns is unaffected, and a consumer selecting `*` keeps every
+column it had in the position it had.
 
 ---
 
@@ -93,8 +159,11 @@ reporting value is byte-identical to what was submitted.
 | `singleChoice`           | JSON string, the selected `optionId` (`opt_…`)            |
 | `multiChoice`            | JSON array of `optionId`s, deduplicated, order-preserving |
 
-In `reporting.responses.answers` each value appears under its `questionId` key; in
-`reporting.answers_flat.value` it is the row's `value` column.
+In `reporting.responses.answers` each value appears under its `questionId` key, or under that
+key inside its instance object when the question sits in a repeating group; in
+`reporting.answers_flat.value` it is the row's `value` column, with `instance_id` naming the
+instance. The encodings themselves are unchanged by repetition: a question does not know that
+it is repeated (ADR-42).
 
 ---
 
@@ -123,21 +192,42 @@ non-submitted or erased data.
 the `reporting` schema and nothing else. A sample least-privilege grant:
 
 ```sql
--- One-time, as a superuser/owner. Replace the password with a value from your
--- secret store - never commit a real credential.
+-- One-time, as a role that may create roles and grant on `reporting`. Replace the
+-- password with a value from your secret store - never commit a real credential.
 CREATE ROLE qcms_reporting LOGIN PASSWORD '<from-secret-store>';
 
 -- Read-only on the reporting views only; no access to the operational tables.
 GRANT USAGE ON SCHEMA reporting TO qcms_reporting;
 GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO qcms_reporting;
 
--- Ensure future reporting views are readable too (additive changes only).
-ALTER DEFAULT PRIVILEGES IN SCHEMA reporting GRANT SELECT ON TABLES TO qcms_reporting;
+-- And on whatever a later migration creates there, so there is no grant step to
+-- remember after an upgrade. `FOR ROLE qcms_migrate` is load-bearing: a default
+-- privilege binds to ONE granting role, and the role that creates a reporting view
+-- is the one that applies migrations, not the one running this recipe. Name the
+-- migrating role your deployment uses (`docs/operations.md` calls it
+-- `qcms_migrate`); without it this line covers only views this session's own role
+-- creates, which is none of them.
+ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA reporting
+  GRANT SELECT ON TABLES TO qcms_reporting;
 ```
 
 The role deliberately gets **no** privileges on the `public` schema, so a reporting consumer
 can never read raw ledger answers, tokens, or auth tables - only the curated, erasure-safe
 views. Point BI/ETL tools at this role.
+
+**The last statement is not optional, and migration 0025 is why.** A migration that reshapes a
+view `DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is
+a new object. The `ALTER DEFAULT PRIVILEGES` above is what re-grants it automatically, so an
+operator who ran the whole recipe upgrades with nothing to do. Two ways to get it wrong, both
+silent until a consumer's query fails:
+
+- **Running only the explicit `GRANT SELECT ON ALL TABLES`.** That grant covers the views that
+  existed when it ran and nothing else, so the reporting role loses access at this upgrade and
+  the grant has to be re-run.
+- **Omitting `FOR ROLE`.** A default privilege binds to one granting role, and without
+  `FOR ROLE` that role is whoever runs the statement. The views are created by the role that
+  applies migrations, so a default set by a superuser running this recipe never applies to
+  them. The app-role recipe in `docs/operations.md` has the same clause for the same reason.
 
 ---
 
@@ -154,7 +244,9 @@ This schema is **versioned via `@roonga/qcms-db`** (Changesets, from Stage 5):
 
 A drift test (`reporting-retention.integration.test.ts`) asserts the live view column lists
 against the tables documented here, so this document can never silently fall out of step with
-the migration.
+the migration. Since task 075 it reads those lists from `reportingViewColumns` in
+`packages/db/src/reporting-views.ts` rather than from a literal of its own, because the view
+set stops being singular under ADR-40 and a per-schema literal is a per-schema thing to forget.
 
 ---
 

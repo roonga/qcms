@@ -532,6 +532,76 @@ describe("eraseSession - the outbox and its deliveries (059, exit criterion 1)",
     expect((await deliveryRow(bystander.deliveryId)).cancelledAt).toBeNull();
   });
 
+  it("leaves a repeat payload with no answers, no instance id and no count (case 52)", async () => {
+    // Task 075, Q19. The redaction drops exactly ONE jsonb key, `payload - 'answers'`,
+    // and migration 0016's CHECK enforces that a redacted payload holds no `answers`
+    // key. That is only a complete control while every repeated value sits inside that
+    // key: an instance id in a sibling member, or a count beside it, would survive the
+    // drop and satisfy the CHECK, and nobody would find out until a subject-access
+    // request was answered with data that was supposed to be erased.
+    const { formId, version } = await seedForm("frm_erase_repeat");
+    const sessionId = SessionId.parse("ses_erase_repeat");
+    await seedSubmittedWithLedger(formId, version, sessionId);
+
+    const webhookId = "whk_erase_repeat";
+    await insertWebhook(testDb.db, {
+      webhookId,
+      formId,
+      url: "https://consumer.example.com/erase-repeat",
+      secretEncrypted: "v1.opaque-ciphertext",
+      active: true,
+    });
+    // The payload shape the submit slice enqueues for a repeating form: LockedAnswer
+    // entries, each with its own optional `instanceId`, all inside `answers`.
+    const event = await enqueue(testDb.db, {
+      eventType: "response.submitted",
+      payload: {
+        sessionId,
+        formId,
+        formVersion: version,
+        submittedAt: "2026-01-02T03:04:05.000Z",
+        contentHash: "0".repeat(64),
+        answers: [
+          { questionId: "q_booking_ref", value: "ABC123" },
+          { questionId: "q_name", instanceId: "ins_pax_a", value: "Ada" },
+          { questionId: "q_name", instanceId: "ins_pax_b", value: "Grace" },
+        ],
+      },
+    });
+    await insertDelivery(testDb.db, { outboxId: event.id, webhookId });
+
+    const before = await outboxRow(event.id);
+    expect(JSON.stringify(before.payload)).toContain("ins_pax_a");
+
+    await eraseSession(testDb.db, formId, sessionId, "subject_request");
+
+    const after = await outboxRow(event.id);
+    expect(after.payload).not.toHaveProperty("answers");
+    expect(after.payloadRedactedAt).not.toBeNull();
+    // Nothing repeated survived anywhere: no instance id, no answer value, and no
+    // count of instances dressed up as metadata.
+    const remaining = JSON.stringify(after.payload);
+    expect(remaining).not.toContain("ins_");
+    expect(remaining).not.toContain("Ada");
+    expect(remaining).not.toContain("ABC123");
+    expect(Object.keys(after.payload).sort()).toEqual([
+      "contentHash",
+      "formId",
+      "formVersion",
+      "sessionId",
+      "submittedAt",
+    ]);
+
+    // And the CHECK still holds over the redacted row: putting any `answers` key back
+    // while the marker stands is refused by the database, not merely by the code above.
+    await expect(
+      testDb.client.query(
+        `update outbox set payload = payload || '{"answers": []}'::jsonb where id = $1`,
+        [event.id],
+      ),
+    ).rejects.toThrow(/outbox_redacted_payload_has_no_answers/);
+  });
+
   it("is idempotent: a second erase does not move the original redaction stamp", async () => {
     const { formId, version } = await seedForm("frm_erase_outbox_idem");
     const sessionId = SessionId.parse("ses_erase_outbox_idem");

@@ -50,6 +50,13 @@ const SESSION = {
 /** Every upstream call this file's `GET` makes, in order, with its filter argument. */
 const exportCalls: Array<Record<string, unknown>> = [];
 
+/**
+ * What the API is pretending to answer with. Mutable because the long shape of a form
+ * with a repeating group comes back as `application/zip` (task 075), and the download's
+ * name has to follow what arrived rather than what was asked for.
+ */
+let upstreamContentType = "text/csv; charset=utf-8";
+
 vi.mock("@/lib/server/session", () => ({
   requireAdminSessionForRequest: () => Promise.resolve(SESSION),
 }));
@@ -59,7 +66,7 @@ vi.mock("@/lib/server/responses", () => ({
     return Promise.resolve(
       new Response("id\r\n", {
         status: 200,
-        headers: { "content-type": "text/csv; charset=utf-8" },
+        headers: { "content-type": upstreamContentType },
       }),
     );
   },
@@ -86,6 +93,7 @@ async function envelope(response: Response): Promise<{
 
 beforeEach(() => {
   exportCalls.length = 0;
+  upstreamContentType = "text/csv; charset=utf-8";
 });
 
 describe("export route: what it forwards", () => {
@@ -98,6 +106,7 @@ describe("export route: what it forwards", () => {
     expect(exportCalls).toEqual([
       {
         format: "csv",
+        shape: "long",
         version: "2",
         from: "2026-07-01T00:00:00.000Z",
         to: "2026-07-31T23:59:59.999Z",
@@ -127,7 +136,7 @@ describe("export route: what it forwards", () => {
     const response = await get("?format=csv&version=2&from=&to=");
 
     expect(response.status).toBe(200);
-    expect(exportCalls).toEqual([{ format: "csv", version: "2" }]);
+    expect(exportCalls).toEqual([{ format: "csv", shape: "long", version: "2" }]);
   });
 });
 
@@ -195,5 +204,44 @@ describe("export route: what it refuses", () => {
 
     expect(response.headers.get("content-disposition")).toBeNull();
     expect(response.headers.get("content-type")).toBe("application/json; charset=utf-8");
+  });
+});
+
+describe("export route: the CSV shape (task 075)", () => {
+  it("forwards the chosen shape and defaults to long", async () => {
+    await get("?format=csv&version=2&shape=wide");
+    expect(exportCalls[0]).toMatchObject({ shape: "wide" });
+
+    exportCalls.length = 0;
+    await get("?format=csv&version=2");
+    expect(exportCalls[0]).toMatchObject({ shape: "long" });
+  });
+
+  it("reads an unknown shape as the default rather than refusing the export", async () => {
+    // Coerced the way `format` is. A projection cannot make the file narrower than
+    // its requester asked for, so it is not the class of untruth `parseExportFilters`
+    // refuses over, and the long shape is what an absent parameter already means.
+    const response = await get("?format=csv&version=2&shape=tall");
+    expect(response.status).toBe(200);
+    expect(exportCalls[0]).toMatchObject({ shape: "long" });
+  });
+
+  it("names a .zip when the API answered with one", async () => {
+    // The long shape of a form with a repeating group is responses.csv plus one file
+    // per group. Offering it as `.csv` would hand an operator an archive their
+    // spreadsheet opens as nothing.
+    upstreamContentType = "application/zip";
+    const response = await get("?format=csv&version=2");
+    expect(response.headers.get("content-type")).toBe("application/zip");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="frm_intake-v2-responses.zip"',
+    );
+  });
+
+  it("still names a .csv for the same request when the API answered with CSV", async () => {
+    const response = await get("?format=csv&version=2");
+    expect(response.headers.get("content-disposition")).toBe(
+      'attachment; filename="frm_intake-v2-responses.csv"',
+    );
   });
 });

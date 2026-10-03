@@ -1,12 +1,21 @@
 import type { NextRequest } from "next/server";
 
 import type { ExportFilterField } from "@/lib/ops/export";
-import { exportFilename, parseExportFilters } from "@/lib/ops/export";
+import { exportExtension, exportFilename, parseExportFilters } from "@/lib/ops/export";
 import { exportResponses } from "@/lib/server/responses";
 import { requireAdminSessionForRequest } from "@/lib/server/session";
 
 /**
  * The export download (task 035; screen contract "export UI - streams the download").
+ *
+ * ## The CSV shape, and the name the browser saves (task 075)
+ *
+ * CSV has two shapes since the Q17 ruling, `long` (the default) and `wide`, and the
+ * long shape of a form with a repeating group is **more than one file**: the API
+ * answers it with `application/zip`. This handler still forwards the body untouched -
+ * nothing here unpacks or inspects an archive - but it reads the upstream's
+ * `content-type` to name the download, because whether a version has a group is a
+ * property of the pinned definition and only the API has read it.
  *
  * A route handler rather than a server action, because the product of this call is
  * **bytes for the browser to save**, not state for a component to render. The API
@@ -55,11 +64,16 @@ export async function GET(
   const { formId } = await context.params;
   const query = request.nextUrl.searchParams;
   const format = query.get("format") === "json" ? "json" : "csv";
+  // Coerced the way `format` is, rather than refused: an unreadable projection is
+  // not a filter, so it cannot make the file narrower than its requester asked for,
+  // which is the harm `parseExportFilters` refuses over. Omitting it would send the
+  // API's default anyway.
+  const shape = query.get("shape") === "wide" ? "wide" : "long";
 
   const parsed = parseExportFilters(query);
   if (!parsed.ok) return invalidFilters(parsed.invalid);
 
-  const upstream = await exportResponses(session, formId, { format, ...parsed.filters });
+  const upstream = await exportResponses(session, formId, { format, shape, ...parsed.filters });
 
   // A refusal is JSON and small; let it through as-is so the browser shows the API's
   // own error rather than downloading a file containing one.
@@ -75,9 +89,18 @@ export async function GET(
   // operator's downloads folder should call it. It comes from `exportFilename`, the same
   // function the dialog's link is built from, so the name the operator was promised and
   // the name the browser saves are one rule with one unit test.
+  // The extension comes from what the API SENT, not from what was asked for: the
+  // long shape of a form with a repeating group is several files in a zip, and only
+  // the API has read the pinned definition that says whether this version has one.
+  // Offering a `.csv` whose bytes are an archive would hand an operator a file their
+  // spreadsheet opens as nothing.
   headers.set(
     "content-disposition",
-    `attachment; filename="${exportFilename(formId, { format, version: parsed.filters.version ?? "", from: "", to: "" })}"`,
+    `attachment; filename="${exportFilename(
+      formId,
+      { format, shape, version: parsed.filters.version ?? "", from: "", to: "" },
+      exportExtension(format, upstream.headers.get("content-type")),
+    )}"`,
   );
   return new Response(upstream.body, { status: 200, headers });
 }

@@ -15,6 +15,13 @@
  * serves that route, but both apps register the same processor: a rule that is inert in
  * one of them is safer than two processors that can drift apart.
  *
+ * **`lnk_` is the only branded id this module rewrites.** The rest - `frm_`, `stp_`, `q_`,
+ * `ses_`, and `ins_` since task 075 - are permitted pseudonymous correlators under SEC-13,
+ * so a repeating-group instance id in a path or an attribute value travels untouched. What
+ * must not travel is an instance **label**, which is authored `LocalizedText`, or an answer
+ * value under a qualified field name; both are dropped by the key allowlist below without
+ * being inspected.
+ *
  * Everything else follows the API's rules: an allowlist over attribute keys (unknown keys
  * are dropped, not inspected), query strings removed whole, and `exception.message` /
  * `exception.stacktrace` never exported (the message is the one field where an answer
