@@ -288,6 +288,66 @@ describe("expansion clones the template per live instance", () => {
     expect(add?.disabled).toBe(true);
   });
 
+  // --- issue #1041: a host that expands BEFORE pruning -------------------------------
+
+  it("prunes an already-expanded instance against the visible set", () => {
+    // The hydrated portal's ordering: expand once with the roster, hand the same whole
+    // tree to `commitMoments` and the error summary, and let the renderer's own pass
+    // apply the visible set. Until this worked, a member hidden in one instance by a
+    // per-instance rule stayed on screen on that path and on no other.
+    const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const roster = instances(2);
+    const expanded = expandRepeatGroups(document.root, { rosters: { grp_vehicles: roster } });
+    // Every member of both instances, because no visible set was given.
+    expect(JSON.stringify(expanded)).toContain(
+      `"${qualifiedFieldName(roster[1], "q_rep_service_date")}"`,
+    );
+
+    const visible = new Set([
+      "q_rep_fleet_name",
+      qualifiedFieldName(roster[0], "q_rep_plate"),
+      qualifiedFieldName(roster[0], "q_rep_service_date"),
+      qualifiedFieldName(roster[1], "q_rep_plate"),
+    ]);
+    const { container } = render(
+      <A2UIStepRenderer
+        document={{ stepId: document.stepId, root: expanded }}
+        specVersion={goldenStep(OPEN_GROUP, "stp_fleet").spec}
+        repeat={{ rosters: { grp_vehicles: roster }, visible }}
+      />,
+    );
+    // Instance 2's hidden date is gone and its plate stayed; both instances still exist,
+    // so the second pass pruned without re-expanding.
+    expect(container.querySelectorAll("[data-qcms-instance]")).toHaveLength(2);
+    expect(names(container)).toEqual([
+      "q_rep_fleet_name",
+      qualifiedFieldName(roster[0], "q_rep_plate"),
+      qualifiedFieldName(roster[0], "q_rep_service_date"),
+      qualifiedFieldName(roster[1], "q_rep_plate"),
+    ]);
+  });
+
+  it("leaves an expanded group referentially unchanged when nothing is pruned", () => {
+    // The common case must cost no new object, or `useMemo` downstream re-renders for
+    // nothing on every projection.
+    const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
+    const roster = instances(2);
+    const expanded = expandRepeatGroups(document.root, { rosters: { grp_vehicles: roster } });
+    const everything = new Set(
+      [
+        "q_rep_plate",
+        "q_rep_service_date",
+        "q_rep_odometer",
+        "q_rep_notes",
+        "q_rep_extras",
+      ].flatMap((question) => roster.map((instanceId) => qualifiedFieldName(instanceId, question))),
+    );
+    everything.add("q_rep_fleet_name");
+    expect(expandRepeatGroups(expanded, { visible: everything })).toBe(expanded);
+    // And with no visible set at all, which is the admin preview's call.
+    expect(expandRepeatGroups(expanded, { rosters: { grp_vehicles: roster } })).toBe(expanded);
+  });
+
   it("documentForVisible keeps the template whole, because it cannot prune it", () => {
     const { document } = goldenStep(OPEN_GROUP, "stp_fleet");
     // Only the qualified names are in the visible set, so pruning the template by

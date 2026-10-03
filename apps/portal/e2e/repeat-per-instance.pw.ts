@@ -27,6 +27,13 @@ import { waitForHydration } from "./support/hydration.js";
  * itself, on this path), and **5** (Submit appears on the last view and nowhere earlier,
  * with that last view belonging to an instance rather than to a plain step).
  *
+ * **Issue #1041 is driven from here too**, and the fixture choice is deliberate. The
+ * defect is a hydrated-path composition fault and is presentation-independent, so the
+ * natural home would be the stacked spec; but `repeat-fleet` carries no rules at all, so
+ * a per-instance branch cannot be driven on it without changing a fixture three other
+ * specs assert against. `repeat-tour` gained one rule of its own instead, and the
+ * ordering itself is pinned directly in `packages/ui/src/repeat.test.tsx`.
+ *
  * The no-JS half of the same fixture is `no-js-per-instance.pw.ts`.
  */
 
@@ -35,6 +42,17 @@ const { repeatTourSlug } = readFixtures();
 /** The one instance card this view draws. */
 function card(page: import("@playwright/test").Page) {
   return page.locator("fieldset[data-qcms-instance]");
+}
+
+/**
+ * This instance's optional odometer field, by role.
+ *
+ * By role and not `getByLabel`: a `NumberField`'s increment and decrement buttons are
+ * labelled from the same text through `aria-labelledby`, so a label locator resolves to
+ * three elements and strict mode refuses it. The text box is the field.
+ */
+function odometer(page: import("@playwright/test").Page) {
+  return card(page).getByRole("textbox", { name: "Odometer reading" });
 }
 
 async function startTour(page: import("@playwright/test").Page): Promise<void> {
@@ -164,6 +182,41 @@ test("the Add control is on the last view and growing the group appends a view",
   await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeVisible();
   // `max: 4`, so the group is full and the control says so rather than disappearing.
   await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
+});
+
+test("a member hidden in this instance is not rendered on the hydrated path (#1041)", async ({
+  page,
+}) => {
+  // The fixture's one rule shows `q_pi_odometer` only where THAT instance's plate is
+  // `AAA111`, which is what a per-instance rule is: evaluated once per live instance, so
+  // the visible set the API sends is per instance and qualified.
+  //
+  // Before the fix the hydrated path rendered every member in every instance. It expands
+  // once with the roster and hands the whole tree to `commitMoments` and the error
+  // summary, so no visible set reached the expansion; `documentForVisible` skips a
+  // `RepeatGroup` subtree because it cannot tell a template's bare names from an
+  // instance's qualified ones; and the renderer's own pass returned an already-expanded
+  // group untouched. The no-JS path composes the two the other way round and was right.
+  await startTour(page);
+
+  // Vehicle 1 with the matching plate: the rule fires for THIS instance and the optional
+  // odometer appears, which is a per-instance branch insertion within one view.
+  await expect(odometer(page)).toHaveCount(0);
+  await fillPlate(page, "AAA111");
+  await expect(odometer(page)).toBeVisible();
+
+  // Vehicle 2 with a different plate: the rule does not fire for this instance, so the
+  // odometer must not be on the page. This is the assertion the defect failed.
+  await navigate(page, "primary-action");
+  await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
+  await fillPlate(page, "BBB222");
+  await expect(odometer(page)).toHaveCount(0);
+
+  // And Back to Vehicle 1 still has it, so the pruning is per instance rather than a
+  // field that disappeared for the whole group once any instance hid it.
+  await navigate(page, "back-action");
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await expect(odometer(page)).toBeVisible();
 });
 
 test("the move between views is announced once, by the indicator and not twice", async ({
