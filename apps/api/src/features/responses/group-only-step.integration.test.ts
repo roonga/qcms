@@ -28,10 +28,8 @@
  *
  * **And the natural fix is a Code Owner decision.** It is to make a step holding a
  * repeating group a visible step even with an empty roster, because the group's own
- * chrome - its label and its Add control - is content a respondent can act on, and
- * because `visibleStepViews` already reads that way ("a step carrying such a group with
- * an empty roster contributes one view with a null instance"). That is a change to
- * `visibleSteps`, and the committed golden scenario
+ * chrome - its label and its Add control - is content a respondent can act on. That is a
+ * change to `visibleSteps`, and the committed golden scenario
  * `packages/core/golden/evaluator/scenarios/repeat-every-instance-empty-group.json`
  * pins the current reading: its form's `stp_pax` is a group-only step, its roster is
  * empty, and its `expected.visibleSteps` is `["stp_after"]`. Changing it means editing

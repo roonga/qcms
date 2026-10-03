@@ -382,8 +382,9 @@ export const REPEAT_FLEET_GOLDEN = readFixture(REPEAT_FLEET_COMPILED_PATH) as Co
  * - which is due on the serve of the group's own step - never happens: the form serves "you
  * have answered everything" from the first request. That is a gap in the minting contract
  * rather than anything about this presentation (it bites the stacked presentation the same
- * way), it is reported against task 073's seam, and until it is ruled on every repeat
- * fixture needs one non-group question on the step exactly as `repeat-fleet` has one.
+ * way). **It was ruled a defect on 2026-10-03 (Q30) and is to be fixed inside wave 4**;
+ * until that fix lands, every repeat fixture needs one non-group question on the step
+ * exactly as `repeat-fleet` has one.
  *
  * It is **optional**, so the Continue gate on each view is that view's own plate and
  * nothing else, and it is what makes the "every instance complete but the step still
