@@ -22,10 +22,15 @@
     "./migrate": {
       "types": "./dist/migrate.d.ts",
       "default": "./dist/migrate.js"
+    },
+    "./environment": {
+      "types": "./dist/environment/index.d.ts",
+      "default": "./dist/environment/index.js"
     }
   },
   "bin": {
-    "qcms-db-migrate": "./dist/migrate.js"
+    "qcms-db-migrate": "./dist/migrate.js",
+    "qcms-db-environment": "./dist/environment-cli.js"
   },
   "files": [
     "dist",

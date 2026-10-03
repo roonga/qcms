@@ -882,13 +882,56 @@ export const ENV_REFERENCE = [
       "Password for `qcms_migrate`, the role that owns the schema and runs the one-shot migration. Held by the `migrate` service and by nothing else. See [Least-privilege database roles](#least-privilege-database-roles).",
   },
   {
-    name: "QCMS_DB_APP_PASSWORD",
+    name: "QCMS_DB_APP_CONTROL_PASSWORD",
     process: "compose",
     requirement: "required",
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_app`, the role the API runs as: DML on the operational tables, no DDL, not the schema owner. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Password for `qcms_app_control`, the role the API's control pool runs as: DML on `control` with the break-glass audit carved out, and `INSERT` on each environment's `outbox` and nothing else in any data schema. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_DB_APP_TEST_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_app_test`, the role the API's `test` pool runs as: DML on `data_test` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_DB_APP_PROD_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_app_prod`, the role the API's `prod` pool runs as: DML on `data_prod` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_ENVIRONMENTS",
+    process: "api",
+    requirement: "optional",
+    fallback: "test,prod",
+    description:
+      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere.",
+  },
+  {
+    name: "QCMS_DEFAULT_ENVIRONMENT",
+    process: "api",
+    requirement: "optional",
+    fallback: "prod",
+    description:
+      "Which environment a respondent request is served from. An interim setting: ADR-40 takes the request's environment from the `/<env>/` route prefix (task 066) and from the administrator's switcher (task 065), and until those exist every such request resolves here.",
+  },
+  {
+    name: "QCMS_DATABASE_URL_<ENV>",
+    process: "api",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "One connection string per environment named in `QCMS_ENVIRONMENTS`, upper-cased (`QCMS_DATABASE_URL_PROD`). Each connects as that environment's own `qcms_app_<env>` role. Never read from the database: a credential the database hands out is a credential the database can be made to hand out.",
   },
   {
     name: "QCMS_DB_NAME",

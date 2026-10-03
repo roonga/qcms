@@ -39,9 +39,7 @@ export const secureLinks = controlSchema.table(
     oneTime: boolean("one_time").notNull().default(false),
     consumedAt: timestamp("consumed_at", { withTimezone: true, mode: "date" }),
     revokedAt: timestamp("revoked_at", { withTimezone: true, mode: "date" }),
-    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
-      .notNull()
-      .defaultNow(),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
     /** The environment this link belongs to; a `control.environments` name (Q46). */
     environment: text("environment").notNull(),
   },

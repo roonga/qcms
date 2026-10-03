@@ -138,6 +138,18 @@ describe("the two planes stay disjoint (criterion 3a)", () => {
  */
 const SCHEMA_QUALIFYING_HELPERS = ["outbox.ts"];
 
+/**
+ * Strip comments before looking for a schema name.
+ *
+ * Several helpers **explain** the layout in their headers - `data_<env>`, `search_path`,
+ * why an unqualified name is the right one - and a check that could not tell the
+ * explanation from the statement would fail on the prose that documents its own rule.
+ * The first version of this assertion did exactly that.
+ */
+function withoutComments(source: string): string {
+  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/\/\/.*$/gm, "");
+}
+
 describe("no query helper emits a schema-qualified data-plane name", () => {
   const QUERIES_DIR = fileURLToPath(new URL("../queries/", import.meta.url));
 
@@ -145,7 +157,9 @@ describe("no query helper emits a schema-qualified data-plane name", () => {
     const offenders = readdirSync(QUERIES_DIR)
       .filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"))
       .filter((name) => !SCHEMA_QUALIFYING_HELPERS.includes(name))
-      .filter((name) => /\bdata_/.test(readFileSync(`${QUERIES_DIR}${name}`, "utf8")));
+      .filter((name) =>
+        /\bdata_/.test(withoutComments(readFileSync(`${QUERIES_DIR}${name}`, "utf8"))),
+      );
     expect(offenders).toEqual([]);
   });
 });

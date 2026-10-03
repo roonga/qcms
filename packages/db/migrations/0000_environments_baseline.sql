@@ -603,27 +603,6 @@ SELECT
 FROM "reporting_prod"."responses" "r"
 CROSS JOIN LATERAL jsonb_each("r"."answers") AS "kv"("key", "value");
 --> statement-breakpoint
--- The three kinds of application role (Q40). Created NOLOGIN here so a database
--- created by `migrate` alone still carries real, assertable grants; the SEC-10 recipe
--- in docs/operations.md creates them LOGIN with a password BEFORE the first migration,
--- in which case this block does nothing. Guarded on the migrating credential being
--- allowed to create a role, because `qcms_migrate` deliberately holds no CREATEROLE.
-DO $$
-BEGIN
-	IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolcreaterole OR rolsuper)) THEN
-		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_control') THEN
-			EXECUTE 'CREATE ROLE "qcms_app_control" NOLOGIN';
-		END IF;
-		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_test') THEN
-			EXECUTE 'CREATE ROLE "qcms_app_test" NOLOGIN';
-		END IF;
-		IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'qcms_app_prod') THEN
-			EXECUTE 'CREATE ROLE "qcms_app_prod" NOLOGIN';
-		END IF;
-	END IF;
-END
-$$;
---> statement-breakpoint
 -- `qcms_app_control` serves better-auth, authoring, grants, releases and closes, so
 -- it holds DML on the whole of `control` - with the audit tables carved out below and
 -- in task 069's migration. In the data schemas it holds INSERT on `outbox` and nothing

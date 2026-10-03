@@ -51,11 +51,29 @@ services:
   # the role that owned the schema, so the process serving respondent traffic could
   # DROP TABLE. The Code Owner's ruling of 2026-09-02 splits it in two:
   #
-  #   qcms_migrate  owns the schema and holds the DDL rights drizzle-kit needs.
-  #                 It is used by `migrate` and by nothing else.
-  #   qcms_app      SELECT/INSERT/UPDATE/DELETE on the operational tables and USAGE
-  #                 on sequences. No CREATE on public, no DDL of any kind, and not
-  #                 the schema owner. It is the credential the API runs as.
+  #   qcms_migrate      owns every schema and holds the DDL rights drizzle-kit needs.
+  #                     It is used by `migrate` and by nothing else.
+  #   qcms_app_control  DML on `control`, with `two_factor_resets` carved out entirely,
+  #                     and INSERT on each environment's `outbox` and nothing else in
+  #                     any data schema. It serves better-auth, authoring, grants,
+  #                     releases and closes.
+  #   qcms_app_<env>    DML on its OWN `data_<env>`, USAGE and SELECT on its own
+  #                     `reporting_<env>`, and on `control` a named SELECT list plus
+  #                     UPDATE on `secure_links`. No privilege at all on the identity,
+  #                     session, membership or grant tables. One per environment.
+  #
+  # Under ADR-40 (Code Owner, 2026-09-29, Q40 as amended by Q48, Q49 and Q52) the single
+  # `qcms_app` becomes those last two kinds, so a defect on the anonymous respondent path
+  # cannot rewrite a grant row or a staff session, and an author never reads a production
+  # answer at the database. Each role has its OWN password: sharing one would let a
+  # process holding the control credential connect as an environment role and the whole
+  # boundary would be a convention rather than a control.
+  #
+  # **The grants themselves live in the baseline migration**, guarded on each role
+  # existing, because the migration that creates a table is the only place that runs as
+  # its owner in the same step (migration 0021's rule). What this service does is create
+  # the roles with their passwords and hand the schemas over; what it does NOT do is
+  # re-derive the grant model, which would be a second copy to keep in step.
   #
   # The role names are literals rather than variables, exactly as `qcms_reporting`
   # is in docs/reporting-view.md and `qcms_ro` is in docker-compose.dev-tools.yml:
@@ -87,7 +105,9 @@ services:
       PGDATABASE: ${QCMS_DB_NAME:-qcms}
       PGUSER: ${QCMS_DB_USER:-qcms}
       PGPASSWORD: ${QCMS_DB_PASSWORD:?set QCMS_DB_PASSWORD in .env}
-      APP_PASSWORD: ${QCMS_DB_APP_PASSWORD:?set QCMS_DB_APP_PASSWORD in .env - the API connects as qcms_app with it}
+      CONTROL_PASSWORD: ${QCMS_DB_APP_CONTROL_PASSWORD:?set QCMS_DB_APP_CONTROL_PASSWORD in .env - the API's control pool connects as qcms_app_control with it}
+      TEST_PASSWORD: ${QCMS_DB_APP_TEST_PASSWORD:?set QCMS_DB_APP_TEST_PASSWORD in .env - the API's test pool connects as qcms_app_test with it}
+      PROD_PASSWORD: ${QCMS_DB_APP_PROD_PASSWORD:?set QCMS_DB_APP_PROD_PASSWORD in .env - the API's prod pool connects as qcms_app_prod with it}
       MIGRATE_PASSWORD: ${QCMS_DB_MIGRATE_PASSWORD:?set QCMS_DB_MIGRATE_PASSWORD in .env - the migration connects as qcms_migrate with it}
     # Passwords reach psql through \getenv rather than through argv, so they are not
     # in the process list of a container anyone can exec into. The heredoc is quoted,
@@ -98,144 +118,78 @@ services:
       - |
         exec psql <<'SQL'
         \set ON_ERROR_STOP on
-        \getenv app_password APP_PASSWORD
+        \getenv control_password CONTROL_PASSWORD
+        \getenv test_password TEST_PASSWORD
+        \getenv prod_password PROD_PASSWORD
         \getenv migrate_password MIGRATE_PASSWORD
 
         -- CREATE ROLE has no IF NOT EXISTS, and this runs on every `up`.
         SELECT 'CREATE ROLE qcms_migrate LOGIN'
         WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_migrate')\gexec
-        SELECT 'CREATE ROLE qcms_app LOGIN'
-        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_app')\gexec
+        SELECT 'CREATE ROLE qcms_app_control LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_app_control')\gexec
+        SELECT 'CREATE ROLE qcms_app_test LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_app_test')\gexec
+        SELECT 'CREATE ROLE qcms_app_prod LOGIN'
+        WHERE NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'qcms_app_prod')\gexec
 
         ALTER ROLE qcms_migrate WITH LOGIN PASSWORD :'migrate_password';
-        ALTER ROLE qcms_app WITH LOGIN PASSWORD :'app_password';
+        ALTER ROLE qcms_app_control WITH LOGIN PASSWORD :'control_password';
+        ALTER ROLE qcms_app_test WITH LOGIN PASSWORD :'test_password';
+        ALTER ROLE qcms_app_prod WITH LOGIN PASSWORD :'prod_password';
 
-        -- CREATE on the database, not ownership of it: the migration role creates the
-        -- `reporting` schema (migration 0003) and drizzle's own bookkeeping schema.
-        -- Owning the database would additionally let it DROP the database, which is
-        -- past what "owns the schema" means.
+        -- CREATE on the database, not ownership of it: the migration role creates
+        -- `control`, each `data_<env>`, each `reporting_<env>` and drizzle's own
+        -- bookkeeping schema. Owning the database would additionally let it DROP the
+        -- database, which is past what "owns the schema" means.
         SELECT format('GRANT CREATE ON DATABASE %I TO qcms_migrate', current_database())\gexec
 
-        -- Hand the schema, and everything already in it, to the migration role. Only
-        -- an owner may ALTER an object, so a stack that migrated under the single
-        -- credential would otherwise fail its NEXT migration: the tables are still
-        -- owned by the bootstrap role. On a fresh database this loop finds only the
-        -- `public` schema itself and moves no objects.
+        -- Hand every non-system schema, and everything already in it, to the migration
+        -- role. Only an owner may ALTER an object. On a fresh database this loop finds
+        -- only `public` itself and moves no objects.
         --
         -- REASSIGN OWNED BY, which is the statement this looks like it should be, is
         -- not usable here: the bootstrap role is the initdb superuser, so it also owns
         -- pinned catalog objects and Postgres refuses ("cannot reassign ownership of
         -- objects owned by role ... because they are required by the database system").
-        -- Hence an explicit, scoped pass over the non-system schemas.
-        --
-        -- docs/operations.md writes the same four passes as one plpgsql DO block,
-        -- which is what an operator pastes into psql. It cannot be written that way
-        -- HERE: Compose reads `$$` as its own escape for a literal `$`, so a dollar
-        -- quote reaches the container as `DO $` and Postgres rejects it. \gexec is the
-        -- same work in a form that survives interpolation, and the order is the
-        -- schema first, because ALTER TABLE ... OWNER TO requires the new owner to
-        -- hold CREATE on the table's schema.
         SELECT format('ALTER SCHEMA %I OWNER TO qcms_migrate', nspname)
         FROM pg_namespace
-        WHERE nspname NOT LIKE 'pg\_%' AND nspname <> 'information_schema'
+        WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
           AND nspowner <> 'qcms_migrate'::regrole\gexec
 
-        -- Tables, partitioned tables, views, materialized views and sequences.
-        --
-        -- A sequence OWNED BY a table column is excluded, and that exclusion is not an
-        -- optimisation. Postgres refuses `ALTER SEQUENCE ... OWNER TO` on one outright
-        -- ("cannot change owner of sequence ...: it is linked to table ..."), and the
-        -- database this loop exists for always has at least one: drizzle's own
-        -- bookkeeping table `drizzle.__drizzle_migrations` declares `id SERIAL`, so an
-        -- upgrading stack carries that table AND its linked sequence, both owned by
-        -- the old credential. With ON_ERROR_STOP set, hitting it aborts this whole
-        -- one-shot and `migrate` and `api` never start.
-        --
-        -- Excluded rather than merely ordered after its table, because the exclusion is
-        -- order-independent: changing a table's owner moves its linked sequence with
-        -- it, so the row this skips is already handled by the row that owns it.
         SELECT format('ALTER TABLE %I.%I OWNER TO qcms_migrate', n.nspname, c.relname)
         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
         WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
-          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+          AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
           AND c.relowner <> 'qcms_migrate'::regrole
           AND NOT (c.relkind = 'S' AND EXISTS (
                 SELECT 1 FROM pg_depend d
-                WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
-                  AND d.refclassid = 'pg_class'::regclass
-                  AND d.deptype IN ('a', 'i')))\gexec
+                 WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
+                   AND d.refclassid = 'pg_class'::regclass
+                   AND d.deptype IN ('a', 'i')))\gexec
 
-        -- The append-only and delete-guard trigger functions (migrations 0001 and
-        -- 0004). CREATE OR REPLACE FUNCTION requires ownership of the existing one.
         SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO qcms_migrate',
                       n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
         FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-        WHERE n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+        WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
           AND p.proowner <> 'qcms_migrate'::regrole\gexec
 
-        -- The enums, so a later migration can ALTER TYPE ... ADD VALUE.
         SELECT format('ALTER TYPE %I.%I OWNER TO qcms_migrate', n.nspname, t.typname)
         FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
         WHERE t.typtype = 'e'
-          AND n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'
+          AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
           AND t.typowner <> 'qcms_migrate'::regrole\gexec
 
-        -- The runtime role, in two layers, because the two schemas are not equal:
-        -- `public` is where rows are written, `reporting` is a READ surface and SEC-10
-        -- says qcms_app gets SELECT on it and nothing more. Granting the DML pass over
-        -- every schema the migration role owns would have handed the API write
-        -- privileges on the reporting views (inert today, since both are join views
-        -- and not auto-updatable, but a grant that does not match the stated posture
-        -- is the posture nobody can trust). Reviewer finding on PR #782.
-        --
-        -- The SELECT pass is driven off pg_namespace so `reporting` is covered on an
-        -- existing database without naming a schema that does not exist yet on a fresh
-        -- one; the write pass names `public`, which always exists.
-        SELECT format('GRANT USAGE ON SCHEMA %I TO qcms_app', nspname)
-        FROM pg_namespace WHERE nspowner = 'qcms_migrate'::regrole\gexec
-        SELECT format('GRANT SELECT ON ALL TABLES IN SCHEMA %I TO qcms_app', nspname)
-        FROM pg_namespace WHERE nspowner = 'qcms_migrate'::regrole\gexec
-        GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO qcms_app;
-        GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO qcms_app;
+        -- `public` holds no QCMS object at all under ADR-40 and is on no search path, so
+        -- nothing is granted on it and CREATE on it belongs to nobody.
+        REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 
-        -- And what the NEXT migration creates, without a grant step after every
-        -- upgrade. Same two layers, and the scoping is what carries the asymmetry:
-        -- the SELECT default is deliberately UNSCOPED, because `reporting` does not
-        -- exist on a fresh database at this point and the default has to reach it when
-        -- migration 0003 creates it; the write defaults name `public`, so a view
-        -- created in `reporting` later gets SELECT and only SELECT. Postgres unions
-        -- the unscoped and the schema-scoped default ACLs, so a public table still
-        -- ends up with all four.
-        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
-          GRANT SELECT ON TABLES TO qcms_app;
-        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
-          GRANT INSERT, UPDATE, DELETE ON TABLES TO qcms_app;
-        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA public
-          GRANT USAGE ON SEQUENCES TO qcms_app;
-        ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate
-          GRANT USAGE ON SCHEMAS TO qcms_app;
-
-        -- And the one table taken back out of that pass: the break-glass audit trail
-        -- is MIGRATE-ONLY (issue #432, Code Owner decision 2026-09-09).
-        -- `two_factor_resets` records that somebody removed an administrator's second
-        -- factor out of band, so a row the API's own credential can UPDATE or DELETE
-        -- proves nothing against the attacker SEC-10's split is drawn against.
-        --
-        -- A REVOKE rather than a narrower grant, because neither form above can name
-        -- an exception: ALTER DEFAULT PRIVILEGES is keyed on (role, schema, object
-        -- type) with no per-table filter, so "every table except that one" is not
-        -- expressible. The grant lands and is taken back.
-        --
-        -- Migration 0021 carries the same revoke, and that copy is the one a FRESH
-        -- deployment relies on: this one-shot runs BEFORE `migrate`, so on a new
-        -- database the table does not exist yet and the branch below is skipped. This
-        -- copy exists for the boot after that one. db-roles re-runs on every `up`
-        -- (see the header), so the blanket GRANT above re-applies to a table that now
-        -- exists, and without this the audit table would quietly regain the DML pass
-        -- on the second `docker compose up`. Idempotent either way, and guarded on
-        -- the table existing so a fresh stack is not an error.
-        SELECT format('REVOKE SELECT, INSERT, UPDATE, DELETE ON TABLE %I FROM qcms_app', tablename)
-        FROM pg_tables WHERE schemaname = 'public' AND tablename = 'two_factor_resets'\gexec
+        -- And nothing else. **The grants are the baseline migration's**, guarded on each
+        -- role existing, which is why this service runs BEFORE `migrate` rather than
+        -- after: the roles have to exist by the time the migration reaches its grant
+        -- block. A second copy of the grant model here is a second copy to keep in step
+        -- with Q40, Q48, Q49 and Q52, and the one in the migration is the one
+        -- `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts.
         SQL
     depends_on:
       postgres:
@@ -328,7 +282,15 @@ services:
       # not because of ordering: a directly written key always wins over a merged one.
       # `docker compose exec api` inherits it, so the bootstrap CLI (`qcms:create-admin`)
       # runs as this role too, which is correct - creating an administrator is INSERT.
-      DATABASE_URL: postgres://qcms_app:${QCMS_DB_APP_PASSWORD:?set QCMS_DB_APP_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
+      # The CONTROL pool: better-auth, authoring, grants, releases, closes.
+      DATABASE_URL: postgres://qcms_app_control:${QCMS_DB_APP_CONTROL_PASSWORD:?set QCMS_DB_APP_CONTROL_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
+      # One pool per environment (ADR-40, Q2). The names are configuration because a
+      # process cannot read `control.environments` before it has a connection; the API
+      # checks this list against that table at boot and refuses when they disagree.
+      QCMS_ENVIRONMENTS: ${QCMS_ENVIRONMENTS:-test,prod}
+      QCMS_DEFAULT_ENVIRONMENT: ${QCMS_DEFAULT_ENVIRONMENT:-prod}
+      QCMS_DATABASE_URL_TEST: postgres://qcms_app_test:${QCMS_DB_APP_TEST_PASSWORD:?set QCMS_DB_APP_TEST_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
+      QCMS_DATABASE_URL_PROD: postgres://qcms_app_prod:${QCMS_DB_APP_PROD_PASSWORD:?set QCMS_DB_APP_PROD_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       PORT: 3000
       # Tracing's single switch (ADR-34). Compose forwards only what a service names
       # here, so without this line setting the variable in .env reached nothing and

@@ -33,7 +33,12 @@ import {
   insertSubmission,
   markSubmitted,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -150,7 +155,7 @@ async function seedSubmitted(opts: {
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
     formVersion: 1,

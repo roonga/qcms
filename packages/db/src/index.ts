@@ -24,5 +24,16 @@ export * from "./queries/index.js";
 // The `reporting` view set's DDL generator and its documented column lists (task
 // 075). Deliberately not re-exported through `schema/index.ts`, which is the
 // module `drizzle-kit generate` diffs: the views are hand-authored SQL, so they
-// sit beside the schema rather than inside it.
+// sit beside the schema rather than inside it. Task 064's baseline and its
+// environment command call it with their own `reporting_<env>`/`data_<env>` pair.
 export * from "./reporting-views.js";
+
+// The grant model, exported so the least-privilege suite asserts the lists the
+// generator emits rather than a second hand-kept copy of them (criterion 6b).
+export {
+  CONTROL_FORBIDDEN_TABLES,
+  CONTROL_READ_TABLES,
+  CONTROL_READ_TABLES_NOT_YET_CREATED,
+  environmentObjectNames,
+  type EnvironmentObjectNames,
+} from "./environment/sql.js";

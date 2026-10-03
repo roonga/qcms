@@ -84,7 +84,7 @@ export function betterAuthSessionVerifier(deps: Deps): AdminSessionVerifier {
     // No credential presented: reject before any database work.
     if (token === undefined || token === "") return undefined;
 
-    const session = await getAdminSessionByToken(deps.db, token);
+    const session = await getAdminSessionByToken(deps.databases.control, token);
     if (session === undefined) return undefined;
 
     const now = deps.clock.now().getTime();

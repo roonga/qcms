@@ -4,7 +4,12 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "../testing/harness.js";
 import {
   addInstances,
   answerLedger,
@@ -80,7 +85,7 @@ async function seedSubmittedWithLedger(
   sessionId: SessionId,
 ): Promise<void> {
   await createSession(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version,
