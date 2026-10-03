@@ -166,6 +166,81 @@ test("the Add control is on the last view and growing the group appends a view",
   await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
 });
 
+test("the move between views is announced once, by the indicator and not twice", async ({
+  page,
+}) => {
+  // Reviewer finding, 2026-10-03. The progress indicator is itself a polite live region
+  // and on a per-instance view it names the page ("Step 2 of 3: Vehicle 2"). The sr-only
+  // flow announcer used to say the same sentence, so a screen reader heard it twice on
+  // every Continue. The indicator keeps it, because it is also visible, and the announcer
+  // says nothing about the move.
+  await startTour(page);
+  const announcer = page.getByTestId("flow-announcer");
+  await fillPlate(page, "AAA111");
+  await navigate(page, "primary-action");
+
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3: Vehicle 2");
+  // Not the indicator's sentence, and not a step-change sentence of any wording: this
+  // region has nothing to add about a move the indicator has already announced.
+  await expect(announcer).toHaveText("");
+
+  // What the announcer still carries is everything the indicator cannot say. Answering
+  // the last required field on the last view makes the flow ready, and that is announced
+  // here, which is also what proves the region is alive rather than merely empty.
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  await expect(announcer).toHaveText("");
+  await fillPlate(page, "CCC333");
+  await expect(announcer).toHaveText("You have answered everything. You can now submit.");
+});
+
+test("the first Add to an emptied paginated group lands focus on the new instance", async ({
+  page,
+}) => {
+  // Reviewer finding, 2026-10-03, and a regression this PR had introduced. An EMPTY
+  // paginated roster draws no instance, so its view projects `view.groupId: null`; a
+  // pagination test taken from the view AFTER the operation therefore called this Add
+  // paginated and withheld the focus destination - for the one case where the new
+  // instance IS drawn on the page it was added from, so Q11's destination applies
+  // unchanged (Q31's amendment of 2026-10-03).
+  //
+  // Reached by removing every instance rather than by a `min: 0` fixture, which is what
+  // keeps this case reachable after the Q30 fix lands: once a group-only step is served,
+  // an open group at `min: 0` mints one instance on that serve, so an empty roster is
+  // something a respondent arrives at by removing rather than something a first serve
+  // hands them.
+  await startTour(page);
+  // Always "Remove Vehicle 1": this view draws ONE instance, and after each removal the
+  // cursor clamps onto the instance that took its position, which renumbers to 1.
+  for (const round of [1, 2, 3]) {
+    const removed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/roster"),
+    );
+    await page.getByRole("button", { name: "Remove Vehicle 1" }).click();
+    expect((await removed).status(), `removal ${String(round)}`).toBe(200);
+  }
+  // The group is empty: one view with no instance, its chrome and its Add still there.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(0);
+  await expect(page.getByTestId("progress")).toHaveText("Step 1 of 1");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeEnabled();
+
+  const added = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/roster"),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await added).status()).toBe(200);
+
+  // The new instance is drawn on this very page, so focus lands on its heading, which is
+  // Q11's primary destination and what 073 already did for a stacked group.
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeFocused();
+});
+
 test("an Add announces without moving the page, and a removal clamps onto Q11's destination", async ({
   page,
 }) => {
