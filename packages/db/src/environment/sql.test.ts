@@ -147,7 +147,10 @@ const SCHEMA_QUALIFYING_HELPERS = ["outbox.ts"];
  * The first version of this assertion did exactly that.
  */
 function withoutComments(source: string): string {
-  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/\/\/.*$/gm, "");
+  // `[^*]*\*+(?:[^/*][^*]*\*+)*` is the standard non-backtracking block-comment body:
+  // a lazy `[\s\S]*?` reads the same and is super-linear on a file with many comments,
+  // which every file here is.
+  return source.replaceAll(/\/\*[^*]*\*+(?:[^/*][^*]*\*+)*\//g, "").replaceAll(/\/\/[^\n]*/g, "");
 }
 
 describe("no query helper emits a schema-qualified data-plane name", () => {

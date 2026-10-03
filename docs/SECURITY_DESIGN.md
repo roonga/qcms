@@ -149,7 +149,7 @@ Live sessions are deliberately not revoked: any session that exists passed the s
 **Possession of migrate-role credentials is the whole guard, and that is stated rather than dressed up.**
 There is no HTTP route, because the authentication a recovery route would need is the thing that is broken.
 There is no environment flag, because a flag that enables the command is a second thing to get wrong and a deployment that leaves it on has moved the guard onto the flag.
-What is left is SEC-10: the command runs as `qcms_migrate` and **refuses `qcms_app`**, the credential every API process holds.
+What is left is SEC-10: the command runs as `qcms_migrate` and **refuses every application credential**, which is what each API pool holds. It tests schema ownership rather than a role name, so the guard survives a deployment renaming its roles.
 The check is ownership of the schema rather than the role's name, so it holds for an adopter who names their roles differently, and it means that reaching the credential that is on a running box serving traffic does not thereby reach this.
 Two more refusals bound the blast radius: an address matching zero or more than one account is refused rather than guessed at (the match is case-insensitive, and `user.email` is compared case-sensitively by Postgres, so two accounts can share one address as an operator reads it), and nothing is written at all without an explicit `--yes`.
 
@@ -504,17 +504,37 @@ QCMS's own copy of the answers is also aged out for the ordinary case by the ret
 the residual limit is an in-flight request that cannot be recalled, documented in `docs/erasure.md`, backups documented with the honest note that erasure ages out of backups per the operator's retention (016 docs), reporting view consumed via a **read-only DB role** whose `CREATE ROLE` grant ships in the docs (015) - BI tools never get the app credential.
 The API's DB user gets least privilege consistent with the erasure door (013/016): no superuser, no DDL beyond migrations.
 
-**The app/migration role split is the shipped posture (issue #492, Code Owner decision of 2026-09-02).**
+**The role split is the shipped posture (issue #492, Code Owner decision of 2026-09-02, widened by ADR-40 on 2026-09-29).**
 This paragraph used to say the application credential owned the schema and could issue DDL, and record the split as outstanding work in `docs/security-review-2026-08-14.md` §3.6.
-It is now two roles, both of them least-privilege in the direction that matters.
-**`qcms_app`** is the credential every API process runs as: `SELECT`, `INSERT`, `UPDATE`, `DELETE` on the operational tables, `SELECT` on the reporting views, `USAGE` on the schemas and sequences, and beyond that nothing - no `CREATE` on `public`, no DDL of any kind, and not the schema owner, so the process serving respondent and authoring traffic cannot `DROP TABLE`.
-**`qcms_migrate`** owns `public` and every object in it and holds the DDL rights `drizzle-kit migrate` needs; it is held by the one-shot migration step and by no process that serves traffic.
-`DELETE` is granted whole rather than narrowed to the erasure and retention tables: that was considered as defence in depth over the `answers_reject_delete` trigger and rejected, because it multiplies the grants an operator has to get right and a missed one surfaces as a runtime failure rather than a boot failure.
-The operator recipe - the role SQL, where each credential is set, the bootstrap ordering, and the one-time ownership handover for a database migrated under the old single credential - is the "Least-privilege database roles" section of `docs/operations.md`, shaped like the reporting recipe so it can be asserted the same way.
-It is: `apps/api/e2e/security/03-db-least-privilege.e2e.ts` runs the recipe against a real Postgres, migrates as `qcms_migrate`, and asserts that `qcms_app` is refused every form of DDL, holds no `CREATE` on `public`, and owns nothing.
-On Compose the recipe runs as a `db-roles` one-shot that `migrate` depends on, because a script in `/docker-entrypoint-initdb.d` runs only on an empty data directory and would silently skip every stack that already has data.
+It became two roles in #492 and it is **three kinds** under ADR-40 (Q40 as amended by Q48, Q49 and Q52), because two was a boundary between the API and the schema and no boundary at all inside the API.
+**Every grant is per named schema, never `IN SCHEMA public`**, because `public` holds no QCMS object at all: the control plane is `control` and the data plane is one `data_<env>` per environment.
 
-The reporting half of SEC-10 was implemented earlier and is unchanged: the read-only role recipe in `docs/reporting-view.md` is exercised against live Postgres and cannot read operational tables, write, or issue DDL.
+**`qcms_migrate`** owns `control`, every `data_<env>` and every `reporting_<env>`, and holds the DDL rights `drizzle-kit migrate` needs; it is held by the one-shot migration step, by the environment command and by the break-glass, and by no process that serves traffic.
+
+**`qcms_app_control`** is the credential the API's control pool runs as: DML on `control` with **nothing at all** on `two_factor_resets`, and in the data schemas **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind** - no `SELECT`, no `UPDATE`, no `DELETE`, nothing on any other data-plane table, and nothing on any `reporting_<env>`.
+It serves better-auth, authoring, grants, releases and closes.
+That one grant exists because a release record and its `form.released` event commit in one transaction (Q49), and it does not weaken the boundary: an insert into an event queue is not a read of a response.
+**`INSERT` without `SELECT` also means no `RETURNING`**, which Postgres treats as a read of the row just written - so the control-pool insert is a plain insert, and widening the grant is not available, because an outbox payload carries respondent answers.
+
+**`qcms_app_<env>`**, one per environment, is what the API's pool for that environment runs as: DML on its **own** `data_<env>`, `USAGE` and `SELECT` on its **own** `reporting_<env>`, and on `control` a named `SELECT` list (`forms`, `form_versions`, `question_versions`, `secure_links`, `environments`; `form_releases` joins it with task 065) plus `UPDATE` on `secure_links` for one-time link consumption.
+It holds **no privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`.
+That is the property an API-layer check cannot buy: a defect on the anonymous respondent path cannot rewrite a grant row or a staff session, because the connection it runs on has no grant on those tables at all.
+And an author never reads a production answer at the database, because the connection the authoring routes run on has no grant on `data_prod`.
+
+No application role holds `CREATE` on any schema, any DDL, ownership of anything, or `TRUNCATE`, `REFERENCES` or `TRIGGER`.
+`DELETE` is granted whole rather than narrowed to the erasure and retention tables: that was considered as defence in depth over the `answers_reject_delete` trigger and rejected, because it multiplies the grants an operator has to get right and a missed one surfaces as a runtime failure rather than a boot failure.
+
+**The migrate-only revoke names a prefix, not a role.**
+`two_factor_resets` stays migrate-only for **every `qcms_app%` role**, the control role included: migration 0021 named one literal, and there are now as many application roles as there are environments plus one, with more an operator may create.
+The revoke lives in the baseline migration, which is the only place that runs as the table's owner in the same step that creates it, and the environment command applies it whenever it creates a role.
+
+The operator recipe - the role SQL, where each credential is set and the bootstrap ordering - is the "Least-privilege database roles" section of `docs/operations.md`.
+`apps/api/e2e/security/03-db-least-privilege.e2e.ts` runs it against a real Postgres, migrates as `qcms_migrate`, and asserts **the table list per role, per schema, as an exact set** - which is the form that fails when somebody widens a grant, rather than the form that passes because nobody looked.
+It also creates an application role under a name this project does not ship, purely so the prefix-wide revoke is executed rather than believed, and asserts that a schema-qualified read of another environment's data table, issued as that environment's own role, fails on permission - which is the privilege half of ADR-40's isolation claim, `search_path` being a resolution default and not a grant.
+On Compose the recipe runs as a `db-roles` one-shot that `migrate` depends on, because a script in `/docker-entrypoint-initdb.d` runs only on an empty data directory and would silently skip every stack that already has data.
+That one-shot creates the roles and grants nothing: the grants are the migration's, so there is one copy of the model rather than two to keep in step.
+
+The reporting half of SEC-10 keeps its shape and becomes per environment: the read-only role recipe in `docs/reporting-view.md` now grants **one** environment's `reporting_<env>` schema, is exercised against live Postgres, and cannot read operational tables, reach another environment's views, write, or issue DDL. A view set per workspace, with its own read-only role, is Q26 and task 067's.
 
 **Exports are a delivery path back to the operator, so they carry a formula-injection guard (issue #470).**
 A respondent's free-text answer reaches the form author as a cell in a file the product tells them to download and open in a spreadsheet, and several spreadsheet programs evaluate a cell whose first character is `=`, `+`, `-` or `@` (or a leading tab or CR before one of those).

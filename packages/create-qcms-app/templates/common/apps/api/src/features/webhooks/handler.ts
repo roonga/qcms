@@ -102,7 +102,7 @@ function requireFormId(id: string): FormId {
 }
 
 async function requireForm(deps: Deps, formId: FormId): Promise<void> {
-  const form = await getForm(deps.db, formId);
+  const form = await getForm(deps.databases.forRequest().exec, formId);
   if (form === undefined) throw fail.formNotFound();
 }
 
@@ -157,7 +157,7 @@ export function makeCreateWebhookHandler(
     const secret = body.secret ?? generateWebhookSecret();
     const secretEncrypted = await encryptWebhookSecret(secret, deps.config.keys.app);
 
-    const row = await insertWebhook(deps.db, {
+    const row = await insertWebhook(deps.databases.forRequest().exec, {
       webhookId: newWebhookId(),
       formId,
       url,
@@ -188,7 +188,7 @@ export function makeListWebhooksHandler(
     const formId = requireFormId(c.req.valid("param").id);
     await requireForm(deps, formId);
 
-    const rows = await listWebhooks(deps.db, formId);
+    const rows = await listWebhooks(deps.databases.forRequest().exec, formId);
     return c.json({ webhooks: rows.map(toSummary) }, 200);
   };
 }
@@ -203,7 +203,7 @@ export function makeUpdateWebhookHandler(
     const formId = requireFormId(id);
     const body = c.req.valid("json");
 
-    const existing = await getWebhook(deps.db, formId, webhookId);
+    const existing = await getWebhook(deps.databases.forRequest().exec, formId, webhookId);
     if (existing === undefined) throw fail.webhookNotFound();
 
     const url = body.url === undefined ? undefined : requireAllowedUrl(deps, body.url);
@@ -218,7 +218,7 @@ export function makeUpdateWebhookHandler(
       secretEncrypted = await encryptWebhookSecret(newSecret, deps.config.keys.app);
     }
 
-    const updated = await updateWebhook(deps.db, formId, webhookId, {
+    const updated = await updateWebhook(deps.databases.forRequest().exec, formId, webhookId, {
       ...(url === undefined ? {} : { url }),
       ...(secretEncrypted === undefined ? {} : { secretEncrypted }),
       ...(body.active === undefined ? {} : { active: body.active }),
@@ -253,7 +253,12 @@ export function makeDeactivateWebhookHandler(
     const { id, webhookId } = c.req.valid("param");
     const formId = requireFormId(id);
 
-    const row = await deactivateWebhook(deps.db, formId, webhookId, deps.clock.now());
+    const row = await deactivateWebhook(
+      deps.databases.forRequest().exec,
+      formId,
+      webhookId,
+      deps.clock.now(),
+    );
     if (row === undefined) throw fail.webhookNotFound();
 
     return c.json(

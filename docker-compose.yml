@@ -288,7 +288,6 @@ services:
       # process cannot read `control.environments` before it has a connection; the API
       # checks this list against that table at boot and refuses when they disagree.
       QCMS_ENVIRONMENTS: ${QCMS_ENVIRONMENTS:-test,prod}
-      QCMS_DEFAULT_ENVIRONMENT: ${QCMS_DEFAULT_ENVIRONMENT:-prod}
       QCMS_DATABASE_URL_TEST: postgres://qcms_app_test:${QCMS_DB_APP_TEST_PASSWORD:?set QCMS_DB_APP_TEST_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       QCMS_DATABASE_URL_PROD: postgres://qcms_app_prod:${QCMS_DB_APP_PROD_PASSWORD:?set QCMS_DB_APP_PROD_PASSWORD in .env}@postgres:5432/${QCMS_DB_NAME:-qcms}
       PORT: 3000

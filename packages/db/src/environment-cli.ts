@@ -71,30 +71,50 @@ interface ParsedArgs {
   readonly password?: string;
 }
 
-function parseArgs(argv: readonly string[]): ParsedArgs | string {
+/**
+ * Either the parsed arguments or the refusal to print, never both and never a throw.
+ *
+ * One shape rather than "a `ParsedArgs` or a string", so a caller cannot mistake a
+ * usage message for a name: the two are the same type in the wrong design and this
+ * command's whole first act is to tell them apart.
+ */
+type ArgResult =
+  | { readonly ok: true; readonly args: ParsedArgs }
+  | {
+      readonly ok: false;
+      readonly refusal: string;
+    };
+
+function refuse(refusal: string): ArgResult {
+  return { ok: false, refusal };
+}
+
+function parseArgs(argv: readonly string[]): ArgResult {
   const [action, name, ...rest] = argv;
-  if (action !== "create" && action !== "drop") return USAGE;
-  if (name === undefined || name.startsWith("-")) return USAGE;
+  if (action !== "create" && action !== "drop") return refuse(USAGE);
+  if (name === undefined || name.startsWith("-")) return refuse(USAGE);
   let password: string | undefined;
   for (let i = 0; i < rest.length; i += 1) {
     if (rest[i] === "--password") {
       password = rest[i + 1];
-      if (password === undefined) return "--password needs a value";
+      if (password === undefined) return refuse("--password needs a value");
       i += 1;
     } else {
-      return `unknown argument ${String(rest[i])}\n${USAGE}`;
+      return refuse(`unknown argument ${String(rest[i])}\n${USAGE}`);
     }
   }
-  if (action === "drop" && password !== undefined) return "drop takes no --password";
-  return password === undefined ? { action, name } : { action, name, password };
+  if (action === "drop" && password !== undefined) return refuse("drop takes no --password");
+  const args: ParsedArgs = password === undefined ? { action, name } : { action, name, password };
+  return { ok: true, args };
 }
 
 async function main(): Promise<number> {
-  const parsed = parseArgs(process.argv.slice(2));
-  if (typeof parsed === "string") {
-    process.stderr.write(`${parsed}\n`);
+  const result = parseArgs(process.argv.slice(2));
+  if (!result.ok) {
+    process.stderr.write(`${result.refusal}\n`);
     return 2;
   }
+  const parsed = result.args;
 
   const refusal = refuseEnvironmentName(parsed.name);
   if (refusal !== undefined) {

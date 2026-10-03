@@ -38,34 +38,50 @@ export function createRetentionSweepScheduler(deps: Deps): Scheduler {
     logger: deps.logger,
     task: async () => {
       const now = deps.clock.now();
-      const result = await sweepExpiredSessions(deps.db, now);
-      if (result.expiredCount > 0) {
-        deps.logger.info("retention sweep", { expiredCount: result.expiredCount });
-      }
-      const snippets = await redactAgedResponseSnippets(
-        deps.db,
-        new Date(now.getTime() - deps.config.ttl.deliveryResponseSnippetMs),
-      );
-      if (snippets.redactedCount > 0) {
-        // A count, never a snippet: the whole point of the sweep is that these bytes
-        // can hold respondent content, so logging one would defeat it (SEC-13, and
-        // "answer values are never logged").
-        deps.logger.info("delivery response snippets redacted", {
-          redactedCount: snippets.redactedCount,
-        });
-      }
-      const payloads = await redactAgedOutboxPayloads(
-        deps.db,
-        new Date(now.getTime() - deps.config.ttl.outboxPayloadMs),
-      );
-      if (payloads.redactedCount > 0) {
-        // A count, never a payload: the member being dropped is the respondent's
-        // whole locked answer set, so logging one would defeat the sweep (SEC-13,
-        // and "answer values are never logged").
-        deps.logger.info("outbox payload answers redacted", {
-          redactedCount: payloads.redactedCount,
-        });
+      // **The scheduler starts once and iterates the live set** (Q1, Q2, criterion 9).
+      // One process, one scheduler, N environments: the singleton rule in
+      // `docs/deploy-enterprise.md` holds unchanged rather than multiplying per
+      // environment, and an environment added by the operator command is swept after a
+      // restart without a code change. Sequential rather than concurrent, so one
+      // environment's slow sweep cannot starve the pool of another.
+      for (const environment of deps.databases.names) {
+        await sweepEnvironment(deps, environment, now);
       }
     },
   });
+}
+
+/** One environment's whole sweep: expiry, snippets, payloads. */
+async function sweepEnvironment(deps: Deps, environment: string, now: Date): Promise<void> {
+  const exec = deps.databases.for(environment);
+  const result = await sweepExpiredSessions(exec, now);
+  if (result.expiredCount > 0) {
+    deps.logger.info("retention sweep", { environment, expiredCount: result.expiredCount });
+  }
+  const snippets = await redactAgedResponseSnippets(
+    exec,
+    new Date(now.getTime() - deps.config.ttl.deliveryResponseSnippetMs),
+  );
+  if (snippets.redactedCount > 0) {
+    // A count, never a snippet: the whole point of the sweep is that these bytes
+    // can hold respondent content, so logging one would defeat it (SEC-13, and
+    // "answer values are never logged").
+    deps.logger.info("delivery response snippets redacted", {
+      environment,
+      redactedCount: snippets.redactedCount,
+    });
+  }
+  const payloads = await redactAgedOutboxPayloads(
+    exec,
+    new Date(now.getTime() - deps.config.ttl.outboxPayloadMs),
+  );
+  if (payloads.redactedCount > 0) {
+    // A count, never a payload: the member being dropped is the respondent's
+    // whole locked answer set, so logging one would defeat the sweep (SEC-13,
+    // and "answer values are never logged").
+    deps.logger.info("outbox payload answers redacted", {
+      environment,
+      redactedCount: payloads.redactedCount,
+    });
+  }
 }

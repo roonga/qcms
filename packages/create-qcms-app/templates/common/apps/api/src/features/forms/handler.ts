@@ -198,7 +198,7 @@ function requireDefinition(value: unknown): FormDefinition {
  *
  * Exported for 041's accept (issue #823), which stores the accepted draft in the
  * **same transaction** that materialises the proposal's new questions. Taking an
- * `Executor` rather than reaching for `deps.db` is what lets that transaction be
+ * `Executor` rather than reaching for `deps.databases.control` is what lets that transaction be
  * the caller's: the slice owns the boundary, never the helper (R5).
  *
  * The parse is the caller's, deliberately. Accept validates every proposed
@@ -261,7 +261,7 @@ async function loadQuestionLookups(
   const publishedQuestionVersions = new Map<QuestionId, Set<number>>();
 
   for (const questionId of pinnedQuestionIds(definition)) {
-    const rows = await listQuestionVersions(deps.db, questionId);
+    const rows = await listQuestionVersions(deps.databases.control, questionId);
     const published = new Set<number>();
     for (const row of rows) {
       const key = pinKey(row.questionId, row.version);
@@ -362,7 +362,7 @@ export async function validateDraft(
     deps,
     definition,
   );
-  const previous = await getLatestPublishedVersion(deps.db, definition.formId);
+  const previous = await getLatestPublishedVersion(deps.databases.control, definition.formId);
   const previousDefinition: FormDefinition | undefined = previous?.definition;
 
   const deprecatedIssues = deprecatedPinGate(
@@ -411,7 +411,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       rules: [],
     };
 
-    const created = await deps.db.transaction(async (tx) => {
+    const created = await deps.databases.control.transaction(async (tx) => {
       try {
         await createForm(tx, { formId, slug: body.slug, defaultLocale: locale.value });
       } catch (err: unknown) {
@@ -441,7 +441,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
-    const rows = await listForms(deps.db);
+    const rows = await listForms(deps.databases.control);
 
     // The status filter is the identity row's own column, so it narrows before the
     // per-row reads below rather than after them: a closed-only list of a library of
@@ -452,8 +452,8 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
     // denormalized status column is a Phase-4 optimization, not a launch need.
     const assembled = [];
     for (const row of byStatus) {
-      const draft = await getDraft(deps.db, row.formId);
-      const latest = await getLatestPublishedVersion(deps.db, row.formId);
+      const draft = await getDraft(deps.databases.control, row.formId);
+      const latest = await getLatestPublishedVersion(deps.databases.control, row.formId);
       assembled.push({
         row: {
           formId: row.formId,
@@ -557,11 +557,11 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const versions = await listFormVersions(deps.db, formId);
-    const openDraft = await getDraft(deps.db, formId);
+    const versions = await listFormVersions(deps.databases.control, formId);
+    const openDraft = await getDraft(deps.databases.control, formId);
 
     // The draft the editor opens: the open draft if one exists, otherwise seeded
     // from the latest published version (§4.1 "new draft opened, seeded from vN")
@@ -625,7 +625,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // 041: an accepted agent proposal marks the draft's provenance. Sticky in
     // the query, so a plain save after one never clears the mark.
     const saved = await storeDraftDefinition(
-      deps.db,
+      deps.databases.control,
       formId,
       definition,
       c.req.valid("json").agentAssisted ?? false,
@@ -655,7 +655,7 @@ export function makeValidateDraftHandler(
     const definition = requireDefinition(c.req.valid("json").definition);
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     // `valid` keys off errors alone: a warning describes a draft that would
@@ -839,7 +839,7 @@ export function makePreviewConditionHandler(
 
     // The form must exist for the route to mean anything, so an unknown form is a
     // 404 exactly as it is on validate - never a 200 "unavailable".
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     // Unlike validate, an unparseable definition is NOT an error here: the bench
@@ -993,7 +993,7 @@ export function makePreviewDraftHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const definition = requireDefinition(body.definition);
@@ -1085,7 +1085,7 @@ export function makeUpdateFormSettingsHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const updated = await updateFormSettings(deps.db, formId, {
+    const updated = await updateFormSettings(deps.databases.control, formId, {
       ...(body.challengeRequired === undefined
         ? {}
         : { challengeRequired: body.challengeRequired }),
@@ -1114,10 +1114,10 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const draft = await getDraft(deps.db, formId);
+    const draft = await getDraft(deps.databases.control, formId);
     if (draft === undefined) throw fail.noDraft();
 
     // Re-parse the stored draft (its JSONB is unknown at the type level, and a
@@ -1135,7 +1135,7 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     // served forever; serve (019) never recompiles.
     const compiled = compileForm(snapshot, {});
 
-    const inserted = await deps.db.transaction(async (tx) => {
+    const inserted = await deps.databases.control.transaction(async (tx) => {
       // Freeze the immutable version with all stamps, delete the draft, and emit
       // the publish event - one transaction, so a version is never observed
       // without its event and the draft never lingers past its publish (§11).
@@ -1174,7 +1174,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
     const formId = requireFormId(c.req.valid("param").id);
     // Closing stops *new* sessions (018 checks status at start); in-flight
     // sessions finish on their pinned version (R1) - status is the only change.
-    const row = await closeForm(deps.db, formId);
+    const row = await closeForm(deps.databases.control, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -1185,7 +1185,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
 export function makeReopenFormHandler(deps: Deps): RouteHandler<typeof reopenFormRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    const row = await reopenForm(deps.db, formId);
+    const row = await reopenForm(deps.databases.control, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -1201,7 +1201,7 @@ export function makeGetFormVersionHandler(
     const formId = requireFormId(id);
     const version = requireVersion(v);
 
-    const row = await getFormVersion(deps.db, formId, version);
+    const row = await getFormVersion(deps.databases.control, formId, version);
     if (row === undefined) throw fail.versionNotFound();
 
     return c.json(

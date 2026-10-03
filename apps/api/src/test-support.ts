@@ -12,7 +12,7 @@ import { authSession, authUser } from "@roonga/qcms-db";
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
-import type { Databases } from "./environments.js";
+import { INTERIM_REQUEST_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
 import type { DraftAssistant } from "./features/forms/assist/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
@@ -151,9 +151,9 @@ export function singleDatabase(exec: Executor, config: Config): Databases {
   return {
     control: exec,
     names: config.environments.map((environment) => environment.name),
-    defaultEnvironment: config.defaultEnvironment,
+    defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
     for: () => exec,
-    forRequest: () => ({ environment: config.defaultEnvironment, exec }),
+    forRequest: () => ({ environment: INTERIM_REQUEST_ENVIRONMENT, exec }),
   };
 }
 

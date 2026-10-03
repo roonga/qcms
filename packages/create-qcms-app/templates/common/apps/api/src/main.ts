@@ -24,9 +24,6 @@
  */
 
 import { serve } from "@hono/node-server";
-import { schema } from "@roonga/qcms-db";
-import { drizzle } from "drizzle-orm/node-postgres";
-import pg from "pg";
 
 import { createApp } from "./app.js";
 import { systemClock } from "./clock.js";
@@ -37,15 +34,14 @@ import { selectChallengeVerifier } from "./features/responses/challenge.js";
 import { appGroups } from "./registrars.js";
 import { loadConfig, turnstileSiteKeyDeprecationWarning } from "./config.js";
 import type { Deps } from "./deps.js";
+import { assertEnvironmentsMatch, openDatabases } from "./environments.js";
 import { createJsonLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { createOutboxScheduler } from "./schedulers/outbox.js";
-import { runDeliveryPass } from "./schedulers/outbox-delivery.js";
+import { runDeliveryPassForEveryEnvironment } from "./schedulers/outbox-delivery.js";
 import { createRetentionSweepScheduler } from "./schedulers/retention-sweep.js";
 import type { Scheduler } from "./schedulers/scheduler.js";
 import type { Telemetry } from "./telemetry.js";
-
-const { Pool } = pg;
 
 /** Compose the real dependencies, bind the port, and arm graceful shutdown. */
 export function main(telemetry: Telemetry): void {
@@ -76,11 +72,22 @@ export function main(telemetry: Telemetry): void {
   const turnstileWarning = turnstileSiteKeyDeprecationWarning(process.env);
   if (turnstileWarning !== undefined) logger.warn(turnstileWarning);
 
-  const pool = new Pool({ connectionString: config.databaseUrl });
-  const db = drizzle(pool, { schema });
+  // One control pool plus one per environment, inside one process (ADR-40, Q2). Each
+  // connects as its own role with its own search path, so which pool a handler runs on
+  // is what the database enforces rather than a convention the handlers keep.
+  const { databases, pools } = openDatabases(config);
+
+  // Criterion 6a: the configured set and `control.environments` must agree, in both
+  // directions, or this process would serve an environment from nowhere or open a pool
+  // whose search path resolves to nothing. Off to the side of the bind, because a
+  // failure here is a configuration failure the operator has to see in the log rather
+  // than a reason for the container to have no port open at all.
+  void assertEnvironmentsMatch(databases).catch((error: unknown) => {
+    logger.error("the environment set and the configuration disagree", { err: error });
+  });
 
   const deps: Deps = {
-    db,
+    databases,
     config,
     clock: systemClock,
     logger,
@@ -119,8 +126,11 @@ export function main(telemetry: Telemetry): void {
   if (config.mount.internal) {
     schedulers.push(
       createRetentionSweepScheduler(deps),
-      // 025 supplies the real delivery pass to the 017 scheduler shell.
-      createOutboxScheduler(deps, (d) => runDeliveryPass(d).then(() => undefined)),
+      // 025 supplies the real delivery pass to the 017 scheduler shell. It starts once
+      // and iterates the live environment set (Q1, Q2, criterion 9), so the
+      // scheduler-singleton rule in `docs/deploy-enterprise.md` holds unchanged rather
+      // than multiplying per environment.
+      createOutboxScheduler(deps, (d) => runDeliveryPassForEveryEnvironment(d)),
     );
     for (const scheduler of schedulers) scheduler.start();
   }
@@ -142,8 +152,8 @@ export function main(telemetry: Telemetry): void {
   const finishShutdown = async (signal: string): Promise<void> => {
     // 2. Stop schedulers (each waits for its in-flight run).
     await Promise.all(schedulers.map((s) => s.stop()));
-    // 3. Close the database pool.
-    await pool.end();
+    // 3. Close every database pool.
+    await Promise.all(pools.map((pool) => pool.end()));
     logger.info("shutdown complete", { signal });
     // 4. Flush and stop telemetry LAST: the lines above are still correlated,
     // and the final spans are exported rather than dropped on exit.

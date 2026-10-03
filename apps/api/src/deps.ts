@@ -13,8 +13,6 @@
  * runs on is what the database will enforce.
  */
 
-import type { Executor } from "@roonga/qcms-db";
-
 import type { Clock } from "./clock.js";
 import type { Databases } from "./environments.js";
 import type { Config, Flags } from "./config.js";

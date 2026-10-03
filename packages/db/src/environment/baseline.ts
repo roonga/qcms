@@ -33,7 +33,7 @@
  * whole migration tree, so this property is executable rather than a convention.
  */
 
-import { CONTROL_ROLE, CONTROL_SCHEMA, environmentRoleName } from "../schema/schemas.js";
+import { CONTROL_ROLE, CONTROL_SCHEMA } from "../schema/schemas.js";
 
 import {
   createEnvironmentStatements,
