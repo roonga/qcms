@@ -49,6 +49,9 @@ import {
   REPEAT_FLEET_DEF,
   REPEAT_FLEET_GOLDEN,
   REPEAT_FLEET_QUESTIONS,
+  REPEAT_TOUR_DEF,
+  REPEAT_TOUR_GOLDEN,
+  REPEAT_TOUR_QUESTIONS,
   AUTHOR_MESSAGES_QUESTIONS,
   INSURANCE_DEF,
   INSURANCE_GOLDEN,
@@ -445,6 +448,46 @@ export async function seedRepeatFleetForm(
     compiled: REPEAT_FLEET_GOLDEN as unknown as FormVersionInput["compiled"],
     compilerVersion: REPEAT_FLEET_GOLDEN.compilerVersion,
     a2uiSpecVersion: REPEAT_FLEET_GOLDEN.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+  return { formId, slug };
+}
+
+/**
+ * Seed the `repeat-tour` form (task 076): one step, one repeating group whose
+ * presentation is `perInstanceStep`, `open` with `min: 3, max: 4`, plus a published
+ * version storing its committed golden compiled A2UI (ADR-18).
+ *
+ * This is the fixture that makes the per-instance step presentation reachable in a
+ * browser. `min: 3` means the first serve mints three instances, so the one step is three
+ * views and the progress indicator says three without the respondent having done anything
+ * - which is the exit criterion as a fixture rather than as a sequence of clicks.
+ *
+ * Its three questions are unique to it (`q_pi_*`), so it never collides with the fleet, the
+ * insurance, the kitchen-sink or the author-messages seeds and needs no shared-questions
+ * flag.
+ */
+export async function seedRepeatTourForm(
+  db: Db,
+  opts: { formId?: string; slug?: string } = {},
+): Promise<SeededForm> {
+  const formId = opts.formId ?? "frm_repeat_tour";
+  const slug = opts.slug ?? "repeat-tour";
+  for (const question of REPEAT_TOUR_QUESTIONS) {
+    await seedQuestionVersion(
+      db,
+      question.questionId,
+      question.slug,
+      question.definition as QuestionVersionInput["definition"],
+    );
+  }
+  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await insertFormVersion(db, {
+    formId: FormId.parse(formId),
+    definition: REPEAT_TOUR_DEF as FormVersionInput["definition"],
+    compiled: REPEAT_TOUR_GOLDEN as unknown as FormVersionInput["compiled"],
+    compilerVersion: REPEAT_TOUR_GOLDEN.compilerVersion,
+    a2uiSpecVersion: REPEAT_TOUR_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
   return { formId, slug };

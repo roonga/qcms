@@ -19,9 +19,11 @@ to a submission that skips the browser), `apps/portal/e2e/no-js-multi-choice.pw.
 required multiChoice group), `apps/portal/e2e/no-js-number.pw.ts` (a number question),
 `apps/portal/e2e/no-js-select.pw.ts` (a singleChoice question above the compiler's option
 threshold), `apps/portal/e2e/no-js-retraction.pw.ts` (clearing an answer),
-`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195) and
+`apps/portal/e2e/no-js-appearance.pw.ts` (issue #195),
 `apps/portal/e2e/no-js-repeat.pw.ts` (a repeating group: adding an instance, removing one,
-and the whole walk to the receipt). Read those eight as the definition of the claim.
+and the whole walk to the receipt) and `apps/portal/e2e/no-js-per-instance.pw.ts` (a group
+whose presentation paginates a step into one page per instance: three views, one button, no
+Back). Read those nine as the definition of the claim.
 
 **All four of its qualifiers are gone, and each one was a control whose form value the
 respondent could not reach.** A form with a required date completed only from issue #920
@@ -50,6 +52,30 @@ the roster operation and **commits no answer**, so `formnovalidate` gives up not
 required question cannot be CLEARED without scripting" bullet below is unchanged rather
 than amended. An emptied required field on an Add post is neither stored nor retracted, and
 `apps/portal/e2e/no-js-repeat.pw.ts` asserts exactly that against the ledger.
+
+**The per-instance step presentation is the one place this path has a different SHAPE
+rather than a different response** (task 076, ADR-28 as amended 2026-08-31 and
+2026-09-29). A `perInstanceStep` group paginates one step into one page per live instance,
+and the hydrated path walks those pages with Back and Continue. This path has no Back, by
+the 2026-08-31 amendment, so it cannot walk them the same way and does not pretend to:
+
+- the server serves **the first view whose instance is incomplete** (Code Owner,
+  2026-09-29), so each press of the single readiness-labelled button moves one instance
+  forward and the respondent never lands again on a page they have finished;
+- when every instance is complete and the step is still current for a reason outside the
+  group, the **last** view is served. That is a reading rather than a ruling and is
+  recorded as one beside the code (`servedView` in
+  `apps/api/src/features/responses/serve-step/handler.ts`): the walk is forward-only here,
+  so its end is the honest place to stand, and the end is the one page carrying the Add
+  control;
+- the group's **Add control is on the last view** and on no earlier one, so an open-ended
+  group can still grow. It is the same `__qop` button on the same form as above;
+- an earlier instance is reached through the review step, never through a Back control this
+  path does not have.
+
+Nothing here is an exception to the claim. Every question of every instance is answerable,
+and `apps/portal/e2e/no-js-per-instance.pw.ts` walks three of them to the receipt and reads
+the three answers back out of the ledger under three instance ids.
 
 **The principle the no-JS rules follow** (Code Owner ruling, 2026-09-19, issue #974).
 **JavaScript is assumed, and the no-JS form is a fallback that must work FUNCTIONALLY,

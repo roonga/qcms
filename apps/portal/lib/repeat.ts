@@ -58,14 +58,37 @@ export function focusAfterRemoval(
   return addButtonId(groupId);
 }
 
-/** Where focus lands after an add: the instance the operation minted (Q11). */
-export function focusAfterAdd(minted: readonly string[], groupId: string): string {
-  // `minted` is the operation's own report of what it created, which is the only
-  // trustworthy answer: a REPLAYED post minted nothing, because the one-time token had
-  // already been spent, and the honest landing is then the group's Add button - the
-  // instance the first post created is already on the page and focus has not moved since.
-  // It replaced a diff of the rosters before and after, which gave the right answer only
-  // when the read before the operation saw exactly the same set the operation did.
+/**
+ * Where focus lands after an add: the instance the operation minted (Q11).
+ *
+ * `minted` is the operation's own report of what it created, which is the only
+ * trustworthy answer: a REPLAYED post minted nothing, because the one-time token had
+ * already been spent, and the honest landing is then the group's Add button - the
+ * instance the first post created is already on the page and focus has not moved since.
+ * It replaced a diff of the rosters before and after, which gave the right answer only
+ * when the read before the operation saw exactly the same set the operation did.
+ *
+ * **`paginated` is a `perInstanceStep` group, and then there is NO destination at all**
+ * (task 076, and it is a reading of Q11 rather than a departure from it). Q11 names the
+ * new instance's heading, which presupposes that the new instance appears on the page it
+ * was added from. Under this presentation it does not: the new instance is a new **view**,
+ * one page further along, so the heading Q11 names is not in this document and neither is
+ * the Add button, which the expansion puts on the last view and this page is no longer it.
+ *
+ * Nothing moves, and that is ADR-28 rather than a gap. Continue, Back and Submit are the
+ * only things that move the rendered page; an Add is not one of them, so an Add that
+ * carried the respondent onto the new instance's page would be the page moving by itself,
+ * which is the rule ADR-28 exists to state. The respondent presses Continue to reach the
+ * new vehicle, the progress indicator says "of 4" immediately, and on the scripted path
+ * the `role="status"` region announces the addition - which is Q11's announcement half,
+ * intact. Raised to the Code Owner with task 076 rather than settled here.
+ */
+export function focusAfterAdd(
+  minted: readonly string[],
+  groupId: string,
+  paginated = false,
+): string | undefined {
+  if (paginated) return undefined;
   return minted[0] ?? addButtonId(groupId);
 }
 
@@ -122,6 +145,57 @@ export function resolvedInstanceLabel(
   const index = roster.indexOf(instanceId);
   if (template === undefined || index < 0) return undefined;
   return instanceLabelFor(template, index + 1);
+}
+
+/**
+ * The render-time narrowing a **per-instance step view** is, or `undefined` when this
+ * page is not one (task 076, ADR-28 as amended 2026-09-29).
+ *
+ * The API's projection says which group paginates the drawn step and which single
+ * instance of it this page draws, and both keys are null for every other page. This maps
+ * that pair onto the renderer's own `view` option, which is the one place a narrowing is
+ * expressed, so the two portal paths cannot narrow differently.
+ *
+ * It decides nothing. The cursor, the view list and which view a cursor-less read serves
+ * are all the API's (R2); what the portal does with the answer is draw one instance of a
+ * roster it was already handed in full.
+ */
+export function viewNarrowing(view: {
+  readonly groupId: string | null;
+  readonly instanceId: string | null;
+}): { readonly groupId: string; readonly instanceId: string } | undefined {
+  const { groupId, instanceId } = view;
+  if (groupId === null || instanceId === null) return undefined;
+  return { groupId, instanceId };
+}
+
+/**
+ * The resolved label of the instance a per-instance view draws ("Vehicle 2"), for the
+ * page chrome, or `undefined` when this page draws no instance (task 076, ADR-27).
+ *
+ * The chrome needs it because the progress indicator counts **views**: three vehicles
+ * are "Step 1 of 3" to "Step 3 of 3", and without the instance's name those three lines
+ * are indistinguishable from three ordinary steps of one form. The instance's own
+ * heading says the same thing inside the page; this is what lets the header and the
+ * navigation announcement say it too.
+ *
+ * Resolved against the FULL roster, so the ordinal is the instance's place in the group
+ * rather than its place in a one-element list, and never from the `ins_` id, which is
+ * not something a respondent reads (ADR-42).
+ */
+export function viewInstanceLabel(
+  templates: ReadonlyMap<string, string>,
+  rosters: Readonly<Record<string, readonly string[]>>,
+  view: { readonly groupId: string | null; readonly instanceId: string | null },
+): string | undefined {
+  const narrowed = viewNarrowing(view);
+  if (narrowed === undefined) return undefined;
+  return resolvedInstanceLabel(
+    templates,
+    narrowed.groupId,
+    rosters[narrowed.groupId] ?? [],
+    narrowed.instanceId,
+  );
 }
 
 /**

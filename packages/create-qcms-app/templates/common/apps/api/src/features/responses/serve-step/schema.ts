@@ -145,11 +145,34 @@ export const StepProgress = z
   .object({
     stepIndex: z.number().int().openapi({
       description:
-        "0-based index of the current step within the visible steps; equals totalVisibleSteps when complete.",
+        "0-based index of the current step VIEW within the visible step views; equals totalVisibleSteps when complete.",
     }),
     totalVisibleSteps: z.number().int().openapi({ example: 1 }),
   })
   .openapi("StepProgress");
+
+/**
+ * Which **view** this response draws (task 076, ADR-28 as amended 2026-09-29, Q22).
+ *
+ * A `perInstanceStep` group paginates one step into one page per live instance, so a
+ * step id no longer identifies a page. The cursor indexes views, and this says which one
+ * the response is: the group that paginates the drawn step, and the one instance of it
+ * this page draws. **Both keys are `null` for every other page**, which is every page of
+ * every form with no such group, so a client that ignores this key is as correct as it
+ * was before this task.
+ *
+ * It is a projection of what the server already decided rather than an input: the
+ * instance named here is live in this session's roster and the view was in the list the
+ * cursor was clamped against. An instance id is not secret - it is already in field
+ * names, DOM ids and anchors - and the reason the wire carries no compound cursor is
+ * about what a forged value could reach, not about disclosure (ADR-28's amendment).
+ */
+export const StepViewProjection = z
+  .object({
+    groupId: z.string().nullable().openapi({ example: "grp_vehicles" }),
+    instanceId: z.string().nullable().openapi({ example: "ins_7k2" }),
+  })
+  .openapi("StepViewProjection");
 
 /**
  * The answers the server already holds for the questions on the RENDERED step
@@ -222,6 +245,7 @@ export const StepResponse = z
     }),
     flowState: FlowStateProjection,
     rosters: RosterProjection,
+    view: StepViewProjection,
     progress: StepProgress,
   })
   .openapi("StepResponse");
@@ -326,6 +350,7 @@ export const BatchAnswerResponse = z
     a2uiSpecVersion: z.string(),
     flowState: FlowStateProjection,
     rosters: RosterProjection,
+    view: StepViewProjection,
     progress: StepProgress,
     rejected: z.array(BatchAnswerRejection),
   })
@@ -374,6 +399,7 @@ export const RosterOpResponse = z
     a2uiSpecVersion: z.string(),
     flowState: FlowStateProjection,
     rosters: RosterProjection,
+    view: StepViewProjection,
     progress: StepProgress,
     /** True when the token had already been spent, so nothing was written. */
     replayed: z.boolean(),

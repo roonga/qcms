@@ -255,12 +255,30 @@ interface RenderedQuestions {
 function renderedQuestions(
   flow: FlowState,
   answers: AnswerMap,
-  renderStep: StepId,
+  view: StepView,
+  /**
+   * The live instances of the group that **paginates** this step, or an empty set when
+   * none does (task 076).
+   *
+   * It is the narrowing this view is, and it is deliberately per GROUP rather than per
+   * instance: a step may hold a `perInstanceStep` group beside a `stacked` one, and the
+   * stacked group's every instance belongs on every page of the paginated one. So an
+   * entry is dropped only when its instance is one of the paginating group's and is not
+   * the instance this page draws.
+   */
+  paginated: ReadonlySet<InstanceId>,
 ): RenderedQuestions {
   const visibleQuestions: string[] = [];
   const values: Record<string, AnswerValue> = {};
   for (const entry of flow.visible) {
-    if (entry.stepId !== renderStep) continue;
+    if (entry.stepId !== view.stepId) continue;
+    if (
+      entry.instanceId !== undefined &&
+      paginated.has(entry.instanceId) &&
+      entry.instanceId !== view.instanceId
+    ) {
+      continue;
+    }
     // The ANSWER KEY, not the bare question id: a bare `questionId` outside every
     // repeating group, byte-identical to what this always sent, and
     // `instanceId/questionId` inside one (ADR-42, ADR-43). A rule targeting inside a
@@ -304,27 +322,103 @@ function rosterProjection(
   }));
 }
 
+/** One page of the flow: a step, and the instance it draws when it draws one. */
+interface StepView {
+  readonly stepId: StepId;
+  readonly instanceId: InstanceId | null;
+}
+
 /**
- * Which visible step this response draws, and its 0-based index: the explicit
- * ADR-28 cursor when one is given (clamped to the visible range), otherwise the
- * flow's own first-incomplete step. `null` means nothing is drawn.
+ * The ADR-28 cursor's page list (task 076, Q22).
+ *
+ * `visibleStepViews` is the kernel's own list and it is present exactly when the form
+ * holds a repeating group (ADR-16's amendment keeps every repetition field optional, so
+ * a form with no group produces a `FlowState` with no new key at all). For such a form
+ * the view list is `visibleSteps` with a null instance on every entry, which is **the
+ * same sequence the cursor indexed before this task**: one view per visible step, in
+ * document order. That equality is what makes "a form with no repeating group is
+ * unaffected" a property of this function rather than a claim about it.
+ */
+function stepViewsOf(flow: FlowState): readonly StepView[] {
+  const views = flow.visibleStepViews;
+  if (views !== undefined) return views;
+  return flow.visibleSteps.map((stepId) => ({ stepId, instanceId: null }));
+}
+
+/**
+ * Which **view** this response draws, and its 0-based index among the views: the
+ * explicit ADR-28 cursor when one is given (clamped to the view range), otherwise the
+ * walk's own next page. `null` means nothing is drawn.
+ *
+ * The cursor indexes views and not steps (ADR-28 as amended 2026-09-29, Q22), so a
+ * `perInstanceStep` group's three live instances are three cursor positions: Continue
+ * advances one view, Back returns one, and the last view is where Submit appears. It
+ * stays a 0-based index into a list **the server computed for this session on this
+ * request**, which is what makes an out-of-range value refusable by arithmetic and an
+ * in-range value a view the server had already decided was visible. A compound cursor
+ * (`?step=3&instance=ins_7k2`) was weighed and refused for that reason.
  */
 function renderTarget(
   flow: FlowState,
   requestedIndex?: number,
-): { readonly stepId: StepId | null; readonly stepIndex: number } {
-  const visibleSteps = flow.visibleSteps;
-  if (requestedIndex === undefined) {
-    return {
-      stepId: flow.currentStep,
-      stepIndex:
-        flow.currentStep !== null ? visibleSteps.indexOf(flow.currentStep) : visibleSteps.length,
-    };
-  }
+): { readonly view: StepView | null; readonly stepIndex: number } {
+  const views = stepViewsOf(flow);
+  if (requestedIndex === undefined) return servedView(flow, views);
   // A degenerate flow with no visible steps: nothing to render.
-  if (visibleSteps.length === 0) return { stepId: null, stepIndex: 0 };
-  const clamped = Math.min(requestedIndex, visibleSteps.length - 1);
-  return { stepId: visibleSteps[clamped] ?? null, stepIndex: clamped };
+  if (views.length === 0) return { view: null, stepIndex: 0 };
+  const clamped = Math.min(requestedIndex, views.length - 1);
+  return { view: views[clamped] ?? null, stepIndex: clamped };
+}
+
+/**
+ * The view served when no cursor was given: a resume, the **no-JS walk**, and the
+ * 019/029 callers.
+ *
+ * `flow.currentStep` is unchanged and is still the authority on **which step** - the
+ * first step with a missing required answer, else the first with an unanswered
+ * question, else none. What this adds is which of that step's views, and the rule is the
+ * ruled one (ADR-28's 2026-08-31 amendment, confirmed by the Code Owner 2026-09-29):
+ * without scripting there is one readiness-labelled button and no Back, so the server
+ * picks the page, and it picks **the first view whose instance is still incomplete**.
+ * The respondent walks forward one button press at a time and never lands again on a
+ * page they have finished.
+ *
+ * **When no instance is incomplete the last view of the step is served**, and that is a
+ * reading rather than a ruling, so it is written down as one. The ruled sentence names
+ * the first incomplete instance and is silent when there is none, which happens when the
+ * step is still current for a reason outside the group: a plain question on it that is
+ * still unanswered. The walk is forward-only on that path, so the honest place to stand
+ * is its end; and the end is the one view carrying the group's Add control (task 076),
+ * so an open group whose instances are all filled can still grow. Serving the first view
+ * instead would show a finished page with no way to add.
+ */
+function servedView(
+  flow: FlowState,
+  views: readonly StepView[],
+): { readonly view: StepView | null; readonly stepIndex: number } {
+  const currentStep = flow.currentStep;
+  if (currentStep === null) return { view: null, stepIndex: views.length };
+  const onStep: number[] = [];
+  views.forEach((view, index) => {
+    if (view.stepId === currentStep) onStep.push(index);
+  });
+  const last = onStep[onStep.length - 1];
+  if (last === undefined) return { view: null, stepIndex: views.length };
+  // The per-instance detail behind `missingRequired`, present exactly when the form has
+  // a group (ADR-16's amendment, Q8). A view whose instance is named here still has work
+  // in it; `missingRequired` alone could not say which instance, which is why the
+  // parallel array exists.
+  const incomplete = new Set(
+    (flow.missingRequiredInstances ?? [])
+      .map((entry) => entry.instanceId)
+      .filter((instanceId): instanceId is InstanceId => instanceId !== null),
+  );
+  const chosen =
+    onStep.find((index) => {
+      const instanceId = views[index]?.instanceId ?? null;
+      return instanceId !== null && incomplete.has(instanceId);
+    }) ?? last;
+  return { view: views[chosen] ?? null, stepIndex: chosen };
 }
 
 /**
@@ -360,18 +454,26 @@ function project(
   rosters: RosterMap,
   requestedIndex?: number,
 ): StepResponse {
-  const { stepId: renderStep, stepIndex } = renderTarget(flow, requestedIndex);
+  const { view, stepIndex } = renderTarget(flow, requestedIndex);
 
   let step: StepResponse["step"] = null;
   let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
-  if (renderStep !== null) {
-    const document = snapshot.compiled.documents.find((doc) => doc.stepId === renderStep);
+  // Which group paginates the drawn step, and therefore which instance ids this view
+  // narrows away. Both halves travel to the client in `view` below, so the renderer
+  // draws one instance without deriving anything (R2).
+  const group = view === null ? undefined : paginatingGroup(snapshot, view.stepId);
+  const paginated = new Set<InstanceId>(
+    group === undefined ? [] : (rosters.get(group.groupId) ?? []),
+  );
+  const drawnInstance = view?.instanceId ?? null;
+  if (view !== null) {
+    const document = snapshot.compiled.documents.find((doc) => doc.stepId === view.stepId);
     if (document === undefined) {
       // Every step has one compiled document (011); a gap is an internal break.
-      throw new Error(`serve-step: no compiled document for visible step "${renderStep}"`);
+      throw new Error(`serve-step: no compiled document for visible step "${view.stepId}"`);
     }
     step = document;
-    rendered = renderedQuestions(flow, answers, renderStep);
+    rendered = renderedQuestions(flow, answers, view, paginated);
   }
 
   return {
@@ -385,8 +487,36 @@ function project(
       readyToSubmit: flow.complete,
     },
     rosters: rosterProjection(snapshot, rosters),
-    progress: { stepIndex, totalVisibleSteps: flow.visibleSteps.length },
+    // The view this response draws (task 076, ADR-28 as amended 2026-09-29). Both keys
+    // are null for every page that is not a per-instance one, which is every page of
+    // every form with no `perInstanceStep` group.
+    view: {
+      groupId: drawnInstance === null ? null : (group?.groupId ?? null),
+      instanceId: drawnInstance,
+    },
+    // Views, not steps: a three-instance group is three pages and the indicator says
+    // three (ADR-28's amendment). For a form with no group this is `visibleSteps.length`
+    // exactly as before, because `stepViewsOf` returns one view per visible step.
+    progress: { stepIndex, totalVisibleSteps: stepViewsOf(flow).length },
   };
+}
+
+/**
+ * The group that paginates a step, when one does: the **first** `perInstanceStep` group
+ * among the step's items.
+ *
+ * "First" is the kernel's own choice and this restates it rather than deciding it again
+ * (`stepViews` in `packages/core/src/evaluate-rules.ts`). A step holding two of them is
+ * not a shape any presentation has defined, and the kernel picks the first rather than
+ * inventing a reading; the cursor has to agree with the list it indexes, so this reads
+ * the same way. The two are pinned together by a test rather than by this comment.
+ */
+function paginatingGroup(snapshot: LoadedSnapshot, stepId: StepId): RepeatGroup | undefined {
+  const step = snapshot.frozen.definition.steps.find((candidate) => candidate.stepId === stepId);
+  if (step === undefined) return undefined;
+  return step.items.find(
+    (item): item is RepeatGroup => isRepeatGroup(item) && item.presentation === "perInstanceStep",
+  );
 }
 
 /**
@@ -425,7 +555,7 @@ async function projectWithRosters(
     answers,
     await liveRosters(exec, sessionId, snapshot, answers),
   );
-  const { stepId: renderStep } = renderTarget(first, requestedIndex);
+  const renderStep = renderTarget(first, requestedIndex).view?.stepId ?? null;
   // Pass two is the one write: whatever this request has made due, one statement per
   // group, at most once per group.
   const rosters = await mintDueAndLoadRosters(exec, { sessionId, steps, renderStep, answers });

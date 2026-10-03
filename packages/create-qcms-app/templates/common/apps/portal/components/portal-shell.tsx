@@ -7,6 +7,16 @@ import { t } from "@/lib/i18n/en";
 export interface StepProgress {
   readonly current: number;
   readonly total: number;
+  /**
+   * The name of the thing this page is, when the page is one instance of a repeating
+   * group rather than a plain step ("Vehicle 2", task 076, ADR-27).
+   *
+   * The indicator counts **views** (ADR-28 as amended 2026-09-29), so a three-vehicle
+   * group is three of them; without the instance's name those three pages read as three
+   * unrelated steps of one form. Absent for every ordinary step, where the wording is
+   * exactly what it was.
+   */
+  readonly label?: string | undefined;
 }
 
 /**
@@ -49,10 +59,13 @@ export function PortalShell({
               className="text-sm text-(--color-text-muted)"
               data-testid="progress"
             >
-              {t("progress.step", {
-                current: progress.current,
-                total: progress.total,
-              })}
+              {progress.label === undefined
+                ? t("progress.step", { current: progress.current, total: progress.total })
+                : t("progress.stepNamed", {
+                    current: progress.current,
+                    total: progress.total,
+                    label: progress.label,
+                  })}
             </p>
           ) : null}
           <div className="ms-auto">

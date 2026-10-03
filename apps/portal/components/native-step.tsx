@@ -4,7 +4,13 @@ import { useActionState } from "react";
 
 import { PortalShell } from "@/components/portal-shell";
 import { rosterOperation } from "@/app/s/[sessionId]/roster-action";
-import { NO_ROSTER_ACTION, SESSION_FIELD } from "@/lib/repeat";
+import {
+  instanceLabelTemplates,
+  viewInstanceLabel,
+  viewNarrowing,
+  NO_ROSTER_ACTION,
+  SESSION_FIELD,
+} from "@/lib/repeat";
 import {
   errorSummaryEntries,
   missingOnStep,
@@ -81,6 +87,27 @@ function authoredErrors(
   return resolved;
 }
 
+/**
+ * The page chrome's progress line for this render: how far along, out of how many
+ * **views**, and the name of the instance this page is when it is one (task 076, ADR-27).
+ *
+ * Its own function rather than three lines inside the view, because the view is already at
+ * the cognitive-complexity ceiling the lint enforces and this is the one computation in it
+ * that is about the chrome rather than about the form.
+ */
+function viewProgress(
+  initial: StepResponse,
+  rosters: Readonly<Record<string, readonly string[]>>,
+  stepDocument: A2UIStepDocument | null,
+): { readonly current: number; readonly total: number; readonly label?: string } {
+  const current = initial.progress.stepIndex + 1;
+  const total = initial.progress.totalVisibleSteps;
+  // Read off the STORED document's template, so it is the same substitution the renderer
+  // makes, and absent on every page that is not a per-instance one.
+  const label = viewInstanceLabel(instanceLabelTemplates(stepDocument), rosters, initial.view);
+  return label === undefined ? { current, total } : { current, total, label };
+}
+
 export function NativeStep({
   sessionId,
   initial,
@@ -104,10 +131,6 @@ export function NativeStep({
   const action = `/s/${encodeURIComponent(sessionId)}/step`;
   const readyToSubmit = initial.flowState.readyToSubmit;
   const submitLabel = readyToSubmit ? t("action.submit") : t("action.continue");
-  const progress = {
-    current: initial.progress.stepIndex + 1,
-    total: initial.progress.totalVisibleSteps,
-  };
 
   // The Server Action for this step's Add and Remove (task 073). `useActionState` is what
   // carries the action's returned values into the render, and React renders that state
@@ -143,12 +166,23 @@ export function NativeStep({
   );
   const visibleSet = new Set(initial.flowState.visibleQuestions);
   const rosters = rosterMap(initial.rosters);
+  // The per-instance step view this page is, or `undefined` for every ordinary page
+  // (task 076). The API named it; the only thing the portal does with it is draw one
+  // instance of a roster it was handed in full, and put the group's Add control on the
+  // last view alone (`expandRepeatGroups`). Without scripting there is **no Back**
+  // (ADR-28's 2026-08-31 amendment), so the server chose this view: the first whose
+  // instance is incomplete.
+  // Spread into both the pre-expansion and the renderer's own `repeat` prop, so the two
+  // cannot narrow differently; empty for every page that is not a per-instance one.
+  const narrowed = viewNarrowing(initial.view);
+  const viewProp = narrowed === undefined ? {} : { view: narrowed };
+  const progress = viewProgress(initial, rosters, stepDocument);
   const expanded =
     stepDocument === null
       ? null
       : expandRepeatGroups(
           documentForVisible(stepDocument, initial.flowState.visibleQuestions).root,
-          { rosters, visible: visibleSet, opToken },
+          { rosters, visible: visibleSet, opToken, ...viewProp },
         );
 
   const expandedDocument: A2UIStepDocument | null =
@@ -284,6 +318,10 @@ export function NativeStep({
               rosters,
               visible: visibleSet,
               opToken,
+              // The same narrowing the pre-expansion above already applied. The
+              // renderer's own expansion is idempotent, so this is what keeps the two
+              // in step if a document ever reaches it unexpanded.
+              ...viewProp,
               ...(rosterState.autofocusId !== undefined
                 ? { autofocusId: rosterState.autofocusId }
                 : {}),

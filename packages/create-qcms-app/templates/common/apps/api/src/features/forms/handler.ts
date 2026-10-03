@@ -1043,6 +1043,12 @@ export function makePreviewDraftHandler(
           visibleSteps: [...flow.value.visibleSteps],
           visibleQuestions: flow.value.visible.map((entry) => entry.questionId),
           complete: flow.value.complete,
+          // The cursor's page list, forwarded rather than derived (task 076): absent for a
+          // draft with no repeating group, exactly as the kernel leaves it, so the preview
+          // pane walks views when there are views and steps when there are not.
+          ...(flow.value.visibleStepViews === undefined
+            ? {}
+            : { visibleStepViews: flow.value.visibleStepViews.map((view) => ({ ...view })) }),
         },
       },
       200,

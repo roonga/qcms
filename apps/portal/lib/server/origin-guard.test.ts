@@ -587,7 +587,12 @@ describe("task 073: the Server Action's belt refuses and applies nothing (R-B2)"
   beforeEach(() => {
     api.rosterOp.mockReset();
     api.getStep.mockReset();
-    api.getStep.mockResolvedValue({ rosters: [{ groupId: "grp_vehicles", instances: [] }] });
+    // `view` is part of the step projection since task 076, and the action reads it to
+    // learn whether the group paginates the step. Null here: this is a stacked group.
+    api.getStep.mockResolvedValue({
+      rosters: [{ groupId: "grp_vehicles", instances: [] }],
+      view: { groupId: null, instanceId: null },
+    });
     api.rosterOp.mockResolvedValue({ rosters: [], minted: [], replayed: false });
   });
 

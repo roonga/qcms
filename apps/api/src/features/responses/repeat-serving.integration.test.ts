@@ -165,6 +165,52 @@ const WIDE_DEFINITION: FormDefinition = (() => {
   return parsed.value;
 })();
 
+/**
+ * A third form whose one step is paginated by a `perInstanceStep` group (task 076,
+ * ADR-28 as amended 2026-09-29, Q22).
+ *
+ * `min: 3` so the first serve mints three instances and the step is three views without
+ * any respondent action, which is the exit criterion stated as a fixture; `max: 4` so the
+ * group is still growable and the Add control has somewhere to be.
+ *
+ * It carries a plain question beside the group deliberately. A view narrows the step to
+ * **one instance of the paginating group** and to nothing else, so the step's own
+ * question is on every page of the walk; the alternative - putting it on the first page
+ * only - would be a second rule beside the ruled one, and nothing has ruled it. An
+ * author who does not want a question repeated across the pages puts it on its own step.
+ */
+const PER_INSTANCE_DEFINITION: FormDefinition = (() => {
+  const parsed = parseFormDefinition({
+    formId: "frm_per_instance",
+    defaultLocale: "en",
+    title: { en: "One vehicle at a time" },
+    steps: [
+      {
+        stepId: "stp_pi",
+        title: { en: "The vehicles" },
+        items: [
+          { questionId: FLEET.questionId, version: 1 },
+          {
+            groupId: "grp_pi",
+            label: { en: "Vehicles" },
+            instanceLabel: { en: "Vehicle {n}" },
+            presentation: "perInstanceStep",
+            count: { source: "open", min: 3, max: 4 },
+            items: [
+              { questionId: PLATE.questionId, version: 1 },
+              { questionId: NOTES.questionId, version: 1 },
+            ],
+          },
+        ],
+      },
+    ],
+    rules: [],
+  });
+  if (!parsed.ok)
+    throw new Error(`per-instance fixture did not parse: ${JSON.stringify(parsed.error)}`);
+  return parsed.value;
+})();
+
 const QUESTIONS = [FLEET, PLATE, ODOMETER, NOTES];
 
 let testDb: TestDb;
@@ -173,6 +219,7 @@ let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let formId: FormId;
 let wideFormId: FormId;
+let perInstanceFormId: FormId;
 let compiled: ReturnType<typeof compileForm>;
 let seeded = 0;
 
@@ -236,6 +283,22 @@ beforeAll(async () => {
     semanticsVersion: "1",
   });
 
+  const piDraft = compileDraft({
+    definition: PER_INSTANCE_DEFINITION,
+    resolveQuestion: (questionId, version) =>
+      version === 1
+        ? QUESTIONS.filter((q) => q.questionId === questionId).map((definition) => ({
+            questionId,
+            version,
+            definition,
+          }))[0]
+        : undefined,
+    publishedQuestionVersions: new Map(QUESTIONS.map((q) => [q.questionId, new Set([1])])),
+  });
+  if (!piDraft.ok)
+    throw new Error(`per-instance fixture did not publish: ${JSON.stringify(piDraft.error)}`);
+  const piCompiled = compileForm(piDraft.value.snapshot, {});
+
   wideFormId = FormId.parse("frm_repeat_wide");
   await createForm(testDb.db, { formId: wideFormId, slug: "wide-fleet", defaultLocale: "en" });
   await insertFormVersion(testDb.db, {
@@ -244,6 +307,21 @@ beforeAll(async () => {
     compiled: wideCompiled,
     compilerVersion: wideCompiled.compilerVersion,
     a2uiSpecVersion: wideCompiled.a2uiSpecVersion,
+    semanticsVersion: "1",
+  });
+
+  perInstanceFormId = FormId.parse("frm_per_instance");
+  await createForm(testDb.db, {
+    formId: perInstanceFormId,
+    slug: "one-vehicle-at-a-time",
+    defaultLocale: "en",
+  });
+  await insertFormVersion(testDb.db, {
+    formId: perInstanceFormId,
+    definition: PER_INSTANCE_DEFINITION,
+    compiled: piCompiled,
+    compilerVersion: piCompiled.compilerVersion,
+    a2uiSpecVersion: piCompiled.a2uiSpecVersion,
     semanticsVersion: "1",
   });
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -317,11 +395,15 @@ interface StepBody {
   readonly step: { readonly stepId: string; readonly root: unknown } | null;
   readonly values: Record<string, unknown>;
   readonly flowState: {
+    readonly currentStep: string | null;
     readonly visibleQuestions: readonly string[];
     readonly missingRequired: readonly string[];
     readonly readyToSubmit: boolean;
   };
   readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
+  /** Which VIEW this response draws (task 076, ADR-28 as amended 2026-09-29). */
+  readonly view: { readonly groupId: string | null; readonly instanceId: string | null };
+  readonly progress: { readonly stepIndex: number; readonly totalVisibleSteps: number };
 }
 
 interface RosterBody extends StepBody {
@@ -333,12 +415,34 @@ interface BatchBody extends StepBody {
   readonly rejected: readonly { readonly questionId: string; readonly code: string }[];
 }
 
-async function getStep(session: Session): Promise<StepBody> {
-  const res = await app.request(`/sessions/${session.sessionId}/step`, {
+async function getStep(session: Session, cursor?: number): Promise<StepBody> {
+  const query = cursor === undefined ? "" : `?step=${String(cursor)}`;
+  const res = await app.request(`/sessions/${session.sessionId}/step${query}`, {
     headers: headers(session),
   });
   expect(res.status).toBe(200);
   return (await res.json()) as StepBody;
+}
+
+/** A session on the per-instance form, whose one step is three views (task 076). */
+async function newPerInstanceSession(): Promise<Session> {
+  seeded += 1;
+  const sessionId = SessionId.parse(`ses_pi_${String(seeded)}`);
+  await createSession(testDb.db, {
+    sessionId,
+    formId: perInstanceFormId,
+    formVersion: 1,
+    accessMode: "anonymous",
+    expiresAt: new Date(NOW.getTime() + 86_400_000),
+  });
+  const [signingKey] = await importSessionKeys(deps.config);
+  const token = await mintSessionToken(
+    sessionId,
+    new Date(NOW.getTime() + 86_400_000),
+    signingKey!,
+  );
+  current = { sessionId, token };
+  return current;
 }
 
 async function roster(
@@ -827,5 +931,158 @@ describe("the roster operation (ADR-43, acceptance cases 54 and 56)", () => {
       { questionId: "q_rep_plate", instanceId: vehicle, value: "ABC123" },
     ]);
     expect(answered.status).toBe(200);
+  });
+});
+
+// --------------------------------------------------------------------------
+// The per-instance step presentation: the cursor indexes VIEWS (task 076)
+// --------------------------------------------------------------------------
+
+describe("the ADR-28 cursor indexes step views (task 076, Q22)", () => {
+  it("presents a three-instance group as three views and says three", async () => {
+    const session = await newPerInstanceSession();
+    const first = await getStep(session);
+    // `min: 3`, so the first serve mints three instances and the one step is three
+    // pages without the respondent having done anything.
+    const live = instancesOf(first, "grp_pi");
+    expect(live).toHaveLength(3);
+    expect(first.progress.totalVisibleSteps).toBe(3);
+    expect(first.progress.stepIndex).toBe(0);
+    expect(first.view).toEqual({ groupId: "grp_pi", instanceId: live[0] });
+  });
+
+  it("draws one instance per view, in roster order, and the step's own question on each", async () => {
+    const session = await newPerInstanceSession();
+    const live = instancesOf(await getStep(session), "grp_pi");
+    for (const [index, instanceId] of live.entries()) {
+      const body = await getStep(session, index);
+      expect(body.progress.stepIndex).toBe(index);
+      expect(body.view).toEqual({ groupId: "grp_pi", instanceId });
+      // Exactly this instance's members, plus the step's own plain question. A view
+      // narrows the step to one instance of the PAGINATING group and to nothing else.
+      expect([...body.flowState.visibleQuestions].sort()).toEqual(
+        [`${instanceId}/q_rep_plate`, `${instanceId}/q_rep_notes`, "q_rep_fleet_name"].sort(),
+      );
+      // And no other instance's field reaches the page, which is the whole narrowing.
+      for (const other of live.filter((candidate) => candidate !== instanceId)) {
+        expect(body.flowState.visibleQuestions).not.toContain(`${other}/q_rep_plate`);
+      }
+    }
+  });
+
+  it("clamps a cursor past the last view rather than refusing it", async () => {
+    // The property the cursor was chosen FOR: out of range is answered by arithmetic
+    // against a list the server computed, with no instance id to validate (Q22).
+    const session = await newPerInstanceSession();
+    const live = instancesOf(await getStep(session), "grp_pi");
+    const body = await getStep(session, 99);
+    expect(body.progress.stepIndex).toBe(2);
+    expect(body.view.instanceId).toBe(live[2]);
+  });
+
+  it("serves the first view whose instance is incomplete when no cursor is given", async () => {
+    // The no-JS walk (ADR-28's 2026-08-31 amendment, confirmed 2026-09-29): one button,
+    // no Back, and the server picks the page.
+    const session = await newPerInstanceSession();
+    const live = instancesOf(await getStep(session), "grp_pi");
+    await batch(session, [{ questionId: "q_rep_fleet_name", value: "Northern depot" }]);
+
+    expect((await getStep(session)).view.instanceId).toBe(live[0]);
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[0], value: "AAA111" }]);
+    expect((await getStep(session)).view.instanceId).toBe(live[1]);
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[1], value: "BBB222" }]);
+    const third = await getStep(session);
+    expect(third.view.instanceId).toBe(live[2]);
+    expect(third.progress.stepIndex).toBe(2);
+    expect(third.flowState.readyToSubmit).toBe(false);
+
+    // The last required answer completes the flow, and the walk is over.
+    await batch(session, [{ questionId: "q_rep_plate", instanceId: live[2], value: "CCC333" }]);
+    expect((await getStep(session)).flowState.readyToSubmit).toBe(true);
+  });
+
+  it("serves the LAST view when the step is current for a reason outside the group", async () => {
+    // Every instance complete, the step's own plain question not. The ruled sentence
+    // names the first INCOMPLETE instance and is silent here, and the reading is the
+    // last view: the walk is forward-only on that path and its end is the one page
+    // carrying the Add control, so an open group a respondent has filled can still grow.
+    const session = await newPerInstanceSession();
+    const live = instancesOf(await getStep(session), "grp_pi");
+    await batch(
+      session,
+      live.map((instanceId) => ({ questionId: "q_rep_plate", instanceId, value: "ZZZ999" })),
+    );
+    const body = await getStep(session);
+    expect(body.flowState.currentStep).toBe("stp_pi");
+    expect(body.flowState.missingRequired).toEqual(["q_rep_fleet_name"]);
+    expect(body.view.instanceId).toBe(live[2]);
+    expect(body.progress.stepIndex).toBe(2);
+  });
+
+  it("renumbers the views when an Add grows the roster", async () => {
+    const session = await newPerInstanceSession();
+    const before = await getStep(session);
+    expect(before.progress.totalVisibleSteps).toBe(3);
+    const added = await roster(session, { op: "add", groupId: "grp_pi", opToken: token() });
+    expect(added.status).toBe(200);
+    // Four instances, four views: growing the roster APPENDS to the list, so no index
+    // the respondent already walked past now names a different page.
+    expect(added.body.progress.totalVisibleSteps).toBe(4);
+    expect(instancesOf(added.body, "grp_pi")).toHaveLength(4);
+    const live = instancesOf(added.body, "grp_pi");
+    expect((await getStep(session, 3)).view.instanceId).toBe(live[3]);
+    expect((await getStep(session, 0)).view.instanceId).toBe(live[0]);
+  });
+
+  it("counts one view per visible step for a form whose groups do not paginate", async () => {
+    // Renamed from "leaves a form with no repeating group counting steps exactly as
+    // before", which this fixture could not show: `two-fleets` HAS two groups, both
+    // stacked. What it does show is the other half of the same property - a group that
+    // does not paginate contributes no extra view - and that is worth its own case.
+    //
+    // **The evidence for exit criterion 4 is elsewhere and is stronger**: the whole of
+    // `serve-step/serve-step.integration.test.ts` drives group-less forms through this
+    // projection, and making `stepViewsOf`'s fallback return `[]` fails 10 of its 27
+    // tests. That is what pins "a form with no repeating group produces the same view
+    // list, the same progress numbers and the same navigation it produced today".
+    const session = await newSession();
+    const body = await getStep(session);
+    expect(body.progress.totalVisibleSteps).toBe(1);
+    expect(body.progress.stepIndex).toBe(0);
+    // Both keys null: this page is not a per-instance one, so a client that ignores
+    // `view` is as correct as it was before the cursor learned about views.
+    expect(body.view).toEqual({ groupId: null, instanceId: null });
+    // And every live instance of both stacked groups is still on the one page.
+    const vehicles = instancesOf(body, "grp_vehicles");
+    const incidents = instancesOf(body, "grp_incidents");
+    expect(body.flowState.visibleQuestions).toContain(`${vehicles[0]!}/q_rep_plate`);
+    expect(body.flowState.visibleQuestions).toContain(`${incidents[0]!}/q_rep_notes`);
+  });
+
+  it("sizes the batch allowance over the form's widest step, which a view still fits", async () => {
+    // Ruling Q29 read onto this presentation: a per-instance view posts ONE instance's
+    // fields plus the step's own, which is well under the bound computed from `max: 4`
+    // times two members plus one, and a request above that bound is still refused.
+    const session = await newPerInstanceSession();
+    const live = instancesOf(await getStep(session), "grp_pi");
+    const fits = await batch(session, [
+      { questionId: "q_rep_fleet_name", value: "Northern depot" },
+      { questionId: "q_rep_plate", instanceId: live[0], value: "AAA111" },
+      { questionId: "q_rep_notes", instanceId: live[0], value: "Serviced" },
+    ]);
+    expect(fits.status).toBe(200);
+    expect(fits.body.rejected).toEqual([]);
+
+    // The bound is 1 + 2 x 4 = 9. Ten entries is above it and is refused, which is the
+    // half of Q29 that is a ceiling rather than a floor.
+    const over = await batch(
+      session,
+      Array.from({ length: 10 }, () => ({
+        questionId: "q_rep_plate",
+        instanceId: live[0],
+        value: "AAA111",
+      })),
+    );
+    expect(over.status).toBe(429);
   });
 });
