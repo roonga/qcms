@@ -133,10 +133,10 @@ sync.
 
 | Column         | Type          | Semantics                                                                                    |
 | -------------- | ------------- | -------------------------------------------------------------------------------------------- |
-| `session_id`   | `text`        | As in `reporting_<env>.responses`.                                                                 |
-| `form_id`      | `text`        | As in `reporting_<env>.responses`.                                                                 |
-| `form_version` | `integer`     | As in `reporting_<env>.responses`.                                                                 |
-| `submitted_at` | `timestamptz` | As in `reporting_<env>.responses`.                                                                 |
+| `session_id`   | `text`        | As in `reporting_<env>.responses`.                                                           |
+| `form_id`      | `text`        | As in `reporting_<env>.responses`.                                                           |
+| `form_version` | `integer`     | As in `reporting_<env>.responses`.                                                           |
+| `submitted_at` | `timestamptz` | As in `reporting_<env>.responses`.                                                           |
 | `question_id`  | `text`        | The answered question (`q_…`).                                                               |
 | `value`        | `jsonb`       | That question's canonical answer value (see encodings below).                                |
 | `instance_id`  | `text`        | The repeating-group instance (`ins_…`) the answer belongs to, or `NULL` outside every group. |

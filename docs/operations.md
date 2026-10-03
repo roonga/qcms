@@ -580,12 +580,12 @@ one-shot migration step and never by a process serving traffic. And since ADR-40
 runtime half is split again, so an author never reads a production answer and the
 anonymous respondent path holds no privilege on the tables that decide who may read one.
 
-| Role               | Held by                               | What it gets                                                                                                                                                                                                                                                                                                       |
-| ------------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `qcms_migrate`     | the migration step, and nothing else  | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                     |
-| `qcms_app_control` | the API's **control** pool            | DML on `control`, with **nothing at all** on `two_factor_resets`; **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases and closes.                                                |
+| Role               | Held by                               | What it gets                                                                                                                                                                                                                                                                                                                   |
+| ------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `qcms_migrate`     | the migration step, and nothing else  | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                                  |
+| `qcms_app_control` | the API's **control** pool            | DML on `control`, with **nothing at all** on `two_factor_resets`; **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases and closes.                                                             |
 | `qcms_app_<env>`   | the API's pool for that environment   | DML on its **own** `data_<env>`; `USAGE` and `SELECT` on its **own** `reporting_<env>`; on `control`, `SELECT` on a named list and `UPDATE` on `secure_links`. **No privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`. |
-| `qcms_reporting`   | BI/ETL consumers (optional, separate) | `SELECT` on one environment's `reporting_<env>` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                                                                                          |
+| `qcms_reporting`   | BI/ETL consumers (optional, separate) | `SELECT` on one environment's `reporting_<env>` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                                                                                                        |
 
 The second row is the point, and the third and fourth are what ADR-40 added to it.
 Before the first split one credential did both jobs, so the process serving respondent
@@ -808,7 +808,6 @@ migrations. Drop it, create it, run the recipe above, then `migrate`. The
 
 This exception to the append-only migration rule (ADR-18) is available **exactly once**,
 for exactly that reason. A later re-baseline would be a new Code Owner decision.
-
 
 ### Where each credential is set
 

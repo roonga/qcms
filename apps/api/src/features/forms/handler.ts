@@ -58,7 +58,7 @@ import {
   closeForm,
   createForm,
   deleteDraft,
-  enqueue,
+  enqueueInEnvironment,
   getDraft,
   getForm,
   getFormVersion,
@@ -1149,7 +1149,20 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
         publishedAt: now,
       });
       await deleteDraft(tx, formId);
-      await enqueue(tx, {
+      // `enqueueInEnvironment` and not `enqueue`, and the difference is the grant
+      // rather than a preference (ADR-40, Q49). Publishing is an authoring act, so it
+      // runs on the **control** pool - whose `search_path` is `control` alone, where an
+      // unqualified `outbox` resolves to nothing, and whose role holds `INSERT` on each
+      // `data_<env>.outbox` and no `SELECT` anywhere in a data schema. So the statement
+      // names the schema and returns nothing: `enqueue` ends in `.returning()`, which
+      // is a read, and would be refused here. The environment is `prod` until tasks 065
+      // and 066 land (Q53), through the one interim seam.
+      //
+      // **Task 065 owns retiring this event** in favour of `form.released` (Q55).
+      // Publishing stops being the thing that reaches an environment at all once a
+      // release record exists; until then the behaviour is unchanged and only the
+      // statement that carries it is.
+      await enqueueInEnvironment(tx, deps.databases.defaultEnvironment, {
         eventType: FORM_PUBLISHED,
         payload: {
           formId,
