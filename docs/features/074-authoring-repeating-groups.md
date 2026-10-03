@@ -28,12 +28,19 @@ What changes is the **form builder**, the **rules editor** and the **test bench*
 
 ## Exit criteria
 
-Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others; case 62, the library picker's filtered list, belongs to 077 because it is the table presentation's refusal being surfaced. Plus:
+Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` section 11. Plus:
 
 1. Every group mutation in `lib/forms/draft.ts` is a pure function with its own test, on the pattern that file already sets.
 2. The `everyInstance` sentence and its negation both state their empty-group reading, asserted on the rendered sentence rather than on the builder.
 3. The test bench evaluates at **zero** instances and reports the ruled result for both the plain and the negated form.
 4. `pnpm verify` green; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` green, run detached, since this touches `apps/admin`.
+
+**Case 62 is carried by whichever of 074 and 077 merges SECOND** (Code Owner, 2026-10-03). The
+order no longer names an owner for it, and that is the correction rather than a hedge: the walk is
+the library picker filtered to the five allowed cell types, inside the group panel, so it needs
+074's panel and 077's filter on `main` at the same time and neither task can write it alone. The
+lane that rebases onto the other's merge adds it then. It was written here as "belongs to 077",
+which was true of the FILTER and false of the walk.
 
 ## Files and areas
 
@@ -45,7 +52,7 @@ Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` sect
 
 ## Out of scope (binding)
 
-The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. **The admin's column view of a table-presented group's member list, and the library picker filtered to the five allowed cell types: 077 owns both**, together with acceptance case 62, because they are that task's publish refusal being surfaced in the admin rather than group authoring in general. This task's group panel offers the presentation switch and nothing behind the table option. The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
+The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. **The admin's column view of a table-presented group's member list, and the library picker filtered to the five allowed cell types: 077 owns both**, because they are that task's publish refusal being surfaced in the admin rather than group authoring in general. This task's group panel offers the presentation switch and nothing behind the table option. **Acceptance case 62 is no longer part of that sentence**: its browser walk needs both tasks on `main`, so it goes to whichever of the two merges second (see the exit criteria). The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
 
 ## Notes for the executor
 
