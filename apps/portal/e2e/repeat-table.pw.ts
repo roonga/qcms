@@ -247,17 +247,26 @@ test("case 44: nothing is pinned, so no focused cell can be obscured (2.4.11)", 
   await expect(plate).toBeFocused();
 
   // First, the claim the rest of the test rests on, asserted rather than assumed: no
-  // header or footer cell is out of flow. This is the assertion that would have caught
-  // the inert pins, from the other side, and the one that fails first if they return.
+  // header or footer cell is positioned in a way that can lift it over another row. This
+  // is the assertion that would have caught the inert pins, from the other side, and the
+  // one that fails first if they return.
+  //
+  // THE TEST IS `sticky`, `absolute` OR `fixed`, and not "anything but `static`", because
+  // every cell in this table is `position: relative` on purpose: that is the containing
+  // block each cell's visually hidden label resolves against, and without it the label
+  // resolves against the initial containing block and widens the document (THE 136
+  // PIXELS, `packages/ui/src/theme-components.css`). A relatively positioned cell with no
+  // offsets stays exactly where flow put it. The three values below are the ones that
+  // take a cell out of flow, and a pin is the first of them.
+  const OUT_OF_FLOW = ["sticky", "absolute", "fixed"];
   const positions = await page
     .locator("thead th, thead td, tfoot th, tfoot td")
-    .evaluateAll((cells) => [
-      ...new Set(cells.map((cell) => globalThis.getComputedStyle(cell).position)),
-    ]);
+    .evaluateAll((cells) => cells.map((cell) => globalThis.getComputedStyle(cell).position));
   expect(positions.length).toBeGreaterThan(0);
-  expect(positions, "a header or footer cell is out of flow: read the 2.4.11 note").toEqual([
-    "static",
-  ]);
+  expect(
+    positions.filter((position) => OUT_OF_FLOW.includes(position)),
+    "a header or footer cell is out of flow: read the 2.4.11 note",
+  ).toEqual([]);
 
   const report = await plate.evaluate((element) => {
     const box = element.getBoundingClientRect();
