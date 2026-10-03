@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { EntityId } from "@/components/entity-id";
 import { Alert, Button } from "@/components/kit";
 import { columnTypeNote, tableColumnRows } from "@/lib/forms/table-columns";
@@ -53,14 +55,20 @@ export function TableColumnView({
 }) {
   const rows = tableColumnRows(members, library);
   const refused = rows.filter((row) => !row.allowed);
+  // `useId` and not a literal, because this component is rendered BY somebody else's
+  // panel and says so two paragraphs up: two of them on one page would duplicate the id,
+  // and the second section's accessible name would resolve to the first one's heading.
+  // Not reachable today, since there is one group panel at a time, which is precisely
+  // when a fixed id is cheapest to remove.
+  const headingId = useId();
 
   return (
     <section
-      aria-labelledby="qcms-columns-heading"
+      aria-labelledby={headingId}
       className="rounded-md border border-(--color-border) bg-(--color-surface) p-4"
       data-testid="table-column-view"
     >
-      <h3 id="qcms-columns-heading" className="text-base font-semibold text-(--color-text)">
+      <h3 id={headingId} className="text-base font-semibold text-(--color-text)">
         {t("forms.columns.title")}
       </h3>
       <div className="mt-3 flex flex-col gap-4">
@@ -92,6 +100,16 @@ export function TableColumnView({
               <tbody>
                 {rows.map((row) => (
                   <tr key={`${row.questionId}@${String(row.version)}`} data-column={row.questionId}>
+                    {/*
+                      THE ROW HEADER IS THE SECOND CELL, after the ordinal. Legal, and
+                      unusual enough to say why: the ordinal is the column's drawn
+                      POSITION, which is a property of the list rather than a name for
+                      the row, and `plan/admin-design-contracts.md` §2 asks a table for
+                      an identifying cell rather than for a leading one. What identifies
+                      a column is its label - the header the respondent reads - so that
+                      is the `<th scope="row">`, and the position stays an ordinary cell
+                      carrying figure-width digits.
+                    */}
                     <td className="qcms-cell--num">{row.ordinal}</td>
                     <th scope="row">{row.label}</th>
                     <td>

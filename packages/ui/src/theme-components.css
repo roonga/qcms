@@ -541,19 +541,19 @@
   position: relative;
   overflow-x: auto;
   inline-size: 100%;
-  /* Clear of either pin should a host ever constrain this box's height, so a
-     focus scroll inside it cannot land a cell under the pinned header row or the
-     pinned total footer (2.4.11 Focus Not Obscured). Expressed in the control
-     token rather than as a measured header height: one pinned row is shorter
-     than one control, so this is a floor and not a guess. */
-  scroll-padding-block: var(--space-control-h);
+  /* NO BLOCK-SIZE CONSTRAINT, and nothing here may add one without reading the
+     2.4.11 paragraph below first: `overflow-x: auto` makes this box a scroll
+     container in BOTH axes, so constraining its height creates a vertical
+     scrollport inside a form step, and that is the geometry a `position: sticky`
+     header needs in order to come to rest over a focused cell. */
 }
 
 [data-qcms-theme-scope] .qcms-repeat-table__table {
   inline-size: 100%;
-  /* `separate` and not `collapse`: a collapsed border does not paint on a
-     `position: sticky` cell, and the pinned header and footer below are sticky
-     cells. `border-spacing: 0` keeps the grid tight without the collapse. */
+  /* `separate` with zero spacing rather than `collapse`, so each cell owns its own
+     border box: the per-cell `position: relative` below is what contains every
+     visually hidden label (see THE 136 PIXELS), and a collapsed border does not
+     paint on a positioned cell. */
   border-collapse: separate;
   border-spacing: 0;
 }
@@ -584,36 +584,41 @@
   min-inline-size: 0;
 }
 
-/* THE PINNED HEADER AND THE PINNED TOTAL FOOTER (2.4.11 Focus Not Obscured, new
-   at 2.2, whose Understanding names "sticky footers, sticky headers" in terms).
+/* NOTHING IN THIS TABLE IS PINNED, and that is a ruling rather than an omission
+   (Code Owner, 2026-10-03, on the review of task 077).
 
-   The pins are on the CELLS rather than on `<thead>` and `<tfoot>`, which is the
-   universally supported placement. The scrollport they stick within is the scroll
-   box above, so with the box's height unconstrained they never detach and cannot
-   obscure anything; `scroll-padding-block` on the box is what keeps that true for
-   a host that does constrain it. A browser spec asserts the property rather than
-   the declaration: a focused cell in the first row is not covered.
+   The first version of this section pinned the header row and the total footer
+   with `position: sticky`. Both declarations were INERT: `position: sticky`
+   resolves against the nearest scrollport, which is the `overflow-x: auto` box
+   above, and that box's block size is its content's, so it never scrolls on the
+   block axis and neither cell ever detached. The header scrolled off the top of
+   the viewport with the page exactly as a static one does, and deleting both
+   blocks changed no test - which is how the review found them.
 
-   THE ROW-HEADER COLUMN IS DELIBERATELY NOT PINNED, and that absence is the same
-   criterion read the other way. Pinning the first column inline-start is the
-   obvious thing to want on a wide table in a horizontal scroll box, and it
-   obscures a focused cell the browser has just scrolled under it. Discharging
-   that needs `scroll-padding-inline-start` equal to that column's width, and
-   nothing in CSS knows that width, so the pin would be a criterion failure we
-   could not close. */
+   So the pin is gone rather than made real, and 2.4.11 Focus Not Obscured is
+   satisfied the simpler way: with nothing pinned, nothing can come to rest over a
+   focused cell. Making it real would have meant constraining this box's height to
+   create the scrollport, which puts a vertical scroller inside a form step, and
+   then discharging the very obscuring risk the pin introduces with a
+   `scroll-padding-block` nobody can prove is larger than every theme's control
+   height. The pin's benefit is bounded by the group's own `max`, which SEC-16
+   leaves to the author, and the card reflow already drops the header on a phone.
+
+   The same reasoning is why the row-header column is not pinned inline-start,
+   which is the one pin this layout's horizontal scroll box could actually
+   support: a focused cell the browser scrolls under a pinned first column IS
+   obscured, and discharging that needs `scroll-padding-inline-start` equal to
+   that column's width, which nothing in CSS knows.
+
+   `apps/portal/e2e/repeat-table.pw.ts` records the consequence for the case-44
+   assertion and keeps an assertion that would catch a future pin. */
 [data-qcms-theme-scope] .qcms-repeat-table__table thead :is(th, td) {
-  position: sticky;
-  inset-block-start: 0;
-  z-index: 1;
   background-color: var(--color-surface);
   font-weight: 600;
   border-block-end: 2px solid var(--color-border-strong);
 }
 
 [data-qcms-theme-scope] .qcms-repeat-table__table tfoot :is(th, td) {
-  position: sticky;
-  inset-block-end: 0;
-  z-index: 1;
   background-color: var(--color-surface);
   border-block-end: 0;
   border-block-start: 2px solid var(--color-border-strong);
@@ -773,7 +778,8 @@
   }
 
   [data-qcms-theme-scope] .qcms-repeat-table__table :is(th, td) {
-    /* The pins have nothing left to pin to: a card is not a scrollport. */
+    /* `relative` is still the containing block for this cell's hidden label, which
+       is visible here but still positioned by the rule above it. */
     position: relative;
     padding: 0;
     border: 0;

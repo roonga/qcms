@@ -18,7 +18,7 @@
  * whole column off its header. One node per cell is the difference between an empty
  * cell and a broken table.
  *
- * All three exist only after {@link expandRepeatTable} has run, so the stored bytes
+ * All three exist only after {@link repeatTableNode} has run, so the stored bytes
  * never carry one, exactly as `RepeatInstance` never reaches a stored document.
  */
 

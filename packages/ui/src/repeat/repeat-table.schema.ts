@@ -9,7 +9,7 @@ import {
 /**
  * Schemas for the three table-presentation node types (task 077, ADR-43).
  *
- * All three are **render-time only**: {@link expandRepeatTable} produces them from a
+ * All three are **render-time only**: {@link repeatTableNode} produces them from a
  * stored `RepeatGroup` template and the live roster, so a stored document can never
  * carry one and nothing here has to validate a stored shape. That is the one way
  * these differ from `RepeatGroupSchema`, which covers both shapes because the admin's
