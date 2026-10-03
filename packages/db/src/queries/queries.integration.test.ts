@@ -10,9 +10,10 @@ import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms
 import * as schema from "../schema/index.js";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
   startTestDb,
   type TestDb,
-  DEFAULT_TEST_ENVIRONMENT,
 } from "../testing/harness.js";
 import {
   answerLedger,
@@ -839,7 +840,14 @@ describe("concurrency (live, pooled connections)", () => {
     // Registered with the harness rather than ended in a local `afterAll` (issue #888):
     // one teardown drains every connection and only then stops the container.
     pool = testDb.register(
-      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      new Pool({
+        connectionString: testDb.connectionUri,
+        max: 8,
+        // The same search path the harness gives its own connections (ADR-40): every
+        // data-plane table is declared unqualified, so a pool that sets none resolves
+        // `answers` to nothing at all.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "queries concurrency pool",
     );
     db = drizzle(pool, { schema });

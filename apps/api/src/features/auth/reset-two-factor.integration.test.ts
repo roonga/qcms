@@ -60,7 +60,12 @@ import {
  */
 
 const MIGRATE_ROLE = "qcms_migrate";
-const APP_ROLE = "qcms_app";
+// The **control** role since ADR-40: better-auth's tables are control-plane tables and
+// `qcms_app_control` is what the API's control pool connects as. The old single
+// `qcms_app` no longer exists in any recipe, and naming it here would have created a
+// role the baseline grants nothing to - which is exactly what the refusal half of this
+// file would then have passed on for the wrong reason.
+const APP_ROLE = "qcms_app_control";
 
 /**
  * Generated per run, not written down: a literal here is a hard-coded credential
@@ -207,6 +212,10 @@ beforeAll(async () => {
   const database = (await owner.query<{ name: string }>("SELECT current_database() AS name"))
     .rows[0]?.name;
   await owner.query(`GRANT CREATE ON DATABASE "${String(database)}" TO ${MIGRATE_ROLE}`);
+  // Nothing is granted here: the grants are the baseline migration's, guarded on each
+  // role existing, which is why both roles are created BEFORE it runs (ADR-40). The
+  // default-privilege lines below stay, so a table a future migration creates is reached
+  // without a grant step to remember.
   await owner.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await owner.query(
     `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT SELECT ON TABLES TO ${APP_ROLE}`,
@@ -260,14 +269,16 @@ afterAll(async () => {
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-describe("the qcms_app refusal (SEC-10)", () => {
+describe("the application-credential refusal (SEC-10)", () => {
   it("refuses the credential every API process holds, even though it could execute the delete", async () => {
     // The precondition that makes this meaningful: the role IS allowed to delete
     // the row. If this ever fails, the refusal below stops being about ownership.
     const client = await appPool.connect();
     try {
       await client.query("BEGIN");
-      await client.query('DELETE FROM "twoFactor"');
+      // Schema-qualified: `control` is on no connection's search path here, and the
+      // table has never been in `public` since ADR-40.
+      await client.query('DELETE FROM "control"."twoFactor"');
       await client.query("ROLLBACK");
     } finally {
       client.release();

@@ -119,7 +119,7 @@ async function seedSubmitted(
   });
 }
 
-describe("reporting.responses view", () => {
+describe("reporting_<env>.responses view", () => {
   it("shows submitted sessions with answers keyed by questionId; hides others", async () => {
     const { formId, version } = await seedForm("frm_report");
 
@@ -157,7 +157,7 @@ describe("reporting.responses view", () => {
     expect((await getSession(testDb.db, expired))?.status).toBe("expired");
 
     const rows = await testDb.client.query<{ session_id: string }>(
-      `select session_id from reporting.responses where form_id = $1`,
+      `select session_id from reporting_prod.responses where form_id = $1`,
       [formId],
     );
     const ids = rows.rows.map((r) => r.session_id);
@@ -171,9 +171,10 @@ describe("reporting.responses view", () => {
       answers: Record<string, unknown>;
       access_mode: string;
       form_version: number;
-    }>(`select answers, access_mode, form_version from reporting.responses where session_id = $1`, [
-      "ses_report_submitted",
-    ]);
+    }>(
+      `select answers, access_mode, form_version from reporting_prod.responses where session_id = $1`,
+      ["ses_report_submitted"],
+    );
     expect(res.rowCount).toBe(1);
     expect(res.rows[0]!.answers).toEqual({
       q_text: "hello",
@@ -199,17 +200,17 @@ describe("reporting.responses view", () => {
     });
 
     const res = await testDb.client.query(
-      `select session_id from reporting.responses where session_id = $1`,
+      `select session_id from reporting_prod.responses where session_id = $1`,
       [erased],
     );
     expect(res.rowCount).toBe(0);
   });
 });
 
-describe("reporting.answers_flat view", () => {
+describe("reporting_<env>.answers_flat view", () => {
   it("emits one row per (submitted session, questionId, value)", async () => {
     const res = await testDb.client.query<{ question_id: string; value: unknown }>(
-      `select question_id, value from reporting.answers_flat where session_id = $1 order by question_id`,
+      `select question_id, value from reporting_prod.answers_flat where session_id = $1 order by question_id`,
       ["ses_report_submitted"],
     );
     expect(res.rows).toEqual([
@@ -220,10 +221,10 @@ describe("reporting.answers_flat view", () => {
     ]);
   });
 
-  it("inherits the submitted-only, non-erased exclusion from reporting.responses", async () => {
+  it("inherits the submitted-only, non-erased exclusion from reporting_prod.responses", async () => {
     // The erased session contributes no flat rows either.
     const res = await testDb.client.query(
-      `select 1 from reporting.answers_flat where session_id = $1`,
+      `select 1 from reporting_prod.answers_flat where session_id = $1`,
       ["ses_erased"],
     );
     expect(res.rowCount).toBe(0);
@@ -459,12 +460,18 @@ describe("reporting contract - no column drift", () => {
     reportingViewColumns.map((view) => [view.name, [...view.columns]]),
   );
 
-  it("matches the live reporting schema view columns", async () => {
+  // Every environment's schema holds the same two view names with the same columns in
+  // the same order (ADR-40, Q10). Asserted per environment rather than once, because
+  // "identical apart from the rows" is the property a BI tool binds to: a consumer
+  // repointing from `reporting_prod` to `reporting_test` changes one identifier and
+  // nothing else.
+  it.each(["test", "prod"])("matches the live reporting_%s view columns", async (environment) => {
     const res = await testDb.client.query<{ table_name: string; column_name: string }>(
       `select table_name, column_name
          from information_schema.columns
-        where table_schema = 'reporting'
+        where table_schema = $1
         order by table_name, ordinal_position`,
+      [`reporting_${environment}`],
     );
     const live: Record<string, string[]> = {};
     for (const row of res.rows) {

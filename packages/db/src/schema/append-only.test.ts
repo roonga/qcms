@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 
 let testDb: TestDb;
 
@@ -14,6 +19,9 @@ afterAll(async () => {
 
 /** Seed a form + published form_version so sessions/answers have valid FKs. */
 async function seedForm(formId: string): Promise<void> {
+  // `forms` and `form_versions` are control-plane tables and `sessions` is a data-plane
+  // one; both resolve unqualified here because the harness connects on
+  // `data_<env>, control` (ADR-40), which is exactly what an API pool does.
   await testDb.client.query(
     `insert into forms (form_id, slug, default_locale) values ($1, $2, 'en')`,
     [formId, `${formId}-slug`],
@@ -32,9 +40,9 @@ describe("answers ledger is append-only (I5, R3)", () => {
     const sessionId = "ses_answers_update";
     await seedForm(formId);
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
-      [sessionId, formId],
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+      [sessionId, formId, DEFAULT_TEST_ENVIRONMENT],
     );
     const inserted = await testDb.client.query<{ id: string }>(
       `insert into answers (session_id, question_id, value) values ($1, 'q_a', '"first"'::jsonb) returning id`,
@@ -52,9 +60,9 @@ describe("answers ledger is append-only (I5, R3)", () => {
     const sessionId = "ses_answers_delete";
     await seedForm(formId);
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
-      [sessionId, formId],
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+      [sessionId, formId, DEFAULT_TEST_ENVIRONMENT],
     );
     await testDb.client.query(
       `insert into answers (session_id, question_id, value) values ($1, 'q_a', '"x"'::jsonb) returning id`,
@@ -77,9 +85,9 @@ describe("answers ledger is append-only (I5, R3)", () => {
     const sessionId = "ses_answers_delete_ok";
     await seedForm(formId);
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
-      [sessionId, formId],
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+      [sessionId, formId, DEFAULT_TEST_ENVIRONMENT],
     );
     await testDb.client.query(
       `insert into answers (session_id, question_id, value) values ($1, 'q_a', '"x"'::jsonb)`,

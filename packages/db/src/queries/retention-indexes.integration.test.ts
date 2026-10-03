@@ -33,7 +33,12 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 
 let testDb: TestDb;
 
@@ -59,8 +64,14 @@ async function planFor(statement: string): Promise<string> {
 describe("the retention sweeps' supporting indexes (issue #434)", () => {
   it("exist on a database migrated to head", async () => {
     const res = await testDb.client.query<{ indexname: string }>(
-      `select indexname from pg_indexes where schemaname = 'public' and indexname = any($1)`,
-      [["outbox_payload_retention_idx", "webhook_deliveries_snippet_retention_idx"]],
+      // `data_<env>` rather than `public`: under ADR-40 the data plane is one schema per
+      // environment, so these indexes exist once per environment and the harness's own
+      // connection resolves them in the one it serves.
+      `select indexname from pg_indexes where schemaname = $2 and indexname = any($1)`,
+      [
+        ["outbox_payload_retention_idx", "webhook_deliveries_snippet_retention_idx"],
+        `data_${DEFAULT_TEST_ENVIRONMENT}`,
+      ],
     );
     expect(res.rows.map((row) => row.indexname).sort()).toEqual([
       "outbox_payload_retention_idx",

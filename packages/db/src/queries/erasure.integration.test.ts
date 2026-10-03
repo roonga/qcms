@@ -237,15 +237,16 @@ async function sessionRowCount(table: string, sessionId: SessionId): Promise<num
 }
 
 async function inReportingResponses(sessionId: SessionId): Promise<boolean> {
-  const res = await testDb.client.query(`select 1 from reporting.responses where session_id = $1`, [
-    sessionId,
-  ]);
+  const res = await testDb.client.query(
+    `select 1 from reporting_prod.responses where session_id = $1`,
+    [sessionId],
+  );
   return (res.rowCount ?? 0) > 0;
 }
 
 async function inAnswersFlat(sessionId: SessionId): Promise<boolean> {
   const res = await testDb.client.query(
-    `select 1 from reporting.answers_flat where session_id = $1`,
+    `select 1 from reporting_prod.answers_flat where session_id = $1`,
     [sessionId],
   );
   return (res.rowCount ?? 0) > 0;

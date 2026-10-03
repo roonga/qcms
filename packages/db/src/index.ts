@@ -33,6 +33,10 @@ export * from "./reporting-views.js";
 // The operator commands that create and drop an environment (ADR-40, Q1, Q24, Q42).
 // Exported from the package surface rather than reachable only through the CLI, so the
 // API's own integration tests can create an environment the way an operator does.
+// The environments a fresh database is created with, exported so a harness and a
+// scaffold read the same list the baseline emits rather than re-typing `test, prod`.
+export { SHIPPED_ENVIRONMENTS } from "./environment/baseline.js";
+
 export {
   type CreatedEnvironment,
   type DropRefusal,

@@ -108,6 +108,7 @@ describe("query helper import surface", () => {
     "backoffDelayMs",
     "computeBackoff",
     "enqueue",
+    "enqueueInEnvironment",
     "claimDue",
     "markDelivered",
     "recordFailure",

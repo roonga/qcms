@@ -465,8 +465,8 @@ describe("large export streams without buffering the whole table (exit criterion
     // statement each) - far faster than 30k helper calls, and enough to prove
     // the export never materializes the whole table in memory.
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, status, expires_at, created_at)
-       select 'ses_bulk_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'submitted', now() + interval '1 day', now()
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at, created_at)
+       select 'ses_bulk_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 day', now()
        from generate_series(1, 10000) g`,
       [formId],
     );
