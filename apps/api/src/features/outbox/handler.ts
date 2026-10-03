@@ -70,7 +70,7 @@ const MAX_DELIVERY_LIMIT = 200;
 
 export function makeDeadLettersHandler(deps: Deps): RouteHandler<typeof deadLettersRoute, ApiEnv> {
   return async (c) => {
-    const rows = await listDeadLetterDeliveries(deps.db);
+    const rows = await listDeadLetterDeliveries(deps.databases.forRequest().exec);
     return c.json(
       {
         deadLetters: rows.map((r) => ({
@@ -128,11 +128,11 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
   return async (c) => {
     const parsed = parseFormId(c.req.valid("param").id);
     if (!parsed.ok) throw fail.invalidId();
-    const form = await getForm(deps.db, parsed.value);
+    const form = await getForm(deps.databases.forRequest().exec, parsed.value);
     if (form === undefined) throw fail.formNotFound();
 
     const rows = await listRecentDeliveries(
-      deps.db,
+      deps.databases.forRequest().exec,
       parsed.value,
       parseLimit(c.req.valid("query").limit),
     );
@@ -218,11 +218,19 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // redacted delivery where an unknown id answers 404 - a difference that reports
     // someone else's row exists. Scoped, it returns undefined and the reset below
     // produces the ordinary 404.
-    if ((await redeliveryRefusalFor(deps.db, formId, deliveryId)) !== undefined) {
+    if (
+      (await redeliveryRefusalFor(deps.databases.forRequest().exec, formId, deliveryId)) !==
+      undefined
+    ) {
       throw fail.notRedeliverable();
     }
 
-    const reset = await resetDeliveryForRedelivery(deps.db, formId, deliveryId, deps.clock.now());
+    const reset = await resetDeliveryForRedelivery(
+      deps.databases.forRequest().exec,
+      formId,
+      deliveryId,
+      deps.clock.now(),
+    );
     if (reset === undefined) throw fail.deliveryNotFound();
     return c.json(
       {

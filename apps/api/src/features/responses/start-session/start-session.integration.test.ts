@@ -32,7 +32,12 @@ import {
   insertSecureLink,
   revokeSecureLink,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -146,7 +151,12 @@ async function seedLink(
   const linkId = LinkId.parse(linkIdStr);
   const expiresAt = opts.expiresAt ?? new Date(NOW.getTime() + 60 * 60 * 1000); // +1h
   await insertSecureLink(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT, linkId, formId, expiresAt, oneTime: opts.oneTime ?? false });
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    linkId,
+    formId,
+    expiresAt,
+    oneTime: opts.oneTime ?? false,
+  });
   const claims: LinkClaims = {
     formId,
     linkId,

@@ -22,6 +22,7 @@
  */
 
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
+import { environmentDatabaseUrlVariableName } from "@roonga/qcms-db/environment";
 import {
   DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
@@ -183,7 +184,47 @@ export interface Flags {
 
 /** The validated, in-memory configuration the whole process shares. */
 export interface Config {
+  /**
+   * The **control-plane** connection string (`DATABASE_URL`).
+   *
+   * Under ADR-40 this names the pool that serves better-auth, authoring, grants,
+   * releases and closes, and it connects as `qcms_app_control`. It is not the
+   * respondent path's credential any more: each environment has its own, below.
+   */
   readonly databaseUrl: string;
+  /**
+   * One connection string per environment (Q2, Q17, scenario finding 1).
+   *
+   * **The credential is configuration, never a database read.** Each entry arrives
+   * through the process environment as `QCMS_DATABASE_URL_<ENV>` - upper-cased
+   * environment name - is validated at boot and is never echoed (SEC-8), because a
+   * credential the database hands out is a credential the database can be made to hand
+   * out. The **list** of environments is read from `control.environments` at boot and
+   * the two are checked against each other (criterion 6a), so a configuration naming an
+   * environment the database does not hold, or a database holding one the configuration
+   * has no credential for, refuses to boot rather than serving half a set.
+   *
+   * **A new environment needs a restart.** That is this task's recommendation rather
+   * than a decision it takes: ADR-24 parses deployment configuration at boot and fails
+   * fast, so a reload path would be a new capability in that decision - the process
+   * would have to accept a credential it had not validated at startup. An operator who
+   * has just run the environment command holds the migration credential and is already
+   * in a change window.
+   */
+  readonly environments: readonly EnvironmentConfig[];
+  /**
+   * Which environment a respondent request is served from until task 066 exists.
+   *
+   * **This is an interim seam and is meant to be one line.** ADR-40 says the request's
+   * environment comes from the `/<env>/` route group on the respondent side (Q21, task
+   * 066) and from the administrator's switcher on the authoring side (Q6, task 065),
+   * and neither exists when this task lands. Rather than invent either, the API resolves
+   * every respondent request to this one environment, so the pool selection, the grants
+   * and the per-environment tests are all real and only the *choosing* is deferred.
+   * `QCMS_DEFAULT_ENVIRONMENT`, default `prod`, which is the environment with no address
+   * prefix and no entry restriction.
+   */
+  readonly defaultEnvironment: string;
   readonly mount: MountFlags;
   /**
    * Public base URL of the respondent portal (`QCMS_PORTAL_BASE_URL`), used to
@@ -874,6 +915,78 @@ function describeTurnstileOverlap(canonical: string | undefined, deprecated: str
   return `${TURNSTILE_SITE_KEY_VAR} is set to a DIFFERENT value and wins; remove the deprecated one.`;
 }
 
+/**
+ * One environment's connection string, named after the environment (Q2).
+ */
+export interface EnvironmentConfig {
+  /** The environment's name, matching a row in `control.environments`. */
+  readonly name: string;
+  /** Its own pool's connection string, connecting as `qcms_app_<env>`. */
+  readonly databaseUrl: string;
+}
+
+/**
+ * The environment-name rule (Q42), as a regular expression.
+ *
+ * Lowercase letters and digits, starting with a letter, with **no hyphen and no
+ * underscore**. Neither exclusion is taste: an access-group name joins a set of
+ * environments with hyphens (Q37), so `dev-test` has to read as two names; and
+ * `data_<env>` and `reporting_<env>` join on underscores, so `data_my_env` would be
+ * ambiguous about where the prefix ends. A name carrying either makes a derived string
+ * impossible to parse back.
+ */
+export const ENVIRONMENT_NAME_PATTERN = /^[a-z][a-z0-9]*$/;
+
+/**
+ * `QCMS_DATABASE_URL_TEST` from `test`.
+ *
+ * Re-exported from `@roonga/qcms-db/environment` rather than spelled again: the
+ * environment command tells an operator to set exactly this variable, and two copies of
+ * the spelling is one copy too many - the command would keep naming the old one long
+ * after a rename and an operator following it would configure nothing.
+ */
+export const environmentDatabaseUrlVariable = environmentDatabaseUrlVariableName;
+
+/**
+ * Parse the per-environment connection strings from `QCMS_ENVIRONMENTS` and one
+ * `QCMS_DATABASE_URL_<ENV>` each.
+ *
+ * The **names** are configuration too, and deliberately so: a process cannot read
+ * `control.environments` before it has a connection, and the connection it would read
+ * it on is the control pool, whose own credential is `DATABASE_URL`. So the list is
+ * declared, the credentials are declared beside it, and the boot check compares the
+ * declaration against the database (criterion 6a). Neither value is ever echoed in an
+ * error (SEC-8): a missing credential is reported by **variable name**.
+ */
+function parseEnvironments(env: Env, issues: string[]): EnvironmentConfig[] {
+  const raw = (env.QCMS_ENVIRONMENTS ?? "test,prod")
+    .split(",")
+    .map((name) => name.trim())
+    .filter((name) => name.length > 0);
+  if (raw.length === 0) {
+    issues.push("QCMS_ENVIRONMENTS must name at least one environment");
+    return [];
+  }
+  const parsed: EnvironmentConfig[] = [];
+  for (const name of raw) {
+    if (!ENVIRONMENT_NAME_PATTERN.test(name)) {
+      issues.push(
+        `QCMS_ENVIRONMENTS: ${name} is not a valid environment name ` +
+          "(lowercase letters and digits, starting with a letter, no hyphen or underscore)",
+      );
+      continue;
+    }
+    const variable = environmentDatabaseUrlVariable(name);
+    const databaseUrl = env[variable];
+    if (databaseUrl === undefined || databaseUrl.trim() === "") {
+      issues.push(`${variable} is required: environment ${name} has no connection string`);
+      continue;
+    }
+    parsed.push({ name, databaseUrl });
+  }
+  return parsed;
+}
+
 function parseChallenge(env: Env, flags: Flags, issues: string[]): Config["challenge"] {
   if (flags.challengeProvider === "turnstile") {
     // Canonical first, deprecated second. Both are read rather than one, so an existing
@@ -1205,6 +1318,16 @@ export function loadConfig(env: Env): Config {
   const issues: string[] = [];
 
   const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
+  const environments = parseEnvironments(env, issues);
+  const defaultEnvironment = (env.QCMS_DEFAULT_ENVIRONMENT ?? "prod").trim();
+  if (
+    environments.length > 0 &&
+    !environments.some((environment) => environment.name === defaultEnvironment)
+  ) {
+    issues.push(
+      `QCMS_DEFAULT_ENVIRONMENT names ${defaultEnvironment}, which QCMS_ENVIRONMENTS does not list`,
+    );
+  }
   const mount = parseMount(env, issues);
   const link = parseKeyList(env, "QCMS_LINK_KEYS", MIN_SECRET_LENGTH, issues);
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);
@@ -1218,6 +1341,8 @@ export function loadConfig(env: Env): Config {
 
   const config: Config = {
     databaseUrl,
+    environments,
+    defaultEnvironment,
     mount,
     portalBaseUrl,
     webhooks: {

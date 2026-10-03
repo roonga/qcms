@@ -6,7 +6,11 @@ import { controlSchema } from "../schemas.js";
  */
 
 /** Question version lifecycle (`DOMAIN_SCHEMA.md` §4.2). */
-export const questionStatus = controlSchema.enum("question_status", ["draft", "published", "deprecated"]);
+export const questionStatus = controlSchema.enum("question_status", [
+  "draft",
+  "published",
+  "deprecated",
+]);
 
 /**
  * Form lifecycle status (`DOMAIN_SCHEMA.md` §4.1). `open` accepts new sessions;

@@ -6,7 +6,12 @@ import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms
 
 import { reportingViewColumns } from "../reporting-views.js";
 import { erasureTombstones } from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "../testing/harness.js";
 import {
   addInstances,
   appendAnswer,
@@ -97,7 +102,7 @@ async function seedSubmitted(
   accessMode: "anonymous" | "secure_link" = "anonymous",
 ): Promise<void> {
   await createSession(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version,

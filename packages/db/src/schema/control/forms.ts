@@ -1,13 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  boolean,
-  check,
-  integer,
-  jsonb,
-    primaryKey,
-  text,
-  timestamp,
-} from "drizzle-orm/pg-core";
+import { boolean, check, integer, jsonb, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition, FormId } from "@roonga/qcms-core";

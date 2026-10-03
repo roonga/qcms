@@ -41,7 +41,7 @@ import {
   publishQuestionVersion,
   upsertDraft,
 } from "@roonga/qcms-db";
-import type { TestDb } from "@roonga/qcms-db/testing";
+import { DEFAULT_TEST_ENVIRONMENT, type TestDb } from "@roonga/qcms-db/testing";
 
 import {
   AUTHOR_MESSAGES_DEF,
@@ -505,12 +505,21 @@ export async function mintInsuranceLink(
   db: Db,
   config: { keys: { link: readonly string[] } },
   formId: string,
-  opts: { linkId: string; expiresAt: Date; oneTime?: boolean },
+  opts: { linkId: string; expiresAt: Date; oneTime?: boolean; environment?: string },
 ): Promise<string> {
   const parsedFormId = FormId.parse(formId);
   const linkId = LinkId.parse(opts.linkId);
   const oneTime = opts.oneTime ?? false;
-  await insertSecureLink(db, { linkId, formId: parsedFormId, expiresAt: opts.expiresAt, oneTime });
+  await insertSecureLink(db, {
+    linkId,
+    formId: parsedFormId,
+    expiresAt: opts.expiresAt,
+    // The environment the seeded link belongs to (Q46). Defaults to the one the
+    // harness's own connection serves, so a fixture that says nothing about
+    // environments seeds a link the default pool can redeem.
+    environment: opts.environment ?? DEFAULT_TEST_ENVIRONMENT,
+    oneTime,
+  });
   const firstKey = config.keys.link[0];
   if (firstKey === undefined) throw new Error("config has no link signing key");
   const linkKey = await importCompactTokenKey(new TextEncoder().encode(firstKey));

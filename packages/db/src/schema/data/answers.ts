@@ -1,14 +1,5 @@
 import { sql } from "drizzle-orm";
-import {
-  boolean,
-  check,
-  index,
-  jsonb,
-  pgTable,
-  text,
-  timestamp,
-  uuid,
-} from "drizzle-orm/pg-core";
+import { boolean, check, index, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 import type { AnswerValue, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 

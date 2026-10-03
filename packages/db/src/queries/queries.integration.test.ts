@@ -8,7 +8,12 @@ import { FormId, LinkId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "../testing/harness.js";
 import {
   answerLedger,
   appendAnswer,
@@ -417,7 +422,7 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     const mk = async (suffix: string, expiresAt: Date, terminal: boolean): Promise<SessionId> => {
       const sessionId = SessionId.parse(`ses_expire_${suffix}`);
       await createSession(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+        environment: DEFAULT_TEST_ENVIRONMENT,
         sessionId,
         formId,
         formVersion: version,
@@ -517,7 +522,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-link-list-slug", defaultLocale: "en" });
     for (const [i, tag] of ["a", "b", "c"].entries()) {
       await insertSecureLink(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+        environment: DEFAULT_TEST_ENVIRONMENT,
         linkId: LinkId.parse(`lnk_list_${tag}`),
         formId,
         // Distinct createdAt ordering is defaultNow(); insert order is a→b→c, so

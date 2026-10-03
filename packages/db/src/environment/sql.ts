@@ -255,9 +255,7 @@ function foreignKeySql(environment: string): string[] {
       // out of `pg_constraint`.
       const targetSchema = DATA_PLANE_TABLE_NAMES.includes(target) ? schema : CONTROL_SCHEMA;
       const columns = reference.columns.map((column) => quote(column.name)).join(",");
-      const targetColumns = reference.foreignColumns
-        .map((column) => quote(column.name))
-        .join(",");
+      const targetColumns = reference.foreignColumns.map((column) => quote(column.name)).join(",");
       statements.push(
         `ALTER TABLE ${quote(schema)}.${quote(getTableName(table))} ` +
           `ADD CONSTRAINT ${quote(foreignKey.getName())} FOREIGN KEY (${columns}) ` +
@@ -412,9 +410,9 @@ export function grantEnvironmentStatements(environment: string): string[] {
     // The six SELECTs of Q40 as amended by Q48. `question_versions` is on the list
     // because `getQuestionVersion` runs on every step served and every submission;
     // without it every respondent request fails on permission.
-    ...CONTROL_READ_TABLES.filter((table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table)).map(
-      (table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
-    ),
+    ...CONTROL_READ_TABLES.filter(
+      (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
+    ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
     // One-time link consumption (`consumeSecureLink`).
     `GRANT UPDATE ON ${quote(CONTROL_SCHEMA)}.${quote("secure_links")} TO ${quote(role)}`,
   ];

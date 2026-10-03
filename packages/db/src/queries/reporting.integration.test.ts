@@ -4,7 +4,12 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "../testing/harness.js";
 import {
   clearSubmissionFlag,
   createForm,
@@ -77,7 +82,7 @@ async function seedSubmitted(opts: {
   contentHash?: string;
 }): Promise<void> {
   await createSession(testDb.db, {
-      environment: DEFAULT_TEST_ENVIRONMENT,
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId: opts.sessionId,
     formId: opts.formId,
     formVersion: opts.version,
@@ -120,7 +125,11 @@ describe("listResponses", () => {
       flaggedReason: "honeypot",
     });
 
-    const all = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, limit: 50, offset: 0 });
+    const all = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      limit: 50,
+      offset: 0,
+    });
     expect(all.total).toBe(3);
     // Newest first.
     expect(all.rows.map((r) => r.sessionId)).toEqual([
@@ -131,7 +140,12 @@ describe("listResponses", () => {
     expect(all.rows.map((r) => r.answers)).toContainEqual({ q_t: "c" });
 
     // Version filter.
-    const v2 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, version: 2, limit: 50, offset: 0 });
+    const v2 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      version: 2,
+      limit: 50,
+      offset: 0,
+    });
     expect(v2.total).toBe(2);
     expect(v2.rows.every((r) => r.formVersion === 2)).toBe(true);
 
@@ -146,16 +160,34 @@ describe("listResponses", () => {
     expect(window.rows.map((r) => r.sessionId)).toEqual(["ses_list_b"]);
 
     // Flagged filter surfaces the reason; unflagged excludes it.
-    const flagged = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, flagged: true, limit: 50, offset: 0 });
+    const flagged = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      flagged: true,
+      limit: 50,
+      offset: 0,
+    });
     expect(flagged.rows.map((r) => r.sessionId)).toEqual(["ses_list_flagged"]);
     expect(flagged.rows[0]!.flaggedReason).toBe("honeypot");
-    const clean = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, flagged: false, limit: 50, offset: 0 });
+    const clean = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      flagged: false,
+      limit: 50,
+      offset: 0,
+    });
     expect(clean.rows.every((r) => r.flaggedReason === null)).toBe(true);
     expect(clean.total).toBe(2);
 
     // Pagination: limit + offset walks the ordered set.
-    const page1 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, limit: 2, offset: 0 });
-    const page2 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, limit: 2, offset: 2 });
+    const page1 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      limit: 2,
+      offset: 0,
+    });
+    const page2 = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      limit: 2,
+      offset: 2,
+    });
     expect(page1.rows).toHaveLength(2);
     expect(page2.rows).toHaveLength(1);
     expect(page1.total).toBe(3);
@@ -181,7 +213,11 @@ describe("listResponses", () => {
     });
     await eraseSession(testDb.db, formId, erased, "subject_request");
 
-    const res = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, { formId, limit: 50, offset: 0 });
+    const res = await listResponses(testDb.db, DEFAULT_TEST_ENVIRONMENT, {
+      formId,
+      limit: 50,
+      offset: 0,
+    });
     expect(res.total).toBe(1);
     expect(res.rows.map((r) => r.sessionId)).toEqual([kept]);
   });
@@ -211,11 +247,15 @@ describe("getResponse", () => {
     expect(detail!.answers).toEqual({ q_name: "Ada", q_multi: ["opt_a", "opt_b"] });
 
     // Missing session → undefined.
-    expect(await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, SessionId.parse("ses_nope"))).toBeUndefined();
+    expect(
+      await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, SessionId.parse("ses_nope")),
+    ).toBeUndefined();
 
     // Erased → undefined (view exclusion; detail cannot bypass it).
     await eraseSession(testDb.db, formId, sessionId, "subject_request");
-    expect(await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, sessionId)).toBeUndefined();
+    expect(
+      await getResponse(testDb.db, DEFAULT_TEST_ENVIRONMENT, formId, sessionId),
+    ).toBeUndefined();
   });
 });
 

@@ -51,7 +51,12 @@ import {
   webhookDeliveries,
   type DeliveryRow,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -59,7 +64,13 @@ import type { Deps } from "../deps.js";
 import { encryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { registerOutboxOps } from "../features/outbox/route.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
+import {
+  type TestDepsOverrides,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../test-support.js";
 import { RESPONSE_SNIPPET_MAX, runDeliveryPass, SIGNATURE_MASK } from "./outbox-delivery.js";
 
 const { Pool } = pg;
@@ -389,7 +400,7 @@ describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)",
       new Pool({ connectionString: testDb.connectionUri, max: 8 }),
       "outbox concurrency pool",
     );
-    const db = drizzle(pool, { schema }) as unknown as Deps["db"];
+    const db = drizzle(pool, { schema }) as unknown as NonNullable<TestDepsOverrides["db"]>;
     pooledDeps = makeDeps({ db, env: baseEnv, clock: systemClock });
   });
 

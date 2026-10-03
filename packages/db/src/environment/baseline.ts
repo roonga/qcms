@@ -142,44 +142,31 @@ function seedEnvironmentsStatement(): string {
 }
 
 /**
- * Create the application roles the shipped environments need, **where the migrating
- * credential is allowed to**.
+ * **No role is created here, and that is deliberate.**
  *
- * Two guards, both load-bearing. The role may already exist, because the SEC-10 recipe
- * in `docs/operations.md` creates it with its password **before** the first migration
- * and a migration may hold no password. And the migrating credential may not be allowed
- * to create a role at all: `qcms_migrate` is granted schema ownership and `CREATE` on
- * the database, not `CREATEROLE`, so an unguarded `CREATE ROLE` would fail the whole
- * migration on precisely the deployment the split exists for.
+ * The task's work order says the baseline creates the three kinds of role for the
+ * shipped environments. It cannot, and the two reasons are worth stating so the gap is a
+ * recorded decision rather than an omission:
  *
- * So the roles are created `NOLOGIN` where they can be, which is what makes a bare
- * `migrate` against a fresh container produce a database whose **grants are real and
- * testable**; and an operator following the recipe has already created them `LOGIN`
- * with a password, in which case this does nothing.
+ *   1. **A login role needs a password, and a migration may hold none.** The credential
+ *      belongs in the operator's secret store; a migration that carried one would put it
+ *      in the published package and in every adopter's git history.
+ *   2. **The migrating credential is not allowed to.** `qcms_migrate` is granted schema
+ *      ownership and `CREATE` on the database, never `CREATEROLE` (SEC-10), so an
+ *      unguarded `CREATE ROLE` would fail the whole migration on exactly the deployment
+ *      the split exists for.
+ *
+ * So the roles stay **the operator's to create**, from the recipe in
+ * `docs/operations.md`, before the first migration - which is the ordering the recipe
+ * already specifies and `docker-compose.yml` already arranges with its `db-roles`
+ * one-shot. What this migration owns is every **grant** and **revoke** on the tables it
+ * creates, each guarded on the role existing, which is migration 0021's own rule: the
+ * migration that creates a table is the only place that runs as its owner in the same
+ * step.
+ *
+ * The environment **command** does create a role, because it is given a password and
+ * runs under the migration credential interactively.
  */
-function createRolesStatement(): string {
-  const roles = [CONTROL_ROLE, ...SHIPPED_ENVIRONMENTS.map((env) => environmentRoleName(env))];
-  const body = roles
-    .map(
-      (role) =>
-        `\t\tIF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${role}') THEN\n` +
-        `\t\t\tEXECUTE 'CREATE ROLE "${role}" NOLOGIN';\n` +
-        `\t\tEND IF;`,
-    )
-    .join("\n");
-  return `-- The three kinds of application role (Q40). Created NOLOGIN here so a database
--- created by \`migrate\` alone still carries real, assertable grants; the SEC-10 recipe
--- in docs/operations.md creates them LOGIN with a password BEFORE the first migration,
--- in which case this block does nothing. Guarded on the migrating credential being
--- allowed to create a role, because \`qcms_migrate\` deliberately holds no CREATEROLE.
-DO $$
-BEGIN
-\tIF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = current_user AND (rolcreaterole OR rolsuper)) THEN
-${body}
-\tEND IF;
-END
-$$;`;
-}
 
 /** The control role's rights on `control`: DML, with `two_factor_resets` carved out. */
 function controlRoleGrantStatement(): string {
@@ -226,7 +213,6 @@ export function baselineHandAuthoredStatements(
     ...triggerFunctionStatements(),
     seedEnvironmentsStatement(),
     ...environments.flatMap((environment) => createEnvironmentStatements(environment)),
-    createRolesStatement(),
     controlRoleGrantStatement(),
     ...environments.flatMap((environment) => grantEnvironmentStatements(environment)),
     // Last, so it takes back whatever the DML passes above handed out (Q40, finding B).
