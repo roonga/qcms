@@ -101,6 +101,10 @@ async function renderStepEditor(issues: readonly FormIssue[] | undefined): Promi
       onMovePin={() => undefined}
       onRemovePin={() => undefined}
       onReorderPin={() => undefined}
+      onAddGroup={() => undefined}
+      onOpenGroup={() => undefined}
+      onMoveGroup={() => undefined}
+      onRemoveGroup={() => undefined}
     />,
   );
 }

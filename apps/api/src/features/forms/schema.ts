@@ -115,6 +115,41 @@ export const DraftBody = z
   .openapi("DraftBody");
 
 /**
+ * The HYPOTHETICAL ROSTER both admin preview routes take (074, ADR-42).
+ *
+ * A group id mapped to the instance ids the author's screen is showing. Neither route has a
+ * session, so neither has a roster: the admin mints one locally from the group's own `min`
+ * or from a count the author types, and sends it. That is the whole of what makes a repeating
+ * group previewable in the builder - `evaluateRules` takes the live roster as its own
+ * parameter precisely because a roster is state the server owns at serve time, and in a
+ * preview nobody owns it.
+ *
+ * **The caller mints the ids rather than the API** because the same request carries ANSWERS
+ * keyed by them (`ins_i2/q_passport`). A server that minted its own would have to hand them
+ * back before any answer could be typed against them, which is a second round trip for a
+ * panel whose whole job is to be instant. The ids are still parsed as `InstanceId`s here, so
+ * nothing but a well-formed `ins_` id reaches the evaluator.
+ *
+ * Nothing is stored and no id here is a session's: these instances exist for one request.
+ */
+const HypotheticalRosters = z
+  .record(z.string(), z.array(z.string()))
+  .optional()
+  .openapi({
+    description:
+      "Hypothetical instance ids per groupId, minted by the caller. Absent means every group has no instance.",
+    example: { grp_passengers: ["ins_i1", "ins_i2"] },
+  });
+
+/** The roster an evaluation actually used, per group, in document order of the groups. */
+const RosterProjection = z.array(
+  z.object({
+    groupId: z.string().openapi({ example: "grp_passengers" }),
+    instances: z.array(z.string()),
+  }),
+);
+
+/**
  * `POST /admin/forms/:id/draft/preview-condition` - the rule test bench (033).
  *
  * The unsaved draft travels with the request (like `DraftBody`) so the bench
@@ -129,9 +164,11 @@ export const PreviewConditionBody = z
   .strictObject({
     definition: OpaqueDefinition,
     ruleId: z.string().min(1).openapi({ example: "rul_at_fault" }),
-    answers: z
-      .record(z.string(), z.unknown())
-      .openapi({ description: "Hypothetical answers, keyed by questionId (never logged)." }),
+    answers: z.record(z.string(), z.unknown()).openapi({
+      description:
+        "Hypothetical answers, keyed by answer key: a bare questionId, or `instanceId/questionId` for a question inside a repeating group (never logged).",
+    }),
+    instances: HypotheticalRosters,
   })
   .openapi("PreviewConditionBody");
 
@@ -151,10 +188,11 @@ export const PreviewConditionBody = z
 export const PreviewDraftBody = z
   .strictObject({
     definition: OpaqueDefinition,
-    answers: z
-      .record(z.string(), z.unknown())
-      .optional()
-      .openapi({ description: "Walk-through answers, keyed by questionId (never logged)." }),
+    answers: z.record(z.string(), z.unknown()).optional().openapi({
+      description:
+        "Walk-through answers, keyed by answer key: a bare questionId, or `instanceId/questionId` inside a repeating group (never logged).",
+    }),
+    instances: HypotheticalRosters,
   })
   .openapi("PreviewDraftBody");
 
@@ -278,6 +316,40 @@ export const PreviewConditionResponse = z
       .enum(["unparseableDraft", "ruleNotFound", "noTarget", "unresolvedAnswers"])
       .optional()
       .openapi({ example: "ruleNotFound" }),
+    /**
+     * The groups the bench evaluated, with the hypothetical roster it used for each (074).
+     *
+     * Echoed so the bench can state what it answered ABOUT. A verdict computed against three
+     * passengers beside a panel that has since been set to five is the one wrong thing a
+     * bench must never show, and the roster is what lets the panel tell.
+     */
+    rosters: RosterProjection,
+    /**
+     * The group the rule's target sits inside, when it sits in one.
+     *
+     * Present exactly when the rule is evaluated PER INSTANCE, which is the fact an author
+     * most often comes to the bench to discover: scope is implicit by position (ADR-42
+     * §3.4), so nothing in the condition they wrote says it.
+     */
+    targetGroupId: z.string().optional().openapi({ example: "grp_passengers" }),
+    /**
+     * One verdict per live instance of {@link targetGroupId}, in roster order.
+     *
+     * Present only for a per-instance rule, and **empty rather than absent** when that group
+     * has no instance: an empty list is the honest answer for a roster with nothing in it,
+     * and it is what the zero-instance case looks like from the panel's side.
+     *
+     * The top-level `outcome` stays the rule's own answer - `match` when any instance matched
+     * - so a caller that does not care about instances reads exactly what it always read.
+     */
+    instanceOutcomes: z
+      .array(
+        z.object({
+          instanceId: z.string().openapi({ example: "ins_i2" }),
+          outcome: z.enum(["match", "noMatch"]),
+        }),
+      )
+      .optional(),
   })
   .openapi("PreviewConditionResponse");
 
@@ -436,8 +508,22 @@ export const PreviewDraftResponse = z
     /** The forward-pass result (ADR-16) for the supplied answers. */
     flow: z.object({
       visibleSteps: z.array(z.string()),
+      /**
+       * The visible fields as ANSWER KEYS: a bare `questionId` outside every repeating
+       * group, byte-identically to what this always sent, and `instanceId/questionId` inside
+       * one (ADR-42, ADR-43).
+       *
+       * The qualified form is not optional detail. A rule targeting inside a group is
+       * evaluated once per live instance, so a member question can be visible in one
+       * instance and hidden in another, and only the qualified key can say which - which is
+       * why `documentForVisible` skips a repeat template and the renderer's expansion prunes
+       * each clone against this same set. It is the identical projection the portal's
+       * serve-step returns, which is what keeps the preview's DOM the portal's DOM.
+       */
       visibleQuestions: z.array(z.string()),
       complete: z.boolean(),
+      /** The hypothetical roster this projection was computed with, per group (074). */
+      rosters: RosterProjection,
     }),
   })
   .openapi("PreviewDraftResponse");

@@ -1,10 +1,20 @@
 import { cache } from "react";
 
-import type { PreviewOutcome, PreviewReason } from "../forms/builder-state.ts";
+import type {
+  InstanceOutcome,
+  PreviewOutcome,
+  PreviewReason,
+  PreviewRoster,
+} from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
+import { REPEAT_PRESENTATIONS } from "../forms/types.ts";
 import type {
   CompiledStep,
   DraftForm,
+  DraftGroup,
+  DraftPin,
+  DraftRepeatCount,
+  DraftStepItem,
   DraftPreview,
   FormDetail,
   FormIssue,
@@ -315,12 +325,22 @@ export async function previewCondition(
     readonly definition: DraftForm;
     readonly ruleId: string;
     readonly answers: Readonly<Record<string, unknown>>;
+    /**
+     * The hypothetical instance ids per group, minted by the bench (074, ADR-42 §6.4). There
+     * is no session behind this route, so there is no live roster: the bench mints one from
+     * the count the author typed, and the same request's answer keys are qualified with those
+     * ids.
+     */
+    readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<
   ApiResult<{
     readonly outcome: PreviewOutcome;
     readonly reason: PreviewReason | undefined;
     readonly references: readonly string[];
+    readonly rosters: readonly PreviewRoster[];
+    readonly targetGroupId: string | undefined;
+    readonly instanceOutcomes: readonly InstanceOutcome[] | undefined;
   }>
 > {
   const result = await read<Record<string, unknown>>(
@@ -330,14 +350,51 @@ export async function previewCondition(
     }),
   );
   if (!result.ok) return result;
+  const targetGroupId = result.data["targetGroupId"];
   return {
     ok: true,
     data: {
       outcome: parseOutcome(result.data["outcome"]),
       reason: parseReason(result.data["reason"]),
       references: asStringList(result.data["references"]),
+      rosters: parseRosters(result.data["rosters"]),
+      targetGroupId: typeof targetGroupId === "string" ? targetGroupId : undefined,
+      // `undefined` and `[]` are DIFFERENT answers here and the distinction is the whole of
+      // the zero-instance case: absent means the rule is not per-instance at all, and empty
+      // means it is and the group has no instance. Collapsing them would make a rule the
+      // bench could not answer indistinguishable from one it answered about nothing.
+      instanceOutcomes: parseInstanceOutcomes(result.data["instanceOutcomes"]),
     },
   };
+}
+
+/** The roster projection both preview routes echo, read off the bytes. */
+function parseRosters(raw: unknown): readonly PreviewRoster[] {
+  if (!Array.isArray(raw)) return [];
+  const parsed: PreviewRoster[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { groupId?: unknown; instances?: unknown };
+    if (typeof row.groupId !== "string") continue;
+    parsed.push({ groupId: row.groupId, instances: asStringList(row.instances) });
+  }
+  return parsed;
+}
+
+/** One verdict per instance, or `undefined` when the rule is not evaluated per instance. */
+function parseInstanceOutcomes(raw: unknown): readonly InstanceOutcome[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const parsed: InstanceOutcome[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { instanceId?: unknown; outcome?: unknown };
+    if (typeof row.instanceId !== "string") continue;
+    parsed.push({
+      instanceId: row.instanceId,
+      outcome: row.outcome === "match" ? "match" : "noMatch",
+    });
+  }
+  return parsed;
 }
 
 // --- publish, preview, versions and lifecycle (task 034) --------------------
@@ -383,6 +440,12 @@ export async function previewDraft(
   request: {
     readonly definition: DraftForm;
     readonly answers: Readonly<Record<string, unknown>>;
+    /**
+     * The hypothetical instance ids per group (074, ADR-42 §6.5). The preview has no session
+     * and therefore no live roster, so the pane mints one from each group's own `min` or from
+     * a count the author types, and the answers it sends are keyed with those ids.
+     */
+    readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<ApiResult<DraftPreview>> {
   const result = await read<Record<string, unknown>>(
@@ -404,6 +467,7 @@ export async function previewDraft(
         visibleSteps: asStringList(flow["visibleSteps"]),
         visibleQuestions: asStringList(flow["visibleQuestions"]),
         complete: flow["complete"] === true,
+        rosters: parseRosters(flow["rosters"]),
       },
     },
   };
@@ -630,19 +694,109 @@ function parseSteps(raw: unknown): DraftForm["steps"] {
     .map((entry) => ({
       stepId: entry["stepId"] as string,
       title: (entry["title"] ?? {}) as DraftForm["title"],
-      items: parsePins(entry["items"]),
+      items: parseStepItems(entry["items"]),
     }));
 }
 
-function parsePins(raw: unknown): DraftForm["steps"][number]["items"] {
+/**
+ * A step's item list: pinned questions and repeating groups, in document order (ADR-42).
+ *
+ * ## This is where a group would be lost, and was
+ *
+ * The item list used to be filtered to the entries carrying a `questionId`, which was total
+ * while a step held nothing else. With the union it silently DROPS every repeating group on the
+ * way back from the API - so a group survived until the first reload and then the builder opened
+ * on a step that had been emptied, with autosave paused about a step the author had filled. The
+ * browser walk for acceptance case 58 is what found it, which is the argument for that case
+ * reloading rather than asserting the screen it had just typed into.
+ *
+ * The union is discriminated by the disjoint required keys the kernel chose (`questionId` against
+ * `groupId`), so this reads the same discriminator the schema does rather than a tag nobody sends.
+ */
+function parseStepItems(raw: unknown): DraftForm["steps"][number]["items"] {
+  if (!Array.isArray(raw)) return [];
+  const items: DraftStepItem[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const record = entry as Record<string, unknown>;
+    const group = typeof record["groupId"] === "string" ? parseGroup(record) : undefined;
+    if (group !== undefined) {
+      items.push(group);
+      continue;
+    }
+    if (typeof record["groupId"] === "string") continue;
+    const pin = parsePin(record);
+    if (pin !== undefined) items.push(pin);
+  }
+  return items;
+}
+
+function parsePin(record: Record<string, unknown>): DraftPin | undefined {
+  if (typeof record["questionId"] !== "string" || typeof record["version"] !== "number") {
+    return undefined;
+  }
+  return { questionId: record["questionId"], version: record["version"] };
+}
+
+/** A step's pins alone, which is what a group's member list is: a group holds no group (Q13). */
+function parsePins(raw: unknown): readonly DraftPin[] {
   return objectsWith(raw, "questionId")
-    .filter(
-      (entry) => typeof entry["questionId"] === "string" && typeof entry["version"] === "number",
-    )
-    .map((entry) => ({
-      questionId: entry["questionId"] as string,
-      version: entry["version"] as number,
-    }));
+    .map(parsePin)
+    .filter((pin): pin is DraftPin => pin !== undefined);
+}
+
+/**
+ * One repeating group, or `undefined` when its count source is not one this build can read.
+ *
+ * **Nothing is invented for an unreadable count.** Falling back to, say, `open` with a minimum of
+ * zero would look tolerant and would be the worst outcome available: the panel would show that
+ * invented source, the next autosave would store it, and an author's `fixed` count would be gone
+ * with no press to have reported it. Dropping the group instead leaves the step short, which
+ * pauses autosave and says so - loud rather than silent, which is the stance this file's own
+ * docblock takes for a malformed pin.
+ */
+function parseGroup(record: Record<string, unknown>): DraftGroup | undefined {
+  const count = parseRepeatCount(record["count"]);
+  if (count === undefined) return undefined;
+  const presentation = REPEAT_PRESENTATIONS.find(
+    (candidate) => candidate === record["presentation"],
+  );
+  return {
+    groupId: record["groupId"] as string,
+    label: (record["label"] ?? {}) as DraftForm["title"],
+    instanceLabel: (record["instanceLabel"] ?? {}) as DraftForm["title"],
+    items: parsePins(record["items"]),
+    count,
+    // The kernel's schema defaults it, so an older stored draft may carry no value at all.
+    presentation: presentation ?? "stacked",
+  };
+}
+
+/**
+ * A group's count source, read as given.
+ *
+ * `max` is carried through only when it is a number, which is what keeps the required-field state
+ * readable after a reload: the kernel makes it optional precisely so a half-filled draft can
+ * round-trip, so an absent `max` has to arrive back absent rather than as a zero.
+ */
+function parseRepeatCount(raw: unknown): DraftRepeatCount | undefined {
+  if (typeof raw !== "object" || raw === null) return undefined;
+  const source = raw as Record<string, unknown>;
+  const max = typeof source["max"] === "number" ? { max: source["max"] } : {};
+  if (source["source"] === "fixed" && typeof source["count"] === "number") {
+    return { source: "fixed", count: source["count"] };
+  }
+  if (typeof source["min"] !== "number") return undefined;
+  if (source["source"] === "open") return { source: "open", min: source["min"], ...max };
+  if (source["source"] === "fromAnswer" && typeof source["questionId"] === "string") {
+    return {
+      source: "fromAnswer",
+      questionId: source["questionId"],
+      min: source["min"],
+      ...max,
+    };
+  }
+  return undefined;
 }
 
 function parseRules(raw: unknown): DraftForm["rules"] {

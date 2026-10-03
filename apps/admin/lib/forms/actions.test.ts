@@ -161,6 +161,7 @@ describe("the definition cap counts UTF-8 bytes, not UTF-16 code units", () => {
       draft: blankDraft("frm_cap", "en"),
       ruleId: "rul_a",
       answers: { q_a: cyclic },
+      instances: {},
     });
 
     expect(state.status).toBe("error");
@@ -238,6 +239,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
     const state = await previewDraftAction("frm_demo_form", {
       draft: blankDraft("frm_demo_form", "en"),
       answers: {},
+      instances: {},
     });
 
     expect(state.status).toBe("rejected");
@@ -252,6 +254,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
     const state = await previewDraftAction("frm_demo_form", {
       draft: blankDraft("frm_demo_form", "en"),
       answers: { q_a: cyclic },
+      instances: {},
     });
 
     expect(state.status).toBe("error");
@@ -294,6 +297,7 @@ describe("034's actions keep a refusal distinct from an error", () => {
     const state = await previewDraftAction("frm_demo_form", {
       draft: blankDraft("frm_demo_form", "en"),
       answers: { q_a: "answer-value-that-must-not-come-back" },
+      instances: {},
     });
 
     expect(state.message).not.toContain("answer-value-that-must-not-come-back");

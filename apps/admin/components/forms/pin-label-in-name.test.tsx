@@ -95,6 +95,10 @@ function renderStep(): HTMLElement {
       onMovePin={() => undefined}
       onRemovePin={() => undefined}
       onReorderPin={() => undefined}
+      onAddGroup={() => undefined}
+      onOpenGroup={() => undefined}
+      onMoveGroup={() => undefined}
+      onRemoveGroup={() => undefined}
     />,
   ).container;
 }

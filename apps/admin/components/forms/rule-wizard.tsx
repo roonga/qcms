@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 
-import { Button, Dialog, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
-import { conditionReferences } from "@/lib/forms/condition";
+import { Alert, Button, Dialog, Tab, TabList, TabPanel, Tabs } from "@/components/kit";
+import { conditionGroupReferences, conditionReferences } from "@/lib/forms/condition";
 import { upsertRule } from "@/lib/forms/draft";
 import { issuesForRule, messageForIssue } from "@/lib/forms/issues";
+import { ruleScope, scopeChipLabel } from "@/lib/forms/rule-targets";
 import type { PreviewConditionState } from "@/lib/forms/builder-state";
 import type { DraftForm, DraftRule, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -114,6 +115,8 @@ export function RuleWizard({
     draft: DraftForm;
     ruleId: string;
     answers: Record<string, unknown>;
+    /** The bench's hypothetical roster per group (074, ADR-42 §6.4). */
+    instances: Record<string, readonly string[]>;
   }) => Promise<PreviewConditionState>;
   readonly onSave: (rule: DraftRule) => void;
   readonly onCancel: () => void;
@@ -127,11 +130,20 @@ export function RuleWizard({
   // Computed once and shared by the three phases, so the target grouping, the backward
   // flag and the bench cannot disagree about what this condition reads.
   const references = conditionReferences(edited.when);
+  // The other half of what this rule reads (ADR-42 section 3.4). A whole-group operator reads
+  // all of its group, so its cut through document order is the end of that group's SPAN rather
+  // than any one member's position - which is why the two lists travel separately rather than
+  // being concatenated into one.
+  const groupReferences = conditionGroupReferences(edited.when);
   // The draft AS THE AUTHOR HAS IT, which is what the target geometry and the bench are
   // questions about. Without this the "Then show" list would be grouped against the stored
   // condition and the bench would preview a rule the author has already changed.
   const working = upsertRule(draft, edited);
   const ruleIssues = issuesForRule(issues, edited.ruleId);
+  // Computed against the draft the dialog is HOLDING, so the chip follows the targets the
+  // author is choosing rather than the ones the last save stored. That is the same reason
+  // `working` exists for the target geometry and the bench.
+  const scope = ruleScope(working, edited.show);
 
   return (
     <Dialog
@@ -184,6 +196,7 @@ export function RuleWizard({
               draft={working}
               rule={edited}
               references={references}
+              groupReferences={groupReferences}
               onChange={(show) => {
                 setEdited((current) => ({ ...current, show }));
               }}
@@ -215,6 +228,29 @@ export function RuleWizard({
             are the ones this dialog can compute for itself - the backward-target flag on
             the targets phase, from pure draft geometry - and the kernel's own verdict
             arrives on the next debounce after Save, at this same rule. */}
+        {/* SCOPE, OUTSIDE THE PHASES, for the same reason the engine's findings are: it is a
+            fact about the RULE rather than about one of the three questions the phases ask, and
+            an author choosing targets on phase 2 has to be able to see that those targets have
+            made the whole rule per-instance. ADR-42 §3.4 makes this the price of keeping scope
+            implicit by position, so it is a deliverable and not a decoration.
+
+            The spanning case is the publish refusal said before the round trip, with the
+            mechanical remedy beside it: one rule is evaluated in one scope, so a list straddling
+            two is split into two rules whose condition is identical. */}
+        {scope.kind === "group" && (
+          <p className="qcms-rule-scope" data-testid="qcms-rule-scope">
+            <span className="qcms-tag qcms-tag--draft">{scopeChipLabel(scope)}</span>
+            <span className="ms-2 text-sm text-(--color-text-muted)">
+              {t("forms.rule.scopeNote", { group: scope.label, noun: scope.noun })}
+            </span>
+          </p>
+        )}
+        {scope.kind === "spanning" && (
+          <div data-testid="qcms-rule-scope-spanning">
+            <Alert variant="warning">{t("forms.rule.scopeSpanning")}</Alert>
+          </div>
+        )}
+
         {ruleIssues.length > 0 && (
           <ul aria-label={t("forms.rule.issues")} className="flex flex-col gap-1">
             {ruleIssues.map((issue, index) => (

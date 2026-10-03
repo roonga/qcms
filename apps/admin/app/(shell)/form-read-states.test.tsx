@@ -551,6 +551,10 @@ describe("the form builder's library read states (issues 572, 544)", () => {
         onMovePin={() => undefined}
         onRemovePin={() => undefined}
         onReorderPin={() => undefined}
+        onAddGroup={() => undefined}
+        onOpenGroup={() => undefined}
+        onMoveGroup={() => undefined}
+        onRemoveGroup={() => undefined}
       />,
     );
   }
@@ -633,6 +637,10 @@ describe("the move-pin menu's account of the library (issues 572, 544)", () => {
         onMovePin={() => undefined}
         onRemovePin={() => undefined}
         onReorderPin={() => undefined}
+        onAddGroup={() => undefined}
+        onOpenGroup={() => undefined}
+        onMoveGroup={() => undefined}
+        onRemoveGroup={() => undefined}
       />,
     );
   }

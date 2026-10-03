@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/kit";
 import type { PreviewConditionState } from "@/lib/forms/builder-state";
-import { newRule, removeRule, upsertRule } from "@/lib/forms/draft";
+import { newRule, removeRule, stepPins, upsertRule } from "@/lib/forms/draft";
 import { NEW_RULE_HASH } from "@/lib/forms/issues";
 import type { DraftForm, DraftRule, FormIssue, PinnableQuestion } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
@@ -65,12 +65,14 @@ export function RulesEditor({
     draft: DraftForm;
     ruleId: string;
     answers: Record<string, unknown>;
+    /** The bench's hypothetical roster per group (074, ADR-42 §6.4). */
+    instances: Record<string, readonly string[]>;
   }) => Promise<PreviewConditionState>;
   readonly onChange: (next: DraftForm) => void;
 }) {
   // A condition has to read a question, so there is nothing to add a rule against until
   // the form pins one. The button says why rather than being silently inert.
-  const firstPinned = draft.steps.flatMap((step) => step.items)[0]?.questionId;
+  const firstPinned = draft.steps.flatMap((step) => stepPins(step))[0]?.questionId;
   const [edited, setEdited] = useState<DraftRule | undefined>(undefined);
 
   // MINTED, NOT ADDED. The rule reaches the draft when Save is pressed and not before, so

@@ -6,6 +6,8 @@ import type {
   ConditionOp,
   DraftAnswerValue,
   DraftCondition,
+  GroupConditionOp,
+  InstanceCountComparison,
   LeafConditionOp,
   PinnableQuestion,
 } from "./types.ts";
@@ -46,6 +48,18 @@ import type {
  * because a `.test.ts` is outside the import-surface scan.
  */
 export const MAX_CONDITION_DEPTH = 8;
+
+/**
+ * The kernel's `REPEAT_EVALUATION_BUDGET` (`step.ts`), restated for the same reason
+ * {@link MAX_CONDITION_DEPTH} is: it is a **value**, and this app takes no value from
+ * `@roonga/qcms-core` (R2). `condition.test.ts` pins the two together.
+ *
+ * It is quoted here so the admin can SAY the number in the sentence that explains
+ * `REPEAT_EVALUATION_BUDGET_EXCEEDED` (`issues.ts`). Nothing in this app checks it: the
+ * refusal is the kernel's, and it is a bound on one rule shape's cost rather than a ceiling
+ * on any group's size (ADR-16 as amended 2026-09-29, Q14).
+ */
+export const REPEAT_EVALUATION_BUDGET = 10_000;
 
 /**
  * **The ADR-03 gate: a new operator in `@roonga/qcms-core` cannot land unnoticed here.**
@@ -95,13 +109,11 @@ const OP_ARITY = {
   // They are listed here and nowhere else in this app on purpose. The gate this
   // table is works only if it is total over the kernel's union, so 071 carries
   // the three keys in the same change that adds the operators - otherwise this
-  // app does not typecheck at all. **Task 074 owns the rest of the admin's
-  // half**: the operator picker, the structured editors, the rule sentence
-  // (including the "and there is at least one passenger" reading and its
-  // negation's mirror), the per-instance scope chip and the zero-instance test
-  // bench. Until then `CONDITION_OPS` in `./types.ts` deliberately does not
-  // carry them, so no picker can emit one and `isCombinator` below still
-  // indexes this table with a strictly narrower key set.
+  // app does not typecheck at all. **Task 074 built the rest of the admin's
+  // half**: `CONDITION_OPS` in `./types.ts` now carries all three, the operator
+  // picker offers them, {@link conditionForOp} constructs them, the rule
+  // sentence states `everyInstance`'s empty-group reading and its negation's
+  // mirror, and the test bench evaluates at zero instances.
   anyInstance: "group",
   everyInstance: "group",
   instanceCount: "group",
@@ -110,6 +122,19 @@ const OP_ARITY = {
 /** The three combinators, which read no question of their own. */
 export function isCombinator(op: ConditionOp): op is "and" | "or" | "not" {
   return OP_ARITY[op] === "combinator";
+}
+
+/**
+ * The three operators that read a whole repeating group rather than one question.
+ *
+ * A **third arity**, not a leaf and not a combinator (ADR-42, ADR-03 as amended
+ * 2026-09-29): they carry a `groupId` instead of a `questionId`, `anyInstance` and
+ * `everyInstance` carry one nested condition each, and `instanceCount` carries none. Every
+ * walker in this module branches on this rather than on `op === "anyInstance" || ...`, so a
+ * fourth group operator would be one edit to {@link OP_ARITY} rather than a hunt.
+ */
+export function isGroupOp(op: ConditionOp): op is GroupConditionOp {
+  return OP_ARITY[op] === "group";
 }
 
 /**
@@ -307,12 +332,33 @@ export function conditionForOp(
   type: QuestionType | undefined,
   options: readonly string[],
   previous?: DraftCondition,
+  /**
+   * The group a whole-group operator should read. Trailing and optional rather than woven
+   * into the positional list, because the twelve question operators and the three
+   * combinators have no use for it: a caller that is not building a group read passes
+   * nothing, and a group op asked for with no group falls back to `answered` exactly as an
+   * unsupported operand does.
+   */
+  groupId?: string,
 ): DraftCondition {
   if (op === "not") {
-    return { op, condition: firstChildOf(previous) ?? { op: "answered", questionId } };
+    return { op, condition: notChildOf(previous) ?? { op: "answered", questionId } };
   }
   if (op === "and" || op === "or") {
     return { op, conditions: childrenOf(previous, questionId) };
+  }
+  if (isGroupOp(op)) {
+    // No group to read means no legal node, so the same `answered` fallback the unsupported
+    // operand case takes. A form with no repeating group therefore cannot be given one of
+    // these by any sequence of picker presses, which is `DANGLING_GROUP_REF` (Q24) refused
+    // at the control rather than explained at publish.
+    if (groupId === undefined || groupId === "") return { op: "answered", questionId };
+    if (op === "instanceCount") return { op, groupId, compare: "gte", value: 1 };
+    return {
+      op,
+      groupId,
+      condition: groupNestedOf(previous) ?? { op: "answered", questionId },
+    };
   }
   const kind = operandKind(op, type);
   const answered = { op: "answered", questionId } as const;
@@ -355,36 +401,99 @@ function asList(starting: DraftAnswerValue): readonly DraftAnswerValue[] {
   return typeof starting === "object" ? starting : [starting];
 }
 
-/** The children a combinator keeps when the author switches between `and`/`or`/`not`. */
+/**
+ * The children a nesting node keeps when the author switches between `and`, `or`, `not` and
+ * the two group operators that carry a nested condition.
+ *
+ * A group op's nested condition counts as a child here, which is what makes "wrap what I
+ * already wrote in `anyInstance`" and "unwrap it again" both lossless gestures.
+ */
 function childrenOf(previous: DraftCondition | undefined, questionId: string): DraftCondition[] {
   if (previous === undefined) return [{ op: "answered", questionId }];
   if (previous.op === "and" || previous.op === "or") return [...previous.conditions];
-  if (previous.op === "not") return [previous.condition];
-  return [previous];
+  const only = nestedOf(previous);
+  return only === undefined ? [previous] : [only];
 }
 
-/** The single child `not` keeps, when there is one to keep. */
-function firstChildOf(previous: DraftCondition | undefined): DraftCondition | undefined {
+/**
+ * The child `not` keeps when the author wraps what they already wrote.
+ *
+ * It WRAPS a whole-group read rather than unwrapping it, and that is the one case worth stating:
+ * `not(everyInstance(G, c))` is the shape an author writing a warning actually wants - "show this
+ * unless every passenger has a passport" - and it is the shape whose reading the rule sentence
+ * spells out, because it is TRUE over an empty group. Unwrapping to `not(c)` would silently throw
+ * the group read away at the moment the author reached for the negation.
+ *
+ * `not` over a `not` still unwraps, which is the natural toggle, and a combinator still yields its
+ * first branch.
+ */
+function notChildOf(previous: DraftCondition | undefined): DraftCondition | undefined {
   if (previous === undefined) return undefined;
   if (previous.op === "and" || previous.op === "or") return previous.conditions[0];
   if (previous.op === "not") return previous.condition;
   return previous;
 }
 
-/** Nesting depth: a leaf is 1, each combinator adds one. Mirrors the kernel's own. */
-export function conditionDepth(condition: DraftCondition): number {
-  switch (condition.op) {
-    case "and":
-    case "or":
-      return 1 + Math.max(...condition.conditions.map(conditionDepth));
-    case "not":
-      return 1 + conditionDepth(condition.condition);
-    default:
-      return 1;
-  }
+/**
+ * The nested condition a whole-group operator keeps, which may never itself read a group.
+ *
+ * **A whole-group operator may not sit inside another's condition** (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`,
+ * Q25 ruled 2026-09-29), directly or through `and`, `or` and `not`, because the nested pair costs
+ * the product of the two groups' maxima whatever the rule targets. So a candidate carrying a group
+ * read anywhere inside it is dropped for a plain `answered` rather than carried over - which is the
+ * refusal taken at the control, in the one picker sequence that would otherwise produce it:
+ * switching `instanceCount` to `anyInstance` would have nested the count inside the new node.
+ *
+ * Switching between `anyInstance` and `everyInstance` keeps the condition, which is the carry-over
+ * an author would be annoyed to lose: those two are the same question asked two ways.
+ */
+function groupNestedOf(previous: DraftCondition | undefined): DraftCondition | undefined {
+  if (previous === undefined) return undefined;
+  const candidate =
+    previous.op === "and" || previous.op === "or"
+      ? previous.conditions[0]
+      : (nestedOf(previous) ?? previous);
+  if (candidate === undefined) return undefined;
+  return conditionGroupReferences(candidate).length > 0 ? undefined : candidate;
 }
 
-/** Every questionId the condition reads, deduplicated, in first-encounter order. */
+/** The one nested condition `not`, `anyInstance` and `everyInstance` each carry. */
+function nestedOf(condition: DraftCondition): DraftCondition | undefined {
+  if (
+    condition.op === "not" ||
+    condition.op === "anyInstance" ||
+    condition.op === "everyInstance"
+  ) {
+    return condition.condition;
+  }
+  return undefined;
+}
+
+/**
+ * Nesting depth: a leaf is 1, each nesting node adds one. Mirrors the kernel's own.
+ *
+ * `anyInstance` and `everyInstance` recurse exactly as `not` does, because their nested
+ * condition counts toward `CONDITION_MAX_DEPTH` (ADR-03 as amended 2026-09-29; the cap
+ * stays 8). `instanceCount` carries no condition and is a leaf.
+ */
+export function conditionDepth(condition: DraftCondition): number {
+  if (condition.op === "and" || condition.op === "or") {
+    return 1 + Math.max(...condition.conditions.map(conditionDepth));
+  }
+  const nested = nestedOf(condition);
+  return nested === undefined ? 1 : 1 + conditionDepth(nested);
+}
+
+/**
+ * Every questionId the condition reads, deduplicated, in first-encounter order.
+ *
+ * It walks INTO a group operator's nested condition, which is right for every consumer: the
+ * bench prompts for what a condition reads whether or not the read is per instance, and the
+ * forward-only geometry needs the question's own position for a bare read. What the span
+ * rule needs on top of this is {@link conditionGroupReferences}, kept separate because a
+ * whole-group read and a bare question read cut document order at different places
+ * (`eligibleTargets`).
+ */
 export function conditionReferences(condition: DraftCondition): readonly string[] {
   const found: string[] = [];
   collect(condition, found);
@@ -400,10 +509,57 @@ function collect(condition: DraftCondition, out: string[]): void {
       });
       return;
     case "not":
+    case "anyInstance":
+    case "everyInstance":
       collect(condition.condition, out);
+      return;
+    case "instanceCount":
+      // A groupId and no question: a `default:` branch here would push `undefined` as
+      // though it were a question id, which is the exact trap the kernel's own schema note
+      // warns every condition walker about.
       return;
     default:
       out.push(condition.questionId);
+  }
+}
+
+/**
+ * Every groupId the condition reads with a whole-group operator, in first-encounter order.
+ *
+ * The other half of what a rule references, and a different KIND of read: a whole-group
+ * operator over G reads all of G, so it cuts document order at the end of G's span rather
+ * than at any one question's position (ADR-42 section 3.4, forward-only rule 2).
+ */
+export function conditionGroupReferences(condition: DraftCondition): readonly string[] {
+  const found: string[] = [];
+  collectGroups(condition, found);
+  return [...new Set(found)];
+}
+
+function collectGroups(condition: DraftCondition, out: string[]): void {
+  switch (condition.op) {
+    case "and":
+    case "or":
+      condition.conditions.forEach((child) => {
+        collectGroups(child, out);
+      });
+      return;
+    case "not":
+      collectGroups(condition.condition, out);
+      return;
+    case "anyInstance":
+    case "everyInstance":
+      out.push(condition.groupId);
+      // Recursed into even though a nested whole-group read is refused at publish
+      // (`REPEAT_OPERATOR_NESTING_NOT_ALLOWED`, Q25): a draft carrying one is a state an
+      // author can reach through the JSON pane, and the target geometry has to describe the
+      // draft as it is rather than as the kernel will insist it becomes.
+      collectGroups(condition.condition, out);
+      return;
+    case "instanceCount":
+      out.push(condition.groupId);
+      return;
+    default:
   }
 }
 
@@ -428,8 +584,8 @@ export function nodeAt(condition: DraftCondition, path: ConditionPath): DraftCon
 
 function childAt(condition: DraftCondition, index: number): DraftCondition | undefined {
   if (condition.op === "and" || condition.op === "or") return condition.conditions[index];
-  if (condition.op === "not") return index === 0 ? condition.condition : undefined;
-  return undefined;
+  const nested = nestedOf(condition);
+  return index === 0 ? nested : undefined;
 }
 
 /** Replace the node at `path`, returning a new tree. An unresolvable path is a no-op. */
@@ -450,10 +606,47 @@ export function replaceAt(
       conditions: condition.conditions.map((c, at) => (at === index ? replaced : c)),
     };
   }
-  if (condition.op === "not" && index === 0) {
+  if (index !== 0) return condition;
+  if (condition.op === "not") {
     return { op: "not", condition: replaceAt(condition.condition, rest, next) };
   }
+  // The two group operators that carry a nested condition address it as child 0, exactly as
+  // `not` does, so the editor can render the nested tree through the same recursion. The
+  // `groupId` is preserved rather than rebuilt: replacing a node inside the condition is not
+  // a change of which group the rule reads.
+  if (condition.op === "anyInstance" || condition.op === "everyInstance") {
+    return {
+      op: condition.op,
+      groupId: condition.groupId,
+      condition: replaceAt(condition.condition, rest, next),
+    };
+  }
   return condition;
+}
+
+/** Point a whole-group operator at another group, keeping its nested condition. */
+export function withGroupId(condition: DraftCondition, groupId: string): DraftCondition {
+  if (condition.op === "instanceCount") return { ...condition, groupId };
+  if (condition.op === "anyInstance" || condition.op === "everyInstance") {
+    return { op: condition.op, groupId, condition: condition.condition };
+  }
+  return condition;
+}
+
+/** Change what an `instanceCount` compares against, keeping the group it counts. */
+export function withInstanceCount(
+  condition: DraftCondition,
+  change: { readonly compare?: InstanceCountComparison; readonly value?: number },
+): DraftCondition {
+  if (condition.op !== "instanceCount") return condition;
+  return {
+    op: "instanceCount",
+    groupId: condition.groupId,
+    compare: change.compare ?? condition.compare,
+    // `min(0)` in the kernel's schema, so a negative is a node that does not parse rather
+    // than a comparison that never matches; clamped here so no keystroke can produce one.
+    value: Math.max(0, Math.trunc(change.value ?? condition.value)),
+  };
 }
 
 /**

@@ -1,3 +1,4 @@
+import { stepPins } from "./draft.ts";
 import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
 
 /**
@@ -189,7 +190,7 @@ function flattenPins(steps: readonly DraftStep[]): readonly DraftPin[] {
   const seen = new Set<string>();
   const pins: DraftPin[] = [];
   for (const step of steps) {
-    for (const pin of step.items) {
+    for (const pin of stepPins(step)) {
       if (seen.has(pin.questionId)) continue;
       seen.add(pin.questionId);
       pins.push(pin);

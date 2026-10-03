@@ -588,10 +588,11 @@ test("the rule test bench answers with the engine's own verdict", async ({ page 
 test("the operator picker filters as you type, and keeps the ones that do not apply", async ({
   page,
 }) => {
-  // A `Select` is a list you scan; this one is thirteen phrases and only grows, so it is a
-  // combobox (Code Owner, 2026-08-30). Both halves are asserted, because the second is the
-  // one a filter tends to eat: an operator this question's type does not accept stays in
-  // the list, disabled, so "that exists but not here" is still readable.
+  // A `Select` is a list you scan; this one is SIXTEEN phrases and only grows, so it is a
+  // combobox (Code Owner, 2026-08-30 - thirteen then, and task 074's three whole-group
+  // operators are the growth that ruling predicted). Both halves are asserted, because the
+  // second is the one a filter tends to eat: an operator this question's type does not accept
+  // stays in the list, disabled, so "that exists but not here" is still readable.
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${insuranceFormId}`);
@@ -627,10 +628,17 @@ test("the operator picker filters as you type, and keeps the ones that do not ap
   await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeDisabled();
   await expect(page.getByRole("option", { name: "equals (the whole answer)" })).toBeEnabled();
 
-  // Typing narrows it to what was typed, which is the whole point of the control.
+  // Typing narrows it to what was typed, which is the whole point of the control. Sixteen
+  // operators down to the two that carry the typed text, NAMED rather than merely counted:
+  // "at le" matched one phrase until task 074 added "at least one instance of a group
+  // matches", and a count on its own would read as a regression rather than as the list
+  // having grown an honest second match.
   await operator.fill("at le");
-  await expect(page.getByRole("option")).toHaveCount(1);
+  await expect(page.getByRole("option")).toHaveCount(2);
   await expect(page.getByRole("option", { name: "is at least", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("option", { name: "at least one instance of a group matches", exact: true }),
+  ).toBeVisible();
 
   // A filter that matches nothing says so rather than closing the list, which would be
   // indistinguishable from the control having failed.

@@ -65,8 +65,23 @@ import type { DraftForm } from "./types.ts";
  * (`ruleHref` in `lib/forms/issues.ts`). So the rail's Rules row is an ordinary sibling
  * link and nothing switches a selection to reach a rule.
  */
+/**
+ * A THIRD was added by task 074, and unlike the retired `kind: "rules"` it is not a route in
+ * waiting. A repeating group's settings are a panel of the STEP the group sits in: its member
+ * list is the step editor's own ownership grid, its bounds are a property of where it sits in
+ * document order, and the rail already nests the groups under their step. A route would make
+ * `/forms/{id}/groups/{groupId}` a fourth place a draft is edited, with its own save model,
+ * for a panel that is six fields - which is exactly the "step per route" shape
+ * `plan/admin-ux-audit.md` §3.5 records as the POC's scope bug.
+ *
+ * It carries its `stepId` as well as its `groupId`, because the panel's member list is scoped
+ * to the step and because a selection naming only a group would have to search the draft for
+ * it on every render.
+ */
 export type BuilderSelection =
-  { readonly kind: "form" } | { readonly kind: "step"; readonly stepId: string };
+  | { readonly kind: "form" }
+  | { readonly kind: "step"; readonly stepId: string }
+  | { readonly kind: "group"; readonly stepId: string; readonly groupId: string };
 
 export interface BuilderRailSnapshot {
   readonly draft: DraftForm;
@@ -79,6 +94,13 @@ export interface BuilderRailSnapshot {
   readonly rename: (stepId: string, title: string) => void;
   readonly move: (stepId: string, delta: -1 | 1) => void;
   readonly remove: (stepId: string) => void;
+  /** Show one repeating group's settings panel (074). */
+  readonly chooseGroup: (stepId: string, groupId: string) => void;
+  /** Add a repeating group to one step, and open its panel. */
+  readonly addGroup: (stepId: string, label: string) => void;
+  readonly renameGroup: (groupId: string, label: string) => void;
+  readonly moveGroup: (stepId: string, groupId: string, delta: -1 | 1) => void;
+  readonly removeGroup: (groupId: string) => void;
 }
 
 let snapshot: BuilderRailSnapshot | undefined;

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, Select } from "@/components/kit";
+import { Button, Select, TextField } from "@/components/kit";
 import { SearchableSelect } from "@/components/searchable-select";
 import {
   addBranch,
@@ -8,6 +8,7 @@ import {
   conditionForOp,
   conditionReferences,
   isCombinator,
+  isGroupOp,
   isOpSupported,
   MAX_CONDITION_DEPTH,
   nodeAt,
@@ -16,19 +17,24 @@ import {
   removeBranch,
   replaceAt,
   typeOfPinnedVersion,
+  withGroupId,
+  withInstanceCount,
   type ConditionPath,
 } from "@/lib/forms/condition";
-import { draftDocumentOrder } from "@/lib/forms/draft";
+import { draftDocumentOrder, draftGroups, instanceNoun } from "@/lib/forms/draft";
 import {
   CONDITION_OPS,
+  INSTANCE_COUNT_COMPARISONS,
   type ConditionOp,
   type DraftAnswerValue,
   type DraftCondition,
   type DraftForm,
   type DraftRule,
+  type InstanceCountComparison,
   type PinnableQuestion,
 } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
+import { textOf } from "@/lib/questions/definition";
 import type { QuestionType } from "@/lib/questions/types";
 import type { ReadState } from "@/lib/read-state";
 
@@ -122,29 +128,40 @@ interface NodeProps {
   readonly onReplace: (next: DraftCondition) => void;
 }
 
-/** One node of the tree: a leaf's controls, or a combinator and its branches. */
+/**
+ * One node of the tree, which is one of **three** shapes since task 074.
+ *
+ * A leaf reads one question, a combinator holds branches, and a whole-group operator reads a
+ * GROUP - a third arity rather than a leaf with a different field, because it carries a
+ * `groupId` instead of a `questionId` (ADR-42, ADR-03 as amended 2026-09-29). The split is
+ * read from `lib/forms/condition.ts`'s own arity table rather than from a list of op names
+ * here, so the admin cannot disagree with the kernel about which operator is which kind.
+ */
 function ConditionNode(props: NodeProps) {
   const node = nodeAt(props.root, props.path);
   if (node === undefined) return null;
-  const leaf = asLeaf(node);
   return (
     <div className="flex flex-col gap-2 border-l border-(--color-border) pl-3">
       <OperatorSelect {...props} node={node} />
-      {leaf === undefined ? (
-        <CombinatorBranches {...props} node={node} />
-      ) : (
-        <LeafControls {...props} node={leaf} />
-      )}
+      <NodeControls {...props} node={node} />
     </div>
   );
+}
+
+/** The controls below the operator picker, one set per arity. */
+function NodeControls(props: NodeProps & { readonly node: DraftCondition }) {
+  if (isGroupOp(props.node.op)) return <GroupReadControls {...props} />;
+  const leaf = asLeaf(props.node);
+  if (leaf === undefined) return <CombinatorBranches {...props} />;
+  return <LeafControls {...props} node={leaf} />;
 }
 
 /** Every leaf variant: the ten ops that read one question. */
 type LeafCondition = Extract<DraftCondition, { readonly questionId: string }>;
 
-/** The node as a leaf, or `undefined` when it is one of the three combinators. */
+/** The node as a leaf: not a combinator, and not one of the three whole-group reads. */
 function asLeaf(node: DraftCondition): LeafCondition | undefined {
-  return isCombinator(node.op) ? undefined : (node as LeafCondition);
+  return isCombinator(node.op) || isGroupOp(node.op) ? undefined : (node as LeafCondition);
 }
 
 /**
@@ -166,33 +183,173 @@ function OperatorSelect({
   const leaf = asLeaf(node);
   const questionId = leaf === undefined ? firstQuestionId(draft, node) : leaf.questionId;
   const context = questionContext(draft, library, questionId);
-  const unsupported = CONDITION_OPS.filter(
-    (op) => !isCombinator(op) && !isOpSupported(op, context.type),
+  const groups = draftGroups(draft);
+  // THE THREE GROUP OPERATORS ARE OFFERED WHEN THERE IS A GROUP TO READ, and disabled rather
+  // than hidden when there is not - the same rule this picker already applies to an operator a
+  // question's type does not accept, for the same reason. An author who cannot see that
+  // `anyInstance` exists learns nothing; one who sees it greyed, with the sentence below
+  // saying a repeating group has to exist first, learns where to go.
+  const unsupported = CONDITION_OPS.filter((op) =>
+    isGroupOp(op) ? groups.length === 0 : !isCombinator(op) && !isOpSupported(op, context.type),
   );
+  const groupId = "groupId" in node ? node.groupId : groups[0]?.groupId;
 
   return (
-    // SEARCHABLE (Code Owner, 2026-08-30). Thirteen operators whose names are phrases, in
-    // a popover you scan: typing "at least" is faster than reading down a list, and the
-    // list only grows. `disabledKeys` still marks the ones this question's type does not
-    // accept rather than hiding them, which is what keeps "that exists but not here"
-    // readable - the same call the `Select` made.
-    <SearchableSelect
-      label={t("forms.rule.op")}
-      value={node.op}
-      items={CONDITION_OPS.map((op) => ({ label: t(`forms.op.${op}`), value: op }))}
-      disabledKeys={[...unsupported]}
-      onChange={(next) => {
-        const op = next as ConditionOp;
-        onReplace(
-          replaceAt(
-            root,
-            path,
-            conditionForOp(op, questionId, context.type, context.options, node),
-          ),
-        );
-      }}
-    />
+    <>
+      {/* SEARCHABLE (Code Owner, 2026-08-30). Sixteen operators whose names are phrases, in
+          a popover you scan: typing "at least" is faster than reading down a list, and the
+          list only grows - it was thirteen when that was written and task 074 is the growth
+          it predicted. `disabledKeys` still marks the ones that do not apply rather than
+          hiding them, which is what keeps "that exists but not here" readable. */}
+      <SearchableSelect
+        label={t("forms.rule.op")}
+        value={node.op}
+        items={CONDITION_OPS.map((op) => ({ label: t(`forms.op.${op}`), value: op }))}
+        disabledKeys={[...unsupported]}
+        onChange={(next) => {
+          const op = next as ConditionOp;
+          onReplace(
+            replaceAt(
+              root,
+              path,
+              conditionForOp(op, questionId, context.type, context.options, node, groupId),
+            ),
+          );
+        }}
+      />
+      {groups.length === 0 && (
+        <p className="text-sm text-(--color-text-muted)">{t("forms.op.needsGroup")}</p>
+      )}
+    </>
   );
+}
+
+/**
+ * The controls of one whole-group read: which group, and then what about it.
+ *
+ * ## `anyInstance` and `everyInstance` are a group picker plus a NESTED CONDITION
+ *
+ * The nested tree is the editor's own recursion, addressed as child 0 exactly as `not`'s is
+ * (`replaceAt` in `lib/forms/condition.ts`), so it reuses the depth accounting rather than
+ * keeping a second one: the nested condition counts toward `CONDITION_MAX_DEPTH`, which stays
+ * 8, because the kernel's `conditionDepth` recurses into these nodes like it recurses into
+ * `not`.
+ *
+ * ## `everyInstance`'s reading is stated AT THE CONTROL
+ *
+ * Over a group with no live instance it is **false**, not vacuously true (Q7, ruled
+ * 2026-09-29), and its NEGATION is therefore true over an empty group - which is the shape an
+ * author is more likely to write, because a warning is usually phrased as a negation. The rule
+ * sentence says both out loud, and so does this panel: the editor is where an author decides to
+ * use the operator, so it is the first place the reading can be legible rather than discovered
+ * from a wrong warning in production.
+ *
+ * ## `instanceCount` is a group picker, a comparison and a number
+ *
+ * The comparison reuses the NAMES of the ordering operators as a field rather than introducing
+ * a second comparison vocabulary (ADR-03 as amended), which is why its five options read like
+ * the five `forms.rule.compare.*` and not like a new set of words.
+ */
+function GroupReadControls({
+  draft,
+  library,
+  root,
+  path,
+  node,
+  onReplace,
+}: NodeProps & { readonly node: DraftCondition }) {
+  if (!("groupId" in node)) return null;
+  const groups = draftGroups(draft);
+  const atCap = conditionDepth(root) >= MAX_CONDITION_DEPTH;
+  const chosen = groups.find((group) => group.groupId === node.groupId);
+  const noun = chosen === undefined ? node.groupId : instanceNoun(chosen, draft.defaultLocale);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-end gap-3">
+        <Select
+          label={t("forms.rule.group")}
+          value={node.groupId}
+          items={groupOptions(draft)}
+          onChange={(next) => {
+            onReplace(replaceAt(root, path, withGroupId(node, next)));
+          }}
+        />
+        {node.op === "instanceCount" && (
+          <>
+            <Select
+              label={t("forms.rule.instanceCompare")}
+              value={node.compare}
+              items={INSTANCE_COUNT_COMPARISONS.map((compare) => ({
+                label: t(`forms.rule.compare.${compare}`),
+                value: compare,
+              }))}
+              onChange={(next) => {
+                onReplace(
+                  replaceAt(
+                    root,
+                    path,
+                    withInstanceCount(node, { compare: next as InstanceCountComparison }),
+                  ),
+                );
+              }}
+            />
+            <TextField
+              label={t("forms.rule.instanceValue")}
+              value={String(node.value)}
+              inputMode="numeric"
+              onChange={(next) => {
+                const parsed = Number.parseInt(next.trim(), 10);
+                onReplace(
+                  replaceAt(
+                    root,
+                    path,
+                    withInstanceCount(node, {
+                      value: Number.isInteger(parsed) ? parsed : node.value,
+                    }),
+                  ),
+                );
+              }}
+            />
+          </>
+        )}
+      </div>
+
+      {node.op === "everyInstance" && (
+        <p className="text-sm text-(--color-text-muted)" data-testid="qcms-every-reading">
+          {t("forms.rule.everyInstanceReading")}
+        </p>
+      )}
+
+      {node.op !== "instanceCount" && (
+        <div className="flex flex-col gap-1">
+          <p className="text-xs font-semibold text-(--color-text-muted)">
+            {t("forms.rule.groupBranch", { group: noun })}
+          </p>
+          <ConditionNode
+            draft={draft}
+            library={library}
+            root={root}
+            path={[...path, 0]}
+            onReplace={onReplace}
+          />
+          {atCap && (
+            <p className="text-sm text-(--color-text-muted)">
+              {t("forms.rule.depthReached", { max: MAX_CONDITION_DEPTH })}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** The repeating groups a whole-group operator can read, named as the author named them. */
+function groupOptions(draft: DraftForm): { label: string; value: string }[] {
+  return draftGroups(draft).map((group) => {
+    const label = textOf(group.label, draft.defaultLocale);
+    return { label: label === "" ? group.groupId : label, value: group.groupId };
+  });
 }
 
 /** The `and`/`or`/`not` branches, each one a whole node again. */

@@ -303,6 +303,18 @@ const OPEN_REQUEST_BODY_SCHEMAS: Record<string, string> = {
     "test bench. The keys are question ids, which are the caller's data.",
   "PreviewDraftBody.answers":
     "A questionId -> AnswerValue map of the author's walk-through state, keyed by question id.",
+  // The hypothetical rosters both admin preview routes take (074, ADR-42). A map keyed by
+  // `groupId` is open for exactly the reason the two answer maps above are: the KEYS are the
+  // caller's own ids, so there is no fixed property set to close over. Every key and every id
+  // inside is parsed as a `GroupId` and an `InstanceId` by the handler and dropped when it is
+  // neither, so an undeclared key reaches nothing - and the roster is echoed back in the
+  // response, so what the API used is visible rather than inferred.
+  "PreviewConditionBody.instances":
+    "A groupId -> InstanceId[] map of the hypothetical roster the rule test bench minted. The " +
+    "keys are group ids, which are the caller's data.",
+  "PreviewDraftBody.instances":
+    "A groupId -> InstanceId[] map of the hypothetical roster the preview pane minted from each " +
+    "group's own min, keyed by group id.",
   SubmitBody:
     "The one request body that stays open (Code Owner, 2026-09-24, issue #893). It has no " +
     "sink: the handler reads one key, the stored submission and the outbox payload are built " +
