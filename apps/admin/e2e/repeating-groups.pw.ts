@@ -478,9 +478,19 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.goto(`http://localhost:${String(PORTAL_PORT)}/f/${FORM_SLUG}`);
   await portal.getByRole("button", { name: "Start" }).click();
   await portal.waitForURL(/\/s\/ses_/);
-  // Walk to the step the group is on: the trip questions come first.
+  // Walk to the step the group is on: the trip questions come first. The cursor's forward
+  // control is addressed by its testid rather than by its name, which is the convention
+  // `apps/portal/e2e/support/kitchen-sink.ts` sets - the control is "Continue" or "Submit"
+  // depending on where in the walk it sits, and the waits that matter are on the served step.
   await expect(portal.getByText("E2E Number question")).toBeVisible({ timeout: 60_000 });
-  await portal.getByRole("button", { name: "Continue" }).click();
+  const served = portal.waitForResponse(
+    (response) =>
+      response.url().includes("/step") &&
+      response.request().method() === "GET" &&
+      response.status() === 200,
+  );
+  await portal.getByTestId("primary-action").click();
+  await served;
   await expect(portal.getByRole("heading", { name: GROUP })).toBeVisible({ timeout: 60_000 });
   await expect(portal.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
   await waitForRenderedStep(portal);
