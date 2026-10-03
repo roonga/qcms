@@ -251,6 +251,7 @@ describe("the reporting views carry repeated answers", () => {
   beforeAll(async () => {
     const { formId, version } = await seedForm("frm_repeat_report");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -377,6 +378,7 @@ describe("the reporting views carry repeated answers", () => {
     const blankSession = SessionId.parse("ses_repeat_blank");
     const middle = InstanceId.parse("ins_blank");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: blankSession,
       formId,
       formVersion: version,

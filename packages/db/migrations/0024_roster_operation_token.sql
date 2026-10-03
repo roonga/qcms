@@ -1,1 +1,0 @@
-ALTER TABLE "answer_group_instances" ADD COLUMN "op_token" text;

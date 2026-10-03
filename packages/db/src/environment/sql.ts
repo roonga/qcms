@@ -42,6 +42,7 @@ import {
   getTableConfig,
 } from "drizzle-orm/pg-core";
 
+import { reportingViewStatements } from "../reporting-views.js";
 import {
   CONTROL_ROLE,
   CONTROL_SCHEMA,
@@ -349,44 +350,25 @@ function triggerSql(environment: string): string[] {
  * is the one place in the package where a schema name is interpolated, and it is
  * interpolated from the connection's own environment.
  *
- * The erasure guarantee is in the shape of the view rather than in a filter a caller
+ * **The view bodies are task 075's generator, called with this environment's names.**
+ * They are not written out here, and that is the whole point of 075 making them a
+ * function of their schema names: a view whose SQL is a literal cannot be created under
+ * a second schema name without copying it, and the copy is what drifts. The repeat
+ * grain, `answers_flat.instance_id` and the `answer_group_instances` join therefore
+ * reach every environment because they reach that one function, and task 067's
+ * per-workspace split will call it the same way.
+ *
+ * The erasure guarantee is in the shape of those views rather than in a filter a caller
  * has to remember: an erased session is absent because its tombstone joins, and a
- * non-submitted one is absent because the status is checked here (ADR-17, I11).
+ * non-submitted one is absent because the status is checked there (ADR-17, I11).
  */
 function reportingViewSql(environment: string): string[] {
-  const data = quote(dataSchemaName(environment));
-  const reporting = quote(reportingSchemaName(environment));
   return [
-    `CREATE SCHEMA ${reporting};`,
-    `CREATE VIEW ${reporting}."responses" AS
-SELECT
-\t"sub"."session_id" AS "session_id",
-\t"s"."form_id" AS "form_id",
-\t"s"."form_version" AS "form_version",
-\t"sub"."submitted_at" AS "submitted_at",
-\t"s"."access_mode" AS "access_mode",
-\tCOALESCE(
-\t\t(
-\t\t\tSELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value')
-\t\t\tFROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
-\t\t),
-\t\t'{}'::jsonb
-\t) AS "answers"
-FROM ${data}."submissions" "sub"
-JOIN ${data}."sessions" "s" ON "s"."session_id" = "sub"."session_id"
-LEFT JOIN ${data}."erasure_tombstones" "t" ON "t"."session_id" = "sub"."session_id"
-WHERE "s"."status" = 'submitted'
-\tAND "t"."session_id" IS NULL;`,
-    `CREATE VIEW ${reporting}."answers_flat" AS
-SELECT
-\t"r"."session_id" AS "session_id",
-\t"r"."form_id" AS "form_id",
-\t"r"."form_version" AS "form_version",
-\t"r"."submitted_at" AS "submitted_at",
-\t"kv"."key" AS "question_id",
-\t"kv"."value" AS "value"
-FROM ${reporting}."responses" "r"
-CROSS JOIN LATERAL jsonb_each("r"."answers") AS "kv"("key", "value");`,
+    `CREATE SCHEMA ${quote(reportingSchemaName(environment))};`,
+    ...reportingViewStatements({
+      reporting: reportingSchemaName(environment),
+      data: dataSchemaName(environment),
+    }),
   ];
 }
 
