@@ -144,7 +144,12 @@ function announcementText(
    */
   namedByIndicator: boolean,
 ): string {
-  if (delta.stepChanged && !namedByIndicator) {
+  if (delta.stepChanged) {
+    // Silent, not "fall through to the next case": a navigation between two views of one
+    // step changes the whole visible set, so letting it reach the branch case below
+    // reports a move as "2 questions were added below", which is both wrong and worse
+    // than the duplicate it was meant to remove.
+    if (namedByIndicator) return "";
     const current = stepIndex + 1;
     return headingText
       ? t("announce.stepChange", { current, total, title: headingText })
