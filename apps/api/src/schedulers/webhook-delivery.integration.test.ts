@@ -53,9 +53,10 @@ import {
 } from "@roonga/qcms-db";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
   startTestDb,
   type TestDb,
-  DEFAULT_TEST_ENVIRONMENT,
 } from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
@@ -397,7 +398,13 @@ describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)",
   beforeAll(() => {
     // Registered with the harness rather than ended in a local `afterAll` (issue #888).
     pool = testDb.register(
-      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      new Pool({
+        connectionString: testDb.connectionUri,
+        max: 8,
+        // The search path an API pool connects with (ADR-40): every data-plane table is
+        // declared unqualified, so a pool that sets none resolves `outbox` to nothing.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "outbox concurrency pool",
     );
     const db = drizzle(pool, { schema }) as unknown as NonNullable<TestDepsOverrides["db"]>;

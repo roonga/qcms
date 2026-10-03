@@ -17,7 +17,13 @@ import { FormId } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
 import { webhookDeliveries } from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 import {
   claimDueDeliveries,
   createForm,
@@ -515,7 +521,14 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
   beforeAll(() => {
     // Registered with the harness rather than ended in a local `afterAll` (issue #888).
     pool = testDb.register(
-      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      new Pool({
+        connectionString: testDb.connectionUri,
+        max: 8,
+        // The same search path the harness gives its own connections (ADR-40): every
+        // data-plane table is declared unqualified, so a pool that sets none resolves
+        // `answers` to nothing at all.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "delivery concurrency pool",
     );
     db = drizzle(pool, { schema });

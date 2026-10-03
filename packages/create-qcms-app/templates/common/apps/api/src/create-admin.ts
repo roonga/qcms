@@ -99,6 +99,12 @@ async function main(): Promise<number> {
     process.stderr.write(`${message}\n`);
   });
 
+  // The **control** credential (ADR-40, Q40). This command writes an administrator into
+  // `control`, which is `qcms_app_control`'s plane, and `DATABASE_URL` is that pool's
+  // connection string after the split - so the single URL it has always read is still the
+  // right one and no new variable is needed. No `search_path` is set, and none is needed:
+  // every control-plane table is declared on the `control` Drizzle schema, so the adapter
+  // emits `control."user"` rather than a bare name.
   const pool = new pg.Pool({ connectionString: config.databaseUrl });
   const db = drizzle(pool, { schema }) as unknown as Executor;
   const auth = createAdminAuth({
