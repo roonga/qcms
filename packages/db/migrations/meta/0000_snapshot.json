@@ -1,5 +1,5 @@
 {
-  "id": "7ef98d54-0ac5-48eb-abf9-1283eeb732bc",
+  "id": "2f9cc952-2377-48c1-ae0f-9614fa3ad051",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -1233,6 +1233,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'admin'"
+        },
+        "mustChangePassword": {
+          "name": "mustChangePassword",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},

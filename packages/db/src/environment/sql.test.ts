@@ -37,47 +37,54 @@ import { environmentObjectNames } from "./sql.js";
  *
  * Grep the superseded migration SQL for each data-plane table name and take every
  * `CREATE TRIGGER`, `CONSTRAINT ... CHECK`, `CONSTRAINT ... UNIQUE` and `CREATE INDEX`
- * that names it:
+ * that names it. Against the chain this task replaces, which is every migration up to
+ * and including task 075's reporting rework:
  *
- *   - **triggers, 2**: `answers_reject_update` (0001), `answers_reject_delete` (0004)
- *   - **CHECKs, 3**: `answers_retraction_value` (0009),
- *     `webhook_deliveries_snippet_requires_attempt` (0015),
- *     `outbox_redacted_payload_has_no_answers` (0016)
- *   - **UNIQUE, 1**: `webhook_deliveries_event_webhook_uq` (0007)
- *   - **indexes, 6**: `sessions_status_expires_at_idx`,
- *     `answers_session_question_answered_at_idx`, `outbox_delivery_idx` (all 0000),
- *     `webhook_deliveries_due_idx` (0007), `outbox_payload_retention_idx`,
- *     `webhook_deliveries_snippet_retention_idx` (both 0018)
+ *   - **triggers, 4**: `answers_reject_update`, `answers_reject_delete`,
+ *     `answer_group_instances_reject_update`, `answer_group_instances_reject_delete`
+ *     (the last two are task 072's)
+ *   - **CHECKs, 4**: `answers_retraction_value`,
+ *     `webhook_deliveries_snippet_requires_attempt`,
+ *     `outbox_redacted_payload_has_no_answers`, `answer_group_instances_event` (072's)
+ *   - **UNIQUE, 1**: `webhook_deliveries_event_webhook_uq`
+ *   - **indexes, 7**: `sessions_status_expires_at_idx`,
+ *     `answers_session_question_answered_at_idx`, `outbox_delivery_idx`,
+ *     `webhook_deliveries_due_idx`, `outbox_payload_retention_idx`,
+ *     `webhook_deliveries_snippet_retention_idx`,
+ *     `answer_group_instances_session_group_occurred_at_idx` (072's)
  *
- * That is **twelve**, plus Q46's `sessions_environment_matches`, which is **thirteen**.
- * The control-plane guards of the same chain - `question_versions_version_positive`,
- * `form_versions_version_positive`, `questions_slug_unique`, `session_token_unique`,
- * `user_email_unique`, `question_versions_freeze_published` and
- * `form_versions_reject_update` - are one copy each and are not in this set.
+ * That is **sixteen**, plus Q46's `sessions_environment_matches`, which is
+ * **seventeen**. The control-plane guards of the same chain are one copy each and are
+ * not in this set.
  *
- * Foreign keys declared **on** a data-plane table: four in-plane
+ * Foreign keys declared **on** a data-plane table: **five** in-plane
  * (`answers_session_id_sessions_session_id_fk`,
+ * `answer_group_instances_session_id_sessions_session_id_fk`,
  * `submissions_session_id_sessions_session_id_fk`,
  * `webhook_deliveries_outbox_id_outbox_id_fk`,
- * `webhook_deliveries_webhook_id_webhooks_webhook_id_fk`) and three crossing into
- * `control` (`sessions_form_version_fk`; the link key, now composite on
+ * `webhook_deliveries_webhook_id_webhooks_webhook_id_fk`) and **three** crossing into
+ * `control` (`sessions_form_version_fk`; the link key, composite on
  * `(link_id, environment)` and renamed `sessions_secure_link_fk` by Q46;
- * `webhooks_form_id_forms_form_id_fk`). That is **seven**.
+ * `webhooks_form_id_forms_form_id_fk`). That is **eight**.
  *
  * ## Against the figures in the plan and in ADR-40
  *
- * Both state **eight** tables, **seventeen** guards and **eight** foreign keys. Those
- * are the reconciled totals **with task 072's `answer_group_instances`** included - one
- * table, two triggers, one CHECK, one index and one foreign key. 072 has not merged, so
- * it is not on the chain this lane rebases onto yet, and Q50 says this task rebases
- * after it. **At that rebase the figures below become 8, 17 and 8** and this comment
- * gets the roster's five names added to the derivation above. Nothing else changes: the
- * generator emits whatever the data-plane module holds.
+ * They agree. Both state **eight** data-plane tables, **seventeen** guards and
+ * **eight** foreign keys, which is **twenty-five** objects counted as guards plus
+ * foreign keys, and that is what the derivation above reaches now that tasks 072, 073
+ * and 075 have merged and Q50's landing order is satisfied.
+ *
+ * **Three things that moved under this task and changed none of these numbers.** Task
+ * 073's `op_token` is a nullable column on the roster and is deliberately unconstrained
+ * in the database, because the invariant it serves is cross-row and is held in the API
+ * inside the session's advisory lock; task 075 reshaped both reporting views and added
+ * no table, guard or foreign key, views being counted nowhere in this set; and task
+ * 061's `mustChangePassword` is a control-plane column, one copy, outside it.
  */
 const PER_ENVIRONMENT = {
-  tables: 7,
-  guards: 13,
-  inPlaneForeignKeys: 4,
+  tables: 8,
+  guards: 17,
+  inPlaneForeignKeys: 5,
   crossingForeignKeys: 3,
 } as const;
 

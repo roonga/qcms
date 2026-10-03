@@ -179,6 +179,7 @@ CREATE TABLE "control"."user" (
 	"updatedAt" timestamp DEFAULT now() NOT NULL,
 	"twoFactorEnabled" boolean,
 	"role" text DEFAULT 'admin' NOT NULL,
+	"mustChangePassword" boolean DEFAULT false NOT NULL,
 	CONSTRAINT "user_email_unique" UNIQUE("email")
 );
 --> statement-breakpoint
@@ -308,10 +309,22 @@ CREATE TABLE "data_test"."answers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"session_id" text NOT NULL,
 	"question_id" text NOT NULL,
+	"instance_id" text,
 	"value" jsonb,
 	"retracted" boolean DEFAULT false NOT NULL,
 	"answered_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "answers_retraction_value" CHECK (("answers"."retracted" AND "answers"."value" IS NULL) OR (NOT "answers"."retracted" AND "answers"."value" IS NOT NULL))
+);
+--> statement-breakpoint
+CREATE TABLE "data_test"."answer_group_instances" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"session_id" text NOT NULL,
+	"group_id" text NOT NULL,
+	"instance_id" text NOT NULL,
+	"event" text NOT NULL,
+	"op_token" text,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "answer_group_instances_event" CHECK ("answer_group_instances"."event" IN ('added', 'removed'))
 );
 --> statement-breakpoint
 CREATE TABLE "data_test"."submissions" (
@@ -383,6 +396,8 @@ ALTER TABLE "data_test"."sessions" ADD CONSTRAINT "sessions_secure_link_fk" FORE
 --> statement-breakpoint
 ALTER TABLE "data_test"."answers" ADD CONSTRAINT "answers_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_test"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
+ALTER TABLE "data_test"."answer_group_instances" ADD CONSTRAINT "answer_group_instances_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_test"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
 ALTER TABLE "data_test"."submissions" ADD CONSTRAINT "submissions_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_test"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "data_test"."webhooks" ADD CONSTRAINT "webhooks_form_id_forms_form_id_fk" FOREIGN KEY ("form_id") REFERENCES "control"."forms"("form_id") ON DELETE no action ON UPDATE no action;
@@ -393,7 +408,9 @@ ALTER TABLE "data_test"."webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_
 --> statement-breakpoint
 CREATE INDEX "sessions_status_expires_at_idx" ON "data_test"."sessions" USING btree("status","expires_at");
 --> statement-breakpoint
-CREATE INDEX "answers_session_question_answered_at_idx" ON "data_test"."answers" USING btree("session_id","question_id","answered_at" DESC NULLS LAST);
+CREATE INDEX "answers_session_question_answered_at_idx" ON "data_test"."answers" USING btree("session_id","question_id","instance_id","answered_at" DESC NULLS LAST);
+--> statement-breakpoint
+CREATE INDEX "answer_group_instances_session_group_occurred_at_idx" ON "data_test"."answer_group_instances" USING btree("session_id","group_id","occurred_at");
 --> statement-breakpoint
 CREATE INDEX "outbox_delivery_idx" ON "data_test"."outbox" USING btree("delivered_at","next_attempt_at") WHERE "outbox"."dead_lettered_at" is null;
 --> statement-breakpoint
@@ -413,6 +430,16 @@ CREATE TRIGGER "answers_reject_delete"
 	BEFORE DELETE ON "data_test"."answers"
 	FOR EACH ROW EXECUTE FUNCTION control."answers_reject_delete"();
 --> statement-breakpoint
+-- the roster is append-only (I5, ADR-42): every UPDATE is rejected
+CREATE TRIGGER "answer_group_instances_reject_update"
+	BEFORE UPDATE ON "data_test"."answer_group_instances"
+	FOR EACH ROW EXECUTE FUNCTION control."answer_group_instances_reject_update"();
+--> statement-breakpoint
+-- DELETE passes only through the two sanctioned whole-session doors (ADR-17)
+CREATE TRIGGER "answer_group_instances_reject_delete"
+	BEFORE DELETE ON "data_test"."answer_group_instances"
+	FOR EACH ROW EXECUTE FUNCTION control."answer_group_instances_reject_delete"();
+--> statement-breakpoint
 CREATE SCHEMA "reporting_test";
 --> statement-breakpoint
 CREATE VIEW "reporting_test"."responses" AS
@@ -422,16 +449,65 @@ SELECT
 	"s"."form_version" AS "form_version",
 	"sub"."submitted_at" AS "submitted_at",
 	"s"."access_mode" AS "access_mode",
-	COALESCE(
-		(
-			SELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value')
-			FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
-		),
-		'{}'::jsonb
-	) AS "answers"
+	COALESCE("agg"."answers", '{}'::jsonb) AS "answers"
 FROM "data_test"."submissions" "sub"
 JOIN "data_test"."sessions" "s" ON "s"."session_id" = "sub"."session_id"
 LEFT JOIN "data_test"."erasure_tombstones" "t" ON "t"."session_id" = "sub"."session_id"
+LEFT JOIN LATERAL (
+	-- One pass over the locked answers, split by whether the answer names an
+	-- instance, then merged into one object. jsonb_object_agg is safe here
+	-- BECAUSE of the split: the keys it sees are one per ungrouped question plus
+	-- one per group id, and neither can repeat.
+	SELECT jsonb_object_agg("merged"."key", "merged"."value") AS "answers"
+	FROM (
+		SELECT
+			"flat"."item" ->> 'questionId' AS "key",
+			"flat"."item" -> 'value' AS "value"
+		FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "flat"("item")
+		WHERE NOT ("flat"."item" ? 'instanceId')
+		UNION ALL
+		SELECT
+			"instances"."group_id" AS "key",
+			jsonb_agg("instances"."instance" ORDER BY "instances"."first_seen") AS "value"
+		FROM (
+			SELECT
+				"roster"."group_id" AS "group_id",
+				"live"."first_seen" AS "first_seen",
+				jsonb_build_object('instance_id', "live"."instance_id")
+					|| COALESCE("cells"."cells", '{}'::jsonb) AS "instance"
+			FROM (
+				-- The LIVE instance set, taken from the submission's own flow state
+				-- rather than from its answers: an instance a respondent added and left
+				-- blank is still live (ADR-42), so deriving the list from `answers`
+				-- would drop it and shift every later instance's ordinal by one.
+				-- `visible` carries one entry per (visible question, live instance) in
+				-- document order with instances in roster order, which is the order the
+				-- locked set froze.
+				SELECT
+					"v"."item" ->> 'instanceId' AS "instance_id",
+					min("v"."ordinality") AS "first_seen"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'flowState' -> 'visible')
+					WITH ORDINALITY AS "v"("item", "ordinality")
+				WHERE "v"."item" ? 'instanceId'
+				GROUP BY "v"."item" ->> 'instanceId'
+			) "live"
+			JOIN (
+				SELECT DISTINCT "agi"."instance_id" AS "instance_id", "agi"."group_id" AS "group_id"
+				FROM "data_test"."answer_group_instances" "agi"
+				WHERE "agi"."session_id" = "sub"."session_id"
+			) "roster" ON "roster"."instance_id" = "live"."instance_id"
+			LEFT JOIN LATERAL (
+				-- That instance's answered cells. LEFT, because a live instance with no
+				-- answer at all contributes an object carrying only its id, which is
+				-- what makes jsonb_array_length(answers -> '<groupId>') the live count.
+				SELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value') AS "cells"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
+				WHERE "elem"."item" ->> 'instanceId' = "live"."instance_id"
+			) "cells" ON true
+		) "instances"
+		GROUP BY "instances"."group_id"
+	) "merged"
+) "agg" ON true
 WHERE "s"."status" = 'submitted'
 	AND "t"."session_id" IS NULL;
 --> statement-breakpoint
@@ -441,10 +517,35 @@ SELECT
 	"r"."form_id" AS "form_id",
 	"r"."form_version" AS "form_version",
 	"r"."submitted_at" AS "submitted_at",
-	"kv"."key" AS "question_id",
-	"kv"."value" AS "value"
+	"unpivoted"."question_id" AS "question_id",
+	"unpivoted"."value" AS "value",
+	"unpivoted"."instance_id" AS "instance_id"
 FROM "reporting_test"."responses" "r"
-CROSS JOIN LATERAL jsonb_each("r"."answers") AS "kv"("key", "value");
+CROSS JOIN LATERAL (
+	-- Answers outside every group: the key is the questionId and there is no
+	-- instance. A multiChoice selection stays ONE row (the grain is the question,
+	-- not the option), which is what the second predicate protects.
+	SELECT
+		"kv"."key" AS "question_id",
+		NULL::text AS "instance_id",
+		"kv"."value" AS "value"
+	FROM jsonb_each("r"."answers") AS "kv"("key", "value")
+	WHERE jsonb_typeof("kv"."value") <> 'array'
+		OR jsonb_typeof("kv"."value" -> 0) IS DISTINCT FROM 'object'
+	UNION ALL
+	-- Answers inside a group: one row per (instance, member question), with the
+	-- group's own array key contributing no row of its own.
+	SELECT
+		"cell"."key" AS "question_id",
+		"instance"."item" ->> 'instance_id' AS "instance_id",
+		"cell"."value" AS "value"
+	FROM jsonb_each("r"."answers") AS "group_key"("key", "value")
+	CROSS JOIN jsonb_array_elements("group_key"."value") AS "instance"("item")
+	CROSS JOIN jsonb_each("instance"."item") AS "cell"("key", "value")
+	WHERE jsonb_typeof("group_key"."value") = 'array'
+		AND jsonb_typeof("group_key"."value" -> 0) = 'object'
+		AND "cell"."key" <> 'instance_id'
+) "unpivoted";
 --> statement-breakpoint
 CREATE SCHEMA "data_prod";
 --> statement-breakpoint
@@ -465,10 +566,22 @@ CREATE TABLE "data_prod"."answers" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"session_id" text NOT NULL,
 	"question_id" text NOT NULL,
+	"instance_id" text,
 	"value" jsonb,
 	"retracted" boolean DEFAULT false NOT NULL,
 	"answered_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "answers_retraction_value" CHECK (("answers"."retracted" AND "answers"."value" IS NULL) OR (NOT "answers"."retracted" AND "answers"."value" IS NOT NULL))
+);
+--> statement-breakpoint
+CREATE TABLE "data_prod"."answer_group_instances" (
+	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"session_id" text NOT NULL,
+	"group_id" text NOT NULL,
+	"instance_id" text NOT NULL,
+	"event" text NOT NULL,
+	"op_token" text,
+	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
+	CONSTRAINT "answer_group_instances_event" CHECK ("answer_group_instances"."event" IN ('added', 'removed'))
 );
 --> statement-breakpoint
 CREATE TABLE "data_prod"."submissions" (
@@ -540,6 +653,8 @@ ALTER TABLE "data_prod"."sessions" ADD CONSTRAINT "sessions_secure_link_fk" FORE
 --> statement-breakpoint
 ALTER TABLE "data_prod"."answers" ADD CONSTRAINT "answers_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_prod"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
+ALTER TABLE "data_prod"."answer_group_instances" ADD CONSTRAINT "answer_group_instances_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_prod"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
 ALTER TABLE "data_prod"."submissions" ADD CONSTRAINT "submissions_session_id_sessions_session_id_fk" FOREIGN KEY ("session_id") REFERENCES "data_prod"."sessions"("session_id") ON DELETE no action ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "data_prod"."webhooks" ADD CONSTRAINT "webhooks_form_id_forms_form_id_fk" FOREIGN KEY ("form_id") REFERENCES "control"."forms"("form_id") ON DELETE no action ON UPDATE no action;
@@ -550,7 +665,9 @@ ALTER TABLE "data_prod"."webhook_deliveries" ADD CONSTRAINT "webhook_deliveries_
 --> statement-breakpoint
 CREATE INDEX "sessions_status_expires_at_idx" ON "data_prod"."sessions" USING btree("status","expires_at");
 --> statement-breakpoint
-CREATE INDEX "answers_session_question_answered_at_idx" ON "data_prod"."answers" USING btree("session_id","question_id","answered_at" DESC NULLS LAST);
+CREATE INDEX "answers_session_question_answered_at_idx" ON "data_prod"."answers" USING btree("session_id","question_id","instance_id","answered_at" DESC NULLS LAST);
+--> statement-breakpoint
+CREATE INDEX "answer_group_instances_session_group_occurred_at_idx" ON "data_prod"."answer_group_instances" USING btree("session_id","group_id","occurred_at");
 --> statement-breakpoint
 CREATE INDEX "outbox_delivery_idx" ON "data_prod"."outbox" USING btree("delivered_at","next_attempt_at") WHERE "outbox"."dead_lettered_at" is null;
 --> statement-breakpoint
@@ -570,6 +687,16 @@ CREATE TRIGGER "answers_reject_delete"
 	BEFORE DELETE ON "data_prod"."answers"
 	FOR EACH ROW EXECUTE FUNCTION control."answers_reject_delete"();
 --> statement-breakpoint
+-- the roster is append-only (I5, ADR-42): every UPDATE is rejected
+CREATE TRIGGER "answer_group_instances_reject_update"
+	BEFORE UPDATE ON "data_prod"."answer_group_instances"
+	FOR EACH ROW EXECUTE FUNCTION control."answer_group_instances_reject_update"();
+--> statement-breakpoint
+-- DELETE passes only through the two sanctioned whole-session doors (ADR-17)
+CREATE TRIGGER "answer_group_instances_reject_delete"
+	BEFORE DELETE ON "data_prod"."answer_group_instances"
+	FOR EACH ROW EXECUTE FUNCTION control."answer_group_instances_reject_delete"();
+--> statement-breakpoint
 CREATE SCHEMA "reporting_prod";
 --> statement-breakpoint
 CREATE VIEW "reporting_prod"."responses" AS
@@ -579,16 +706,65 @@ SELECT
 	"s"."form_version" AS "form_version",
 	"sub"."submitted_at" AS "submitted_at",
 	"s"."access_mode" AS "access_mode",
-	COALESCE(
-		(
-			SELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value')
-			FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
-		),
-		'{}'::jsonb
-	) AS "answers"
+	COALESCE("agg"."answers", '{}'::jsonb) AS "answers"
 FROM "data_prod"."submissions" "sub"
 JOIN "data_prod"."sessions" "s" ON "s"."session_id" = "sub"."session_id"
 LEFT JOIN "data_prod"."erasure_tombstones" "t" ON "t"."session_id" = "sub"."session_id"
+LEFT JOIN LATERAL (
+	-- One pass over the locked answers, split by whether the answer names an
+	-- instance, then merged into one object. jsonb_object_agg is safe here
+	-- BECAUSE of the split: the keys it sees are one per ungrouped question plus
+	-- one per group id, and neither can repeat.
+	SELECT jsonb_object_agg("merged"."key", "merged"."value") AS "answers"
+	FROM (
+		SELECT
+			"flat"."item" ->> 'questionId' AS "key",
+			"flat"."item" -> 'value' AS "value"
+		FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "flat"("item")
+		WHERE NOT ("flat"."item" ? 'instanceId')
+		UNION ALL
+		SELECT
+			"instances"."group_id" AS "key",
+			jsonb_agg("instances"."instance" ORDER BY "instances"."first_seen") AS "value"
+		FROM (
+			SELECT
+				"roster"."group_id" AS "group_id",
+				"live"."first_seen" AS "first_seen",
+				jsonb_build_object('instance_id', "live"."instance_id")
+					|| COALESCE("cells"."cells", '{}'::jsonb) AS "instance"
+			FROM (
+				-- The LIVE instance set, taken from the submission's own flow state
+				-- rather than from its answers: an instance a respondent added and left
+				-- blank is still live (ADR-42), so deriving the list from `answers`
+				-- would drop it and shift every later instance's ordinal by one.
+				-- `visible` carries one entry per (visible question, live instance) in
+				-- document order with instances in roster order, which is the order the
+				-- locked set froze.
+				SELECT
+					"v"."item" ->> 'instanceId' AS "instance_id",
+					min("v"."ordinality") AS "first_seen"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'flowState' -> 'visible')
+					WITH ORDINALITY AS "v"("item", "ordinality")
+				WHERE "v"."item" ? 'instanceId'
+				GROUP BY "v"."item" ->> 'instanceId'
+			) "live"
+			JOIN (
+				SELECT DISTINCT "agi"."instance_id" AS "instance_id", "agi"."group_id" AS "group_id"
+				FROM "data_prod"."answer_group_instances" "agi"
+				WHERE "agi"."session_id" = "sub"."session_id"
+			) "roster" ON "roster"."instance_id" = "live"."instance_id"
+			LEFT JOIN LATERAL (
+				-- That instance's answered cells. LEFT, because a live instance with no
+				-- answer at all contributes an object carrying only its id, which is
+				-- what makes jsonb_array_length(answers -> '<groupId>') the live count.
+				SELECT jsonb_object_agg("elem"."item" ->> 'questionId', "elem"."item" -> 'value') AS "cells"
+				FROM jsonb_array_elements("sub"."locked_answers" -> 'answers') AS "elem"("item")
+				WHERE "elem"."item" ->> 'instanceId' = "live"."instance_id"
+			) "cells" ON true
+		) "instances"
+		GROUP BY "instances"."group_id"
+	) "merged"
+) "agg" ON true
 WHERE "s"."status" = 'submitted'
 	AND "t"."session_id" IS NULL;
 --> statement-breakpoint
@@ -598,10 +774,35 @@ SELECT
 	"r"."form_id" AS "form_id",
 	"r"."form_version" AS "form_version",
 	"r"."submitted_at" AS "submitted_at",
-	"kv"."key" AS "question_id",
-	"kv"."value" AS "value"
+	"unpivoted"."question_id" AS "question_id",
+	"unpivoted"."value" AS "value",
+	"unpivoted"."instance_id" AS "instance_id"
 FROM "reporting_prod"."responses" "r"
-CROSS JOIN LATERAL jsonb_each("r"."answers") AS "kv"("key", "value");
+CROSS JOIN LATERAL (
+	-- Answers outside every group: the key is the questionId and there is no
+	-- instance. A multiChoice selection stays ONE row (the grain is the question,
+	-- not the option), which is what the second predicate protects.
+	SELECT
+		"kv"."key" AS "question_id",
+		NULL::text AS "instance_id",
+		"kv"."value" AS "value"
+	FROM jsonb_each("r"."answers") AS "kv"("key", "value")
+	WHERE jsonb_typeof("kv"."value") <> 'array'
+		OR jsonb_typeof("kv"."value" -> 0) IS DISTINCT FROM 'object'
+	UNION ALL
+	-- Answers inside a group: one row per (instance, member question), with the
+	-- group's own array key contributing no row of its own.
+	SELECT
+		"cell"."key" AS "question_id",
+		"instance"."item" ->> 'instance_id' AS "instance_id",
+		"cell"."value" AS "value"
+	FROM jsonb_each("r"."answers") AS "group_key"("key", "value")
+	CROSS JOIN jsonb_array_elements("group_key"."value") AS "instance"("item")
+	CROSS JOIN jsonb_each("instance"."item") AS "cell"("key", "value")
+	WHERE jsonb_typeof("group_key"."value") = 'array'
+		AND jsonb_typeof("group_key"."value" -> 0) = 'object'
+		AND "cell"."key" <> 'instance_id'
+) "unpivoted";
 --> statement-breakpoint
 -- `qcms_app_control` serves better-auth, authoring, grants, releases and closes, so
 -- it holds DML on the whole of `control` - with the audit tables carved out below and

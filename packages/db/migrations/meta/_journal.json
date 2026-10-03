@@ -5,36 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1790682226172,
+      "when": 1791017817037,
       "tag": "0000_environments_baseline",
-      "breakpoints": true
-    },
-    {
-      "idx": 22,
-      "version": "7",
-      "when": 1790667875930,
-      "tag": "0022_instance_ledger",
-      "breakpoints": true
-    },
-    {
-      "idx": 23,
-      "version": "7",
-      "when": 1790885927635,
-      "tag": "0023_provisional_admin_credential",
-      "breakpoints": true
-    },
-    {
-      "idx": 24,
-      "version": "7",
-      "when": 1790897270784,
-      "tag": "0024_roster_operation_token",
-      "breakpoints": true
-    },
-    {
-      "idx": 25,
-      "version": "7",
-      "when": 1790933370609,
-      "tag": "0025_reporting_repeat_grain",
       "breakpoints": true
     }
   ]

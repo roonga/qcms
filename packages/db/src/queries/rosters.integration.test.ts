@@ -4,7 +4,12 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import { answerKey, FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { FormDefinition } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 import {
   addInstances,
   appendAnswer,
@@ -63,6 +68,9 @@ async function seedSession(
   });
   const sessionId = SessionId.parse(`ses_${id}`);
   await createSession(testDb.db, {
+    // Q46's column is NOT NULL and a CHECK pins it to the schema the row sits in, so a
+    // session is written with the environment its connection resolves in (ADR-40).
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version.version,

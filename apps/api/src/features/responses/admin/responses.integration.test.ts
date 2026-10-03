@@ -893,6 +893,7 @@ async function seedRepeatSubmitted(opts: {
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
     formVersion: opts.formVersion,
