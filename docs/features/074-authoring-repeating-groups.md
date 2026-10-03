@@ -51,4 +51,20 @@ The question editor, `QUESTION_TYPES` and the component registry: none of them m
 
 **The scope chip is the honest half of the design.** Scope is implicit by position, which is what keeps the airline's per-passenger rule an ordinary rule; the price is that an author cannot see the scope in the condition they wrote. The chip is what pays that price, so treat it as a deliverable rather than a decoration.
 
+**Four mutations beyond the six named above, and one ruling this order predates** (recorded
+2026-10-03, while building). The deliverable list names `addGroup`, `removeGroup`,
+`addPinToGroup`, `movePinWithinGroup`, `setGroupCount` and `setGroupPresentation`; the panel's
+own fields need four more, and they are the same shape: `renameGroup` and
+`setGroupInstanceLabel` for the first and fifth sections of the panel,
+`moveGroupWithinStep` so a group's whole span can be placed before or after a question in its
+step (which is what decides whether a rule reading the group can target anything), and
+`countBounds` plus `instanceNoun` as the two derivations the panel, the grid, the scope chip and
+the rule sentence all read.
+
+**Q30 (ruled 2026-10-03) settles the step a group sits alone in**: a step holding a repeating
+group counts as a visible step even when its roster is empty, fixed in task 076. So this task
+needs no authoring warning about that shape, and its browser walk deliberately puts the group
+beside an ordinary question - which is also the arrangement section 1.3's financial case
+describes.
+
 **The negated `everyInstance` sentence is the one most likely to be skipped**, because the plain sentence reads like the interesting case. It is the other way round: a warning is usually phrased as a negation, so the negation is the sentence an author will actually write.
