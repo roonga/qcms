@@ -632,8 +632,6 @@ BEGIN
 		EXECUTE 'GRANT SELECT ON "control"."secure_links" TO "qcms_app_test"';
 		EXECUTE 'GRANT SELECT ON "control"."environments" TO "qcms_app_test"';
 		EXECUTE 'GRANT UPDATE ON "control"."secure_links" TO "qcms_app_test"';
-		EXECUTE 'GRANT USAGE ON TYPE "control"."access_mode" TO "qcms_app_test"';
-		EXECUTE 'GRANT USAGE ON TYPE "control"."session_status" TO "qcms_app_test"';
 	END IF;
 END
 $$;
@@ -684,8 +682,6 @@ BEGIN
 		EXECUTE 'GRANT SELECT ON "control"."secure_links" TO "qcms_app_prod"';
 		EXECUTE 'GRANT SELECT ON "control"."environments" TO "qcms_app_prod"';
 		EXECUTE 'GRANT UPDATE ON "control"."secure_links" TO "qcms_app_prod"';
-		EXECUTE 'GRANT USAGE ON TYPE "control"."access_mode" TO "qcms_app_prod"';
-		EXECUTE 'GRANT USAGE ON TYPE "control"."session_status" TO "qcms_app_prod"';
 	END IF;
 END
 $$;

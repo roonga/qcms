@@ -442,15 +442,16 @@ describe.each(ENVIRONMENTS)(
       // than one per environment. What a role needs is USAGE, which Postgres requires to
       // write a value of an enum.
       //
-      // **This assertion would pass without the baseline's grant, and it is still worth
-      // making.** `PUBLIC` holds type `USAGE` by default, so on a stock cluster a DML
-      // write needs no explicit grant at all and a per-role catalogue read reports the
-      // privilege as held either way. What the explicit grant buys is the deployment
-      // that hardened its database by revoking type usage from `PUBLIC`: without it
-      // every session insert there would fail on a permission error naming a type
-      // nobody had thought about. So the grant is stated in `grantEnvironmentStatements`
-      // and this is the line that says the requirement exists; the write below is what
-      // proves the path works end to end.
+      // **This reads a DEFAULT, not a grant, and the distinction is the point.** Postgres
+      // grants type `USAGE` to `PUBLIC`, so every role holds it whether or not anything
+      // granted it, and the baseline deliberately emits no type grant at all - the same
+      // goes for `EXECUTE` on the trigger functions. So what this line asserts is that the
+      // privilege the respondent path needs is **present**, which is the criterion ("whatever
+      // `USAGE` Postgres requires on `control`'s two enum types"), and it must not be read
+      // as evidence that this recipe granted it. The equality above is the load-bearing
+      // half: a third enum arriving on a data-plane column is a new dependency on a default
+      // nobody looked at, and it fails here. The session write below is what proves the
+      // whole path end to end.
       expect([...DATA_PLANE_ENUM_TYPES]).toEqual(["access_mode", "session_status"]);
       for (const type of DATA_PLANE_ENUM_TYPES) {
         const res = await owner.query<{ has: boolean }>(

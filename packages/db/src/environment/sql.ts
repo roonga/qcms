@@ -150,12 +150,17 @@ function indexColumn(column: Partial<IndexedColumn | SQL>): string {
  * `control.access_mode`, so the closed set of values is one declaration and a change to
  * it is one migration rather than one per environment.
  *
- * What each environment role does need is **`USAGE` on the type**, which Postgres
- * requires to write a value of it. `PUBLIC` holds that by default, so the grant below is
- * strictly speaking redundant on a stock cluster - and it is emitted anyway, because a
- * deployment that hardened its database by revoking type usage from `PUBLIC` would
- * otherwise see every session insert fail with a permission error naming a type nobody
- * had thought about. Stating it makes the requirement visible and costs one statement.
+ * Writing a value of one needs **`USAGE` on the type**, and **no grant is emitted for it**:
+ * Postgres grants type `USAGE` to `PUBLIC` by default, so every role holds it already and
+ * a statement here would grant what is already held. The same is true of `EXECUTE` on the
+ * trigger functions in `control`, which is why no function grant is emitted either. A
+ * catalogue read that reports either privilege is reporting a **default** rather than a
+ * grant this package made, and `03-db-least-privilege.e2e.ts` says so beside the assertion
+ * so the reading is not mistaken for proof of a grant.
+ *
+ * The list is still derived and still exported, because the least-privilege suite asserts
+ * the two names it expects and a third enum arriving unnoticed is what that assertion is
+ * for.
  */
 function dataPlaneEnumTypes(): string[] {
   const names = new Set<string>();
@@ -453,11 +458,17 @@ export function grantEnvironmentStatements(environment: string): string[] {
     // environment role redeems and consumes a link, it never mints one. Minting runs on
     // the control pool (Q53).
     `GRANT UPDATE ON ${quote(CONTROL_SCHEMA)}.${quote("secure_links")} TO ${quote(role)}`,
-    // Q54: the two enum types live once in `control`, and writing a value of one needs
-    // USAGE on it.
-    ...DATA_PLANE_ENUM_TYPES.map(
-      (type) => `GRANT USAGE ON TYPE ${quote(CONTROL_SCHEMA)}.${quote(type)} TO ${quote(role)}`,
-    ),
+    // **No type grant and no function grant, deliberately** (Q54, and the probe behind
+    // `docs/operations.md`). Writing a value of `control.access_mode` needs `USAGE` on the
+    // type and firing a data-plane trigger needs `EXECUTE` on its function in `control`,
+    // and Postgres grants both to `PUBLIC` by default - so every role already holds them
+    // and a statement here would grant what is already held. An earlier draft emitted the
+    // type grant anyway, on the argument that a deployment which revoked type usage from
+    // `PUBLIC` would otherwise fail; that is a change to a cluster-wide default this recipe
+    // does not make and cannot see, and writing a grant nobody needs to make the catalogue
+    // read prettier is the kind of thing that makes a privilege model hard to audit. A role
+    // reported as holding type `USAGE` is reporting a default, which is what
+    // `03-db-least-privilege.e2e.ts` says beside its assertion.
   ];
 
   const controlRoleGrants = [

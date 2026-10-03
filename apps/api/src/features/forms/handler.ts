@@ -5,8 +5,10 @@
  * the one slice that loads the pinned question versions, calls `compileDraft`
  * (008) to freeze an immutable snapshot, projects it to A2UI with `compileForm`
  * (011), and persists version + compiled + stamps in **one transaction**
- * alongside the `form.published` outbox event and the draft's deletion. This is
- * where the kernel, the compiler, and storage meet for the first time.
+ * alongside the draft's deletion. This is where the kernel, the compiler, and
+ * storage meet for the first time. **It enqueues nothing**: publishing a version
+ * is a library change, and what makes a version live in an environment is a
+ * release (ADR-40, Q60, task 065).
  *
  * Immutability (R1, I1, ADR-18): a published `form_versions` row is frozen - the
  * `form_versions_reject_update` trigger (migration 0001) is the storage
@@ -58,7 +60,6 @@ import {
   closeForm,
   createForm,
   deleteDraft,
-  enqueueInEnvironment,
   getDraft,
   getForm,
   getFormVersion,
@@ -93,9 +94,6 @@ import type {
   validateDraftRoute,
 } from "./route.js";
 import type { ListFormsQuery } from "./schema.js";
-
-/** The outbox event type for a completed publish (ARCHITECTURE §5.3, §11). */
-const FORM_PUBLISHED = "form.published" as const;
 
 /**
  * A publish issue: the kernel's typed `PublishError` (008) *or* the slice-level
@@ -1135,10 +1133,27 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     // served forever; serve (019) never recompiles.
     const compiled = compileForm(snapshot, {});
 
+    // **Publishing queues nothing** (Code Owner, 2026-09-30, Q60). One transaction still,
+    // so the draft never lingers past its publish (§11), but there is no event in it.
+    //
+    // Under ADR-40 publishing a version stopped being the act that reaches an environment:
+    // a version exists in `control`, one copy, and what makes it live somewhere is a
+    // **release** (task 065). So `form.published` had nobody left to tell - it announced a
+    // library change to a queue whose consumers are per environment - and Q49 always had it
+    // retiring in favour of `form.released`. Q60 is that end state reached one task early
+    // rather than a new decision: an event nobody receives is worth less than the grant it
+    // would take to write, and writing it here would mean an authoring transaction reaching
+    // into a data schema for nothing.
+    //
+    // **Task 065 writes `form.released`** into the released environment's `outbox`, in the
+    // same transaction as the release record, on the control pool under Q49's `INSERT`.
+    // `enqueueInEnvironment` in `@roonga/qcms-db` is the helper for exactly that: a plain
+    // insert that names the schema and has no `RETURNING`, because the control role holds
+    // `INSERT` there and no `SELECT` anywhere in a data schema. It ships in this task and
+    // is called by 065.
     const inserted = await deps.databases.control.transaction(async (tx) => {
-      // Freeze the immutable version with all stamps, delete the draft, and emit
-      // the publish event - one transaction, so a version is never observed
-      // without its event and the draft never lingers past its publish (§11).
+      // Freeze the immutable version with all stamps and delete the draft, in one
+      // transaction.
       const version = await insertFormVersion(tx, {
         formId,
         definition: snapshot.definition,
@@ -1149,27 +1164,6 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
         publishedAt: now,
       });
       await deleteDraft(tx, formId);
-      // `enqueueInEnvironment` and not `enqueue`, and the difference is the grant
-      // rather than a preference (ADR-40, Q49). Publishing is an authoring act, so it
-      // runs on the **control** pool - whose `search_path` is `control` alone, where an
-      // unqualified `outbox` resolves to nothing, and whose role holds `INSERT` on each
-      // `data_<env>.outbox` and no `SELECT` anywhere in a data schema. So the statement
-      // names the schema and returns nothing: `enqueue` ends in `.returning()`, which
-      // is a read, and would be refused here. The environment is `prod` until tasks 065
-      // and 066 land (Q53), through the one interim seam.
-      //
-      // **Task 065 owns retiring this event** in favour of `form.released` (Q55).
-      // Publishing stops being the thing that reaches an environment at all once a
-      // release record exists; until then the behaviour is unchanged and only the
-      // statement that carries it is.
-      await enqueueInEnvironment(tx, deps.databases.defaultEnvironment, {
-        eventType: FORM_PUBLISHED,
-        payload: {
-          formId,
-          version: version.version,
-          publishedAt: version.publishedAt.toISOString(),
-        },
-      });
       return version;
     });
 
