@@ -6,7 +6,7 @@ import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms
 
 import { reportingViewColumns } from "../reporting-views.js";
 import { erasureTombstones } from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb, DEFAULT_TEST_ENVIRONMENT } from "../testing/harness.js";
 import {
   addInstances,
   appendAnswer,
@@ -97,6 +97,7 @@ async function seedSubmitted(
   accessMode: "anonymous" | "secure_link" = "anonymous",
 ): Promise<void> {
   await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version,
@@ -128,6 +129,7 @@ describe("reporting.responses view", () => {
     // in_progress: future expiry so the sweep below never touches it.
     const inProgress = SessionId.parse("ses_report_inprogress");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: inProgress,
       formId,
       formVersion: version,
@@ -139,6 +141,7 @@ describe("reporting.responses view", () => {
     // expired: past expiry, then swept to `expired`.
     const expired = SessionId.parse("ses_report_expired");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: expired,
       formId,
       formVersion: version,
@@ -475,6 +478,7 @@ describe("sweepExpiredSessions", () => {
 
     const atBoundary = SessionId.parse("ses_sweep_at");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: atBoundary,
       formId,
       formVersion: version,
@@ -483,6 +487,7 @@ describe("sweepExpiredSessions", () => {
     });
     const justAfter = SessionId.parse("ses_sweep_after");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: justAfter,
       formId,
       formVersion: version,
@@ -505,6 +510,7 @@ describe("sweepExpiredSessions", () => {
     // A submitted session whose expiry is in the past - must stay submitted.
     const submitted = SessionId.parse("ses_sweep_submitted");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: submitted,
       formId,
       formVersion: version,
@@ -515,6 +521,7 @@ describe("sweepExpiredSessions", () => {
 
     const abandoned = SessionId.parse("ses_sweep_abandoned");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: abandoned,
       formId,
       formVersion: version,
@@ -544,6 +551,7 @@ describe("purgeExpired", () => {
     // (a) expired, never submitted, older than horizon, with answers → purged.
     const purgeable = SessionId.parse("ses_purge_old");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: purgeable,
       formId,
       formVersion: version,
@@ -559,6 +567,7 @@ describe("purgeExpired", () => {
     // (b) expired, but exactly at the horizon → retained (strictly-before).
     const atHorizon = SessionId.parse("ses_purge_athorizon");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: atHorizon,
       formId,
       formVersion: version,
@@ -569,6 +578,7 @@ describe("purgeExpired", () => {
     // (c) submitted (status) with past expiry → never purged.
     const submitted = SessionId.parse("ses_purge_submitted");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: submitted,
       formId,
       formVersion: version,
@@ -611,6 +621,7 @@ describe("purgeExpired", () => {
     const { formId, version } = await seedForm("frm_purge_edge");
     const edge = SessionId.parse("ses_purge_edge");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: edge,
       formId,
       formVersion: version,

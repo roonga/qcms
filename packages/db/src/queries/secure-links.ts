@@ -23,6 +23,12 @@ export interface SecureLinkRow {
   consumedAt: Date | null;
   revokedAt: Date | null;
   createdAt: Date;
+  /**
+   * The environment this link belongs to (Q46). `NOT NULL`, because the composite
+   * `(link_id, environment)` key a session references is skipped entirely under
+   * `MATCH SIMPLE` when any referencing column is NULL.
+   */
+  environment: string;
 }
 
 // Drift guard (issue #5): assert SecureLinkRow is structurally identical to what
@@ -34,10 +40,29 @@ export type _SecureLinkRowMatchesTable = AssignableTo<
 > &
   AssignableTo<typeof secureLinks.$inferSelect, SecureLinkRow>;
 
-/** Insert server-side state for a secure link (SEC-2). */
+/**
+ * Insert server-side state for a secure link (SEC-2).
+ *
+ * **`environment` is required, and choosing it is task 066's** (Q19, Q46). This task
+ * created the column and the `(link_id, environment)` unique key the thirteenth guard
+ * references, so every insert has to name one from the moment the baseline lands; what
+ * it does **not** do is decide the value at the API edge. Task 066 takes it from the
+ * mint request, refuses a caller that omits it, and refuses a token presented under the
+ * wrong prefix. Until then the API passes the environment it serves.
+ *
+ * There is no default here on purpose. A helper that quietly defaulted to `prod` would
+ * be exactly the failure Q19 refuses: a script that omits the field and silently gets a
+ * production link.
+ */
 export async function insertSecureLink(
   exec: Executor,
-  input: { linkId: LinkId; formId: FormId; expiresAt: Date; oneTime?: boolean },
+  input: {
+    linkId: LinkId;
+    formId: FormId;
+    expiresAt: Date;
+    environment: string;
+    oneTime?: boolean;
+  },
 ): Promise<SecureLinkRow> {
   const [row] = await exec
     .insert(secureLinks)
@@ -45,6 +70,7 @@ export async function insertSecureLink(
       linkId: input.linkId,
       formId: input.formId,
       expiresAt: input.expiresAt,
+      environment: input.environment,
       ...(input.oneTime === undefined ? {} : { oneTime: input.oneTime }),
     })
     .returning();

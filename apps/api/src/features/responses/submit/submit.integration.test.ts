@@ -36,7 +36,12 @@ import {
   insertFormVersion,
   markInProgress,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -738,6 +743,7 @@ describe("the stored semanticsVersion at submit (ADR-16)", () => {
     const sessionId = SessionId.parse(id);
     const expiresAt = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse(formId),
       formVersion: 1,
