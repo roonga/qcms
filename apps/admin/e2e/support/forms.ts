@@ -920,3 +920,29 @@ export async function chooseRadio(page: Page, label: string): Promise<void> {
   await page.getByText(label, { exact: true }).click();
   await expect(radio).toBeChecked();
 }
+
+/**
+ * Choose one operator in a rule's condition editor, by its visible phrase.
+ *
+ * ## Why this is not `chooseOption`
+ *
+ * The operator picker is a `ComboBox` rather than a `Select` (Code Owner, 2026-08-30), and a
+ * combobox that already holds a value FILTERS its list against that value when it reopens. So
+ * `chooseOption` works for the first choice on a node and then waits five minutes for an option
+ * the list is no longer showing - which is every sequence that changes its mind about an
+ * operator, and task 074's walk through the three whole-group operators is the first spec to do
+ * that three times on one node.
+ *
+ * Typing the whole phrase is the fix and it is also closer to what the control is FOR: sixteen
+ * phrases in a popover you scan is why it is a combobox, and typing is the gesture the ruling
+ * bought. The filter is then narrowed to the one option, which is what the click lands on.
+ */
+export async function chooseConditionOperator(scope: Locator, label: string): Promise<void> {
+  await waitForHydration(scope.page());
+  const combobox = scope.getByRole("combobox", { name: "Operator", exact: true }).first();
+  await combobox.click();
+  await fillStable(combobox, label);
+  await scope.page().getByRole("option", { name: label, exact: true }).click();
+  // The input's own text, not a trigger's label: a combobox displays the chosen item.
+  await expect(combobox).toHaveValue(label);
+}

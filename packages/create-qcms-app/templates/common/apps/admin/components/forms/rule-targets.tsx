@@ -56,19 +56,30 @@ export function RuleTargets({
   draft,
   rule,
   references,
+  groupReferences,
   onChange,
 }: {
   readonly draft: DraftForm;
   readonly rule: DraftRule;
   /** What the condition reads, computed once by the wizard and shared by its phases. */
   readonly references: readonly string[];
+  /**
+   * The groups the condition reads WHOLE, computed once beside {@link references} (ADR-42).
+   *
+   * A separate list rather than folded into the one above, because the two cut document order
+   * in different places: a bare question reference cuts at that question's own position, and a
+   * whole-group read cuts at the END of the group's span, since such a rule reads all of the
+   * group (forward-only rule 2). Without it a rule using `anyInstance` over a group would be
+   * offered a target INSIDE that group, which publish refuses.
+   */
+  readonly groupReferences: readonly string[];
   readonly onChange: (show: readonly string[]) => void;
 }) {
   const [query, setQuery] = useState("");
   const helpId = useId();
   const [helpOpen, setHelpOpen] = useState(false);
 
-  const all = targetGroups(draft, references);
+  const all = targetGroups(draft, references, groupReferences);
   const shown = filterTargets(all, query);
   const total = countTargets(all);
   const visible = countTargets(shown);
