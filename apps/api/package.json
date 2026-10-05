@@ -27,12 +27,12 @@
     "seed-fixtures": "node scripts/seed-fixtures.ts"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^4.0.63",
-    "@ai-sdk/google": "^4.0.80",
-    "@ai-sdk/openai": "^4.0.75",
-    "@ai-sdk/openai-compatible": "^3.0.55",
-    "@hono/node-server": "^2.1.1",
-    "@hono/otel": "^1.1.2",
+    "@ai-sdk/anthropic": "^4.0.71",
+    "@ai-sdk/google": "^4.0.87",
+    "@ai-sdk/openai": "^4.0.83",
+    "@ai-sdk/openai-compatible": "^3.0.62",
+    "@hono/node-server": "^2.1.3",
+    "@hono/otel": "^1.2.0",
     "@hono/zod-openapi": "^1.6.3",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/exporter-logs-otlp-http": "^0.222.0",
@@ -48,17 +48,17 @@
     "@roonga/qcms-csv": "workspace:*",
     "@roonga/qcms-db": "workspace:*",
     "@roonga/qcms-observability": "workspace:*",
-    "ai": "^7.0.114",
+    "ai": "^7.0.127",
     "better-auth": "1.7.6",
     "drizzle-orm": "^0.45.3",
-    "hono": "^4.13.9",
-    "pg": "^8.23.0",
+    "hono": "^4.13.12",
+    "pg": "^8.23.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {
     "@seriousme/openapi-schema-validator": "^2.11.0",
-    "@testcontainers/postgresql": "^12.1.0",
-    "@types/node": "^24.13.6",
+    "@testcontainers/postgresql": "^12.2.0",
+    "@types/node": "^24.19.1",
     "@types/pg": "^8.23.1",
     "otplib": "^13.5.0"
   }
