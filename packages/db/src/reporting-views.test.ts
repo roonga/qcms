@@ -43,20 +43,16 @@ import {
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
 
 /**
- * The marker a generated reporting-view migration carries in its preamble, and the
- * one this test finds it by.
+ * **There is no marker to find any more, and that absence is the point.**
  *
- * **Derived rather than named, because the migration chain is append-only.** The next
- * reshape of these views appends a migration and leaves the one before it applied and
- * untouched, so a test naming `0025` by hand would have to be retargeted by hand - and
- * a lane that forgot would either edit an applied migration or ship a generator nothing
- * compares. Tasks 064 and 068 move this body again, which makes that a near certainty
- * rather than a hypothetical. So the rule is in the code: the **highest-numbered**
- * migration that names the generator is the one whose body the generator must still
- * produce. The brief's "no test hard-codes a migration number" is the same rule.
+ * Task 075 found its migration by the generator's own path in the preamble, because the
+ * chain was append-only and the next reshape would append rather than replace: the
+ * highest-numbered migration naming the generator was the one whose body it still had to
+ * produce. Under Q41 the chain is one per-environment baseline, so there is exactly one
+ * migration and the question is no longer which one but whether it carries the
+ * generator's output for each environment. The derivation below reads the only migration
+ * there is and still matches its name by shape, never by number.
  */
-const GENERATOR_MARKER = "packages/db/src/reporting-views.ts";
-
 /** The one baseline the chain is, read once for the assertions below. */
 function baselineSql(): { name: string; body: string } {
   const named = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
