@@ -116,9 +116,11 @@ describe("answer_group_instances is append-only (I5, ADR-42)", () => {
     const sessionId = `ses_roster_${suffix}`;
     await seedForm(formId);
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-       values ($1, $2, 1, 'anonymous', now() + interval '1 day')`,
-      [sessionId, formId],
+      // Q46's `environment` is NOT NULL and a CHECK pins it to the schema the row sits
+      // in, so a raw insert names the environment this connection resolves in (ADR-40).
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+      [sessionId, formId, DEFAULT_TEST_ENVIRONMENT],
     );
     await testDb.client.query(
       `insert into answer_group_instances (session_id, group_id, instance_id, event)

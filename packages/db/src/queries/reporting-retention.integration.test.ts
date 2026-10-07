@@ -5,7 +5,7 @@ import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import { reportingViewColumns } from "../reporting-views.js";
-import { erasureTombstones } from "../schema/index.js";
+import { erasureTombstones, reportingSchemaName } from "../schema/index.js";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   startTestDb,
@@ -25,6 +25,15 @@ import {
   purgeExpired,
   sweepExpiredSessions,
 } from "./index.js";
+
+/**
+ * The reporting schema this suite's connection reads (ADR-40, Q10).
+ *
+ * One view set per environment, `reporting_<env>`, and it is on **no** search path, so
+ * every read below names it. Derived from the harness's own environment rather than
+ * written as `reporting_prod`, so the suite follows the connection it was given.
+ */
+const REPORTING = reportingSchemaName(DEFAULT_TEST_ENVIRONMENT);
 
 let testDb: TestDb;
 
@@ -157,7 +166,7 @@ describe("reporting_<env>.responses view", () => {
     expect((await getSession(testDb.db, expired))?.status).toBe("expired");
 
     const rows = await testDb.client.query<{ session_id: string }>(
-      `select session_id from reporting_prod.responses where form_id = $1`,
+      `select session_id from ${REPORTING}.responses where form_id = $1`,
       [formId],
     );
     const ids = rows.rows.map((r) => r.session_id);
@@ -172,7 +181,7 @@ describe("reporting_<env>.responses view", () => {
       access_mode: string;
       form_version: number;
     }>(
-      `select answers, access_mode, form_version from reporting_prod.responses where session_id = $1`,
+      `select answers, access_mode, form_version from ${REPORTING}.responses where session_id = $1`,
       ["ses_report_submitted"],
     );
     expect(res.rowCount).toBe(1);
@@ -200,7 +209,7 @@ describe("reporting_<env>.responses view", () => {
     });
 
     const res = await testDb.client.query(
-      `select session_id from reporting_prod.responses where session_id = $1`,
+      `select session_id from ${REPORTING}.responses where session_id = $1`,
       [erased],
     );
     expect(res.rowCount).toBe(0);
@@ -210,7 +219,7 @@ describe("reporting_<env>.responses view", () => {
 describe("reporting_<env>.answers_flat view", () => {
   it("emits one row per (submitted session, questionId, value)", async () => {
     const res = await testDb.client.query<{ question_id: string; value: unknown }>(
-      `select question_id, value from reporting_prod.answers_flat where session_id = $1 order by question_id`,
+      `select question_id, value from ${REPORTING}.answers_flat where session_id = $1 order by question_id`,
       ["ses_report_submitted"],
     );
     expect(res.rows).toEqual([
@@ -221,10 +230,10 @@ describe("reporting_<env>.answers_flat view", () => {
     ]);
   });
 
-  it("inherits the submitted-only, non-erased exclusion from reporting_prod.responses", async () => {
+  it("inherits the submitted-only, non-erased exclusion from ${REPORTING}.responses", async () => {
     // The erased session contributes no flat rows either.
     const res = await testDb.client.query(
-      `select 1 from reporting_prod.answers_flat where session_id = $1`,
+      `select 1 from ${REPORTING}.answers_flat where session_id = $1`,
       ["ses_erased"],
     );
     expect(res.rowCount).toBe(0);
@@ -232,7 +241,7 @@ describe("reporting_<env>.answers_flat view", () => {
 
   it("reports a null instance_id for every answer outside a group", async () => {
     const res = await testDb.client.query<{ question_id: string; instance_id: string | null }>(
-      `select question_id, instance_id from reporting.answers_flat
+      `select question_id, instance_id from ${REPORTING}.answers_flat
         where session_id = $1 order by question_id`,
       ["ses_report_submitted"],
     );
@@ -292,7 +301,7 @@ describe("the reporting views carry repeated answers", () => {
     // returned a single scalar under `q_name` and the second passenger's name was
     // gone from every reporting consumer and every export.
     const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
-      `select answers from reporting.responses where session_id = $1`,
+      `select answers from ${REPORTING}.responses where session_id = $1`,
       [sessionId],
     );
     expect(res.rows[0]!.answers).toEqual({
@@ -327,7 +336,7 @@ describe("the reporting views carry repeated answers", () => {
   it("orders the group's array by the locked set's roster order", async () => {
     const res = await testDb.client.query<{ ids: string[] }>(
       `select array_agg(inst ->> 'instance_id' order by ord) as ids
-         from reporting.responses r,
+         from ${REPORTING}.responses r,
               jsonb_array_elements(r.answers -> 'grp_passengers') with ordinality as e(inst, ord)
         where r.session_id = $1`,
       [sessionId],
@@ -341,7 +350,7 @@ describe("the reporting views carry repeated answers", () => {
       instance_id: string | null;
       value: unknown;
     }>(
-      `select question_id, instance_id, value from reporting.answers_flat
+      `select question_id, instance_id, value from ${REPORTING}.answers_flat
         where session_id = $1
         order by instance_id nulls first, question_id`,
       [sessionId],
@@ -361,7 +370,7 @@ describe("the reporting views carry repeated answers", () => {
     // of option id strings). Getting that wrong would silently change the grain
     // of every multiChoice answer in the long projection.
     const res = await testDb.client.query<{ count: string }>(
-      `select count(*)::text as count from reporting.answers_flat
+      `select count(*)::text as count from ${REPORTING}.answers_flat
         where session_id = $1 and question_id = 'q_meal'`,
       [sessionId],
     );
@@ -408,7 +417,7 @@ describe("the reporting views carry repeated answers", () => {
     });
 
     const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
-      `select answers from reporting.responses where session_id = $1`,
+      `select answers from ${REPORTING}.responses where session_id = $1`,
       [blankSession],
     );
     expect(res.rows[0]!.answers).toEqual({
@@ -422,13 +431,13 @@ describe("the reporting views carry repeated answers", () => {
     // So the array's length is the group's live instance count for this session.
     const counted = await testDb.client.query<{ n: number }>(
       `select jsonb_array_length(answers -> 'grp_passengers') as n
-         from reporting.responses where session_id = $1`,
+         from ${REPORTING}.responses where session_id = $1`,
       [blankSession],
     );
     expect(counted.rows[0]!.n).toBe(3);
     // And it contributes no answers_flat row, because it holds no answer.
     const flat = await testDb.client.query(
-      `select 1 from reporting.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
+      `select 1 from ${REPORTING}.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
       [blankSession],
     );
     expect(flat.rowCount).toBe(0);
@@ -440,7 +449,7 @@ describe("the reporting views carry repeated answers", () => {
     // array, a null `instance_id` member or a reordered object for a
     // non-repeating form.
     const res = await testDb.client.query<{ answers: string }>(
-      `select answers::text as answers from reporting.responses where session_id = $1`,
+      `select answers::text as answers from ${REPORTING}.responses where session_id = $1`,
       ["ses_report_submitted"],
     );
     expect(res.rows[0]!.answers).toBe(
