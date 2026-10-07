@@ -3,7 +3,11 @@
 import { useState, useTransition } from "react";
 
 import { Button, NumberField, Select } from "@/components/kit";
-import { IDLE_PREVIEW, type PreviewConditionState } from "@/lib/forms/builder-state";
+import {
+  IDLE_PREVIEW,
+  PREVIEW_INSTANCE_CAP,
+  type PreviewConditionState,
+} from "@/lib/forms/builder-state";
 import {
   conditionGroupReferences,
   conditionReferences,
@@ -283,6 +287,11 @@ function BenchBody({
                 label={t("forms.bench.instanceCount", { group: benchGroupName(draft, group) })}
                 value={counts[group.groupId] ?? countBounds(group.count).min}
                 minValue={0}
+                /* Same ceiling the preview pane's field carries, and for the same reason: the
+                   API truncates at `PREVIEW_INSTANCE_CAP` when a group declares no maximum, so
+                   a field that let an author type past it would be offering a hypothesis the
+                   verdict is not about. */
+                maxValue={countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP}
                 onChange={(next) => {
                   setCounts((previous) => ({
                     ...previous,
@@ -446,9 +455,10 @@ function benchRoster(
 ): Record<string, readonly string[]> {
   const rosters: Record<string, readonly string[]> = {};
   groups.forEach((group, index) => {
-    const count = counts[group.groupId] ?? countBounds(group.count).min;
+    const asked = counts[group.groupId] ?? countBounds(group.count).min;
+    const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
     rosters[group.groupId] = Array.from(
-      { length: Math.max(0, count) },
+      { length: Math.min(Math.max(0, asked), ceiling) },
       (_entry, at) => `ins_g${String(index + 1)}_${String(at + 1)}`,
     );
   });

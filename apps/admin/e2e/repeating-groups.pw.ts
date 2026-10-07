@@ -491,12 +491,26 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.getByTestId("primary-action").click();
   await expect(portal.getByRole("heading", { name: GROUP })).toBeVisible({ timeout: 60_000 });
   await expect(portal.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
-  // ONE MEMBER ANSWERED, on both sides, before either shape is read. The per-instance rule case 59
-  // authored shows the fare question inside the instance that answered its passport, so a walk
-  // that compared the unanswered state would be comparing two surfaces' PRUNING rather than their
-  // expansion - and the expansion is what this case is about. Answering it also exercises the
-  // per-instance answer key end to end: the reveal only happens if `ins_x/q_passport` reached the
-  // evaluator as that instance's answer and nobody else's.
+  // ONE MEMBER ANSWERED, on both sides, before either shape is read - and this is a WORKAROUND
+  // with an owner, not only a design choice.
+  //
+  // **Issue #1041**: on the hydrated path the portal renders a member control that a per-instance
+  // rule hides, which the admin preview correctly omits. PR #1036 (task 076) carries the fix. So
+  // the unanswered state currently DIVERGES between the two surfaces, and comparing it here would
+  // fail on another task's defect rather than on this one's expansion.
+  //
+  // The design reason is true as well, and is why the workaround costs this case nothing: the
+  // per-instance rule case 59 authored shows the fare question inside the instance that answered
+  // its passport, so the unanswered comparison would be about two surfaces' PRUNING while the
+  // expansion is what case 61 exists for. Answering also exercises the per-instance answer key end
+  // to end - the reveal only happens if `ins_x/q_passport` reached the evaluator as that
+  // instance's answer and nobody else's.
+  //
+  // **Once #1041 is on `main` this step can go**, and the walk can compare the unanswered state
+  // instead: that is the stronger shape, because an asymmetry that appears only when one instance
+  // has answered and another has not is outside this walk by construction while the group has one
+  // instance. Left as a deliberate step rather than a disabled assertion, because an assertion
+  // that cannot run is not a test and a skipped one is a reminder nobody reads.
   await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
   await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();
   await expect(portal.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toBeVisible({
@@ -521,7 +535,8 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   });
   // HIDDEN UNTIL THIS INSTANCE ANSWERS, which is the per-instance rule read through the preview's
   // own roster: the fare question is the rule's target, the rule is evaluated once per live
-  // instance, and nothing has been answered yet.
+  // instance, and nothing has been answered yet. This is the assertion the portal currently fails
+  // (issue #1041), kept on the side that is right so the correct behaviour is pinned somewhere.
   await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toHaveCount(0);
   await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
   await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();

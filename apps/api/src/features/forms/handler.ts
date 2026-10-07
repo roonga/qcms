@@ -714,7 +714,10 @@ interface Hypothetical {
  * tidiness: a preview showing ten instances of a group whose `max` is nine would be a claim
  * about a page no respondent can reach, and the API is where the bound is known from the
  * pinned definition rather than from anything the caller said. A `fixed` count is its own
- * bound, so it truncates at the count.
+ * bound, so it truncates at the count. A group whose author has not filled the required `max`
+ * in yet has no declaration to truncate against, and truncates at
+ * {@link PREVIEW_INSTANCE_CAP} instead - which bounds one request and no form's maximum. See
+ * that constant for why Q14 still holds.
  */
 function hypotheticalRosters(
   definition: FormDefinition,
@@ -730,12 +733,45 @@ function hypotheticalRosters(
   return { rosters, projection };
 }
 
+/**
+ * The most instances ONE ADMIN PREVIEW REQUEST may hypothesise about a group whose author has
+ * not declared a maximum yet (task 074; the Code Owner read a preview-only cap as inside Q14 on
+ * 2026-10-03).
+ *
+ * **It bounds one request's hypothesis and no form's declared maximum**, and that distinction is
+ * the whole of why it is consistent with Q14 rather than a reinstatement of the ceiling Q14
+ * removed. A group may declare any `max` it likes and this number never touches it: a group with
+ * a declared maximum truncates against the author's own figure, above or below this, exactly as
+ * before. What this covers is the state `addGroup` deliberately creates - `open` with `min: 1`
+ * and NO `max`, because `max` is a required field with no safe default (SEC-16) - in which
+ * `countBounds` answers `undefined` and nothing else in either preview route bounded the
+ * caller's instance list.
+ *
+ * **Why the kernel's own budget does not cover it.** `REPEAT_EVALUATION_BUDGET` is checked at
+ * publish against DECLARED maxima and never at runtime against live counts
+ * (`packages/core/src/step.ts`), and neither preview route runs `analyzeRuleGraph` - so operator
+ * nesting is likewise unrefused here, and a bench request may target inside one group while
+ * applying a whole-group operator over another at the product of the two roster lengths. This
+ * cap is what bounds that product, because the bench form's own groups take their `max` from the
+ * truncated roster: fifty by fifty is the worst shape one request can ask for.
+ *
+ * Fifty rather than a larger number because a preview is a thing an author reads: a hypothesis
+ * nobody can scan is not a preview, and both sample use cases in
+ * `plan/repeating-groups-and-table-input.md` section 1 fit inside it with room (nine passengers,
+ * twenty income sources). An author who needs to see more declares the `max` they actually mean,
+ * which is the field the panel marks required.
+ */
+const PREVIEW_INSTANCE_CAP = 50;
+
 function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly InstanceId[] {
   const seen = new Set<string>();
   const instances: InstanceId[] = [];
-  const max = countBounds(group.count).max;
+  // The author's own declaration where there is one, and the preview-only cap where there is
+  // not. Never the smaller of the two: a declared `max` above the cap is the author's figure and
+  // a preview of it is a preview of what a respondent can reach.
+  const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
   for (const candidate of asked) {
-    if (max !== undefined && instances.length >= max) break;
+    if (instances.length >= ceiling) break;
     if (seen.has(candidate)) continue;
     const parsed = parseInstanceId(candidate);
     if (!parsed.ok) continue;

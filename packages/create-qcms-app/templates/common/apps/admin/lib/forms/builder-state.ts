@@ -86,6 +86,23 @@ export type PreviewOutcome = "match" | "noMatch" | "unavailable";
 
 export type PreviewReason = "unparseableDraft" | "ruleNotFound" | "noTarget" | "unresolvedAnswers";
 
+/**
+ * The most instances a preview surface will hypothesise about a group whose author has not
+ * declared a maximum yet (task 074; the Code Owner read a preview-only cap as inside Q14 on
+ * 2026-10-03).
+ *
+ * **The API's own `PREVIEW_INSTANCE_CAP` is the authoritative bound** - it truncates the roster
+ * it evaluates, so a drift between the two numbers can only make this app's controls stricter or
+ * more generous than the answer, never wrong about it. This copy exists so the instance-count
+ * fields can state the bound to the author instead of letting them type a seven-figure count that
+ * allocates an array in their own browser before the request is even sent, and so the two preview
+ * surfaces agree with each other.
+ *
+ * It bounds one request's hypothesis and no form's declared maximum: a group that declares a
+ * `max` is bounded by the author's own figure, above or below this.
+ */
+export const PREVIEW_INSTANCE_CAP = 50;
+
 /** One group's hypothetical roster, as the bench and the preview both pass and read it. */
 export interface PreviewRoster {
   readonly groupId: string;

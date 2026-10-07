@@ -13,7 +13,7 @@ import { Alert, Button, NumberField } from "@/components/kit";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
-import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
+import { IDLE_DRAFT_PREVIEW, PREVIEW_INSTANCE_CAP } from "@/lib/forms/builder-state";
 import { countBounds, draftGroups, questionGroupIds, stepPins } from "@/lib/forms/draft";
 import type { CompiledStep, DraftForm, DraftGroup } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -340,6 +340,11 @@ export function DraftPreview({
                   })}
                   value={counts[group.groupId] ?? countBounds(group.count).min}
                   minValue={0}
+                  /* The author's own declaration where there is one, and the preview-only cap
+                     where there is not (`PREVIEW_INSTANCE_CAP`). Without a ceiling a typed
+                     seven-figure count allocates an array in the author's own browser before
+                     the API ever gets the chance to truncate it. */
+                  maxValue={countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP}
                   onChange={(next) => {
                     setCounts((current) => ({
                       ...current,
@@ -429,9 +434,13 @@ function previewRoster(
   for (const group of groups) {
     // The author's own `min` is the default, which is the §6.5 recommendation: it is the
     // smallest roster a respondent could legally submit, so it is the honest first render.
-    const count = counts[group.groupId] ?? countBounds(group.count).min;
+    const asked = counts[group.groupId] ?? countBounds(group.count).min;
+    // Bounded here as well as in the field, because a value can reach this from a count the
+    // author typed before the ceiling applied and because the API truncates anyway: minting a
+    // list this surface knows will be cut is work nobody reads.
+    const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
     rosters[group.groupId] = Array.from(
-      { length: Math.max(0, count) },
+      { length: Math.min(Math.max(0, asked), ceiling) },
       (_entry, at) => `ins_p${String(at + 1)}`,
     );
   }

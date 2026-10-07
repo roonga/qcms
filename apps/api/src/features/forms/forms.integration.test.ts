@@ -1110,6 +1110,10 @@ describe("the admin preview routes with a repeating group (074)", () => {
     await seedPublishedQuestion("q_rp_passport", "Passport number");
     await seedPublishedQuestion("q_rp_fare", "Fare basis");
     await seedPublishedQuestion("q_rp_declaration", "Declaration");
+    // Only the cross-group case pins it: a question is pinned at most once in a form
+    // (`DUPLICATE_QUESTION_IN_FORM` reaches inside groups), so the second group needs a member
+    // of its own rather than borrowing one from the first.
+    await seedPublishedQuestion("q_rp_bag_tag", "Bag tag");
     await post("/forms", { formId, slug: "repeat-preview", defaultLocale: "en" });
     await put(`/forms/${formId}/draft`, { definition: repeatDefinition(formId, []) });
   }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -1251,6 +1255,91 @@ describe("the admin preview routes with a repeating group (074)", () => {
     expect(((await res.json()) as RepeatBenchBody).rosters).toStrictEqual([
       { groupId: "grp_rp_passengers", instances: ["ins_g1_1", "ins_g1_2"] },
     ]);
+  });
+
+  it("truncates a group whose author has not declared a maximum at the preview cap", async () => {
+    // The state `addGroup` deliberately creates: `open` with `min: 1` and no `max`, because `max`
+    // is a required field with no safe default (SEC-16). `countBounds` then answers `undefined`
+    // and nothing in either preview route bounded the caller's list, so one authenticated request
+    // could ask for any number of instances and be evaluated against all of them.
+    //
+    // The cap bounds ONE REQUEST and no form's declared maximum, which is what keeps it inside
+    // Q14: a group with a declared `max` still truncates against the author's own figure, above
+    // or below the cap.
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule], null),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: {
+        grp_rp_passengers: Array.from({ length: 200 }, (_entry, at) => `ins_c${String(at + 1)}`),
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const roster = ((await res.json()) as RepeatBenchBody).rosters[0];
+    expect(roster?.groupId).toBe("grp_rp_passengers");
+    expect(roster?.instances).toHaveLength(50);
+    expect(roster?.instances[0], "the cap truncates the tail, keeping roster order").toBe("ins_c1");
+    expect(roster?.instances.at(-1)).toBe("ins_c50");
+  });
+
+  it("bounds a cross-group rule over two groups that declare no maximum", async () => {
+    // The shape the kernel's own budget cannot refuse here: `REPEAT_EVALUATION_BUDGET` is checked
+    // at publish against DECLARED maxima and never at runtime, and neither preview route runs
+    // `analyzeRuleGraph` - so a bench request may target inside one group while applying a
+    // whole-group operator over another, at the product of the two roster lengths. With both
+    // groups unbounded that product had no limit at all; the cap makes the worst one request can
+    // ask for fifty by fifty.
+    const definition = repeatDefinition(formId, [], null);
+    const steps = [...(definition["steps"] as Record<string, unknown>[])];
+    steps.splice(2, 0, {
+      stepId: "stp_bags",
+      title: { en: "Bags" },
+      items: [
+        {
+          groupId: "grp_rp_bags",
+          label: { en: "Bags" },
+          instanceLabel: { en: "Bag {n}" },
+          items: [{ questionId: "q_rp_bag_tag", version: 1 }],
+          count: { source: "open", min: 0 },
+          presentation: "stacked",
+        },
+      ],
+    });
+    const crossGroup = {
+      ...definition,
+      steps,
+      rules: [
+        {
+          ruleId: "rul_rp_cross",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_rp_passengers",
+            condition: { op: "answered", questionId: "q_rp_passport" },
+          },
+          show: ["q_rp_bag_tag"],
+        },
+      ],
+    };
+    const asked = (prefix: string) =>
+      Array.from({ length: 400 }, (_entry, at) => `ins_${prefix}${String(at + 1)}`);
+
+    const res = await bench(formId, {
+      definition: crossGroup,
+      ruleId: "rul_rp_cross",
+      answers: {},
+      instances: { grp_rp_passengers: asked("p"), grp_rp_bags: asked("b") },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatBenchBody;
+    for (const roster of body.rosters) {
+      expect(roster.instances, `group ${roster.groupId}`).toHaveLength(50);
+    }
+    // And it still answers: the bound is on the hypothesis, not on the bench's ability to run.
+    expect(body.outcome).toBe("noMatch");
+    expect(body.targetGroupId).toBe("grp_rp_bags");
+    expect(body.instanceOutcomes).toHaveLength(50);
   });
 
   it("ignores an instance id that is not well formed, and a group the form does not declare", async () => {
