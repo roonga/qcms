@@ -97,6 +97,28 @@ BEGIN
 \tRETURN OLD;
 END;
 $$ LANGUAGE plpgsql;`,
+    `-- The roster is append-only too (I5, R3, ADR-42). A removal that rewrote or
+-- dropped the \`added\` row would leave no record that the instance had ever existed,
+-- and a roster is the audit trail of what a respondent did to the shape of their own
+-- household. One body in \`control\`, executed by one trigger per \`data_<env>\`.
+CREATE FUNCTION ${CONTROL_SCHEMA}.answer_group_instances_reject_update() RETURNS trigger AS $$
+BEGIN
+\tRAISE EXCEPTION 'answer_group_instances are append-only (I5, ADR-42): UPDATE is rejected'
+\t\tUSING ERRCODE = 'restrict_violation';
+END;
+$$ LANGUAGE plpgsql;`,
+    `-- The SAME door as the answer ledger's above, honoured by the same two sanctioned
+-- whole-session paths: the roster joins them rather than opening a third, which is what
+-- keeps ADR-17's "two whole-session delete paths, and no third" true.
+CREATE FUNCTION ${CONTROL_SCHEMA}.answer_group_instances_reject_delete() RETURNS trigger AS $$
+BEGIN
+\tIF current_setting('qcms.allow_answer_delete', true) IS DISTINCT FROM 'on' THEN
+\t\tRAISE EXCEPTION 'answer_group_instances DELETE is only permitted via the sanctioned erasure/retention path (ADR-17)'
+\t\t\tUSING ERRCODE = 'restrict_violation';
+\tEND IF;
+\tRETURN OLD;
+END;
+$$ LANGUAGE plpgsql;`,
     `-- Once published, a question version's definition is frozen (I1). Status may still
 -- transition and published_at may be set; the definition JSONB may not change.
 CREATE FUNCTION ${CONTROL_SCHEMA}.question_versions_freeze_published() RETURNS trigger AS $$
