@@ -177,6 +177,8 @@ interface StepBody {
     readonly readyToSubmit: boolean;
   };
   readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
+  /** Which VIEW this response draws (task 076, ADR-28 as amended 2026-09-29). */
+  readonly view: { readonly groupId: string | null; readonly instanceId: string | null };
   readonly progress: { readonly stepIndex: number; readonly totalVisibleSteps: number };
 }
 
