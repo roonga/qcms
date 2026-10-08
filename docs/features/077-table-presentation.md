@@ -25,11 +25,11 @@
 - **The theming and token work** `docs/COMPONENT_GUIDELINES.md` binds for a layout: treatments in `packages/ui/src/theme-components.css` beneath the ADR-38 scope carrier, the font sweep, the tabular-figures selector for a numeric column, and lint coverage.
 - **A changeset** for `@roonga/qcms-ui`, and one for `@roonga/qcms-core` if the publish code lands here rather than with 071.
 
-**The per-row Remove it renders rides task 073's mechanism unchanged** (Q28, ruled 2026-10-01): without scripting it is a `__qop` submit button on the step's own form, the form's action is a Next Server Action that re-renders in the same 200, and focus lands by `autofocus` on the ruled destination rather than by a fragment. A row's focus handle is therefore an `autofocus` target like an instance card's heading, and 2.4.11's sticky-header proof applies to the row the landing reaches.
+**The per-row Remove it renders rides task 073's mechanism unchanged** (Q28, ruled 2026-10-01): without scripting it is a `__qop` submit button on the step's own form, the form's action is a Next Server Action that re-renders in the same 200, and focus lands by `autofocus` on the ruled destination rather than by a fragment. A row's focus handle is therefore an `autofocus` target like an instance card's heading. **There is no sticky-header proof for it to satisfy**: the deliverable above was withdrawn and nothing in this table is pinned, so 2.4.11 holds for the row an Add lands focus on by the same construction it holds for every other row - which is what `repeat-table.pw.ts` asserts on that row rather than on a pin.
 
 ## Exit criteria
 
-Acceptance cases **39 to 45, and 62** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others; case 62 is the filtered library picker, which belongs here because it is this task's refusal being surfaced. Plus:
+Acceptance cases **39 to 45, and 62** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others; case 62 is the filtered library picker, which belongs here because it is this task's refusal being surfaced - though its browser walk lands with task 074, for the reason recorded under "Notes for the executor" below. Plus:
 
 1. **No `role="grid"` anywhere**, asserted by searching the rendered DOM rather than by reading the source.
 2. Every cell input's accessible name is asserted **from the accessibility tree**, not from the DOM, at both layouts.
@@ -65,16 +65,23 @@ member pins, the library and an add handler as props, and the picker's filter is
 flag on the existing `LibraryPicker`. Neither reaches into panel state, so they wire up in
 either merge order.
 
-**Acceptance case 62's browser walk is carried by whichever of 077 and 074 merges second**
-(Code Owner, 2026-10-03). The case is written `(browser, admin project)` and its walk opens
-the filtered picker from the group panel's Add-column control, so it needs 077's column view
-and 074's group panel on `main` together and can be written by neither lane alone: at the
-merge base there is no group in the admin's draft model at all. The case's substance - the
-picker offers only the five allowed types, says why the others are absent, and names the
-stacked presentation as the alternative - is asserted in the admin's jsdom layer here
-(`table-column-view.test.tsx`, `picker-selection.test.ts`), and the second lane to land adds
-the walk on its rebase. It is an **exit criterion of that lane** rather than a note, so it
-cannot fall between the two.
+**Acceptance case 62's browser walk was carried by whichever of 077 and 074 merged second**
+(Code Owner, 2026-10-03), **and it is met**: 077 merged first as PR #1038, so task 074 added
+the walk on its rebase (PR #1040, `apps/admin/e2e/repeating-groups.pw.ts`, the fifth test).
+The case is written `(browser, admin project)` and its walk opens the filtered picker from the
+group panel's Add-column control, so it needed 077's column view and 074's group panel on
+`main` together and could be written by neither lane alone: at the merge base there is no
+group in the admin's draft model at all. The case's substance - the picker offers only the
+five allowed types, says why the others are absent, and names the stacked presentation as the
+alternative - is asserted in the admin's jsdom layer here (`table-column-view.test.tsx`,
+`picker-selection.test.ts`), and the walk now drives the same three claims through the
+browser. It was an **exit criterion of that lane** rather than a note, so it could not fall
+between the two.
+
+Nothing of this task moved for it. 074 renders `TableColumnView` from its group panel in one
+branch and passes the three inputs this task designed the component to take, which is the seam
+holding: `columnTypesOnly` is still a flag over the kernel's own list, and the five types are
+still named in one place.
 
 **Two as-built details worth stating, both inside the deliverables rather than beside them.**
 A column's help text is drawn **once, on the column header**, and clipped in the cells with
