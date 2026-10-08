@@ -213,11 +213,13 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       expect(res.rows[0]?.definition).toContain(`'${environment}'`);
     });
 
-    it("keeps both `environment` columns NOT NULL, which is what makes it a guard", async () => {
+    it("keeps this schema's `sessions.environment` NOT NULL, which is what makes it a guard", async () => {
       // A CHECK passes when the column is NULL, and a composite foreign key under the
       // default MATCH SIMPLE is not checked at all when any referencing column is NULL.
       // So a nullable `environment` would skip both halves, and neither half's presence
-      // would say so.
+      // would say so. The key's other end, `control.secure_links.environment`, is
+      // asserted once below rather than once per environment, since there is one of it;
+      // the refusals the pair actually produces are asserted there too.
       const res = await testDb.client.query<{ is_nullable: string }>(
         `select is_nullable from information_schema.columns
           where table_schema = $1 and table_name = 'sessions' and column_name = 'environment'`,
@@ -251,6 +253,168 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
         [`reporting_${environment}`],
       );
       expect(res.rows.map((row) => row.table_name).sort()).toEqual(["answers_flat", "responses"]);
+    });
+  });
+
+
+  /**
+   * Criterion 1a's behavioural half: the thirteenth guard **refused a real insert**.
+   *
+   * Every other assertion in this file reads the catalogue, which proves the guard was
+   * declared. None of them proves it bites. The two clauses criterion 1a states
+   * (`plan/environments-and-workspaces.md`, criterion 1a) are about what the database
+   * does to a row:
+   *
+   * - a session started in one environment from a link row naming another is refused;
+   * - a public session with a NULL `link_id` still carries its environment and is
+   *   still pinned by the CHECK.
+   *
+   * Both halves matter because each guard alone is satisfiable. The composite foreign
+   * key is `MATCH SIMPLE`, so it is **not checked at all** when `link_id` is NULL,
+   * which is every anonymous session; the CHECK is what pins those. And the CHECK only
+   * compares the row against its own schema, so a link minted elsewhere is the foreign
+   * key's job. A change that dropped `environment` from the composite key would leave
+   * the catalogue assertions above passing while a `prod` link quietly started a `test`
+   * session, which is the scenario these four inserts close.
+   */
+  describe("refuses the cross-environment session rather than merely declaring it (Q46)", () => {
+    // Derived, not re-typed: the home environment is the first shipped one and the
+    // foreign one is the second, so adding a third environment does not silently turn
+    // this into a test of one schema against itself.
+    const [homeEnvironment, foreignEnvironment] = SHIPPED_ENVIRONMENTS;
+    const homeSchema = `data_${homeEnvironment}`;
+    const foreignSchema = `data_${foreignEnvironment}`;
+
+    const FORM_ID = "q46-guard-form";
+    const linkIdFor = (environment: string) => `q46-link-${environment}`;
+
+    beforeAll(async () => {
+      // One form and one version, because `sessions_form_version_fk` has to be
+      // satisfiable for the row to reach the guard under test. Then one link per
+      // environment, which is what makes "a link naming another environment" a real
+      // row rather than a dangling id.
+      await testDb.client.query(
+        `insert into control.forms (form_id, slug, default_locale)
+         values ($1, $1, 'en')`,
+        [FORM_ID],
+      );
+      await testDb.client.query(
+        `insert into control.form_versions
+           (form_id, version, definition, compiled, compiler_version,
+            a2ui_spec_version, semantics_version)
+         values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+        [FORM_ID],
+      );
+      for (const environment of SHIPPED_ENVIRONMENTS) {
+        await testDb.client.query(
+          `insert into control.secure_links (link_id, form_id, expires_at, environment)
+           values ($1, $2, now() + interval '1 day', $3)`,
+          [linkIdFor(environment), FORM_ID, environment],
+        );
+      }
+    }, CONTAINER_BOOT_TIMEOUT_MS);
+
+    /**
+     * Attempts one session insert and reports what the database said about it: `null`
+     * when the row was accepted, or the SQLSTATE and the constraint that refused it.
+     * Asserting the constraint by name and not just the class of error is the point -
+     * a row refused by the wrong guard would otherwise read as a pass.
+     */
+    async function attemptSession(
+      schema: string,
+      row: { sessionId: string; linkId: string | null; environment: string },
+    ): Promise<{ code: string; constraint: string } | null> {
+      try {
+        await testDb.client.query(
+          `insert into "${schema}".sessions
+             (session_id, form_id, form_version, access_mode, link_id, environment, expires_at)
+           values ($1, $2, 1, $3, $4, $5, now() + interval '1 hour')`,
+          [
+            row.sessionId,
+            FORM_ID,
+            row.linkId === null ? "anonymous" : "secure_link",
+            row.linkId,
+            row.environment,
+          ],
+        );
+        return null;
+      } catch (error) {
+        const failure = error as { code?: string; constraint?: string };
+        return { code: failure.code ?? "", constraint: failure.constraint ?? "" };
+      }
+    }
+
+    it("refuses a session in one environment started from another environment's link", async () => {
+      // The clause in full: the link row exists, is not expired and is not revoked, and
+      // the only thing wrong with it is the environment it names. 23503 is
+      // foreign_key_violation.
+      const refusal = await attemptSession(homeSchema, {
+        sessionId: "q46-foreign-link",
+        linkId: linkIdFor(foreignEnvironment),
+        environment: homeEnvironment,
+      });
+      expect(refusal).toEqual({ code: "23503", constraint: "sessions_secure_link_fk" });
+    });
+
+    it.each([
+      ["carrying that environment's link", true],
+      ["carrying no link at all", false],
+    ])("refuses a row claiming another environment's name, %s", async (_label, withLink) => {
+      // 23514 is check_violation. The second case is the one the foreign key cannot
+      // catch: with a NULL `link_id`, MATCH SIMPLE skips the key entirely, so the CHECK
+      // is the only thing standing between a `prod` row and the `test` schema.
+      const refusal = await attemptSession(homeSchema, {
+        sessionId: `q46-claims-foreign-${withLink ? "linked" : "anonymous"}`,
+        linkId: withLink ? linkIdFor(foreignEnvironment) : null,
+        environment: foreignEnvironment,
+      });
+      expect(refusal).toEqual({ code: "23514", constraint: SESSION_ENVIRONMENT_CHECK });
+    });
+
+    it("accepts the anonymous session that carries its own environment", async () => {
+      // Criterion 1a's positive half, and the reason the CHECK cannot simply be
+      // replaced by a stricter key: every public response starts life as this row.
+      expect(
+        await attemptSession(homeSchema, {
+          sessionId: "q46-anonymous-home",
+          linkId: null,
+          environment: homeEnvironment,
+        }),
+      ).toBeNull();
+    });
+
+    it("accepts the secure session whose link, schema and environment all agree", async () => {
+      // The other positive half, in the other schema, so a guard that refused
+      // everything would fail here rather than read as four passes above.
+      expect(
+        await attemptSession(foreignSchema, {
+          sessionId: "q46-secure-foreign",
+          linkId: linkIdFor(foreignEnvironment),
+          environment: foreignEnvironment,
+        }),
+      ).toBeNull();
+    });
+
+    it("keeps `control.secure_links.environment` NOT NULL, the half the per-schema CHECK cannot reach", async () => {
+      // The sessions side of this is asserted per environment above. This is the other
+      // end of the composite key: a nullable column here would let a link match a
+      // session in any environment under MATCH SIMPLE, and no per-schema CHECK would
+      // see it, because the CHECK lives on the referencing table.
+      const res = await testDb.client.query<{ is_nullable: string }>(
+        `select is_nullable from information_schema.columns
+          where table_schema = 'control' and table_name = 'secure_links'
+            and column_name = 'environment'`,
+      );
+      expect(res.rows[0]?.is_nullable).toBe("NO");
+    });
+
+    it("keeps the unique key the composite foreign key references, by name", async () => {
+      // A composite foreign key needs a unique constraint on exactly those columns to
+      // reference. Dropping it does not fail quietly later; it fails the baseline. The
+      // name is asserted because that is what a future migration would have to keep.
+      expect(await constraintNamesOn("control", "u")).toContain(
+        "secure_links_link_environment_uq",
+      );
     });
   });
 
