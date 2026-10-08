@@ -1,0 +1,9 @@
+{
+  "type": "singleChoice",
+  "questionId": "q_rt_use",
+  "label": { "en": "Main use" },
+  "options": [
+    { "optionId": "opt_private", "label": { "en": "Private" } },
+    { "optionId": "opt_business", "label": { "en": "Business" } }
+  ]
+}

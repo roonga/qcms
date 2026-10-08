@@ -212,6 +212,41 @@ the portal's browser suite).
   resolved instance label, giving "Remove Vehicle 3": APG's naming practice puts the
   distinguishing words first, so it is never "Vehicle 3 remove".
 
+### The render-time nodes a presentation expands to (tasks 073 and 077)
+
+The compiler emits one node type, `RepeatGroup`. The renderer expands it, and **which
+nodes it expands to is the presentation's choice**. None of these reaches a stored
+document, so none of them is part of the compiler's output contract; they are listed here
+because they are the renderer-compat vocabulary a reader of this document will look for.
+
+| Node             | Presentation | Renders                                                                                                                        |
+| ---------------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `RepeatInstance` | `stacked`    | One `<fieldset>` per live instance, its `<legend>` holding the instance heading (task 073).                                    |
+| `RepeatTable`    | `table`      | The `overflow-x: auto` scroll box, the `<table>`, its `<caption>`, the column headers and a `<tfoot>` column total (task 077). |
+| `RepeatRow`      | `table`      | One `<tr>` per live instance, its `<th scope="row">` carrying the row label and the focus landing.                             |
+| `RepeatCell`     | `table`      | One `<td>` per column per row, holding a member control or - where a per-instance rule hid it - nothing.                       |
+
+**A table is a native `<table>` and never `role="grid"`** (ADR-43, Q10). APG states as a
+defining property of the grid pattern that it "Requires the author to provide code that
+manages focus movement inside it", so with scripting off a grid renders as a tab-trap-shaped
+nothing, and this surface's no-JS claim is unqualified. The documented cost is one tab stop
+per cell, which is the expected behaviour of the choice rather than a defect.
+
+**A cell is a node because the cell count is structural.** A per-instance rule can hide a
+member question in one instance and not in another; the stacked presentation drops the
+control, and a table cannot, because a short row shears every later column off its header.
+So a hidden member leaves its `RepeatCell` childless, which is an empty cell.
+
+**Five column types, not seven** (Q12): `shortText`, `number`, `date`, `boolean`,
+`singleChoice`. `longText` and `multiChoice` are refused at publish with
+`TABLE_COLUMN_TYPE_NOT_ALLOWED`, whose message names the stacked presentation, which allows
+all seven.
+
+**Nothing in the compiler moved for the table presentation**, so `COMPILER_VERSION` did not
+either: the template node already carried `presentation`, and the expansion is a render-time
+transform on the same stored bytes. `golden/v4/repeat-table-group.a2ui.json` is an appended
+corpus entry rather than a new generation.
+
 ### The field-name contract (compiler ↔ API)
 
 The decoy submits under one well-known key, `HONEYPOT_FIELD_NAME = "website"`

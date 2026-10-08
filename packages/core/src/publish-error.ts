@@ -64,6 +64,11 @@ export const PublishErrorCode = z.enum([
   "REPEAT_OPERATOR_NESTING_NOT_ALLOWED",
   "RULE_READS_GROUP_WITHOUT_OPERATOR",
   "REPEAT_COUNT_INSIDE_GROUP",
+  // A member question whose type the `table` presentation does not admit as a
+  // column (Q12, task 077, ADR-43). It is a refusal about a PRESENTATION rather
+  // than about a group: the same member list published under the stacked
+  // presentation is legal, which is why the message names that presentation.
+  "TABLE_COLUMN_TYPE_NOT_ALLOWED",
 ]);
 export type PublishErrorCode = z.infer<typeof PublishErrorCode>;
 
@@ -286,6 +291,20 @@ export const PublishError = z.discriminatedUnion("code", [
     message,
     path: z.object({ group: GroupId, question: QuestionId }),
   }),
+  // A member question of a `table`-presented group whose type is not one of the
+  // five allowed cell types (Q12, task 077). `type` is carried on the path so the
+  // admin can say which type was refused without re-resolving the pin, and the
+  // message names the stacked presentation as the author's way forward.
+  z.object({
+    code: z.literal("TABLE_COLUMN_TYPE_NOT_ALLOWED"),
+    message,
+    path: z.object({
+      group: GroupId,
+      question: QuestionId,
+      step: StepId,
+      type: z.string().min(1),
+    }),
+  }),
 ]);
 export type PublishError = z.infer<typeof PublishError>;
 
@@ -426,6 +445,8 @@ export function publishErrorLocation(error: PublishError): string {
       return `group "${error.path.innerGroup}" inside group "${error.path.outerGroup}" in rule "${error.path.rule}"`;
     case "RULE_READS_GROUP_WITHOUT_OPERATOR":
       return `question "${error.path.question}" of group "${error.path.group}" in rule "${error.path.rule}"`;
+    case "TABLE_COLUMN_TYPE_NOT_ALLOWED":
+      return `column "${error.path.question}" of group "${error.path.group}" in step "${error.path.step}"`;
     /* v8 ignore next 2 -- unreachable by construction */
     default:
       return assertNeverPublishError(error);

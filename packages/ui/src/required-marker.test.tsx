@@ -3,7 +3,8 @@ import { computeAccessibleName } from "dom-accessibility-api";
 import { describe, expect, it } from "vitest";
 
 import { A2UIStepRenderer, type A2UIStepDocument } from "./A2UIStepRenderer.tsx";
-import { qualifiedFieldName } from "./repeat/repeat-node.ts";
+import { instanceLabelFor, qualifiedFieldName } from "./repeat/repeat-node.ts";
+import { cellLabelFor } from "./repeat/repeat-table-node.ts";
 import { loadGoldenSteps, syntheticRoster } from "./test-support/golden.ts";
 
 /**
@@ -29,6 +30,16 @@ interface RequiredControl {
 }
 
 /**
+ * What a group puts round its members: which instance they render under, and, in the
+ * table presentation, the row label their own label is prefixed with.
+ */
+interface GroupScope {
+  readonly instanceId?: string;
+  /** The resolved row label ("Vehicle 1"), present for a `table` group only. */
+  readonly rowLabel?: string;
+}
+
+/**
  * Every `isRequired` node of one compiled step, with the label it renders and the
  * name it renders UNDER.
  *
@@ -38,24 +49,32 @@ interface RequiredControl {
  * here rather than exempting the group: the property this suite pins - every required
  * control renders its marker - has to hold for a control inside an instance card too,
  * and it would silently stop being checked if a group's members were skipped.
+ *
+ * **The table presentation also rewrites a member's label** to its cell's own name,
+ * "Vehicle 1, Registration plate" (task 077): a real label per cell is the only
+ * encoding that survives the card reflow, so the renderer relabels the clone. The
+ * scope therefore carries the row label too, and the expectation is the label the
+ * renderer emits rather than the one the template stored. Without it this suite read
+ * the template's label, found the cell's, and reported a missing marker that was
+ * there - which is exactly the shape of failure a derived case list exists to avoid.
  */
 function requiredControlsIn(
   node: unknown,
   rosters: Readonly<Record<string, readonly string[]>>,
-  instanceId?: string,
+  scope: GroupScope = {},
   found: RequiredControl[] = [],
 ): RequiredControl[] {
   if (Array.isArray(node)) {
-    for (const child of node) requiredControlsIn(child, rosters, instanceId, found);
+    for (const child of node) requiredControlsIn(child, rosters, scope, found);
     return found;
   }
   if (typeof node !== "object" || node === null) return found;
   const record = node as Record<string, unknown>;
   const props = propsOf(record);
-  const scope = groupInstance(record, props, rosters) ?? instanceId;
-  const control = requiredControlOf(record, props, scope);
+  const inner = groupScopeOf(record, props, rosters) ?? scope;
+  const control = requiredControlOf(record, props, inner);
   if (control !== undefined) found.push(control);
-  for (const value of Object.values(record)) requiredControlsIn(value, rosters, scope, found);
+  for (const value of Object.values(record)) requiredControlsIn(value, rosters, inner, found);
   return found;
 }
 
@@ -64,21 +83,34 @@ function propsOf(record: Record<string, unknown>): Record<string, unknown> {
   return typeof props === "object" && props !== null ? (props as Record<string, unknown>) : {};
 }
 
-/** The first live instance of the group this node IS, when it is a group. */
-function groupInstance(
+/** The scope of the group this node IS, when it is a group: its first live instance,
+ * and the row label a `table` presentation prefixes each cell's label with. */
+function groupScopeOf(
   record: Record<string, unknown>,
   props: Record<string, unknown>,
   rosters: Readonly<Record<string, readonly string[]>>,
-): string | undefined {
+): GroupScope | undefined {
   if (record["type"] !== "RepeatGroup" || typeof props["groupId"] !== "string") return undefined;
-  return rosters[props["groupId"]]?.[0];
+  const roster = rosters[props["groupId"]] ?? [];
+  const instanceId = roster.length > 0 ? roster[0] : undefined;
+  const presentation: unknown = props["presentation"];
+  const template: unknown = props["instanceLabel"];
+  // `typeof` first so the comparison is string-to-string: a node's props are
+  // `unknown`-valued, and comparing `unknown` to a literal is what the lint refuses.
+  const isTable = typeof presentation === "string" && presentation === "table";
+  const rowLabel =
+    isTable && typeof template === "string" ? instanceLabelFor(template, 1) : undefined;
+  return {
+    ...(instanceId === undefined ? {} : { instanceId }),
+    ...(rowLabel === undefined ? {} : { rowLabel }),
+  };
 }
 
 /** This node as a required control, or `undefined` when it is not one. */
 function requiredControlOf(
   record: Record<string, unknown>,
   props: Record<string, unknown>,
-  instanceId: string | undefined,
+  scope: GroupScope,
 ): RequiredControl | undefined {
   if (props["isRequired"] !== true) return undefined;
   const type = record["type"];
@@ -87,9 +119,10 @@ function requiredControlOf(
   if (typeof type !== "string" || typeof label !== "string" || typeof name !== "string") {
     return undefined;
   }
+  const { instanceId, rowLabel } = scope;
   return {
     type,
-    label,
+    label: rowLabel === undefined ? label : cellLabelFor(rowLabel, label),
     name: instanceId === undefined ? name : qualifiedFieldName(instanceId, name),
   };
 }

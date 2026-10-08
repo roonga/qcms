@@ -77,16 +77,42 @@ function stateLabel(already: boolean, status: string): string {
   return t("forms.picker.statePinnable");
 }
 
-/** The version rows, with the ones this form cannot pin marked as such. */
+/**
+ * The version rows, with the ones this form cannot pin marked as such.
+ *
+ * `allowedTypes`, when given, **filters the library** to those question types and says so
+ * nowhere here: it is a list, and the sentence explaining the absence is the caller's
+ * (`forms.columns.typeNote`). It exists for the table presentation's column picker (task
+ * 077, Q12), where a `longText` or a `multiChoice` column is refused at publish, so
+ * offering one would be an invitation to a refusal the author cannot see yet.
+ *
+ * Filtered OUT rather than listed-and-disabled, which is the opposite of what this module
+ * does for a deprecated or already-pinned version, and the difference is real: those two
+ * are states of a row the author might otherwise expect to be choosable, so the row has to
+ * be there to carry the reason. A type that cannot be a column is not a state of a row at
+ * all - it is a different kind of question - and a list two-sevenths of which can never be
+ * chosen is a list the author has to read past. The plan asks for exactly this: the picker
+ * "filters the library to the allowed cell types and says why the others are absent".
+ *
+ * A library row carrying no type at all is also filtered out when a filter is in force: a
+ * question whose type nobody could read cannot be shown to satisfy the constraint.
+ */
 export function pinnableRows(
   library: readonly PinnableQuestion[],
   draft: DraftForm,
   search: string,
+  allowedTypes?: readonly string[],
 ): PickerRow[] {
   const rows: PickerRow[] = [];
 
   for (const question of library) {
     if (!matches(question, search)) continue;
+    if (
+      allowedTypes !== undefined &&
+      (question.type === null || !allowedTypes.includes(question.type))
+    ) {
+      continue;
+    }
     const already = isPinned(draft, question.questionId);
     for (const version of question.versions) {
       // A draft version is not pinnable and never will be as it stands, so it is not

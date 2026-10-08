@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { EmptyState } from "@/components/empty-state";
 import { EntityId } from "@/components/entity-id";
 import { Alert, Button, Dialog, TextField } from "@/components/kit";
+import { ALLOWED_COLUMN_TYPES, columnTypeNote } from "@/lib/forms/table-columns";
 import {
   choose,
   chosenDetail,
@@ -164,6 +165,7 @@ export function LibraryPicker({
   library,
   onAddPins,
   onClose,
+  columnTypesOnly = false,
 }: {
   readonly isOpen: boolean;
   readonly stepTitle: string;
@@ -180,6 +182,19 @@ export function LibraryPicker({
    */
   readonly onAddPins: (pins: readonly DraftPin[]) => void;
   readonly onClose: () => void;
+  /**
+   * Offer only the types a **table column** may be (task 077, Q12): `shortText`, `number`,
+   * `date`, `boolean`, `singleChoice`.
+   *
+   * It is a flag rather than a type list, because the list is the kernel's
+   * (`TABLE_COLUMN_TYPES`) and a caller passing its own would be a second list to keep in
+   * step with the publish refusal. The dialog says WHY the others are absent and names the
+   * stacked presentation as the alternative, which is the same sentence the column view and
+   * the publish error carry.
+   *
+   * Default `false`, so every existing caller is the unfiltered picker it was.
+   */
+  readonly columnTypesOnly?: boolean;
 }) {
   const [search, setSearch] = useState("");
   // Insertion-ordered, because the order the author ticked the boxes is the order the pins
@@ -190,7 +205,13 @@ export function LibraryPicker({
   const [focusWant, setFocusWant] = useState<number | undefined>(undefined);
 
   const catalogue = library.ok ? library.data : [];
-  const candidates = library.ok ? withChoices(pinnableRows(catalogue, draft, search), chosen) : [];
+  // The type filter, or none. A local rather than a ternary inside the call, which the
+  // lint refuses nested and which reads worse besides: the flag is the dialog's mode and
+  // the list is the kernel's (`TABLE_COLUMN_TYPES`).
+  const typeFilter = columnTypesOnly ? ALLOWED_COLUMN_TYPES : undefined;
+  const candidates = library.ok
+    ? withChoices(pinnableRows(catalogue, draft, search, typeFilter), chosen)
+    : [];
   const chosenRows = chosenDetail(catalogue, chosen);
 
   function toggle(row: ChoiceRow, next: boolean): void {
@@ -258,6 +279,17 @@ export function LibraryPicker({
     >
       <div className="qcms-picker__body">
         {!library.ok && <Alert variant="error">{t("forms.picker.loadFailed")}</Alert>}
+
+        {/* WHY THE OTHERS ARE ABSENT, said before the list rather than after it: a filtered
+            library looks exactly like a short one, and an author who cannot find their
+            long-text question has no way to tell "not listed" from "not in the library".
+            The sentence names the stacked presentation, which allows every type, because a
+            refusal that names no alternative is a dead end (task 077, Q12). */}
+        {columnTypesOnly && (
+          <p className="qcms-picker__note" data-testid="qcms-picker-column-note">
+            {columnTypeNote()}
+          </p>
+        )}
 
         {library.ok && (
           <TextField label={t("forms.picker.search")} value={search} onChange={setSearch} />

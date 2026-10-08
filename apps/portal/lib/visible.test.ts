@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { A2UIStepDocument } from "@roonga/qcms-ui";
 
-import { commitMoments, documentForVisible, questionLabels, questionPositions } from "./visible";
+import {
+  commitMoments,
+  documentForVisible,
+  instanceLabels,
+  questionLabels,
+  questionPositions,
+} from "./visible";
 
 /**
  * The portal renders only the questions the API's flow projection marks visible,
@@ -240,5 +246,65 @@ describe("commitMoments", () => {
     const moments = commitMoments(doc);
     expect(moments.has("q_future")).toBe(false);
     expect(moments.get("q_known")).toBe("change");
+  });
+});
+
+/**
+ * `instanceLabels` reads an instance's resolved label off the EXPANDED tree, and the
+ * two presentations carry it on two different node types: the stacked presentation's
+ * `RepeatInstance` card and the table presentation's `RepeatRow` (tasks 073 and 077).
+ *
+ * The consequence of the map missing one is silent and specific: a table-presented
+ * group's error summary would read "Registration plate needs an answer" three times
+ * over on a three-row step, which is the WCAG 3.3.1 distinctness problem this map
+ * exists to solve. So both node types are asserted here, in one shape each.
+ */
+function expandedDoc(nodeType: string, children: unknown[]): A2UIStepDocument {
+  return {
+    stepId: "stp_fleet",
+    root: {
+      type: "Form",
+      children: [
+        {
+          type: "RepeatGroup",
+          props: { groupId: "grp_vehicles" },
+          children: [
+            { type: nodeType, props: { groupId: "grp_vehicles", label: "Vehicle 1" }, children },
+          ],
+        },
+      ],
+    },
+  } as unknown as A2UIStepDocument;
+}
+
+describe("instanceLabels over both presentations (tasks 073 and 077)", () => {
+  it("names a field inside a stacked instance card", () => {
+    const labels = instanceLabels(
+      expandedDoc("RepeatInstance", [
+        { type: "TextField", props: { name: "ins_7k2/q_plate", label: "Registration plate" } },
+      ]),
+    );
+    expect(labels.get("ins_7k2/q_plate")).toBe("Vehicle 1");
+  });
+
+  it("names a field inside a table ROW, through the cell between them", () => {
+    // The cell is a node of its own, so the walk has to carry the row's label past it.
+    const labels = instanceLabels(
+      expandedDoc("RepeatRow", [
+        {
+          type: "RepeatCell",
+          props: { questionId: "q_plate" },
+          children: [
+            { type: "TextField", props: { name: "ins_7k2/q_plate", label: "Vehicle 1, plate" } },
+          ],
+        },
+      ]),
+    );
+    expect(labels.get("ins_7k2/q_plate")).toBe("Vehicle 1");
+  });
+
+  it("names nothing on a step with no repeating group, for one walk", () => {
+    expect(instanceLabels(stepDoc).size).toBe(0);
+    expect(instanceLabels(null).size).toBe(0);
   });
 });

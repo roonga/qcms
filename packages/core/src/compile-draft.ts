@@ -21,8 +21,10 @@ import {
   countBounds,
   INSTANCE_LABEL_PLACEHOLDER,
   isRepeatGroup,
+  isTableColumnType,
   labelPlaceholders,
   repeatGroups,
+  TABLE_COLUMN_TYPES,
   type RepeatGroup,
 } from "./step.js";
 import { classSetAmbiguity } from "./safe-pattern.js";
@@ -264,6 +266,59 @@ function checkRepeatCountTypes(
         message: `Group "${item.groupId}" takes its instance count from question "${item.count.questionId}", which is ${record.definition.type} rather than number`,
         path: { group: item.groupId, question: item.count.questionId },
       });
+    }
+  }
+  return errors;
+}
+
+/**
+ * Every column of a `table`-presented group is one of the five allowed cell types
+ * (`TABLE_COLUMN_TYPE_NOT_ALLOWED`, Q12 second half, task 077, ADR-43).
+ *
+ * It sits beside {@link checkRepeatCountTypes} for the same reason: the question's
+ * type is on the **resolved** pin rather than on the draft, so the check cannot run
+ * before resolution and does not belong with the structural ones.
+ *
+ * Three properties of the refusal are deliberate and are what the tests assert:
+ *
+ * - **It is reported per column, not per group.** A group whose members include
+ *   both refused types produces two errors, because a publish report is always
+ *   complete (DOMAIN_SCHEMA §4.1) and an author fixing one of two would otherwise
+ *   be sent round the loop twice.
+ * - **It fires on the presentation and nothing else.** The same member list under
+ *   `stacked` or `perInstanceStep` publishes untouched, which is the asymmetry the
+ *   Q12 ruling creates on purpose.
+ * - **The message names the stacked presentation.** An author refused here has
+ *   somewhere to go, and the point of refusal is where they are told so rather
+ *   than a document they would have to find.
+ *
+ * A member the form does not pin is skipped: it is already reported by
+ * `resolvePins` as `DANGLING_QUESTION_REF`, and inventing a second error about a
+ * question whose type nobody could read would name a type that does not exist.
+ */
+function checkTableColumnTypes(
+  definition: FormDefinition,
+  resolved: ReadonlyMap<QuestionId, QuestionVersionRecord>,
+): PublishError[] {
+  const errors: PublishError[] = [];
+  const allowed = TABLE_COLUMN_TYPES.join(", ");
+  for (const step of definition.steps) {
+    for (const item of step.items) {
+      if (!isRepeatGroup(item) || item.presentation !== "table") continue;
+      for (const member of item.items) {
+        const record = resolved.get(member.questionId);
+        if (record === undefined || isTableColumnType(record.definition.type)) continue;
+        errors.push({
+          code: "TABLE_COLUMN_TYPE_NOT_ALLOWED",
+          message: `Group "${item.groupId}" is presented as a table, and its column "${member.questionId}" is ${record.definition.type}; a table column is one of ${allowed}. Present this group as "stacked" instead, which allows every question type.`,
+          path: {
+            group: item.groupId,
+            question: member.questionId,
+            step: step.stepId,
+            type: record.definition.type,
+          },
+        });
+      }
     }
   }
   return errors;
@@ -691,6 +746,7 @@ export function compileDraft(draft: DraftInput): PublishResult {
     ...analyzeRuleGraph(definition),
     ...checkRuleTypes(definition, (questionId) => resolved.get(questionId)?.definition),
     ...checkRepeatCountTypes(definition, resolved),
+    ...checkTableColumnTypes(definition, resolved),
   ];
   const sites = textSites(definition, resolved);
   errors.push(...checkLocaleCompleteness(definition, sites));

@@ -112,6 +112,47 @@ export function useQcmsField(name: string | undefined): QcmsField {
   return { value, error, setValue, blur };
 }
 
+/**
+ * The whole parent-owned answer map (task 077).
+ *
+ * Every control reads its own field through {@link useQcmsField}, and that is the seam
+ * a control should use. This one exists for a **presentation whose content is a
+ * function of a column rather than of a field**: the table presentation's `<tfoot>`
+ * total sums one column's drawn cells, and the number of those cells changes when the
+ * respondent adds or removes a row.
+ *
+ * So it is not a convenience over `useQcmsField`, it is the only correct shape: a hook
+ * per cell inside a loop whose length changes between renders is a rules-of-hooks
+ * violation, and React would reconcile the wrong hook onto the wrong cell the first
+ * time a row was removed. Reading the map once is one hook whatever the row count.
+ *
+ * The total it feeds is presentation only - never an input, never posted, never
+ * stored, never submitted, never exported - so nothing here is a write path.
+ */
+export function useQcmsValues(): A2UIValues {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.values;
+}
+
+/**
+ * The render's BCP-47 locale, for a presentation that formats a number or picks a word
+ * of its own (task 077: the column total's figures, and the word "Total").
+ *
+ * The portal names its own locale rather than inheriting the renderer's `en-US`
+ * default (issue #729), so this is the same string react-aria formats against and a
+ * total cannot be grouped differently from the cells above it.
+ */
+export function useQcmsLocale(): string {
+  const ctx = useContext(QcmsFieldContext);
+  if (ctx === null) {
+    throw new Error("A2UI field components must be rendered inside <A2UIStepRenderer>.");
+  }
+  return ctx.locale;
+}
+
 /** Whether the renderer is in native (no-JS) submit mode (task 044). */
 export function useQcmsNativeSubmit(): boolean {
   const ctx = useContext(QcmsFieldContext);

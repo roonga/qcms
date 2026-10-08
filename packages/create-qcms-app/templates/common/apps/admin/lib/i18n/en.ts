@@ -804,6 +804,31 @@ export const messages = {
   "forms.picker.loadFailed":
     "The question library could not be loaded, so there is nothing to choose from. Close this dialog and reload the page to try again.",
   "forms.picker.cancel": "Cancel",
+  // --- the table presentation's column view and its filtered picker (task 077) ---
+  //
+  // Under ADR-42 there is no table question, so the "column editor" is the group's own
+  // member list seen as columns: one row per column, each showing its label, the question
+  // underneath it and that question's type. The type is SHOWN and never chosen, because it
+  // is the question's own.
+  "forms.columns.title": "Columns",
+  "forms.columns.description":
+    "Each column of the table is one question in this group, and the order below is the order the columns are drawn in. A column's type is the question's own: change it in the question, not here.",
+  "forms.columns.tableLabel": "Table columns",
+  "forms.columns.column.ordinal": "#",
+  "forms.columns.column.label": "Column",
+  "forms.columns.column.question": "Question",
+  "forms.columns.column.type": "Type",
+  "forms.columns.add": "Add column",
+  "forms.columns.empty": "No columns yet. Add a question to this group and it becomes a column.",
+  // The one sentence the picker, the column view and the publish error all say, so an
+  // author meets the same five types and the same way out wherever they are refused.
+  "forms.columns.typeNote":
+    "A table column holds one of {types}. Long text and multiple choice do not fit a cell, and they are worse again on the phone, where the table becomes one card per row. Present this group as stacked instead: that presentation allows every question type.",
+  // Said on the row itself, because a member added before the presentation was switched to
+  // a table is still in the group and publish will name it.
+  "forms.columns.refused": "Not allowed as a column",
+  "forms.columns.refusedHint":
+    "This question's type cannot be a table column, so this form cannot be published while it is one. Remove it from the group, or present the group as stacked.",
 
   "forms.rules.title": "Rules",
   "forms.rules.add": "Add rule",

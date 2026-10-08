@@ -1,0 +1,29 @@
+{
+  "formId": "frm_repeat_table",
+  "defaultLocale": "en",
+  "title": { "en": "Fleet cover, as a table" },
+  "steps": [
+    {
+      "stepId": "stp_fleet_table",
+      "title": { "en": "The vehicles on this policy" },
+      "items": [
+        { "questionId": "q_rt_fleet_ref", "version": 1 },
+        {
+          "groupId": "grp_vehicles",
+          "label": { "en": "Vehicles" },
+          "instanceLabel": { "en": "Vehicle {n}" },
+          "presentation": "table",
+          "count": { "source": "open", "min": 1, "max": 3 },
+          "items": [
+            { "questionId": "q_rt_plate", "version": 1 },
+            { "questionId": "q_rt_odometer", "version": 1 },
+            { "questionId": "q_rt_service_date", "version": 1 },
+            { "questionId": "q_rt_garaged", "version": 1 },
+            { "questionId": "q_rt_use", "version": 1 }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": []
+}
