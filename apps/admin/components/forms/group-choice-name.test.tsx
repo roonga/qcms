@@ -91,29 +91,17 @@ async function render(): Promise<string> {
 }
 
 /**
- * Every `<label>` of a choice group, as its own markup.
+ * The rendered panel as a DOM, which is what the questions below are actually about.
  *
- * Split rather than matched with a lazy `[\s\S]*?`, which the lint gate rejects for
- * super-linear backtracking and is right to: this runs over a whole rendered panel.
+ * Parsed rather than matched with regexes over the markup string, and that is a correctness
+ * change as well as a tidy-up: an earlier draft stripped tags with `replaceAll(/<[^<>]*>/g, "")`
+ * to read an element's text, which CodeQL flags as incomplete multi-character sanitization
+ * (`js/incomplete-multi-character-sanitization`) and is right to - the pattern is the one that
+ * warning exists for, whatever this file is using it for. `textContent` is the question being
+ * asked anyway: what a label PAINTS, which is what the input it wraps answers to.
  */
-const CHOICE_LABEL_OPEN = '<label class="qcms-choice__row"';
-
-function choiceLabels(markup: string): readonly string[] {
-  return (
-    markup
-      .split(CHOICE_LABEL_OPEN)
-      .slice(1)
-      // The delimiter goes back on, so each entry is well-formed markup and `textOf` has an opening
-      // tag to strip rather than the tail of one.
-      .map((piece) => CHOICE_LABEL_OPEN + piece.slice(0, piece.indexOf("</label>")))
-  );
-}
-
-/** The text an element's markup paints, tags stripped. */
-function textOf(markup: string): string {
-  // `[^<>]` rather than `[^>]`: the two classes are the same here, and bounding both delimiters
-  // is what makes the match unambiguous rather than merely correct in practice.
-  return markup.replaceAll(/<[^<>]*>/g, "").trim();
+function parsed(markup: string): Document {
+  return new DOMParser().parseFromString(markup, "text/html");
 }
 
 /** The six option labels the panel renders, in the order the two groups list them. */
@@ -140,48 +128,50 @@ beforeAll(async () => {
 
 describe("the group panel's choice groups", () => {
   it("names each option by its label alone, with the description outside the label", async () => {
-    const markup = await render();
-    const labels = choiceLabels(markup);
+    const document = parsed(await render());
+    const labels = [...document.querySelectorAll("label.qcms-choice__row")];
 
     expect(labels, "three count sources and three presentations").toHaveLength(6);
-    // The label's whole text IS the option's name, because that is what the input wrapped by it
-    // answers to. A description inside would appear here and in the accessible name with it.
-    expect(labels.map(textOf)).toStrictEqual(OPTION_LABELS);
+    // The label's whole text IS the option's name, because a `<label>` contributes its entire
+    // text content to the input it wraps. A description inside would appear here and in the
+    // accessible name with it.
+    expect(labels.map((label) => label.textContent?.trim())).toStrictEqual(OPTION_LABELS);
     for (const label of labels) {
-      expect(label, "one radio per option").toContain('type="radio"');
-      expect(label, "the description must not be inside the label").not.toContain(
-        "qcms-choice__hint",
-      );
+      expect(label.querySelector('input[type="radio"]'), "one radio per option").not.toBeNull();
+      expect(
+        label.querySelector(".qcms-choice__hint"),
+        "the description must not be inside the label",
+      ).toBeNull();
     }
   });
 
   it("wires each description to its own option with `aria-describedby`", async () => {
-    const markup = await render();
+    const document = parsed(await render());
+    const radios = [...document.querySelectorAll("input.qcms-choice__input")];
 
-    // Outside the label it would otherwise be adjacent text a screen reader never associates with
-    // the control. Each hint's id is the one its own radio points at. Matched on the choice
-    // radios alone, because the panel's text fields carry descriptions of their own and a
-    // document-wide count would be about those as much as about these.
-    const described = [
-      ...markup.matchAll(/class="qcms-choice__input"[^>]*aria-describedby="([^"]+)"/g),
-    ].map((match) => match[1] ?? "");
-    expect(described).toHaveLength(6);
+    // Scoped to the choice radios, because the panel's text fields carry descriptions of their
+    // own and a document-wide count would be about those as much as about these.
+    expect(radios).toHaveLength(6);
+    const described = radios.map((radio) => radio.getAttribute("aria-describedby") ?? "");
     expect(new Set(described).size, "each option describes itself, not a shared sentence").toBe(6);
     for (const id of described) {
-      expect(markup, `the hint ${id} its own option points at`).toContain(
-        `id="${id}" class="qcms-choice__hint"`,
-      );
+      const hint = document.getElementById(id);
+      // Outside the label it would otherwise be adjacent text a screen reader never associates
+      // with the control, so the wiring is the whole of what makes it a description.
+      expect(hint, `the hint ${id} its own option points at`).not.toBeNull();
+      expect(hint?.className).toBe("qcms-choice__hint");
+      expect(hint?.closest("label"), "and it is outside the label, not merely after it").toBeNull();
     }
   });
 
   it("renders every option's sentence, so all three choices are readable at once", async () => {
-    const markup = await render();
+    const text = parsed(await render()).body.textContent ?? "";
 
     // The reason this is a radio group rather than a `Select`: each option changes which other
     // fields exist, so the consequences cannot sit behind a popover.
-    expect(markup).toContain("Every respondent answers this group exactly this many times");
-    expect(markup).toContain("A number question earlier in the form decides");
-    expect(markup).toContain("The respondent presses Add");
-    expect(markup).toContain("Instances become rows");
+    expect(text).toContain("Every respondent answers this group exactly this many times");
+    expect(text).toContain("A number question earlier in the form decides");
+    expect(text).toContain("The respondent presses Add");
+    expect(text).toContain("Instances become rows");
   });
 });
