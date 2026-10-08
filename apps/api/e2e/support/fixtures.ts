@@ -452,21 +452,21 @@ export const REPEAT_TABLE_GOLDEN = readFixture(REPEAT_TABLE_COMPILED_PATH) as Co
  * indicator says three; `max: 4` leaves the group growable, so the Add control on the last
  * view has something to do and one more press reaches the refusal.
  *
- * **The step also holds one plain OPTIONAL question, and that is forced rather than
- * chosen.** A step whose every item is a repeating group has nothing visible before its
- * roster is minted, so it is not a visible step, so nothing is rendered on it, so the mint
- * - which is due on the serve of the group's own step - never happens: the form serves "you
- * have answered everything" from the first request. That is a gap in the minting contract
- * rather than anything about this presentation (it bites the stacked presentation the same
- * way). **It was ruled a defect on 2026-10-03 (Q30) and is to be fixed inside wave 4**;
- * until that fix lands, every repeat fixture needs one non-group question on the step
- * exactly as `repeat-fleet` has one.
+ * **The step also holds one plain OPTIONAL question, and it is there on its own merits.**
+ * It was first added as a workaround, because a step whose every item was a repeating
+ * group could not be served at all; Q30 (2026-10-03) fixed that, and a group-only step is
+ * now reachable, which `apps/api/src/features/responses/group-only-step.integration.test.ts`
+ * asserts for all three presentations. What keeps `q_pi_depot` here is what it buys the
+ * specs:
  *
- * It is **optional**, so the Continue gate on each view is that view's own plate and
- * nothing else, and it is what makes the "every instance complete but the step still
- * current" branch reachable in a browser. A view narrows the step to one instance of the
- * paginating group and to nothing else, so this question is on every page of the walk -
- * which is correct, and which the specs assert rather than work around.
+ * - it is **optional**, so the Continue gate on each view is that view's own plate and
+ *   nothing else, which keeps the walk's assertions about one thing;
+ * - it is what makes the "every instance complete but the step is still current" branch of
+ *   `servedView` reachable, and that branch is a reading rather than a ruling, so it wants
+ *   a test;
+ * - a view narrows the step to one instance of the paginating group and to nothing else,
+ *   so this question is on every page of the walk - which is correct, and which the specs
+ *   assert through it rather than work around.
  *
  * `q_pi_plate` is **required**, which is what makes the no-JS walk a walk: the server
  * serves the first view whose instance is incomplete, so each press of the single

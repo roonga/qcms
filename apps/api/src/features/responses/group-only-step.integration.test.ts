@@ -1,45 +1,36 @@
 /**
- * **A step whose every item is a repeating group is unreachable. This file pins that
- * defect rather than endorsing it**, and every expectation below is labelled with the
- * answer it should give instead (found by task 076, 2026-10-02; awaiting a Code Owner
- * ruling, see `docs/features/076-per-instance-step.md`).
+ * **A step whose every item is a repeating group is reachable** (Q30, Code Owner
+ * 2026-10-03). These cases are the fix, and each one fails against the code this work
+ * branched from; before the ruling they pinned the defect instead.
  *
- * ## What happens
+ * ## What the defect was
  *
- * `visibleSteps` is derived from `visible`, so a step whose only content is a repeating
- * group with an **empty roster** has nothing visible and is not a visible step. The
- * roster is empty because the mint is due "the first time the group's own step is
- * served" (`mintDueAndLoadRosters`), and the step is never served because it is not
- * visible. The two facts hold each other up: it is a fixpoint of emptiness, and nothing
- * a respondent does breaks it.
+ * `visibleSteps` is derived from `visible`, so a step whose only content was a repeating
+ * group with an **empty roster** had nothing visible and was not a visible step. The
+ * roster was empty because the mint is due "the first time the group's own step is
+ * served" (`mintDueAndLoadRosters`), and the step was never served because it was not
+ * visible. The two facts held each other up: a fixpoint of emptiness that nothing a
+ * respondent did could break.
  *
- * The consequence a respondent meets is in the first case below: a form whose single
- * step is a repeating group answers its very first request with `step: null` and
- * `readyToSubmit: true` - "you have answered everything", before they have answered
- * anything, with no control that could change it.
+ * What a respondent met is the first case below: a form whose single step is a repeating
+ * group answered its very first request with `step: null` and `readyToSubmit: true` -
+ * "you have answered everything", before they had answered anything, with no control
+ * that could change it. It was not a property of any one presentation; the second and
+ * third cases are what keep that honest, driving the **stacked** presentation and a
+ * group's step sitting behind a plain step.
  *
- * ## Why it is pinned here and not fixed here
+ * ## The fix, in two halves
  *
- * **It is a defect of merged code and not of this presentation.** The second and third
- * cases are the evidence: the **stacked** presentation reaches it identically, and it
- * reaches it whether the group's step stands alone or sits behind a plain step.
- * `apps/api/src/features/responses/roster.ts` is byte-identical to the commit this work
- * branched from, and the kernel's `visibleSteps` is untouched by this task.
+ * A step-visible step that holds a repeating group is listed in `visibleSteps`, because
+ * the group's own chrome - its heading and its Add control - is content a respondent can
+ * act on. And `currentStep` moves with it: it is nominated from `visible`, so without the
+ * second half every cursor-less serve still skipped the step and the mint still never
+ * happened. A step a STEP RULE hides stays hidden, which `packages/core` asserts.
  *
- * **And the natural fix is a Code Owner decision.** It is to make a step holding a
- * repeating group a visible step even with an empty roster, because the group's own
- * chrome - its label and its Add control - is content a respondent can act on. That is a
- * change to `visibleSteps`, and the committed golden scenario
- * `packages/core/golden/evaluator/scenarios/repeat-every-instance-empty-group.json`
- * pins the current reading: its form's `stp_pax` is a group-only step, its roster is
- * empty, and its `expected.visibleSteps` is `["stp_after"]`. Changing it means editing
- * an `expected` block, which `pnpm check:golden-append-only` forbids and which task
- * 071's exit criteria protect by name. Widening only the mint gate is not an
- * alternative: the third case here shows the step stays out of `visibleSteps`, so the
- * cursor can never reach it however the roster is filled.
- *
- * Until it is ruled on, **every repeat fixture needs one non-group question on the
- * step**, which is what `repeat-fleet` has and what `repeat-tour` was given.
+ * The golden scenario that pinned the old reading was amended in place under the issue
+ * #128 defect-correction precedent, hash-pinned in `scripts/check-golden-append-only.mjs`
+ * and recorded as the second exception in
+ * `packages/core/golden/evaluator/CORPUS.md`.
  */
 
 import { readFileSync } from "node:fs";
@@ -214,46 +205,58 @@ async function serve(formId: FormId): Promise<StepBody> {
   });
   expect(res.status).toBe(200);
   const body = (await res.json()) as StepBody;
-  // The roster LEDGER, not only the projection: "nothing was minted" has to be a fact
-  // about the rows rather than about what the response chose to report.
-  expect(await rosterLedger(testDb.db, sessionId)).toHaveLength(0);
+  // The roster LEDGER, not only the projection: what was minted has to be a fact about
+  // the rows rather than about what the response chose to report. A group-only step that
+  // is served mints its `min`; one behind a plain step is not served yet and mints
+  // nothing, which is the mint gate working rather than the defect.
+  const ledger = await rosterLedger(testDb.db, sessionId);
+  expect(ledger.length).toBe(body.step?.stepId === "stp_only" ? 2 : 0);
   return body;
 }
 
-describe("a step whose every item is a repeating group is unreachable (defect, pinned)", () => {
-  it("STACKED, the only step: the first request says the form is already complete", async () => {
+describe("a step whose every item is a repeating group is reachable (Q30)", () => {
+  it("STACKED, the only step: it is served, and its min is minted", async () => {
     const formId = await publish(define("frm_only_stacked", "stacked", false), "only-stacked");
     const body = await serve(formId);
-    // SHOULD BE: the step, with `min: 2` minted, and `readyToSubmit` false until the two
-    // plates are answered. IS: nothing to draw, and a form that reports itself finished
-    // before the respondent has answered anything.
-    expect(body.step).toBeNull();
-    expect(body.flowState.readyToSubmit).toBe(true);
-    expect(body.progress.totalVisibleSteps).toBe(0);
-    // Nothing was minted, which is the other half of the fixpoint: the mint is due on
-    // the serve of this step, and this step is never served.
-    expect(body.rosters).toEqual([{ groupId: "grp_only", instances: [] }]);
+    // The step is drawn, `min: 2` is minted on this first serve, and the form does not
+    // claim to be finished: two required plates are still missing. Before Q30 this was
+    // `step: null`, `readyToSubmit: true` and an empty roster.
+    expect(body.step?.stepId).toBe("stp_only");
+    expect(body.flowState.currentStep).toBe("stp_only");
+    expect(body.progress.totalVisibleSteps).toBe(1);
+    expect(body.flowState.readyToSubmit).toBe(false);
+    const live = body.rosters.find((entry) => entry.groupId === "grp_only")?.instances ?? [];
+    expect(live).toHaveLength(2);
+    // And the instances' fields are the page's content, which is what "reachable" means.
+    for (const instanceId of live) {
+      expect(body.flowState.visibleQuestions).toContain(`${instanceId}/q_rep_plate`);
+    }
   });
 
-  it("STACKED, behind a plain step: the group's step is not even in the view list", async () => {
+  it("STACKED, behind a plain step: the group's step is in the view list and reachable", async () => {
     const formId = await publish(
       define("frm_only_stacked_lead", "stacked", true),
       "only-stacked-lead",
     );
     const body = await serve(formId);
-    // The lead step serves, so this session is not stuck at the first request. What it
-    // can never do is reach the group's step: one visible step out of two, so there is no
-    // cursor position that names `stp_only` and no Continue that arrives at it. This is
-    // why widening the mint gate alone would not fix the defect.
+    // Two visible steps, so a cursor names `stp_only` and a Continue arrives at it. This
+    // is the case that shows why widening the mint gate alone would not have been the
+    // fix: the step has to be in this list before any cursor can reach it.
+    expect(body.progress.totalVisibleSteps).toBe(2);
     expect(body.step?.stepId).toBe("stp_lead");
-    // SHOULD BE: 2.
-    expect(body.progress.totalVisibleSteps).toBe(1);
+    // The lead step's own required question is what makes it current, and the group's
+    // step is the one after it rather than one the respondent can never get to.
+    expect(body.flowState.currentStep).toBe("stp_lead");
   });
 
-  it("PER-INSTANCE, the only step: identical, so the defect is not this presentation's", async () => {
+  it("PER-INSTANCE, the only step: identical, so the fix is not this presentation's", async () => {
     const formId = await publish(define("frm_only_pi", "perInstanceStep", false), "only-pi");
     const body = await serve(formId);
-    expect(body.step).toBeNull();
-    expect(body.flowState.readyToSubmit).toBe(true);
+    expect(body.step?.stepId).toBe("stp_only");
+    expect(body.flowState.readyToSubmit).toBe(false);
+    // `min: 2` minted, so the one step is TWO views and the cursor walks them.
+    expect(body.progress.totalVisibleSteps).toBe(2);
+    expect(body.view.groupId).toBe("grp_only");
+    expect(body.view.instanceId).not.toBeNull();
   });
 });
