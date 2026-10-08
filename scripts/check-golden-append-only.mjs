@@ -174,6 +174,23 @@ function tryGit(args) {
   }
 }
 
+/**
+ * A file's exact bytes at a revision, **untrimmed**, or `undefined` when it has none
+ * there.
+ *
+ * Its own reader rather than {@link tryGit}, and the reason is a hash: `git` above trims
+ * its output, which is right for a ref name or a diff and wrong for file content, because
+ * a stripped trailing newline hashes to something the file never had. The first version
+ * of the pin check used `tryGit` and refused the very commit it was written for.
+ */
+function fileAt(revision, filePath) {
+  try {
+    return execFileSync("git", ["show", `${revision}:${filePath}`], { encoding: "utf8" });
+  } catch {
+    return undefined;
+  }
+}
+
 /** Resolve a ref that points at the default branch tip, or undefined. */
 function resolveBaseRef() {
   for (const ref of [`origin/${DEFAULT_BRANCH}`, DEFAULT_BRANCH]) {
@@ -215,7 +232,7 @@ function main() {
   const changes = parseNameStatus(git(["diff", "--name-status", "-M", mergeBase, "HEAD"]));
   // The bytes at HEAD, which is what the diff is about. `git show` rather than a file
   // read, so a working tree holding something uncommitted cannot satisfy a pin.
-  const violations = violationsIn(changes, (filePath) => tryGit(["show", `HEAD:${filePath}`]));
+  const violations = violationsIn(changes, (filePath) => fileAt("HEAD", filePath));
 
   if (violations.length > 0) {
     console.error(

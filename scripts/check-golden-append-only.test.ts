@@ -87,6 +87,18 @@ describe("the hash-pinned exception", () => {
     expect(violationsIn(changes, () => undefined, PINS)).toEqual([`M\t${PINNED_PATH}`]);
   });
 
+  it("refuses content whose trailing newline was stripped", () => {
+    // Not a hypothetical. The first version of the pin check read the file through the
+    // script's own `git` helper, which trims its output - right for a ref name, wrong for
+    // file content - so a stripped trailing newline hashed to something the file never
+    // had and the gate refused the very commit it was written for. The reader is now
+    // untrimmed, and this pins why.
+    const changes = parseNameStatus(`M\t${PINNED_PATH}`);
+    expect(violationsIn(changes, holding("the one permitted content"), PINS)).toEqual([
+      `M\t${PINNED_PATH}`,
+    ]);
+  });
+
   it("still allows an addition anywhere in the corpus", () => {
     const changes = parseNameStatus(`A\tpackages/core/golden/evaluator/scenarios/brand-new.json`);
     expect(violationsIn(changes, () => undefined, PINS)).toEqual([]);
