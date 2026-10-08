@@ -33,6 +33,9 @@
  */
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { argv } from "node:process";
+import { pathToFileURL } from "node:url";
 
 /**
  * Path prefixes under which every committed file is append-only.
@@ -57,6 +60,105 @@ const GUARDED_PREFIXES = ["packages/a2ui-compiler/golden/v", "packages/core/gold
  * amendment has to be written into, which is the Stage 6 mistake one directory over.
  */
 const PROSE_EXEMPTIONS = new Set(["packages/core/golden/evaluator/CORPUS.md"]);
+
+/**
+ * The recorded exceptions: one corpus path whose content the Code Owner has allowed to
+ * change, **pinned to the exact SHA-256 the change must produce**.
+ *
+ * This is the machine half of the exception record in
+ * `packages/core/golden/evaluator/CORPUS.md`, and the two name the same file and the same
+ * hash on purpose: a reader of the prose and a reader of the gate cannot be told different
+ * things. Adding an entry is a Code Owner decision, as both entries in that document were.
+ *
+ * **A pin permits exactly one content, so it is not a hole.** A modification of a listed
+ * path passes only if the new bytes hash to the pinned value; a different edit to the same
+ * path, a deletion, a rename, or any change to an unlisted file is refused exactly as
+ * before. That is the difference between this and an allowlist: the file is not unguarded
+ * afterwards, because the only content it may hold is the one recorded here.
+ *
+ * The hash is over the bytes **at HEAD**, which is what the diff below is about, rather
+ * than over the working tree, which can hold something that was never committed.
+ */
+export const PINNED_EXCEPTIONS = [
+  {
+    path: "packages/core/golden/evaluator/scenarios/repeat-every-instance-empty-group.json",
+    sha256: "197c0d255e136d17f3e28808e98747cbb634fb301d13ec424bf6f85c607fd425",
+    reason: [
+      "Q30 (Code Owner, 2026-10-03): a step holding a repeating group counts as a visible",
+      "step even when its roster is empty, because the group's own chrome is content a",
+      "respondent can act on. Before it, such a step was unreachable - nothing visible",
+      "while the roster was empty, the roster empty because the mint is due on the first",
+      "serve of the group's own step, that step never served because it was not visible.",
+      "Taken under the issue #128 defect-correction precedent rather than a",
+      "SEMANTICS_VERSION bump, for the reason that precedent records: the evaluator",
+      "implements one version at a time, so a bump would fail every published snapshot",
+      "instead of preserving its behaviour. Three fields move - currentStep, visibleSteps",
+      "and visibleStepViews - and the other 76 scenarios are untouched. The second",
+      "recorded exception in CORPUS.md carries the same reasoning for a human reader.",
+    ].join(" "),
+  },
+];
+
+/** SHA-256 of a byte string, lower-case hex. */
+export function sha256(contents) {
+  return createHash("sha256").update(contents).digest("hex");
+}
+
+/**
+ * The pinned exception for a path, or `undefined`.
+ *
+ * Exact path match, like {@link PROSE_EXEMPTIONS}, so a pin cannot leak to a neighbour.
+ */
+export function pinnedException(filePath, pins = PINNED_EXCEPTIONS) {
+  return pins.find((pin) => pin.path === filePath);
+}
+
+/**
+ * The forbidden changes in a diff, as `status\tpath` lines.
+ *
+ * Pure, so the test can drive it without a repository: `changes` is the parsed
+ * `--name-status` output and `contentsAt` returns the bytes a path holds at HEAD, or
+ * `undefined` when they cannot be read.
+ *
+ * Only a MODIFICATION can be excused by a pin. A deletion or a rename removes the path a
+ * pin names, so no hash could describe the result and neither is ever permitted.
+ */
+export function violationsIn(changes, contentsAt, pins = PINNED_EXCEPTIONS) {
+  const violations = [];
+  for (const change of changes) {
+    const code = change.status[0] ?? "";
+    if (code === "A") {
+      continue; // additions are always allowed
+    }
+    for (const filePath of change.paths) {
+      if (!isGuarded(filePath)) {
+        continue;
+      }
+      if (code === "M") {
+        const pin = pinnedException(filePath, pins);
+        const contents = pin === undefined ? undefined : contentsAt(filePath);
+        if (pin !== undefined && contents !== undefined && sha256(contents) === pin.sha256) {
+          continue;
+        }
+      }
+      violations.push(`${change.status}\t${filePath}`);
+    }
+  }
+  return violations;
+}
+
+/** One `--name-status -M` line, split into its status code and paths. */
+export function parseNameStatus(raw) {
+  const changes = [];
+  for (const line of raw.split("\n")) {
+    if (line.trim() === "") {
+      continue;
+    }
+    const parts = line.split("\t");
+    changes.push({ status: parts[0] ?? "", paths: parts.slice(1) });
+  }
+  return changes;
+}
 
 const DEFAULT_BRANCH = process.env.DEFAULT_BRANCH ?? "main";
 
@@ -97,37 +199,23 @@ function main() {
     console.warn(
       `check-golden-append-only: no "${DEFAULT_BRANCH}" ref found; skipping (nothing to diff against).`,
     );
-    return;
+    return 0;
   }
 
   const mergeBase = tryGit(["merge-base", baseRef, "HEAD"]) ?? baseRef;
 
   // --name-status over the merge base: one line per change, e.g.
   //   A\tpath        (added - allowed)
-  //   M\tpath        (modified - forbidden under golden/)
+  //   M\tpath        (modified - forbidden under golden/, unless a pin names it)
   //   D\tpath        (deleted - forbidden)
   //   R100\told\tnew (renamed - forbidden: the old golden path is gone)
-  const raw = git(["diff", "--name-status", "-M", mergeBase, "HEAD"]);
-  const violations = [];
-  for (const line of raw.split("\n")) {
-    if (line.trim() === "") {
-      continue;
-    }
-    const parts = line.split("\t");
-    const status = parts[0] ?? "";
-    const code = status[0] ?? "";
-    if (code === "A") {
-      continue; // additions are always allowed
-    }
-    // For renames/copies (R/C) git lists <old>\t<new>; both paths matter - a
-    // rename deletes the old golden. For M/D there is a single path.
-    const paths = parts.slice(1);
-    for (const filePath of paths) {
-      if (isGuarded(filePath)) {
-        violations.push(`${status}\t${filePath}`);
-      }
-    }
-  }
+  //
+  // For renames/copies (R/C) git lists <old>\t<new>; both paths matter, because a
+  // rename deletes the old golden. For M/D there is a single path.
+  const changes = parseNameStatus(git(["diff", "--name-status", "-M", mergeBase, "HEAD"]));
+  // The bytes at HEAD, which is what the diff is about. `git show` rather than a file
+  // read, so a working tree holding something uncommitted cannot satisfy a pin.
+  const violations = violationsIn(changes, (filePath) => tryGit(["show", `HEAD:${filePath}`]));
 
   if (violations.length > 0) {
     console.error(
@@ -153,12 +241,29 @@ function main() {
         "    revert it, or carry it on a SEMANTICS_VERSION bump with the ADR that justifies",
         "    it. See that corpus's CORPUS.md, which this guard leaves editable.",
         "",
+        "  A committed scenario the Code Owner has allowed to change is HASH-PINNED in",
+        "    PINNED_EXCEPTIONS above and recorded in CORPUS.md. A pin permits exactly one",
+        "    content, so a different edit to a pinned path lands here too - which is what",
+        "    you are reading if you changed one and the hash no longer matches.",
+        "",
       ].join("\n"),
     );
-    process.exit(1);
+    return 1;
   }
 
-  console.log(`check-golden-append-only: OK - no golden files modified or deleted vs ${baseRef}.`);
+  const pinned = PINNED_EXCEPTIONS.map((pin) => pin.path);
+  const note =
+    pinned.length === 0
+      ? ""
+      : ` (${String(pinned.length)} recorded exception(s), hash-pinned: ${pinned.join(", ")})`;
+  console.log(
+    `check-golden-append-only: OK - no golden files modified or deleted vs ${baseRef}${note}.`,
+  );
+  return 0;
 }
 
-main();
+// Only when run as a command, so the test can import the helpers above without the
+// scan firing (and without `process.exit` killing the test run).
+if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
+  process.exit(main());
+}

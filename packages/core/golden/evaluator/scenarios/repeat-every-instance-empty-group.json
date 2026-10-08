@@ -1,5 +1,5 @@
 {
-  "description": "The empty group, and the non-equivalence the Q7 ruling creates. everyInstance over a group with no live instance is FALSE by decision (ADR-42), so q_gate_c stays hidden; not(anyInstance(not answered)) over the SAME empty group is TRUE, so q_gate_d shows. The two would be the same rule under vacuous truth, and this scenario is what stops either being implemented as a rewrite of the other.",
+  "description": "The empty group, and the non-equivalence the Q7 ruling creates. everyInstance over a group with no live instance is FALSE by decision (ADR-42), so q_gate_c stays hidden; not(anyInstance(not answered)) over the SAME empty group is TRUE, so q_gate_d shows. The two would be the same rule under vacuous truth, and this scenario is what stops either being implemented as a rewrite of the other. Amended under Q30 (Code Owner, 2026-10-03, the second recorded exception in CORPUS.md): `stp_pax` holds a repeating group, so it is a visible step and the current step even with an empty roster, and it contributes one view with a null instance. The non-equivalence this scenario exists to pin is in `visible` and is untouched.",
   "form": "golden/evaluator/forms/repeat-stacked.json",
   "rosters": [
     {
@@ -15,12 +15,16 @@
         "questionId": "q_gate_d"
       }
     ],
-    "visibleSteps": ["stp_after"],
-    "currentStep": "stp_after",
+    "visibleSteps": ["stp_pax", "stp_after"],
+    "currentStep": "stp_pax",
     "answeredRequired": [],
     "missingRequired": [],
     "complete": true,
     "visibleStepViews": [
+      {
+        "stepId": "stp_pax",
+        "instanceId": null
+      },
       {
         "stepId": "stp_after",
         "instanceId": null

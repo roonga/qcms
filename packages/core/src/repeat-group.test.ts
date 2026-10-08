@@ -1529,16 +1529,19 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     ]);
   });
 
-  // The outer gate the two fields DO agree about: a step with nothing visible is absent
-  // from `visibleSteps` and contributes no view either, live roster or not.
-  it("emits no view for a step whose every question is hidden", () => {
+  // Q30 (ruled 2026-10-03): holding a repeating group is enough to make a step-visible
+  // step listed, because the group's own chrome - its heading and its Add control - is
+  // content a respondent can act on. Before the ruling such a step was UNREACHABLE: it
+  // had nothing visible while its roster was empty, the roster was empty because the mint
+  // is due on the first serve of the group's own step, and that step was never served
+  // because it was not listed. A form whose single step was a group answered its first
+  // request with "you have answered everything".
+  it("lists a group-bearing step even when every member is rule-hidden", () => {
     const hidden = build(
       [
         ["stp_gate", [{ id: "q_gate", type: "boolean" }]],
         ["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]],
       ],
-      // The whole group is behind a gate outside it, so every member of every instance
-      // is hidden and the step has nothing to draw.
       [
         {
           ruleId: "rul_gate",
@@ -1549,6 +1552,60 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
     );
     const state = evalOk(
       hidden,
+      answersOf([["q_gate", false]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    // Nothing of the group is visible, and the step is listed anyway.
+    expect(state.visible).toEqual([{ stepId: "stp_gate", questionId: "q_gate" }]);
+    expect(state.visibleSteps).toEqual(["stp_gate", "stp_pax"]);
+    // And it has a view, so the cursor can reach it. The roster is live here, so the
+    // views are per instance; an empty roster gives one view with a null instance, which
+    // the empty-group golden scenario pins.
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_gate", instanceId: null },
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ]);
+  });
+
+  it("serves a group-bearing step whose roster is empty as the current step", () => {
+    // The half of Q30 that closes the fixpoint: `currentStep` has to move, or every
+    // cursor-less serve still skips the step and the mint still never happens. Ordered by
+    // DOCUMENT position, so an earlier empty group wins over a later unanswered question.
+    const groupFirst = build(
+      [
+        ["stp_pax", [PAX_GROUP]],
+        ["stp_after", [{ id: "q_gate", type: "boolean" }]],
+      ],
+      [],
+    );
+    const state = evalOk(groupFirst, answersOf([]), rosterOf([["grp_pax", []]]));
+    expect(state.visibleSteps).toEqual(["stp_pax", "stp_after"]);
+    expect(state.currentStep).toBe("stp_pax");
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_pax", instanceId: null },
+      { stepId: "stp_after", instanceId: null },
+    ]);
+  });
+
+  // The outer gate Q30 did NOT touch: semantic 4 still hides a step a STEP RULE hides,
+  // group or no group. The ruling makes a group's chrome content, not an exemption.
+  it("still hides a group-bearing step that a step rule hides", () => {
+    const gated = build(
+      [
+        ["stp_gate", [{ id: "q_gate", type: "boolean" }]],
+        ["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]],
+      ],
+      [
+        {
+          ruleId: "rul_step",
+          when: { op: "equals", questionId: "q_gate", value: true },
+          show: ["stp_pax"],
+        },
+      ],
+    );
+    const state = evalOk(
+      gated,
       answersOf([["q_gate", false]]),
       rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
     );
