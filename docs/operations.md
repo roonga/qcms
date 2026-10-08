@@ -688,7 +688,10 @@ migration written today, and
 project does not ship purely so that claim is executed rather than believed.
 
 The environment-create command applies the same revoke whenever it creates a role, for
-the same reason, and both are guarded on the table existing.
+the same reason. Neither is guarded on the table existing, and neither needs to be: the
+baseline creates `control.two_factor_resets` before any environment can be created, so
+the table is always there by the time either statement runs. The guard that does exist
+is on the read grants a future task adds, `form_releases` today.
 
 **If you renamed the application roles entirely, this revoke is still yours to check.**
 The prefix is `qcms_app`, so a deployment that calls its roles something else keeps all
@@ -705,14 +708,6 @@ each environment role holds `INSERT`, the control role holds `SELECT`, and neith
 Those grants and that revoke live in **task 069's migration**, which is the migration
 that creates that table.
 This baseline has nothing to act on there.
-
-**If you renamed the application roles entirely, this revoke is still yours to check.**
-The prefix is `qcms_app`, so a deployment that calls its roles something else keeps all
-four privileges on the audit table. That is a real limit and not an oversight: a
-migration cannot know a name you chose. Note the asymmetry with the reset command itself,
-which is deliberate: `qcms:reset-2fa` refuses the application credential by testing
-**schema ownership** rather than a role name, so that guard survives a rename and this
-one does not.
 
 **What each role is granted (Code Owner, Q40 as amended by Q48, Q49, Q52, Q54 and Q56).**
 The grants are per named schema, never `IN SCHEMA public`, and `public` holds nothing to
