@@ -83,8 +83,18 @@ const PURPOSE = `e2e-rp-purpose-${RUN}`;
 const PASSPORT = `e2e-rp-passport-${RUN}`;
 const FARE = `e2e-rp-fare-${RUN}`;
 const DECLARATION = `e2e-rp-declaration-${RUN}`;
-/** A `longText` question, for the one thing case 62 needs: a type a table column may not be. */
+/**
+ * The three questions case 62 needs, and each one earns its place.
+ *
+ * `NOTES` is a `longText` the group HOLDS, so the column view has a refused row to list. `MEMO` is
+ * a second `longText` that is never pinned, which is the one the filtered picker must not offer -
+ * an already-pinned question is listed without a checkbox whatever its type, so asserting the
+ * absence of `NOTES` alone would pass with no filter at all. `SEAT` is an unpinned `date`, so the
+ * same dialog can be shown to still offer an allowed type rather than to have emptied itself.
+ */
 const NOTES = `e2e-rp-notes-${RUN}`;
+const MEMO = `e2e-rp-memo-${RUN}`;
+const SEAT = `e2e-rp-seat-${RUN}`;
 
 function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
@@ -601,10 +611,12 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // A LONG-TEXT QUESTION, which is the whole fixture this case needs: `longText` is one of the two
-  // types Q12 refuses as a column, so it is what "only the allowed cell types" has to exclude. A
-  // picker filtered against an empty set of refused questions would pass while doing nothing.
+  // `longText` is one of the two types Q12 refuses as a column, so it is what "only the allowed
+  // cell types" has to exclude; `date` is one of the five it allows. See the slugs' own note for
+  // why there are two long-text questions rather than one.
   await publishQuestion(page, NOTES, "Long text");
+  await publishQuestion(page, MEMO, "Long text");
+  await publishQuestion(page, SEAT, "Date");
 
   await page.goto(`/forms/${formId}`);
   await openGroupPanel(page, GROUP);
@@ -618,6 +630,7 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   const stackedPicker = page.getByRole("dialog");
   await expect(stackedPicker).toBeVisible();
   await expect(stackedPicker.getByTestId("qcms-picker-column-note")).toHaveCount(0);
+  await expect(pickerChoice(stackedPicker, questionIdFor(MEMO), 1)).toBeVisible();
   const notesChoice = pickerChoice(stackedPicker, questionIdFor(NOTES), 1);
   await expect(notesChoice).toBeVisible();
   await notesChoice.check();
@@ -665,15 +678,19 @@ test("filters the column picker to the allowed cell types, and says why (case 62
     "Present this group as stacked instead",
   );
 
-  // ONLY THE ALLOWED TYPES. The long-text question is gone from the dialog entirely - not listed
-  // and disabled, which is what this picker does for a deprecated or already-pinned version. A
-  // type that cannot be a column is a different kind of question rather than a state of a row.
-  await expect(pickerChoice(columnPicker, questionIdFor(NOTES), 1)).toHaveCount(0);
+  // ONLY THE ALLOWED TYPES. The unpinned long-text question is gone from the dialog ENTIRELY -
+  // not listed and disabled, which is what this picker does for a deprecated or already-pinned
+  // version. A type that cannot be a column is a different kind of question rather than a state
+  // of a row, and a list two-sevenths of which can never be chosen is a list to read past.
+  //
+  // Asserted on `MEMO` and on its id rather than on a checkbox alone, which is the difference
+  // between a load-bearing assertion and one that cannot fail: `NOTES` is in the group by now, so
+  // it has no checkbox whatever the filter does, while `MEMO` is pinnable and would be offered.
+  await expect(pickerChoice(columnPicker, questionIdFor(MEMO), 1)).toHaveCount(0);
+  await expect(columnPicker.getByText(questionIdFor(MEMO))).toHaveCount(0);
   await expect(columnPicker.getByText(questionIdFor(NOTES))).toHaveCount(0);
-  // And the allowed ones are still there, so the filter is a filter and not an empty list: the
-  // number question and the short-text one the group does not hold yet.
-  await expect(pickerChoice(columnPicker, questionIdFor(COUNT), 1)).toBeVisible();
-  await expect(pickerChoice(columnPicker, questionIdFor(DECLARATION), 1)).toBeVisible();
+  // And an allowed type is still offered, so this is a filter rather than an emptied list.
+  await expect(pickerChoice(columnPicker, questionIdFor(SEAT), 1)).toBeVisible();
   await columnPicker.getByRole("button", { name: "Cancel" }).click();
   await expect(columnPicker).toBeHidden();
 
@@ -713,7 +730,7 @@ test("filters the column picker to the allowed cell types, and says why (case 62
   await expect(columns).toHaveCount(0);
   await page.getByRole("button", { name: "Add question from library" }).click();
   const reopened = page.getByRole("dialog");
-  await expect(pickerChoice(reopened, questionIdFor(NOTES), 1)).toBeVisible();
+  await expect(pickerChoice(reopened, questionIdFor(MEMO), 1)).toBeVisible();
   await reopened.getByRole("button", { name: "Cancel" }).click();
 });
 
