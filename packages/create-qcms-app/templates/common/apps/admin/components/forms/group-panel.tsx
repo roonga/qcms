@@ -26,6 +26,7 @@ import type { ReadState } from "@/lib/read-state";
 
 import { LibraryPicker } from "./library-picker";
 import { OwnershipGrid } from "./ownership-grid";
+import { TableColumnView } from "./table-column-view";
 
 /**
  * One repeating group's settings (task 074; ADR-42; `plan/repeating-groups-and-table-input.md`
@@ -56,15 +57,19 @@ import { OwnershipGrid } from "./ownership-grid";
  * row flags a group that has none, rather than leaving `REPEAT_MAX_MISSING` to arrive at
  * publish. **A `fixed` count shows no `max` at all**, because the count is the bound.
  *
- * ## The presentation switch is three radios and nothing behind the third
+ * ## The presentation switch is three radios, and the third one has a section
  *
  * All three presentations ship (073, 076, 077) and the field is the kernel's, so the author
- * chooses a LAYOUT here and no answer, key or id moves either way. What sits behind the table
- * option - the column view of the member list, and the library picker filtered to the allowed
- * cell types - belongs to task 077, and behind the per-instance step option to 076. This panel
- * offers the switch and holds the shape they slot into: a `RadioGroup` over
- * {@link REPEAT_PRESENTATIONS} with one hint per option, so a presentation gaining its own
- * controls gains a section under this one rather than a rewrite of it.
+ * chooses a LAYOUT here and no answer, key or id moves either way. The switch is a
+ * `RadioGroup` over {@link REPEAT_PRESENTATIONS} with one hint per option, and it was built so
+ * that a presentation gaining its own controls gains a section under it rather than a rewrite
+ * of it. The table presentation then did exactly that: task 077's `TableColumnView` is
+ * rendered below the switch when the value is `table`, and its Add-column control opens this
+ * panel's own picker with 077's `columnTypesOnly` filter in force. **The two tasks share no
+ * file for it**: 077 wrote a component taking members, a library and a handler, this panel
+ * passes those three, and the only edit here is the branch that renders it. The per-instance
+ * step presentation needs no section of its own - 076 is a renderer change with no authoring
+ * surface - which is why there are two sections and not three.
  */
 export function GroupPanel({
   draft,
@@ -231,12 +236,38 @@ export function GroupPanel({
         onChange={onPresentation}
       />
 
+      {/* 7. THE TABLE PRESENTATION'S OWN SECTION, which is task 077's component rendered by
+             this panel and nothing more (`table-column-view.tsx`, acceptance case 62). It is
+             the shape the docblock above promised: the third option gained a section under
+             the switch rather than a rewrite of it, and the two tasks still share no file. */}
+      {group.presentation === "table" && (
+        <TableColumnView
+          members={group.items}
+          library={library.ok ? library.data : []}
+          // PASSED EVEN WHEN THE LIBRARY READ FAILED, which the prop's own doc leaves open to
+          // the panel. The members' Add two sections up is operable in that state too, and the
+          // dialog both of them open is what reports the failure (`forms.picker.loadFailed`);
+          // two Add controls in one panel that disagree about whether they exist would be a
+          // worse answer than either, and a disabled control explains nothing.
+          onAddColumn={() => {
+            setPickerAt(group.items.length);
+          }}
+        />
+      )}
+
       {pickerAt !== undefined && (
         <LibraryPicker
           isOpen
           stepTitle={name}
           draft={draft}
           library={library}
+          // FILTERED BY THE PRESENTATION, not by which button opened the dialog. Under 077
+          // adding a column IS adding a question to the group, so both Add controls reach the
+          // same mutation and a type Q12 refuses as a column is refused from either. Keying
+          // the filter to the button instead would let the members' Add offer a `longText`
+          // the column view would then list as refused - a publish error (Q12,
+          // `TABLE_COLUMN_TYPE_NOT_ALLOWED`) that the author was walked into by this panel.
+          columnTypesOnly={group.presentation === "table"}
           onAddPins={(pins) => {
             onAddPins(pins, pickerAt);
           }}

@@ -27,18 +27,21 @@ import {
   openGroupPanel,
   openRulePhase,
   openStep,
+  pickerChoice,
+  pickerCommit,
   pinQuestion,
   pinQuestions,
   rule,
   savedStamp,
+  usePinRowMenu,
   waitForSaveAfter,
   waitForSaved,
 } from "./support/forms.js";
 import { confirmLifecycle, createDraft } from "./support/questions.js";
 
 /**
- * Authoring a repeating group, driven through the browser (task 074; acceptance cases 58 to 61
- * of `plan/repeating-groups-and-table-input.md` section 11).
+ * Authoring a repeating group, driven through the browser (task 074; acceptance cases 58 to 61,
+ * and 62 for the reason below, of `plan/repeating-groups-and-table-input.md` section 11).
  *
  * ## Why one journey rather than four specs
  *
@@ -55,10 +58,14 @@ import { confirmLifecycle, createDraft } from "./support/questions.js";
  * the dividend, so the spec that would have exercised a new question type is the spec that does
  * not exist.
  *
- * Case 62 - the library picker filtered to the allowed cell types - belongs to task 077, because
- * it is the table presentation's own publish refusal being surfaced rather than group authoring
- * in general. This spec's panel offers the presentation switch and nothing behind the table
- * option.
+ * ## Case 62 is here because 074 merged second
+ *
+ * The filtered library picker is task 077's deliverable - it is the table presentation's own
+ * publish refusal being surfaced rather than group authoring in general - but its walk needs
+ * 077's column view and this task's group panel on `main` together, so the Code Owner ruled on
+ * 2026-10-03 that it is an exit criterion of whichever of the two merges second. That is this
+ * task (077 merged as PR #1038), so the walk is the fifth test below and the wiring it drives is
+ * the one branch `group-panel.tsx` gained for it.
  */
 
 test.describe.configure({ mode: "serial" });
@@ -76,6 +83,8 @@ const PURPOSE = `e2e-rp-purpose-${RUN}`;
 const PASSPORT = `e2e-rp-passport-${RUN}`;
 const FARE = `e2e-rp-fare-${RUN}`;
 const DECLARATION = `e2e-rp-declaration-${RUN}`;
+/** A `longText` question, for the one thing case 62 needs: a type a table column may not be. */
+const NOTES = `e2e-rp-notes-${RUN}`;
 
 function questionIdFor(slug: string): string {
   return `q_${slug.replaceAll("-", "_")}`;
@@ -584,6 +593,128 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   expect(headingTags(author), "an embedded document must not claim the page").not.toContain("h1");
 
   expect(author).toEqual(asEmbedded(respondent));
+});
+
+test("filters the column picker to the allowed cell types, and says why (case 62)", async ({
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  // A LONG-TEXT QUESTION, which is the whole fixture this case needs: `longText` is one of the two
+  // types Q12 refuses as a column, so it is what "only the allowed cell types" has to exclude. A
+  // picker filtered against an empty set of refused questions would pass while doing nothing.
+  await publishQuestion(page, NOTES, "Long text");
+
+  await page.goto(`/forms/${formId}`);
+  await openGroupPanel(page, GROUP);
+
+  // --- while the group is stacked, every type is offered -------------------
+  //
+  // Asserted FIRST, because it is what makes the filter below an observation rather than an
+  // assumption: the same control, the same library and the same question, offered here and absent
+  // there, so the difference is the presentation and nothing else.
+  await page.getByRole("button", { name: "Add question from library" }).click();
+  const stackedPicker = page.getByRole("dialog");
+  await expect(stackedPicker).toBeVisible();
+  await expect(stackedPicker.getByTestId("qcms-picker-column-note")).toHaveCount(0);
+  const notesChoice = pickerChoice(stackedPicker, questionIdFor(NOTES), 1);
+  await expect(notesChoice).toBeVisible();
+  await notesChoice.check();
+  await pickerCommit(stackedPicker, 1).click();
+  await expect(stackedPicker).toBeHidden();
+
+  // --- the table presentation, and its column view ------------------------
+  const beforeTable = await savedStamp(page);
+  await chooseRadio(page, "A table");
+  const columns = page.getByTestId("table-column-view");
+  await expect(columns).toBeVisible();
+
+  // THE MEMBER LIST SEEN AS COLUMNS, which is the view being reachable at all: this component is
+  // task 077's and this panel renders it, so the rows here are the three pins the group holds and
+  // their order is the order the table draws them in.
+  const columnRows = columns.locator("tbody tr");
+  await expect(columnRows).toHaveCount(3);
+  await expect(columns.locator(`tr[data-column="${questionIdFor(PASSPORT)}"]`)).toContainText(
+    "Short text",
+  );
+
+  // A REFUSED COLUMN IS LISTED, not hidden. The long-text member was added while the group was
+  // stacked and is still a member, so the row stays and says why - otherwise publish would refuse
+  // a column the panel does not show.
+  const refusedRow = columns.locator(`tr[data-column="${questionIdFor(NOTES)}"]`);
+  await expect(refusedRow.getByTestId("column-refused")).toBeVisible();
+  await expect(columns.getByTestId("column-types-refused")).toBeVisible();
+
+  // THE SENTENCE, on the view itself: the five allowed types, and the stacked presentation as the
+  // way out. Both halves are asserted by their own words rather than by a testid alone, because
+  // the words are the deliverable - a refusal that names no alternative is a dead end.
+  const note = columns.getByTestId("column-type-note");
+  await expect(note).toContainText("Short text, Number, Date, Yes or no, Single choice");
+  await expect(note).toContainText("Present this group as stacked instead");
+
+  // --- the filtered picker, which is case 62 itself -----------------------
+  await columns.getByRole("button", { name: "Add column" }).click();
+  const columnPicker = page.getByRole("dialog");
+  await expect(columnPicker).toBeVisible();
+
+  // SAID BEFORE THE LIST, inside the dialog, because a filtered library looks exactly like a short
+  // one: an author who cannot find their long-text question has no way to tell "not offered" from
+  // "not in the library" unless the dialog says so.
+  await expect(columnPicker.getByTestId("qcms-picker-column-note")).toContainText(
+    "Present this group as stacked instead",
+  );
+
+  // ONLY THE ALLOWED TYPES. The long-text question is gone from the dialog entirely - not listed
+  // and disabled, which is what this picker does for a deprecated or already-pinned version. A
+  // type that cannot be a column is a different kind of question rather than a state of a row.
+  await expect(pickerChoice(columnPicker, questionIdFor(NOTES), 1)).toHaveCount(0);
+  await expect(columnPicker.getByText(questionIdFor(NOTES))).toHaveCount(0);
+  // And the allowed ones are still there, so the filter is a filter and not an empty list: the
+  // number question and the short-text one the group does not hold yet.
+  await expect(pickerChoice(columnPicker, questionIdFor(COUNT), 1)).toBeVisible();
+  await expect(pickerChoice(columnPicker, questionIdFor(DECLARATION), 1)).toBeVisible();
+  await columnPicker.getByRole("button", { name: "Cancel" }).click();
+  await expect(columnPicker).toBeHidden();
+
+  // --- the refusal the filter pre-empts, read at publish ------------------
+  //
+  // The sentence on the panel and the sentence at publish are one ruling seen from two sides
+  // (Q12). This is the side the filter exists to keep an author away from, and the member that
+  // reaches it is the one added before the presentation changed.
+  await waitForSaveAfter(page, beforeTable);
+  await openFormDetails(page);
+  await page.getByRole("button", { name: "Publish", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: /^Publish v/ })
+    .click();
+  const rejected = page.getByTestId("qcms-publish-rejected");
+  await expect(rejected).toBeVisible({ timeout: 30_000 });
+  await expect(issue(rejected, "TABLE_COLUMN_TYPE_NOT_ALLOWED")).toBeVisible();
+  await expect(rejected).toContainText("presentation to stacked");
+
+  // --- the way out, taken ------------------------------------------------
+  //
+  // Removing the member is one of the two exits both sentences name, and taking it here is what
+  // proves the refusal was about that column rather than about the presentation: the group is
+  // still a table afterwards and the form is publishable again.
+  await openGroupPanel(page, GROUP);
+  await usePinRowMenu(page, questionIdFor(NOTES), "remove");
+  await expect(columns.locator(`tr[data-column="${questionIdFor(NOTES)}"]`)).toHaveCount(0);
+  await expect(columns.getByTestId("column-types-refused")).toHaveCount(0);
+  await expect(page.getByRole("radio", { name: "A table" })).toBeChecked();
+
+  // AND THE FILTER FOLLOWS THE PRESENTATION, not the button that opened the dialog. Switching back
+  // to stacked offers the long-text question again from the same control, which is the reason this
+  // panel keys the filter to `group.presentation`: while the group is a table, both of its Add
+  // controls reach the same mutation, so a type refused as a column has to be refused from either.
+  await chooseRadio(page, "All instances on one page");
+  await expect(columns).toHaveCount(0);
+  await page.getByRole("button", { name: "Add question from library" }).click();
+  const reopened = page.getByRole("dialog");
+  await expect(pickerChoice(reopened, questionIdFor(NOTES), 1)).toBeVisible();
+  await reopened.getByRole("button", { name: "Cancel" }).click();
 });
 
 /**
