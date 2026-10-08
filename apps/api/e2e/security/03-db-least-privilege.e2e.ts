@@ -53,6 +53,7 @@ import {
   CONTROL_READ_TABLES,
   CONTROL_READ_TABLES_NOT_YET_CREATED,
   DATA_PLANE_ENUM_TYPES,
+  DATA_PLANE_TABLE_NAMES,
 } from "@roonga/qcms-db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -350,7 +351,11 @@ describe.each(ENVIRONMENTS)(
       for (const [table, privileges] of Object.entries(held)) {
         expect([...privileges].sort(), `data_${environment}.${table}`).toEqual([...DML].sort());
       }
-      expect(Object.keys(held).length).toBe(7);
+      // Derived, not typed: the data plane is whatever the schema module declares, which
+      // is eight tables since task 072's roster joined it. A literal here would have to be
+      // edited by whoever adds the ninth, and the point of this assertion is that it is the
+      // one nobody has to remember.
+      expect(Object.keys(held).length).toBe(DATA_PLANE_TABLE_NAMES.length);
     });
 
     it("holds nothing at all in another environment's data schema", async () => {
