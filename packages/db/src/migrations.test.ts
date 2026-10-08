@@ -256,7 +256,6 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
     });
   });
 
-
   /**
    * Criterion 1a's behavioural half: the thirteenth guard **refused a real insert**.
    *
@@ -281,7 +280,18 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
     // Derived, not re-typed: the home environment is the first shipped one and the
     // foreign one is the second, so adding a third environment does not silently turn
     // this into a test of one schema against itself.
+    //
+    // Two is a real precondition rather than a type-checker formality: with one
+    // environment there is no "another environment" to be refused from, and every
+    // refusal below would be asserting nothing. So it throws at collection time instead
+    // of defaulting to a name, which would build `data_undefined` and fail obscurely.
     const [homeEnvironment, foreignEnvironment] = SHIPPED_ENVIRONMENTS;
+    if (homeEnvironment === undefined || foreignEnvironment === undefined) {
+      throw new Error(
+        "the thirteenth guard needs two shipped environments to compare, " +
+          `and SHIPPED_ENVIRONMENTS names ${SHIPPED_ENVIRONMENTS.length}`,
+      );
+    }
     const homeSchema = `data_${homeEnvironment}`;
     const foreignSchema = `data_${foreignEnvironment}`;
 
@@ -412,9 +422,7 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       // A composite foreign key needs a unique constraint on exactly those columns to
       // reference. Dropping it does not fail quietly later; it fails the baseline. The
       // name is asserted because that is what a future migration would have to keep.
-      expect(await constraintNamesOn("control", "u")).toContain(
-        "secure_links_link_environment_uq",
-      );
+      expect(await constraintNamesOn("control", "u")).toContain("secure_links_link_environment_uq");
     });
   });
 

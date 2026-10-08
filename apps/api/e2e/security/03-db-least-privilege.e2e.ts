@@ -356,9 +356,10 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
       `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
       [formId],
     );
-    await owner.query(`insert into control.form_drafts (form_id, definition) values ($1, '{}'::jsonb)`, [
-      formId,
-    ]);
+    await owner.query(
+      `insert into control.form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,
+      [formId],
+    );
 
     // A delta rather than an absolute count, because another test in this file inserts
     // the `form.released` row Q49 permits, and the assertion should not depend on which
