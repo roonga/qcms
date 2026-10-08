@@ -338,6 +338,74 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     );
     expect(refusal).toMatch(/permission denied/i);
   });
+  it("publishes a version, under its own grants, and queues nothing anywhere (Q60, criterion 6)", async () => {
+    // Criterion 6 asks for this count **as `qcms_app_control` with its real grants**,
+    // because a superuser count proves the handler wrote nothing while saying nothing
+    // about what the credential could have written. Here the publish's own two writes
+    // run on a connection holding exactly the grants the API holds.
+    //
+    // Note which half of that this role can do: it holds `INSERT` on every
+    // `data_<env>.outbox` and no `SELECT` anywhere in a data schema, asserted above. So
+    // it can enqueue and cannot count, and the count below is the owner's. That split
+    // is what makes zero meaningful rather than circular: the role **has** the grant an
+    // enqueue needs, so an empty outbox is the transaction's doing and not a refusal.
+    const control = clients.get(CONTROL_ROLE)!;
+    const formId = "q60-publish-count";
+
+    await owner.query(
+      `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
+      [formId],
+    );
+    await owner.query(`insert into control.form_drafts (form_id, definition) values ($1, '{}'::jsonb)`, [
+      formId,
+    ]);
+
+    // A delta rather than an absolute count, because another test in this file inserts
+    // the `form.released` row Q49 permits, and the assertion should not depend on which
+    // ran first.
+    const outboxCounts = async (): Promise<Record<string, number>> => {
+      const counts: Record<string, number> = {};
+      for (const environment of ENVIRONMENTS) {
+        const res = await owner.query<{ n: string }>(
+          `select count(*) as n from data_${environment}.outbox`,
+        );
+        counts[environment] = Number(res.rows[0]?.n ?? "-1");
+      }
+      return counts;
+    };
+    const before = await outboxCounts();
+
+    // The publish transaction as the handler issues it (`makePublishFormHandler`):
+    // freeze the immutable version, delete the draft, one transaction, on the control
+    // connection. If a `form.published` enqueue came back, it would be inside this
+    // transaction and the delta below would be 1 somewhere.
+    await control.query("begin");
+    await control.query(
+      `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version,
+          a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+      [formId],
+    );
+    await control.query(`delete from control.form_drafts where form_id = $1`, [formId]);
+    await control.query("commit");
+
+    // The version is really there, so the publish was a publish and not a no-op that
+    // would make the count below vacuous.
+    const version = await owner.query<{ n: string }>(
+      `select count(*) as n from control.form_versions where form_id = $1`,
+      [formId],
+    );
+    expect(Number(version.rows[0]?.n)).toBe(1);
+
+    expect(await outboxCounts()).toEqual(before);
+
+    // And the credential cannot audit itself: the count had to come from the owner,
+    // which is the Q49 split restated from the direction of this test.
+    expect(await refusalFor(control, `select count(*) from data_prod.outbox`)).toMatch(
+      /permission denied/i,
+    );
+  });
 });
 
 describe.each(ENVIRONMENTS)(
