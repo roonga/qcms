@@ -28,18 +28,24 @@
 import type { RouteHandler, z } from "@hono/zod-openapi";
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
 import {
+  type AnswerKey,
+  answerKey,
   type AnswerMap,
   type AnswerValue,
   compileDraft,
+  countBounds,
   type DraftInput,
   evaluateRules,
   type FormDefinition,
   type FormId,
   type FrozenSnapshot,
+  type GroupId,
+  type InstanceId,
   isStepId,
   parseAnswerValue,
   parseFormDefinition,
   parseFormId,
+  parseInstanceId,
   parseLocaleCode,
   parseQuestionId,
   type PublishError,
@@ -47,11 +53,16 @@ import {
   type QuestionId,
   type QuestionRef,
   type QuestionVersionRecord,
+  type RepeatGroup,
+  repeatGroups,
   type ResolveQuestion,
   type ResolveQuestionVersion,
+  type RosterMap,
   ruleReferences,
+  ruleGroupReferences,
   type StepId,
   type VisibilityRule,
+  questionGroups,
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
@@ -665,6 +676,184 @@ export function makeValidateDraftHandler(
   };
 }
 
+// --- hypothetical rosters, shared by both admin preview routes (074) --------
+
+/** The roster an admin preview evaluated with, in both shapes it is needed in. */
+interface Hypothetical {
+  /** What `evaluateRules` takes as its fourth parameter. */
+  readonly rosters: RosterMap;
+  /** What the response echoes, so the panel can state what it answered about. */
+  readonly projection: { groupId: string; instances: string[] }[];
+}
+
+/**
+ * Turn the caller's hypothetical instance ids into a roster the evaluator will take.
+ *
+ * ## Why a preview has to be handed a roster at all
+ *
+ * `evaluateRules` takes the live roster as a parameter rather than deriving it from the
+ * answer keys, and ADR-42 gives the reason: an instance a respondent has added and not yet
+ * answered would not exist in a derived roster, so "Add passenger" would do nothing visible.
+ * The roster is state the SERVER owns at serve time, out of `answer_group_instances`. An
+ * admin preview has no session and therefore no such state, so the author's screen mints one
+ * - from the group's own `min`, or from a count the author types - and sends it (section 6.5).
+ *
+ * ## What this refuses, and what it quietly drops
+ *
+ * A group the definition does not declare contributes nothing: that is `DANGLING_GROUP_REF`
+ * at publish, a refusal with its own sentence, and inventing a roster for it here would make
+ * a rule reading a non-existent group appear to work in the preview and fail at publish.
+ *
+ * An id that is not a well-formed `InstanceId` is dropped rather than refused, because the
+ * one thing it can be is a caller bug and the honest rendering of it is an instance that is
+ * not there. Duplicates are dropped too: roster ORDER is meaning (ADR-42 widens I7's
+ * determinism statement to include it), and a repeated id would make one instance appear
+ * twice in a walk that is supposed to visit each once.
+ *
+ * The list is **truncated at the group's declared maximum**, which is not belt-and-braces
+ * tidiness: a preview showing ten instances of a group whose `max` is nine would be a claim
+ * about a page no respondent can reach, and the API is where the bound is known from the
+ * pinned definition rather than from anything the caller said. A `fixed` count is its own
+ * bound, so it truncates at the count. A group whose author has not filled the required `max`
+ * in yet has no declaration to truncate against, and truncates at
+ * {@link PREVIEW_INSTANCE_CAP} instead - which bounds one request and no form's maximum. See
+ * that constant for why Q14 still holds.
+ */
+function hypotheticalRosters(
+  definition: FormDefinition,
+  supplied: Readonly<Record<string, readonly string[]>> | undefined,
+): Hypothetical {
+  const rosters = new Map<GroupId, readonly InstanceId[]>();
+  const projection: { groupId: string; instances: string[] }[] = [];
+  for (const group of repeatGroups(definition.steps)) {
+    const instances = rosterFor(group, supplied?.[group.groupId] ?? []);
+    rosters.set(group.groupId, instances);
+    projection.push({ groupId: group.groupId, instances: [...instances] });
+  }
+  return { rosters, projection };
+}
+
+/**
+ * The most instances ONE ADMIN PREVIEW REQUEST may hypothesise about a group whose author has
+ * not declared a maximum yet (task 074; the Code Owner read a preview-only cap as inside Q14 on
+ * 2026-10-03).
+ *
+ * **It bounds one request's hypothesis and no form's declared maximum**, and that distinction is
+ * the whole of why it is consistent with Q14 rather than a reinstatement of the ceiling Q14
+ * removed. A group may declare any `max` it likes and this number never touches it: a group with
+ * a declared maximum truncates against the author's own figure, above or below this, exactly as
+ * before. What this covers is the state `addGroup` deliberately creates - `open` with `min: 1`
+ * and NO `max`, because `max` is a required field with no safe default (SEC-16) - in which
+ * `countBounds` answers `undefined` and nothing else in either preview route bounded the
+ * caller's instance list.
+ *
+ * **Why the kernel's own budget does not cover it.** `REPEAT_EVALUATION_BUDGET` is checked at
+ * publish against DECLARED maxima and never at runtime against live counts
+ * (`packages/core/src/step.ts`), and neither preview route runs `analyzeRuleGraph` - so operator
+ * nesting is likewise unrefused here, and a bench request may target inside one group while
+ * applying a whole-group operator over another at the product of the two roster lengths. This
+ * cap is what bounds that product, because the bench form's own groups take their `max` from the
+ * truncated roster: fifty by fifty is the worst shape one request can ask for.
+ *
+ * Fifty rather than a larger number because a preview is a thing an author reads: a hypothesis
+ * nobody can scan is not a preview, and both sample use cases in
+ * `plan/repeating-groups-and-table-input.md` section 1 fit inside it with room (nine passengers,
+ * twenty income sources). An author who needs to see more declares the `max` they actually mean,
+ * which is the field the panel marks required.
+ */
+const PREVIEW_INSTANCE_CAP = 50;
+
+function rosterFor(group: RepeatGroup, asked: readonly string[]): readonly InstanceId[] {
+  const seen = new Set<string>();
+  const instances: InstanceId[] = [];
+  // The author's own declaration where there is one, and the preview-only cap where there is
+  // not. Never the smaller of the two: a declared `max` above the cap is the author's figure and
+  // a preview of it is a preview of what a respondent can reach.
+  const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
+  for (const candidate of asked) {
+    if (instances.length >= ceiling) break;
+    if (seen.has(candidate)) continue;
+    const parsed = parseInstanceId(candidate);
+    if (!parsed.ok) continue;
+    seen.add(candidate);
+    instances.push(parsed.value);
+  }
+  return instances;
+}
+
+/**
+ * Read the caller's hypothetical answers into an `AnswerMap`, keyed the way the evaluator
+ * keys them.
+ *
+ * A bare `questionId` for a question outside every repeating group, byte-identically to what
+ * both routes always accepted, and `instanceId/questionId` for a question inside one. Three
+ * things are checked for a qualified key, and each of them closes a way for the preview to
+ * disagree with what a respondent would get:
+ *
+ * 1. the question is pinned by the definition at all (the same check a bare key gets);
+ * 2. it is pinned INSIDE the group the instance belongs to, so an answer cannot be smuggled
+ *    into an instance of a group that does not hold that question;
+ * 3. the instance is in that group's roster, which is the same "is this instance live"
+ *    precondition `SEC-16` puts on every real answer write.
+ *
+ * `onUnreadable` is how the two routes differ, and they differ for a stated reason. The bench
+ * declines the whole request (`unresolvedAnswers`) rather than treating a malformed relevant
+ * value as unanswered and reporting a confident `noMatch` the author would have to debug. The
+ * preview skips, because its values arrive from the shared renderer and an unreadable one
+ * means the author changed the draft under their own answers - whose honest rendering is a
+ * question reading as unanswered, not a pane that goes blank while they edit.
+ *
+ * SEC-13 / ADR-34: these are answer-shaped values. Read here, never logged, never persisted,
+ * never echoed into a response or an error message.
+ */
+function collectKeyedAnswers(
+  supplied: Readonly<Record<string, unknown>> | undefined,
+  definition: FormDefinition,
+  pins: ReadonlyMap<QuestionId, number>,
+  rosters: RosterMap,
+  onUnreadable: "skip" | "refuse",
+): AnswerMap | undefined {
+  const groupOf = questionGroups(definition.steps);
+  const answers = new Map<AnswerKey, AnswerValue>();
+  for (const [key, value] of Object.entries(supplied ?? {})) {
+    if (value === undefined) continue;
+    const resolved = resolveAnswerKey(key, pins, rosters, groupOf);
+    if (resolved === undefined) continue;
+    const answer = parseAnswerValue(value);
+    if (!answer.ok) {
+      if (onUnreadable === "refuse") return undefined;
+      continue;
+    }
+    answers.set(resolved, answer.value);
+  }
+  return answers;
+}
+
+/** One supplied key as an evaluator key, or `undefined` when it names nothing answerable. */
+function resolveAnswerKey(
+  key: string,
+  pins: ReadonlyMap<QuestionId, number>,
+  rosters: RosterMap,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): AnswerKey | undefined {
+  const cut = key.indexOf("/");
+  if (cut < 0) {
+    const questionId = parseQuestionId(key);
+    // A question INSIDE a group answered by its bare id is dropped rather than accepted: it
+    // has one answer per instance and no single value, so there is no instance the value
+    // could belong to. Accepting it would put a key in the map the evaluator never reads.
+    if (!questionId.ok || !pins.has(questionId.value)) return undefined;
+    return groupOf.has(questionId.value) ? undefined : questionId.value;
+  }
+  const instanceId = parseInstanceId(key.slice(0, cut));
+  const questionId = parseQuestionId(key.slice(cut + 1));
+  if (!instanceId.ok || !questionId.ok || !pins.has(questionId.value)) return undefined;
+  const groupId = groupOf.get(questionId.value);
+  if (groupId === undefined) return undefined;
+  if (!(rosters.get(groupId) ?? []).includes(instanceId.value)) return undefined;
+  return answerKey(questionId.value, instanceId.value);
+}
+
 // --- POST /admin/forms/:id/draft/preview-condition --------------------------
 
 /**
@@ -688,19 +877,24 @@ interface PreviewVerdict {
   readonly references: string[];
   readonly outcome: "match" | "noMatch" | "unavailable";
   readonly reason?: PreviewReason;
+  readonly rosters: { groupId: string; instances: string[] }[];
 }
 
 /**
  * An "I cannot answer that" verdict. Tri-state `outcome` plus a typed `reason`,
  * never a nullable boolean: the panel must be able to tell "could not evaluate"
  * from a real "no match", and a half-built draft makes the former ordinary.
+ *
+ * The roster rides on this exit too, and deliberately: a panel showing three hypothetical
+ * passengers beside "could not evaluate" has to be able to say what it could not evaluate.
  */
 function unavailable(
   ruleId: string,
   references: readonly QuestionId[],
   reason: PreviewReason,
+  rosters: { groupId: string; instances: string[] }[] = [],
 ): PreviewVerdict {
-  return { ruleId, references: [...references], outcome: "unavailable", reason };
+  return { ruleId, references: [...references], outcome: "unavailable", reason, rosters };
 }
 
 /**
@@ -762,31 +956,176 @@ function benchTarget(
 }
 
 /**
- * The hypothetical answers, narrowed to what the bench form pins and parsed into
- * canonical `AnswerValue`s. Keys that are not question ids, and answers for
- * questions the bench form does not pin, are ignored - the same rule the
- * evaluator applies to a stray answer-map key. A *relevant* value that is not a
- * canonical encoding returns `undefined` (an `unresolvedAnswers` verdict):
- * declining to answer beats silently treating it as unanswered and reporting a
- * confident `noMatch` the author would have to debug.
+ * The bench's own form, assembled so that the one rule under test is the only thing deciding
+ * whether its target is visible (074 widens it to repeating groups).
  *
- * SEC-13 / ADR-34: these are answer-shaped values. They are read here and never
- * logged, never persisted, and never echoed into a response or an error message.
+ * ## Why the bench form has to know about groups at all
+ *
+ * Because scope is implicit BY POSITION (ADR-42 §3.4). A rule whose target sits inside group
+ * H is evaluated once per live instance of H, and a condition reading another question in H
+ * resolves to that instance's answer. None of that is written in the condition, so a bench
+ * form that flattened H into a plain step would evaluate the rule once, against one answer
+ * per question, and report a single verdict for a rule that genuinely has one verdict per
+ * instance. The author would come to the bench precisely to find that out and be told the
+ * opposite.
+ *
+ * So each group the rule touches is declared in the bench form as a group:
+ *
+ * - the group the TARGET sits in, which is what makes the evaluation per instance, and which
+ *   carries the target as its last member so the reads in it come first;
+ * - the group of any question the condition reads bare, which is the inside-out case;
+ * - any group a whole-group operator names, which is the outside-in case and needs the group
+ *   to exist even when nothing in it is read by name (`instanceCount` reads no question, so
+ *   its group is declared holding its own first member as the one pin `items.min(1)` needs).
+ *
+ * ## The count source is always `open`, and that is deliberate
+ *
+ * The roster is passed to the evaluator explicitly, so the bench group's count source decides
+ * nothing about the walk - it only has to parse. `open` is the one source that needs no other
+ * question in the form: copying a `fromAnswer` source would pull the count question into the
+ * bench, or leave the bench form naming a question it does not pin. The `max` is the roster
+ * the bench was handed, which has already been truncated against the author's own declaration.
  */
-function collectBenchAnswers(
-  supplied: Readonly<Record<string, unknown>>,
-  pins: ReadonlyMap<QuestionId, number>,
-): AnswerMap | undefined {
-  const answers = new Map<QuestionId, AnswerValue>();
-  for (const [key, value] of Object.entries(supplied)) {
-    if (value === undefined) continue;
-    const questionId = parseQuestionId(key);
-    if (!questionId.ok || !pins.has(questionId.value)) continue;
-    const answer = parseAnswerValue(value);
-    if (!answer.ok) return undefined;
-    answers.set(questionId.value, answer.value);
+interface BenchForm {
+  readonly definition: FormDefinition;
+  /** The group the target sits in, which is exactly when the rule is per-instance. */
+  readonly targetGroupId?: GroupId | undefined;
+}
+
+/**
+ * Which groups the bench has to declare: the target's, every one holding a question the
+ * condition reads, and every one a whole-group operator names.
+ *
+ * A group the rule does not touch is left out, because a group the bench declares and nothing
+ * reads is a span the evaluator walks for no verdict.
+ */
+function benchWantedGroups(
+  rule: VisibilityRule,
+  references: readonly QuestionId[],
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+  declared: ReadonlySet<GroupId>,
+  targetGroupId: GroupId | undefined,
+): ReadonlySet<GroupId> {
+  const wanted = new Set<GroupId>();
+  if (targetGroupId !== undefined) wanted.add(targetGroupId);
+  for (const questionId of references) {
+    const groupId = groupOf.get(questionId);
+    if (groupId !== undefined) wanted.add(groupId);
   }
-  return answers;
+  for (const groupId of ruleGroupReferences(rule)) {
+    if (declared.has(groupId)) wanted.add(groupId);
+  }
+  return wanted;
+}
+
+/** The questions the condition reads, split by the container the bench has to put them in. */
+function benchReads(
+  target: QuestionRef,
+  references: readonly QuestionId[],
+  pins: ReadonlyMap<QuestionId, number>,
+  groupOf: ReadonlyMap<QuestionId, GroupId>,
+): {
+  readonly bare: readonly QuestionRef[];
+  readonly byGroup: ReadonlyMap<GroupId, readonly QuestionRef[]>;
+} {
+  const bare: QuestionRef[] = [];
+  const byGroup = new Map<GroupId, QuestionRef[]>();
+  for (const questionId of references) {
+    // The target is excluded from the reads even when the condition reads it: the kernel
+    // refuses a question pinned twice in one form, and a self-reference then correctly reads
+    // as unanswered, which is what a forward pass would do anyway.
+    if (questionId === target.questionId) continue;
+    const version = pins.get(questionId);
+    if (version === undefined) continue;
+    const groupId = groupOf.get(questionId);
+    if (groupId === undefined) {
+      bare.push({ questionId, version });
+      continue;
+    }
+    const existing = byGroup.get(groupId) ?? [];
+    existing.push({ questionId, version });
+    byGroup.set(groupId, existing);
+  }
+  return { bare, byGroup };
+}
+
+function benchForm(
+  definition: FormDefinition,
+  rule: VisibilityRule,
+  target: QuestionRef,
+  references: readonly QuestionId[],
+  pins: ReadonlyMap<QuestionId, number>,
+  rosters: RosterMap,
+): BenchForm | undefined {
+  const groupOf = questionGroups(definition.steps);
+  const byId = new Map(repeatGroups(definition.steps).map((group) => [group.groupId, group]));
+  const targetGroupId = groupOf.get(target.questionId);
+  const wanted = benchWantedGroups(rule, references, groupOf, new Set(byId.keys()), targetGroupId);
+  const { bare: bareReads, byGroup: readsByGroup } = benchReads(target, references, pins, groupOf);
+
+  const groupItem = (groupId: GroupId): RepeatGroup | undefined => {
+    const source = byId.get(groupId);
+    if (source === undefined) return undefined;
+    const reads = readsByGroup.get(groupId) ?? [];
+    const members = [...reads, ...(groupId === targetGroupId ? [target] : [])];
+    // `items.min(1)`: a group named only by `instanceCount` is read as a whole and by no
+    // question, so it stands on its own first member.
+    const items = members.length > 0 ? members : source.items.slice(0, 1);
+    const instances = rosters.get(groupId) ?? [];
+    return {
+      groupId,
+      label: source.label,
+      instanceLabel: source.instanceLabel,
+      items,
+      count: { source: "open", min: 0, max: Math.max(1, instances.length) },
+      presentation: source.presentation,
+    };
+  };
+
+  const readGroups = [...byId.keys()]
+    .filter((groupId) => wanted.has(groupId) && groupId !== targetGroupId)
+    .map(groupItem)
+    .filter((group): group is RepeatGroup => group !== undefined);
+  const readItems = [...bareReads, ...readGroups];
+  const targetGroup = targetGroupId === undefined ? undefined : groupItem(targetGroupId);
+  const targetItems = targetGroup === undefined ? [target] : [targetGroup];
+  /** Whether the target's own group carries any of the questions the condition reads. */
+  const readsInTargetGroup =
+    targetGroupId !== undefined && (readsByGroup.get(targetGroupId) ?? []).length > 0;
+
+  // NO READABLE INPUT means no answer the bench could vary: the condition reads only questions
+  // the draft does not pin and names no group it declares, so there is nothing to evaluate. A
+  // group-only read still counts, because the instance COUNT is a thing the author can vary
+  // (`instanceCount` is the whole case), and so does a read that sits in the target's OWN group,
+  // which is the inside-out case and the commonest shape of all.
+  if (readItems.length === 0 && !readsInTargetGroup) return undefined;
+
+  // ONE STEP when every read is inside the target's own group, and that is the inside-out case
+  // rather than a special case: "this passenger is an infant, show this passenger's fare basis"
+  // reads and shows inside one span, so a second step would be a step with no items - which the
+  // kernel refuses (`items.min(1)`) and which would make the bench decline to answer the most
+  // ordinary per-instance rule there is. The group's member order puts the reads before the
+  // target, so the forward pass sees them in that order within each instance.
+  const steps =
+    readItems.length === 0
+      ? [{ stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems }]
+      : [
+          { stepId: BENCH_READS_STEP_ID, title: definition.title, items: readItems },
+          { stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: targetItems },
+        ];
+
+  const parsed = parseFormDefinition({
+    formId: definition.formId,
+    defaultLocale: definition.defaultLocale,
+    title: definition.title,
+    steps,
+    rules: [{ ruleId: rule.ruleId, when: rule.when, show: [target.questionId] }],
+  });
+  if (!parsed.ok) return undefined;
+  return {
+    definition: parsed.value,
+    ...(targetGroupId === undefined ? {} : { targetGroupId }),
+  };
 }
 
 /**
@@ -857,33 +1196,22 @@ export function makePreviewConditionHandler(
 
     const pins = pinsByQuestion(definition);
     const references = orderedReferences(definition, rule, pins);
+    // The roster the AUTHOR's draft bounds, not the bench form's: the maxima that truncate it
+    // are the author's own declarations, and the bench form is built from the result.
+    const asked = hypotheticalRosters(definition, body.instances);
 
     const target = benchTarget(definition, rule, pins);
-    if (target === undefined) return c.json(unavailable(rule.ruleId, references, "noTarget"), 200);
-
-    const reads: QuestionRef[] = [];
-    for (const questionId of references) {
-      if (questionId === target.questionId) continue;
-      const version = pins.get(questionId);
-      if (version !== undefined) reads.push({ questionId, version });
-    }
-    // No readable input means no answer the bench could vary: the condition can
-    // only read questions the draft does not pin, so there is nothing to evaluate.
-    if (reads.length === 0) {
-      return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
+    if (target === undefined) {
+      return c.json(unavailable(rule.ruleId, references, "noTarget", asked.projection), 200);
     }
 
-    const bench = parseFormDefinition({
-      formId: definition.formId,
-      defaultLocale: definition.defaultLocale,
-      title: definition.title,
-      steps: [
-        { stepId: BENCH_READS_STEP_ID, title: definition.title, items: reads },
-        { stepId: BENCH_TARGET_STEP_ID, title: definition.title, items: [target] },
-      ],
-      rules: [{ ruleId: rule.ruleId, when: rule.when, show: [target.questionId] }],
-    });
-    if (!bench.ok) return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
+    const bench = benchForm(definition, rule, target, references, pins, asked.rosters);
+    if (bench === undefined) {
+      return c.json(
+        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
+        200,
+      );
+    }
 
     // Version-exact resolution through the same path publish uses, so the bench
     // and publish can never disagree about which content a pin names (R1).
@@ -891,65 +1219,81 @@ export function makePreviewConditionHandler(
     // while the evaluator wants a `ResolveQuestion` (id only); the bench form's
     // own pin map is what bridges the two, and it is what keeps this lookup
     // version-exact instead of silently resolving to a question's newest version.
-    const { resolveQuestion } = await loadQuestionLookups(deps, bench.value);
-    const benchPins = pinsByQuestion(bench.value);
+    const { resolveQuestion } = await loadQuestionLookups(deps, bench.definition);
+    const benchPins = pinsByQuestion(bench.definition);
     const resolve: ResolveQuestion = (questionId) => {
       const version = benchPins.get(questionId);
       return version === undefined ? undefined : resolveQuestion(questionId, version)?.definition;
     };
 
-    const answers = collectBenchAnswers(body.answers, benchPins);
+    // The roster is re-derived against the BENCH form, because that is the definition the
+    // evaluator is handed: a group the bench did not need to declare has no roster entry, and
+    // an entry for a group the definition does not carry is a key the evaluator never reads.
+    const benchRosters = hypotheticalRosters(bench.definition, rosterRecord(asked.projection));
+    const answers = collectKeyedAnswers(
+      body.answers,
+      bench.definition,
+      benchPins,
+      benchRosters.rosters,
+      "refuse",
+    );
     if (answers === undefined) {
-      return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
+      return c.json(
+        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
+        200,
+      );
     }
 
-    const flow = evaluateRules(bench.value, answers, resolve);
+    const flow = evaluateRules(bench.definition, answers, resolve, benchRosters.rosters);
     // A typed evaluation failure (an unresolvable pin, a type mismatch) is the
     // bench declining to answer, not an API error: same read-only-aid reasoning
     // as the unparseable draft above.
-    if (!flow.ok) return c.json(unavailable(rule.ruleId, references, "unresolvedAnswers"), 200);
+    if (!flow.ok) {
+      return c.json(
+        unavailable(rule.ruleId, references, "unresolvedAnswers", asked.projection),
+        200,
+      );
+    }
 
-    const matched = flow.value.visible.some((entry) => entry.questionId === target.questionId);
+    const hits = flow.value.visible.filter((entry) => entry.questionId === target.questionId);
+    const targetGroupId = bench.targetGroupId;
+    // ONE VERDICT PER INSTANCE when the target is inside a group, and it is an EMPTY LIST
+    // rather than an absent key when that group has no instance. The empty list is the
+    // zero-instance case seen from the panel's side, and it is the honest answer: the rule
+    // matched for none of nothing, which is not the same as a rule that was not evaluated.
+    const instanceOutcomes =
+      targetGroupId === undefined
+        ? undefined
+        : (benchRosters.rosters.get(targetGroupId) ?? []).map((instanceId) => ({
+            instanceId: String(instanceId),
+            outcome: hits.some((hit) => hit.instanceId === instanceId)
+              ? ("match" as const)
+              : ("noMatch" as const),
+          }));
     return c.json(
       {
         ruleId: rule.ruleId,
         references: [...references],
-        outcome: matched ? ("match" as const) : ("noMatch" as const),
+        outcome: hits.length > 0 ? ("match" as const) : ("noMatch" as const),
+        rosters: asked.projection,
+        ...(targetGroupId === undefined ? {} : { targetGroupId: String(targetGroupId) }),
+        ...(instanceOutcomes === undefined ? {} : { instanceOutcomes }),
       },
       200,
     );
   };
 }
 
-// --- POST /admin/forms/:id/draft/preview ------------------------------------
-
-/**
- * Read the author's walk-through answers into an `AnswerMap`.
- *
- * Unlike the bench's collector this **skips** what it cannot read rather than
- * refusing the whole request. The values arrive straight from the shared
- * renderer's canonical `AnswerValue` shape, so an unreadable entry means the
- * author changed the draft under their own answers (a pin moved, a question was
- * removed) - and the honest rendering of that is the question reading as
- * unanswered, not a preview pane that goes blank while they edit.
- *
- * Answers are never logged and never persisted here (SEC-13, ADR-34).
- */
-function collectPreviewAnswers(
-  supplied: Readonly<Record<string, unknown>> | undefined,
-  pins: ReadonlyMap<QuestionId, number>,
-): AnswerMap {
-  const answers = new Map<QuestionId, AnswerValue>();
-  for (const [key, value] of Object.entries(supplied ?? {})) {
-    if (value === undefined) continue;
-    const questionId = parseQuestionId(key);
-    if (!questionId.ok || !pins.has(questionId.value)) continue;
-    const answer = parseAnswerValue(value);
-    if (!answer.ok) continue;
-    answers.set(questionId.value, answer.value);
-  }
-  return answers;
+/** The projection read back as the record shape {@link hypotheticalRosters} takes. */
+function rosterRecord(
+  projection: readonly { groupId: string; instances: readonly string[] }[],
+): Record<string, readonly string[]> {
+  const record: Record<string, readonly string[]> = {};
+  for (const entry of projection) record[entry.groupId] = entry.instances;
+  return record;
 }
+
+// --- POST /admin/forms/:id/draft/preview ------------------------------------
 
 /**
  * The live draft preview (034): compile the draft the author is looking at, and
@@ -1022,8 +1366,24 @@ export function makePreviewDraftHandler(
     );
     const resolve: ResolveQuestion = (questionId) => definitionByQuestion.get(questionId);
 
-    const answers = collectPreviewAnswers(body.answers, pinsByQuestion(definition));
-    const flow = evaluateRules(snapshot, answers, resolve);
+    // THE PREVIEW'S OWN ROSTER (ADR-42 §6.5). There is no session here, so there is no live
+    // roster: the author's screen mints one from each group's `min` or from a count it lets
+    // them type, and sends it. Truncated against the author's own declared maxima, so the
+    // preview cannot show a page no respondent could reach.
+    const asked = hypotheticalRosters(definition, body.instances);
+    // `skip` rather than `refuse`, unlike the bench: these values arrive from the shared
+    // renderer, so an unreadable one means the author changed the draft under their own
+    // answers, and the honest rendering of that is a question reading as unanswered rather
+    // than a pane that goes blank while they edit.
+    const answers = collectKeyedAnswers(
+      body.answers,
+      definition,
+      pinsByQuestion(definition),
+      asked.rosters,
+      "skip",
+    );
+    if (answers === undefined) throw fail.previewUnavailable();
+    const flow = evaluateRules(snapshot, answers, resolve, asked.rosters);
     // A clean draft plus renderer-shaped answers cannot fail the forward pass:
     // every pin resolves and every rule type-checked during validation above. If
     // it ever does, it fails as what it is - an evaluation that could not run -
@@ -1041,8 +1401,17 @@ export function makePreviewDraftHandler(
         a2uiSpecVersion: compiled.a2uiSpecVersion,
         flow: {
           visibleSteps: [...flow.value.visibleSteps],
-          visibleQuestions: flow.value.visible.map((entry) => entry.questionId),
+          // THE ANSWER KEY, not the bare question id - the identical projection the portal's
+          // serve-step sends (ADR-42, ADR-43). A member question of a repeating group can be
+          // visible in one instance and hidden in another, so only the qualified key can say
+          // which; `documentForVisible` consequently leaves a repeat template alone and the
+          // renderer's expansion prunes each clone against this same set. A form with no group
+          // produces the byte-identical bare list it always did.
+          visibleQuestions: flow.value.visible.map((entry) =>
+            String(answerKey(entry.questionId, entry.instanceId)),
+          ),
           complete: flow.value.complete,
+          rosters: asked.projection,
         },
       },
       200,

@@ -1,3 +1,5 @@
+import { stepPins } from "./draft.ts";
+import { readDraftRules, readDraftSteps, readLocalizedText } from "./draft-payload.ts";
 import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
 
 /**
@@ -10,11 +12,19 @@ import type { DraftForm, DraftPin, DraftRule, DraftStep } from "./types.ts";
  * without a server, a fetch, or a component.
  *
  * `proposedDraft` arrives over the wire as `unknown` (`assist-stream.ts` does not parse
- * it, on purpose - that is this module's job). It is read the same tolerant way
- * `lib/server/forms.ts` reads every other API payload: a step or rule missing its own
- * id is dropped rather than crashing the panel, because a proposal the server already
- * validated is *expected* to be well-formed and a malformed one should degrade to "this
- * entry did not parse" rather than take the builder down with it.
+ * it, on purpose). It is read by `lib/forms/draft-payload.ts`, which is the ONE reader of
+ * the draft bytes in this app and is shared with `lib/server/forms.ts`: a step or rule
+ * missing its own id is dropped rather than crashing the panel, because a proposal the
+ * server already validated is *expected* to be well-formed and a malformed one should
+ * degrade to "this entry did not parse" rather than take the builder down with it.
+ *
+ * **It was a second implementation of that read until task 074**, and the two drifted in
+ * exactly the way two copies do: this one read a step's item list as "every entry carrying a
+ * `questionId`", which was total while a step held nothing else and silently drops a repeating
+ * group (ADR-42). The diff an author approves then omitted the group and every question inside
+ * it, and `acceptedDraft` takes `steps` wholesale - so accepting a proposal that merely echoed
+ * back an existing group DELETED the author's group and left the step empty. The shared reader
+ * is what stops that arriving a third time.
  */
 
 /** One question the proposal introduces, as much as the diff needs to label it. */
@@ -63,9 +73,9 @@ export function proposalDiff(
 export function parseProposedDraft(raw: unknown): Pick<DraftForm, "title" | "steps" | "rules"> {
   if (!isKeyedObject(raw)) return { title: {}, steps: [], rules: [] };
   return {
-    title: isKeyedObject(raw["title"]) ? asLocalizedText(raw["title"]) : {},
-    steps: parseSteps(raw["steps"]),
-    rules: parseRules(raw["rules"]),
+    title: readLocalizedText(raw["title"]),
+    steps: readDraftSteps(raw["steps"]),
+    rules: readDraftRules(raw["rules"]),
   };
 }
 
@@ -91,49 +101,8 @@ function isKeyedObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function asLocalizedText(raw: Record<string, unknown>): Readonly<Record<string, string>> {
-  const text: Record<string, string> = {};
-  for (const [locale, value] of Object.entries(raw)) {
-    if (typeof value === "string") text[locale] = value;
-  }
-  return text;
-}
-
 function objects(raw: unknown): readonly Record<string, unknown>[] {
   return Array.isArray(raw) ? raw.filter(isKeyedObject) : [];
-}
-
-function parseSteps(raw: unknown): readonly DraftStep[] {
-  return objects(raw)
-    .filter((entry) => typeof entry["stepId"] === "string")
-    .map((entry) => ({
-      stepId: entry["stepId"] as string,
-      title: isKeyedObject(entry["title"]) ? asLocalizedText(entry["title"]) : {},
-      items: parsePins(entry["items"]),
-    }));
-}
-
-function parsePins(raw: unknown): readonly DraftPin[] {
-  return objects(raw)
-    .filter(
-      (entry) => typeof entry["questionId"] === "string" && typeof entry["version"] === "number",
-    )
-    .map((entry) => ({
-      questionId: entry["questionId"] as string,
-      version: entry["version"] as number,
-    }));
-}
-
-function parseRules(raw: unknown): readonly DraftRule[] {
-  return objects(raw)
-    .filter((entry) => typeof entry["ruleId"] === "string" && isKeyedObject(entry["when"]))
-    .map((entry) => ({
-      ruleId: entry["ruleId"] as string,
-      when: entry["when"] as DraftRule["when"],
-      show: Array.isArray(entry["show"])
-        ? entry["show"].filter((item): item is string => typeof item === "string")
-        : [],
-    }));
 }
 
 function parseQuestionTypes(raw: unknown): ReadonlyMap<string, string> {
@@ -189,7 +158,7 @@ function flattenPins(steps: readonly DraftStep[]): readonly DraftPin[] {
   const seen = new Set<string>();
   const pins: DraftPin[] = [];
   for (const step of steps) {
-    for (const pin of step.items) {
+    for (const pin of stepPins(step)) {
       if (seen.has(pin.questionId)) continue;
       seen.add(pin.questionId);
       pins.push(pin);

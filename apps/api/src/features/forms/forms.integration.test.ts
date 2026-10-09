@@ -1027,6 +1027,417 @@ async function seedPublishedMulti(id: string, optionIds: readonly string[]): Pro
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
 
+// --- 074: the admin preview routes with a repeating group in the draft -------
+
+/** A form whose middle step holds a two-member repeating group, plus a question after it. */
+function repeatDefinition(
+  formId: string,
+  rules: readonly unknown[],
+  /** The group's declared ceiling, or `null` for the state publish refuses with
+   * `REPEAT_MAX_MISSING`: an author who has not filled the required field in yet. */
+  max: number | null = 9,
+): Record<string, unknown> {
+  return {
+    formId,
+    defaultLocale: "en",
+    title: { en: "Booking" },
+    steps: [
+      {
+        stepId: "stp_trip",
+        title: { en: "Trip" },
+        items: [{ questionId: "q_rp_trip", version: 1 }],
+      },
+      {
+        stepId: "stp_travellers",
+        title: { en: "Travellers" },
+        items: [
+          {
+            groupId: "grp_rp_passengers",
+            label: { en: "Passengers" },
+            instanceLabel: { en: "Passenger {n}" },
+            items: [
+              { questionId: "q_rp_passport", version: 1 },
+              { questionId: "q_rp_fare", version: 1 },
+            ],
+            count: max === null ? { source: "open", min: 1 } : { source: "open", min: 1, max },
+            presentation: "stacked",
+          },
+        ],
+      },
+      {
+        stepId: "stp_declaration",
+        title: { en: "Declaration" },
+        items: [{ questionId: "q_rp_declaration", version: 1 }],
+      },
+    ],
+    rules,
+  };
+}
+
+interface RepeatBenchBody extends BenchBody {
+  rosters: { groupId: string; instances: string[] }[];
+  targetGroupId?: string;
+  instanceOutcomes?: { instanceId: string; outcome: "match" | "noMatch" }[];
+}
+
+interface RepeatPreviewBody extends PreviewBody {
+  flow: {
+    visibleSteps: string[];
+    visibleQuestions: string[];
+    complete: boolean;
+    rosters: { groupId: string; instances: string[] }[];
+  };
+}
+
+/**
+ * The hypothetical roster both admin preview routes take (ADR-42 §6.4, §6.5).
+ *
+ * Neither route has a session, so neither has a live roster: the admin mints one from the group's
+ * own `min` or from a count the author types, and the answers in the same request are keyed with
+ * those ids. These tests are the API's half of that contract.
+ *
+ * **The two sentences the Q7 ruling exists for are asserted here as well as in the browser**, and
+ * deliberately at this layer: `everyInstance` over an empty group is FALSE rather than vacuously
+ * true, and its negation is therefore TRUE - so `everyInstance(G, c)` and `not(anyInstance(G, not
+ * c))` are not the same expression. That is a property of the evaluator reached through the bench,
+ * and the bench is where an author meets it.
+ */
+describe("the admin preview routes with a repeating group (074)", () => {
+  const formId = "frm_repeat_preview";
+
+  beforeAll(async () => {
+    await seedPublishedQuestion("q_rp_trip", "Trip purpose");
+    await seedPublishedQuestion("q_rp_passport", "Passport number");
+    await seedPublishedQuestion("q_rp_fare", "Fare basis");
+    await seedPublishedQuestion("q_rp_declaration", "Declaration");
+    // Only the cross-group case pins it: a question is pinned at most once in a form
+    // (`DUPLICATE_QUESTION_IN_FORM` reaches inside groups), so the second group needs a member
+    // of its own rather than borrowing one from the first.
+    await seedPublishedQuestion("q_rp_bag_tag", "Bag tag");
+    await post("/forms", { formId, slug: "repeat-preview", defaultLocale: "en" });
+    await put(`/forms/${formId}/draft`, { definition: repeatDefinition(formId, []) });
+  }, CONTAINER_BOOT_TIMEOUT_MS);
+
+  const everyRule = {
+    ruleId: "rul_rp_every",
+    when: {
+      op: "everyInstance",
+      groupId: "grp_rp_passengers",
+      condition: { op: "answered", questionId: "q_rp_passport" },
+    },
+    show: ["q_rp_declaration"],
+  };
+  const notAnyRule = {
+    ruleId: "rul_rp_every",
+    when: {
+      op: "not",
+      condition: {
+        op: "anyInstance",
+        groupId: "grp_rp_passengers",
+        condition: { op: "not", condition: { op: "answered", questionId: "q_rp_passport" } },
+      },
+    },
+    show: ["q_rp_declaration"],
+  };
+
+  it("evaluates a whole-group rule at ZERO instances, where everyInstance is false", async () => {
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule]),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: { grp_rp_passengers: [] },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatBenchBody;
+    expect(body.outcome).toBe("noMatch");
+    expect(body.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: [] }]);
+    // The rule targets outside the group, so it is not per-instance and carries no instance list.
+    expect(body.targetGroupId).toBeUndefined();
+    expect(body.instanceOutcomes).toBeUndefined();
+  });
+
+  it("is NOT the same as not(anyInstance(not c)) over that empty group, which is the ruling", async () => {
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [notAnyRule]),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: { grp_rp_passengers: [] },
+    });
+
+    // Q7: the two are equivalent only when at least one instance is live. Nothing in the
+    // evaluator, the admin or a golden scenario may treat one as a rewrite of the other.
+    expect(((await res.json()) as RepeatBenchBody).outcome).toBe("match");
+  });
+
+  it("matches `everyInstance` once every live instance answers, and not before", async () => {
+    const instances = { grp_rp_passengers: ["ins_g1_1", "ins_g1_2"] };
+    const partial = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule]),
+      ruleId: "rul_rp_every",
+      answers: { "ins_g1_1/q_rp_passport": "PA1" },
+      instances,
+    });
+    expect(((await partial.json()) as RepeatBenchBody).outcome).toBe("noMatch");
+
+    const all = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule]),
+      ruleId: "rul_rp_every",
+      answers: { "ins_g1_1/q_rp_passport": "PA1", "ins_g1_2/q_rp_passport": "PA2" },
+      instances,
+    });
+    const body = (await all.json()) as RepeatBenchBody;
+    expect(body.outcome).toBe("match");
+    expect(body.rosters).toStrictEqual([
+      { groupId: "grp_rp_passengers", instances: ["ins_g1_1", "ins_g1_2"] },
+    ]);
+  });
+
+  it("reports one verdict per instance for a rule whose target is inside the group", async () => {
+    const perInstance = {
+      ruleId: "rul_rp_fare",
+      when: { op: "answered", questionId: "q_rp_passport" },
+      show: ["q_rp_fare"],
+    };
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [perInstance]),
+      ruleId: "rul_rp_fare",
+      answers: { "ins_g1_2/q_rp_passport": "PA2" },
+      instances: { grp_rp_passengers: ["ins_g1_1", "ins_g1_2", "ins_g1_3"] },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatBenchBody;
+    // Scope is implicit by POSITION: the target sits inside the group, so the rule is evaluated
+    // once per live instance and the answer resolves to that instance's own value and no other.
+    expect(body.targetGroupId).toBe("grp_rp_passengers");
+    expect(body.instanceOutcomes).toStrictEqual([
+      { instanceId: "ins_g1_1", outcome: "noMatch" },
+      { instanceId: "ins_g1_2", outcome: "match" },
+      { instanceId: "ins_g1_3", outcome: "noMatch" },
+    ]);
+    expect(body.outcome, "the rule's own answer is match when any instance matched").toBe("match");
+  });
+
+  it("reports an EMPTY instance list for a per-instance rule with no instance", async () => {
+    const perInstance = {
+      ruleId: "rul_rp_fare",
+      when: { op: "answered", questionId: "q_rp_passport" },
+      show: ["q_rp_fare"],
+    };
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [perInstance]),
+      ruleId: "rul_rp_fare",
+      answers: {},
+      instances: { grp_rp_passengers: [] },
+    });
+
+    const body = (await res.json()) as RepeatBenchBody;
+    // Empty rather than absent: absent means the rule is not per-instance at all, and empty means
+    // it is and the group has nothing in it. Collapsing the two would make a rule the bench could
+    // not answer indistinguishable from one it answered about nothing.
+    expect(body.targetGroupId).toBe("grp_rp_passengers");
+    expect(body.instanceOutcomes).toStrictEqual([]);
+    expect(body.outcome).toBe("noMatch");
+  });
+
+  it("truncates the asked-for roster at the author's own declared maximum", async () => {
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule], 2),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: { grp_rp_passengers: ["ins_g1_1", "ins_g1_2", "ins_g1_3", "ins_g1_1"] },
+    });
+
+    // A preview showing three instances of a group whose max is two would be a claim about a page
+    // no respondent can reach. The duplicate goes too: roster ORDER is meaning, and a repeated id
+    // would make one instance appear twice in a walk meant to visit each once.
+    expect(((await res.json()) as RepeatBenchBody).rosters).toStrictEqual([
+      { groupId: "grp_rp_passengers", instances: ["ins_g1_1", "ins_g1_2"] },
+    ]);
+  });
+
+  it("truncates a group whose author has not declared a maximum at the preview cap", async () => {
+    // The state `addGroup` deliberately creates: `open` with `min: 1` and no `max`, because `max`
+    // is a required field with no safe default (SEC-16). `countBounds` then answers `undefined`
+    // and nothing in either preview route bounded the caller's list, so one authenticated request
+    // could ask for any number of instances and be evaluated against all of them.
+    //
+    // The cap bounds ONE REQUEST and no form's declared maximum, which is what keeps it inside
+    // Q14: a group with a declared `max` still truncates against the author's own figure, above
+    // or below the cap.
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule], null),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: {
+        grp_rp_passengers: Array.from({ length: 200 }, (_entry, at) => `ins_c${String(at + 1)}`),
+      },
+    });
+
+    expect(res.status).toBe(200);
+    const roster = ((await res.json()) as RepeatBenchBody).rosters[0];
+    expect(roster?.groupId).toBe("grp_rp_passengers");
+    expect(roster?.instances).toHaveLength(50);
+    expect(roster?.instances[0], "the cap truncates the tail, keeping roster order").toBe("ins_c1");
+    expect(roster?.instances.at(-1)).toBe("ins_c50");
+  });
+
+  it("bounds a cross-group rule over two groups that declare no maximum", async () => {
+    // The shape the kernel's own budget cannot refuse here: `REPEAT_EVALUATION_BUDGET` is checked
+    // at publish against DECLARED maxima and never at runtime, and neither preview route runs
+    // `analyzeRuleGraph` - so a bench request may target inside one group while applying a
+    // whole-group operator over another, at the product of the two roster lengths. With both
+    // groups unbounded that product had no limit at all; the cap makes the worst one request can
+    // ask for fifty by fifty.
+    const definition = repeatDefinition(formId, [], null);
+    const steps = [...(definition["steps"] as Record<string, unknown>[])];
+    steps.splice(2, 0, {
+      stepId: "stp_bags",
+      title: { en: "Bags" },
+      items: [
+        {
+          groupId: "grp_rp_bags",
+          label: { en: "Bags" },
+          instanceLabel: { en: "Bag {n}" },
+          items: [{ questionId: "q_rp_bag_tag", version: 1 }],
+          count: { source: "open", min: 0 },
+          presentation: "stacked",
+        },
+      ],
+    });
+    const crossGroup = {
+      ...definition,
+      steps,
+      rules: [
+        {
+          ruleId: "rul_rp_cross",
+          when: {
+            op: "anyInstance",
+            groupId: "grp_rp_passengers",
+            condition: { op: "answered", questionId: "q_rp_passport" },
+          },
+          show: ["q_rp_bag_tag"],
+        },
+      ],
+    };
+    const asked = (prefix: string) =>
+      Array.from({ length: 400 }, (_entry, at) => `ins_${prefix}${String(at + 1)}`);
+
+    const res = await bench(formId, {
+      definition: crossGroup,
+      ruleId: "rul_rp_cross",
+      answers: {},
+      instances: { grp_rp_passengers: asked("p"), grp_rp_bags: asked("b") },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatBenchBody;
+    for (const roster of body.rosters) {
+      expect(roster.instances, `group ${roster.groupId}`).toHaveLength(50);
+    }
+    // And it still answers: the bound is on the hypothesis, not on the bench's ability to run.
+    expect(body.outcome).toBe("noMatch");
+    expect(body.targetGroupId).toBe("grp_rp_bags");
+    expect(body.instanceOutcomes).toHaveLength(50);
+  });
+
+  it("ignores an instance id that is not well formed, and a group the form does not declare", async () => {
+    const res = await bench(formId, {
+      definition: repeatDefinition(formId, [everyRule]),
+      ruleId: "rul_rp_every",
+      answers: {},
+      instances: { grp_rp_passengers: ["not-an-id", "ins_g1_1"], grp_nowhere: ["ins_x1"] },
+    });
+
+    const body = (await res.json()) as RepeatBenchBody;
+    expect(body.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: ["ins_g1_1"] }]);
+  });
+
+  it("projects the preview's visible set as ANSWER KEYS, and echoes the roster it used", async () => {
+    const res = await preview(formId, {
+      definition: repeatDefinition(formId, []),
+      answers: {},
+      instances: { grp_rp_passengers: ["ins_p1", "ins_p2"] },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatPreviewBody;
+    expect(body.flow.rosters).toStrictEqual([
+      { groupId: "grp_rp_passengers", instances: ["ins_p1", "ins_p2"] },
+    ]);
+    // A member question appears once per live instance, qualified; a question outside every group
+    // keeps the bare id it always had, byte for byte.
+    expect(body.flow.visibleQuestions).toContain("q_rp_trip");
+    expect(body.flow.visibleQuestions).toContain("ins_p1/q_rp_passport");
+    expect(body.flow.visibleQuestions).toContain("ins_p2/q_rp_passport");
+    expect(body.flow.visibleQuestions).not.toContain("q_rp_passport");
+  });
+
+  it("reads a per-instance answer only for the instance it names", async () => {
+    const perInstance = {
+      ruleId: "rul_rp_fare",
+      when: { op: "answered", questionId: "q_rp_passport" },
+      show: ["q_rp_fare"],
+    };
+    const res = await preview(formId, {
+      definition: repeatDefinition(formId, [perInstance]),
+      answers: { "ins_p1/q_rp_passport": "PA1" },
+      instances: { grp_rp_passengers: ["ins_p1", "ins_p2"] },
+    });
+
+    const visible = ((await res.json()) as RepeatPreviewBody).flow.visibleQuestions;
+    expect(visible).toContain("ins_p1/q_rp_fare");
+    expect(visible, "the second instance answered nothing, so its fare stays hidden").not.toContain(
+      "ins_p2/q_rp_fare",
+    );
+  });
+
+  it("drops an answer keyed for an instance the roster does not hold", async () => {
+    const perInstance = {
+      ruleId: "rul_rp_fare",
+      when: { op: "answered", questionId: "q_rp_passport" },
+      show: ["q_rp_fare"],
+    };
+    const res = await preview(formId, {
+      definition: repeatDefinition(formId, [perInstance]),
+      answers: { "ins_p9/q_rp_passport": "PA9" },
+      instances: { grp_rp_passengers: ["ins_p1"] },
+    });
+
+    // The same "is this instance live" precondition SEC-16 puts on every real answer write.
+    expect(((await res.json()) as RepeatPreviewBody).flow.visibleQuestions).not.toContain(
+      "ins_p1/q_rp_fare",
+    );
+  });
+
+  it("previews a group with no instance at all without refusing the request", async () => {
+    const res = await preview(formId, {
+      definition: repeatDefinition(formId, []),
+      answers: {},
+      instances: { grp_rp_passengers: [] },
+    });
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as RepeatPreviewBody;
+    expect(body.flow.rosters).toStrictEqual([{ groupId: "grp_rp_passengers", instances: [] }]);
+    // The group's chrome still compiles - the document carries the template whatever the roster is
+    // - so the preview renders the group heading and no instance, which is what zero looks like.
+    expect(body.documents.map((document) => document.stepId)).toContain("stp_travellers");
+  });
+
+  it("previews with no `instances` key at all, as the pane's first render does", async () => {
+    const res = await preview(formId, { definition: repeatDefinition(formId, []) });
+
+    // Absent means every group has no instance, which is a legal state rather than a missing
+    // argument: the pane sends its roster on the next render once it has read the draft's minima.
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as RepeatPreviewBody).flow.rosters).toStrictEqual([
+      { groupId: "grp_rp_passengers", instances: [] },
+    ]);
+  });
+});
+
 describe("publish warnings reach the author without blocking a publish (#123)", () => {
   const formId = "frm_warn";
   const layout: [string, string[]][] = [

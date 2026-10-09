@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { ReadState } from "../read-state.ts";
 
-import { isCombinator } from "./condition.ts";
+import { isCombinator, isGroupOp } from "./condition.ts";
 import { ruleSentence, type RuleSentenceSegment } from "./rule-sentence.ts";
 import { CONDITION_OPS } from "./types.ts";
 import type {
@@ -414,7 +414,12 @@ const LEAF_CASES: Readonly<Record<LeafConditionOp, DraftCondition>> = {
 
 describe("leaf operators", () => {
   it("words every operator the DSL carries", () => {
-    const leaves = CONDITION_OPS.filter((op) => !isCombinator(op));
+    // NOT EVERY NON-COMBINATOR IS A LEAF since task 074 (ADR-42): the three whole-group
+    // operators are a third arity, reading a `groupId` rather than a `questionId`, so they are
+    // excluded here by the same arity table `rule-sentence.ts` branches on rather than by a
+    // list of names. Their own sentences - including `everyInstance`'s empty-group clause and
+    // its negation's mirror - are asserted in the "whole-group operators" block below.
+    const leaves = CONDITION_OPS.filter((op) => !isCombinator(op) && !isGroupOp(op));
 
     expect(Object.keys(LEAF_CASES).sort()).toStrictEqual([...leaves].sort());
     for (const condition of Object.values(LEAF_CASES)) {

@@ -86,6 +86,35 @@ export type PreviewOutcome = "match" | "noMatch" | "unavailable";
 
 export type PreviewReason = "unparseableDraft" | "ruleNotFound" | "noTarget" | "unresolvedAnswers";
 
+/**
+ * The most instances a preview surface will hypothesise about a group whose author has not
+ * declared a maximum yet (task 074; the Code Owner read a preview-only cap as inside Q14 on
+ * 2026-10-03).
+ *
+ * **The API's own `PREVIEW_INSTANCE_CAP` is the authoritative bound** - it truncates the roster
+ * it evaluates, so a drift between the two numbers can only make this app's controls stricter or
+ * more generous than the answer, never wrong about it. This copy exists so the instance-count
+ * fields can state the bound to the author instead of letting them type a seven-figure count that
+ * allocates an array in their own browser before the request is even sent, and so the two preview
+ * surfaces agree with each other.
+ *
+ * It bounds one request's hypothesis and no form's declared maximum: a group that declares a
+ * `max` is bounded by the author's own figure, above or below this.
+ */
+export const PREVIEW_INSTANCE_CAP = 50;
+
+/** One group's hypothetical roster, as the bench and the preview both pass and read it. */
+export interface PreviewRoster {
+  readonly groupId: string;
+  readonly instances: readonly string[];
+}
+
+/** One instance's verdict, for a rule whose target sits inside a repeating group. */
+export interface InstanceOutcome {
+  readonly instanceId: string;
+  readonly outcome: "match" | "noMatch";
+}
+
 export interface PreviewConditionState {
   readonly status: "idle" | "ok" | "error";
   readonly outcome?: PreviewOutcome;
@@ -93,6 +122,20 @@ export interface PreviewConditionState {
   /** The question ids the condition reads, in the draft's document order. */
   readonly references?: readonly string[];
   readonly message?: string;
+  /**
+   * The hypothetical roster the API evaluated with, echoed so the panel can say what the
+   * verdict is ABOUT (074). A verdict computed against three passengers beside a panel since
+   * set to five is the one wrong thing a bench must never show.
+   */
+  readonly rosters?: readonly PreviewRoster[];
+  /** The group the rule's target sits in: present exactly when the rule is per-instance. */
+  readonly targetGroupId?: string;
+  /**
+   * One verdict per live instance of {@link targetGroupId}, in roster order, and **empty
+   * rather than absent** when that group has no instance - which is the zero-instance case
+   * seen from the panel's side.
+   */
+  readonly instanceOutcomes?: readonly InstanceOutcome[];
 }
 
 export const IDLE_PREVIEW: PreviewConditionState = { status: "idle" };

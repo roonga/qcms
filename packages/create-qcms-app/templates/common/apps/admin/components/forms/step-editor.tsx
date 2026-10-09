@@ -1,21 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { EmptyState } from "@/components/empty-state";
-import { EntityId } from "@/components/entity-id";
-import { Button, Menu, type MenuItemEntry } from "@/components/kit";
-import { menuClasses } from "@/components/menu-slots";
-import { RowMenu } from "@/components/row-menu";
-import { announce } from "@/lib/announce";
-import { messageForIssue, pinAnchorId } from "@/lib/forms/issues";
-import {
-  pinRowMenuItems,
-  pinRows,
-  pinStateLabel,
-  type PinRowAction,
-  type PinRowView,
-} from "@/lib/forms/pin-grid";
+import { Button, Dialog, TextField } from "@/components/kit";
+import { stepGridRows, type PinRowAction, type PinRowView } from "@/lib/forms/pin-grid";
 import type {
   DraftForm,
   DraftPin,
@@ -28,92 +17,51 @@ import { textOf } from "@/lib/questions/definition";
 import type { ReadState } from "@/lib/read-state";
 
 import { LibraryPicker } from "./library-picker";
+import { OwnershipGrid } from "./ownership-grid";
 
 /**
- * One step's pinned questions, as the ownership grid (task 033; issue 517).
+ * One step's pinned questions, as the ownership grid (task 033; issue 517; groups in 074).
  *
  * ## Why this table is the one worth rebuilding
  *
  * `plan/admin-ux-audit.md` §8 item 5 calls this the highest-value design change in the
- * admin redesign, and the reason is ownership. This is the app's one genuinely **mixed**
- * table: a pin's position in the step and the version it points at belong to the FORM and
- * are editable right here, while `questionId`, `label` and `type` belong to the question
- * LIBRARY and cannot be changed from a form at all. What shipped before was a flex row of
- * five buttons and a menu, in which all five values looked equally like something you
- * could act on, and none of them said which.
+ * admin redesign, and the reason is ownership. The grid itself now lives in
+ * `components/forms/ownership-grid.tsx`, because the repeating group's panel draws the same
+ * one over its member list - which is ADR-42's own argument made visible: a question does not
+ * know it is repeated, so a member pin is drawn by the same grid, with the same ownership
+ * split, as a step's own. That module carries the ownership reasoning; what is left here is
+ * the step's own chrome and the two things an author can ADD to a step.
  *
- * So the two kinds of cell are drawn as two kinds of thing, which is design-language
- * element 4: form-owned cells carry a control with a visible edge, library-owned cells
- * carry plain text. `lib/forms/pin-grid.ts` holds the split as data and every cell
- * repeats it in the markup as `data-owner`, which is what
- * `pin-grid-ownership.test.tsx` asserts - the contrast is the whole point of the change,
- * so it is pinned structurally rather than left to a screenshot.
+ * ## A step holds two kinds of thing now
+ *
+ * `Step.items` was an array of pins and is a union with the repeating group (ADR-42). So this
+ * screen has two add controls rather than one, and the grid shows a group as a BOUNDARY row
+ * followed by its members: see `lib/forms/pin-grid.ts` for why a boundary is a row rather than
+ * a nested table.
+ *
+ * **Group SETTINGS are not here.** They are a panel of their own, reached from the boundary
+ * row's menu or from the group's row in the rail, because six fields about a group would
+ * otherwise sit under a question list they are not about - the same reasoning that moved the
+ * form's own five panels off the step screen in 2026-08-26.
  *
  * ## Every row still says `questionId` and its version, out loud
  *
- * That pair is the product's governance model, and it is why the row shows the id in
- * monospace rather than showing a friendly label with the version in a tooltip. An author
- * looking at this list can see, without opening anything, exactly which frozen definition
- * each question in this form will serve - the property that makes a questionnaire
- * reproducible years later (R6). The redesign splits the old single `q_x@1` string into
- * its two columns because the two halves have different owners, which is the same fact
- * stated more precisely, not a weaker one.
- *
- * **The id is rendered whole, which is a deliberate deviation from §2 as it stands.**
- * `plan/admin-design-contracts.md` §2's 2026-08-20 amendment asks an identifying column
- * for a type prefix plus 8 characters and never the full id. That clause is written for
- * opaque ids (`ses_45cf6345`, "nobody reads 32 hex characters"), and what makes it safe
- * there is a minting convention rather than the type: `ses_` and `lnk_` are 16 random
- * bytes, so they are uniformly 32 characters and a shorter one is self-evidently a
- * prefix. A `q_` id has no length convention at all. `packages/core/src/ids.ts` mints
- * every brand from one factory, so a truncation is itself a syntactically valid id of the
- * same kind: `q_at_fault_accident` cut to `q_at_faul` reads exactly like a whole short id,
- * and nothing stops a question actually called `q_at_faul` existing beside it tomorrow. A
- * reader cannot tell a truncation from a whole id by looking, which is the mistake the
- * clause's own anti-ellipsis rule exists to prevent.
- *
- * Stated as a deviation rather than as compliance, and with no precedent claimed: the
- * option grid still ellipsizes its `opt_` ids today (task 057 kept a 140px column with a
- * `title` tooltip and no copy control), so this is the first table to take this position
- * rather than the second. The clauses that DO apply are applied: monospace and tabular,
- * no ellipsis anywhere, and a copy control whose accessible name carries the entity and
- * the value. Raised for the Code Owner as a §2 clarification rather than decided here.
- *
- * ## The move menu is the only version change in the builder
- *
- * It moves **one pin** to **one version**, and the versions it offers are the published
- * ones. There is no "move everything to v3" and no automatic upgrade anywhere, and that
- * absence is the feature R7 protects: an author who published question v3 last week must
- * still see v2 here, because the alternative is a form whose meaning changed without
- * anyone deciding it should. A pin pointing at a version that has since been
- * **deprecated** keeps working and is flagged rather than fixed.
- *
- * ## Reorder, and what it is not
- *
- * The grip is the row's one control, exactly as the option grid's card draws it: Arrow
- * Up and Arrow Down reorder while it holds focus, Enter, Space or a click opens the row
- * menu. **There is no drag here**, deliberately. Drag would engage WCAG 2.2 SC 2.5.7
- * (Dragging Movements) and would need a single-pointer alternative, and the only new
- * control that would provide one is an editable position field, which the pattern this
- * issue applies does not have. The menu's Move up and Move down are already that path -
- * `plan/admin-mobile-stance.md` calls them "how reordering actually happens on the
- * supported path" - so adding a gesture that needs them as a fallback would add a
- * conformance obligation and no capability. Keyboard reorder satisfies SC 2.1.1 either
- * way, and it is preserved from the previous editor rather than replaced.
+ * That pair is the product's governance model, and it is why a row shows the id in monospace
+ * rather than a friendly label with the version in a tooltip. An author looking at this list
+ * can see, without opening anything, exactly which frozen definition each question in this
+ * form will serve (R6). The grid's own module records the §2 deviation this column takes.
  *
  * ## A library that did not load says nothing about the pins (issues 572, 544)
  *
- * `library` is a `ReadState` (`lib/read-state.ts`), not an array, and it is passed
- * straight through to `pinRows` and to the picker rather than unwrapped here. Every
- * library-owned cell of this grid is a lookup, and an empty library is not a neutral
- * input to one: handed `ok ? data : []`, a failed read claimed on every row that the
- * library had no label, no type, no such version and nowhere else to move to.
- * `lib/forms/pin-grid.ts` carries the full account and the four answers.
+ * `library` is a `ReadState` (`lib/read-state.ts`), not an array, and it is passed straight
+ * through to `stepGridRows` and to the picker rather than unwrapped here. Every library-owned
+ * cell of the grid is a lookup, and an empty library is not a neutral input to one: handed
+ * `ok ? data : []`, a failed read claimed on every row that the library had no label, no type,
+ * no such version and nowhere else to move to.
  *
- * Nothing form-owned changes. The pins are still listed, and the grip menu, the version
- * menu, the keyboard reorder and the library button all still work: they edit the DRAFT,
- * which was read successfully, and suppressing them because a different read failed would
- * take away work an author can still do (`plan/admin-design-contracts.md` §3).
+ * Nothing form-owned changes. The pins are still listed, and the grip menu, the version menu,
+ * the keyboard reorder and both add controls all still work: they edit the DRAFT, which was
+ * read successfully.
  */
 export function StepEditor({
   draft,
@@ -124,6 +72,10 @@ export function StepEditor({
   onMovePin,
   onRemovePin,
   onReorderPin,
+  onAddGroup,
+  onOpenGroup,
+  onMoveGroup,
+  onRemoveGroup,
   saveFlash,
 }: {
   readonly draft: DraftForm;
@@ -143,112 +95,64 @@ export function StepEditor({
    */
   readonly issues: readonly FormIssue[] | undefined;
   /**
-   * Every pin the picker chose, in one call, at one insert boundary.
+   * Every pin the picker chose, in one call, at one insert boundary inside one container.
    *
-   * `index` is an insert boundary: 0 is before the first pin, `items.length` appends,
-   * and the pins land in list order from there. A list rather than a call per pin
-   * because the builder folds them into one draft update (issue 660): a handler called
-   * N times computes N times from the same closed-over draft and keeps only the last.
+   * `groupId` is the container: `undefined` pins into the step itself and a group id pins
+   * into that group. `index` is an insert boundary within that container - 0 before its first
+   * pin, its length appends - and the pins land in list order from there. A list rather than
+   * a call per pin because the builder folds them into one draft update (issue 660): a handler
+   * called N times computes N times from the same closed-over draft and keeps only the last.
    */
-  readonly onAddPins: (pins: readonly DraftPin[], index: number) => void;
+  readonly onAddPins: (
+    pins: readonly DraftPin[],
+    index: number,
+    groupId: string | undefined,
+  ) => void;
   readonly onMovePin: (questionId: string, version: number) => void;
   readonly onRemovePin: (questionId: string) => void;
-  readonly onReorderPin: (questionId: string, delta: -1 | 1) => void;
+  /** Reorder one pin inside its own container, which `groupId` names. */
+  readonly onReorderPin: (questionId: string, delta: -1 | 1, groupId: string | undefined) => void;
+  readonly onAddGroup: (label: string) => void;
+  readonly onOpenGroup: (groupId: string) => void;
+  readonly onMoveGroup: (groupId: string, delta: -1 | 1) => void;
+  readonly onRemoveGroup: (groupId: string) => void;
 }) {
-  /** The insert boundary the open picker would pin into, or nothing when it is closed. */
-  const [pickerAt, setPickerAt] = useState<number | undefined>(undefined);
-  const [menuAt, setMenuAt] = useState<number | undefined>(undefined);
-  /** A grip to focus once the row it names exists, or "add" for the library button. */
-  const [focusWant, setFocusWant] = useState<number | "add" | undefined>(undefined);
+  /** The insert boundary and container the open picker would pin into, or nothing. */
+  const [pickerAt, setPickerAt] = useState<
+    { readonly index: number; readonly groupId: string | undefined } | undefined
+  >(undefined);
+  const [addingGroup, setAddingGroup] = useState(false);
+  const [groupName, setGroupName] = useState("");
+  /** The group a confirm is open for, which removal always goes through. */
+  const [removingGroup, setRemovingGroup] = useState<string | undefined>(undefined);
 
-  const bodyRef = useRef<HTMLTableSectionElement>(null);
   const addRef = useRef<HTMLDivElement>(null);
 
   const title = textOf(step.title) === "" ? t("forms.steps.untitled") : textOf(step.title);
-  const rows = pinRows(step, library, issues);
+  const rows = stepGridRows(step, library, issues);
+  const hasRows = rows.length > 0;
+  const removingLabel = rows.find(
+    (row) => row.kind === "group" && row.group.groupId === removingGroup,
+  );
 
-  /** An outside press closes the row menu, the way every menu is expected to. */
-  useEffect(() => {
-    if (menuAt === undefined) return;
-    function close(event: globalThis.PointerEvent): void {
-      const target = event.target;
-      if (target instanceof Node && bodyRef.current?.contains(target) === true) return;
-      setMenuAt(undefined);
-    }
-    document.addEventListener("pointerdown", close);
-    return () => {
-      document.removeEventListener("pointerdown", close);
-    };
-  }, [menuAt]);
-
-  /**
-   * Put focus where the last action asked for it.
-   *
-   * Removing a row takes the focused element with it and the browser then drops focus to
-   * `<body>`, stranding a keyboard operator at the top of the document with no
-   * announcement - the defect task 032 recorded for the option list and the same one
-   * applies here. A neighbouring grip is the destination, or the library button when the
-   * step has just emptied and there is no neighbour.
-   */
-  useEffect(() => {
-    if (focusWant === undefined) return;
-    const target =
-      focusWant === "add"
-        ? addRef.current?.querySelector<HTMLElement>("button")
-        : bodyRef.current?.querySelector<HTMLElement>(
-            `[data-pin-index="${String(focusWant)}"] [data-pin-grip]`,
-          );
-    target?.focus();
-    setFocusWant(undefined);
-  }, [focusWant]);
-
-  function moveBy(row: PinRowView, delta: -1 | 1): void {
-    const to = row.position + delta;
-    if (to < 1 || to > row.total) return;
-    onReorderPin(row.questionId, delta);
-    announce(
-      t("forms.step.pinMoved", {
-        questionId: row.questionId,
-        position: to,
-        total: row.total,
-      }),
-    );
+  /** The insert boundary one row's menu asks for, counted inside that row's own container. */
+  function insertAt(row: PinRowView, action: "insertAbove" | "insertBelow"): void {
+    setPickerAt({
+      index: action === "insertAbove" ? row.position - 1 : row.position,
+      groupId: row.groupId,
+    });
   }
 
-  function removeRow(row: PinRowView): void {
-    setMenuAt(undefined);
-    onRemovePin(row.questionId);
-    announce(t("forms.step.pinRemoved", { questionId: row.questionId }));
-    setFocusWant(row.total <= 1 ? "add" : Math.max(0, row.position - 2));
-  }
-
-  function runAction(row: PinRowView, action: PinRowAction): void {
+  function runPinAction(row: PinRowView, action: PinRowAction): void {
     if (action === "remove") {
-      removeRow(row);
+      onRemovePin(row.questionId);
       return;
     }
     if (action === "moveUp" || action === "moveDown") {
-      setMenuAt(undefined);
-      setFocusWant(action === "moveUp" ? row.position - 2 : row.position);
-      moveBy(row, action === "moveUp" ? -1 : 1);
+      onReorderPin(row.questionId, action === "moveUp" ? -1 : 1, row.groupId);
       return;
     }
-    setMenuAt(undefined);
-    setPickerAt(action === "insertAbove" ? row.position - 1 : row.position);
-  }
-
-  function onGripKeyDown(row: PinRowView, event: KeyboardEvent<HTMLButtonElement>): void {
-    if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-      event.preventDefault();
-      moveBy(row, event.key === "ArrowUp" ? -1 : 1);
-      return;
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      // Handled here rather than in a click handler so the button's own Enter/Space
-      // activation cannot also fire and toggle the menu straight back shut.
-      event.preventDefault();
-      setMenuAt((open) => (open === row.position - 1 ? undefined : row.position - 1));
-    }
+    insertAt(row, action);
   }
 
   return (
@@ -261,11 +165,7 @@ export function StepEditor({
           screens; it moved to the form's own screen with the rest of the form's identity,
           which would have left a step screen whose highest heading was an `h2` - a
           `heading-order` violation and a page with no level-one heading, both of which
-          `e2e/a11y-axe.pw.ts` sweeps for. `admin-shell-poc.html` draws it this way too:
-          its step screen is headed by the step.
-
-          The id and the string are unchanged, so the section it labels and every lookup
-          by accessible name still find it. */}
+          `e2e/a11y-axe.pw.ts` sweeps for. */}
       {/* The heading and the save flash share one row, whose height the heading sets. A
           transient element in the column's own flow would push the screen down as it
           arrived and pull it back as it left: a layout shift twice per autosave. */}
@@ -277,7 +177,23 @@ export function StepEditor({
       </div>
       <p className="text-sm text-(--color-text-muted)">{t("forms.step.pinNote")}</p>
 
-      {rows.length === 0 ? (
+      {hasRows ? (
+        <OwnershipGrid
+          caption={t("forms.step.pins")}
+          rows={rows}
+          draft={draft}
+          onPinAction={runPinAction}
+          onMovePin={onMovePin}
+          onFocusAdd={() => {
+            addRef.current?.querySelector<HTMLElement>("button")?.focus();
+          }}
+          groupActions={{
+            onOpen: onOpenGroup,
+            onMove: onMoveGroup,
+            onRemove: setRemovingGroup,
+          }}
+        />
+      ) : (
         // `plan/admin-design-contracts.md` §3, and its 2026-08-20 amendment: the panel
         // carries no CTA here, because the creating action is the library button two
         // elements below it rather than a route this panel would have to point at.
@@ -286,67 +202,32 @@ export function StepEditor({
           body={t("forms.step.emptyBody")}
           testId="qcms-step-empty"
         />
-      ) : (
-        <div className="qcms-table qcms-table--pins">
-          <table>
-            <caption className="qcms-visually-hidden">{t("forms.step.pins")}</caption>
-            <thead>
-              <tr>
-                <th scope="col">
-                  <span className="qcms-visually-hidden">{t("forms.step.column.reorder")}</span>
-                </th>
-                <th scope="col">{t("forms.step.column.question")}</th>
-                {/* The two columns that DESCRIBE a row rather than identify it, which is
-                    contract §2's own test for what may drop at compact width. Version
-                    never drops: `plan/admin-mobile-stance.md` item 5 keeps changing a
-                    version pin on the supported-at-390 path. */}
-                <th scope="col" className="qcms-cell--drop">
-                  {t("forms.step.column.type")}
-                </th>
-                <th scope="col" className="qcms-cell--num">
-                  {t("forms.step.column.version")}
-                </th>
-                <th scope="col" className="qcms-cell--drop">
-                  {t("forms.step.column.issues")}
-                </th>
-              </tr>
-            </thead>
-            <tbody ref={bodyRef}>
-              {rows.map((row) => (
-                <PinRow
-                  key={row.questionId}
-                  row={row}
-                  isMenuOpen={menuAt === row.position - 1}
-                  onGripKeyDown={(event) => {
-                    onGripKeyDown(row, event);
-                  }}
-                  onGripClick={() => {
-                    setMenuAt((open) => (open === row.position - 1 ? undefined : row.position - 1));
-                  }}
-                  onAction={(action) => {
-                    runAction(row, action);
-                  }}
-                  onMenuClose={() => {
-                    setMenuAt(undefined);
-                    setFocusWant(row.position - 1);
-                  }}
-                  onMovePin={onMovePin}
-                />
-              ))}
-            </tbody>
-          </table>
-        </div>
       )}
 
-      <div ref={addRef}>
+      {/* TWO ADD CONTROLS, in the order a step is built: a question is the ordinary thing to
+          add and a group is the structural one, so the question control keeps its place and
+          the group control sits beside it rather than above. Both append to the step, which
+          is what makes the control beside the end of the list the one that matches what
+          pressing it does (the same argument the rail's Add step makes). */}
+      <div ref={addRef} className="flex flex-wrap gap-2">
         <Button
           variant="secondary"
           size="md"
           onPress={() => {
-            setPickerAt(step.items.length);
+            setPickerAt({ index: step.items.length, groupId: undefined });
           }}
         >
           {t("forms.step.addQuestion")}
+        </Button>
+        <Button
+          variant="ghost"
+          size="md"
+          onPress={() => {
+            setGroupName("");
+            setAddingGroup(true);
+          }}
+        >
+          {t("forms.group.add")}
         </Button>
       </div>
 
@@ -357,215 +238,85 @@ export function StepEditor({
           draft={draft}
           library={library}
           onAddPins={(pins) => {
-            onAddPins(pins, pickerAt);
+            onAddPins(pins, pickerAt.index, pickerAt.groupId);
           }}
           onClose={() => {
             setPickerAt(undefined);
           }}
         />
       )}
+
+      {/* NAMING A GROUP IS A DIALOG, the same shape Add step uses (`rail-steps.tsx`), for the
+          same reason the step's own dialog gives: a field standing open under a list is a
+          permanent empty input on a screen nobody is adding anything on. The name is required
+          because it is what the group id is minted from and what the instance heading starts
+          as - an unnamed group would mint `grp_group` and leave an empty heading template. */}
+      {addingGroup && (
+        <Dialog
+          isOpen
+          title={t("forms.group.add")}
+          onOpenChange={(isOpen: boolean) => {
+            if (!isOpen) setAddingGroup(false);
+          }}
+        >
+          <TextField
+            label={t("forms.group.newName")}
+            description={t("forms.group.nameHint")}
+            value={groupName}
+            onChange={setGroupName}
+          />
+          <Button
+            variant="primary"
+            size="md"
+            isDisabled={groupName.trim() === ""}
+            onPress={() => {
+              onAddGroup(groupName.trim());
+              setAddingGroup(false);
+            }}
+          >
+            {t("forms.group.addDone")}
+          </Button>
+        </Dialog>
+      )}
+
+      {/* Removing a group takes the questions pinned inside it with it and leaves any rule
+          that read it dangling, so it asks first - the same confirm, for the same reason, that
+          removing a step has had since task 033. */}
+      {removingGroup !== undefined && (
+        <Dialog
+          isOpen
+          role="alertdialog"
+          title={t("forms.group.confirmRemoveTitle", {
+            label: removingLabel?.kind === "group" ? removingLabel.group.label : removingGroup,
+          })}
+          description={t("forms.group.confirmRemoveBody")}
+          onOpenChange={(isOpen: boolean) => {
+            if (!isOpen) setRemovingGroup(undefined);
+          }}
+        >
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="danger"
+              size="md"
+              onPress={() => {
+                onRemoveGroup(removingGroup);
+                setRemovingGroup(undefined);
+              }}
+            >
+              {t("forms.group.confirmRemove")}
+            </Button>
+            <Button
+              variant="ghost"
+              size="md"
+              onPress={() => {
+                setRemovingGroup(undefined);
+              }}
+            >
+              {t("forms.action.cancel")}
+            </Button>
+          </div>
+        </Dialog>
+      )}
     </section>
   );
-}
-
-/**
- * One row of the ownership grid.
- *
- * Each cell states its owner in `data-owner`. That attribute is not decoration: it is
- * how the ownership contrast is tested (`pin-grid-ownership.test.tsx` asserts that no
- * library-owned cell holds anything that could change its value, and that every
- * form-owned cell holds a control), so a later edit that drops a control into a
- * library-owned cell fails a test rather than quietly undoing the design.
- */
-function PinRow({
-  row,
-  isMenuOpen,
-  onGripKeyDown,
-  onGripClick,
-  onAction,
-  onMenuClose,
-  onMovePin,
-}: {
-  readonly row: PinRowView;
-  readonly isMenuOpen: boolean;
-  readonly onGripKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => void;
-  readonly onGripClick: () => void;
-  readonly onAction: (action: PinRowAction) => void;
-  readonly onMenuClose: () => void;
-  readonly onMovePin: (questionId: string, version: number) => void;
-}) {
-  const stateLabel = pinStateLabel(row.versionStatus);
-  /** What the version control shows, and therefore the front of what it is called. */
-  const versionLabel = t("forms.step.pinVersion", { version: row.version });
-
-  return (
-    <tr
-      className={(row.issues?.length ?? 0) > 0 ? "qcms-pinrow is-error" : "qcms-pinrow"}
-      data-pin-index={row.position - 1}
-      data-pin-question={row.questionId}
-      data-pin-version={row.version}
-    >
-      {/* FORM-OWNED: the row's position in this step, changed from the grip. */}
-      <td className="qcms-pincell--grip" data-owner="form">
-        <button
-          type="button"
-          data-pin-grip=""
-          className="qcms-rowgrip"
-          aria-haspopup="menu"
-          aria-expanded={isMenuOpen}
-          aria-label={t("forms.step.rowActions", { questionId: row.questionId })}
-          onKeyDown={onGripKeyDown}
-          onClick={onGripClick}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
-            <circle cx="9" cy="6" r="1.6" />
-            <circle cx="15" cy="6" r="1.6" />
-            <circle cx="9" cy="12" r="1.6" />
-            <circle cx="15" cy="12" r="1.6" />
-            <circle cx="9" cy="18" r="1.6" />
-            <circle cx="15" cy="18" r="1.6" />
-          </svg>
-        </button>
-        {isMenuOpen && (
-          <RowMenu
-            menuLabel={t("forms.step.rowActions", { questionId: row.questionId })}
-            items={pinRowMenuItems(row).map((item) => ({
-              key: item.action,
-              label: item.label,
-              isDisabled: item.isDisabled,
-              isDanger: item.isDanger,
-              onSelect: () => {
-                onAction(item.action);
-              },
-            }))}
-            onClose={onMenuClose}
-          />
-        )}
-      </td>
-
-      {/* LIBRARY-OWNED: what the question IS. Nothing here can be edited from a form,
-          so nothing here is a control. The one button is the copy affordance contract
-          §2 requires of an identifying column, and it changes no value. */}
-      <th scope="row" className="qcms-pincell--question" data-owner="library">
-        {/* Also the focus destination the validation panel's anchors send focus to, so
-            an issue about this pin lands on the pin itself. It sits on the row header
-            rather than on the id line because the id line is the part that could later
-            be dropped at a narrow width; the row header cannot. */}
-        <span
-          id={pinAnchorId(row.questionId)}
-          tabIndex={-1}
-          className="qcms-pinrow__label"
-          data-fallback={row.labelFallback}
-        >
-          {row.label}
-        </span>
-        {/* The id and its copy control, both through the one component every admin table
-            renders an identifying id with (issue #582). A question id is DERIVED from the
-            author's own text, so §2's 2026-08-21 amendment renders it whole and nothing
-            about this cell changes; what changed is that the rule now lives in one place
-            instead of here. The copy control is "welcome" rather than required once a
-            value is whole, and it stays, because this is the screen an author carries an
-            id off to a rule or a ticket from. */}
-        <EntityId kind="question" value={row.questionId} copy className="qcms-pinrow__id" />
-      </th>
-
-      {/* LIBRARY-OWNED, and one of the two columns that drop at compact width. */}
-      <td className="qcms-cell--drop" data-owner="library">
-        {row.type}
-      </td>
-
-      {/* FORM-OWNED: the one version change the builder has (R7).
-
-          The trigger's name STARTS with the text it paints (WCAG 2.5.3, issue #879).
-          `kit.Menu` turns `triggerLabel` into an `aria-label` whenever it is given
-          alongside a `trigger`, and an `aria-label` REPLACES the content it sits on in the
-          name computation - so a bare "Move pin for q_x" left this control showing `v3`
-          and answering to nothing a person could see. `versionLabel` is the one string
-          both halves are built from. */}
-      <td className="qcms-pincell--version qcms-cell--num" data-owner="form">
-        <Menu
-          triggerLabel={t("forms.step.movePin", { versionLabel, questionId: row.questionId })}
-          trigger={
-            <>
-              {versionLabel}
-              <svg
-                className="qcms-pinversion__caret"
-                viewBox="0 0 10 6"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                aria-hidden="true"
-              >
-                <path d="M1 1l4 4 4-4" />
-              </svg>
-            </>
-          }
-          menuLabel={t("forms.step.movePin", { versionLabel, questionId: row.questionId })}
-          classNames={menuClasses("qcms-pinversion")}
-          onAction={(key) => {
-            const version = Number.parseInt(String(key), 10);
-            if (Number.isInteger(version)) onMovePin(row.questionId, version);
-          }}
-          items={versionMenuItems(row.otherVersions)}
-        />
-        {stateLabel !== undefined && (
-          <span
-            className="qcms-tag qcms-tag--deprecated"
-            data-pin-state={row.versionStatus ?? "missing"}
-          >
-            {stateLabel}
-          </span>
-        )}
-      </td>
-
-      {/* LIBRARY-OWNED: what the engine says about this pin. Drops at compact width;
-          the validation panel carries the same text at every width, and the row keeps
-          its own error flag so the panel's anchor still lands somewhere visible. */}
-      <td className="qcms-cell--drop" data-owner="library">
-        {row.issues === undefined || row.issues.length === 0 ? (
-          // Three states, two of which look identical if you only count: no verdict yet,
-          // a verdict of none, and a verdict with something in it. The `data-pin-issues`
-          // attribute is how a test tells the first two apart without matching on copy.
-          <span
-            className="qcms-pinissues__none"
-            data-pin-issues={row.issues === undefined ? "unchecked" : "none"}
-          >
-            {t(row.issues === undefined ? "forms.step.issuesUnchecked" : "forms.step.noIssues")}
-          </span>
-        ) : (
-          <ul className="qcms-pinissues">
-            {row.issues.map((issue, index) => (
-              <li key={`${issue.code}:${String(index)}`} data-issue-code={issue.code}>
-                {messageForIssue(issue)}
-              </li>
-            ))}
-          </ul>
-        )}
-      </td>
-    </tr>
-  );
-}
-
-/**
- * What the version menu offers, which is three answers rather than two (issue 572).
- *
- * "No other published version" is a statement about the LIBRARY, so it is only sayable
- * when the library was read. `undefined` is the read that never happened, and it says so
- * instead of reporting an absence that its own missing data produced - which is what
- * every failed library read used to do, on every pin in the form.
- *
- * A function rather than a nested ternary in the cell because the third branch made it
- * one, and because the three answers are easier to read named than nested.
- */
-function versionMenuItems(otherVersions: readonly number[] | undefined): MenuItemEntry[] {
-  if (otherVersions === undefined) {
-    return [{ id: "unknown", label: t("forms.step.movePinUnknown"), isDisabled: true }];
-  }
-  if (otherVersions.length === 0) {
-    return [{ id: "none", label: t("forms.step.movePinNone"), isDisabled: true }];
-  }
-  return otherVersions.map((version) => ({
-    id: String(version),
-    label: t("forms.step.movePinTo", { version }),
-  }));
 }

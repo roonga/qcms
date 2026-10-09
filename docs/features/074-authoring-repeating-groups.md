@@ -28,12 +28,34 @@ What changes is the **form builder**, the **rules editor** and the **test bench*
 
 ## Exit criteria
 
-Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` section 11. This task owns those and no others; case 62, the library picker's filtered list, belongs to 077 because it is the table presentation's refusal being surfaced. Plus:
+Acceptance cases **58 to 62** of `plan/repeating-groups-and-table-input.md` section 11. Plus:
 
 1. Every group mutation in `lib/forms/draft.ts` is a pure function with its own test, on the pattern that file already sets.
 2. The `everyInstance` sentence and its negation both state their empty-group reading, asserted on the rendered sentence rather than on the builder.
 3. The test bench evaluates at **zero** instances and reports the ruled result for both the plain and the negated form.
 4. `pnpm verify` green; `QCMS_PORT_SEAT=<0-9> pnpm verify:browser` green, run detached, since this touches `apps/admin`.
+
+**Case 62 was carried by whichever of 074 and 077 merged SECOND** (Code Owner, 2026-10-03), and
+that is this task: 077 merged as PR #1038, so case 62 is **met here**. The walk is the library
+picker filtered to the five allowed cell types, inside the group panel, so it needed 074's panel
+and 077's filter on `main` at the same time and neither task could write it alone. It was written
+here as "belongs to 077", which was true of the FILTER and false of the walk.
+
+**As built**, in `apps/admin/e2e/repeating-groups.pw.ts`, the fifth test: the long-text question
+is offered while the group is stacked and absent once it is a table, from the same control and the
+same library; the dialog says why before the list and names the stacked presentation; the column
+view lists the member added before the switch as refused rather than hiding it; publish then
+refuses with `TABLE_COLUMN_TYPE_NOT_ALLOWED` saying the same thing; and removing that member
+leaves the group a table and the form publishable. The wiring it drives is **one branch** in
+`components/forms/group-panel.tsx`, which renders 077's `TableColumnView` below the presentation
+switch - no file is shared between the two tasks for it, which is the seam 077 designed.
+
+**One decision taken in the wiring**, because it needed none: the picker's `columnTypesOnly` is
+keyed to `group.presentation` rather than to which Add control opened the dialog. Adding a column
+is adding a question to the group (077, plan section 6.3), so both controls reach one mutation,
+and keying the filter to the button would let the members' Add offer a `longText` the column view
+would then list as refused - a publish refusal the panel itself walked the author into. The walk's
+last assertion is this behaviour: switching back to stacked offers the long-text question again.
 
 ## Files and areas
 
@@ -45,10 +67,26 @@ Acceptance cases **58 to 61** of `plan/repeating-groups-and-table-input.md` sect
 
 ## Out of scope (binding)
 
-The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. **The admin's column view of a table-presented group's member list, and the library picker filtered to the five allowed cell types: 077 owns both**, together with acceptance case 62, because they are that task's publish refusal being surfaced in the admin rather than group authoring in general. This task's group panel offers the presentation switch and nothing behind the table option. The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
+The question editor, `QUESTION_TYPES` and the component registry: none of them moves, and if this task finds itself registering a component something has gone wrong. The parallel operator list in `lib/forms/condition.ts`, which 071 carried. **The admin's column view of a table-presented group's member list, and the library picker filtered to the five allowed cell types: 077 owns both**, because they are that task's publish refusal being surfaced in the admin rather than group authoring in general. This task's group panel offers the presentation switch and nothing behind the table option. **Acceptance case 62 is no longer part of that sentence**: its browser walk needed both tasks on `main`, so it went to whichever of the two merged second, which was this one (see the exit criteria). Rendering 077's column view from the group panel is this task's one branch for it; the view, the filter and the five-type list all stay 077's. The table layout itself (077) and the per-instance step walk (076). The visual drag-and-drop condition builder, which is Phase 4 and stays there. Any authoring change that would let an author set an instance ceiling: there is none to set.
 
 ## Notes for the executor
 
 **The scope chip is the honest half of the design.** Scope is implicit by position, which is what keeps the airline's per-passenger rule an ordinary rule; the price is that an author cannot see the scope in the condition they wrote. The chip is what pays that price, so treat it as a deliverable rather than a decoration.
+
+**Four mutations beyond the six named above, and one ruling this order predates** (recorded
+2026-10-03, while building). The deliverable list names `addGroup`, `removeGroup`,
+`addPinToGroup`, `movePinWithinGroup`, `setGroupCount` and `setGroupPresentation`; the panel's
+own fields need four more, and they are the same shape: `renameGroup` and
+`setGroupInstanceLabel` for the first and fifth sections of the panel,
+`moveGroupWithinStep` so a group's whole span can be placed before or after a question in its
+step (which is what decides whether a rule reading the group can target anything), and
+`countBounds` plus `instanceNoun` as the two derivations the panel, the grid, the scope chip and
+the rule sentence all read.
+
+**Q30 (ruled 2026-10-03) settles the step a group sits alone in**: a step holding a repeating
+group counts as a visible step even when its roster is empty, fixed in task 076. So this task
+needs no authoring warning about that shape, and its browser walk deliberately puts the group
+beside an ordinary question - which is also the arrangement section 1.3's financial case
+describes.
 
 **The negated `everyInstance` sentence is the one most likely to be skipped**, because the plain sentence reads like the interesting case. It is the other way round: a warning is usually phrased as a negation, so the negation is the sentence an author will actually write.

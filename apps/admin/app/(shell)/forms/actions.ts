@@ -308,6 +308,11 @@ interface PreviewRequest {
   readonly draft: DraftForm;
   readonly ruleId: string;
   readonly answers: Readonly<Record<string, unknown>>;
+  /**
+   * The hypothetical roster per group (074, ADR-42 §6.4). Ids, not counts, because the same
+   * request's answer keys are qualified with them.
+   */
+  readonly instances: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -331,12 +336,23 @@ export async function previewConditionAction(
     definition: input.draft,
     ruleId: input.ruleId,
     answers: input.answers,
+    instances: input.instances,
   });
   if (!result.ok) return { status: "error", message: result.message };
-  const { outcome, reason, references } = result.data;
-  return reason === undefined
-    ? { status: "ok", outcome, references }
-    : { status: "ok", outcome, reason, references };
+  const { outcome, reason, references, rosters, targetGroupId, instanceOutcomes } = result.data;
+  // Each optional key is spread only when it is present, which `exactOptionalPropertyTypes`
+  // requires and which matters here beyond the type: `instanceOutcomes` absent means the rule
+  // is not per-instance, and `instanceOutcomes: []` means it is and the group is empty. Writing
+  // `undefined` into the key would collapse those two into one.
+  return {
+    status: "ok",
+    outcome,
+    references,
+    rosters,
+    ...(reason === undefined ? {} : { reason }),
+    ...(targetGroupId === undefined ? {} : { targetGroupId }),
+    ...(instanceOutcomes === undefined ? {} : { instanceOutcomes }),
+  };
 }
 
 // --- publish, preview, lifecycle and secure links (task 034) ----------------
@@ -377,6 +393,8 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
 interface DraftPreviewRequest {
   readonly draft: DraftForm;
   readonly answers: Readonly<Record<string, unknown>>;
+  /** The roster the pane minted for each repeating group (074, ADR-42 §6.5). */
+  readonly instances: Readonly<Record<string, readonly string[]>>;
 }
 
 /**
@@ -403,6 +421,7 @@ export async function previewDraftAction(
   const result = await previewDraft(session, formId, {
     definition: input.draft,
     answers: input.answers,
+    instances: input.instances,
   });
   if (!result.ok) {
     if (result.issues.length > 0) {

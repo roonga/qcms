@@ -85,6 +85,8 @@ export function RulesScreen({
     draft: DraftForm;
     ruleId: string;
     answers: Record<string, unknown>;
+    /** The bench's hypothetical roster per group (074, ADR-42 §6.4). */
+    instances: Record<string, readonly string[]>;
   }) => Promise<PreviewConditionState>;
 }) {
   const [draft, setDraft] = useState<DraftForm>(

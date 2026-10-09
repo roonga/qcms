@@ -30,22 +30,41 @@ export interface QuestionPin {
  * with the kernel (R2/R3: no `@roonga/qcms-core` value import). Only the two fields the
  * caption needs are read, and anything structurally unexpected yields no pins rather
  * than a throw: a detail view that renders ids beats one that will not open.
+ *
+ * **It reaches one level into a repeating group** (ADR-42), because a group's members are
+ * pinned questions like any others and a respondent answered them: without this, every
+ * repeated question's caption on a response detail would fall back to its raw `q_` id while
+ * the questions beside it read their labels. One level is the whole of it - a group may not
+ * contain a group (Q13), so there is no deeper nesting to walk.
  */
 export function pinsOf(definition: unknown): readonly QuestionPin[] {
   const steps = (definition as { steps?: unknown } | null)?.steps;
   if (!Array.isArray(steps)) return [];
-  const pins: QuestionPin[] = [];
-  for (const step of steps) {
+  return steps.flatMap((step) => {
     const items = (step as { items?: unknown } | null)?.items;
-    if (!Array.isArray(items)) continue;
-    for (const item of items) {
-      const pin = item as { questionId?: unknown; version?: unknown } | null;
-      if (typeof pin?.questionId !== "string") continue;
-      if (typeof pin.version !== "number") continue;
-      pins.push({ questionId: pin.questionId, version: pin.version });
-    }
-  }
-  return pins;
+    return Array.isArray(items) ? items.flatMap(pinsOfItem) : [];
+  });
+}
+
+/**
+ * One step item as pins: itself when it is a pinned question, its members when it is a group.
+ *
+ * `items` is the discriminator read here rather than `groupId`, and it is the honest one for this
+ * reader: what a caption needs is the pins, so an item that holds a member list IS a container
+ * whatever it calls itself, and one that does not is a pin or is nothing. One level is the whole
+ * of it, because a group may not contain a group (Q13).
+ */
+function pinsOfItem(item: unknown): readonly QuestionPin[] {
+  const members = (item as { items?: unknown } | null)?.items;
+  if (Array.isArray(members)) return members.flatMap(asPin);
+  return asPin(item);
+}
+
+/** One entry as a pin, or nothing when it does not carry the pair a caption needs. */
+function asPin(candidate: unknown): readonly QuestionPin[] {
+  const pin = candidate as { questionId?: unknown; version?: unknown } | null;
+  if (typeof pin?.questionId !== "string" || typeof pin.version !== "number") return [];
+  return [{ questionId: pin.questionId, version: pin.version }];
 }
 
 /**

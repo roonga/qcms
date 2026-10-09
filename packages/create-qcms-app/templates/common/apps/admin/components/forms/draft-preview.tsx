@@ -9,12 +9,13 @@ import {
 } from "@roonga/qcms-ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { Alert, Button } from "@/components/kit";
+import { Alert, Button, NumberField } from "@/components/kit";
 import { IssueEntry } from "@/components/forms/validation-panel";
 import { PreviewThemeIsland } from "@/components/preview-theme-island";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
-import { IDLE_DRAFT_PREVIEW } from "@/lib/forms/builder-state";
-import type { CompiledStep, DraftForm } from "@/lib/forms/types";
+import { IDLE_DRAFT_PREVIEW, PREVIEW_INSTANCE_CAP } from "@/lib/forms/builder-state";
+import { countBounds, draftGroups, questionGroupIds, stepPins } from "@/lib/forms/draft";
+import type { CompiledStep, DraftForm, DraftGroup } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { unexpected } from "@/lib/ops/unexpected";
@@ -87,11 +88,27 @@ export function DraftPreview({
   readonly preview: (input: {
     readonly draft: DraftForm;
     readonly answers: Readonly<Record<string, unknown>>;
+    readonly instances: Readonly<Record<string, readonly string[]>>;
   }) => Promise<DraftPreviewState>;
 }) {
   const [answers, setAnswers] = useState<A2UIValues>({});
   const [state, setState] = useState<DraftPreviewState>(IDLE_DRAFT_PREVIEW);
   const [stepIndex, setStepIndex] = useState(0);
+  /**
+   * How many hypothetical instances of each group the pane is previewing, when the author has
+   * typed a number. A group with no entry previews at its own `min` (ADR-42 §6.5).
+   *
+   * **The preview mints its own roster and that is the whole of the mechanism.** A roster is
+   * state the server owns at serve time, out of the session's instance ledger; a preview has
+   * no session, so nothing could hand it one. `evaluateRules` takes the roster as a parameter
+   * rather than deriving it from the answers precisely so a caller in this position can supply
+   * one - and the ids are minted HERE rather than by the API because the same request carries
+   * answers keyed by them, which a server-minted id could not do without a second round trip.
+   */
+  const [counts, setCounts] = useState<Readonly<Record<string, number>>>({});
+
+  const groups = useMemo(() => (draft === null ? [] : draftGroups(draft)), [draft]);
+  const instances = useMemo(() => previewRoster(groups, counts), [groups, counts]);
 
   // Only the newest request may write the pane. Without this, a slow early request can
   // land after a fast later one and show the branch state for answers that are two
@@ -106,7 +123,7 @@ export function DraftPreview({
       setState((current) =>
         current.status === "ok" ? current : { ...current, status: "loading" },
       );
-      void preview({ draft, answers })
+      void preview({ draft, answers, instances })
         .then((next) => {
           if (requestId.current === id) setState(next);
         })
@@ -125,7 +142,7 @@ export function DraftPreview({
     return () => {
       clearTimeout(timer);
     };
-  }, [draft, answers, preview]);
+  }, [draft, answers, instances, preview]);
 
   const handleChange = useCallback((name: string, value: A2UIAnswerValue | undefined): void => {
     setAnswers((previous) => {
@@ -142,6 +159,9 @@ export function DraftPreview({
   const reset = useCallback(() => {
     setAnswers({});
     setStepIndex(0);
+    // The instance counts go back to the draft's own minima with everything else: a walk-through
+    // is one hypothetical response, and a roster is as much a part of it as an answer is.
+    setCounts({});
   }, []);
 
   const visibleSteps = useMemo(
@@ -153,6 +173,10 @@ export function DraftPreview({
   // than in an effect avoids painting one frame of an out-of-range step.
   const index = visibleSteps.length === 0 ? 0 : Math.min(stepIndex, visibleSteps.length - 1);
   const step = visibleSteps[index];
+  // The roster the API answered WITH, not the one the pane asked for: it truncates against the
+  // author's own declared maxima, so rendering the asked-for list would draw instances the
+  // projection does not carry and whose fields would all be pruned as not visible.
+  const served = useMemo(() => rosterRecord(state.preview?.flow.rosters ?? []), [state.preview]);
 
   return (
     <section
@@ -254,6 +278,20 @@ export function DraftPreview({
               values={answers}
               onChange={handleChange}
               specVersion={state.preview.a2uiSpecVersion}
+              /* THE SAME EXPANSION THE PORTAL USES, through the same prop (073, ADR-42). A
+                 compiled `RepeatGroup` is a TEMPLATE carrying its member controls once -
+                 the compiler is answer-blind and an instance count is answer-dependent - so
+                 the clone-per-instance happens in the renderer, from the roster the API's
+                 projection supplies. The preview hands it the hypothetical roster and the
+                 same qualified visible set, which is what makes exit criterion 61 a
+                 structural property rather than a resemblance: there is one expansion, and
+                 both surfaces call it.
+                 No `onAdd`/`onRemove`: the roster here is the AUTHOR's hypothesis, set by the
+                 control below the frame, not a respondent's to change. */
+              repeat={{
+                rosters: served,
+                visible: new Set(state.preview.flow.visibleQuestions),
+              }}
               // The locale the previewed controls format on (issue #906). Without it the
               // renderer falls back to `@roonga/qcms-ui`'s own `en-US`, which is a tag this app
               // never chose; `PREVIEW_LOCALE` is the respondent tag the portal renders on.
@@ -270,7 +308,12 @@ export function DraftPreview({
                 Whether that is the case is pure draft geometry - which questions this step
                 pins, intersected with the visible set the API returned - so it needs no
                 knowledge of what an A2UI node means (`renderer-surface.test.ts`). */}
-            {!hasVisibleQuestion(draft, step.stepId, state.preview.flow.visibleQuestions) && (
+            {!hasVisibleQuestion(
+              draft,
+              step.stepId,
+              state.preview.flow.visibleQuestions,
+              served,
+            ) && (
               <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-empty">
                 {t("forms.preview.emptyStep")}
               </p>
@@ -281,6 +324,36 @@ export function DraftPreview({
             <p className="text-sm text-(--color-text-muted)" data-testid="qcms-preview-complete">
               {t("forms.preview.complete")}
             </p>
+          )}
+
+          {/* THE INSTANCE DIMENSION, under the frame rather than inside it: how many
+              hypothetical instances a group has is part of the author's walk-through, exactly
+              as an answer is, but it is not something a respondent sets - so it belongs with
+              the Previous / Next / Reset controls and not in the respondent surface above. */}
+          {groups.length > 0 && (
+            <div className="flex flex-wrap items-end gap-3" data-testid="qcms-preview-instances">
+              {groups.map((group) => (
+                <NumberField
+                  key={group.groupId}
+                  label={t("forms.preview.instances", {
+                    group: groupDisplayName(group, draft),
+                  })}
+                  value={counts[group.groupId] ?? countBounds(group.count).min}
+                  minValue={0}
+                  /* The author's own declaration where there is one, and the preview-only cap
+                     where there is not (`PREVIEW_INSTANCE_CAP`). Without a ceiling a typed
+                     seven-figure count allocates an array in the author's own browser before
+                     the API ever gets the chance to truncate it. */
+                  maxValue={countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP}
+                  onChange={(next) => {
+                    setCounts((current) => ({
+                      ...current,
+                      [group.groupId]: Number.isFinite(next) ? Math.max(0, Math.trunc(next)) : 0,
+                    }));
+                  }}
+                />
+              ))}
+            </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
@@ -343,15 +416,75 @@ function stepTitle(draft: DraftForm | null, stepId: string): string {
  * know what a node means. A step whose pins are all hidden is a real branch state, not a
  * failure, and saying so is the difference between a preview and an empty box.
  */
+/**
+ * The ids the pane previews one group with, minted from the count the author asked for.
+ *
+ * Deterministic and positional (`ins_p1`, `ins_p2`, ...), which is the right shape for a
+ * hypothesis and the wrong shape for a session: an `InstanceId` is minted once and never
+ * renumbered, because an ordinal reused as a key would re-target a removed instance's answers
+ * at whoever took its place (R6 one level down). Nothing here is a session's id, nothing is
+ * stored, and the ids exist for one request - so a positional mint costs nothing and keeps the
+ * author's typed answers attached to the same card when they add one more.
+ */
+function previewRoster(
+  groups: readonly DraftGroup[],
+  counts: Readonly<Record<string, number>>,
+): Readonly<Record<string, readonly string[]>> {
+  const rosters: Record<string, readonly string[]> = {};
+  for (const group of groups) {
+    // The author's own `min` is the default, which is the §6.5 recommendation: it is the
+    // smallest roster a respondent could legally submit, so it is the honest first render.
+    const asked = counts[group.groupId] ?? countBounds(group.count).min;
+    // Bounded here as well as in the field, because a value can reach this from a count the
+    // author typed before the ceiling applied and because the API truncates anyway: minting a
+    // list this surface knows will be cut is work nobody reads.
+    const ceiling = countBounds(group.count).max ?? PREVIEW_INSTANCE_CAP;
+    rosters[group.groupId] = Array.from(
+      { length: Math.min(Math.max(0, asked), ceiling) },
+      (_entry, at) => `ins_p${String(at + 1)}`,
+    );
+  }
+  return rosters;
+}
+
+/** The projection read back as the record the renderer's expansion takes. */
+function rosterRecord(
+  rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[],
+): Readonly<Record<string, readonly string[]>> {
+  const record: Record<string, readonly string[]> = {};
+  for (const entry of rosters) record[entry.groupId] = entry.instances;
+  return record;
+}
+
+/** A group's name for the instance-count field, which is the author's own or its id. */
+function groupDisplayName(group: DraftGroup, draft: DraftForm | null): string {
+  const label = group.label[draft?.defaultLocale ?? ""] ?? Object.values(group.label)[0] ?? "";
+  return label === "" ? group.groupId : label;
+}
+
 function hasVisibleQuestion(
   draft: DraftForm | null,
   stepId: string,
   visibleQuestions: readonly string[],
+  rosters: Readonly<Record<string, readonly string[]>>,
 ): boolean {
   const step = draft?.steps.find((candidate) => candidate.stepId === stepId);
   if (step === undefined) return true;
+  // THE QUALIFIED KEY, not the bare question id (ADR-42, ADR-43). The visible set the API
+  // sends carries `ins_7k2/q_passport` for a question inside a repeating group, because a
+  // rule targeting inside a group is evaluated once per live instance and a member can be
+  // visible in one instance and hidden in another. So a pin inside a group is looked for
+  // under every instance of that group's preview roster, and a pin outside one is looked for
+  // under its bare id, byte-identically to before.
   const visible = new Set(visibleQuestions);
-  return step.items.some((pin) => visible.has(pin.questionId));
+  const groupOf = draft === null ? new Map<string, string>() : questionGroupIds(draft);
+  return stepPins(step).some((pin) => {
+    const groupId = groupOf.get(pin.questionId);
+    if (groupId === undefined) return visible.has(pin.questionId);
+    return (rosters[groupId] ?? []).some((instanceId) =>
+      visible.has(`${instanceId}/${pin.questionId}`),
+    );
+  });
 }
 
 /**

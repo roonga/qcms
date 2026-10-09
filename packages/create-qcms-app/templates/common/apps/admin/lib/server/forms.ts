@@ -1,7 +1,13 @@
 import { cache } from "react";
 
-import type { PreviewOutcome, PreviewReason } from "../forms/builder-state.ts";
+import type {
+  InstanceOutcome,
+  PreviewOutcome,
+  PreviewReason,
+  PreviewRoster,
+} from "../forms/builder-state.ts";
 import { parseIssues } from "../forms/issues.ts";
+import { readDraftRules, readDraftSteps } from "../forms/draft-payload.ts";
 import type {
   CompiledStep,
   DraftForm,
@@ -315,12 +321,22 @@ export async function previewCondition(
     readonly definition: DraftForm;
     readonly ruleId: string;
     readonly answers: Readonly<Record<string, unknown>>;
+    /**
+     * The hypothetical instance ids per group, minted by the bench (074, ADR-42 §6.4). There
+     * is no session behind this route, so there is no live roster: the bench mints one from
+     * the count the author typed, and the same request's answer keys are qualified with those
+     * ids.
+     */
+    readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<
   ApiResult<{
     readonly outcome: PreviewOutcome;
     readonly reason: PreviewReason | undefined;
     readonly references: readonly string[];
+    readonly rosters: readonly PreviewRoster[];
+    readonly targetGroupId: string | undefined;
+    readonly instanceOutcomes: readonly InstanceOutcome[] | undefined;
   }>
 > {
   const result = await read<Record<string, unknown>>(
@@ -330,14 +346,51 @@ export async function previewCondition(
     }),
   );
   if (!result.ok) return result;
+  const targetGroupId = result.data["targetGroupId"];
   return {
     ok: true,
     data: {
       outcome: parseOutcome(result.data["outcome"]),
       reason: parseReason(result.data["reason"]),
       references: asStringList(result.data["references"]),
+      rosters: parseRosters(result.data["rosters"]),
+      targetGroupId: typeof targetGroupId === "string" ? targetGroupId : undefined,
+      // `undefined` and `[]` are DIFFERENT answers here and the distinction is the whole of
+      // the zero-instance case: absent means the rule is not per-instance at all, and empty
+      // means it is and the group has no instance. Collapsing them would make a rule the
+      // bench could not answer indistinguishable from one it answered about nothing.
+      instanceOutcomes: parseInstanceOutcomes(result.data["instanceOutcomes"]),
     },
   };
+}
+
+/** The roster projection both preview routes echo, read off the bytes. */
+function parseRosters(raw: unknown): readonly PreviewRoster[] {
+  if (!Array.isArray(raw)) return [];
+  const parsed: PreviewRoster[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { groupId?: unknown; instances?: unknown };
+    if (typeof row.groupId !== "string") continue;
+    parsed.push({ groupId: row.groupId, instances: asStringList(row.instances) });
+  }
+  return parsed;
+}
+
+/** One verdict per instance, or `undefined` when the rule is not evaluated per instance. */
+function parseInstanceOutcomes(raw: unknown): readonly InstanceOutcome[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const parsed: InstanceOutcome[] = [];
+  for (const entry of raw) {
+    if (typeof entry !== "object" || entry === null) continue;
+    const row = entry as { instanceId?: unknown; outcome?: unknown };
+    if (typeof row.instanceId !== "string") continue;
+    parsed.push({
+      instanceId: row.instanceId,
+      outcome: row.outcome === "match" ? "match" : "noMatch",
+    });
+  }
+  return parsed;
 }
 
 // --- publish, preview, versions and lifecycle (task 034) --------------------
@@ -383,6 +436,12 @@ export async function previewDraft(
   request: {
     readonly definition: DraftForm;
     readonly answers: Readonly<Record<string, unknown>>;
+    /**
+     * The hypothetical instance ids per group (074, ADR-42 §6.5). The preview has no session
+     * and therefore no live roster, so the pane mints one from each group's own `min` or from
+     * a count the author types, and the answers it sends are keyed with those ids.
+     */
+    readonly instances?: Readonly<Record<string, readonly string[]>>;
   },
 ): Promise<ApiResult<DraftPreview>> {
   const result = await read<Record<string, unknown>>(
@@ -404,6 +463,7 @@ export async function previewDraft(
         visibleSteps: asStringList(flow["visibleSteps"]),
         visibleQuestions: asStringList(flow["visibleQuestions"]),
         complete: flow["complete"] === true,
+        rosters: parseRosters(flow["rosters"]),
       },
     },
   };
@@ -606,6 +666,13 @@ function parseVersions(raw: unknown): readonly FormVersionSummary[] {
 /**
  * Read the stored draft into the builder's working shape.
  *
+ * The steps and the rules are read by `lib/forms/draft-payload.ts`, which is the ONE reader of
+ * the draft bytes in this app and is shared with the assist path's `parseProposedDraft` (task
+ * 074): the two were separate implementations of the same read and drifted in the same way,
+ * both dropping a repeating group. Its docblock carries the whole account. What stays here is
+ * the identity this route pins - `formId` and `defaultLocale` default to the route's own values
+ * rather than being taken from the payload.
+ *
  * Tolerant on purpose. The draft may be an open working document, a seed copied from the
  * newest published version, or the empty one `POST /forms` writes, and the builder has to
  * open on all three. Anything structurally unreadable becomes an empty draft rather than a
@@ -619,38 +686,7 @@ function parseDraft(raw: unknown, formId: string, defaultLocale: string): DraftF
     formId: asString(source["formId"], formId),
     defaultLocale: asString(source["defaultLocale"], defaultLocale),
     title: (source["title"] ?? {}) as DraftForm["title"],
-    steps: parseSteps(source["steps"]),
-    rules: parseRules(source["rules"]),
+    steps: readDraftSteps(source["steps"]),
+    rules: readDraftRules(source["rules"]),
   };
-}
-
-function parseSteps(raw: unknown): DraftForm["steps"] {
-  return objectsWith(raw, "stepId")
-    .filter((entry) => typeof entry["stepId"] === "string")
-    .map((entry) => ({
-      stepId: entry["stepId"] as string,
-      title: (entry["title"] ?? {}) as DraftForm["title"],
-      items: parsePins(entry["items"]),
-    }));
-}
-
-function parsePins(raw: unknown): DraftForm["steps"][number]["items"] {
-  return objectsWith(raw, "questionId")
-    .filter(
-      (entry) => typeof entry["questionId"] === "string" && typeof entry["version"] === "number",
-    )
-    .map((entry) => ({
-      questionId: entry["questionId"] as string,
-      version: entry["version"] as number,
-    }));
-}
-
-function parseRules(raw: unknown): DraftForm["rules"] {
-  return objectsWith(raw, "ruleId")
-    .filter((entry) => typeof entry["ruleId"] === "string" && typeof entry["when"] === "object")
-    .map((entry) => ({
-      ruleId: entry["ruleId"] as string,
-      when: entry["when"] as DraftForm["rules"][number]["when"],
-      show: asStringList(entry["show"]),
-    }));
 }

@@ -1,8 +1,8 @@
 import { t, tPlural } from "../i18n/en.ts";
 import { textOf } from "../questions/definition.ts";
 
-import { stepAnchorId } from "./issues.ts";
-import type { DraftStep } from "./types.ts";
+import { groupAnchorId, stepAnchorId } from "./issues.ts";
+import { isDraftGroup, type DraftGroup, type DraftStep } from "./types.ts";
 
 /**
  * What the form-subtree rail carries, as data (`plan/admin-design-contracts.md` §7,
@@ -78,12 +78,26 @@ export type RailSection = (typeof RAIL_SECTIONS)[number];
 /** Which item of the rail the screen showing it is. */
 export type RailCurrent =
   | { readonly kind: "section"; readonly section: RailSection }
-  | { readonly kind: "step"; readonly stepId: string };
+  | { readonly kind: "step"; readonly stepId: string }
+  | { readonly kind: "group"; readonly groupId: string };
 
 /** One rendered row of the rail. Every row is a link, because §7 has no other kind. */
 export interface RailItem {
   /** React key and test hook. Unique across both groups. */
   readonly key: string;
+  /**
+   * What this row IS, which the rail needs now that a step's children are not all steps
+   * (ADR-42, task 074). A repeating group is nested under the step that holds it, at one more
+   * level of indent, so the row has to say which of the two it is rather than being inferred
+   * from whether `position` is set.
+   *
+   * Absent on a sibling screen's row, which was every row's shape before groups existed.
+   */
+  readonly kind?: "step" | "group";
+  /** The step a group row belongs to, so a press can select the pair. */
+  readonly stepId?: string;
+  /** A group row's own id. */
+  readonly groupId?: string;
   readonly href: string;
   readonly label: string;
   /** A step's ordinal, or `undefined` for a sibling screen, which has no order to show. */
@@ -130,6 +144,12 @@ function stepLabel(step: DraftStep): string {
   return text === "" ? t("forms.steps.untitled") : text;
 }
 
+/** A repeating group's display name, with the same stand-in a step with no title gets. */
+function groupLabel(group: DraftGroup): string {
+  const text = textOf(group.label);
+  return text === "" ? t("forms.group.untitled") : text;
+}
+
 /**
  * Both groups of the rail for one form.
  *
@@ -166,15 +186,39 @@ export function formSubtreeRail({
 }): RailGroups {
   const base = `/forms/${encodeURIComponent(formId)}`;
   return {
-    children: steps.map((step, index) => ({
-      key: `step:${step.stepId}`,
-      href: `${base}#${stepAnchorId(step.stepId)}`,
-      label: stepLabel(step),
-      position: index + 1,
-      anchorId: stepAnchorId(step.stepId),
-      issueCount: issueCounts.get(step.stepId) ?? 0,
-      isCurrent: current.kind === "step" && current.stepId === step.stepId,
-    })),
+    // A STEP, THEN THE GROUPS INSIDE IT, which is the tree §7's "the form's children" means
+    // now that a step's item list is a union. A group is listed under its step rather than
+    // beside it because that is where it sits in document order, and its position decides where
+    // its whole span sits - so a rail that listed groups separately would be a second ordering
+    // of one list. Nothing is listed TWICE: a group's member questions are not rail rows, for
+    // the same reason a step's pins never were.
+    children: steps.flatMap((step, index) => [
+      {
+        key: `step:${step.stepId}`,
+        kind: "step" as const,
+        stepId: step.stepId,
+        href: `${base}#${stepAnchorId(step.stepId)}`,
+        label: stepLabel(step),
+        position: index + 1,
+        anchorId: stepAnchorId(step.stepId),
+        issueCount: issueCounts.get(step.stepId) ?? 0,
+        isCurrent: current.kind === "step" && current.stepId === step.stepId,
+      },
+      ...step.items.filter(isDraftGroup).map((group) => ({
+        key: `group:${group.groupId}`,
+        kind: "group" as const,
+        stepId: step.stepId,
+        groupId: group.groupId,
+        href: `${base}#${groupAnchorId(group.groupId)}`,
+        label: groupLabel(group),
+        anchorId: groupAnchorId(group.groupId),
+        // NO BADGE OF ITS OWN, and that is `stepIssueCounts`'s rule rather than an omission:
+        // a group's issues are counted against its step, so a second count on the nested row
+        // would make the rail's numbers add up to more than the panel's (§5.6's named mistake).
+        issueCount: 0,
+        isCurrent: current.kind === "group" && current.groupId === group.groupId,
+      })),
+    ]),
     siblings: RAIL_SECTIONS.map((section) => ({
       key: `section:${section}`,
       href: sectionHref(base, section),
@@ -233,6 +277,11 @@ export function formDisplayName(title: string, slug: string): string {
  */
 export function railIssueTotal(groups: RailGroups): number {
   return groups.children.reduce((total, item) => total + item.issueCount, 0);
+}
+
+/** The step rows alone, for a caller that counts steps rather than rail rows. */
+export function railStepItems(groups: RailGroups): readonly RailItem[] {
+  return groups.children.filter((item) => item.kind !== "group");
 }
 
 /** One item's issue count, written the way the builder's step list writes the same number. */

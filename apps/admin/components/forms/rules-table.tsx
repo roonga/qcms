@@ -3,6 +3,7 @@
 import { issueCountLabel } from "@/lib/forms/subtree-rail";
 import { ruleAnchorId } from "@/lib/forms/issues";
 import { ruleSentence } from "@/lib/forms/rule-sentence";
+import { ruleScope, scopeChipLabel } from "@/lib/forms/rule-targets";
 import { t } from "@/lib/i18n/en";
 import type { ReadState } from "@/lib/read-state";
 import type { DraftForm, DraftRule, FormIssue, PinnableQuestion } from "@/lib/forms/types";
@@ -117,6 +118,12 @@ function RuleRow({
     (issue) => issue.path?.rule === rule.ruleId || (issue.path?.rules ?? []).includes(rule.ruleId),
   );
   const sentence = ruleSentence(rule, library, draft);
+  // SCOPE IS SHOWN, NEVER AUTHORED (ADR-42 §3.4). A rule whose target sits inside a repeating
+  // group is evaluated once per live instance, and the condition the author wrote says nothing
+  // about that - so the chip is where the design pays for keeping the DSL small. It belongs on
+  // the row as well as in the editor, because this table is where a reader answers "what does
+  // this form do" and a per-passenger rule reads very differently from a whole-form one.
+  const scope = scopeChipLabel(ruleScope(draft, rule.show));
 
   return (
     // `tabIndex={-1}` for the reason the step anchor carries it: a destination rather than a
@@ -147,6 +154,13 @@ function RuleRow({
             </span>
           ))}
         </p>
+        {scope !== undefined && (
+          <p className="qcms-rule-scope">
+            <span className="qcms-tag qcms-tag--draft" data-rule-scope={rule.ruleId}>
+              {scope}
+            </span>
+          </p>
+        )}
         <div className="qcms-rule-actions">
           {/* VISIBLE, not in a menu. A step's row hides its commands because pressing the
               row already does something; a rule's row does nothing, so its primary action

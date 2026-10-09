@@ -93,13 +93,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (397 files common to both shapes)
+### Scaffolded paths (400 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 386   |
-| `apps/admin/`                                                        | 232   |
+| `apps/`                                                              | 389   |
+| `apps/admin/`                                                        | 235   |
 | `apps/admin/app/`                                                    | 69    |
 | `apps/admin/app/(shell)/`                                            | 51    |
 | `apps/admin/app/(shell)/@rail/`                                      | 21    |
@@ -158,13 +158,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 74    |
-| `apps/admin/components/forms/`                                       | 30    |
+| `apps/admin/components/`                                             | 76    |
+| `apps/admin/components/forms/`                                       | 32    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 82    |
-| `apps/admin/lib/forms/`                                              | 22    |
+| `apps/admin/lib/`                                                    | 83    |
+| `apps/admin/lib/forms/`                                              | 23    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
@@ -230,7 +230,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2247` lines across `350` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2359` lines across `354` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -245,7 +245,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (397)</summary>
+<summary>Every scaffolded file (400)</summary>
 
 ```
 .dockerignore
@@ -341,9 +341,11 @@ apps/admin/components/forms/form-builder.tsx
 apps/admin/components/forms/form-page-header.tsx
 apps/admin/components/forms/form-settings-panel.tsx
 apps/admin/components/forms/form-subtree-rail.tsx
+apps/admin/components/forms/group-panel.tsx
 apps/admin/components/forms/library-picker.tsx
 apps/admin/components/forms/link-state-tag.tsx
 apps/admin/components/forms/operand-control.tsx
+apps/admin/components/forms/ownership-grid.tsx
 apps/admin/components/forms/public-form-link.tsx
 apps/admin/components/forms/rail-steps.tsx
 apps/admin/components/forms/rule-targets.tsx
@@ -408,6 +410,7 @@ apps/admin/lib/forms/autosave.ts
 apps/admin/lib/forms/builder-bridge.ts
 apps/admin/lib/forms/builder-state.ts
 apps/admin/lib/forms/condition.ts
+apps/admin/lib/forms/draft-payload.ts
 apps/admin/lib/forms/draft.ts
 apps/admin/lib/forms/errors.ts
 apps/admin/lib/forms/issues.ts
