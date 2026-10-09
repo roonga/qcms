@@ -16,7 +16,7 @@ import { previewViews } from "@/lib/forms/preview-views";
 import type { DraftPreviewState } from "@/lib/forms/builder-state";
 import { IDLE_DRAFT_PREVIEW, PREVIEW_INSTANCE_CAP } from "@/lib/forms/builder-state";
 import { countBounds, draftGroups, questionGroupIds, stepPins } from "@/lib/forms/draft";
-import type { CompiledStep, DraftForm, DraftGroup } from "@/lib/forms/types";
+import type { DraftForm, DraftGroup } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
 import { PREVIEW_LOCALE } from "@/lib/i18n/format";
 import { unexpected } from "@/lib/ops/unexpected";
