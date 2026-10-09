@@ -16,11 +16,26 @@ import type { CompiledStep, PreviewFlow } from "./types";
 const step = (stepId: string): CompiledStep => ({ stepId, root: { type: "Form" } });
 const DOCUMENTS = [step("stp_one"), step("stp_pax"), step("stp_three")];
 
-const flow = (over: Partial<PreviewFlow>): PreviewFlow => ({
-  visibleSteps: DOCUMENTS.map((document) => document.stepId),
+/**
+ * A preview flow with the fields a case cares about overridden.
+ *
+ * `rosters` is listed rather than spread in, because task 074 made it a required field
+ * and `exactOptionalPropertyTypes` will not take a `Partial` spread over one: an absent
+ * key and a key holding `undefined` are different things to it. The overrides are named
+ * one at a time for the same reason.
+ */
+const flow = (over: {
+  readonly visibleSteps?: readonly string[];
+  readonly visibleStepViews?: readonly {
+    readonly stepId: string;
+    readonly instanceId: string | null;
+  }[];
+}): PreviewFlow => ({
+  visibleSteps: over.visibleSteps ?? DOCUMENTS.map((document) => document.stepId),
   visibleQuestions: [],
   complete: false,
-  ...over,
+  rosters: [],
+  ...(over.visibleStepViews === undefined ? {} : { visibleStepViews: over.visibleStepViews }),
 });
 
 describe("previewViews", () => {
