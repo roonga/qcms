@@ -136,8 +136,12 @@ is the one thing the blocking rule is sensitive to, and the job went red reposit
 with nothing in the tree having changed. No published `node:24-bookworm-slim` carries the
 fixed package yet, so each runtime stage in `docker/*.Dockerfile` now upgrades that one
 package at build time; the Dockerfile comment carries the reasoning, the cost to
-reproducibility and the condition for deleting the layer again. **Two criticals remain
-unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
+reproducibility and the condition for deleting the layer again. The same upgrade also
+clears **five reported `perl-base` highs** that had a published fix in the same revision
+(`CVE-2026-42497`, `CVE-2026-48959`, `CVE-2026-48962`, `CVE-2026-57432`,
+`CVE-2026-7017`), so a weekly issue compared against one from before 2026-10-10 is ten
+named findings shorter with nothing added; section 9 counts it from both runs. **Two
+criticals remain unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
 `<no-dsa> (Minor issue)` on the `glibc` source in the image. Whether to accept those,
 move the base, or wait for a point release is an open Code Owner decision recorded in
 that section. The job is not a required check, so a red scan never blocks a merge.

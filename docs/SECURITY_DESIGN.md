@@ -820,9 +820,15 @@ Two things bound it.
 The floor is held by the `scan` job rather than by a version pin, so a `perl-base` that falls behind a published fix is a red gate again; and a hard `perl-base=5.36.0-7+deb12u4` would have been worse rather than better, because `bookworm-security` publishes only the current revision, so the build would break on the day Debian supersedes it, in a scaffolded adopter's repository as much as in this one.
 **The two glibc criticals are untouched and still unfixed**: `CVE-2026-5450` against `libc6` and `libc-bin` has no fixed version in Debian 12, so it is reported and blocks nothing, and the open question above is now a question about two findings rather than seven.
 `util-linux`, `zlib1g` and `gcc-12-base`, which the same run reports at `high`, are in that position too: `apt-cache policy` after an `apt-get update` in the current base offers no newer candidate for any of the three, measured the same day, so there is nothing to upgrade and nothing is attempted.
-**Upgrading `perl-base` also changes what the weekly issue reports, which is worth stating before it surprises the person reading it.**
-`5.36.0-7+deb12u4` carries two highs of its own that the `deb12u3` rows did not show: `CVE-2026-82560` (`not-fixed`) and `CVE-2026-9538` (`wont-fix`).
-Both are reporting-only, neither has a fixed version in Debian 12, and neither blocks, so the exchange in full is five blocking criticals for two reported highs.
+**What the upgrade actually changes in the report, counted from both runs rather than described.**
+A sentence stood here claiming `5.36.0-7+deb12u4` "carries two highs of its own that the `deb12u3` rows did not show", naming `CVE-2026-82560` and `CVE-2026-9538`, and summing the change as five blocking criticals traded for two reported highs.
+**That was false in both halves, and it is corrected rather than quietly dropped**, because it is the kind of error that reads as careful accounting: it named a cost the change does not have, and it undercounted the benefit.
+The two runs compared are the red `scan` on `main` at `37a29f9e` (run 37969447819, job 113953227177) and the green one at this change's image-bearing head `d3c12e22` (job 114049354349).
+**Neither of those two CVEs is new.** Both are in the `deb12u3` report already, in its own "NO FIX AVAILABLE" section against `perl-base@5.36.0-7+deb12u3`, and both are in the `deb12u4` report against `perl-base@5.36.0-7+deb12u4`: carried across unchanged, with no fixed version in Debian 12 in either revision, reported and blocking nothing in either.
+**And the `deb12u3` run reported five perl-base highs WITH a published fix that this one does not report at all**: `CVE-2026-42497`, `CVE-2026-48959`, `CVE-2026-48962`, `CVE-2026-57432` and `CVE-2026-7017`, every one of them `fixed: 5.36.0-7+deb12u4`.
+So the exchange is **ten named findings cleared and nothing added**: the five blocking criticals, plus those five reported highs that were one `perl` revision from being fixed and are now fixed.
+The per-image totals say the same thing and reach a little further, because they count what the report does not itemize: `qcms-api` moves from 7 critical, 68 high and 87 medium to 2 critical, 63 high and 84 medium, and both front ends from 7, 69, 91 to 2, 64, 88.
+Thirteen findings per image go, three of them mediums below the reporting floor, and the `No fix` column holds at 217 throughout, which is the arithmetic statement that nothing was traded away.
 **The per-id acceptance ledger that rides with the open question is still not built**, and this change does not build one either.
 
 **What a trixie base would buy, measured.**
