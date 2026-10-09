@@ -34,6 +34,6 @@
   },
   "devDependencies": {
     "@a2ra/core": "1.0.0-preview.7",
-    "@types/node": "^24.13.6"
+    "@types/node": "^24.19.1"
   }
 }
