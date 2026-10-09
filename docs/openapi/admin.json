@@ -848,6 +848,25 @@
                     "instances"
                   ]
                 }
+              },
+              "visibleStepViews": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "stepId": {
+                      "type": "string"
+                    },
+                    "instanceId": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  },
+                  "required": [
+                    "stepId",
+                    "instanceId"
+                  ]
+                }
               }
             },
             "required": [

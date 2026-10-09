@@ -133,9 +133,15 @@ export type EvalError = z.infer<typeof evalError>;
  *
  * - `visible` - every visible `(stepId, questionId)` pair, carrying an
  *   `instanceId` on a repeated entry and no such key otherwise.
- * - `visibleSteps` - the steps contributing at least one visible question
- *   (derived from `visible`; a step-visible step whose questions are all
- *   rule-hidden renders nothing and is therefore not listed).
+ * - `visibleSteps` - the steps contributing at least one visible question,
+ *   **plus every step-visible step that holds a repeating group** (Q30, ruled
+ *   2026-10-03). A step-visible step with no group whose questions are all
+ *   rule-hidden renders nothing and is still not listed; a step holding a group
+ *   always renders the group's own chrome, its heading and its Add control,
+ *   which is content a respondent can act on. Before that ruling such a step
+ *   was unreachable: it had nothing visible while its roster was empty, its
+ *   roster was empty because the mint is due on the first serve of the group's
+ *   own step, and that step was never served because it was not listed here.
  * - `currentStep` - semantic 5 above; `null` when nothing is unanswered.
  * - `answeredRequired` / `missingRequired` - visible required questions with
  *   and without an answer (required-ness comes from the resolved
@@ -625,6 +631,14 @@ export function evaluateRules(
     return undefined;
   };
 
+  /**
+   * Steps whose own gate passed and which hold a repeating group (Q30).
+   *
+   * Collected inside this walk, after the step-level gate below, so a group-bearing step
+   * a step rule hides stays hidden: the ruling makes a group's chrome content, not an
+   * exemption from semantic 4.
+   */
+  const groupBearingShown = new Set<StepId>();
   for (const step of form.steps) {
     const targetingStep = stepRules.get(step.stepId);
     if (targetingStep !== undefined) {
@@ -639,6 +653,7 @@ export function evaluateRules(
         continue;
       }
     }
+    if (step.items.some(isRepeatGroup)) groupBearingShown.add(step.stepId);
     for (const item of step.items) {
       if (!isRepeatGroup(item)) {
         const failure = walkQuestion(step.stepId, item.questionId, undefined, NO_SCOPE);
@@ -675,14 +690,22 @@ export function evaluateRules(
   // question is listed ONCE in `answeredRequired`/`missingRequired` and counts
   // as missing when ANY live instance of it is unanswered, which is what keeps
   // `complete` the precondition submit needs: I9 requires every instance.
-  const visibleSteps = [...new Set(visible.map((entry) => entry.stepId))];
+  const withVisibleQuestion = new Set(visible.map((entry) => entry.stepId));
+  // Document order, from the form rather than from the walk, because the union of two
+  // sets has none of its own. For a form with no repeating group `groupBearingShown` is
+  // empty and this is `visible`'s own step set in document order, which is byte-identical
+  // to what the de-duplicated walk produced.
+  const visibleSteps = form.steps
+    .map((step) => step.stepId)
+    .filter((stepId) => withVisibleQuestion.has(stepId) || groupBearingShown.has(stepId));
   const requiredOrder: QuestionId[] = [];
   const requiredMissing = new Set<QuestionId>();
   const requiredSeen = new Set<QuestionId>();
   const answeredRequiredInstances: NonNullable<FlowState["answeredRequiredInstances"]> = [];
   const missingRequiredInstances: NonNullable<FlowState["missingRequiredInstances"]> = [];
   let firstMissingRequiredStep: StepId | null = null;
-  let firstUnansweredStep: StepId | null = null;
+  /** Steps with a visible question the ledger has no answer for. */
+  const unansweredSteps = new Set<StepId>();
   for (const entry of visible) {
     const definition = definitions.get(entry.questionId);
     /* v8 ignore next 3 -- every pinned question was resolved above */
@@ -690,8 +713,8 @@ export function evaluateRules(
       continue;
     }
     const answered = canonical.has(answerKey(entry.questionId, entry.instanceId));
-    if (!answered && firstUnansweredStep === null) {
-      firstUnansweredStep = entry.stepId;
+    if (!answered) {
+      unansweredSteps.add(entry.stepId);
     }
     if (!definition.required) {
       continue;
@@ -715,10 +738,29 @@ export function evaluateRules(
   const answeredRequired = requiredOrder.filter((questionId) => !requiredMissing.has(questionId));
   const missingRequired = requiredOrder.filter((questionId) => requiredMissing.has(questionId));
 
+  /**
+   * The first visible step with work left in it, in document order (Q30).
+   *
+   * A step holding a repeating group whose roster is empty has no visible question, so
+   * the walk above can never nominate it; counting it as incomplete is what makes the
+   * cursor-less serve land on it, which is what mints the roster. Ordering it by document
+   * position rather than as a last resort is the half that is easy to get wrong: a later
+   * step's unanswered question would otherwise win over an EARLIER empty group.
+   *
+   * For a form with no repeating group this is the first unanswered visible question's
+   * step, which is exactly what the previous single-pass `firstUnansweredStep` found,
+   * because `visibleSteps` and `visible` are both in document order.
+   */
+  const firstIncompleteStep =
+    visibleSteps.find(
+      (stepId) =>
+        unansweredSteps.has(stepId) ||
+        (!withVisibleQuestion.has(stepId) && groupBearingShown.has(stepId)),
+    ) ?? null;
   const base: FlowState = {
     visible,
     visibleSteps,
-    currentStep: firstMissingRequiredStep ?? firstUnansweredStep,
+    currentStep: firstMissingRequiredStep ?? firstIncompleteStep,
     answeredRequired,
     missingRequired,
     complete: missingRequired.length === 0,
@@ -744,9 +786,35 @@ export function evaluateRules(
  * is one view per live instance.
  *
  * A step carrying such a group with an empty roster contributes one view with a
- * null instance, so a visible step is never absent from the list. Task 076 owns
- * the cursor that walks these and the presentation that produces them; what
- * this task owes is the roster-driven list itself.
+ * null instance, so a visible step is never absent from the list.
+ *
+ * ## The two edges task 071 left open, decided by task 076
+ *
+ * Both were left to the cursor's owner on the review of PR #1016 (2026-09-29),
+ * because the cursor is what gives a view its meaning. Both are **kept exactly as
+ * 071 wrote them**, and the reasons belong here rather than in a commit message.
+ *
+ * 1. **The list is derived from the roster, and per-instance visibility never
+ *    prunes it.** A live instance contributes a view whether or not a rule has
+ *    hidden some of its members. The decisive reason is ADR-28's own rule that
+ *    **answering never moves the rendered page by itself**: the cursor is a
+ *    0-based index into this list, so if a view could vanish because an answer
+ *    hid a member, answering vehicle 2's question could renumber vehicle 3's page
+ *    and slide the respondent onto it. Pruning would buy one empty page avoided
+ *    and sell the one property the cursor exists to hold.
+ * 2. **Only the FIRST `perInstanceStep` group in a step paginates it.** A step
+ *    holding two of them is not a shape any presentation has defined, and picking
+ *    the first is a reading the cursor can agree with. `paginatingGroup` in
+ *    `apps/api/src/features/responses/serve-step/handler.ts` reads the same way,
+ *    and a test pins the two together rather than a comment.
+ *
+ * The step's own visibility is still the outer gate: a step a STEP RULE hides
+ * contributes no view, with a live roster or without one. What changed under Q30
+ * (2026-10-03) is that holding a repeating group is itself enough to make a
+ * step-visible step listed in `visibleSteps`, so a group-bearing step always has
+ * at least one view - with a null instance while its roster is empty - and the
+ * two fields agree. Before that ruling such a step had no view, was never
+ * served, and so never minted the roster that would have given it one.
  */
 function stepViews(
   form: FormDefinition,

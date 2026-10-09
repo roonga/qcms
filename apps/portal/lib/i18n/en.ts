@@ -24,6 +24,11 @@ export const messages = {
   "action.submit": "Submit",
 
   "progress.step": "Step {current} of {total}",
+  // The per-instance step presentation's chrome (task 076, ADR-27, ADR-28 as amended
+  // 2026-09-29). The indicator counts VIEWS, so a three-vehicle group is three of them;
+  // naming the instance is what keeps those three pages legible as three vehicles rather
+  // than as three unrelated steps of one form. An ordinary step keeps `progress.step`.
+  "progress.stepNamed": "Step {current} of {total}: {label}",
 
   // The bare-root landing (`app/page.tsx`), whose heading is the brand name.
   "home.body": "Open your questionnaire from the link you were sent.",
@@ -72,6 +77,14 @@ export const messages = {
   "repeat.maxReached": "You have added as many as this form allows.",
   "repeat.notAddable": "This part of the form is not one you can add to.",
   "repeat.failed": "We could not make that change. Please try again.",
+  // The submission sweep's count refusal (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), which a
+  // respondent reaches by removing instances below the group's minimum and then
+  // submitting. Without it the press did nothing and said nothing, which is the silent
+  // dead end issues #920, #974, #18 and #988 each closed once. It names no number,
+  // because the bound is the author's and the controls already enforce it either side of
+  // this round trip; what the respondent needs is to know the press was refused and why.
+  "repeat.countOutOfRange":
+    "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
   "repeat.added": "{label} added.",
   "repeat.removed": "{label} removed, {count} remaining.",
   "repeat.removedLast": "{label} removed, none remaining.",
@@ -87,6 +100,10 @@ export const messages = {
   // The page-level notice for a whole-step post the API refused outright (task 073, ruling
   // Q29). It has to say that nothing was saved, because the respondent is looking at a step
   // that still holds everything they typed and has no other way to tell.
+  // The same refusal reaching the no-JS path, where it rides `StepContext.notice` as a
+  // catalogue KEY exactly as Q29's does.
+  "step.countOutOfRange":
+    "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
   "step.notSaved":
     "We could not save your answers just now. Nothing was saved, and everything you typed is still here. Please press Continue again.",
   "flow.submitReady": "You have answered everything. Submit your responses when you are ready.",

@@ -27,8 +27,10 @@ import type { RepeatInstanceNode } from "./repeat.schema.ts";
  *
  * The heading carries `tabindex="-1"` and `id={instanceId}`, which are the two focus
  * mechanisms Q11 needs: the scripted path moves focus to it after an add or a remove,
- * and the no-JS path lands on it by the fragment on the 200 re-render. The **id is
- * the bare instance id**, so the fragment is `#ins_7k2`; the field ids beneath it are
+ * and the no-JS path lands on it by the `autofocus` attribute on that same 200
+ * re-render (Q28, ruled 2026-10-01, and never a fragment: a 200 answering a POST
+ * leaves the browser on the POST's own URL). The **id is the bare instance id**, so
+ * the host names this destination as `ins_7k2`; the field ids beneath it are
  * `ins_7k2/q_plate`, which is the qualified name and the same string the error
  * summary anchors at.
  *

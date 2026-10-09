@@ -14,7 +14,7 @@
 
 ### ADR-28 - Explicit portal navigation
 
-**Status:** implemented; amended 2026-08-31 (issue #725).
+**Status:** implemented; amended 2026-08-31 (issue #725) and 2026-09-29 (the cursor indexes step views, built by task 076).
 
 **Decision.** Continue advances only after current-step validation, Back returns to the previous visible step and is hidden on the first step, and Submit appears only on the last visible step. Answering never changes the rendered step by itself.
 
@@ -25,7 +25,16 @@
 
 **Amendment - the cursor indexes step views, not steps (Code Owner, 2026-09-29, ADR-42, ADR-43).** A repeating group whose presentation is `perInstanceStep` paginates one step into one page per live instance, so a step id no longer identifies a page. The cursor stays what it is, a **0-based index into a list the server computes**, and what it indexes becomes `visibleStepViews`, a list of `(stepId, instanceId | null)` where the instance is null for every page that is not a per-instance one. A compound cursor on the wire (`?step=3&instance=ins_7k2`) was weighed and refused, and the reason is about what a forged value can reach rather than about visibility. An instance id is already visible on this surface, in field names, DOM ids and anchors, so "it would put a session-scoped id in a URL" is not the argument. (This sentence also named "the fragment the no-JS add lands on"; ADR-43's amendment of 2026-10-01 makes that landing an `autofocus` attribute rather than a fragment, which removes an example and changes nothing about the argument.) The argument is that **a cursor is an index into a list the server computed for this session on this request**: out of range is refused by arithmetic, and in range names a view the server had already decided was visible. A compound cursor would instead take an instance id as input and have to prove it belongs to this session, to this group and to the live roster, which is three checks where the index needs none.
 
-Nothing else in this decision moves. Continue advances one **view**, Back returns one, Submit appears on the last, and answering never changes the rendered page by itself. `progress: {stepIndex, totalVisibleSteps}` counts views, so a three-passenger group presents as three views and the indicator says three. A form with no repeating group has one view per visible step and every number is what it is today. Decided, not built: task 076.
+Nothing else in this decision moves. Continue advances one **view**, Back returns one, Submit appears on the last, and answering never changes the rendered page by itself. `progress: {stepIndex, totalVisibleSteps}` counts views, so a three-passenger group presents as three views and the indicator says three. A form with no repeating group has one view per visible step and every number is what it is today. **Built: task 076.**
+
+**Two readings the build had to take, recorded because the amendment is silent on both.** Neither is a new decision and both are asserted by tests rather than left to a comment.
+
+1. **With no cursor, the view served is the first of the current step whose instance is incomplete** - the no-JS walk, which the Code Owner confirmed on 2026-09-29 - **and the LAST view of that step when no instance is incomplete.** The ruled sentence names the first incomplete instance and says nothing about a step that is still current for a reason outside the group, which happens when a plain question on it is unanswered. The walk is forward-only on that path, so its end is the honest place to stand, and the end is the one view carrying the group's Add control, so an open group whose instances are all filled can still grow. Serving the first view instead would show a finished page with no way to add. `servedView` in `apps/api/src/features/responses/serve-step/handler.ts` carries the same reasoning beside the code.
+2. **A view is narrowed to one instance of the PAGINATING group and to nothing else.** The step's own questions, and every instance of any other group on the step, are on every page of the walk. That is the uniform filter rather than a second rule: putting a step's plain question on the first page only would be a rule nothing has ruled, and an author who does not want a question repeated across the pages puts it on its own step.
+
+**A step holding a repeating group is a visible step, so it has at least one view (Q30, Code Owner, 2026-10-03).** That was not so when this amendment was written, and it made a group-only step unreachable: no view, so no cursor position, so it was never served, so the roster that would have given it views was never minted. ADR-42's amendment of the same date carries the ruling and its consequence for the golden corpus. For this record what follows is small and worth stating: a group-bearing step with an empty roster contributes **one** view with a null instance, and `progress.totalVisibleSteps` counts it.
+
+**And the view list is derived from the roster, so answering cannot shorten it.** A live instance contributes a view whether or not a rule has hidden some of its members, which is what makes "answering never moves the rendered page by itself" hold for the cursor as an index: a list an answer could shorten would renumber the pages ahead of the respondent. Task 071 left that edge and one other - that only the **first** `perInstanceStep` group in a step paginates it - to this task, and both are kept, with the reasons recorded in `stepViews` in `packages/core/src/evaluate-rules.ts`.
 
 ### ADR-30 - Portal theming
 
@@ -78,7 +87,7 @@ The **address forms above are `prod`'s, and they keep exactly that spelling** (C
 
 ### ADR-43 - Repeat rendering and the no-JS roster operation
 
-**Status:** decided; not built (tasks 073, 076 and 077). Code Owner rulings of 2026-09-29, recorded question by question in `plan/repeating-groups-and-table-input.md` section 10. Nothing here is open. The kernel half is ADR-42.
+**Status:** built, all three presentations (tasks 073, 076 and 077). Code Owner rulings of 2026-09-29, recorded question by question in `plan/repeating-groups-and-table-input.md` section 10. Nothing here is open. The kernel half is ADR-42.
 
 **Decision.** The compiler emits a **`RepeatGroup` template** node carrying the group's member controls once. The renderer clones it per live instance, in roster order, and qualifies each cloned control's `name` from `q_passport` to `ins_7k2/q_passport`, so the stored compiled document is served verbatim and expansion is a render-time transform on the precedent `withNativeSubmit` and `documentForVisible` already set (ADR-18 unaffected). The **qualified name is the field's whole identity everywhere below the API**, so the ten places that key on `name` keep keying on one opaque string and none of them learns about instances. The roster reaches the renderer from the API's step projection; the portal still evaluates nothing (R2).
 

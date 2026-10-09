@@ -510,31 +510,45 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   await portal.getByTestId("primary-action").click();
   await expect(portal.getByRole("heading", { name: GROUP })).toBeVisible({ timeout: 60_000 });
   await expect(portal.getByRole("heading", { name: "Passenger 1" })).toBeVisible();
-  // ONE MEMBER ANSWERED, on both sides, before either shape is read - and this is a WORKAROUND
-  // with an owner, not only a design choice.
+  // TWO INSTANCES, ONE ANSWERED AND ONE NOT, which is the asymmetric state this case is for.
   //
-  // **Issue #1041**: on the hydrated path the portal renders a member control that a per-instance
-  // rule hides, which the admin preview correctly omits. PR #1036 (task 076) carries the fix. So
-  // the unanswered state currently DIVERGES between the two surfaces, and comparing it here would
-  // fail on another task's defect rather than on this one's expansion.
+  // It is the shape that an expansion comparison most wants and that the walk could not take
+  // until issue #1041 was fixed (PR #1036, which also carries this change): the hydrated portal
+  // used to render a member control that a per-instance rule hides, because it expands before it
+  // prunes and no visible set reached either pass, while the preview pruned correctly. The two
+  // surfaces diverged on exactly this state, so the earlier version of this case answered the one
+  // instance it had and said so.
   //
-  // The design reason is true as well, and is why the workaround costs this case nothing: the
-  // per-instance rule case 59 authored shows the fare question inside the instance that answered
-  // its passport, so the unanswered comparison would be about two surfaces' PRUNING while the
-  // expansion is what case 61 exists for. Answering also exercises the per-instance answer key end
-  // to end - the reveal only happens if `ins_x/q_passport` reached the evaluator as that
-  // instance's answer and nobody else's.
-  //
-  // **Once #1041 is on `main` this step can go**, and the walk can compare the unanswered state
-  // instead: that is the stronger shape, because an asymmetry that appears only when one instance
-  // has answered and another has not is outside this walk by construction while the group has one
-  // instance. Left as a deliberate step rather than a disabled assertion, because an assertion
-  // that cannot run is not a test and a skipped one is a reminder nobody reads.
-  await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
-  await portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();
-  await expect(portal.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toBeVisible({
+  // What it buys now that both sides prune: the rule case 59 authored shows the fare question
+  // inside the instance that answered its passport, so with passenger 1 answered and passenger 2
+  // not, one instance carries the fare control and the other must not. A per-instance pruning
+  // asymmetry is invisible while a group has one instance, and it is the one asymmetry an
+  // expansion can get wrong without any count being wrong. It also exercises the per-instance
+  // answer key end to end: the reveal happens only if `ins_1/q_passport` reached the evaluator as
+  // that instance's answer and nobody else's.
+  await portal.locator('[data-qcms-repeat-action="add"]').click();
+  await expect(portal.getByRole("heading", { name: "Passenger 2" })).toBeVisible({
     timeout: 60_000,
   });
+  const passports = portal.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`);
+  await expect(passports).toHaveCount(2);
+  await passports.first().fill("PA1");
+  await passports.first().blur();
+  // Passenger 1 gains the fare control and passenger 2 does not, which is the assertion the
+  // hydrated path failed before #1041.
+  await expect(portal.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toHaveCount(1);
+  await expect(
+    portal
+      .locator("fieldset[data-qcms-instance]")
+      .nth(0)
+      .locator(`input[name$="/${questionIdFor(FARE)}"]`),
+  ).toBeVisible();
+  await expect(
+    portal
+      .locator("fieldset[data-qcms-instance]")
+      .nth(1)
+      .locator(`input[name$="/${questionIdFor(FARE)}"]`),
+  ).toHaveCount(0);
   await waitForRenderedStep(portal);
   // A RESPONDENT CAN CHANGE THE ROSTER, which is the other half of the one difference the
   // comparison normalises below: the portal passes `onAdd` and `onRemove`, so the group's own
@@ -554,14 +568,20 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
   });
   // HIDDEN UNTIL THIS INSTANCE ANSWERS, which is the per-instance rule read through the preview's
   // own roster: the fare question is the rule's target, the rule is evaluated once per live
-  // instance, and nothing has been answered yet. This is the assertion the portal currently fails
-  // (issue #1041), kept on the side that is right so the correct behaviour is pinned somewhere.
+  // instance, and nothing has been answered yet. Both surfaces hold this now; before #1041 only
+  // this one did.
   await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toHaveCount(0);
-  await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).fill("PA1");
-  await surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`).blur();
-  await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toBeVisible({
+  // The same two-instance, one-answered state, set through the control that owns the preview's
+  // roster: an author's hypothesis rather than a respondent's Add.
+  await setInstanceCount(page.getByRole("textbox", { name: `Instances of ${GROUP}` }), "2");
+  await expect(surface.getByRole("heading", { name: "Passenger 2" })).toBeVisible({
     timeout: 60_000,
   });
+  const previewPassports = surface.locator(`input[name$="/${questionIdFor(PASSPORT)}"]`);
+  await expect(previewPassports).toHaveCount(2);
+  await previewPassports.first().fill("PA1");
+  await previewPassports.first().blur();
+  await expect(surface.locator(`input[name$="/${questionIdFor(FARE)}"]`)).toHaveCount(1);
   // WAIT FOR REACT TO OWN THE PREVIEW before reading it. The pane re-renders on every answer and
   // every instance count, and a step switch re-mounts the rendered document - so a shape read too
   // early is the server-rendered form of the vendored controls, missing the `tabindex`, `type` and
@@ -771,12 +791,22 @@ async function setInstanceCount(field: Locator, count: string): Promise<void> {
  * that started offering a respondent's controls to an author still fails. Nothing else's
  * `disabled` is touched: a disabled INPUT would be a real divergence in what a respondent can
  * answer.
+ *
+ * **The `role="status"` region's TEXT goes, and the region itself does not.** The portal
+ * announces the respondent's own roster operation there ("Passenger 2 added."), which is 4.1.3's
+ * half of Q11; an author's preview has nothing to announce, because setting an instance count is
+ * not an Add and the preview passes no `onAdd` at all. This walk reaches two instances by
+ * pressing the portal's Add, so it meets that sentence by construction. The ELEMENT is compared
+ * as it is - both surfaces render it, and a surface that stopped would still fail - and only the
+ * transient sentence inside it is dropped.
  */
 function comparable(shape: DomShape): DomShape {
   const normalise = (node: DomShape): DomShape => {
     const isRosterAction = node.attrs["data-qcms-repeat-action"] !== undefined;
+    const isStatusRegion = node.attrs["role"] === "status";
     return {
       ...node,
+      ...(isStatusRegion ? { text: "" } : {}),
       attrs: Object.fromEntries(
         Object.entries(node.attrs).filter(
           ([name]) => name !== "tabindex" && !(isRosterAction && name === "disabled"),

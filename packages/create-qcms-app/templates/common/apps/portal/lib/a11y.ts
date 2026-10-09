@@ -21,6 +21,16 @@ export interface FlowView {
    * `null` merely because the flow became ready to submit within the same step.
    */
   readonly stepId: string | null;
+  /**
+   * The instance this page draws, when a `perInstanceStep` group paginates the step into
+   * one page per live instance (task 076, ADR-28 as amended 2026-09-29), and `null` for
+   * every ordinary page.
+   *
+   * It is part of what makes a navigation a navigation. Two views of one step carry the
+   * same `stepId`, so a Continue from Vehicle 1 to Vehicle 2 is a step change by every
+   * respondent-visible measure and by none of the measures `stepId` alone can take.
+   */
+  readonly instanceId: string | null;
   readonly stepIndex: number;
   readonly visibleQuestions: readonly string[];
 }
@@ -37,12 +47,19 @@ export interface FlowDelta {
 
 /**
  * Diff two flow projections. `added`/`removed` are pure set differences over the
- * visible-question lists. `stepChanged` is a move between two REAL steps (both
- * step ids non-null and different): a step going to `null` is the flow completing
- * or becoming ready to submit, not a navigation to announce, and a mere
- * `stepIndex` change within the same step (readiness/progress) is not a step
- * change either. A first render (no previous view) reports no delta - there is
- * nothing to announce and focus is already where the SSR left it.
+ * visible-question lists. `stepChanged` is a move between two REAL views (both
+ * step ids non-null, and either the step or the drawn instance different): a step going
+ * to `null` is the flow completing or becoming ready to submit, not a navigation to
+ * announce, and a mere `stepIndex` change with the same step and the same instance
+ * (readiness/progress) is not a step change either. A first render (no previous view)
+ * reports no delta - there is nothing to announce and focus is already where the SSR
+ * left it.
+ *
+ * **The instance is part of the comparison and not an extra** (task 076). A
+ * `perInstanceStep` group's three pages are three views of one step, so comparing step
+ * ids alone would report a Continue between two vehicles as no navigation: nothing
+ * announced, and focus left on the control the respondent had just left rather than at
+ * the top of the page they were sent to.
  */
 export function diffFlow(previous: FlowView | undefined, next: FlowView): FlowDelta {
   if (previous === undefined) {
@@ -53,7 +70,9 @@ export function diffFlow(previous: FlowView | undefined, next: FlowView): FlowDe
   const added = next.visibleQuestions.filter((q) => !prevVisible.has(q));
   const removed = previous.visibleQuestions.filter((q) => !nextVisible.has(q));
   const stepChanged =
-    previous.stepId !== null && next.stepId !== null && previous.stepId !== next.stepId;
+    previous.stepId !== null &&
+    next.stepId !== null &&
+    (previous.stepId !== next.stepId || previous.instanceId !== next.instanceId);
   return { stepChanged, added, removed };
 }
 

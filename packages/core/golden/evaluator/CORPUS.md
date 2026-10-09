@@ -23,7 +23,16 @@ either revert it, or treat it as a new semantics version - never "fix the
 golden" to match new behavior. Adding _new_ scenarios (or new corpus forms and
 questions for them) is always welcome and is how the corpus grows.
 
-### The one recorded exception (issue #128, 2026-08-31)
+**There is no supersession mechanism, and that is deliberate.** The runner globs
+every file in `scenarios/` and asserts each, so an appended scenario cannot
+retire an existing one. A correction is therefore an amendment in place, under a
+recorded exception below, or it is not taken at all. The two exceptions granted
+so far are both **defect corrections**. Only the second is **hash-pinned** in the
+guard: the first predates the guard covering this corpus at all, so there was
+nothing for it to be pinned against (`packages/core/golden/evaluator/` joined
+`GUARDED_PREFIXES` on 2026-09-02, the day after that amendment landed).
+
+### The first recorded exception (issue #128, 2026-08-31)
 
 `answered-falsy-values` was amended without a version bump, on the Code Owner's
 ruling that **required means non-blank**: an empty or whitespace-only text value
@@ -48,6 +57,59 @@ This is a precedent for a **defect correction**, not for editing a golden that
 disagrees with an intended semantics change. Anything that alters the outcome
 for an answer a respondent can actually produce still needs the bump, and still
 needs the evaluator to be able to honor both versions before it is taken.
+
+### The second recorded exception (Q30, 2026-10-03)
+
+`repeat-every-instance-empty-group` was amended without a version bump, on the
+Code Owner's ruling that **a step holding a repeating group counts as a visible
+step even when its roster is empty**, because the group's own chrome - its
+heading and its Add control - is content a respondent can act on. Three fields
+moved in that one scenario and the other 58 are untouched:
+
+| Field              | Was              | Is                         |
+| ------------------ | ---------------- | -------------------------- |
+| `currentStep`      | `"stp_after"`    | `"stp_pax"`                |
+| `visibleSteps`     | `["stp_after"]`  | `["stp_pax", "stp_after"]` |
+| `visibleStepViews` | `stp_after` only | `stp_pax` first, then it   |
+
+`visible`, `complete`, the required arrays and `rosters` are unchanged, so the
+non-equivalence this scenario exists to pin - `everyInstance` FALSE over an empty
+group while `not(anyInstance(not c))` is TRUE - is exactly as it was.
+
+**The pinned behavior was the defect, and it made a form shape unreachable.** A
+step whose only content was a repeating group had nothing visible while its
+roster was empty; the roster was empty because the mint is due on the first serve
+of the group's own step; and that step was never served because it was not a
+visible step. The two facts held each other up. A form whose single step was a
+repeating group answered its very first request with `step: null` and
+`readyToSubmit: true` - "you have answered everything", before the respondent had
+answered anything, with no control that could change it. It was not a property of
+any one presentation: the stacked, per-instance-step and table presentations all
+reached it.
+
+**It rides the #128 precedent rather than a `SEMANTICS_VERSION` bump**, for the
+same three reasons that precedent records, and they apply here at least as
+cleanly. A bump could not deliver what the rule protects: the evaluator
+implements exactly one version at a time and refuses any other stamp, so `2`
+would fail every already-published snapshot rather than preserve its behavior.
+No product-produced answer changes meaning - no answer changes meaning at all,
+and what changes is that a form shape nobody could complete becomes usable. And
+the pinned behavior was the defect, which is the sentence #128 is written around.
+
+**The guard enforces this entry rather than being asked to ignore it.**
+`scripts/check-golden-append-only.mjs` carries a `PINNED_EXCEPTIONS` list, and
+this file's entry is:
+
+- path: `packages/core/golden/evaluator/scenarios/repeat-every-instance-empty-group.json`
+- SHA-256: `197c0d255e136d17f3e28808e98747cbb634fb301d13ec424bf6f85c607fd425`
+
+A modification of that path passes **only** if the new bytes hash to that value.
+A different edit to the same path, a deletion, a rename, or any change to an
+unlisted file is refused exactly as before, so the file is not unguarded
+afterwards: the only content it may hold is the one recorded here. The gate's
+own test asserts that this document and the pin name the same file and the same
+hash, so the human record and the machine check cannot drift apart. Adding an
+entry is a Code Owner decision, as both of these were.
 
 CI enforces drift two ways with the same runner
 (`packages/core/src/golden-corpus.test.ts`):
@@ -148,6 +210,7 @@ first question for every instance, then its second for every instance.
 | Nesting at depth 8 (the cap)                                            | `depth-8`                      | `depth-8-true`, `depth-8-false`                                                                                                                         |
 | Step-level target show/hide; step ∧ question layers                     | `step-gate`                    | `step-gate-shown-both-layers`, `step-gate-question-layer-hidden`, `step-gate-hidden`, `step-gate-stale-answer-excluded`                                 |
 | `visibleSteps` derivation (all-questions-hidden step drops out)         | `step-empty`                   | `step-empty-drops-from-visible-steps`                                                                                                                   |
+| A group-bearing step is listed with an empty roster (Q30)               | `repeat-stacked`               | `repeat-every-instance-empty-group`                                                                                                                     |
 | Multiple rules targeting the same question (OR)                         | `multi-rule-target`            | `multi-rule-first-only`, `multi-rule-second-only`, `multi-rule-none`                                                                                    |
 | Hidden-answer exclusion chain (A controls B; B's answer feeds C)        | `exclusion-chain`, `step-gate` | `chain-propagates`, `chain-hidden-answer-excluded`, `chain-middle-unanswered`, `step-gate-stale-answer-excluded`                                        |
 | Empty answers / all answered / partial with required missing            | many                           | `*-unanswered`, `*-none`, `answered-partial`, `kitchen-sink-partial-missing-required`, `minimal-*`                                                      |

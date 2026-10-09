@@ -271,10 +271,14 @@ const FlowState = z.object({
     z.object({ stepId: StepId, questionId: QuestionId, instanceId: InstanceId.optional() }),
   ),
   // document then roster order; the `instanceId` KEY is absent outside a group
-  visibleSteps: z.array(StepId), // steps contributing ≥1 visible question (derived from `visible`;
-  // a step whose questions are all rule-hidden renders nothing and is not listed)
+  visibleSteps: z.array(StepId), // steps contributing ≥1 visible question, PLUS every step-visible
+  // step that holds a repeating group (Q30, 2026-10-03: the group's own chrome, its heading and
+  // its Add control, is content a respondent can act on, and before this such a step was
+  // unreachable). A step with no group whose questions are all rule-hidden renders nothing and is
+  // still not listed; a step a STEP RULE hides is not listed either, group or no group
   currentStep: StepId.nullable(), // semantic: first visible step with a visible unanswered *required*
-  // question, else first with any visible unanswered question, else null
+  // question, else the first visible step with work left in it in DOCUMENT order - a visible
+  // unanswered question, or a repeating group whose roster is empty (Q30) - else null
   answeredRequired: z.array(QuestionId), // visible required questions with an answer, document order
   missingRequired: z.array(QuestionId), // visible required questions without one, document order;
   // a REPEATED question is listed once and is missing when any live instance of it is unanswered

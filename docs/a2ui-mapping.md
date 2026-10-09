@@ -194,7 +194,14 @@ the portal's browser suite).
   instance's **live** one-based position and is recomputed after a removal, which is
   render-time state and not content.
 - `presentation` is `stacked`, `perInstanceStep` or `table`. Task 073 renders
-  `stacked`; the other two are tasks 076 and 077.
+  `stacked` and task 076 renders `perInstanceStep`; `table` is task 077.
+  **`perInstanceStep` changes no prop and no stored byte**: the host tells the expansion
+  which view it is drawing (`RepeatExpansion.view`, a `{groupId, instanceId}` pair the
+  API's step projection supplies), and the expansion then clones the template for that
+  one instance while naming it from its place in the full roster and putting the Add
+  control on the last view alone. The presentation is a render-time narrowing of the same
+  node, which is why the compiled document for a group is identical whichever of the two
+  presentations its author chose.
 - `countSource` is `fixed`, `fromAnswer` or `open`. Add and Remove exist for `open`
   alone: a `fixed` group's size is its author's and a `fromAnswer` group's is the
   count answer's.

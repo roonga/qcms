@@ -1,0 +1,401 @@
+import { expect, test } from "./support/gates.js";
+import { readFixtures } from "./support/fixtures.js";
+import { waitForHydration } from "./support/hydration.js";
+
+/**
+ * The **per-instance step presentation** on the scripted path (task 076, ADR-28 as
+ * amended 2026-09-29, ADR-42, ADR-43).
+ *
+ * The fixture is `repeat-tour`
+ * (`apps/api/e2e/support/fixtures/repeat-tour-form.json`): one step, one `open` group at
+ * `min: 3, max: 4`, `presentation: "perInstanceStep"`, whose members are a required
+ * shortText and an optional number, plus one plain **optional** question on the step
+ * itself. `min: 3` means the first serve mints three instances, so the step is three
+ * **views** before the respondent has done anything, which is this task's exit criterion
+ * written as a fixture rather than as a sequence of clicks.
+ *
+ * The plain question is **optional**, so the Continue gate on each view is that view's
+ * own plate and nothing else. It was first added because a step whose every item was a
+ * repeating group could not be served at all; Q30 (2026-10-03) fixed that, and
+ * `apps/api/src/features/responses/group-only-step.integration.test.ts` now asserts a
+ * group-only step is reachable on all three presentations. It stays because of what it
+ * buys here: a view narrows the step to one instance of the paginating group and to
+ * nothing else, so it appears on every page of the walk, which is asserted below rather
+ * than worked around.
+ *
+ * Exit criteria proved here: **1** (three views, the indicator says three, Back and
+ * Continue traverse them in roster order), **2** (answering never moves the page by
+ * itself, on this path), and **5** (Submit appears on the last view and nowhere earlier,
+ * with that last view belonging to an instance rather than to a plain step).
+ *
+ * **Issue #1041 is driven from here too**, and the fixture choice is deliberate. The
+ * defect is a hydrated-path composition fault and is presentation-independent, so the
+ * natural home would be the stacked spec; but `repeat-fleet` carries no rules at all, so
+ * a per-instance branch cannot be driven on it without changing a fixture three other
+ * specs assert against. `repeat-tour` gained one rule of its own instead, and the
+ * ordering itself is pinned directly in `packages/ui/src/repeat.test.tsx`.
+ *
+ * The no-JS half of the same fixture is `no-js-per-instance.pw.ts`.
+ */
+
+const { repeatTourSlug } = readFixtures();
+
+/** The one instance card this view draws. */
+function card(page: import("@playwright/test").Page) {
+  return page.locator("fieldset[data-qcms-instance]");
+}
+
+/**
+ * This instance's optional odometer field, by role.
+ *
+ * By role and not `getByLabel`: a `NumberField`'s increment and decrement buttons are
+ * labelled from the same text through `aria-labelledby`, so a label locator resolves to
+ * three elements and strict mode refuses it. The text box is the field.
+ */
+function odometer(page: import("@playwright/test").Page) {
+  return card(page).getByRole("textbox", { name: "Odometer reading" });
+}
+
+async function startTour(page: import("@playwright/test").Page): Promise<void> {
+  await page.goto(`/f/${repeatTourSlug}`);
+  await page.getByRole("button", { name: "Start" }).click();
+  await page.waitForURL(/\/s\/ses_/);
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await waitForHydration(page);
+}
+
+/** Press Continue or Back and wait for the step read the cursor move makes. */
+async function navigate(page: import("@playwright/test").Page, name: string): Promise<void> {
+  // Waits for the read and then asserts its status, so a refusal fails with a status
+  // rather than as a bare timeout on a heading that never changed. The cursor move is a
+  // GET of the step route with the index the portal wants drawn.
+  const read = page.waitForResponse(
+    (response) =>
+      response.request().method() === "GET" && new URL(response.url()).pathname.endsWith("/step"),
+  );
+  await page.getByTestId(name).click();
+  const response = await read;
+  expect(response.status(), `the ${name} step read`).toBe(200);
+}
+
+/** Fill this view's required plate and wait for the answer the blur posts (ADR-31). */
+async function fillPlate(page: import("@playwright/test").Page, value: string): Promise<void> {
+  const posted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/answers"),
+  );
+  await card(page).getByLabel("Registration plate").fill(value);
+  await card(page).getByLabel("Registration plate").blur();
+  await posted;
+}
+
+test("three live instances are three views, in roster order, with one Submit at the end", async ({
+  page,
+}) => {
+  await startTour(page);
+
+  // Exit criterion 1, the counting half: the indicator counts VIEWS, so one step holding
+  // three live instances reads "of 3" and not "of 1".
+  await expect(page.getByTestId("progress")).toHaveText("Step 1 of 3: Vehicle 1");
+  await expect(card(page)).toHaveCount(1);
+  // Back is hidden on the first view exactly as it is on the first step (042's screen
+  // contract), which is the cursor behaving identically whatever a view happens to be.
+  await expect(page.getByTestId("back-action")).toHaveCount(0);
+  // Exit criterion 5: not Submit yet, on either of the first two views.
+  await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+  // The step's own question is on this page, and it is outside the instance card: a view
+  // narrows the step to one instance of the PAGINATING group and to nothing else.
+  await expect(page.getByLabel("Depot name")).toBeVisible();
+  await expect(card(page).getByLabel("Depot name")).toHaveCount(0);
+
+  // Each instance's own required field, filled on its own page.
+  await fillPlate(page, "AAA111");
+  // Exit criterion 2: answering moved nothing. Still view 1, still Vehicle 1.
+  await expect(page.getByTestId("progress")).toHaveText("Step 1 of 3: Vehicle 1");
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+
+  await navigate(page, "primary-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3: Vehicle 2");
+  await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
+  // On every page of the walk, as the narrowing says.
+  await expect(page.getByLabel("Depot name")).toBeVisible();
+  // Roster order: Vehicle 1 is not on this page at all, and Vehicle 2's plate is empty
+  // rather than carrying Vehicle 1's answer.
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toHaveCount(0);
+  await expect(card(page).getByLabel("Registration plate")).toHaveValue("");
+  // Back exists from the second view on, and this is still not the last one.
+  await expect(page.getByTestId("back-action")).toBeVisible();
+  await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+
+  // The last view, and it belongs to an INSTANCE rather than to a plain step, which is
+  // the part of exit criterion 5 that could have been missed by counting steps.
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  // And the group's Add control is on this view and was on neither earlier one.
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeVisible();
+
+  // Back traverses the views in roster order, one view at a time.
+  await navigate(page, "back-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3: Vehicle 2");
+  await expect(card(page).getByLabel("Registration plate")).toHaveValue("BBB222");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toHaveCount(0);
+  await navigate(page, "back-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 1 of 3: Vehicle 1");
+  await expect(card(page).getByLabel("Registration plate")).toHaveValue("AAA111");
+  await expect(page.getByTestId("back-action")).toHaveCount(0);
+});
+
+test("the Add control is on the last view and growing the group appends a view", async ({
+  page,
+}) => {
+  await startTour(page);
+  // Continue gates on THIS VIEW's required questions, so each vehicle's plate is filled
+  // on its own page before the cursor moves (ADR-28: Continue advances only after the
+  // current page validates).
+  await fillPlate(page, "AAA111");
+  await navigate(page, "primary-action");
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  await fillPlate(page, "CCC333");
+
+  const written = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await written).status(), "POST /roster for Add Vehicle").toBe(200);
+
+  // Four instances, four views, and the respondent is still standing on view 3: growing
+  // the roster APPENDS to the view list, so no page they already walked is renumbered.
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 4: Vehicle 3");
+  await expect(page.getByTestId("primary-action")).toHaveText("Continue");
+  // The Add control moved with the end of the walk, and this page is no longer the end.
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toHaveCount(0);
+
+  await navigate(page, "primary-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 4 of 4: Vehicle 4");
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeVisible();
+  // `max: 4`, so the group is full and the control says so rather than disappearing.
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeDisabled();
+});
+
+test("a member hidden in this instance is not rendered on the hydrated path (#1041)", async ({
+  page,
+}) => {
+  // The fixture's one rule shows `q_pi_odometer` only where THAT instance's plate is
+  // `AAA111`, which is what a per-instance rule is: evaluated once per live instance, so
+  // the visible set the API sends is per instance and qualified.
+  //
+  // Before the fix the hydrated path rendered every member in every instance. It expands
+  // once with the roster and hands the whole tree to `commitMoments` and the error
+  // summary, so no visible set reached the expansion; `documentForVisible` skips a
+  // `RepeatGroup` subtree because it cannot tell a template's bare names from an
+  // instance's qualified ones; and the renderer's own pass returned an already-expanded
+  // group untouched. The no-JS path composes the two the other way round and was right.
+  await startTour(page);
+
+  // Vehicle 1 with the matching plate: the rule fires for THIS instance and the optional
+  // odometer appears, which is a per-instance branch insertion within one view.
+  await expect(odometer(page)).toHaveCount(0);
+  await fillPlate(page, "AAA111");
+  await expect(odometer(page)).toBeVisible();
+
+  // Vehicle 2 with a different plate: the rule does not fire for this instance, so the
+  // odometer must not be on the page. This is the assertion the defect failed.
+  await navigate(page, "primary-action");
+  await expect(page.getByRole("heading", { name: "Vehicle 2" })).toBeVisible();
+  await fillPlate(page, "BBB222");
+  await expect(odometer(page)).toHaveCount(0);
+
+  // And Back to Vehicle 1 still has it, so the pruning is per instance rather than a
+  // field that disappeared for the whole group once any instance hid it.
+  await navigate(page, "back-action");
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await expect(odometer(page)).toBeVisible();
+});
+
+test("the move between views is announced once, by the indicator and not twice", async ({
+  page,
+}) => {
+  // Reviewer finding, 2026-10-03. The progress indicator is itself a polite live region
+  // and on a per-instance view it names the page ("Step 2 of 3: Vehicle 2"). The sr-only
+  // flow announcer used to say the same sentence, so a screen reader heard it twice on
+  // every Continue. The indicator keeps it, because it is also visible, and the announcer
+  // says nothing about the move.
+  await startTour(page);
+  const announcer = page.getByTestId("flow-announcer");
+  await fillPlate(page, "AAA111");
+  await navigate(page, "primary-action");
+
+  await expect(page.getByTestId("progress")).toHaveText("Step 2 of 3: Vehicle 2");
+  // Not the indicator's sentence, and not a step-change sentence of any wording: this
+  // region has nothing to add about a move the indicator has already announced.
+  await expect(announcer).toHaveText("");
+
+  // What the announcer still carries is everything the indicator cannot say. Answering
+  // the last required field on the last view makes the flow ready, and that is announced
+  // here, which is also what proves the region is alive rather than merely empty.
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  await expect(announcer).toHaveText("");
+  await fillPlate(page, "CCC333");
+  await expect(announcer).toHaveText("You have answered everything. You can now submit.");
+});
+
+test("the first Add to an emptied paginated group lands focus on the new instance", async ({
+  page,
+}) => {
+  // Reviewer finding, 2026-10-03, and a regression this PR had introduced. An EMPTY
+  // paginated roster draws no instance, so its view projects `view.groupId: null`; a
+  // pagination test taken from the view AFTER the operation therefore called this Add
+  // paginated and withheld the focus destination - for the one case where the new
+  // instance IS drawn on the page it was added from, so Q11's destination applies
+  // unchanged (Q31's amendment of 2026-10-03).
+  //
+  // Reached by removing every instance rather than by a `min: 0` fixture, which is what
+  // keeps this case reachable after the Q30 fix lands: once a group-only step is served,
+  // an open group at `min: 0` mints one instance on that serve, so an empty roster is
+  // something a respondent arrives at by removing rather than something a first serve
+  // hands them.
+  await startTour(page);
+  // Always "Remove Vehicle 1": this view draws ONE instance, and after each removal the
+  // cursor clamps onto the instance that took its position, which renumbers to 1.
+  for (const round of [1, 2, 3]) {
+    const removed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/roster"),
+    );
+    await page.getByRole("button", { name: "Remove Vehicle 1" }).click();
+    expect((await removed).status(), `removal ${String(round)}`).toBe(200);
+  }
+  // The group is empty: one view with no instance, its chrome and its Add still there.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(0);
+  await expect(page.getByTestId("progress")).toHaveText("Step 1 of 1");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeEnabled();
+
+  const added = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/roster"),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await added).status()).toBe(200);
+
+  // The new instance is drawn on this very page, so focus lands on its heading, which is
+  // Q11's primary destination and what 073 already did for a stacked group.
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeFocused();
+});
+
+test("a submit refused for the group's count says so instead of nothing", async ({
+  page,
+  browserGuard,
+}) => {
+  // A refused submit is a 422 the browser logs as a failed resource, so the console census
+  // is told to expect exactly one. Declared rather than suppressed: an expectation that
+  // never fires is reported as a failure of this test, so the hatch cannot go quiet.
+  browserGuard.expectRequestFailure({ status: 422, url: /\/submit$/ });
+  // `REPEAT_COUNT_OUT_OF_RANGE` (ADR-42): the roster operation deliberately lets a
+  // respondent empty a group so they can rebuild it, and the submission sweep is what
+  // refuses a count below `min`. That refusal is the one sweep entry with no field to
+  // report against - it is about a group's size, not a question - so the portal showed the
+  // error summary with nothing in it and the press did nothing and said nothing. That is
+  // the silent dead end issues #920, #974, #18 and #988 each closed once.
+  await startTour(page);
+  // One answer first, and the step's own optional question is the one that does not depend
+  // on an instance: a session with NO answers at all is refused earlier and differently
+  // (`NOTHING_TO_SUBMIT`, 409), which would test the wrong gate.
+  const posted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/answers"),
+  );
+  await page.getByLabel("Depot name").fill("Northern depot");
+  await page.getByLabel("Depot name").blur();
+  await posted;
+
+  for (const round of [1, 2, 3]) {
+    const removed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/roster"),
+    );
+    await page.locator('[data-qcms-repeat-action="remove"]').first().click();
+    expect((await removed).status(), `removal ${String(round)}`).toBe(200);
+  }
+  // Nothing required is left, so the flow says it is ready and Submit is offered. The
+  // group is below its `min: 3`, which only the sweep knows.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(0);
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+
+  const refused = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/submit"),
+  );
+  await page.getByTestId("primary-action").click();
+  expect((await refused).status()).toBe(422);
+
+  // Told, and still on the step rather than at the receipt.
+  await expect(page.getByTestId("count-refusal")).toBeVisible();
+  await expect(page.getByTestId("count-refusal")).toHaveText(
+    "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
+  );
+  await expect(page).not.toHaveURL(/\/done$/);
+});
+
+test("an Add announces without moving the page, and a removal clamps onto Q11's destination", async ({
+  page,
+}) => {
+  await startTour(page);
+  await fillPlate(page, "AAA111");
+  await navigate(page, "primary-action");
+  await fillPlate(page, "BBB222");
+  await navigate(page, "primary-action");
+  await fillPlate(page, "CCC333");
+
+  const written = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Add Vehicle" }).click();
+  expect((await written).status()).toBe(200);
+
+  // **The page did not move**, which is ADR-28 and not an omission: Continue, Back and
+  // Submit are the only things that move it, and an Add is not one of them. So the
+  // respondent stays on Vehicle 3 and the indicator tells them a fourth exists.
+  await expect(page.getByRole("heading", { name: "Vehicle 3" })).toBeVisible();
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 4: Vehicle 3");
+  // Q11's announcement half is intact and is what tells them the press worked, since the
+  // new instance's own heading is a page further along and cannot be focused from here.
+  await expect(page.locator(".qcms-repeat__status")).toHaveText("Vehicle 4 added.");
+  // And the new instance's heading is genuinely not in this document, so nothing could
+  // have landed on it.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(1);
+
+  // A removal needs no focus policy of its own here: the view list shrinks, the API
+  // clamps the committed cursor into it, and Q11's destinations fall out of that
+  // arithmetic. Removing the instance this view draws leaves the index naming the one
+  // that took its position, which is Q11's first destination in terms.
+  const removed = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" && /\/roster$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole("button", { name: "Remove Vehicle 3" }).click();
+  expect((await removed).status()).toBe(200);
+  await expect(page.getByTestId("progress")).toHaveText("Step 3 of 3: Vehicle 3");
+  // The ordinals renumbered, so what was Vehicle 4 is now Vehicle 3 and is the page the
+  // respondent is standing on.
+  await expect(page.getByRole("heading", { name: "Vehicle 3" })).toBeVisible();
+  // Three views again, and this is the last of them, so Submit is back on it.
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+  await expect(page.getByRole("button", { name: "Add Vehicle" })).toBeEnabled();
+});

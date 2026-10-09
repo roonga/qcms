@@ -1445,6 +1445,173 @@ describe("the per-instance forward pass (cases 3, 11, 13)", () => {
       { stepId: "stp_pax", instanceId: "ins_b" },
     ]);
   });
+
+  // The first of the two edges task 071 left to task 076 (review of PR #1016,
+  // 2026-09-29), kept as it was: the view list is derived from the ROSTER, so a rule
+  // that hides a member in one instance changes what that instance's page holds and
+  // never whether it exists. The reason is ADR-28's own rule that answering never
+  // moves the rendered page by itself: the cursor is an index into this list, so a
+  // list an answer could shorten would renumber the pages ahead of the respondent.
+  it("keeps one view per live instance when a rule hides a member inside the group", () => {
+    const gated: TestGroup = {
+      groupId: "grp_pax",
+      items: [
+        { id: "q_dob", type: "date", required: true },
+        { id: "q_fare", type: "boolean" },
+      ],
+      count: { source: "open", min: 0, max: 9 },
+    };
+    const paginated = build(
+      [["stp_pax", [{ ...gated, presentation: "perInstanceStep" }]]],
+      // Per instance: `q_fare` shows only where that instance's own date is answered.
+      [{ ruleId: "rul_fare", when: { op: "answered", questionId: "q_dob" }, show: ["q_fare"] }],
+    );
+    const views = [
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ];
+    const none = evalOk(paginated, answersOf([]), rosterOf([["grp_pax", ["ins_a", "ins_b"]]]));
+    expect(none.visibleStepViews).toEqual(views);
+    // `q_fare` is hidden in instance b and visible in instance a, and the view list is
+    // the same list: two views, same order, same length, so the cursor did not move.
+    const one = evalOk(
+      paginated,
+      answersOf([["ins_a/q_dob", "1990-05-01"]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    expect(one.visibleStepViews).toEqual(views);
+    expect(one.visible).toContainEqual({
+      stepId: "stp_pax",
+      questionId: "q_fare",
+      instanceId: "ins_a",
+    });
+    expect(one.visible).not.toContainEqual({
+      stepId: "stp_pax",
+      questionId: "q_fare",
+      instanceId: "ins_b",
+    });
+  });
+
+  // The second edge, also kept: a step holding two `perInstanceStep` groups is not a
+  // shape any presentation has defined, so the FIRST one paginates it and the second is
+  // drawn inside every one of its pages. The API's `paginatingGroup` reads the same way,
+  // which is what keeps the cursor and the list it indexes talking about one group.
+  it("paginates a step on the FIRST perInstanceStep group when it holds two", () => {
+    const second: TestGroup = {
+      groupId: "grp_bags",
+      items: [{ id: "q_bag", type: "shortText" }],
+      count: { source: "open", min: 0, max: 9 },
+    };
+    const twoGroups = build(
+      [
+        [
+          "stp_pax",
+          [
+            { ...PAX_GROUP, presentation: "perInstanceStep" },
+            { ...second, presentation: "perInstanceStep" },
+          ],
+        ],
+      ],
+      [],
+    );
+    const state = evalOk(
+      twoGroups,
+      answersOf([["ins_a/q_dob", "1990-05-01"]]),
+      rosterOf([
+        ["grp_pax", ["ins_a", "ins_b"]],
+        ["grp_bags", ["ins_x", "ins_y", "ins_z"]],
+      ]),
+    );
+    // Two views from `grp_pax`, never three from `grp_bags` and never six from both.
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ]);
+  });
+
+  // Q30 (ruled 2026-10-03): holding a repeating group is enough to make a step-visible
+  // step listed, because the group's own chrome - its heading and its Add control - is
+  // content a respondent can act on. Before the ruling such a step was UNREACHABLE: it
+  // had nothing visible while its roster was empty, the roster was empty because the mint
+  // is due on the first serve of the group's own step, and that step was never served
+  // because it was not listed. A form whose single step was a group answered its first
+  // request with "you have answered everything".
+  it("lists a group-bearing step even when every member is rule-hidden", () => {
+    const hidden = build(
+      [
+        ["stp_gate", [{ id: "q_gate", type: "boolean" }]],
+        ["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]],
+      ],
+      [
+        {
+          ruleId: "rul_gate",
+          when: { op: "equals", questionId: "q_gate", value: true },
+          show: ["q_dob", "q_fare"],
+        },
+      ],
+    );
+    const state = evalOk(
+      hidden,
+      answersOf([["q_gate", false]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    // Nothing of the group is visible, and the step is listed anyway.
+    expect(state.visible).toEqual([{ stepId: "stp_gate", questionId: "q_gate" }]);
+    expect(state.visibleSteps).toEqual(["stp_gate", "stp_pax"]);
+    // And it has a view, so the cursor can reach it. The roster is live here, so the
+    // views are per instance; an empty roster gives one view with a null instance, which
+    // the empty-group golden scenario pins.
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_gate", instanceId: null },
+      { stepId: "stp_pax", instanceId: "ins_a" },
+      { stepId: "stp_pax", instanceId: "ins_b" },
+    ]);
+  });
+
+  it("serves a group-bearing step whose roster is empty as the current step", () => {
+    // The half of Q30 that closes the fixpoint: `currentStep` has to move, or every
+    // cursor-less serve still skips the step and the mint still never happens. Ordered by
+    // DOCUMENT position, so an earlier empty group wins over a later unanswered question.
+    const groupFirst = build(
+      [
+        ["stp_pax", [PAX_GROUP]],
+        ["stp_after", [{ id: "q_gate", type: "boolean" }]],
+      ],
+      [],
+    );
+    const state = evalOk(groupFirst, answersOf([]), rosterOf([["grp_pax", []]]));
+    expect(state.visibleSteps).toEqual(["stp_pax", "stp_after"]);
+    expect(state.currentStep).toBe("stp_pax");
+    expect(state.visibleStepViews).toEqual([
+      { stepId: "stp_pax", instanceId: null },
+      { stepId: "stp_after", instanceId: null },
+    ]);
+  });
+
+  // The outer gate Q30 did NOT touch: semantic 4 still hides a step a STEP RULE hides,
+  // group or no group. The ruling makes a group's chrome content, not an exemption.
+  it("still hides a group-bearing step that a step rule hides", () => {
+    const gated = build(
+      [
+        ["stp_gate", [{ id: "q_gate", type: "boolean" }]],
+        ["stp_pax", [{ ...PAX_GROUP, presentation: "perInstanceStep" }]],
+      ],
+      [
+        {
+          ruleId: "rul_step",
+          when: { op: "equals", questionId: "q_gate", value: true },
+          show: ["stp_pax"],
+        },
+      ],
+    );
+    const state = evalOk(
+      gated,
+      answersOf([["q_gate", false]]),
+      rosterOf([["grp_pax", ["ins_a", "ins_b"]]]),
+    );
+    expect(state.visibleSteps).toEqual(["stp_gate"]);
+    expect(state.visibleStepViews).toEqual([{ stepId: "stp_gate", instanceId: null }]);
+  });
 });
 
 // --------------------------------------------------------------------------

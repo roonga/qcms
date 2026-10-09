@@ -69,6 +69,28 @@ export interface RepeatExpansion {
   readonly visible?: ReadonlySet<string>;
   /** The one-time operation token this render mints into its `__qop` button values. */
   readonly opToken?: string;
+  /**
+   * The **step view** this render draws, when a `perInstanceStep` group paginates the
+   * step into one page per live instance (task 076, ADR-28 as amended 2026-09-29).
+   *
+   * The group named here draws exactly the one instance named here, and every other
+   * group on the step is untouched - a step may hold a paginating group beside a
+   * stacked one, and only the first `perInstanceStep` group paginates it (the kernel's
+   * `stepViews` picks it, and this prop carries that decision rather than repeating it).
+   *
+   * **Nothing here is a visibility decision.** The API computed the view list and told
+   * the host which view to draw; this is the render-time narrowing of a roster the host
+   * was already handed in full, which is why the full roster is still what names an
+   * instance ("Vehicle 2" keeps its ordinal on its own page) and what decides whether
+   * the Add control belongs on this page.
+   *
+   * Absent for every other render, including every stacked group, so a document with no
+   * paginating group expands byte-identically to before.
+   */
+  readonly view?: {
+    readonly groupId: string;
+    readonly instanceId: string;
+  };
 }
 
 /**
@@ -96,10 +118,16 @@ type HeadingLevel = typeof GROUP_HEADING_LEVEL | typeof INSTANCE_HEADING_LEVEL;
  * two readings of one set of facts rather than two sets of facts that happen to
  * agree.
  */
-function stackedChildren(input: RepeatTableInput): A2Node[] {
+function stackedChildren(input: RepeatTableInput, drawnOnly?: string): A2Node[] {
   const children: A2Node[] = [];
   if (input.label !== "") children.push(groupHeading(input.label, GROUP_HEADING_LEVEL));
   input.instances.forEach((instanceId, index) => {
+    // `drawnOnly` is the one instance a `perInstanceStep` view draws (task 076). The
+    // loop still runs over the FULL roster, so the ordinal is the instance's place in
+    // the group: "Vehicle 2" is Vehicle 2 on its own page rather than Vehicle 1 of a
+    // one-element list. It is a parameter rather than a field of the input because only
+    // this layout paginates - a group is one presentation or the other, never both.
+    if (drawnOnly !== undefined && instanceId !== drawnOnly) return;
     const resolved = instanceLabelFor(input.instanceLabelTemplate, index + 1);
     const instanceProps: Record<string, unknown> = {
       groupId: input.groupId,
@@ -146,10 +174,26 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
   const instances = groupId === undefined ? [] : (expansion.rosters?.[groupId] ?? []);
   const template = childArray(node.children);
 
+  // The one instance this page draws, when this group is what paginates the step (task
+  // 076). `undefined` for every other render, and then every live instance is drawn, so
+  // the stacked presentation is unchanged.
+  const drawnOnly =
+    groupId !== undefined && expansion.view?.groupId === groupId
+      ? expansion.view.instanceId
+      : undefined;
+  // **The Add control is on the LAST view and nowhere earlier** (task 076, ADR-28's
+  // 2026-08-31 amendment read forward onto the views): an open-ended group paginated
+  // into pages has to stay growable, and the end of the walk is the one page where
+  // offering another instance does not reorder the pages ahead of the respondent.
+  // Counted against the FULL roster, because the drawn instance is one of many.
+  const onLastView = drawnOnly === undefined || drawnOnly === instances[instances.length - 1];
+
   // Add and Remove exist on an `open` group alone: a `fixed` group's size is its
   // author's and a `fromAnswer` group's is the count answer's, so a post naming
   // either is drift and the API refuses it (`REPEAT_NOT_ADDABLE`).
   const addable = countSource === "open";
+  // Against the full roster, never the drawn subset: a group at `max` must not offer an
+  // enabled Add merely because this page shows one of its instances.
   const canAdd = addable && (max === undefined || instances.length < max);
   // Nothing here refuses a removal that would take the group below `min`: that is a
   // submit-time refusal (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42), so a respondent can
@@ -178,7 +222,7 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
     ...(expansion.opToken === undefined ? {} : { opToken: expansion.opToken }),
   };
   const children: A2Node[] =
-    presentation === "table" ? [repeatTableNode(input)] : stackedChildren(input);
+    presentation === "table" ? [repeatTableNode(input)] : stackedChildren(input, drawnOnly);
 
   const props: Record<string, unknown> = {
     groupId: groupId ?? "",
@@ -192,7 +236,11 @@ function expandGroup(node: A2Node, expansion: RepeatExpansion): A2Node {
   };
   if (max !== undefined) props.max = max;
   const addLabel = stringProp(node, "addLabel");
-  if (addLabel !== undefined) props.addLabel = addLabel;
+  // Omitting the label is how the Add control is withheld, rather than a second flag:
+  // `RepeatGroup` renders the control only for a labelled, `open` group, so a page that
+  // is not the last view of a paginated group carries no Add markup at all - not a
+  // disabled button, which would read as "at maximum" to a respondent who is neither.
+  if (addLabel !== undefined && onLastView) props.addLabel = addLabel;
   if (removeLabelTemplate !== undefined) props.removeLabel = removeLabelTemplate;
   if (expansion.opToken !== undefined) props.opToken = expansion.opToken;
   return { type: REPEAT_GROUP_NODE_TYPE, props, children };
@@ -206,21 +254,76 @@ function isExpanded(node: A2Node): boolean {
 }
 
 /**
+ * Prune an **already expanded** group's instances against the visible set (issue #1041).
+ *
+ * ## Why an expanded group needs its own pruning pass
+ *
+ * A host may expand before pruning, and the hydrated portal does: `step-flow.tsx`
+ * expands once with the roster and hands the same tree to `commitMoments` and to the
+ * error summary, which both need the WHOLE document. The pruning therefore has to happen
+ * on the way into the renderer, and until this function existed it happened nowhere at
+ * all: {@link expandRepeatGroups} returned an expanded group untouched, and
+ * `documentForVisible` skips a `RepeatGroup` subtree by design, because it cannot tell a
+ * template's bare member names from an instance's qualified ones. So a member hidden in
+ * one instance by a per-instance rule stayed on screen on that path, while the no-JS
+ * path - which composes the two the other way round - was correct.
+ *
+ * ## It compares the name AS IT STANDS
+ *
+ * An expanded instance's controls already carry qualified names (`ins_7k2/q_passport`),
+ * which is exactly what the API's visible set holds, so this tests the name it finds and
+ * never re-qualifies it. That is the one difference from {@link keepControl}, which runs
+ * on a template whose names are still bare.
+ *
+ * Returns the node unchanged, referentially, when nothing is pruned, so the common case
+ * costs no new object and `useMemo` downstream still sees the tree it saw before.
+ */
+function pruneExpanded(node: A2Node, visible: ReadonlySet<string>): A2Node {
+  let pruned = false;
+  const children = childArray(node.children);
+  const next = children.map((child) => {
+    if (child.type !== REPEAT_INSTANCE_NODE_TYPE) return child;
+    const controls = childArray(child.children);
+    const kept = controls.filter((control) => {
+      const name = stringProp(control, "name");
+      // A node with no name of its own is structure rather than a field: the group's
+      // heading, a `RadioGroup`'s `Radio` leaves. It is never pruned by name.
+      return name === undefined || visible.has(name);
+    });
+    if (kept.length === controls.length) return child;
+    pruned = true;
+    return { ...child, children: kept };
+  });
+  return pruned ? { ...node, children: next } : node;
+}
+
+/**
  * Return a render-time copy of `root` whose every `RepeatGroup` template is expanded
  * into one `RepeatInstance` per live instance.
  *
- * **Idempotent**: a group whose children are already instances is returned as it is,
- * so a host that expanded before pruning and a renderer that expands defensively
- * cannot double-expand. A document with no group is returned **referentially
- * unchanged**, so every existing render is byte-identical and `useMemo` downstream
- * sees the same node it saw before.
+ * **Idempotent**: a group whose children are already instances is never expanded a
+ * second time, so a host that expanded before pruning and a renderer that expands
+ * defensively cannot double-expand. Such a group is still **pruned** against `visible`
+ * when one is given, because that is the only place a host which expanded first can have
+ * it done (issue #1041); it is returned referentially unchanged when nothing is pruned.
+ * A document with no group is returned **referentially unchanged**, so every existing
+ * render is byte-identical and `useMemo` downstream sees the node it saw before.
  */
 export function expandRepeatGroups(root: A2Node, expansion: RepeatExpansion = {}): A2Node {
   let touched = false;
   const walk = (node: A2Node): A2Node => {
-    if (node.type === REPEAT_GROUP_NODE_TYPE && !isExpanded(node)) {
-      touched = true;
-      return expandGroup(node, expansion);
+    if (node.type === REPEAT_GROUP_NODE_TYPE) {
+      if (!isExpanded(node)) {
+        touched = true;
+        return expandGroup(node, expansion);
+      }
+      // Already expanded, by a host that expanded before pruning. Idempotence still
+      // holds - no instance is cloned twice - but the visible set has to be applied
+      // here or nowhere (issue #1041).
+      if (expansion.visible === undefined) return node;
+      const narrowed = pruneExpanded(node, expansion.visible);
+      if (narrowed !== node) touched = true;
+      return narrowed;
     }
     const children = node.children;
     if (children === undefined || typeof children === "string") return node;

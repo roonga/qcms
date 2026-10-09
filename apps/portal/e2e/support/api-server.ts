@@ -30,6 +30,7 @@ import {
   seedInsuranceForm,
   seedKitchenSinkForm,
   seedRepeatFleetForm,
+  seedRepeatTourForm,
   seedRepeatTableForm,
   seedUnpublishedPinForm,
   startTestDb,
@@ -94,6 +95,11 @@ export interface PortalFixtures {
    * their shape.
    */
   readonly repeatFleetSlug: string;
+  /**
+   * The `repeat-tour` form slug (task 076): one step, one `perInstanceStep` group,
+   * `open` with `min: 3, max: 4`, so the step is three views on the first serve.
+   */
+  readonly repeatTourSlug: string;
   /**
    * The `repeat-table` form slug (task 077): the same group shape presented as a
    * **table**, with columns of exactly the five allowed cell types (Q12).
@@ -233,6 +239,7 @@ export async function startApiServer(): Promise<void> {
   const { slug: authorMessagesSlug } = await seedAuthorMessagesForm(testDb.db);
   // Task 073: the repeating group. Five questions of its own, so nothing is shared.
   const { slug: repeatFleetSlug } = await seedRepeatFleetForm(testDb.db);
+  const { slug: repeatTourSlug } = await seedRepeatTourForm(testDb.db);
   // Task 077: the table presentation. Six questions of its own, so nothing is shared.
   const { slug: repeatTableSlug } = await seedRepeatTableForm(testDb.db);
 
@@ -314,6 +321,7 @@ export async function startApiServer(): Promise<void> {
     kitchenSinkSlug,
     authorMessagesSlug,
     repeatFleetSlug,
+    repeatTourSlug,
     repeatTableSlug,
     databaseUrl: testDb.connectionUri,
     validToken,

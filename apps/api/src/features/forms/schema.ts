@@ -524,6 +524,16 @@ export const PreviewDraftResponse = z
       complete: z.boolean(),
       /** The hypothetical roster this projection was computed with, per group (074). */
       rosters: RosterProjection,
+      /**
+       * The ADR-28 cursor's page list (task 076, Q22), present exactly when the draft
+       * holds a repeating group and absent otherwise, as the kernel's own optional field
+       * is. A step paginated by a `perInstanceStep` group contributes one view per live
+       * instance, so the preview's walk is the walk a respondent gets rather than a
+       * step-shaped approximation of it.
+       */
+      visibleStepViews: z
+        .array(z.object({ stepId: z.string(), instanceId: z.string().nullable() }))
+        .optional(),
     }),
   })
   .openapi("PreviewDraftResponse");

@@ -1,0 +1,57 @@
+{
+  "formId": "frm_repeat_tour",
+  "defaultLocale": "en",
+  "title": {
+    "en": "Depot inspection"
+  },
+  "steps": [
+    {
+      "stepId": "stp_tour",
+      "title": {
+        "en": "One vehicle at a time"
+      },
+      "items": [
+        {
+          "questionId": "q_pi_depot",
+          "version": 1
+        },
+        {
+          "groupId": "grp_tour",
+          "label": {
+            "en": "Vehicles"
+          },
+          "instanceLabel": {
+            "en": "Vehicle {n}"
+          },
+          "presentation": "perInstanceStep",
+          "count": {
+            "source": "open",
+            "min": 3,
+            "max": 4
+          },
+          "items": [
+            {
+              "questionId": "q_pi_plate",
+              "version": 1
+            },
+            {
+              "questionId": "q_pi_odometer",
+              "version": 1
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "ruleId": "rul_pi_odometer",
+      "when": {
+        "op": "equals",
+        "questionId": "q_pi_plate",
+        "value": "AAA111"
+      },
+      "show": ["q_pi_odometer"]
+    }
+  ]
+}

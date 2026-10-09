@@ -55,6 +55,8 @@ import {
   focusAfterRemoval,
   instanceLabelTemplates,
   resolvedInstanceLabel,
+  viewInstanceLabel,
+  viewNarrowing,
 } from "@/lib/repeat";
 import type { CommitMoment } from "@/lib/visible";
 import type { RosterOpResponse, StepResponse } from "@/lib/server/api";
@@ -89,6 +91,47 @@ async function isSupersededSemantics(res: Response): Promise<boolean> {
   return errorCodeOf(await readJsonSafely(res)) === "UNSUPPORTED_SEMANTICS_VERSION";
 }
 
+/**
+ * Whether a refusal is the API saying "that question is not currently visible"
+ * (issue #1041).
+ *
+ * It shares the 409 with the semantics refusal, which is why it is read by CODE and not
+ * by status: one is terminal and the other is a client that posted a control the current
+ * projection has already hidden. Telling them apart is what stops a stray field painting
+ * the lost-session notice, which says something untrue and invites a retry that cannot
+ * help.
+ */
+/**
+ * Whether a refused submission was refused for a repeating group's COUNT
+ * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
+ *
+ * The submit's 422 carries the kernel's whole sweep in `details.errors`, and the portal
+ * has always read only the missing-required half of it. A count refusal has no field to
+ * hang a message on - it is about a group's size, not a question - so without this branch
+ * pressing Submit showed the error summary with nothing in it: the press did nothing and
+ * said nothing, which is the silent dead end this surface keeps closing.
+ *
+ * A respondent reaches it by removing instances below the group's `min`, which the roster
+ * operation deliberately allows so they can empty a group and rebuild it (ADR-43); the
+ * refusal is the submit's, as ADR-42 rules.
+ */
+function isCountRefusal(details: unknown): boolean {
+  if (typeof details !== "object" || details === null) return false;
+  const errors = (details as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as { code?: unknown }).code === "REPEAT_COUNT_OUT_OF_RANGE",
+  );
+}
+
+async function isNotVisible(res: Response): Promise<boolean> {
+  if (res.status !== 409) return false;
+  return errorCodeOf(await readJsonSafely(res)) === "QUESTION_NOT_VISIBLE";
+}
+
 /** The localized branch-change announcement for an inserted/removed count. */
 function branchAnnouncement(added: readonly string[], removed: readonly string[]): string {
   if (added.length > 0) {
@@ -108,6 +151,11 @@ const flowViewOf = (snapshot: StepResponse): FlowView => ({
   // The RENDERED step document's id (the explicit cursor's step, ADR-28), not
   // flowState.currentStep (the derived first-incomplete step, which may differ).
   stepId: snapshot.step?.stepId ?? null,
+  // The instance this page draws, when a `perInstanceStep` group paginates the step
+  // (task 076). Two views of one step share a step id, so without this a Continue from
+  // Vehicle 1 to Vehicle 2 would be no navigation at all: nothing announced and focus
+  // left on the control the respondent had just left.
+  instanceId: snapshot.view.instanceId,
   stepIndex: snapshot.progress.stepIndex,
   visibleQuestions: snapshot.flowState.visibleQuestions,
 });
@@ -123,8 +171,26 @@ function announcementText(
   stepIndex: number,
   total: number,
   headingText: string | undefined,
+  /**
+   * True when the page chrome's own polite region already names this page (task 076): a
+   * per-instance step view, where the indicator reads "Step 2 of 3: Vehicle 2".
+   *
+   * The step-change sentence is then **not** announced here, and that closes a real
+   * double announcement rather than tidying one (reviewer finding, 2026-10-03). The
+   * progress indicator carries `aria-live="polite"` and its text changes on every
+   * navigation, so a sentence identical to it from this region makes a screen reader say
+   * the same thing twice on every Continue. The indicator keeps it, because it is also
+   * visible; this region keeps everything the indicator cannot say - a branch insertion
+   * or removal, and becoming ready to submit.
+   */
+  namedByIndicator: boolean,
 ): string {
   if (delta.stepChanged) {
+    // Silent, not "fall through to the next case": a navigation between two views of one
+    // step changes the whole visible set, so letting it reach the branch case below
+    // reports a move as "2 questions were added below", which is both wrong and worse
+    // than the duplicate it was meant to remove.
+    if (namedByIndicator) return "";
     const current = stepIndex + 1;
     return headingText
       ? t("announce.stepChange", { current, total, title: headingText })
@@ -311,11 +377,18 @@ export function StepFlow({
   // moments below key on and what the error summary anchors at. Expanding once and
   // handing the same tree to all three is what keeps them one set of strings; the
   // renderer's own expansion is idempotent, so it leaves this alone.
+  // The per-instance step view this page is, or `undefined` for every ordinary page
+  // (task 076, ADR-28 as amended 2026-09-29). The API named it; the portal draws one
+  // instance of the roster it was handed in full and derives nothing else (R2).
+  const view = useMemo(() => viewNarrowing(snapshot.view), [snapshot.view]);
   const expandedStep = useMemo<A2UIStepDocument | null>(() => {
     const step = snapshot.step as unknown as A2UIStepDocument | null;
     if (step === null) return null;
-    return { stepId: step.stepId, root: expandRepeatGroups(step.root, { rosters }) };
-  }, [snapshot.step, rosters]);
+    return {
+      stepId: step.stepId,
+      root: expandRepeatGroups(step.root, { rosters, ...(view !== undefined ? { view } : {}) }),
+    };
+  }, [snapshot.step, rosters, view]);
   const moments = useMemo(
     () =>
       expandedStep === null
@@ -335,6 +408,8 @@ export function StepFlow({
   const focusedAtUpdateRef = useRef<string | undefined>(undefined);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  /** A submission the sweep refused for a group's count (ADR-42), page-level. */
+  const [countRefused, setCountRefused] = useState(false);
   const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
   /**
@@ -401,6 +476,17 @@ export function StepFlow({
         }
         if (res.status === 401 || (await isSupersededSemantics(res))) {
           window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
+          return false;
+        }
+        if (await isNotVisible(res)) {
+          // The API refused a field the flow does not show (issue #1041). It is not a
+          // failure the respondent caused or can act on, and it is not the lost session
+          // that `setFailed` paints: it means this client posted a control the current
+          // projection has already hidden, which a stray reference to a pruned node can
+          // still do. Re-reading the step rather than saying "we could not reach the
+          // server" is the honest answer - the projection the API just evaluated is the
+          // authority on what is on screen (R2), so adopting it removes the control.
+          await doNavigate("current");
           return false;
         }
         setFailed(true);
@@ -474,6 +560,15 @@ export function StepFlow({
   const applyRosterOp = useCallback(
     (op: "add" | "remove", groupId: string, instanceId: string | undefined): void => {
       const before = rosterMap(snapshotRef.current.rosters)[groupId] ?? [];
+      // Whether this group paginates the step, read from the view the respondent PRESSED
+      // ON and never from the one the operation returns, which is the reading the no-JS
+      // Server Action takes. The difference is not cosmetic: an EMPTY paginated roster
+      // projects `view.groupId: null`, because that page draws no instance, so the
+      // post-operation view would call the first Add to such a group paginated after the
+      // fact and withhold the focus destination for the one case where the new instance
+      // IS drawn on the page it was added from. That was a regression against 073 and
+      // `min: 0` reaches it (reviewer finding, 2026-10-03).
+      const paginatedBefore = snapshotRef.current.view.groupId === groupId;
       setBusyGroup(groupId);
       queueRef.current = queueRef.current.then(async () => {
         try {
@@ -500,9 +595,22 @@ export function StepFlow({
             groupId,
             message: rosterAnnouncement({ op, before, after, instanceId, templates, groupId }),
           });
+          // After an add on a `perInstanceStep` group there is NO destination, because
+          // the new instance is a new view one page further along and nothing on this
+          // page changed (task 076): Continue, Back and Submit are the only things that
+          // move the rendered page (ADR-28), so an Add that carried the respondent onto
+          // the new instance's page would be the page moving by itself. The status
+          // region still announces the addition, which is Q11's announcement half.
+          //
+          // After a REMOVAL nothing special is needed, and that is worth stating: the
+          // view list shrank, the API clamps the committed cursor into it, and Q11's
+          // three destinations fall out of that arithmetic - the instance that took the
+          // removed one's position lands on the same index, the previous instance is
+          // what the clamp reaches when the removed one was last, and an emptied group
+          // leaves one view with no instance whose only candidate is the Add button.
           setPendingFocus(
             op === "add"
-              ? focusAfterAdd(next.minted, groupId)
+              ? focusAfterAdd(next.minted, groupId, paginatedBefore)
               : focusAfterRemoval(before, instanceId ?? "", groupId),
           );
         } catch {
@@ -619,6 +727,9 @@ export function StepFlow({
         return;
       }
       if (res.status === 422) {
+        // The sweep's own codes, not only its missing-required half: a count refusal has
+        // no field to show a message beside, so it gets a page-level one.
+        setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
         setShowMissing(true);
       } else if (res.status === 401 || (await isSupersededSemantics(res))) {
         window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
@@ -735,7 +846,19 @@ export function StepFlow({
   const total = snapshot.progress.totalVisibleSteps;
   const isFirstStep = stepIndex <= 0;
   const isFinalStep = stepIndex >= total - 1;
-  const progress = { current: stepIndex + 1, total };
+  // The chrome's name for a per-instance view ("Vehicle 2"), from the STORED document's
+  // template, so the header says which vehicle rather than only "Step 2 of 3" (ADR-27).
+  // Absent on every page that is not one.
+  const viewLabel = viewInstanceLabel(
+    instanceLabelTemplates(snapshot.step as unknown as A2UIStepDocument | null),
+    rosters,
+    snapshot.view,
+  );
+  const progress = {
+    current: stepIndex + 1,
+    total,
+    ...(viewLabel === undefined ? {} : { label: viewLabel }),
+  };
   const primaryLabel = isFinalStep ? t("action.submit") : t("action.continue");
 
   // The error summary lists only the CURRENT step's still-missing required
@@ -787,6 +910,9 @@ export function StepFlow({
         next.stepIndex,
         snapshot.progress.totalVisibleSteps,
         headingText,
+        // On a per-instance view the indicator already says "Step 2 of 3: Vehicle 2", so
+        // this region says nothing about the move and the sentence is heard once.
+        viewLabel !== undefined,
       ),
     );
 
@@ -875,6 +1001,12 @@ export function StepFlow({
           </p>
         ) : null}
 
+        {countRefused ? (
+          <p role="alert" data-testid="count-refusal" className="text-sm text-(--color-danger-fg)">
+            {t("repeat.countOutOfRange")}
+          </p>
+        ) : null}
+
         {missing.length > 0 ? (
           <div
             ref={errorSummaryRef}
@@ -916,6 +1048,9 @@ export function StepFlow({
               onBlur={handleBlur}
               repeat={{
                 rosters,
+                // The same narrowing the memo above already applied; the renderer's own
+                // expansion is idempotent, so this only keeps the two in step.
+                ...(view !== undefined ? { view } : {}),
                 visible: new Set(snapshot.flowState.visibleQuestions),
                 onAdd: addInstance,
                 onRemove: removeInstance,
