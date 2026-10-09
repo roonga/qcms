@@ -55,7 +55,7 @@ import pg from "pg";
 import type { Databases } from "../environments.js";
 import { runDeliveryPassForEveryEnvironment } from "./outbox-delivery.js";
 import { sweepEveryEnvironment } from "./retention-sweep.js";
-import { makeDeps } from "../test-support.js";
+import { makeDeps, recordingLogger } from "../test-support.js";
 
 const { Pool } = pg;
 
@@ -65,6 +65,16 @@ const { Pool } = pg;
  * environment" from "reaches one", which is the whole point of the file.
  */
 const LIVE_SET = ["test", "prod"] as const;
+
+/**
+ * The delivery test's two instants, both fixed here rather than read from a clock.
+ *
+ * Every timestamp that test compares is one of these two, so the assertion cannot turn
+ * on the resolution of a clock or on the offset between the host's and the container's.
+ * The order is the only thing that matters: the row is due, then the pass runs.
+ */
+const DUE_AT = new Date("2026-01-01T00:00:00.000Z");
+const PASS_AT = new Date("2026-01-01T00:01:00.000Z");
 
 let testDb: TestDb;
 let databases: Databases;
@@ -168,21 +178,75 @@ describe("one pass reaches every environment in the live set (criterion 9)", () 
   it("consumes an outbox event in each environment, from one delivery pass", async () => {
     const eventIds = new Map<string, string>();
     for (const environment of LIVE_SET) {
-      const row = await enqueue(databases.for(environment), {
+      const exec = databases.for(environment);
+      const row = await enqueue(exec, {
         eventType: "form.published",
         payload: { environment },
       });
       eventIds.set(environment, row.id);
       // The precondition: a pass that did nothing would otherwise pass below.
       expect(row.deliveredAt, `${environment} starts unconsumed`).toBeNull();
+      // **Pin the due time instead of leaving it on the column's `now()` default.**
+      //
+      // `enqueue` lets `next_attempt_at` default to Postgres `now()`, and `claimDue`
+      // filters `lte(next_attempt_at, at)` against the `at` the caller passes. Those two
+      // values come from **different clocks at different resolutions**: `now()` is the
+      // server's, to the microsecond, while a JS `Date` is the client's, truncated to
+      // the millisecond on capture and again when pg serialises it. An earlier version
+      // of this test passed `new Date()` captured after the enqueues and so compared the
+      // two directly, which is only ever held positive by the round trip.
+      //
+      // That is not a theoretical margin. Measured on the development host over 300
+      // insert-then-capture pairs against the harness container: the captured client
+      // time was **earlier** than the row's server time in 233 of them, median
+      // `-0.264 ms`, worst `-0.852 ms`. So the comparison turns on host-to-container
+      // clock offset and sub-millisecond truncation, and it failed on CI's `node-24`
+      // runner while passing on `node-26` in the same run for exactly that reason.
+      //
+      // Writing the due time here puts **both sides of the comparison on this clock**:
+      // the stored value and `PASS_AT` below are two constants chosen in this file, so
+      // the assertion no longer depends on either clock or on any resolution. The
+      // production default is still what it was; what is removed is this test's
+      // dependence on it.
+      await exec.update(outbox).set({ nextAttemptAt: DUE_AT }).where(eq(outbox.id, row.id));
     }
 
-    const deps = makeDeps({ databases });
-    // An explicit `now`, because `makeDeps` injects a fixed clock set in the past and
-    // `claimDue` will not claim a row whose `next_attempt_at` default is the real insert
-    // time. Real wall time here rather than a moved clock: the assertion is about which
-    // environment the pass reached, not about when it ran.
-    await runDeliveryPassForEveryEnvironment(deps, { now: new Date() });
+    // A recording logger, because `runDeliveryPassForEveryEnvironment` catches and logs
+    // per environment so the pass can step over one unreachable database. That means an
+    // environment whose pass **threw** leaves the same observable as one the loop never
+    // reached: in both, the row is simply not drained. Asserting the log as well as the
+    // row is what tells those two apart, so a future failure here says which it was.
+    const { logger, lines } = recordingLogger();
+    const deps = makeDeps({ databases, logger });
+    await runDeliveryPassForEveryEnvironment(deps, { now: PASS_AT });
+
+    // No environment's pass threw. Asserted before the per-environment checks, and
+    // carrying the lines themselves, so a swallowed error is reported as the error it
+    // was rather than as an undrained row.
+    expect(
+      lines.filter((line) => line.msg === "outbox delivery pass failed"),
+      "no environment's pass threw",
+    ).toEqual([]);
+
+    for (const environment of LIVE_SET) {
+      // The pass **completed** in this environment. `runDeliveryPass` logs this line
+      // after both phases have returned, so its presence is the completion signal and
+      // its absence beside an error line above is a throw. That is the distinction the
+      // row alone cannot make.
+      //
+      // Note what the metrics on this line do *not* say: every one of them counts
+      // webhook **delivery rows**, not consumed outbox events, so `form.published`
+      // leaves them all at zero however many events it consumed. The drained row below
+      // is the only evidence of consumption, which is why both assertions are here.
+      const pass = lines.find(
+        (line) =>
+          line.level === "info" &&
+          line.msg === "outbox delivery pass" &&
+          line.environment === environment,
+      );
+      expect(pass, `data_${environment} ran a delivery pass to completion`).toBeDefined();
+      expect(pass?.failed, `data_${environment} had no failed delivery`).toBe(0);
+    }
 
     for (const environment of LIVE_SET) {
       // `form.published` fans out to no webhook, so the pass's whole visible effect here
