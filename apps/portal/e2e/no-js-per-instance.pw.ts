@@ -157,13 +157,12 @@ test("a submit refused for the group's count carries a notice, without scripting
   await expect(page.getByLabel("Depot name")).toHaveValue("Northern depot");
 
   // Label-agnostic, because each removal renumbers the ordinal the drawn instance reads.
-  for (const round of [1, 2, 3]) {
+  for (let round = 0; round < 3; round += 1) {
     const served = page.waitForResponse(
       (response) => response.request().isNavigationRequest() && response.status() === 200,
     );
     await page.locator('[data-qcms-repeat-action="remove"]').first().click();
     await served;
-    void round;
   }
   await expect(card(page)).toHaveCount(0);
 
