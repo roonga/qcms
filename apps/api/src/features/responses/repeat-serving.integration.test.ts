@@ -443,6 +443,7 @@ async function newPerInstanceSession(): Promise<Session> {
   seeded += 1;
   const sessionId = SessionId.parse(`ses_pi_${String(seeded)}`);
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: perInstanceFormId,
     formVersion: 1,

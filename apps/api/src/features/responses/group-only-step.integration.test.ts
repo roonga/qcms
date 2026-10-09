@@ -55,7 +55,12 @@ import {
   insertFormVersion,
   rosterLedger,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -234,6 +239,9 @@ async function newSession(formId: FormId, label: string): Promise<Session> {
   seeded += 1;
   const sessionId = SessionId.parse(`ses_only_${label}_${String(seeded)}`);
   await createSession(testDb.db, {
+    // 064: a session belongs to an environment, and the data tables live in that
+    // environment's schema. The harness's default is the one its search path names.
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: 1,
