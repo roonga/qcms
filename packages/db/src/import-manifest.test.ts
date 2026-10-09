@@ -37,6 +37,7 @@ interface Manifest {
   readonly dependencies?: Record<string, string>;
   readonly peerDependencies?: Record<string, string>;
   readonly exports?: Record<string, { readonly default?: string }>;
+  readonly bin?: Record<string, string>;
 }
 
 /** The package root (`packages/db/`) and its `src/`, as filesystem paths. */
@@ -162,12 +163,21 @@ function walkFrom(entries: readonly string[]): Walk {
  */
 function entryPointSources(): string[] {
   const entries = Object.entries(manifest.exports ?? {});
-  return entries.map(([subpath, condition]) => {
+  const fromExports = entries.map(([subpath, condition]) => {
     const dist = condition.default;
     if (dist === undefined) throw new Error(`exports["${subpath}"] has no default condition`);
     const source = dist.replace(/^\.\/dist\//, "").replace(/\.js$/, ".ts");
     return path.join(SRC_DIR, source);
   });
+  // **`bin` is a published entry point too**, and leaving it out was a hole rather than
+  // a choice: `qcms-db-migrate` and `qcms-db-environment` land on an adopter's
+  // `node_modules/.bin` and run in their deployment, so an undeclared dependency reached
+  // from one fails for them exactly as it would from `exports`. It went unnoticed while
+  // `migrate.ts` happened to import only packages the main entry already pulled in.
+  const fromBins = Object.values(manifest.bin ?? {}).map((dist) =>
+    path.join(SRC_DIR, dist.replace(/^\.\/dist\//, "").replace(/\.js$/, ".ts")),
+  );
+  return [...fromExports, ...fromBins];
 }
 
 /**
@@ -238,7 +248,12 @@ describe("@roonga/qcms-db's imports against its own manifest (issue #386)", () =
     // `exports` is the input to the walk, so a typo that silently produced an
     // empty entry list would make everything above vacuous.
     const subpaths = Object.keys(manifest.exports ?? {}).sort();
-    expect(subpaths).toEqual([".", "./migrate", "./testing"]);
+    expect(subpaths).toEqual([".", "./environment", "./migrate", "./testing"]);
+    // And the bins, which the walk now follows for the reason `entryPointSources` gives.
+    expect(Object.keys(manifest.bin ?? {}).sort()).toEqual([
+      "qcms-db-environment",
+      "qcms-db-migrate",
+    ]);
     for (const entry of entryPointSources()) {
       expect(existsSync(entry), `${entry} does not exist`).toBe(true);
     }

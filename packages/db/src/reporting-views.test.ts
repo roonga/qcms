@@ -14,6 +14,16 @@
  * `reportingViewColumns` by the drift test in
  * `queries/reporting-retention.integration.test.ts`, which needs a real Postgres;
  * everything here is pure string work.
+ *
+ * **Task 064 changed what "the committed migration" means, and the first block below
+ * with it.** There is no longer a migration whose whole body is one view set under one
+ * schema name: the chain is a single per-environment baseline (Q41), and it carries the
+ * generator's output **once per shipped environment**, among the tables, guards and
+ * grants. So the agreement is asserted per environment against that baseline, which is
+ * strictly more than the old "ends with the generated body" and is still derived rather
+ * than written as a literal. `environment/baseline.test.ts` compares the whole
+ * hand-authored half against its emitter, so a generator change that nobody re-emitted
+ * fails there too.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -22,9 +32,10 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { SHIPPED_ENVIRONMENTS } from "./environment/baseline.js";
+import { dataSchemaName, reportingSchemaName } from "./schema/schemas.js";
 import {
   reportingViewColumns,
-  reportingViewMigrationSql,
   reportingViewStatements,
   replaceReportingViewStatements,
 } from "./reporting-views.js";
@@ -32,62 +43,63 @@ import {
 const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url));
 
 /**
- * The marker a generated reporting-view migration carries in its preamble, and the
- * one this test finds it by.
+ * **There is no marker to find any more, and that absence is the point.**
  *
- * **Derived rather than named, because the migration chain is append-only.** The next
- * reshape of these views appends a migration and leaves the one before it applied and
- * untouched, so a test naming `0025` by hand would have to be retargeted by hand - and
- * a lane that forgot would either edit an applied migration or ship a generator nothing
- * compares. Tasks 064 and 068 move this body again, which makes that a near certainty
- * rather than a hypothetical. So the rule is in the code: the **highest-numbered**
- * migration that names the generator is the one whose body the generator must still
- * produce. The brief's "no test hard-codes a migration number" is the same rule.
+ * Task 075 found its migration by the generator's own path in the preamble, because the
+ * chain was append-only and the next reshape would append rather than replace: the
+ * highest-numbered migration naming the generator was the one whose body it still had to
+ * produce. Under Q41 the chain is one per-environment baseline, so there is exactly one
+ * migration and the question is no longer which one but whether it carries the
+ * generator's output for each environment. The derivation below reads the only migration
+ * there is and still matches its name by shape, never by number.
  */
-const GENERATOR_MARKER = "packages/db/src/reporting-views.ts";
-
-/** The newest migration generated from `reporting-views.ts`, by filename order. */
-function latestGeneratedMigration(): { name: string; body: string } {
+/** The one baseline the chain is, read once for the assertions below. */
+function baselineSql(): { name: string; body: string } {
   const named = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
     .map((entry) => entry.name)
-    .sort()
-    .map((name) => ({ name, body: readFileSync(path.join(MIGRATIONS_DIR, name), "utf8") }))
-    .filter((file) => file.body.includes(GENERATOR_MARKER));
+    .sort();
   const newest = named.at(-1);
-  if (newest === undefined) {
-    throw new Error(`no migration in ${MIGRATIONS_DIR} names ${GENERATOR_MARKER}`);
-  }
-  return newest;
+  if (newest === undefined) throw new Error(`no migration in ${MIGRATIONS_DIR}`);
+  return { name: newest, body: readFileSync(path.join(MIGRATIONS_DIR, newest), "utf8") };
 }
 
-describe("the generator and its newest migration agree", () => {
-  const migration = latestGeneratedMigration();
-  const file = migration.body;
-  const generated = reportingViewMigrationSql({ reporting: "reporting" });
+describe("the generator and the baseline agree, per environment", () => {
+  const migration = baselineSql();
 
-  it("found exactly the migration whose body the generator owns", () => {
-    // Derivation, asserted: a filter that matched nothing would make every
-    // assertion below vacuous, and a filter that matched the wrong file would
-    // compare the generator against somebody else's SQL.
+  it("found a migration to compare against, by derivation rather than by name", () => {
+    // A filter that matched nothing would make every assertion below vacuous. The name
+    // is matched by shape, never by number: the brief's rule, and the reason the old
+    // form of this test had to go.
     expect(migration.name).toMatch(/^\d{4}_.*\.sql$/);
-    expect(file).toContain('CREATE VIEW "reporting"."responses"');
   });
 
-  it("ends with exactly the generated body", () => {
-    expect(file.endsWith(generated)).toBe(true);
-  });
+  it.each(SHIPPED_ENVIRONMENTS)(
+    "carries exactly what the generator emits for %s",
+    (environment) => {
+      // Byte for byte, every statement, in order. This is what keeps a hand-edit to the
+      // baseline's view bodies from leaving `reporting_test` and `reporting_prod`
+      // describing different views while nothing else notices - which is the whole
+      // reason 075 made the DDL a function of its schema names.
+      for (const statement of reportingViewStatements({
+        reporting: reportingSchemaName(environment),
+        data: dataSchemaName(environment),
+      })) {
+        expect(migration.body, `${environment}: ${statement.slice(0, 60)}`).toContain(statement);
+      }
+    },
+  );
 
-  it("carries nothing but SQL comments before that body", () => {
-    const preamble = file.slice(0, file.length - generated.length);
-    const offending = preamble
-      .split("\n")
-      .filter((line) => line.trim() !== "" && !line.startsWith("--"));
-    expect(offending).toEqual([]);
-  });
-
-  it("names the generator in the preamble, which is how this test found it", () => {
-    expect(file).toContain(GENERATOR_MARKER);
+  it("creates one view set per shipped environment and no unqualified `reporting` one", () => {
+    // The count is the claim: two environments, two `responses` views, two
+    // `answers_flat`. An unqualified `reporting` schema would be the pre-ADR-40 shape
+    // surviving by accident, so its absence is asserted rather than assumed.
+    for (const environment of SHIPPED_ENVIRONMENTS) {
+      const reporting = reportingSchemaName(environment);
+      expect(migration.body).toContain(`CREATE VIEW "${reporting}"."responses"`);
+      expect(migration.body).toContain(`CREATE VIEW "${reporting}"."answers_flat"`);
+    }
+    expect(migration.body).not.toContain('CREATE VIEW "reporting"."responses"');
   });
 });
 

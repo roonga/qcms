@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, isNotNull, isNull, lte, notExists, or, sql } from "drizzle-orm";
 import { alias, type PgColumn } from "drizzle-orm/pg-core";
 
-import { outbox, webhookDeliveries } from "../schema/index.js";
+import { dataSchemaName, outbox, webhookDeliveries } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 
 export type OutboxRow = typeof outbox.$inferSelect;
@@ -69,6 +69,47 @@ export async function enqueue(
     .values({ eventType: event.eventType, payload: event.payload })
     .returning();
   return row!;
+}
+
+/**
+ * Enqueue a domain event into **another** environment's outbox, from the control pool.
+ *
+ * ## Why this exists beside {@link enqueue}
+ *
+ * Every other helper in this package reaches the data plane by an **unqualified** name,
+ * so the connection's `search_path` decides which environment it touches and no helper
+ * can name an environment it was not handed a pool for (criterion 3, resolution half).
+ * This is the one exception, and it is an exception for a reason that cannot be
+ * designed away: a release record lives in `control` and its `form.released` event
+ * belongs in the released environment's `outbox`, and Q49 says the two commit in **one
+ * transaction**. One transaction is one connection, the connection is the control pool,
+ * and that pool's search path is `control` alone - so an unqualified `outbox` resolves
+ * to nothing there. `src/environment/sql.test.ts` allows the exception **by file name**
+ * rather than by a pattern, so the next one has to be argued for.
+ *
+ * ## No `RETURNING`, and that is a privilege fact rather than a style choice
+ *
+ * `qcms_app_control` holds `INSERT` on each `data_<env>.outbox` and **no other
+ * privilege of any kind** in any data schema (Q49): no `SELECT`, no `UPDATE`, no
+ * `DELETE`. `INSERT ... RETURNING` reads the row it wrote, so Postgres requires
+ * `SELECT` for it and this statement would fail under the grant the design gives it.
+ * Widening the grant is not available: the outbox payload carries respondent answers,
+ * and an authoring credential that can read them is the property Q40 exists to remove.
+ * So this returns nothing, and a caller that needs the row's id generates it itself.
+ *
+ * **Task 065 owns the release transaction that calls this.** This task ships the grant
+ * and the helper the grant is for, and writes no event.
+ */
+export async function enqueueInEnvironment(
+  exec: Executor,
+  environment: string,
+  event: { eventType: string; payload: unknown },
+): Promise<void> {
+  await exec.execute(sql`
+    insert into ${sql.identifier(dataSchemaName(environment))}.${sql.identifier("outbox")}
+      ("event_type", "payload")
+    values (${event.eventType}, ${JSON.stringify(event.payload)}::jsonb)
+  `);
 }
 
 /**

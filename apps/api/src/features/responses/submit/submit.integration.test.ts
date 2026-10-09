@@ -36,7 +36,13 @@ import {
   insertFormVersion,
   markInProgress,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 import { Client } from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -526,7 +532,16 @@ describe("issue #968: the required-answer sweep runs INSIDE the session lock", (
     // it (issue #888). It must be a separate connection: two logical transactions on one
     // client share a backend, and the first COMMIT would end both and release the lock
     // early (the harness's own note).
-    const holder = testDb.register(new Client({ connectionString: testDb.connectionUri }), "#968");
+    const holder = testDb.register(
+      new Client({
+        connectionString: testDb.connectionUri,
+        // Every data-plane table is declared unqualified, so a client that sets no
+        // search path resolves `answers` to nothing (ADR-40). This is the path an API
+        // pool connects with.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
+      "#968",
+    );
     await holder.connect();
     await holder.query("begin");
     await holder.query("select pg_advisory_xact_lock(hashtext($1))", [sessionId]);
@@ -565,7 +580,13 @@ describe("issue #968: the required-answer sweep runs INSIDE the session lock", (
     const { sessionId, sessionToken } = await completeValidSession();
 
     const holder = testDb.register(
-      new Client({ connectionString: testDb.connectionUri }),
+      new Client({
+        connectionString: testDb.connectionUri,
+        // Every data-plane table is declared unqualified, so a client that sets no
+        // search path resolves `answers` to nothing (ADR-40). This is the path an API
+        // pool connects with.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "#968 control",
     );
     await holder.connect();
@@ -738,6 +759,7 @@ describe("the stored semanticsVersion at submit (ADR-16)", () => {
     const sessionId = SessionId.parse(id);
     const expiresAt = new Date(NOW.getTime() + 24 * 60 * 60 * 1000);
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId: FormId.parse(formId),
       formVersion: 1,

@@ -1,80 +1,90 @@
 /**
- * Security scenario 3 - SEC-10, least-privilege database roles (task 040, issue #492).
+ * Security scenario 3 - SEC-10, least-privilege database roles (task 040, issues #492
+ * and #995).
  *
- * The triage that fed task 040 recorded SEC-10 as "not inspected at all", and that
- * turned out to be the right warning: `docs/SECURITY_DESIGN.md` §7 listed two role
- * properties and exactly one of them existed anywhere as SQL. 040 closed the
- * reporting half and pinned the other half's absence as an executable fact, so that
- * "the day a split ships this file goes red and gets updated rather than quietly
- * continuing to describe the old world".
+ * ## What this file is, after ADR-40
  *
- * That day is issue #492. Both halves are recipes now, and this file executes both
- * against a real Postgres:
+ * It used to assert two roles against one schema. It now asserts **three kinds of role**
+ * against a control plane and one data plane per environment, and the assertion that
+ * matters is the same one it always was: **the table list per role, read out of the
+ * catalogue**. That is the form that fails when somebody widens a grant, rather than the
+ * form that passes because nobody looked.
  *
- * 1. **A new database** (`docs/operations.md`, "Least-privilege database roles" > "The
- *    recipe"). The container is booted UNMIGRATED, the recipe's roles are created from
- *    it, and the real migration set is then applied **as `qcms_migrate`** - which is
- *    the only honest way to assert "the migration role can migrate". Everything after
- *    that is about the runtime role: it reads and writes rows in `public`, it can
- *    READ the reporting views the export path uses and cannot write to them, and it is
- *    refused DDL of every shape, holds no `CREATE` on `public`, and owns nothing.
- * 2. **An upgrading database** (the same document's "Upgrading a database that was
- *    migrated under one credential"). This is the path a real adopter takes and it has
- *    its own failure modes, so it gets its own container: migrate first with the OLD
- *    single credential, through drizzle's real migrator so its bookkeeping table and
- *    that table's SERIAL sequence exist bootstrap-owned, then run the handover, then
- *    assert the NEXT migration succeeds as `qcms_migrate` and the runtime denials hold.
- *    Reviewer finding on PR #782: the handover aborted on exactly that linked sequence,
- *    and nothing in this file could see it, because scenario 1 applies migrations with
- *    `applyMigrations` and never creates drizzle's bookkeeping table at all.
- * 3. **The reporting role** (`docs/reporting-view.md`, "Connection guidance"),
- *    unchanged from 040: readable reporting views, no reach into the operational
- *    tables, no writes, no DDL.
+ * The roles (Q40 as amended by Q48, Q49 and Q52):
  *
- * The SQL is quoted from the documents, not paraphrased: if either recipe stops
- * working, this suite is where it shows. Order matters and is not incidental - the
- * roles have to exist and own the schema before the migration runs, which is exactly
- * the bootstrap ordering the operator recipe specifies and `docker-compose.yml`
- * arranges with its `db-roles` one-shot.
+ * | Role               | On `control`                                     | On `data_<env>`                        | On `reporting_<env>`        |
+ * | ------------------ | ------------------------------------------------ | -------------------------------------- | --------------------------- |
+ * | `qcms_app_control` | DML, with nothing at all on `two_factor_resets`  | `INSERT` on `outbox`, nothing else     | nothing                     |
+ * | `qcms_app_<env>`   | `SELECT` on a named list, `UPDATE` on one table  | DML on its **own** schema only         | `USAGE` + `SELECT`, its own |
+ * | `qcms_migrate`     | owner, DDL                                       | owner, DDL                             | owner, DDL                  |
+ *
+ * ## Two properties this file exists to catch, both of which are silent
+ *
+ * **A widened grant.** Every assertion below is an *exact* list rather than a presence
+ * check, so a role that gained a privilege fails here naming it. The forbidden lists are
+ * imported from `@roonga/qcms-db` rather than re-typed, because a test carrying its own
+ * copy of the grant model passes while the model drifts.
+ *
+ * **A revoke that only covers the shipped names.** Migration 0021 revoked
+ * `two_factor_resets` from the literal `qcms_app`. There are now as many application
+ * roles as there are environments plus one, and an operator may create more, so the
+ * baseline revokes from every `qcms_app%` role - and this file creates one under a
+ * **non-shipped** name, before migrating, purely so that claim is executed rather than
+ * believed.
+ *
+ * ## Ordering is the recipe's, not this file's
+ *
+ * The roles exist and the migration role owns the schema **before** the migration runs,
+ * which is exactly the bootstrap ordering `docs/operations.md` specifies and
+ * `docker-compose.yml` arranges with its `db-roles` one-shot. The baseline's own grants
+ * are guarded on each role existing, so running the recipe first is what makes them
+ * land; a database migrated with no application role at all simply has none to grant to,
+ * which is the Testcontainers harness's case.
+ *
+ * **The upgrading-database scenario is gone**, and its absence is a ruling rather than a
+ * gap: Q22 and Q41 make this green field. Every existing database is deleted and
+ * recreated by hand, there is no upgrade path, and a suite that exercised one would be
+ * testing a world the design says does not exist.
  */
 
+import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/testing";
 import {
-  applyMigrations,
-  CONTAINER_BOOT_TIMEOUT_MS,
-  MIGRATIONS_DIR,
-} from "@roonga/qcms-db/testing";
-import { drizzle } from "drizzle-orm/node-postgres";
-import { migrate } from "drizzle-orm/node-postgres/migrator";
+  CONTROL_FORBIDDEN_TABLES,
+  CONTROL_READ_TABLES,
+  CONTROL_READ_TABLES_NOT_YET_CREATED,
+  DATA_PLANE_ENUM_TYPES,
+  DATA_PLANE_TABLE_NAMES,
+} from "@roonga/qcms-db";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { startTestDb, type TestDb } from "../support/index.js";
 
-const REPORTING_ROLE = "qcms_reporting";
 const MIGRATE_ROLE = "qcms_migrate";
-const APP_ROLE = "qcms_app";
+const CONTROL_ROLE = "qcms_app_control";
+const ENVIRONMENTS = ["test", "prod"] as const;
+const ENVIRONMENT_ROLES = { test: "qcms_app_test", prod: "qcms_app_prod" } as const;
 
-/** The operational tables the runtime role has to be able to read and write. */
-const OPERATIONAL_TABLES = [
-  "answers",
-  "sessions",
-  "submissions",
-  "forms",
-  "form_versions",
-  "secure_links",
-  "webhooks",
-  "outbox",
-] as const;
+/**
+ * An application role under a name this project does not ship.
+ *
+ * It exists for exactly one assertion: `two_factor_resets`' revoke covers **every**
+ * `qcms_app%` role rather than the names in the recipe. Created before the migration, so
+ * the revoke in the baseline meets it.
+ */
+const UNSHIPPED_ROLE = "qcms_app_zebra";
+
+/** The reporting consumer role of `docs/reporting-view.md`, granted one environment. */
+const REPORTING_ROLE = "qcms_reporting";
+
+/** The privileges a table grant can carry, in the order the catalogue reports them. */
+const DML = ["SELECT", "INSERT", "UPDATE", "DELETE"] as const;
 
 let testDb: TestDb;
-/** Superuser/owner connection: the "as a superuser or the database owner" both recipes ask for. */
+/** Superuser/owner connection: the "as a superuser or the database owner" the recipe asks for. */
 let owner: pg.Client;
-/** A connection as the migration role. */
 let migrator: pg.Client;
-/** A connection as the runtime role the API runs as. */
-let app: pg.Client;
-/** A connection as the read-only reporting role. */
-let reporting: pg.Client;
+const clients = new Map<string, pg.Client>();
 
 /** A throwaway password for a containerised role. Generated, never committed. */
 function ephemeralPassword(): string {
@@ -93,14 +103,6 @@ async function refusalFor(client: pg.Client, sql: string): Promise<string | unde
   }
 }
 
-/**
- * `container`'s connection string rewritten to authenticate as `role`.
- *
- * The container is a parameter rather than the module-level one, because this file
- * boots two: a new database and an upgrading one. Closing over the first silently
- * pointed the second scenario's clients at the wrong container, which surfaced as
- * `password authentication failed` on a role that existed in both.
- */
 function uriFor(container: TestDb, role: string, password: string): string {
   const uri = new URL(container.connectionUri);
   uri.username = role;
@@ -108,26 +110,57 @@ function uriFor(container: TestDb, role: string, password: string): string {
   return uri.toString();
 }
 
-/**
- * Open a client on `container` as `role`, registered with that container's teardown.
- *
- * Registering rather than closing it in an `afterAll` of our own is issue #888: the harness
- * drains every connection it knows about and only then stops the container, so no caller
- * has to keep a close list in the right order next to the harness's own.
- */
-async function connectAs(container: TestDb, role: string, password: string): Promise<pg.Client> {
-  const client = container.register(
-    new pg.Client({ connectionString: uriFor(container, role, password) }),
+async function connectAs(role: string, password: string, searchPath: string): Promise<pg.Client> {
+  const client = testDb.register(
+    new pg.Client({
+      connectionString: uriFor(testDb, role, password),
+      options: `-c search_path=${searchPath}`,
+    }),
     `${role} client`,
   );
   await client.connect();
   return client;
 }
 
+/**
+ * Every table privilege `role` holds in `schema`, read from the catalogue.
+ *
+ * `information_schema.table_privileges` rather than `has_table_privilege` per name: this
+ * reports what the role **has**, so a privilege nobody expected appears in the result
+ * instead of being missed by a question nobody asked.
+ */
+async function tablePrivileges(
+  schema: string,
+  role: string,
+): Promise<Record<string, readonly string[]>> {
+  const res = await owner.query<{ table_name: string; privilege_type: string }>(
+    `select table_name, privilege_type
+       from information_schema.table_privileges
+      where table_schema = $1 and grantee = $2
+      order by table_name, privilege_type`,
+    [schema, role],
+  );
+  const byTable: Record<string, string[]> = {};
+  for (const row of res.rows) {
+    const privileges = (byTable[row.table_name] ??= []);
+    privileges.push(row.privilege_type);
+  }
+  return byTable;
+}
+
+/** Whether `role` holds `USAGE` on `schema`. */
+async function hasSchemaUsage(schema: string, role: string): Promise<boolean> {
+  const res = await owner.query<{ has: boolean }>(
+    `select has_schema_privilege($1, $2, 'USAGE') as has`,
+    [role, schema],
+  );
+  return res.rows[0]?.has ?? false;
+}
+
 beforeAll(async () => {
-  // UNMIGRATED on purpose. The recipe runs before the first migration, and the
-  // migration then runs as qcms_migrate - migrating here as the superuser first
-  // would leave every object owned by the wrong role and quietly test nothing.
+  // UNMIGRATED on purpose. The recipe runs before the first migration, and the migration
+  // then runs as qcms_migrate: migrating here as the superuser first would leave every
+  // object owned by the wrong role and quietly test nothing.
   testDb = await startTestDb({ migrate: false });
   owner = testDb.register(
     new pg.Client({ connectionString: testDb.connectionUri }),
@@ -135,615 +168,592 @@ beforeAll(async () => {
   );
   await owner.connect();
 
-  const migratePassword = ephemeralPassword();
-  const appPassword = ephemeralPassword();
+  const passwords = new Map<string, string>();
+  const allRoles = [
+    MIGRATE_ROLE,
+    CONTROL_ROLE,
+    ...Object.values(ENVIRONMENT_ROLES),
+    UNSHIPPED_ROLE,
+  ];
+  for (const role of allRoles) {
+    const password = ephemeralPassword();
+    passwords.set(role, password);
+    await owner.query(`CREATE ROLE ${role} LOGIN PASSWORD '${password}'`);
+  }
 
-  // Verbatim from docs/operations.md, "Least-privilege database roles" > "The
-  // recipe". The passwords are the only substitution, exactly as the doc instructs.
-  await owner.query(`CREATE ROLE ${MIGRATE_ROLE} LOGIN PASSWORD '${migratePassword}'`);
-  await owner.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${appPassword}'`);
-
+  // The migration role owns the schemas it is about to create, and may create them.
+  // `CREATE ON DATABASE` rather than ownership of the database: owning it would also
+  // allow DROP DATABASE, which is past what "owns the schema" has to mean.
   await owner.query(`ALTER SCHEMA public OWNER TO ${MIGRATE_ROLE}`);
-  const database = (await owner.query<{ name: string }>("SELECT current_database() AS name"))
-    .rows[0]?.name;
-  await owner.query(`GRANT CREATE ON DATABASE "${database}" TO ${MIGRATE_ROLE}`);
-
-  await owner.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
   await owner.query(
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
-  );
-  await owner.query(`GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO ${APP_ROLE}`);
-
-  // Two layers, and the scoping is the control: the SELECT default is unscoped so it
-  // reaches `reporting` when migration 0003 creates it, and the write defaults name
-  // `public`, so a reporting view gets SELECT and only SELECT.
-  await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT SELECT ON TABLES TO ${APP_ROLE}`,
-  );
-  await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} IN SCHEMA public
-       GRANT INSERT, UPDATE, DELETE ON TABLES TO ${APP_ROLE}`,
-  );
-  await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} IN SCHEMA public
-       GRANT USAGE ON SEQUENCES TO ${APP_ROLE}`,
-  );
-  await owner.query(
-    `ALTER DEFAULT PRIVILEGES FOR ROLE ${MIGRATE_ROLE} GRANT USAGE ON SCHEMAS TO ${APP_ROLE}`,
+    `DO $$ BEGIN
+       EXECUTE format('GRANT CREATE ON DATABASE %I TO ${MIGRATE_ROLE}', current_database());
+     END $$`,
   );
 
-  // The migration itself, run as the role the recipe says runs it. This is the
-  // assertion "the migration role can migrate": it applies the real, package-owned
-  // migration set, so a grant the migration needs and does not have fails here.
-  migrator = await connectAs(testDb, MIGRATE_ROLE, migratePassword);
+  // The migration itself, run as the role the recipe says runs it. Every grant and
+  // revoke the baseline carries lands here, guarded on each role existing - which is why
+  // the roles were created above rather than after.
+  migrator = testDb.register(
+    new pg.Client({
+      connectionString: uriFor(testDb, MIGRATE_ROLE, passwords.get(MIGRATE_ROLE) ?? ""),
+    }),
+    "migrator client",
+  );
+  await migrator.connect();
   await applyMigrations(migrator);
 
-  app = await connectAs(testDb, APP_ROLE, appPassword);
+  for (const environment of ENVIRONMENTS) {
+    const role = ENVIRONMENT_ROLES[environment];
+    clients.set(
+      role,
+      await connectAs(role, passwords.get(role) ?? "", `data_${environment},control`),
+    );
+  }
+  clients.set(
+    CONTROL_ROLE,
+    await connectAs(CONTROL_ROLE, passwords.get(CONTROL_ROLE) ?? "", "control"),
+  );
 
-  // Verbatim from docs/reporting-view.md, "Connection guidance". Unchanged by #492:
-  // the reporting role is a third, independent recipe and still runs as the owner.
+  // The reporting consumer role of `docs/reporting-view.md`, granted ONE environment's
+  // view set. Per (workspace, environment) is Q26 and task 067's; per environment is
+  // what exists today.
   const reportingPassword = ephemeralPassword();
   await owner.query(`CREATE ROLE ${REPORTING_ROLE} LOGIN PASSWORD '${reportingPassword}'`);
-  await owner.query(`GRANT USAGE ON SCHEMA reporting TO ${REPORTING_ROLE}`);
-  await owner.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO ${REPORTING_ROLE}`);
-  await owner.query(
-    `ALTER DEFAULT PRIVILEGES IN SCHEMA reporting GRANT SELECT ON TABLES TO ${REPORTING_ROLE}`,
-  );
-  reporting = await connectAs(testDb, REPORTING_ROLE, reportingPassword);
+  await owner.query(`GRANT USAGE ON SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
+  await owner.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
+  clients.set(REPORTING_ROLE, await connectAs(REPORTING_ROLE, reportingPassword, "reporting_prod"));
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
   // Every client above is registered with the harness, so this one call drains them all
-  // and then stops the container (issue #888). It also reports a close that failed, which
-  // the per-client `.catch(() => undefined)` this replaced could not.
+  // and then stops the container (issue #888).
   await testDb?.teardown();
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
-describe("the migration role is the only role that owns the schema", () => {
-  it("migrated the database (the recipe's ordering works end to end)", async () => {
-    // If the role could not have migrated, `beforeAll` would have thrown. This is
-    // the positive statement of the same thing, and it also proves migration 0003
-    // ran, which needs CREATE on the database rather than merely on the schema.
-    const tables = await migrator.query<{ count: string }>(
-      `SELECT count(*) AS count FROM pg_tables WHERE schemaname = 'public'`,
+describe("the migration role is the only role that owns anything", () => {
+  it("migrated the database, which is the recipe's ordering working end to end", async () => {
+    const schemas = await migrator.query<{ nspname: string }>(
+      `select nspname from pg_namespace
+        where nspname in ('control', 'data_test', 'data_prod', 'reporting_test', 'reporting_prod')
+        order by nspname`,
     );
-    expect(Number(tables.rows[0]?.count)).toBeGreaterThan(10);
-    const views = await migrator.query<{ viewname: string }>(
-      `SELECT viewname FROM pg_views WHERE schemaname = 'reporting' ORDER BY viewname`,
-    );
-    expect(views.rows.map((row) => row.viewname)).toEqual(["answers_flat", "responses"]);
+    expect(schemas.rows.map((row) => row.nspname)).toEqual([
+      "control",
+      "data_prod",
+      "data_test",
+      "reporting_prod",
+      "reporting_test",
+    ]);
   });
 
-  it("holds the INSERT and SELECT qcms:reset-2fa needs on two_factor_resets", async () => {
-    // The other half of the #432 ruling. Revoking the audit table from the runtime
-    // role is only correct if the role that actually performs a reset can still write
-    // the row and read it back, and ownership implies neither: an owner's privileges
-    // are an ordinary ACL entry that a REVOKE can remove, so a revoke aimed at
-    // qcms_app but written without a FROM clause would take these with it.
-    const result = await migrator.query<{ select: boolean; insert: boolean }>(
-      `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
-              has_table_privilege(current_user, $1::text, 'INSERT') AS insert`,
-      ["public.two_factor_resets"],
+  it("owns every schema and every object the baseline created", async () => {
+    const wrong = await owner.query<{ name: string; owner: string }>(
+      `select format('%I.%I', n.nspname, c.relname) as name, pg_get_userbyid(c.relowner) as owner
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where n.nspname in ('control', 'data_test', 'data_prod', 'reporting_test', 'reporting_prod')
+          and c.relkind in ('r', 'v', 'm', 'S')
+          and pg_get_userbyid(c.relowner) <> '${MIGRATE_ROLE}'`,
     );
-    expect(result.rows[0]).toEqual({ select: true, insert: true });
+    expect(wrong.rows).toEqual([]);
   });
 
-  it("owns the public schema", async () => {
-    const result = await owner.query<{ owner: string }>(
-      `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'public'`,
-    );
-    expect(result.rows[0]?.owner).toBe(MIGRATE_ROLE);
-  });
-
-  it("owns every table and view the migrations created", async () => {
-    const result = await owner.query<{ relname: string; owner: string }>(
-      `SELECT c.relname, pg_get_userbyid(c.relowner) AS owner
-         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname IN ('public', 'reporting')
-          AND c.relkind IN ('r', 'v')
-          AND pg_get_userbyid(c.relowner) <> $1`,
-      [MIGRATE_ROLE],
-    );
-    expect(result.rows).toEqual([]);
+  it("holds the INSERT and SELECT `qcms:reset-2fa` needs on the break-glass audit", async () => {
+    // The other side of the migrate-only rule: nobody else may touch the table, and the
+    // one credential that may has to be able to write the row the reset produces.
+    for (const privilege of ["SELECT", "INSERT"]) {
+      const res = await owner.query<{ has: boolean }>(
+        `select has_table_privilege($1, 'control.two_factor_resets', $2) as has`,
+        [MIGRATE_ROLE, privilege],
+      );
+      expect(res.rows[0]?.has, `${MIGRATE_ROLE} needs ${privilege}`).toBe(true);
+    }
   });
 });
 
-describe("the runtime role reads and writes rows, and nothing else", () => {
-  it("connects as the role the recipe creates (the fixture is real)", async () => {
-    const who = await app.query<{ current_user: string }>("SELECT current_user");
-    expect(who.rows[0]?.current_user).toBe(APP_ROLE);
+describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
+  it("holds DML on every control-plane table except the break-glass audit", async () => {
+    const held = await tablePrivileges("control", CONTROL_ROLE);
+    // `two_factor_resets` is absent entirely rather than present with fewer privileges:
+    // the revoke takes all four, so the catalogue reports no row for it at all.
+    expect(held["two_factor_resets"]).toBeUndefined();
+    // Every other control-plane table carries all four. An exact per-table comparison,
+    // so a table that lost a privilege fails here as loudly as one that gained it.
+    for (const [table, privileges] of Object.entries(held)) {
+      expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
+    }
+    // And the floor under that loop: it has to have found the tables at all.
+    expect(Object.keys(held).length).toBeGreaterThan(10);
   });
 
-  it.each(OPERATIONAL_TABLES)("holds all four DML privileges on public.%s", async (table) => {
-    const result = await app.query<{
-      select: boolean;
-      insert: boolean;
-      update: boolean;
-      delete: boolean;
-    }>(
-      `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
-              has_table_privilege(current_user, $1::text, 'INSERT') AS insert,
-              has_table_privilege(current_user, $1::text, 'UPDATE') AS update,
-              has_table_privilege(current_user, $1::text, 'DELETE') AS delete`,
-      [`public.${table}`],
+  it.each(ENVIRONMENTS)(
+    "holds INSERT on data_%s.outbox and no other privilege of any kind there (Q49)",
+    async (environment) => {
+      const held = await tablePrivileges(`data_${environment}`, CONTROL_ROLE);
+      expect(held).toEqual({ outbox: ["INSERT"] });
+      // `USAGE` on the schema is the unavoidable companion of that one grant: Postgres
+      // has no way to reach a table in a schema without it, and it conveys no access to
+      // any other table - which the exact table listing above is what proves.
+      expect(await hasSchemaUsage(`data_${environment}`, CONTROL_ROLE)).toBe(true);
+    },
+  );
+
+  it.each(ENVIRONMENTS)("holds nothing at all on reporting_%s (Q52)", async (environment) => {
+    expect(await tablePrivileges(`reporting_${environment}`, CONTROL_ROLE)).toEqual({});
+    expect(await hasSchemaUsage(`reporting_${environment}`, CONTROL_ROLE)).toBe(false);
+  });
+
+  it("holds USAGE on `control` and on every data schema, and on nothing else QCMS named", async () => {
+    // **Schema `USAGE` is the grant a table-privilege listing cannot show**, and it is
+    // required: without it a statement fails on the schema before it reaches the table,
+    // whatever the table grants say. So it is asserted per schema rather than inferred
+    // from the reads working, and it is asserted in both directions, because a `USAGE`
+    // nobody meant to grant is how a role ends up able to name a schema it has no
+    // business in.
+    expect(await hasSchemaUsage("control", CONTROL_ROLE)).toBe(true);
+    for (const environment of ENVIRONMENTS) {
+      expect(await hasSchemaUsage(`data_${environment}`, CONTROL_ROLE)).toBe(true);
+      expect(await hasSchemaUsage(`reporting_${environment}`, CONTROL_ROLE)).toBe(false);
+    }
+  });
+
+  it("is refused a read of an answer, which is the property the split buys", async () => {
+    const client = clients.get(CONTROL_ROLE);
+    const refusal = await refusalFor(client!, `select * from data_prod.answers limit 1`);
+    expect(refusal).toMatch(/permission denied/i);
+  });
+
+  it("can insert the release event Q49 gives it, without RETURNING", async () => {
+    const client = clients.get(CONTROL_ROLE);
+    await client!.query(
+      `insert into data_prod.outbox ("event_type", "payload") values ('form.released', '{}'::jsonb)`,
     );
-    // DELETE is granted whole rather than narrowed to the erasure and retention
-    // tables. That narrowing was considered and rejected in the #492 ruling: the
-    // `answers_reject_delete` trigger (migration 0004) is the control on that path,
-    // and a per-table grant list is one an operator can get wrong at runtime.
-    expect(result.rows[0]).toEqual({ select: true, insert: true, update: true, delete: true });
+    // And `INSERT ... RETURNING` is refused, because RETURNING reads the row it wrote and
+    // Postgres requires SELECT for that. This is why `enqueueInEnvironment` has no
+    // `.returning()`: widening the grant would let an authoring credential read the
+    // respondent answers an outbox payload carries.
+    const refusal = await refusalFor(
+      client!,
+      `insert into data_prod.outbox ("event_type", "payload") values ('x', '{}'::jsonb) returning id`,
+    );
+    expect(refusal).toMatch(/permission denied/i);
   });
-
-  it("holds NONE of the four on two_factor_resets: the break-glass audit trail", async () => {
-    // Issue #432, Code Owner decision 2026-09-09. `two_factor_resets` records that
-    // somebody removed an administrator's second factor out of band, and the whole
-    // value of that record is that the credential serving traffic cannot rewrite it.
-    // It is the one table in `public` this role holds nothing on, which is why it is
-    // asserted here rather than left to the OPERATIONAL_TABLES sweep above.
+  it("publishes a version, under its own grants, and queues nothing anywhere (Q60, criterion 6)", async () => {
+    // Criterion 6 asks for this count **as `qcms_app_control` with its real grants**,
+    // because a superuser count proves the handler wrote nothing while saying nothing
+    // about what the credential could have written. Here the publish's own two writes
+    // run on a connection holding exactly the grants the API holds.
     //
-    // The path this covers is a REVOKE undoing a GRANT, not a grant that was never
-    // made: the recipe hands out the DML pass over all tables and cannot name an
-    // exception (default privileges have no per-table filter), so all four bits are
-    // granted and then taken back. The revoke that does it on a fresh database is in
-    // migration 0021 itself, which is what this scenario ran.
-    const result = await app.query<{
-      select: boolean;
-      insert: boolean;
-      update: boolean;
-      delete: boolean;
-    }>(
-      `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
-              has_table_privilege(current_user, $1::text, 'INSERT') AS insert,
-              has_table_privilege(current_user, $1::text, 'UPDATE') AS update,
-              has_table_privilege(current_user, $1::text, 'DELETE') AS delete`,
-      ["public.two_factor_resets"],
+    // Note which half of that this role can do: it holds `INSERT` on every
+    // `data_<env>.outbox` and no `SELECT` anywhere in a data schema, asserted above. So
+    // it can enqueue and cannot count, and the count below is the owner's. That split
+    // is what makes zero meaningful rather than circular: the role **has** the grant an
+    // enqueue needs, so an empty outbox is the transaction's doing and not a refusal.
+    const control = clients.get(CONTROL_ROLE)!;
+    const formId = "q60-publish-count";
+
+    await owner.query(
+      `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
+      [formId],
     );
-    expect(result.rows[0]).toEqual({
-      select: false,
-      insert: false,
-      update: false,
-      delete: false,
+    await owner.query(
+      `insert into control.form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,
+      [formId],
+    );
+
+    // A delta rather than an absolute count, because another test in this file inserts
+    // the `form.released` row Q49 permits, and the assertion should not depend on which
+    // ran first.
+    const outboxCounts = async (): Promise<Record<string, number>> => {
+      const counts: Record<string, number> = {};
+      for (const environment of ENVIRONMENTS) {
+        const res = await owner.query<{ n: string }>(
+          `select count(*) as n from data_${environment}.outbox`,
+        );
+        counts[environment] = Number(res.rows[0]?.n ?? "-1");
+      }
+      return counts;
+    };
+    const before = await outboxCounts();
+
+    // The publish transaction as the handler issues it (`makePublishFormHandler`):
+    // freeze the immutable version, delete the draft, one transaction, on the control
+    // connection. If a `form.published` enqueue came back, it would be inside this
+    // transaction and the delta below would be 1 somewhere.
+    await control.query("begin");
+    await control.query(
+      `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version,
+          a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+      [formId],
+    );
+    await control.query(`delete from control.form_drafts where form_id = $1`, [formId]);
+    await control.query("commit");
+
+    // The version is really there, so the publish was a publish and not a no-op that
+    // would make the count below vacuous.
+    const version = await owner.query<{ n: string }>(
+      `select count(*) as n from control.form_versions where form_id = $1`,
+      [formId],
+    );
+    expect(Number(version.rows[0]?.n)).toBe(1);
+
+    expect(await outboxCounts()).toEqual(before);
+
+    // And the credential cannot audit itself: the count had to come from the owner,
+    // which is the Q49 split restated from the direction of this test.
+    expect(await refusalFor(control, `select count(*) from data_prod.outbox`)).toMatch(
+      /permission denied/i,
+    );
+  });
+});
+
+describe.each(ENVIRONMENTS)(
+  "qcms_app_%s: its own data plane and a named read list",
+  (environment) => {
+    const role = ENVIRONMENT_ROLES[environment];
+    const other = environment === "test" ? "prod" : "test";
+
+    it("holds DML on every table in its own data schema", async () => {
+      const held = await tablePrivileges(`data_${environment}`, role);
+      for (const [table, privileges] of Object.entries(held)) {
+        expect([...privileges].sort(), `data_${environment}.${table}`).toEqual([...DML].sort());
+      }
+      // Derived, not typed: the data plane is whatever the schema module declares, which
+      // is eight tables since task 072's roster joined it. A literal here would have to be
+      // edited by whoever adds the ninth, and the point of this assertion is that it is the
+      // one nobody has to remember.
+      expect(Object.keys(held).length).toBe(DATA_PLANE_TABLE_NAMES.length);
     });
-  });
 
-  it("is actually refused a read and a write of an audit row, not merely missing the bit", async () => {
-    // The bits above are the ACL; these are the answers Postgres gives. Both
-    // directions, because a revoke that left SELECT would leak who has been reset and
-    // one that left DELETE would let the row be removed after the fact.
-    await expect(app.query("SELECT * FROM public.two_factor_resets LIMIT 1")).rejects.toThrow(
-      /permission denied/i,
-    );
-    await expect(app.query("DELETE FROM public.two_factor_resets")).rejects.toThrow(
-      /permission denied/i,
-    );
-  });
+    it("holds nothing at all in another environment's data schema", async () => {
+      expect(await tablePrivileges(`data_${other}`, role)).toEqual({});
+      expect(await hasSchemaUsage(`data_${other}`, role)).toBe(false);
+    });
 
-  it("can actually read an operational table, not merely hold the bit", async () => {
-    const result = await app.query("SELECT * FROM public.sessions LIMIT 1");
-    expect(result.rowCount).not.toBeNull();
-  });
+    it("holds schema USAGE on exactly the three schemas it reaches, and no fourth", async () => {
+      // The grant a table listing cannot show, asserted per schema and in both
+      // directions. `control` and its own `data_<env>` are what every respondent
+      // statement needs before any table privilege is consulted; its own
+      // `reporting_<env>` is Q52's; another environment's two are refused, which is the
+      // privilege half of the isolation claim rather than a `search_path` default.
+      expect(await hasSchemaUsage("control", role)).toBe(true);
+      expect(await hasSchemaUsage(`data_${environment}`, role)).toBe(true);
+      expect(await hasSchemaUsage(`reporting_${environment}`, role)).toBe(true);
+      expect(await hasSchemaUsage(`data_${other}`, role)).toBe(false);
+      expect(await hasSchemaUsage(`reporting_${other}`, role)).toBe(false);
+    });
 
-  it("reads the reporting views the export path goes through", async () => {
-    // `apps/api/src/features/responses/admin/handler.ts` exports through
-    // `reporting.responses`, so the runtime role needs USAGE on that schema too.
-    // It gets it from the recipe's unscoped ALTER DEFAULT PRIVILEGES, because the
-    // schema does not exist when the recipe runs.
-    for (const view of ["reporting.responses", "reporting.answers_flat"]) {
-      const result = await app.query(`SELECT * FROM ${view} LIMIT 1`);
-      expect(result.rowCount, `${view} was unreadable by the runtime role`).not.toBeNull();
-    }
-  });
-
-  it.each(["reporting.responses", "reporting.answers_flat"])(
-    "holds SELECT and nothing more on %s",
-    async (view) => {
-      // SEC-10 and the operations table say the runtime role gets SELECT on the
-      // reporting views. Until the PR #782 review the shipped grants said otherwise:
-      // the DML pass fanned out over every schema the migration role owned, and the
-      // unscoped default privilege extended INSERT/UPDATE/DELETE to future views too.
-      // Inert in practice, because both views are joins and so not auto-updatable -
-      // but a grant that does not match the stated posture is the posture nobody can
-      // trust, and the next view added here might well be updatable.
-      const result = await app.query<{
-        select: boolean;
-        insert: boolean;
-        update: boolean;
-        delete: boolean;
-      }>(
-        `SELECT has_table_privilege(current_user, $1::text, 'SELECT') AS select,
-                has_table_privilege(current_user, $1::text, 'INSERT') AS insert,
-                has_table_privilege(current_user, $1::text, 'UPDATE') AS update,
-                has_table_privilege(current_user, $1::text, 'DELETE') AS delete`,
-        [view],
+    it("is refused a schema-qualified read of another environment's answers (criterion 3)", async () => {
+      // The **privilege** half of criterion 3. `search_path` is a resolution default and
+      // not a grant, so the resolution half alone is unsatisfiable as an isolation claim:
+      // a statement that names the other schema explicitly has to be refused, and this is
+      // what refuses it.
+      const refusal = await refusalFor(
+        clients.get(role)!,
+        `select * from data_${other}.answers limit 1`,
       );
-      expect(result.rows[0]).toEqual({
-        select: true,
-        insert: false,
-        update: false,
-        delete: false,
-      });
+      expect(refusal).toMatch(/permission denied/i);
+    });
+
+    it("resolves an unqualified data-plane name inside its OWN schema (criterion 3)", async () => {
+      // The **resolution** half, with a positive control in each environment: the row this
+      // insert makes is visible to this role and the other role's schema is untouched.
+      const client = clients.get(role)!;
+      const inserted = await client.query<{ nspname: string }>(
+        `select n.nspname from pg_class c
+         join pg_namespace n on n.oid = c.relnamespace
+        where c.oid = 'sessions'::regclass`,
+      );
+      expect(inserted.rows[0]?.nspname).toBe(`data_${environment}`);
+    });
+
+    it("holds exactly the named SELECT list on `control`, and UPDATE on one table", async () => {
+      const held = await tablePrivileges("control", role);
+      // `form_releases` is task 065's table and does not exist yet, so its grant is
+      // guarded on the table existing. The list is the decision either way: five today,
+      // six once 065 has landed, and this is the line that notices.
+      const expectedReads = CONTROL_READ_TABLES.filter(
+        (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
+      );
+      expect(expectedReads).toHaveLength(5);
+      expect(Object.keys(held).sort()).toEqual([...expectedReads].sort());
+      for (const table of expectedReads) {
+        const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
+        expect([...(held[table] ?? [])].sort(), `control.${table}`).toEqual(expected);
+      }
+    });
+
+    it.each(CONTROL_FORBIDDEN_TABLES)(
+      "holds no privilege of any kind on control.%s",
+      async (table) => {
+        // The property Q40 buys that an API check cannot: a defect on the anonymous
+        // respondent path cannot rewrite a grant row or a staff session, because the
+        // connection it runs on has no grant on those tables at all.
+        const held = await tablePrivileges("control", role);
+        expect(held[table]).toBeUndefined();
+        for (const privilege of DML) {
+          // The table name is QUOTED inside the regclass literal: two of the plugin's
+          // tables are camelCase (`twoFactor`, `teamMember`), and an unquoted identifier
+          // is lower-cased by the parser, so the check would look for a relation that does
+          // not exist and fail for the wrong reason.
+          const res = await owner.query<{ has: boolean }>(
+            `select has_table_privilege($1, $2, $3) as has`,
+            [role, `control."${table}"`, privilege],
+          );
+          expect(res.rows[0]?.has, `${role} must not hold ${privilege} on control.${table}`).toBe(
+            false,
+          );
+        }
+      },
+    );
+
+    it("holds USAGE on the two enum types, which live once in `control` (Q54)", async () => {
+      // The types are created once, exactly as the trigger functions are, and both
+      // environments' `sessions` tables use them - so they are not part of the
+      // per-environment set and a change to the closed value set is one migration rather
+      // than one per environment. What a role needs is USAGE, which Postgres requires to
+      // write a value of an enum.
+      //
+      // **This reads a DEFAULT, not a grant, and the distinction is the point.** Postgres
+      // grants type `USAGE` to `PUBLIC`, so every role holds it whether or not anything
+      // granted it, and the baseline deliberately emits no type grant at all - the same
+      // goes for `EXECUTE` on the trigger functions. So what this line asserts is that the
+      // privilege the respondent path needs is **present**, which is the criterion ("whatever
+      // `USAGE` Postgres requires on `control`'s two enum types"), and it must not be read
+      // as evidence that this recipe granted it. The equality above is the load-bearing
+      // half: a third enum arriving on a data-plane column is a new dependency on a default
+      // nobody looked at, and it fails here. The session write below is what proves the
+      // whole path end to end.
+      expect([...DATA_PLANE_ENUM_TYPES]).toEqual(["access_mode", "session_status"]);
+      for (const type of DATA_PLANE_ENUM_TYPES) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_type_privilege($1, $2, 'USAGE') as has`,
+          [role, `control.${type}`],
+        );
+        expect(res.rows[0]?.has, `${role} needs USAGE on control.${type}`).toBe(true);
+      }
+    });
+
+    it("can actually write a session row, which is the test of every grant above", async () => {
+      // The end-to-end shape of the respondent path's first write: a form and a version
+      // read from `control`, a row inserted into this environment's own `sessions` with
+      // both enum types and the Q46 `environment` column. A grant missing anywhere in the
+      // chain - the schema, the table, the type, the crossing foreign key's target -
+      // surfaces here rather than at a respondent's first request.
+      const formId = `frm_grant_${environment}`;
+      await owner.query(
+        `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
+        [formId],
+      );
+      await owner.query(
+        `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version, a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
+        [formId],
+      );
+      await clients.get(role)!.query(
+        `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+       values ($1, $2, 1, 'anonymous', $3, now() + interval '1 day')`,
+        [`ses_grant_${environment}`, formId, environment],
+      );
+      const written = await owner.query<{ environment: string }>(
+        `select environment from data_${environment}.sessions where session_id = $1`,
+        [`ses_grant_${environment}`],
+      );
+      expect(written.rows[0]?.environment).toBe(environment);
+    });
+
+    it("cannot mint a secure link, only redeem one (Q53)", async () => {
+      // An environment role holds SELECT and UPDATE on `control.secure_links` and no
+      // INSERT: it redeems and consumes a link, it never creates one. Minting runs on the
+      // control pool.
+      const refusal = await refusalFor(
+        clients.get(role)!,
+        `insert into control.secure_links (link_id, form_id, expires_at, environment)
+         values ('lnk_probe', 'frm_probe', now(), '${environment}')`,
+      );
+      expect(refusal).toMatch(/permission denied/i);
+    });
+
+    it("reads its own reporting views and no other environment's (Q52)", async () => {
+      expect(await hasSchemaUsage(`reporting_${environment}`, role)).toBe(true);
+      const own = await tablePrivileges(`reporting_${environment}`, role);
+      expect(Object.keys(own).sort()).toEqual(["answers_flat", "responses"]);
+      for (const privileges of Object.values(own)) expect([...privileges]).toEqual(["SELECT"]);
+
+      expect(await hasSchemaUsage(`reporting_${other}`, role)).toBe(false);
+      expect(await tablePrivileges(`reporting_${other}`, role)).toEqual({});
+    });
+
+    it("cannot write through its own reporting views", async () => {
+      const refusal = await refusalFor(
+        clients.get(role)!,
+        `delete from reporting_${environment}.responses`,
+      );
+      expect(refusal).toMatch(/permission denied|cannot delete/i);
+    });
+
+    it("is refused DDL of every shape, and holds no CREATE on any schema", async () => {
+      const client = clients.get(role)!;
+      for (const statement of [
+        `create table data_${environment}.probe (id int)`,
+        `drop table data_${environment}.answers`,
+        `alter table data_${environment}.answers add column probe int`,
+        `create schema probe_${environment}`,
+      ]) {
+        expect(await refusalFor(client, statement), statement).toMatch(
+          /permission denied|must be owner/i,
+        );
+      }
+      for (const schema of ["public", "control", `data_${environment}`]) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_schema_privilege($1, $2, 'CREATE') as has`,
+          [role, schema],
+        );
+        expect(res.rows[0]?.has, `${role} on ${schema}`).toBe(false);
+      }
+    });
+
+    it("owns no object at all", async () => {
+      const owned = await owner.query<{ name: string }>(
+        `select format('%I.%I', n.nspname, c.relname) as name
+         from pg_class c join pg_namespace n on n.oid = c.relnamespace
+        where pg_get_userbyid(c.relowner) = $1`,
+        [role],
+      );
+      expect(owned.rows).toEqual([]);
+    });
+
+    it("cannot become the migration role", async () => {
+      const refusal = await refusalFor(clients.get(role)!, `set role ${MIGRATE_ROLE}`);
+      expect(refusal).toMatch(/permission denied|must be (a )?member/i);
+    });
+  },
+);
+
+describe("the migrate-only audit table (issue #432, Q40 finding B)", () => {
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
+    "leaves %s none of the four privileges on control.two_factor_resets",
+    async (role) => {
+      // The widened revoke, executed rather than believed. `qcms_app_zebra` is a name
+      // this project does not ship and no recipe mentions: it is here because migration
+      // 0021 named one literal role, and the baseline names the PREFIX instead, so an
+      // installation that creates `qcms_app_staging` next week is covered by a migration
+      // written today.
+      for (const privilege of DML) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, 'control.two_factor_resets', $2) as has`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      }
     },
   );
 
-  it("holds no CREATE on the public schema", async () => {
-    const result = await app.query<{ usage: boolean; create: boolean }>(
-      `SELECT has_schema_privilege(current_user, 'public', 'USAGE') AS usage,
-              has_schema_privilege(current_user, 'public', 'CREATE') AS create`,
+  it("refuses the control role a read of an audit row, not merely the bit", async () => {
+    const refusal = await refusalFor(
+      clients.get(CONTROL_ROLE)!,
+      `select * from control.two_factor_resets limit 1`,
     );
-    expect(result.rows[0]?.usage).toBe(true);
-    expect(result.rows[0]?.create).toBe(false);
-  });
-
-  it("is not the schema owner, and owns no object at all", async () => {
-    const schema = await app.query<{ owner: string }>(
-      `SELECT pg_get_userbyid(nspowner) AS owner FROM pg_namespace WHERE nspname = 'public'`,
-    );
-    expect(schema.rows[0]?.owner).not.toBe(APP_ROLE);
-
-    const owned = await app.query<{ count: string }>(
-      `SELECT count(*) AS count
-         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
-          AND c.relowner = current_user::regrole`,
-    );
-    expect(Number(owned.rows[0]?.count)).toBe(0);
-  });
-
-  it.each([
-    "CREATE TABLE public.smuggled (id text)",
-    "CREATE TABLE reporting.smuggled (id text)",
-    "CREATE SCHEMA smuggled",
-    "DROP TABLE public.sessions",
-    "DROP VIEW reporting.responses",
-    "ALTER TABLE public.sessions ADD COLUMN smuggled text",
-    "CREATE INDEX smuggled ON public.sessions (id)",
-    "TRUNCATE public.answers",
-  ])("is refused DDL of every shape: %s", async (sql) => {
-    // The single property this whole issue exists to establish: the credential the
-    // API process holds cannot change the schema. TRUNCATE is in the list because it
-    // is the one destructive statement that is a table privilege rather than an
-    // ownership check, so a `GRANT ALL` slip would show up here and nowhere else.
-    const refusal = await refusalFor(app, sql);
-    expect(refusal, `${sql} succeeded for the runtime role`).toBeDefined();
-    expect(refusal as string).toMatch(/permission denied|must be owner/i);
-  });
-
-  it("cannot become the migration role", async () => {
-    // Membership would hand back everything the grants above withhold, so the two
-    // roles being unrelated is part of the control rather than an implementation
-    // detail of how the recipe happens to be written.
-    const refusal = await refusalFor(app, `SET ROLE ${MIGRATE_ROLE}`);
-    expect(refusal).toBeDefined();
-    expect(refusal as string).toMatch(/permission denied|must be a member/i);
+    expect(refusal).toMatch(/permission denied/i);
   });
 });
 
-/**
- * Scenario 2: an existing database, migrated under the old single credential.
- *
- * This is the path every current adopter takes, and it is not scenario 1 with extra
- * steps. It has one failure mode of its own that no amount of fresh-install testing
- * can reach, and PR #782's reviewer hit it: the objects to hand over include
- * **drizzle's own bookkeeping table**, `drizzle.__drizzle_migrations`, whose `id
- * SERIAL` column carries a LINKED SEQUENCE. Postgres refuses `ALTER SEQUENCE ...
- * OWNER TO` on a linked sequence outright, and with `ON_ERROR_STOP` set that aborts
- * the whole `db-roles` one-shot, so `migrate` and `api` never start.
- *
- * Scenario 1 could not see it, and that is the interesting part: it applies
- * migrations with `applyMigrations`, which deliberately bypasses drizzle's tracker,
- * so no bookkeeping table and no sequence ever exist there. This block therefore
- * migrates through **drizzle's real migrator**, exactly as `packages/db/src/migrate.ts`
- * does, before it does anything else.
- */
-describe("an upgrading database, migrated under the old single credential", () => {
-  let upgradeDb: TestDb;
-  let bootstrap: pg.Client;
-  let upgradeMigrator: pg.Client;
-  let upgradeApp: pg.Client;
-  /** The migration role's connection string, for the drizzle-migrator test below. */
-  let migrateUri: string;
-  /** Sequences that a migration created as `SERIAL` and Postgres links to their table. */
-  const LINKED_SEQUENCE_QUERY = `
-    SELECT format('%I.%I', n.nspname, c.relname) AS name,
-           pg_get_userbyid(c.relowner) AS owner
-      FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-     WHERE c.relkind = 'S'
-       AND EXISTS (SELECT 1 FROM pg_depend d
-                    WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
-                      AND d.refclassid = 'pg_class'::regclass AND d.deptype IN ('a', 'i'))`;
-
-  beforeAll(async () => {
-    // MIGRATED as the bootstrap superuser, through drizzle's real migrator. That is
-    // the world this scenario exists for: every object, including drizzle's own
-    // bookkeeping table and its linked sequence, owned by the old credential.
-    upgradeDb = await startTestDb({ migrate: true });
-    bootstrap = upgradeDb.register(
-      new pg.Client({ connectionString: upgradeDb.connectionUri }),
-      "bootstrap client",
+describe("`public` is empty, unreachable and un-writable (criterion 2)", () => {
+  it("holds no QCMS object", async () => {
+    const tables = await owner.query<{ table_name: string }>(
+      `select table_name from information_schema.tables
+        where table_schema = 'public' and table_type = 'BASE TABLE'`,
     );
-    await bootstrap.connect();
-
-    const before = await bootstrap.query<{ name: string; owner: string }>(LINKED_SEQUENCE_QUERY);
-    // A floor on the fixture itself. If drizzle ever stops using SERIAL, this block
-    // would keep passing while testing nothing, which is the failure mode that let
-    // the defect through in the first place.
-    expect(before.rows.length, "the old world must carry a linked sequence").toBeGreaterThan(0);
-    expect(before.rows.every((row) => row.owner !== MIGRATE_ROLE)).toBe(true);
-
-    const migratePassword = ephemeralPassword();
-    const appPassword = ephemeralPassword();
-    await bootstrap.query(`CREATE ROLE ${MIGRATE_ROLE} LOGIN PASSWORD '${migratePassword}'`);
-    await bootstrap.query(`CREATE ROLE ${APP_ROLE} LOGIN PASSWORD '${appPassword}'`);
-    await bootstrap.query(`GRANT USAGE ON SCHEMA public TO ${APP_ROLE}`);
-    await bootstrap.query(
-      `DO $$ BEGIN
-         EXECUTE format('GRANT CREATE ON DATABASE %I TO ${MIGRATE_ROLE}', current_database());
-       END $$`,
-    );
-
-    // Verbatim from docs/operations.md, "Upgrading a database that was migrated under
-    // one credential". The pg_depend clause is the fix under test.
-    await bootstrap.query(`
-      DO $$
-      DECLARE statement text;
-      BEGIN
-        FOR statement IN
-          SELECT format('ALTER SCHEMA %I OWNER TO ${MIGRATE_ROLE}', nspname)
-            FROM pg_namespace
-           WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
-             AND nspowner <> '${MIGRATE_ROLE}'::regrole
-          UNION ALL
-          SELECT format('ALTER TABLE %I.%I OWNER TO ${MIGRATE_ROLE}', n.nspname, c.relname)
-            FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-           WHERE c.relkind IN ('r', 'p', 'v', 'm', 'S')
-             AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
-             AND c.relowner <> '${MIGRATE_ROLE}'::regrole
-             AND NOT (c.relkind = 'S' AND EXISTS (
-                   SELECT 1 FROM pg_depend d
-                    WHERE d.classid = 'pg_class'::regclass AND d.objid = c.oid
-                      AND d.refclassid = 'pg_class'::regclass
-                      AND d.deptype IN ('a', 'i')))
-          UNION ALL
-          SELECT format('ALTER FUNCTION %I.%I(%s) OWNER TO ${MIGRATE_ROLE}',
-                        n.nspname, p.proname, pg_get_function_identity_arguments(p.oid))
-            FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-           WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
-             AND p.proowner <> '${MIGRATE_ROLE}'::regrole
-          UNION ALL
-          SELECT format('ALTER TYPE %I.%I OWNER TO ${MIGRATE_ROLE}', n.nspname, t.typname)
-            FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace
-           WHERE t.typtype = 'e'
-             AND n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
-             AND t.typowner <> '${MIGRATE_ROLE}'::regrole
-        LOOP
-          EXECUTE statement;
-        END LOOP;
-      END
-      $$`);
-
-    await bootstrap.query(`GRANT USAGE ON SCHEMA reporting TO ${APP_ROLE}`);
-    await bootstrap.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO ${APP_ROLE}`);
-    await bootstrap.query(
-      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO ${APP_ROLE}`,
-    );
-
-    migrateUri = uriFor(upgradeDb, MIGRATE_ROLE, migratePassword);
-    upgradeMigrator = await connectAs(upgradeDb, MIGRATE_ROLE, migratePassword);
-    upgradeApp = await connectAs(upgradeDb, APP_ROLE, appPassword);
-  }, CONTAINER_BOOT_TIMEOUT_MS);
-
-  afterAll(async () => {
-    await upgradeDb?.teardown();
-  }, CONTAINER_BOOT_TIMEOUT_MS);
-
-  it("completes the handover at all (it aborted on the linked sequence)", async () => {
-    // If the handover threw, `beforeAll` would have failed and every test here would
-    // report as a setup error - which is what the reviewer saw, and what an operator
-    // would have seen as `db-roles` exiting nonzero with migrate and api never
-    // starting. This is the positive statement of the same fact.
-    const owners = await bootstrap.query<{ count: string }>(
-      `SELECT count(*) AS count
-         FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
-        WHERE n.nspname NOT LIKE 'pg\\_%' AND n.nspname <> 'information_schema'
-          AND c.relkind IN ('r', 'p', 'v', 'm')
-          AND pg_get_userbyid(c.relowner) <> $1`,
-      [MIGRATE_ROLE],
-    );
-    expect(Number(owners.rows[0]?.count)).toBe(0);
+    expect(tables.rows).toEqual([]);
   });
 
-  it("moves each linked sequence along with the table that owns it", async () => {
-    // The skipped rows are not left behind: `ALTER TABLE ... OWNER TO` carries a
-    // linked sequence with it, which is why excluding them is complete rather than
-    // merely convenient, and why the exclusion needs no ordering.
-    const after = await bootstrap.query<{ name: string; owner: string }>(LINKED_SEQUENCE_QUERY);
-    expect(after.rows.length).toBeGreaterThan(0);
-    for (const row of after.rows) {
-      expect(row.owner, `${row.name} was left behind by the handover`).toBe(MIGRATE_ROLE);
-    }
-  });
-
-  it("lets the migration role run drizzle's migrator, the way the next upgrade will", async () => {
-    // The real thing rather than a probe: the same `migrate(drizzle(pool), ...)` call
-    // `packages/db/src/migrate.ts` makes, over a pool connected as qcms_migrate. It
-    // reads and writes drizzle's bookkeeping table, which is precisely the object
-    // whose handover the linked sequence was breaking. Every migration is already
-    // applied, so this is the no-op pass a re-run does; the point is that it needs
-    // ownership of that table and its sequence to get that far at all.
-    const pool = new pg.Pool({ connectionString: migrateUri });
-    pool.on("error", () => undefined);
-    try {
-      await migrate(drizzle(pool), { migrationsFolder: MIGRATIONS_DIR });
-    } finally {
-      await pool.end();
-    }
-
-    // It ran as the migration role and left the journal intact: one applied row per
-    // migration file, still owned by qcms_migrate. A migrator that had failed to read
-    // its own bookkeeping table would not have got here, and one that had recreated
-    // the table under a different owner would fail the second assertion.
-    const journal = await upgradeMigrator.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM drizzle.__drizzle_migrations`,
-    );
-    expect(Number(journal.rows[0]?.count)).toBeGreaterThan(0);
-    const journalOwner = await upgradeMigrator.query<{ owner: string }>(
-      `SELECT pg_get_userbyid(relowner) AS owner
-         FROM pg_class WHERE oid = 'drizzle.__drizzle_migrations'::regclass`,
-    );
-    expect(journalOwner.rows[0]?.owner).toBe(MIGRATE_ROLE);
-  });
-
-  it("lets the migration role write drizzle's bookkeeping table and its sequence", async () => {
-    // The narrower statement of the same thing, so a failure names the object. An
-    // INSERT here consumes the SERIAL sequence, which is the row the handover skips.
-    await upgradeMigrator.query("BEGIN");
-    try {
-      const inserted = await upgradeMigrator.query<{ id: number }>(
-        `INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
-         VALUES ('probe_492', 0) RETURNING id`,
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)])(
+    "still reports USAGE on it for %s, through PUBLIC, and that is the emptiness above doing the work",
+    async (role) => {
+      // **Recorded rather than fixed, because it is the honest reading of the catalogue.**
+      // Postgres grants `USAGE` on `public` to `PUBLIC` by default, so every role holds
+      // it whether or not the baseline says so, and a per-role read reports it as held.
+      // Criterion 2 is "`public` is on no search path and `CREATE` on it is granted to
+      // nobody" - both asserted below - and what makes the residual `USAGE` worth
+      // nothing is the assertion above: a schema holding no object is a schema `USAGE`
+      // conveys no access to. Revoking it from `PUBLIC` would also reach `drizzle`'s own
+      // bookkeeping schema's callers and the reporting consumer, for no privilege
+      // anybody could exercise, so the baseline revokes `CREATE` alone.
+      const res = await owner.query<{ has: boolean }>(
+        `select has_schema_privilege($1, 'public', 'USAGE') as has`,
+        [role],
       );
-      // A returned id means the linked sequence was reachable, which is the whole
-      // point: `nextval` on it is what an INSERT into this table does.
-      expect(inserted.rows[0]?.id).toBeGreaterThan(0);
-    } finally {
-      await upgradeMigrator.query("ROLLBACK");
+      expect(res.rows[0]?.has).toBe(true);
+    },
+  );
+
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)])(
+    "grants %s no CREATE on it",
+    async (role) => {
+      const res = await owner.query<{ has: boolean }>(
+        `select has_schema_privilege($1, 'public', 'CREATE') as has`,
+        [role],
+      );
+      expect(res.rows[0]?.has).toBe(false);
+    },
+  );
+
+  it("is on no application role's search path", async () => {
+    for (const role of [CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)]) {
+      const res = await clients
+        .get(role)!
+        .query<{ path: string }>(`select current_setting('search_path') as path`);
+      expect(res.rows[0]?.path, role).not.toContain("public");
     }
-  });
-
-  it("lets the migration role issue the DDL a future migration needs", async () => {
-    // Ownership of tables, functions and enums, each checked by the statement a
-    // migration would actually use. Each is reverted where it can be.
-    await upgradeMigrator.query("ALTER TABLE public.sessions ADD COLUMN probe_492 text");
-    await upgradeMigrator.query("ALTER TABLE public.sessions DROP COLUMN probe_492");
-    await upgradeMigrator.query("CREATE TABLE public.probe_492 (id text)");
-    await upgradeMigrator.query("DROP TABLE public.probe_492");
-    await upgradeMigrator.query(
-      `CREATE OR REPLACE FUNCTION answers_reject_delete() RETURNS trigger AS $fn$
-       BEGIN RETURN OLD; END $fn$ LANGUAGE plpgsql`,
-    );
-    // ALTER TYPE ... ADD VALUE is not revertible, which is fine in a throwaway
-    // container and is the statement a real migration uses on an enum.
-    await upgradeMigrator.query(
-      "ALTER TYPE public.access_mode ADD VALUE IF NOT EXISTS 'probe_492'",
-    );
-
-    // Each statement above needed ownership of a different KIND of object, so the
-    // assertion is that the handover reached all of them: the enum carries the added
-    // label, the probe table is gone again, and the trigger function is the one this
-    // test just replaced (proving CREATE OR REPLACE was allowed, not merely accepted).
-    const enumLabels = await upgradeMigrator.query<{ label: string }>(
-      `SELECT unnest(enum_range(NULL::public.access_mode))::text AS label`,
-    );
-    expect(enumLabels.rows.map((row) => row.label)).toContain("probe_492");
-    const leftovers = await upgradeMigrator.query<{ count: string }>(
-      `SELECT count(*)::text AS count FROM pg_tables
-        WHERE schemaname = 'public' AND tablename = 'probe_492'`,
-    );
-    expect(Number(leftovers.rows[0]?.count)).toBe(0);
-    const fn = await upgradeMigrator.query<{ owner: string }>(
-      `SELECT pg_get_userbyid(proowner) AS owner FROM pg_proc
-        WHERE proname = 'answers_reject_delete'`,
-    );
-    expect(fn.rows[0]?.owner).toBe(MIGRATE_ROLE);
-  });
-
-  it("still refuses the runtime role every form of DDL", async () => {
-    for (const sql of [
-      "CREATE TABLE public.smuggled (id text)",
-      "DROP TABLE public.sessions",
-      "ALTER TABLE public.sessions ADD COLUMN smuggled text",
-      "CREATE SCHEMA smuggled",
-      "TRUNCATE public.answers",
-    ]) {
-      const refusal = await refusalFor(upgradeApp, sql);
-      expect(refusal, `${sql} succeeded for the runtime role`).toBeDefined();
-      expect(refusal as string).toMatch(/permission denied|must be owner/i);
-    }
-    const schema = await upgradeApp.query<{ create: boolean }>(
-      `SELECT has_schema_privilege(current_user, 'public', 'CREATE') AS create`,
-    );
-    expect(schema.rows[0]?.create).toBe(false);
-  });
-
-  it("still lets the runtime role read and write rows", async () => {
-    const result = await upgradeApp.query<{ select: boolean; delete: boolean }>(
-      `SELECT has_table_privilege(current_user, 'public.sessions', 'SELECT') AS select,
-              has_table_privilege(current_user, 'public.sessions', 'DELETE') AS delete`,
-    );
-    expect(result.rows[0]).toEqual({ select: true, delete: true });
-    const rows = await upgradeApp.query("SELECT * FROM reporting.responses LIMIT 1");
-    expect(rows.rowCount).not.toBeNull();
   });
 });
 
-describe("the documented reporting role is read-only on the reporting views", () => {
-  it("connects as the role the recipe creates (the fixture is real)", async () => {
-    const who = await reporting.query<{ current_user: string }>("SELECT current_user");
-    expect(who.rows[0]?.current_user).toBe(REPORTING_ROLE);
+describe("the documented reporting consumer role is read-only on one environment", () => {
+  it("reads that environment's views", async () => {
+    const res = await clients.get(REPORTING_ROLE)!.query(`select * from responses limit 1`);
+    expect(res.rowCount).toBeGreaterThanOrEqual(0);
   });
 
-  it.each(["reporting.responses", "reporting.answers_flat"])("reads %s", async (view) => {
-    const result = await reporting.query(`SELECT * FROM ${view} LIMIT 1`);
-    expect(result.rowCount).not.toBeNull();
-  });
-
-  it.each(["answers", "sessions", "webhooks", "secure_links", "form_versions"])(
-    "cannot read the operational table public.%s",
-    async (table) => {
-      const refusal = await refusalFor(reporting, `SELECT * FROM public.${table} LIMIT 1`);
-      expect(refusal, `public.${table} was readable by the reporting role`).toBeDefined();
-      expect(refusal as string).toMatch(/permission denied/i);
-    },
-  );
-
-  it("cannot write through the reporting views", async () => {
-    const refusal = await refusalFor(reporting, "DELETE FROM reporting.responses");
-    expect(refusal).toBeDefined();
-    expect(refusal as string).toMatch(/permission denied|cannot delete|not updatable/i);
-  });
-
-  it.each(["DELETE FROM public.sessions", "DELETE FROM public.answers"])(
-    "cannot write to an operational table: %s",
-    async (sql) => {
-      // Column-free statements on purpose: a statement naming a column fails on
-      // name resolution first, which reads like a refusal without being one.
-      const refusal = await refusalFor(reporting, sql);
-      expect(refusal).toBeDefined();
-      expect(refusal as string).toMatch(/permission denied/i);
-    },
-  );
-
-  it("cannot issue DDL anywhere", async () => {
-    for (const sql of [
-      "CREATE TABLE public.smuggled (id text)",
-      "CREATE TABLE reporting.smuggled (id text)",
-      "DROP VIEW reporting.responses",
-      "CREATE SCHEMA smuggled",
-    ]) {
-      const refusal = await refusalFor(reporting, sql);
-      expect(refusal, `${sql} succeeded for the reporting role`).toBeDefined();
-      expect(refusal as string).toMatch(/permission denied|must be owner/i);
-    }
-  });
-
-  it("holds no privilege on the public schema at all", async () => {
-    const result = await reporting.query<{ usage: boolean; create: boolean }>(
-      `SELECT has_schema_privilege(current_user, 'public', 'USAGE') AS usage,
-              has_schema_privilege(current_user, 'public', 'CREATE') AS create`,
+  it("cannot reach the operational tables or another environment's views", async () => {
+    const client = clients.get(REPORTING_ROLE)!;
+    expect(await refusalFor(client, `select * from data_prod.answers limit 1`)).toMatch(
+      /permission denied/i,
     );
-    expect(result.rows[0]?.create).toBe(false);
+    expect(await refusalFor(client, `select * from reporting_test.responses limit 1`)).toMatch(
+      /permission denied/i,
+    );
+    expect(await refusalFor(client, `select * from control.user limit 1`)).toMatch(
+      /permission denied/i,
+    );
+  });
+
+  it("cannot write or issue DDL anywhere", async () => {
+    const client = clients.get(REPORTING_ROLE)!;
+    expect(await refusalFor(client, `delete from responses`)).toBeDefined();
+    expect(await refusalFor(client, `create table probe (id int)`)).toBeDefined();
   });
 });
 
 describe("the roles are the operator's to create, not a migration's", () => {
   it("ships no role-creating migration", async () => {
-    // Roles are cluster-level and environment-specific, so no migration creates one
-    // and `docs/operations.md` carries the recipe instead (issue #428 keeps the
-    // migration journal for schema changes). Every qcms role in this container was
-    // created by this file, from a documented recipe - which is the assertion.
+    // Roles are cluster-level, need a credential no migration may carry, and
+    // `qcms_migrate` deliberately holds no CREATEROLE - so the recipe in
+    // `docs/operations.md` creates them and the baseline only grants, guarded on each
+    // role existing. Every qcms role in this container was created by this file.
     const roles = await owner.query<{ rolname: string }>(
       `SELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms%' ORDER BY rolname`,
     );
-    expect(roles.rows.map((row) => row.rolname)).toEqual([APP_ROLE, MIGRATE_ROLE, REPORTING_ROLE]);
+    expect(roles.rows.map((row) => row.rolname)).toEqual(
+      [
+        MIGRATE_ROLE,
+        CONTROL_ROLE,
+        ...Object.values(ENVIRONMENT_ROLES),
+        UNSHIPPED_ROLE,
+        REPORTING_ROLE,
+      ].sort(),
+    );
   });
 });

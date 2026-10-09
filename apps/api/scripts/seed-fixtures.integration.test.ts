@@ -55,7 +55,12 @@ import {
   questions,
 } from "@roonga/qcms-db";
 import { eq } from "drizzle-orm";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -207,6 +212,7 @@ describe("the sample-data lifecycle against a real database", () => {
     const [version] = await listFormVersions(db, formId);
     const sessionId = SessionId.parse("ses_seed_clear_guard");
     await createSession(db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version?.version ?? 1,

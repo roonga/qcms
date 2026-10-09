@@ -33,7 +33,12 @@ import {
   insertSubmission,
   markSubmitted,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
@@ -150,6 +155,7 @@ async function seedSubmitted(opts: {
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
     formVersion: 1,
@@ -459,8 +465,8 @@ describe("large export streams without buffering the whole table (exit criterion
     // statement each) - far faster than 30k helper calls, and enough to prove
     // the export never materializes the whole table in memory.
     await testDb.client.query(
-      `insert into sessions (session_id, form_id, form_version, access_mode, status, expires_at, created_at)
-       select 'ses_bulk_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'submitted', now() + interval '1 day', now()
+      `insert into sessions (session_id, form_id, form_version, access_mode, environment, status, expires_at, created_at)
+       select 'ses_bulk_' || lpad(g::text, 6, '0'), $1, 1, 'anonymous', 'prod', 'submitted', now() + interval '1 day', now()
        from generate_series(1, 10000) g`,
       [formId],
     );
@@ -612,6 +618,7 @@ describe("erase excludes from all read paths; unflag releases the event (exit cr
     const formId = await seedForm("frm_unflag_nosub", [["stp_a", ["q_name"]]]);
     const sessionId = SessionId.parse("ses_unflag_nosub");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: 1,
@@ -886,6 +893,7 @@ async function seedRepeatSubmitted(opts: {
 }): Promise<SessionId> {
   const sessionId = SessionId.parse(opts.sessionId);
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId: opts.formId,
     formVersion: opts.formVersion,

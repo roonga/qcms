@@ -52,7 +52,7 @@ function requireFormId(id: string): FormId {
 }
 
 async function requireForm(deps: Deps, formId: FormId): Promise<void> {
-  const form = await getForm(deps.db, formId);
+  const form = await getForm(deps.databases.control, formId);
   if (form === undefined) throw fail.formNotFound();
 }
 
@@ -103,7 +103,23 @@ export function makeMintLinksHandler(deps: Deps): RouteHandler<typeof mintLinksR
       const linkId = newLinkId();
       // Insert the state row first, then mint the matching token: 018 rejects a
       // token whose row is absent, so the row must exist by the time a URL ships.
-      await insertSecureLink(deps.db, { linkId, formId, expiresAt: expiry, oneTime });
+      // The environment a link is minted for. **Task 066 owns choosing it** (Q19): on
+      // the API the field becomes required and a caller that omits it is refused, and
+      // in the admin the mint screen takes it from the Q6 switcher. Until then every
+      // newly minted link is `prod` (Q53), through the same interim seam every request
+      // resolves by - see `INTERIM_REQUEST_ENVIRONMENT`.
+      //
+      // Minting runs on the **control** pool, because `secure_links` is a control-plane
+      // table and `qcms_app_control` is the only application role with `INSERT` on it.
+      // An environment role deliberately holds `SELECT` and `UPDATE` there and no
+      // `INSERT`: it redeems and consumes a link, it never creates one.
+      await insertSecureLink(deps.databases.control, {
+        linkId,
+        formId,
+        expiresAt: expiry,
+        environment: deps.databases.defaultEnvironment,
+        oneTime,
+      });
       const token = await mintSecureLink(
         { formId, linkId, expiresAt: expiresAtIso, oneTime },
         signingKey,
@@ -123,7 +139,7 @@ export function makeListLinksHandler(deps: Deps): RouteHandler<typeof listLinksR
     const now = deps.clock.now();
     await requireForm(deps, formId);
 
-    const rows = await listSecureLinks(deps.db, formId);
+    const rows = await listSecureLinks(deps.databases.control, formId);
     return c.json(
       {
         links: rows.map((row) => ({
@@ -157,7 +173,7 @@ export function makeRevokeLinkHandler(deps: Deps): RouteHandler<typeof revokeLin
     if (!linkId.success) throw fail.invalidLinkId();
 
     const now = deps.clock.now();
-    const row = await revokeSecureLink(deps.db, linkId.data, formId, now);
+    const row = await revokeSecureLink(deps.databases.control, linkId.data, formId, now);
     // Idempotency choice: a link that does not exist in this form *or* is already
     // revoked returns 404 - the caller learns the link is not in a revocable state.
     if (row === undefined) throw fail.linkNotFound();

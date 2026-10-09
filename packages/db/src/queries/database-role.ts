@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 
+import { CONTROL_SCHEMA } from "../schema/schemas.js";
 import type { Executor } from "./executor.js";
 
 /**
@@ -56,7 +57,17 @@ export interface ConnectedRole {
   readonly ownsResetTables: boolean;
 }
 
-/** Read `current_user` and its ownership of the tables the reset writes. */
+/**
+ * Read `current_user` and its ownership of the tables the reset writes.
+ *
+ * **`control` by name rather than `current_schema()`** since ADR-40. The three tables it
+ * checks are control-plane tables and now live in a schema QCMS named, and a connection
+ * that set no `search_path` would find `current_schema()` to be `public`, which under
+ * this layout holds nothing at all - so the guard would report "none of the tables exist"
+ * and refuse the migration credential itself. Naming the schema is right for the same
+ * reason the tables are named: the check is about a fixed set of objects in a fixed
+ * place, not about wherever this connection happens to be pointing.
+ */
 export async function readConnectedRole(exec: Executor): Promise<ConnectedRole> {
   // `sql.join` rather than `= any(${array})`: drizzle expands a JS array into one
   // bind parameter per element, so the `any()` form reaches Postgres as
@@ -76,7 +87,7 @@ export async function readConnectedRole(exec: Executor): Promise<ConnectedRole> 
       (count(c.oid) filter (where pg_catalog.pg_has_role(c.relowner, 'USAGE')))::int as tables_owned
     from pg_catalog.pg_class c
     join pg_catalog.pg_namespace n on n.oid = c.relnamespace
-    where n.nspname = current_schema()
+    where n.nspname = ${CONTROL_SCHEMA}
       and c.relkind = 'r'
       and c.relname in (${names})
   `);

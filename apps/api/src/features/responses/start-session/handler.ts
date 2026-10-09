@@ -144,12 +144,12 @@ async function startAnonymous(
   now: Date,
   challenge: ChallengeContext,
 ): Promise<StartResult> {
-  const form = await getFormBySlug(deps.db, formSlug);
+  const form = await getFormBySlug(deps.databases.forRequest().exec, formSlug);
   if (form === undefined) throw fail.formNotFound();
   if (form.status === "closed") throw fail.formClosed();
   await enforceChallenge(deps, form.challengeRequired, challenge);
 
-  const version = await getLatestPublishedVersion(deps.db, form.formId);
+  const version = await getLatestPublishedVersion(deps.databases.forRequest().exec, form.formId);
   if (version === undefined) throw fail.noPublishedVersion();
 
   const expiresAt = sessionExpiresAt({
@@ -158,11 +158,16 @@ async function startAnonymous(
     config: ttlConfig(deps.config),
   });
   const sessionId = newSessionId();
-  await createSession(deps.db, {
+  const request = deps.databases.forRequest();
+  await createSession(request.exec, {
     sessionId,
     formId: form.formId,
     formVersion: version.version,
     accessMode: "anonymous",
+    // The connection's own environment (Q46). The row lands in `data_<env>` by search
+    // path and the per-schema CHECK refuses it if the two disagree, so a mismatch is a
+    // constraint violation rather than a row that quietly claims to be elsewhere.
+    environment: request.environment,
     expiresAt,
   });
 
@@ -185,7 +190,7 @@ async function startFromSecureLink(
   const { formId, linkId, expiresAt: linkExpiresAtIso, oneTime } = verified.value;
   const linkExpiresAt = new Date(linkExpiresAtIso);
 
-  const row = await getSecureLink(deps.db, linkId);
+  const row = await getSecureLink(deps.databases.forRequest().exec, linkId);
   // A validly-signed link with no server row was never minted here - reject it
   // as invalid rather than trusting the token alone (SEC-2).
   if (row === undefined) throw fail.linkInvalid();
@@ -198,7 +203,7 @@ async function startFromSecureLink(
   //
   // A form may also require a challenge even for invited (secure-link) entry;
   // the setting is per-form (task 026). One read of the identity row serves both.
-  const form = await getForm(deps.db, formId);
+  const form = await getForm(deps.databases.forRequest().exec, formId);
   if (form?.status === "closed") throw fail.formClosed();
   await enforceChallenge(deps, form?.challengeRequired ?? false, challenge);
 
@@ -212,6 +217,7 @@ async function startFromSecureLink(
     config: ttlConfig(deps.config),
   });
   const sessionId = newSessionId();
+  const request = deps.databases.forRequest();
 
   let formVersion: number;
   if (oneTime === true) {
@@ -219,13 +225,20 @@ async function startFromSecureLink(
     // `consumeSecureLink` makes exactly one of two concurrent starts win; the
     // loser matches no row → LINK_CONSUMED and the transaction rolls back so no
     // orphan session is created.
-    formVersion = await deps.db.transaction(async (tx) => {
+    formVersion = await request.exec.transaction(async (tx) => {
       const consumed = await consumeSecureLink(tx, linkId, now);
       if (consumed === undefined) throw fail.linkConsumed();
-      return insertPinnedSession(tx, sessionId, formId, linkId, expiresAt);
+      return insertPinnedSession(tx, request.environment, sessionId, formId, linkId, expiresAt);
     });
   } else {
-    formVersion = await insertPinnedSession(deps.db, sessionId, formId, linkId, expiresAt);
+    formVersion = await insertPinnedSession(
+      request.exec,
+      request.environment,
+      sessionId,
+      formId,
+      linkId,
+      expiresAt,
+    );
   }
 
   return finish(deps, sessionId, formVersion, expiresAt);
@@ -253,6 +266,7 @@ function assertLinkUsable(row: SecureLinkRow, now: Date): void {
  */
 async function insertPinnedSession(
   exec: Executor,
+  environment: string,
   sessionId: SessionId,
   formId: FormId,
   linkId: LinkId,
@@ -266,6 +280,10 @@ async function insertPinnedSession(
     formVersion: version.version,
     accessMode: "secure_link",
     linkId,
+    // The connection's own environment (Q46). With a link, the composite foreign key
+    // additionally requires the link's own row to name the same one, so a link minted
+    // for another environment cannot start a session here however the request arrived.
+    environment,
     expiresAt,
   });
   return version.version;
@@ -308,7 +326,7 @@ export function makeGetSessionHandler(deps: Deps): RouteHandler<typeof getSessio
       throw new ApiError("unauthorized", 401, "Session token does not match this session");
     }
 
-    const session = await getSession(deps.db, authedSessionId);
+    const session = await getSession(deps.databases.forRequest().exec, authedSessionId);
     if (session === undefined) throw new ApiError("SESSION_NOT_FOUND", 404, "No such session");
 
     return c.json(

@@ -30,6 +30,7 @@ describe("query helper import surface", () => {
     "updateDraftDefinition",
     "listQuestions",
     "isQuestionIdTaken",
+    "isQuestionIdInAnswerLedger",
     // forms
     "getFormBySlug",
     "getForm",
@@ -108,6 +109,7 @@ describe("query helper import surface", () => {
     "backoffDelayMs",
     "computeBackoff",
     "enqueue",
+    "enqueueInEnvironment",
     "claimDue",
     "markDelivered",
     "recordFailure",

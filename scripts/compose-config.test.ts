@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -124,20 +125,31 @@ describe("solo compose topology (ADR-20)", () => {
 });
 
 /**
- * The SEC-10 app/migration credential split (issue #492).
+ * The SEC-10 credential split, as ADR-40 makes it (issues #492 and #995).
  *
- * The Code Owner's ruling of 2026-09-02 is a property of the shipped Compose file,
- * not only of a document: `migrate` connects as `qcms_migrate`, which owns the schema
- * and holds the DDL rights, and `api` connects as `qcms_app`, which holds DML and
- * nothing else. Both values are resolved by Compose here rather than read out of the
- * YAML, because `api` gets its credential by OVERRIDING a key on the `*api-env`
- * anchor it shares with `migrate` - and "a directly written key wins over a merged
- * one" is exactly the kind of claim that deserves a test rather than a comment.
+ * The Code Owner's ruling of 2026-09-02 split one credential into two; the ruling of
+ * 2026-09-29 (Q40, as amended by Q48, Q49 and Q52) splits the runtime half again into a
+ * **control** role and **one per environment**. So this file asserts three properties of
+ * the shipped Compose file rather than two:
  *
- * The recipe both roles come from, and the reasoning for granting DELETE whole, are
- * in the "Least-privilege database roles" section of `docs/operations.md`.
+ *   - `migrate` connects as `qcms_migrate`, which owns every schema;
+ *   - `api`'s `DATABASE_URL` is the **control** pool, `qcms_app_control`;
+ *   - each `QCMS_DATABASE_URL_<ENV>` is that environment's **own** role, and no two
+ *     services or pools share a credential.
+ *
+ * Every value is resolved by Compose here rather than read out of the YAML, because
+ * `api` gets its credential by OVERRIDING a key on the `*api-env` anchor it shares with
+ * `migrate`, and "a directly written key wins over a merged one" is exactly the kind of
+ * claim that deserves a test rather than a comment.
+ *
+ * **The grants are deliberately not asserted here any more.** They moved into the
+ * baseline migration, which is the only place that runs as the tables' owner in the same
+ * step that creates them (migration 0021's rule), and they are asserted against a real
+ * Postgres per role and per schema in
+ * `apps/api/e2e/security/03-db-least-privilege.e2e.ts`. A second copy of the grant model
+ * in this file would be a second copy to keep in step with four rulings.
  */
-describe("least-privilege database roles (SEC-10, issue #492)", () => {
+describe("least-privilege database roles (SEC-10, issues #492 and #995)", () => {
   /** The username in a service's resolved `DATABASE_URL`. */
   function databaseRole(name: string): string {
     const url = service(solo, name).environment?.DATABASE_URL ?? "";
@@ -145,30 +157,76 @@ describe("least-privilege database roles (SEC-10, issue #492)", () => {
     return new URL(url).username;
   }
 
+  /** The username in a service's resolved per-environment connection string. */
+  function environmentRole(name: string, environment: string): string {
+    const key = `QCMS_DATABASE_URL_${environment.toUpperCase()}`;
+    const url = (service(solo, name).environment ?? {})[key] ?? "";
+    expect(url, `${name} must carry a ${key}`).not.toBe("");
+    return new URL(url).username;
+  }
+
   it("runs the migration as the schema-owning role", () => {
     expect(databaseRole("migrate")).toBe("qcms_migrate");
   });
 
-  it("runs the API as the DML-only role, never as the migration role", () => {
-    // The whole point of the split: the process that serves respondent and authoring
-    // traffic holds a credential that cannot issue DDL. If the `<<: *api-env` merge
-    // ever stopped being overridden, this is the assertion that fails.
-    expect(databaseRole("api")).toBe("qcms_app");
+  it("runs the API's control pool as the control role, never as the migration role", () => {
+    // The whole point of the split: the process that serves authoring and respondent
+    // traffic holds a credential that cannot issue DDL. If the `<<: *api-env` merge ever
+    // stopped being overridden, this is the assertion that fails.
+    expect(databaseRole("api")).toBe("qcms_app_control");
     expect(databaseRole("api")).not.toBe(databaseRole("migrate"));
   });
 
-  it("keeps the bootstrap superuser out of both", () => {
-    // QCMS_DB_USER creates the two roles and is then held by nothing that serves
-    // traffic. A service falling back to it would be the old single-credential world
-    // wearing the new file's name.
+  it.each(["test", "prod"])("runs the %s pool as that environment's own role", (environment) => {
+    expect(environmentRole("api", environment)).toBe(`qcms_app_${environment}`);
+  });
+
+  it("gives every pool a credential of its own", () => {
+    // Distinct ROLES are the boundary, and distinct passwords are what make the boundary
+    // hold: a shared password would let a process holding the control credential connect
+    // as an environment role, and Q40's property would be a convention rather than a
+    // control. Asserted on the resolved URLs, so a `.env` that set one variable for all
+    // three fails here.
+    const credentials = [
+      new URL(service(solo, "api").environment?.DATABASE_URL ?? "").password,
+      ...["test", "prod"].map(
+        (environment) =>
+          new URL(
+            (service(solo, "api").environment ?? {})[
+              `QCMS_DATABASE_URL_${environment.toUpperCase()}`
+            ] ?? "",
+          ).password,
+      ),
+    ];
+    expect(new Set(credentials).size).toBe(credentials.length);
+  });
+
+  it("names the same environment set the API is configured with", () => {
+    // The list and the credentials have to agree before the process even starts; the
+    // API then checks that list against `control.environments` and refuses when the two
+    // disagree (criterion 6a). This is the cheaper half of the same property.
+    const configured = (service(solo, "api").environment?.QCMS_ENVIRONMENTS ?? "").split(",");
+    for (const environment of configured) {
+      expect(environmentRole("api", environment.trim())).toBe(`qcms_app_${environment.trim()}`);
+    }
+  });
+
+  it("keeps the bootstrap superuser out of every pool", () => {
+    // QCMS_DB_USER creates the roles and is then held by nothing that serves traffic. A
+    // service falling back to it would be the old single-credential world wearing the
+    // new file's name.
     for (const name of ["api", "migrate"]) {
       expect(databaseRole(name), `${name} must not use the bootstrap credential`).not.toBe("qcms");
+    }
+    for (const environment of ["test", "prod"]) {
+      expect(environmentRole("api", environment)).not.toBe("qcms");
     }
   });
 
   it("creates the roles in a one-shot that the migration waits for", () => {
-    // Ordering is the whole recipe: the roles must exist and own the schema before
-    // drizzle-kit connects. `restart: "no"` because it is a one-shot like `migrate`.
+    // Ordering is the whole recipe: the roles must exist and own the schemas before
+    // drizzle-kit connects, because the baseline's own grants are guarded on each role
+    // existing. `restart: "no"` because it is a one-shot like `migrate`.
     const roles = (solo as { services: Record<string, { restart?: string }> }).services["db-roles"];
     expect(roles).toBeDefined();
     expect(roles?.restart).toBe("no");
@@ -182,67 +240,26 @@ describe("least-privilege database roles (SEC-10, issue #492)", () => {
     });
   });
 
-  it("grants the runtime role DML and never CREATE", () => {
-    // Read from the RESOLVED entrypoint, so this asserts the statements the container
-    // will actually run, exactly as the dev-tools read-only role is asserted below.
+  it("creates every application role the API is configured to use, and grants none of them", () => {
     const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
-    expect(sql).toContain("GRANT INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public");
-    expect(sql).toContain("GRANT USAGE ON SCHEMA %I TO qcms_app");
-    expect(sql).toContain("ALTER SCHEMA %I OWNER TO qcms_migrate");
-    // No CREATE for the runtime role, in any spelling. A plain text search would be
-    // wrong in both directions here: `GRANT CREATE ON DATABASE` is present and
-    // correct for qcms_migrate, and `CREATE ROLE qcms_app` is present as a string
-    // literal. So the check is per grant statement, per grantee.
+    for (const role of ["qcms_migrate", "qcms_app_control", "qcms_app_test", "qcms_app_prod"]) {
+      expect(sql, `${role} must be created by the one-shot`).toContain(`CREATE ROLE ${role} LOGIN`);
+    }
+    // And no grant to an application role lives here: they belong to the baseline, which
+    // is the migration that creates the tables they are on. A copy here would drift.
     for (const line of sql.split("\n")) {
-      if (!/\bGRANT\b/.test(line) || !line.includes("qcms_app")) continue;
-      expect(line, `qcms_app must never be granted CREATE: ${line}`).not.toMatch(/\bCREATE\b/);
+      if (!/\bGRANT\b/.test(line)) continue;
+      expect(line, `only qcms_migrate may be granted anything here: ${line}`).not.toMatch(
+        /qcms_app/,
+      );
     }
   });
 
-  it("keeps every write grant scoped to public, so reporting stays a read surface", () => {
-    // SEC-10 and the operations table both say qcms_app gets SELECT on the reporting
-    // views and nothing more. The all-schemas pass therefore grants SELECT only, and
-    // every write verb is confined to `public` by name (reviewer finding on PR #782:
-    // an unscoped DML grant reached the reporting views once migration 0003 ran).
-    // Per STATEMENT, not per line: `ALTER DEFAULT PRIVILEGES ... IN SCHEMA public`
-    // carries its scope on the line above its `GRANT`, so a line-wise reader would
-    // call a correctly scoped grant unscoped. `;` and `\gexec` are what end a
-    // statement in this script, and comments are stripped so the prose explaining
-    // why `reporting` gets no write cannot itself match a write verb.
-    const statements = (service(solo, "db-roles").entrypoint ?? [])
-      .join("\n")
-      .replaceAll(/^\s*--.*$/gm, "")
-      .split(/;|\\gexec/)
-      .map((statement) => statement.replaceAll(/\s+/g, " ").trim())
-      .filter((statement) => statement.length > 0);
-
-    const writeGrants = statements.filter(
-      (statement) => /\bGRANT\b/.test(statement) && /\b(INSERT|UPDATE|DELETE)\b/.test(statement),
-    );
-    expect(writeGrants.length).toBeGreaterThan(0);
-    for (const statement of writeGrants) {
-      expect(statement, `a write grant must name public explicitly: ${statement}`).toMatch(
-        /IN SCHEMA public\b/,
-      );
-      expect(
-        statement,
-        `a write grant must not fan out over every schema: ${statement}`,
-      ).not.toContain("%I");
-    }
-
-    // And the unscoped default privilege is the SELECT one, and only the SELECT one:
-    // it is what has to reach `reporting`, which does not exist when this runs.
-    const unscopedDefaults = statements.filter(
-      (statement) =>
-        statement.startsWith("ALTER DEFAULT PRIVILEGES") && !/IN SCHEMA/.test(statement),
-    );
-    expect(unscopedDefaults.length).toBeGreaterThan(0);
-    for (const statement of unscopedDefaults) {
-      expect(
-        statement,
-        `an unscoped default must not carry a write verb: ${statement}`,
-      ).not.toMatch(/\b(INSERT|UPDATE|DELETE)\b/);
-    }
+  it("leaves `public` with CREATE granted to nobody", () => {
+    // `public` holds no QCMS object at all under ADR-40 and is on no search path, so
+    // there is nothing for CREATE on it to be for.
+    const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
+    expect(sql).toContain("REVOKE CREATE ON SCHEMA public FROM PUBLIC");
   });
 
   it("never tries to reassign a table's linked sequence", () => {
@@ -255,6 +272,36 @@ describe("least-privilege database roles (SEC-10, issue #492)", () => {
     const sql = (service(solo, "db-roles").entrypoint ?? []).join("\n");
     expect(sql).toContain("pg_depend");
     expect(sql).toContain("d.deptype IN ('a', 'i')");
+  });
+
+  it("excludes the system schemas with a LIKE escape that is ONE backslash", () => {
+    // **A one-character defect that takes the whole stack down, and it took this one
+    // down.** The ownership handover walks `pg_namespace` and skips the system schemas
+    // with `nspname NOT LIKE 'pg\_%'`. A YAML block scalar processes no escapes and
+    // Compose interpolation escapes only `$`, so that text reaches psql unchanged and the
+    // `\_` is LIKE's escape for a literal underscore, which is what excludes `pg_catalog`
+    // and `pg_toast`.
+    //
+    // Doubled to `'pg\\_%'` the pattern becomes an escaped BACKSLASH followed by any one
+    // character, so it matches nothing at all, no system schema is excluded, and the loop
+    // emits `ALTER SCHEMA pg_catalog OWNER TO qcms_migrate`. Under `ON_ERROR_STOP` that
+    // aborts the one-shot with exit 3, and neither `migrate` nor `api` ever starts. The
+    // file looks entirely reasonable either way, which is why this is asserted rather than
+    // trusted: the doubling is what a careless edit, or a scripted replacement over the
+    // file, produces.
+    //
+    // Read as TEXT and over both copies, unlike the assertions above. What is being
+    // checked is a character sequence inside a block scalar, and the scaffold's generated
+    // copy has to carry it too - a scaffolded project whose database roles one-shot fails
+    // is a project that never starts at all.
+    for (const path of [
+      "docker-compose.yml",
+      "packages/create-qcms-app/templates/common/docker-compose.yml",
+    ]) {
+      const text = readFileSync(join(REPOSITORY_ROOT, path), "utf8");
+      expect(text, path).toContain("NOT LIKE 'pg\\_%'");
+      expect(text, path).not.toContain("NOT LIKE 'pg\\\\_%'");
+    }
   });
 });
 

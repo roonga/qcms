@@ -177,7 +177,8 @@ export function makeListResponsesHandler(
     const filter = parseFilter(q);
     const { page, pageSize, limit, offset } = pageWindow(q.page, q.pageSize);
 
-    const { rows, total } = await listResponses(deps.db, {
+    const request = deps.databases.forRequest();
+    const { rows, total } = await listResponses(request.exec, request.environment, {
       formId,
       ...filter,
       ...(q.flagged !== undefined ? { flagged: q.flagged === "true" } : {}),
@@ -214,12 +215,13 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
 
     // Reads the reporting view: an erased session is absent (tombstone anti-join)
     // → undefined → 404. Detail cannot bypass the exclusion.
-    const detail = await getResponse(deps.db, formId, sessionId);
+    const request = deps.databases.forRequest();
+    const detail = await getResponse(request.exec, request.environment, formId, sessionId);
     if (detail === undefined) throw fail.responseNotFound();
 
     // The append-only answer ledger - the audit history (every revision, oldest
     // first). Present because the session is non-erased (erasure deletes it).
-    const ledger = await answerLedger(deps.db, sessionId);
+    const ledger = await answerLedger(deps.databases.forRequest().exec, sessionId);
 
     return c.json(
       {
@@ -273,7 +275,7 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     }
     const version = filter.version;
     const shape: ExportShape = q.shape ?? LONG_SHAPE;
-    const formVersion = await getFormVersion(deps.db, formId, version);
+    const formVersion = await getFormVersion(deps.databases.forRequest().exec, formId, version);
     if (formVersion === undefined) throw fail.versionNotFound();
     const definition = formVersion.definition satisfies FormDefinition;
     const columns = responseColumns(definition, shape);
@@ -467,7 +469,8 @@ function nextPage(
   filter: ExportFilter,
   after: SessionId | undefined,
 ): Promise<ReportingResponseRow[]> {
-  return fetchResponsePage(deps.db, {
+  const request = deps.databases.forRequest();
+  return fetchResponsePage(request.exec, request.environment, {
     formId: filter.formId,
     ...(filter.version !== undefined ? { version: filter.version } : {}),
     ...(filter.from !== undefined ? { from: filter.from } : {}),
@@ -511,7 +514,12 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
       // both the tombstone lookup and the session lookup, rather than being compared
       // against the outcome here. That ordering is the point - a comparison after
       // the fact would run once the deletes had already happened.
-      const outcome = await eraseSession(deps.db, formId, sessionId, reason);
+      const outcome = await eraseSession(
+        deps.databases.forRequest().exec,
+        formId,
+        sessionId,
+        reason,
+      );
       return c.json(
         {
           sessionId: outcome.sessionId,
@@ -540,7 +548,7 @@ export function makeListErasuresHandler(
     const formId = q.formId === undefined ? undefined : requireFormId(q.formId);
     const { limit, offset } = pageWindow(q.page, q.pageSize);
 
-    const rows = await listTombstones(deps.db, {
+    const rows = await listTombstones(deps.databases.forRequest().exec, {
       ...(formId !== undefined ? { formId } : {}),
       limit,
       offset,
@@ -574,21 +582,21 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
     // does not exist. This read also supplies the formId/formVersion the released
     // event carries, so scoping costs no extra round trip - the handler already
     // needed the session row.
-    const session = await getSessionInForm(deps.db, formId, sessionId);
+    const session = await getSessionInForm(deps.databases.forRequest().exec, formId, sessionId);
     if (session === undefined) throw fail.sessionNotFound();
 
     // The submission carries the audit payload (contentHash, locked answers) the
     // withheld event needs; a session without one has nothing to release → 404.
     // Safe unscoped: the session it belongs to is proven in-form immediately above,
     // and a submission is keyed by that session.
-    const submission = await getSubmission(deps.db, sessionId);
+    const submission = await getSubmission(deps.databases.forRequest().exec, sessionId);
     if (submission === undefined) throw fail.submissionNotFound();
 
     // One transaction: the conditional flag-clear and the released event commit
     // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe -
     // only the caller that actually flips the flag gets `true`, so the event is
     // enqueued exactly once even under concurrent unflags (idempotent).
-    const released = await deps.db.transaction(async (tx) => {
+    const released = await deps.databases.forRequest().exec.transaction(async (tx) => {
       const flipped = await clearSubmissionFlag(tx, sessionId);
       if (flipped) {
         await enqueue(tx, {

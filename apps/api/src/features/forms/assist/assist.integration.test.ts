@@ -189,8 +189,8 @@ describe("the assist slice over HTTP", () => {
       // draft is opened for the agent to work against.
       expect((await post("/forms/frm_assist/publish")).status).toBe(200);
       await testDb.client.query(
-        `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-         values ('ses_pii', 'frm_assist', 1, 'anonymous', now() + interval '1 hour')`,
+        `insert into sessions (session_id, form_id, form_version, access_mode, environment, expires_at)
+         values ('ses_pii', 'frm_assist', 1, 'anonymous', 'prod', now() + interval '1 hour')`,
       );
       await testDb.client.query(
         `insert into answers (session_id, question_id, value) values ('ses_pii', 'q_at_fault', $1::jsonb)`,

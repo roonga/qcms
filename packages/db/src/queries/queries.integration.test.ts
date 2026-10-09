@@ -8,7 +8,13 @@ import { FormId, LinkId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import * as schema from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 import {
   answerLedger,
   appendAnswer,
@@ -46,6 +52,7 @@ import {
   insertSubmission,
   isRetraction,
   retractAnswer,
+  isQuestionIdInAnswerLedger,
   isQuestionIdTaken,
   latestAnswers,
   listDeadLetters,
@@ -261,16 +268,26 @@ describe("questions helpers", () => {
     await expect(listVersionsForQuestions(testDb.db, [])).resolves.toEqual([]);
   });
 
-  it("reports questionId use, including historic answer rows (R6)", async () => {
+  it("reports questionId use in the library and in an answer ledger, as two halves (R6)", async () => {
+    // **R6 is one rule asked on two planes since ADR-40.** It used to be one `union all`
+    // over `control.questions` and `answers`, and that statement cannot exist any more: the
+    // authoring connection's search path is `control` alone and its role holds no read on
+    // any data-plane table, which is the property Q40 exists to buy. So the library half is
+    // `isQuestionIdTaken` on the control plane, the ledger half is
+    // `isQuestionIdInAnswerLedger` on an environment's own pool, and
+    // `apps/api/src/features/questions/create.ts` runs the second once per environment in
+    // the live set (Q1).
     const questionId = QuestionId.parse("q_taken");
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(false);
     await createQuestion(testDb.db, { questionId, slug: "q-taken-slug" });
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(true);
 
-    // An id surviving only in the answer ledger still counts as taken.
+    // An id surviving ONLY in the answer ledger - its question deprecated or erased - is
+    // still refused, which is the half the split had to keep working.
     const { formId, version } = await seedPublishedForm("frm_taken");
     const sessionId = SessionId.parse("ses_taken");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -279,7 +296,15 @@ describe("questions helpers", () => {
     });
     const historic = QuestionId.parse("q_historic_only");
     await appendAnswer(testDb.db, { sessionId, questionId: historic, value: "x" });
-    expect(await isQuestionIdTaken(testDb.db, historic)).toBe(true);
+    expect(await isQuestionIdInAnswerLedger(testDb.db, historic)).toBe(true);
+
+    // And the library half does NOT see it, which is what makes the second call necessary
+    // rather than belt and braces: a caller that dropped it would reuse this id silently.
+    expect(await isQuestionIdTaken(testDb.db, historic)).toBe(false);
+
+    // The ledger half is scoped to the connection's own environment, so an id the library
+    // holds but no respondent ever answered is absent from it.
+    expect(await isQuestionIdInAnswerLedger(testDb.db, questionId)).toBe(false);
   });
 });
 
@@ -388,6 +413,7 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     const { formId, version } = await seedPublishedForm("frm_session");
     const sessionId = SessionId.parse("ses_pin");
     const created = await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -415,6 +441,7 @@ describe("sessions helpers and the form-version pin (I4)", () => {
     const mk = async (suffix: string, expiresAt: Date, terminal: boolean): Promise<SessionId> => {
       const sessionId = SessionId.parse(`ses_expire_${suffix}`);
       await createSession(testDb.db, {
+        environment: DEFAULT_TEST_ENVIRONMENT,
         sessionId,
         formId,
         formVersion: version,
@@ -445,6 +472,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-link-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_basic");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -474,6 +502,7 @@ describe("secure links helpers", () => {
     });
     const linkId = LinkId.parse("lnk_revoke_scope");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId: ownerForm,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -496,6 +525,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-consume-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_once");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),
@@ -511,6 +541,7 @@ describe("secure links helpers", () => {
     await createForm(testDb.db, { formId, slug: "frm-link-list-slug", defaultLocale: "en" });
     for (const [i, tag] of ["a", "b", "c"].entries()) {
       await insertSecureLink(testDb.db, {
+        environment: DEFAULT_TEST_ENVIRONMENT,
         linkId: LinkId.parse(`lnk_list_${tag}`),
         formId,
         // Distinct createdAt ordering is defaultNow(); insert order is a→b→c, so
@@ -584,6 +615,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_answers");
     const sessionId = SessionId.parse("ses_answers");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -632,6 +664,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_retract");
     const sessionId = SessionId.parse("ses_retract");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -708,6 +741,7 @@ describe("answers helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_retract_check");
     const sessionId = SessionId.parse("ses_retract_check");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -737,6 +771,7 @@ describe("submissions helpers", () => {
     const { formId, version } = await seedPublishedForm("frm_submission");
     const sessionId = SessionId.parse("ses_submission");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -823,7 +858,14 @@ describe("concurrency (live, pooled connections)", () => {
     // Registered with the harness rather than ended in a local `afterAll` (issue #888):
     // one teardown drains every connection and only then stops the container.
     pool = testDb.register(
-      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      new Pool({
+        connectionString: testDb.connectionUri,
+        max: 8,
+        // The same search path the harness gives its own connections (ADR-40): every
+        // data-plane table is declared unqualified, so a pool that sets none resolves
+        // `answers` to nothing at all.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "queries concurrency pool",
     );
     db = drizzle(pool, { schema });
@@ -833,6 +875,7 @@ describe("concurrency (live, pooled connections)", () => {
     const { formId, version } = await seedPublishedForm("frm_concurrent_answers");
     const sessionId = SessionId.parse("ses_concurrent_answers");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -865,6 +908,7 @@ describe("concurrency (live, pooled connections)", () => {
     await createForm(testDb.db, { formId, slug: "frm-race-link-slug", defaultLocale: "en" });
     const linkId = LinkId.parse("lnk_race");
     await insertSecureLink(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       linkId,
       formId,
       expiresAt: new Date(Date.now() + 86_400_000),

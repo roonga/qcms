@@ -1,8 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
+    // `.` rather than `src`, because `scripts/` holds an authoring-time emitter that
+    // ESLint's type-aware rules have to be able to open. Nothing is emitted from this
+    // config - `typecheck` runs it with `--noEmit` and `tsconfig.build.json` is what
+    // produces `dist/`.
+    "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src"]
+  "include": ["src", "scripts"]
 }

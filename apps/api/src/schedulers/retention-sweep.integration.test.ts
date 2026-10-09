@@ -25,7 +25,12 @@ import {
   markDeliveryDelivered,
   recordDeliveryFailure,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -75,6 +80,7 @@ describe("retention-sweep scheduler (live DB)", () => {
     const { formId, version } = await seedForm("frm_api_sweep");
     const abandoned = SessionId.parse("ses_api_sweep");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: abandoned,
       formId,
       formVersion: version,

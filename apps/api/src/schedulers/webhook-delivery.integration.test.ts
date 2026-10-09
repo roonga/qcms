@@ -51,7 +51,13 @@ import {
   webhookDeliveries,
   type DeliveryRow,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  searchPathOptions,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 
 import { createApp } from "../app.js";
 import { systemClock } from "../clock.js";
@@ -59,7 +65,13 @@ import type { Deps } from "../deps.js";
 import { encryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { registerOutboxOps } from "../features/outbox/route.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../middleware/admin-auth.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../test-support.js";
+import {
+  type TestDepsOverrides,
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  validEnv,
+} from "../test-support.js";
 import { RESPONSE_SNIPPET_MAX, runDeliveryPass, SIGNATURE_MASK } from "./outbox-delivery.js";
 
 const { Pool } = pg;
@@ -386,10 +398,16 @@ describe("exit 3: two instances, one outbox - no double-delivery (SKIP LOCKED)",
   beforeAll(() => {
     // Registered with the harness rather than ended in a local `afterAll` (issue #888).
     pool = testDb.register(
-      new Pool({ connectionString: testDb.connectionUri, max: 8 }),
+      new Pool({
+        connectionString: testDb.connectionUri,
+        max: 8,
+        // The search path an API pool connects with (ADR-40): every data-plane table is
+        // declared unqualified, so a pool that sets none resolves `outbox` to nothing.
+        options: searchPathOptions(DEFAULT_TEST_ENVIRONMENT),
+      }),
       "outbox concurrency pool",
     );
-    const db = drizzle(pool, { schema }) as unknown as Deps["db"];
+    const db = drizzle(pool, { schema }) as unknown as NonNullable<TestDepsOverrides["db"]>;
     pooledDeps = makeDeps({ db, env: baseEnv, clock: systemClock });
   });
 
@@ -630,6 +648,7 @@ describe("059: an erased session reaches no consumer, while its neighbour is del
     const sessionId = SessionId.parse(`ses_erase_pass_${suffix}`);
     const answer = `answer-${suffix}`;
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,

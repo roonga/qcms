@@ -122,7 +122,7 @@ export function adminAuthFor(deps: Deps): AdminAuth {
   const existing = instances.get(deps);
   if (existing !== undefined) return existing;
   const built = createAdminAuth({
-    db: deps.db,
+    db: deps.databases.control,
     adminAuth: deps.config.adminAuth,
     // The operator's half of a breach-corpus outage (issue #910). The 503 body says what
     // happened and names no variable; this line says which variable turns the check off,

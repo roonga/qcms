@@ -518,6 +518,14 @@ export function apiChildEnv({
   return {
     DATABASE_URL: databaseUrl,
     QCMS_MOUNT: "all",
+    // One pool per environment plus a control pool (ADR-40, Q2). The local dev database
+    // is a single superuser credential, so every pool gets the same connection string:
+    // what differs is the SEARCH PATH each connects with, which is what makes the
+    // per-environment resolution real in development. The privilege half is asserted
+    // with real roles in `apps/api/e2e/security/03-db-least-privilege.e2e.ts`.
+    QCMS_ENVIRONMENTS: "test,prod",
+    QCMS_DATABASE_URL_TEST: databaseUrl,
+    QCMS_DATABASE_URL_PROD: databaseUrl,
     PORT: apiPort,
     QCMS_PORTAL_BASE_URL: portalBaseUrl,
     QCMS_INTERNAL_TOKEN: internalToken,

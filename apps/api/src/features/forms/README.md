@@ -119,10 +119,12 @@ boolean means adding or renaming a provider changes nothing on the wire.
    never first-only; 034 renders them). Nothing is persisted.
 4. `compileForm` (011) on the frozen snapshot.
 5. **One transaction**: `insertFormVersion` (definition + compiled +
-   `compilerVersion` + `a2uiSpecVersion` + `semanticsVersion`) · `deleteDraft` ·
-   `enqueue(tx, "form.published")`. A version is never observed without its
-   event, and the draft never lingers past its publish (transactional outbox,
-   §11).
+   `compilerVersion` + `a2uiSpecVersion` + `semanticsVersion`) · `deleteDraft`.
+   The draft never lingers past its publish (§11). **No outbox event**: since
+   ADR-40 a version lives once in `control` and what makes it live somewhere is
+   a release, so publishing queues nothing and `form.published` is gone (Code
+   Owner, 2026-09-30, Q60). Task 065 writes `form.released` into the released
+   environment's outbox in the same transaction as the release record.
 6. Response: `{ version, publishedAt }`.
 
 Nothing is persisted on a failed publish, and nothing is persisted if the

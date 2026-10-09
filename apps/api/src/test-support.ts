@@ -12,6 +12,7 @@ import { authSession, authUser } from "@roonga/qcms-db";
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
+import { INTERIM_REQUEST_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
 import type { DraftAssistant } from "./features/forms/assist/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
@@ -33,6 +34,12 @@ export function validEnv(
 ): Record<string, string | undefined> {
   return {
     DATABASE_URL: "postgres://qcms:synthetic@localhost:5432/qcms_test",
+    // One credential per environment (ADR-40, Q2). Synthetic, like every other value
+    // here: these are parsed and never dialled, and the pools a test actually uses come
+    // from `makeDeps`.
+    QCMS_ENVIRONMENTS: "test,prod",
+    QCMS_DATABASE_URL_TEST: "postgres://qcms:synthetic@localhost:5432/qcms_test",
+    QCMS_DATABASE_URL_PROD: "postgres://qcms:synthetic@localhost:5432/qcms_test",
     QCMS_MOUNT: "all",
     QCMS_LINK_KEYS: synthSecret(),
     QCMS_SESSION_KEYS: synthSecret(),
@@ -79,7 +86,23 @@ export function fixedClock(at = new Date("2026-07-20T00:00:00.000Z")): Clock {
 }
 
 export interface TestDepsOverrides {
+  /**
+   * One handle for every pool.
+   *
+   * Under ADR-40 a process holds a control pool and one per environment, and which a
+   * handler runs on is a privilege decision (see {@link Deps.databases}). A **test**
+   * composing an app against one Testcontainers database has one handle and one
+   * database, so this fans it out to every pool: the routing is what the unit and
+   * integration suites exercise, and the privilege boundary is asserted against real
+   * roles in `apps/api/e2e/security/03-db-least-privilege.e2e.ts`, where separate
+   * credentials are the point.
+   *
+   * A test that needs the pools to be genuinely different - to show that a path uses
+   * the wrong one - passes {@link TestDepsOverrides.databases} instead.
+   */
   readonly db?: Executor;
+  /** Supply the pools directly when a test needs them to differ from each other. */
+  readonly databases?: Databases;
   readonly config?: Config;
   readonly logger?: Logger;
   readonly clock?: Clock;
@@ -98,8 +121,9 @@ export interface TestDepsOverrides {
 export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
   const config = overrides.config ?? loadConfig(overrides.env ?? validEnv());
   const clock = overrides.clock ?? fixedClock();
+  const one = overrides.db ?? unusedDb();
   return {
-    db: overrides.db ?? unusedDb(),
+    databases: overrides.databases ?? singleDatabase(one, config),
     config,
     clock,
     logger: overrides.logger ?? createNullLogger(),
@@ -113,6 +137,23 @@ export function makeDeps(overrides: TestDepsOverrides = {}): Deps {
       overrides.draftAssistant ??
       selectDraftAssistant(config, overrides.logger ?? createNullLogger()),
     flags: config.flags,
+  };
+}
+
+/**
+ * Every pool backed by one handle, for a test with one database.
+ *
+ * The environment names come from the same configuration the real composition root
+ * reads, so a test that sets `QCMS_ENVIRONMENTS` gets those names and
+ * `databases.names` is what the schedulers iterate.
+ */
+export function singleDatabase(exec: Executor, config: Config): Databases {
+  return {
+    control: exec,
+    names: config.environments.map((environment) => environment.name),
+    defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
+    for: () => exec,
+    forRequest: () => ({ environment: INTERIM_REQUEST_ENVIRONMENT, exec }),
   };
 }
 

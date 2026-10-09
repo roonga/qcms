@@ -263,16 +263,65 @@ export async function listQuestions(exec: Executor): Promise<QuestionSummary[]> 
 }
 
 /**
- * Whether a `questionId` has ever been used (R6: an id is stable forever and
- * never reused with a different meaning). Checks the library **and** historic
- * answer rows, so an id that survives only in the answer ledger of an erased
- * question still counts as taken - reuse can never silently change its meaning.
+ * Whether a `questionId` has ever been used in the **library** (R6: an id is stable
+ * forever and never reused with a different meaning).
+ *
+ * # Why this is two functions since ADR-40
+ *
+ * R6's check spans **both planes**, and after ADR-40 no single connection can see both.
+ * The library half reads `control.questions`; the ledger half reads `answers`, a
+ * **data-plane** table with one copy per environment. Authoring runs on the control pool,
+ * whose `search_path` is `control` alone and whose role deliberately holds no read on any
+ * data-plane table - "an author never reads production personal data" is the property Q40
+ * exists to buy. So the single `union all` this used to be could not survive the split: it
+ * did not resolve `answers` at all, and had it resolved it would have been refused on
+ * permission.
+ *
+ * Widening `qcms_app_control` to read `answers` is not the way out, and this package will
+ * not offer it. What replaces it is the enumeration rule (Q1): the caller asks the library
+ * once on the control pool and each environment's own ledger on that environment's own
+ * pool, where the grant already exists. `apps/api/src/features/questions/create.ts` is
+ * that caller.
+ *
+ * # Why two connections rather than one transaction is sound here
+ *
+ * This is a **pre-check that widens a refusal**, not the invariant. What stops two
+ * questions sharing an id is `control.questions`' primary key, inside the caller's
+ * transaction. The ledger half exists so that an id surviving *only* in an answer ledger -
+ * its question deprecated or erased - is still refused, and an id in that state is by
+ * construction not one being created concurrently. So reading it outside the transaction
+ * costs nothing that was ever guaranteed.
+ *
+ * @see isQuestionIdInAnswerLedger for the data-plane half.
  */
 export async function isQuestionIdTaken(exec: Executor, questionId: QuestionId): Promise<boolean> {
   const result = await exec.execute<{ taken: boolean }>(sql`
     select exists(
       select 1 from ${questions} where ${questions.questionId} = ${questionId}
-      union all
+    ) as taken
+  `);
+  return result.rows[0]?.taken ?? false;
+}
+
+/**
+ * Whether a `questionId` appears in **this connection's** answer ledger (R6, the
+ * data-plane half of {@link isQuestionIdTaken}).
+ *
+ * `answers` is unqualified, so the connection's `search_path` decides which environment's
+ * ledger is read and this helper can never name one it was not handed a pool for. A caller
+ * that has to cover the whole live set calls it once per environment, which is Q1's
+ * enumeration rule rather than a loop somebody chose.
+ *
+ * Kept apart from the library half rather than folded into one helper taking two
+ * executors: the two run on different connections under different roles, and a signature
+ * that hid that would read as though one statement still did both.
+ */
+export async function isQuestionIdInAnswerLedger(
+  exec: Executor,
+  questionId: QuestionId,
+): Promise<boolean> {
+  const result = await exec.execute<{ taken: boolean }>(sql`
+    select exists(
       select 1 from answers where question_id = ${questionId}
     ) as taken
   `);

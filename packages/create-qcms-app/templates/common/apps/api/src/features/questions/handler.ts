@@ -56,7 +56,11 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import { createQuestionWithFirstDraft, requireQuestionDefinition } from "./create.js";
+import {
+  createQuestionWithFirstDraft,
+  requireQuestionDefinition,
+  requireUnusedQuestionId,
+} from "./create.js";
 import type {
   createQuestionRoute,
   createVersionRoute,
@@ -154,10 +158,15 @@ export function makeCreateQuestionHandler(
     const body = c.req.valid("json");
     const definition = requireQuestionDefinition(body.definition);
 
+    // R6's answer-ledger half, once per environment in the live set and BEFORE the
+    // transaction: those reads are on the environment pools and a transaction is one
+    // connection (ADR-40, Q1 - see `requireUnusedQuestionId` for why the rule splits).
+    await requireUnusedQuestionId(deps.databases, definition.questionId);
+
     // The identity check, the identity row and the first draft version are one
     // atomic decision, and they live in `create.ts` so 041's accept can make the
     // same one (issue #823) instead of growing a second create path.
-    const created = await deps.db.transaction((tx) =>
+    const created = await deps.databases.control.transaction((tx) =>
       createQuestionWithFirstDraft(tx, { definition, slug: body.slug }),
     );
 
@@ -181,7 +190,7 @@ export function makeCreateVersionHandler(
   return async (c) => {
     const questionId = requireQuestionId(c.req.valid("param").id);
 
-    const created = await deps.db.transaction(async (tx) => {
+    const created = await deps.databases.control.transaction(async (tx) => {
       const versions = await listQuestionVersions(tx, questionId);
       const latest = versions.at(-1);
       if (latest === undefined) throw fail.questionNotFound();
@@ -211,7 +220,7 @@ export function makeEditVersionHandler(deps: Deps): RouteHandler<typeof editVers
     // Identity is fixed (R6): a draft edit cannot repoint the version's id.
     if (definition.questionId !== questionId) throw fail.idMismatch();
 
-    const updated = await deps.db.transaction(async (tx) => {
+    const updated = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Return the typed immutability error *before* the freeze trigger fires.
@@ -237,7 +246,7 @@ export function makePublishVersionHandler(
     const questionId = requireQuestionId(id);
     const version = requireVersion(v);
 
-    const published = await deps.db.transaction(async (tx) => {
+    const published = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Only a draft can be published (§4.2). A published/deprecated version is
@@ -263,7 +272,7 @@ export function makeDeprecateVersionHandler(
     const questionId = requireQuestionId(id);
     const version = requireVersion(v);
 
-    const deprecated = await deps.db.transaction(async (tx) => {
+    const deprecated = await deps.databases.control.transaction(async (tx) => {
       const current = await getQuestionVersion(tx, questionId, version);
       if (current === undefined) throw fail.versionNotFound();
       // Deprecation soft-retires a published version (§4.2). A draft has nothing
@@ -286,7 +295,7 @@ export function makeListQuestionsHandler(
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
     const { status, type, search, versions } = c.req.valid("query");
-    const summaries = await listQuestions(deps.db);
+    const summaries = await listQuestions(deps.databases.control);
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
@@ -301,7 +310,7 @@ export function makeListQuestionsHandler(
         ? undefined
         : groupByQuestion(
             await listVersionsForQuestions(
-              deps.db,
+              deps.databases.control,
               byStatus.map((s) => s.questionId),
             ),
           );
@@ -319,7 +328,7 @@ export function makeListQuestionsHandler(
       const all = versionsById?.get(s.questionId);
       const latest =
         all === undefined
-          ? await getQuestionVersion(deps.db, s.questionId, s.latestVersion)
+          ? await getQuestionVersion(deps.databases.control, s.questionId, s.latestVersion)
           : all.find((row) => row.version === s.latestVersion);
       const label = latest === undefined ? null : labelOf(latest.definition);
       items.push({
@@ -387,10 +396,10 @@ export function makeGetQuestionHandler(deps: Deps): RouteHandler<typeof getQuest
   return async (c) => {
     const questionId = requireQuestionId(c.req.valid("param").id);
 
-    const identity = await getQuestion(deps.db, questionId);
+    const identity = await getQuestion(deps.databases.control, questionId);
     if (identity === undefined) throw fail.questionNotFound();
 
-    const versions = await listQuestionVersions(deps.db, questionId);
+    const versions = await listQuestionVersions(deps.databases.control, questionId);
 
     return c.json(
       {
@@ -474,10 +483,10 @@ export function makePreviewQuestionVersionHandler(
 
     // The question identity is checked separately from the version so a typo in
     // the id and a typo in the version stay distinguishable to the caller.
-    const identity = await getQuestion(deps.db, questionId);
+    const identity = await getQuestion(deps.databases.control, questionId);
     if (identity === undefined) throw fail.questionNotFound();
 
-    const row = await getQuestionVersion(deps.db, questionId, version);
+    const row = await getQuestionVersion(deps.databases.control, questionId, version);
     if (row === undefined) throw fail.versionNotFound();
 
     // Stored definitions are kernel-parsed on the way in (create/edit both go

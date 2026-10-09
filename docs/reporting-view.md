@@ -9,12 +9,25 @@ read-only SQL surface for BI/ETL/warehouse consumers, shipping in place of the d
 is **versioned documentation, not an implementation detail**: it changes only under the rules
 below.
 
-It is created by migration `0003_reporting_view.sql`, and reshaped for repeating groups by
-`0025_reporting_repeat_grain.sql` (task 075), as two views under a dedicated `reporting`
-Postgres schema:
+It is created by the baseline migration as two views under a dedicated Postgres schema
+**per environment**, `reporting_<env>` (ADR-40, Q10). The view bodies come from the one
+generator in `packages/db/src/reporting-views.ts` (task 075), called with this
+environment's `reporting_<env>` and `data_<env>`, which is what lets the same two views
+exist under N schema names without a copy of their SQL per name:
 
-- **`reporting.responses`** - one row per submitted response, answers in a wide JSONB column.
-- **`reporting.answers_flat`** - the same data unpivoted to long format, one row per answer.
+- **`reporting_<env>.responses`** - one row per submitted response, answers in a wide JSONB column.
+- **`reporting_<env>.answers_flat`** - the same data unpivoted to long format, one row per answer.
+
+**One schema per environment, each holding the same two view names.** A BI tool connects
+to one environment's schema and its queries are otherwise unchanged - the view names, the
+columns and their types are identical - so what varies between `reporting_prod` and
+`reporting_test` is which rows are in them. A fresh database is created with those two;
+the environment command creates a `reporting_<env>` for every environment added later.
+
+The single `reporting` schema this document described before ADR-40 is **replaced** rather
+than kept beside them, which green field (Q22) makes free. A consumer bound to
+`reporting_<env>.responses` re-points at `reporting_prod.responses`; nothing else about their
+query changes.
 
 Both exclude **in-progress**, **expired**, and **erased** sessions **by construction** (see
 [Row inclusion](#row-inclusion)).
@@ -30,7 +43,7 @@ against.
 
 ---
 
-## `reporting.responses`
+## `reporting_<env>.responses`
 
 One row per **submitted** session.
 
@@ -111,19 +124,19 @@ answers from reporting and from export; 0025 is what closes that.
 
 ---
 
-## `reporting.answers_flat`
+## `reporting_<env>.answers_flat`
 
-The long-format projection of `reporting.responses` - one row per **(submitted session,
-questionId, instanceId)**. Derived directly from `reporting.responses`, so it inherits its row
+The long-format projection of `reporting_<env>.responses` - one row per **(submitted session,
+questionId, instanceId)**. Derived directly from `reporting_<env>.responses`, so it inherits its row
 inclusion exactly (submitted-only, non-erased); there is no second exclusion rule to keep in
 sync.
 
 | Column         | Type          | Semantics                                                                                    |
 | -------------- | ------------- | -------------------------------------------------------------------------------------------- |
-| `session_id`   | `text`        | As in `reporting.responses`.                                                                 |
-| `form_id`      | `text`        | As in `reporting.responses`.                                                                 |
-| `form_version` | `integer`     | As in `reporting.responses`.                                                                 |
-| `submitted_at` | `timestamptz` | As in `reporting.responses`.                                                                 |
+| `session_id`   | `text`        | As in `reporting_<env>.responses`.                                                           |
+| `form_id`      | `text`        | As in `reporting_<env>.responses`.                                                           |
+| `form_version` | `integer`     | As in `reporting_<env>.responses`.                                                           |
+| `submitted_at` | `timestamptz` | As in `reporting_<env>.responses`.                                                           |
 | `question_id`  | `text`        | The answered question (`q_…`).                                                               |
 | `value`        | `jsonb`       | That question's canonical answer value (see encodings below).                                |
 | `instance_id`  | `text`        | The repeating-group instance (`ins_…`) the answer belongs to, or `NULL` outside every group. |
@@ -159,9 +172,9 @@ reporting value is byte-identical to what was submitted.
 | `singleChoice`           | JSON string, the selected `optionId` (`opt_…`)            |
 | `multiChoice`            | JSON array of `optionId`s, deduplicated, order-preserving |
 
-In `reporting.responses.answers` each value appears under its `questionId` key, or under that
+In `reporting_<env>.responses.answers` each value appears under its `questionId` key, or under that
 key inside its instance object when the question sits in a repeating group; in
-`reporting.answers_flat.value` it is the row's `value` column, with `instance_id` naming the
+`reporting_<env>.answers_flat.value` it is the row's `value` column, with `instance_id` naming the
 instance. The encodings themselves are unchanged by repetition: a question does not know that
 it is repeated (ADR-42).
 
@@ -188,17 +201,20 @@ non-submitted or erased data.
 
 ## Connection guidance
 
-**Use a read-only role.** The reporting surface is a read path; grant consumers `SELECT` on
-the `reporting` schema and nothing else. A sample least-privilege grant:
+**Use a read-only role, and grant it one environment.** The reporting surface is a read
+path; grant consumers `SELECT` on **one** environment's schema and nothing else. A
+consumer who should see both gets two grants, deliberately, so "which environments may
+this tool read" is a question an operator answers rather than a default.
 
 ```sql
 -- One-time, as a role that may create roles and grant on `reporting`. Replace the
 -- password with a value from your secret store - never commit a real credential.
 CREATE ROLE qcms_reporting LOGIN PASSWORD '<from-secret-store>';
 
--- Read-only on the reporting views only; no access to the operational tables.
-GRANT USAGE ON SCHEMA reporting TO qcms_reporting;
-GRANT SELECT ON ALL TABLES IN SCHEMA reporting TO qcms_reporting;
+-- Read-only on ONE environment's reporting views; no access to the operational tables
+-- and none to another environment's views.
+GRANT USAGE ON SCHEMA reporting_prod TO qcms_reporting;
+GRANT SELECT ON ALL TABLES IN SCHEMA reporting_prod TO qcms_reporting;
 
 -- And on whatever a later migration creates there, so there is no grant step to
 -- remember after an upgrade. `FOR ROLE qcms_migrate` is load-bearing: a default
@@ -211,9 +227,20 @@ ALTER DEFAULT PRIVILEGES FOR ROLE qcms_migrate IN SCHEMA reporting
   GRANT SELECT ON TABLES TO qcms_reporting;
 ```
 
-The role deliberately gets **no** privileges on the `public` schema, so a reporting consumer
-can never read raw ledger answers, tokens, or auth tables - only the curated, erasure-safe
-views. Point BI/ETL tools at this role.
+The role deliberately gets **no** privileges on `control` or on any `data_<env>` schema,
+so a reporting consumer can never read raw ledger answers, tokens, or auth tables - only
+the curated, erasure-safe views. It gets none on `public` either, which under ADR-40 holds
+nothing at all. Point BI/ETL tools at this role.
+
+**This role is not the application's.** Each `qcms_app_<env>` holds `USAGE` and `SELECT`
+on its **own** `reporting_<env>` and nothing on any other environment's (Q52), because the
+staff response-reading path reads these views on the environment's own pool. That grant is
+written by the baseline and the environment command; this one is yours.
+
+**A view set per workspace is task 067's** (Q26). When it lands, a workspace's analysts
+are granted exactly their workspace's views in exactly their environment, and this recipe
+becomes per (workspace, environment). The dev-tools viewer role `qcms_ro` is a different
+role in a different file and is unaffected.
 
 **The last statement is not optional, and migration 0025 is why.** A migration that reshapes a
 view `DROP`s and re-`CREATE`s it, and a dropped view takes its grants with it: the new view is

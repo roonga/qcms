@@ -235,6 +235,27 @@ const CONTAINER_STARTUP_TIMEOUT_MS = CONTAINER_BOOT_TIMEOUT_MS - 30_000;
 /** Absolute path to the package-owned migrations folder. */
 export const MIGRATIONS_DIR = fileURLToPath(new URL("../../migrations", import.meta.url));
 
+/**
+ * The environment the harness's connections resolve in unless a caller says otherwise.
+ *
+ * `prod` rather than `test`, because it is the environment with no address prefix and
+ * no entry restrictions (Q21), so a suite that says nothing about environments is
+ * exercising the ordinary respondent path rather than a special case.
+ */
+export const DEFAULT_TEST_ENVIRONMENT = "prod";
+
+/**
+ * The libpq `options` string that puts a connection on one environment's search path.
+ *
+ * `data_<env>, control` with the data plane **first**, which is the order ADR-40 fixes:
+ * a control-plane read can never be shadowed by an environment's copy, because the two
+ * table-name sets are disjoint and `scripts/check-schema-disjoint.mjs` keeps them that
+ * way. `public` is on no search path at all.
+ */
+export function searchPathOptions(environment: string): string {
+  return `-c search_path=data_${environment},control`;
+}
+
 export interface TestDb {
   /**
    * Drizzle handle bound to the full schema, backed by a connection **pool** -
@@ -275,6 +296,22 @@ export interface TestDb {
 interface StartOptions {
   /** Run the full migration set after connecting (default true). */
   readonly migrate?: boolean;
+  /**
+   * Which environment the harness's own two connections resolve unqualified names in
+   * (default {@link DEFAULT_TEST_ENVIRONMENT}).
+   *
+   * Under ADR-40 the data plane is one schema per environment and every data-plane
+   * table is declared unqualified, so a connection that sets no `search_path` resolves
+   * `sessions` to nothing at all. The harness therefore connects with
+   * `data_<env>, control`, which is exactly what an API pool does, and every existing
+   * test that writes `insert into sessions ...` keeps meaning what it meant.
+   *
+   * Pass another environment to reach the other schema from the same container. A test
+   * that needs **two** environments at once opens its own second pool against
+   * {@link TestDb.connectionUri} with its own `options` and registers it with
+   * {@link TestDb.register}.
+   */
+  readonly environment?: string;
   /**
    * Boot a different image than {@link TEST_POSTGRES_IMAGE}. Exists so the
    * harness's own tests can exercise the unpullable-image path; production test
@@ -599,7 +636,13 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
   // where `startTestDb` itself throws and no `afterAll` has a `TestDb` to tear down.
   const teardown = createHarnessTeardown(container);
 
-  const client = new Client({ connectionString: connectionUri });
+  const environment = options.environment ?? DEFAULT_TEST_ENVIRONMENT;
+  // Before migrating, `data_<env>` does not exist yet - which is harmless: Postgres
+  // ignores a missing schema on the search path rather than refusing the connection,
+  // so the same `options` serves the migration and everything after it.
+  const searchPath = searchPathOptions(environment);
+
+  const client = new Client({ connectionString: connectionUri, options: searchPath });
   // Registered BEFORE connecting: the `error` guard has to be attached before a connection
   // exists to lose. This one connection is the whole of issue #888's fatal path - a 57P01
   // on an unlistened `pg.Client` is an uncaught exception and takes the worker down,
@@ -618,7 +661,7 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
     throw cause;
   }
 
-  const pool = new Pool({ connectionString: connectionUri });
+  const pool = new Pool({ connectionString: connectionUri, options: searchPath });
   // An idle pooled connection that dies (typically the container going away at teardown)
   // emits `error` on the pool; node-postgres rethrows it as an unhandled error without a
   // listener, which would red an unrelated test. `register` attaches that listener, and

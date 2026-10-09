@@ -1,12 +1,12 @@
 {
-  "id": "f68d8100-e09f-462c-9dd1-08072a7817da",
+  "id": "2f9cc952-2377-48c1-ae0f-9614fa3ad051",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
-    "public.question_versions": {
+    "control.question_versions": {
       "name": "question_versions",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "question_id": {
           "name": "question_id",
@@ -29,7 +29,7 @@
         "status": {
           "name": "status",
           "type": "question_status",
-          "typeSchema": "public",
+          "typeSchema": "control",
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
@@ -47,8 +47,13 @@
           "name": "question_versions_question_id_questions_question_id_fk",
           "tableFrom": "question_versions",
           "tableTo": "questions",
-          "columnsFrom": ["question_id"],
-          "columnsTo": ["question_id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "question_id"
+          ],
+          "columnsTo": [
+            "question_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -56,7 +61,10 @@
       "compositePrimaryKeys": {
         "question_versions_question_id_version_pk": {
           "name": "question_versions_question_id_version_pk",
-          "columns": ["question_id", "version"]
+          "columns": [
+            "question_id",
+            "version"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -64,14 +72,14 @@
       "checkConstraints": {
         "question_versions_version_positive": {
           "name": "question_versions_version_positive",
-          "value": "\"question_versions\".\"version\" > 0"
+          "value": "\"control\".\"question_versions\".\"version\" > 0"
         }
       },
       "isRLSEnabled": false
     },
-    "public.questions": {
+    "control.questions": {
       "name": "questions",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "question_id": {
           "name": "question_id",
@@ -100,16 +108,18 @@
         "questions_slug_unique": {
           "name": "questions_slug_unique",
           "nullsNotDistinct": false,
-          "columns": ["slug"]
+          "columns": [
+            "slug"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.form_drafts": {
+    "control.form_drafts": {
       "name": "form_drafts",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "form_id": {
           "name": "form_id",
@@ -122,6 +132,13 @@
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
+        },
+        "agent_assisted": {
+          "name": "agent_assisted",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -137,8 +154,13 @@
           "name": "form_drafts_form_id_forms_form_id_fk",
           "tableFrom": "form_drafts",
           "tableTo": "forms",
-          "columnsFrom": ["form_id"],
-          "columnsTo": ["form_id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "form_id"
+          ],
+          "columnsTo": [
+            "form_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -149,9 +171,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.form_versions": {
+    "control.form_versions": {
       "name": "form_versions",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "form_id": {
           "name": "form_id",
@@ -209,8 +231,13 @@
           "name": "form_versions_form_id_forms_form_id_fk",
           "tableFrom": "form_versions",
           "tableTo": "forms",
-          "columnsFrom": ["form_id"],
-          "columnsTo": ["form_id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "form_id"
+          ],
+          "columnsTo": [
+            "form_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -218,7 +245,10 @@
       "compositePrimaryKeys": {
         "form_versions_form_id_version_pk": {
           "name": "form_versions_form_id_version_pk",
-          "columns": ["form_id", "version"]
+          "columns": [
+            "form_id",
+            "version"
+          ]
         }
       },
       "uniqueConstraints": {},
@@ -226,14 +256,14 @@
       "checkConstraints": {
         "form_versions_version_positive": {
           "name": "form_versions_version_positive",
-          "value": "\"form_versions\".\"version\" > 0"
+          "value": "\"control\".\"form_versions\".\"version\" > 0"
         }
       },
       "isRLSEnabled": false
     },
-    "public.forms": {
+    "control.forms": {
       "name": "forms",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "form_id": {
           "name": "form_id",
@@ -252,6 +282,27 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "form_status",
+          "typeSchema": "control",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "challenge_required": {
+          "name": "challenge_required",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "min_submit_ms": {
+          "name": "min_submit_ms",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -262,9 +313,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.secure_links": {
+    "control.secure_links": {
       "name": "secure_links",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "link_id": {
           "name": "link_id",
@@ -309,6 +360,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "environment": {
+          "name": "environment",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {},
@@ -317,66 +374,65 @@
           "name": "secure_links_form_id_forms_form_id_fk",
           "tableFrom": "secure_links",
           "tableTo": "forms",
-          "columnsFrom": ["form_id"],
-          "columnsTo": ["form_id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "form_id"
+          ],
+          "columnsTo": [
+            "form_id"
+          ],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
+      "uniqueConstraints": {
+        "secure_links_link_environment_uq": {
+          "name": "secure_links_link_environment_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "link_id",
+            "environment"
+          ]
+        }
+      },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.sessions": {
-      "name": "sessions",
-      "schema": "",
+    "control.environments": {
+      "name": "environments",
+      "schema": "control",
       "columns": {
-        "session_id": {
-          "name": "session_id",
+        "name": {
+          "name": "name",
           "type": "text",
           "primaryKey": true,
           "notNull": true
         },
-        "form_id": {
-          "name": "form_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "form_version": {
-          "name": "form_version",
+        "position": {
+          "name": "position",
           "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
-        "access_mode": {
-          "name": "access_mode",
-          "type": "access_mode",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "link_id": {
-          "name": "link_id",
+        "challenge_provider": {
+          "name": "challenge_provider",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "status": {
-          "name": "status",
-          "type": "session_status",
-          "typeSchema": "public",
+        "delivery_snippet_ttl_ms": {
+          "name": "delivery_snippet_ttl_ms",
+          "type": "bigint",
           "primaryKey": false,
-          "notNull": true,
-          "default": "'created'"
+          "notNull": false
         },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
+        "outbox_payload_ttl_ms": {
+          "name": "outbox_payload_ttl_ms",
+          "type": "bigint",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -386,327 +442,25 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "sessions_status_expires_at_idx": {
-          "name": "sessions_status_expires_at_idx",
-          "columns": [
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "expires_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "sessions_link_id_secure_links_link_id_fk": {
-          "name": "sessions_link_id_secure_links_link_id_fk",
-          "tableFrom": "sessions",
-          "tableTo": "secure_links",
-          "columnsFrom": ["link_id"],
-          "columnsTo": ["link_id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "sessions_form_version_fk": {
-          "name": "sessions_form_version_fk",
-          "tableFrom": "sessions",
-          "tableTo": "form_versions",
-          "columnsFrom": ["form_id", "form_version"],
-          "columnsTo": ["form_id", "version"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.answers": {
-      "name": "answers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "question_id": {
-          "name": "question_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "value": {
-          "name": "value",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "answered_at": {
-          "name": "answered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "answers_session_question_answered_at_idx": {
-          "name": "answers_session_question_answered_at_idx",
-          "columns": [
-            {
-              "expression": "session_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "question_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "answered_at",
-              "isExpression": false,
-              "asc": false,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "answers_session_id_sessions_session_id_fk": {
-          "name": "answers_session_id_sessions_session_id_fk",
-          "tableFrom": "answers",
-          "tableTo": "sessions",
-          "columnsFrom": ["session_id"],
-          "columnsTo": ["session_id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.submissions": {
-      "name": "submissions",
-      "schema": "",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "content_hash": {
-          "name": "content_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "locked_answers": {
-          "name": "locked_answers",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "submitted_at": {
-          "name": "submitted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "submissions_session_id_sessions_session_id_fk": {
-          "name": "submissions_session_id_sessions_session_id_fk",
-          "tableFrom": "submissions",
-          "tableTo": "sessions",
-          "columnsFrom": ["session_id"],
-          "columnsTo": ["session_id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.erasure_tombstones": {
-      "name": "erasure_tombstones",
-      "schema": "",
-      "columns": {
-        "session_id": {
-          "name": "session_id",
-          "type": "text",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "form_id": {
-          "name": "form_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "form_version": {
-          "name": "form_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "erased_at": {
-          "name": "erased_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "reason": {
-          "name": "reason",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
       "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.outbox": {
-      "name": "outbox",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "event_type": {
-          "name": "event_type",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "payload": {
-          "name": "payload",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "delivered_at": {
-          "name": "delivered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "attempts": {
-          "name": "attempts",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "next_attempt_at": {
-          "name": "next_attempt_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "dead_lettered_at": {
-          "name": "dead_lettered_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_error": {
-          "name": "last_error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "outbox_delivery_idx": {
-          "name": "outbox_delivery_idx",
+      "uniqueConstraints": {
+        "environments_position_unique": {
+          "name": "environments_position_unique",
+          "nullsNotDistinct": false,
           "columns": [
-            {
-              "expression": "delivered_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "next_attempt_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"outbox\".\"dead_lettered_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
+            "position"
+          ]
         }
       },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.account": {
+    "control.account": {
       "name": "account",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "id": {
           "name": "id",
@@ -795,8 +549,13 @@
           "name": "account_userId_user_id_fk",
           "tableFrom": "account",
           "tableTo": "user",
-          "columnsFrom": ["userId"],
-          "columnsTo": ["id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -807,9 +566,266 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.session": {
+    "control.invitation": {
+      "name": "invitation",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organizationId": {
+          "name": "organizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "teamId": {
+          "name": "teamId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expiresAt": {
+          "name": "expiresAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "inviterId": {
+          "name": "inviterId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "invitation_organizationId_organization_id_fk": {
+          "name": "invitation_organizationId_organization_id_fk",
+          "tableFrom": "invitation",
+          "tableTo": "organization",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "organizationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "invitation_inviterId_user_id_fk": {
+          "name": "invitation_inviterId_user_id_fk",
+          "tableFrom": "invitation",
+          "tableTo": "user",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "inviterId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.member": {
+      "name": "member",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "organizationId": {
+          "name": "organizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'member'"
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "member_organizationId_organization_id_fk": {
+          "name": "member_organizationId_organization_id_fk",
+          "tableFrom": "member",
+          "tableTo": "organization",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "organizationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "member_userId_user_id_fk": {
+          "name": "member_userId_user_id_fk",
+          "tableFrom": "member",
+          "tableTo": "user",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.organization": {
+      "name": "organization",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "logo": {
+          "name": "logo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "isShared": {
+          "name": "isShared",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "requireSecondApprover": {
+          "name": "requireSecondApprover",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "archivedAt": {
+          "name": "archivedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seedNewEditorsWithTestData": {
+          "name": "seedNewEditorsWithTestData",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "organization_slug_unique": {
+          "name": "organization_slug_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "slug"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.session": {
       "name": "session",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "id": {
           "name": "id",
@@ -860,6 +876,18 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "activeOrganizationId": {
+          "name": "activeOrganizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "activeTeamId": {
+          "name": "activeTeamId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -868,8 +896,13 @@
           "name": "session_userId_user_id_fk",
           "tableFrom": "session",
           "tableTo": "user",
-          "columnsFrom": ["userId"],
-          "columnsTo": ["id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -879,16 +912,197 @@
         "session_token_unique": {
           "name": "session_token_unique",
           "nullsNotDistinct": false,
-          "columns": ["token"]
+          "columns": [
+            "token"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.twoFactor": {
+    "control.team": {
+      "name": "team",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "memberCount": {
+          "name": "memberCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "organizationId": {
+          "name": "organizationId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updatedAt": {
+          "name": "updatedAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "environments": {
+          "name": "environments",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "forms": {
+          "name": "forms",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "externalGroupId": {
+          "name": "externalGroupId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "team_organizationId_organization_id_fk": {
+          "name": "team_organizationId_organization_id_fk",
+          "tableFrom": "team",
+          "tableTo": "organization",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "organizationId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "team_externalGroupId_unique": {
+          "name": "team_externalGroupId_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "externalGroupId"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.teamMember": {
+      "name": "teamMember",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "teamId": {
+          "name": "teamId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "userId": {
+          "name": "userId",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "membershipKey": {
+          "name": "membershipKey",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "createdAt": {
+          "name": "createdAt",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "teamMember_teamId_team_id_fk": {
+          "name": "teamMember_teamId_team_id_fk",
+          "tableFrom": "teamMember",
+          "tableTo": "team",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "teamId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "teamMember_userId_user_id_fk": {
+          "name": "teamMember_userId_user_id_fk",
+          "tableFrom": "teamMember",
+          "tableTo": "user",
+          "schemaTo": "control",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "teamMember_membershipKey_unique": {
+          "name": "teamMember_membershipKey_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "membershipKey"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "control.twoFactor": {
       "name": "twoFactor",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "id": {
           "name": "id",
@@ -913,6 +1127,26 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
+        },
+        "verified": {
+          "name": "verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": false,
+          "default": true
+        },
+        "failedVerificationCount": {
+          "name": "failedVerificationCount",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "default": 0
+        },
+        "lockedUntil": {
+          "name": "lockedUntil",
+          "type": "timestamp",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -921,8 +1155,13 @@
           "name": "twoFactor_userId_user_id_fk",
           "tableFrom": "twoFactor",
           "tableTo": "user",
-          "columnsFrom": ["userId"],
-          "columnsTo": ["id"],
+          "schemaTo": "control",
+          "columnsFrom": [
+            "userId"
+          ],
+          "columnsTo": [
+            "id"
+          ],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -933,9 +1172,9 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.user": {
+    "control.user": {
       "name": "user",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "id": {
           "name": "id",
@@ -987,6 +1226,20 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": false
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'admin'"
+        },
+        "mustChangePassword": {
+          "name": "mustChangePassword",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {},
@@ -996,16 +1249,18 @@
         "user_email_unique": {
           "name": "user_email_unique",
           "nullsNotDistinct": false,
-          "columns": ["email"]
+          "columns": [
+            "email"
+          ]
         }
       },
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.verification": {
+    "control.verification": {
       "name": "verification",
-      "schema": "",
+      "schema": "control",
       "columns": {
         "id": {
           "name": "id",
@@ -1053,26 +1308,105 @@
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
+    },
+    "control.two_factor_resets": {
+      "name": "two_factor_resets",
+      "schema": "control",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "performed_at": {
+          "name": "performed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "database_role": {
+          "name": "database_role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cleared_factors": {
+          "name": "cleared_factors",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "was_enrolled": {
+          "name": "was_enrolled",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
     }
   },
   "enums": {
-    "public.access_mode": {
+    "control.access_mode": {
       "name": "access_mode",
-      "schema": "public",
-      "values": ["anonymous", "secure_link"]
+      "schema": "control",
+      "values": [
+        "anonymous",
+        "secure_link"
+      ]
     },
-    "public.question_status": {
+    "control.form_status": {
+      "name": "form_status",
+      "schema": "control",
+      "values": [
+        "open",
+        "closed"
+      ]
+    },
+    "control.question_status": {
       "name": "question_status",
-      "schema": "public",
-      "values": ["draft", "published", "deprecated"]
+      "schema": "control",
+      "values": [
+        "draft",
+        "published",
+        "deprecated"
+      ]
     },
-    "public.session_status": {
+    "control.session_status": {
       "name": "session_status",
-      "schema": "public",
-      "values": ["created", "in_progress", "submitted", "expired"]
+      "schema": "control",
+      "values": [
+        "created",
+        "in_progress",
+        "submitted",
+        "expired"
+      ]
     }
   },
-  "schemas": {},
+  "schemas": {
+    "control": "control"
+  },
   "sequences": {},
   "roles": {},
   "policies": {},

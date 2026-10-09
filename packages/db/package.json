@@ -22,10 +22,15 @@
     "./migrate": {
       "types": "./dist/migrate.d.ts",
       "default": "./dist/migrate.js"
+    },
+    "./environment": {
+      "types": "./dist/environment/index.d.ts",
+      "default": "./dist/environment/index.js"
     }
   },
   "bin": {
-    "qcms-db-migrate": "./dist/migrate.js"
+    "qcms-db-migrate": "./dist/migrate.js",
+    "qcms-db-environment": "./dist/environment-cli.js"
   },
   "files": [
     "dist",
@@ -39,9 +44,10 @@
     "build": "node ../../scripts/clean-dist.mjs && tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run --root ../.. --project @roonga/qcms-db",
-    "lint": "node ../../scripts/eslint-workspace.mjs src",
+    "lint": "node ../../scripts/eslint-workspace.mjs src scripts",
     "migrate": "node dist/migrate.js",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "db:emit-baseline": "tsx scripts/emit-baseline.mts"
   },
   "dependencies": {
     "@roonga/qcms-a2ui-compiler": "workspace:*",

@@ -69,6 +69,20 @@ function prefixOf(idx: number): string {
   return String(idx).padStart(4, "0");
 }
 
+/**
+ * Whether an offset falls inside a `--` comment.
+ *
+ * The keyword check above has to read SQL rather than prose: the baseline explains at
+ * length why there is no `DROP` in it, and a check that could not tell the explanation
+ * from the statement would fail on the sentence that documents its own rule.
+ */
+function inComment(sql: string, index: number | undefined): boolean {
+  if (index === undefined) return false;
+  const lineStart = sql.lastIndexOf("\n", index) + 1;
+  const commentStart = sql.indexOf("--", lineStart);
+  return commentStart !== -1 && commentStart < index;
+}
+
 function fileNames(subdirectory = ""): string[] {
   return readdirSync(`${MIGRATIONS_DIR}${subdirectory}`, { withFileTypes: true })
     .filter((entry) => entry.isFile())
@@ -83,8 +97,35 @@ describe("the migration chain is complete", () => {
     // The floor under every assertion below. An empty or unreadable journal would
     // leave each of them vacuously true, which is the shape #780 is about: a control
     // that reports nothing reads exactly like a control that found nothing wrong.
-    expect(entries.length).toBeGreaterThan(18);
+    //
+    // The floor used to be `> 18`, because the chain was then twenty-two entries long.
+    // The Q41 re-baseline replaced all of them with one, so the floor is what a chain
+    // must hold to be a chain at all. **The property this file asserts is unchanged**;
+    // only the length is, which is exactly what section 4a asks for - a re-baseline is
+    // the change most likely to hollow out its own tests, and a floor left at 18 would
+    // have been deleted rather than re-derived.
+    expect(entries.length).toBeGreaterThan(0);
     expect(entries.map((entry) => entry.idx)).toEqual(entries.map((_, index) => index));
+  });
+
+  it("contains no DROP and no SET SCHEMA anywhere in the tree (Q41, criterion 8)", () => {
+    // The ruling, as an executable fact. Nothing is dropped because nothing is moved,
+    // and nothing is moved because the baseline creates each table where it belongs the
+    // first time. A migration that reached for either keyword would be re-establishing
+    // the migrate-in-place shape Q41 removed, and would do it quietly.
+    //
+    // `DROP SCHEMA ... CASCADE` is what the environment **drop command** runs, and it
+    // lives in `src/environment/sql.ts` rather than in any migration, which is what
+    // keeps ADR-17's two whole-session delete paths at two.
+    const offending = fileNames()
+      .filter((name) => name.endsWith(".sql"))
+      .flatMap((name) => {
+        const sql = readFileSync(`${MIGRATIONS_DIR}${name}`, "utf8");
+        return [...sql.matchAll(/\b(drop|set\s+schema)\b/gi)]
+          .filter((match) => !inComment(sql, match.index))
+          .map((match) => `${name}: ${match[0]}`);
+      });
+    expect(offending).toEqual([]);
   });
 
   it("has the SQL file every journal entry names", () => {

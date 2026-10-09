@@ -52,6 +52,7 @@ export {
   updateDraftDefinition,
   listQuestions,
   isQuestionIdTaken,
+  isQuestionIdInAnswerLedger,
 } from "./questions.js";
 
 export {
@@ -175,6 +176,7 @@ export {
   backoffDelayMs,
   computeBackoff,
   enqueue,
+  enqueueInEnvironment,
   claimDue,
   markDelivered,
   recordFailure,

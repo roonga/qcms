@@ -156,7 +156,11 @@ interface LoadedSnapshot {
 }
 
 async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnapshot> {
-  const version = await getFormVersion(deps.db, session.formId, session.formVersion);
+  const version = await getFormVersion(
+    deps.databases.forRequest().exec,
+    session.formId,
+    session.formVersion,
+  );
   if (version === undefined) {
     // A session is pinned at creation to a published version that is immutable
     // (I1/I4); its absence is an internal invariant break, never client input.
@@ -171,7 +175,11 @@ async function loadSnapshot(deps: Deps, session: SessionRow): Promise<LoadedSnap
   const questions: QuestionVersionRecord[] = [];
   for (const step of definition.steps) {
     for (const ref of stepQuestionRefs(step)) {
-      const record = await getQuestionVersion(deps.db, ref.questionId, ref.version);
+      const record = await getQuestionVersion(
+        deps.databases.forRequest().exec,
+        ref.questionId,
+        ref.version,
+      );
       if (record === undefined) {
         throw new Error(
           `serve-step: pinned question ${ref.questionId}@${String(ref.version)} is missing for form ${session.formId}@${String(session.formVersion)} (snapshot not self-contained)`,
@@ -472,7 +480,7 @@ async function authorizedSessionId(c: Context<ApiEnv>, deps: Deps, id: string): 
 
 /** Load a session for a request, rejecting a missing / submitted / expired one. */
 async function loadActiveSession(deps: Deps, id: SessionId, now: Date): Promise<SessionRow> {
-  const session = await getSession(deps.db, id);
+  const session = await getSession(deps.databases.forRequest().exec, id);
   if (session === undefined) throw fail.sessionNotFound();
   if (session.status === "submitted") throw fail.sessionSubmitted();
   if (session.status === "expired" || session.expiresAt.getTime() <= now.getTime()) {
@@ -503,7 +511,7 @@ export function makeGetStepHandler(deps: Deps): RouteHandler<typeof getStepRoute
     // mints nothing the second time; the transaction and the advisory lock are what
     // stop two concurrent serves each minting a full set. A form with no repeating
     // group writes nothing at all and this transaction is one lock and two reads.
-    const projection = await deps.db.transaction(async (tx) => {
+    const projection = await deps.databases.forRequest().exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const answers = await latestAnswers(tx, sessionId);
       return projectWithRosters(tx, snapshot, sessionId, answers, requestedIndex);
@@ -553,7 +561,7 @@ export function makeSubmitAnswerHandler(
 
     const target = answerTarget(snapshot, body);
 
-    const projection = await deps.db.transaction(async (tx) => {
+    const projection = await deps.databases.forRequest().exec.transaction(async (tx) => {
       // Serialize answer writes for this session (deterministic ledger order).
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
 
@@ -787,7 +795,7 @@ export function makeBatchAnswersHandler(
     // installation's per-answer default is, and a request above the bound is refused.
     await spendAnswerAllowance(deps, sessionId, targets.length, stepAnswerBound(snapshot));
 
-    const result = await deps.db.transaction(async (tx) => {
+    const result = await deps.databases.forRequest().exec.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);
       const rejected: BatchAnswerResponse["rejected"] = [];
       // One flow evaluation for the visibility decisions, against the state as the
@@ -891,7 +899,7 @@ export function makeRosterOpHandler(deps: Deps): RouteHandler<typeof rosterOpRou
       instanceId = parsed.value;
     }
 
-    const result = await deps.db.transaction(async (tx) => {
+    const result = await deps.databases.forRequest().exec.transaction(async (tx) => {
       // The lock is what makes "has this token been spent" and "write the row" one
       // decision, which is why the token needs no database constraint.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${sessionId}))`);

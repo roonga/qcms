@@ -64,6 +64,11 @@ function authFor(
     // full-stack Compose stack runs it at its shipped default.
     QCMS_ADMIN_PASSWORD_BREACH_CHECK: "false",
   });
+  // No `search_path`, unlike `openDbHandle` below, and the asymmetry is the plane rather
+  // than an oversight: better-auth's tables are control-plane tables, declared on the
+  // `control` Drizzle schema, so the adapter emits `control."user"` and resolves whatever
+  // the connection's path happens to be. Only the data plane is reached by unqualified
+  // name (ADR-40).
   const pool = new pg.Pool({ connectionString: databaseUrl });
   pool.on("error", () => undefined);
   const db = drizzle(pool, { schema }) as unknown as Executor;
@@ -136,6 +141,12 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
 }
 
 /** A raw SQL read's rows, as `pg` returns them. */
+/**
+ * The search path every harness connection uses: the interim request environment's data
+ * schema first, then `control`, which is what an API pool connects with (ADR-40).
+ */
+const HARNESS_SEARCH_PATH = "-c search_path=data_prod,control";
+
 export interface RawRows<R> {
   readonly rows: readonly R[];
 }
@@ -152,13 +163,22 @@ export interface RawRows<R> {
  *
  * A raw read returns `timestamptz` as a **string**, not a `Date` - the query builder's
  * `mode: "date"` is what converts. Callers that compare instants must normalize.
+ *
+ * **The search path is not optional since ADR-40.** Every data-plane table - `sessions`,
+ * `answers`, `outbox`, `webhooks` - lives in `data_<env>`, one copy per environment, and
+ * is declared unqualified so the connection chooses which one it reaches. A pool that sets
+ * none resolves `outbox` to nothing at all, and both the raw reads and the composed
+ * `Deps` built on this handle fail with `relation "outbox" does not exist`. `prod` is the
+ * environment the API serves every request from until 065 and 066 land (Q53), so it holds
+ * the rows these harnesses assert on; `control` follows it exactly as an API pool
+ * connects, so a read of `forms` resolves too.
  */
 export function openDbHandle(connectionString: string): {
   readonly db: Executor;
   readonly query: <R>(text: string, values?: readonly unknown[]) => Promise<RawRows<R>>;
   readonly close: () => Promise<void>;
 } {
-  const pool = new pg.Pool({ connectionString });
+  const pool = new pg.Pool({ connectionString, options: HARNESS_SEARCH_PATH });
   pool.on("error", () => undefined);
   return {
     db: drizzle(pool, { schema }),

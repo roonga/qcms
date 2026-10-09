@@ -5,8 +5,10 @@
  * the one slice that loads the pinned question versions, calls `compileDraft`
  * (008) to freeze an immutable snapshot, projects it to A2UI with `compileForm`
  * (011), and persists version + compiled + stamps in **one transaction**
- * alongside the `form.published` outbox event and the draft's deletion. This is
- * where the kernel, the compiler, and storage meet for the first time.
+ * alongside the draft's deletion. This is where the kernel, the compiler, and
+ * storage meet for the first time. **It enqueues nothing**: publishing a version
+ * is a library change, and what makes a version live in an environment is a
+ * release (ADR-40, Q60, task 065).
  *
  * Immutability (R1, I1, ADR-18): a published `form_versions` row is frozen - the
  * `form_versions_reject_update` trigger (migration 0001) is the storage
@@ -69,7 +71,6 @@ import {
   closeForm,
   createForm,
   deleteDraft,
-  enqueue,
   getDraft,
   getForm,
   getFormVersion,
@@ -104,9 +105,6 @@ import type {
   validateDraftRoute,
 } from "./route.js";
 import type { ListFormsQuery } from "./schema.js";
-
-/** The outbox event type for a completed publish (ARCHITECTURE §5.3, §11). */
-const FORM_PUBLISHED = "form.published" as const;
 
 /**
  * A publish issue: the kernel's typed `PublishError` (008) *or* the slice-level
@@ -209,7 +207,7 @@ function requireDefinition(value: unknown): FormDefinition {
  *
  * Exported for 041's accept (issue #823), which stores the accepted draft in the
  * **same transaction** that materialises the proposal's new questions. Taking an
- * `Executor` rather than reaching for `deps.db` is what lets that transaction be
+ * `Executor` rather than reaching for `deps.databases.control` is what lets that transaction be
  * the caller's: the slice owns the boundary, never the helper (R5).
  *
  * The parse is the caller's, deliberately. Accept validates every proposed
@@ -272,7 +270,7 @@ async function loadQuestionLookups(
   const publishedQuestionVersions = new Map<QuestionId, Set<number>>();
 
   for (const questionId of pinnedQuestionIds(definition)) {
-    const rows = await listQuestionVersions(deps.db, questionId);
+    const rows = await listQuestionVersions(deps.databases.control, questionId);
     const published = new Set<number>();
     for (const row of rows) {
       const key = pinKey(row.questionId, row.version);
@@ -373,7 +371,7 @@ export async function validateDraft(
     deps,
     definition,
   );
-  const previous = await getLatestPublishedVersion(deps.db, definition.formId);
+  const previous = await getLatestPublishedVersion(deps.databases.control, definition.formId);
   const previousDefinition: FormDefinition | undefined = previous?.definition;
 
   const deprecatedIssues = deprecatedPinGate(
@@ -422,7 +420,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       rules: [],
     };
 
-    const created = await deps.db.transaction(async (tx) => {
+    const created = await deps.databases.control.transaction(async (tx) => {
       try {
         await createForm(tx, { formId, slug: body.slug, defaultLocale: locale.value });
       } catch (err: unknown) {
@@ -452,7 +450,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
-    const rows = await listForms(deps.db);
+    const rows = await listForms(deps.databases.control);
 
     // The status filter is the identity row's own column, so it narrows before the
     // per-row reads below rather than after them: a closed-only list of a library of
@@ -463,8 +461,8 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
     // denormalized status column is a Phase-4 optimization, not a launch need.
     const assembled = [];
     for (const row of byStatus) {
-      const draft = await getDraft(deps.db, row.formId);
-      const latest = await getLatestPublishedVersion(deps.db, row.formId);
+      const draft = await getDraft(deps.databases.control, row.formId);
+      const latest = await getLatestPublishedVersion(deps.databases.control, row.formId);
       assembled.push({
         row: {
           formId: row.formId,
@@ -568,11 +566,11 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const versions = await listFormVersions(deps.db, formId);
-    const openDraft = await getDraft(deps.db, formId);
+    const versions = await listFormVersions(deps.databases.control, formId);
+    const openDraft = await getDraft(deps.databases.control, formId);
 
     // The draft the editor opens: the open draft if one exists, otherwise seeded
     // from the latest published version (§4.1 "new draft opened, seeded from vN")
@@ -636,7 +634,7 @@ export function makePutDraftHandler(deps: Deps): RouteHandler<typeof putDraftRou
     // 041: an accepted agent proposal marks the draft's provenance. Sticky in
     // the query, so a plain save after one never clears the mark.
     const saved = await storeDraftDefinition(
-      deps.db,
+      deps.databases.control,
       formId,
       definition,
       c.req.valid("json").agentAssisted ?? false,
@@ -666,7 +664,7 @@ export function makeValidateDraftHandler(
     const definition = requireDefinition(c.req.valid("json").definition);
     if (definition.formId !== formId) throw fail.idMismatch();
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     // `valid` keys off errors alone: a warning describes a draft that would
@@ -1178,7 +1176,7 @@ export function makePreviewConditionHandler(
 
     // The form must exist for the route to mean anything, so an unknown form is a
     // 404 exactly as it is on validate - never a 200 "unavailable".
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     // Unlike validate, an unparseable definition is NOT an error here: the bench
@@ -1337,7 +1335,7 @@ export function makePreviewDraftHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
     const definition = requireDefinition(body.definition);
@@ -1454,7 +1452,7 @@ export function makeUpdateFormSettingsHandler(
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
 
-    const updated = await updateFormSettings(deps.db, formId, {
+    const updated = await updateFormSettings(deps.databases.control, formId, {
       ...(body.challengeRequired === undefined
         ? {}
         : { challengeRequired: body.challengeRequired }),
@@ -1483,10 +1481,10 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
 
-    const form = await getForm(deps.db, formId);
+    const form = await getForm(deps.databases.control, formId);
     if (form === undefined) throw fail.formNotFound();
 
-    const draft = await getDraft(deps.db, formId);
+    const draft = await getDraft(deps.databases.control, formId);
     if (draft === undefined) throw fail.noDraft();
 
     // Re-parse the stored draft (its JSONB is unknown at the type level, and a
@@ -1504,10 +1502,27 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
     // served forever; serve (019) never recompiles.
     const compiled = compileForm(snapshot, {});
 
-    const inserted = await deps.db.transaction(async (tx) => {
-      // Freeze the immutable version with all stamps, delete the draft, and emit
-      // the publish event - one transaction, so a version is never observed
-      // without its event and the draft never lingers past its publish (§11).
+    // **Publishing queues nothing** (Code Owner, 2026-09-30, Q60). One transaction still,
+    // so the draft never lingers past its publish (§11), but there is no event in it.
+    //
+    // Under ADR-40 publishing a version stopped being the act that reaches an environment:
+    // a version exists in `control`, one copy, and what makes it live somewhere is a
+    // **release** (task 065). So `form.published` had nobody left to tell - it announced a
+    // library change to a queue whose consumers are per environment - and Q49 always had it
+    // retiring in favour of `form.released`. Q60 is that end state reached one task early
+    // rather than a new decision: an event nobody receives is worth less than the grant it
+    // would take to write, and writing it here would mean an authoring transaction reaching
+    // into a data schema for nothing.
+    //
+    // **Task 065 writes `form.released`** into the released environment's `outbox`, in the
+    // same transaction as the release record, on the control pool under Q49's `INSERT`.
+    // `enqueueInEnvironment` in `@roonga/qcms-db` is the helper for exactly that: a plain
+    // insert that names the schema and has no `RETURNING`, because the control role holds
+    // `INSERT` there and no `SELECT` anywhere in a data schema. It ships in this task and
+    // is called by 065.
+    const inserted = await deps.databases.control.transaction(async (tx) => {
+      // Freeze the immutable version with all stamps and delete the draft, in one
+      // transaction.
       const version = await insertFormVersion(tx, {
         formId,
         definition: snapshot.definition,
@@ -1518,14 +1533,6 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
         publishedAt: now,
       });
       await deleteDraft(tx, formId);
-      await enqueue(tx, {
-        eventType: FORM_PUBLISHED,
-        payload: {
-          formId,
-          version: version.version,
-          publishedAt: version.publishedAt.toISOString(),
-        },
-      });
       return version;
     });
 
@@ -1543,7 +1550,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
     const formId = requireFormId(c.req.valid("param").id);
     // Closing stops *new* sessions (018 checks status at start); in-flight
     // sessions finish on their pinned version (R1) - status is the only change.
-    const row = await closeForm(deps.db, formId);
+    const row = await closeForm(deps.databases.control, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -1554,7 +1561,7 @@ export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormR
 export function makeReopenFormHandler(deps: Deps): RouteHandler<typeof reopenFormRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    const row = await reopenForm(deps.db, formId);
+    const row = await reopenForm(deps.databases.control, formId);
     if (row === undefined) throw fail.formNotFound();
     return c.json({ formId: row.formId, status: row.status }, 200);
   };
@@ -1570,7 +1577,7 @@ export function makeGetFormVersionHandler(
     const formId = requireFormId(id);
     const version = requireVersion(v);
 
-    const row = await getFormVersion(deps.db, formId, version);
+    const row = await getFormVersion(deps.databases.control, formId, version);
     if (row === undefined) throw fail.versionNotFound();
 
     return c.json(

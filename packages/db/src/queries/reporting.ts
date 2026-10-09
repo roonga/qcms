@@ -2,17 +2,34 @@ import { desc, eq, type SQL, sql } from "drizzle-orm";
 
 import type { FormId, SessionId } from "@roonga/qcms-core";
 
-import { erasureTombstones } from "../schema/index.js";
+import { erasureTombstones, reportingSchemaName } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import type { AccessMode } from "./sessions.js";
 
 /**
  * Reporting-view reads (task 023): the data-out vocabulary the admin response
- * slices call. These read the erasure-safe `reporting.responses` view (migration
- * 0003), so **in-progress, expired, and erased sessions are excluded by
- * construction** - the tombstone anti-join lives in the view, and no read here
- * can bypass it. Shape-preserving reads only (R5): filtering, ordering, and
- * pagination, no business logic.
+ * slices call. These read the erasure-safe `responses` view, so **in-progress,
+ * expired, and erased sessions are excluded by construction** - the tombstone
+ * anti-join lives in the view, and no read here can bypass it. Shape-preserving
+ * reads only (R5): filtering, ordering, and pagination, no business logic.
+ *
+ * ## The view set is per environment, and is the one thing here named by schema
+ *
+ * Under ADR-40 (Q10) the single `reporting` schema becomes **`reporting_<env>`**, one
+ * per environment, each holding the same two view names - so a BI tool connects to one
+ * environment's schema and its queries are otherwise unchanged. That schema is on **no
+ * search path**, so unlike every data-plane table below it has to be named, which is
+ * why each of these helpers takes the environment.
+ *
+ * `submissions` beside it stays **unqualified**: it is a data-plane table and the
+ * connection's `search_path` is what chooses the environment's copy. The two are
+ * consistent only because the environment the caller passes is the environment the pool
+ * connects to, which criterion 6's per-environment integration test is what pins.
+ *
+ * The role grant is **Q52**: each `qcms_app_<env>` holds `USAGE` on its own
+ * `reporting_<env>` and `SELECT` on that schema's views, and nothing at all on any
+ * other environment's. The per-workspace split and the read-only consumer roles of Q26
+ * are task 067's.
  *
  * The view is SQL-only (no Drizzle table object), so these helpers issue raw
  * `sql` fragments through the caller's {@link Executor} and hand-author explicit
@@ -87,6 +104,18 @@ function responseWhere(filter: ResponseFilter, flagged?: boolean): SQL {
 }
 
 /**
+ * `reporting_test` as a SQL identifier, for the one schema these reads must name.
+ *
+ * `sql.identifier` rather than interpolation, so the name is quoted by the driver and a
+ * value that somehow reached here could not become SQL. Environment names are already
+ * refused unless they match `^[a-z][a-z0-9]*$` by the operator command, which is the
+ * control; this is the backstop under it.
+ */
+function reportingSchema(environment: string): SQL {
+  return sql`${sql.identifier(reportingSchemaName(environment))}.${sql.identifier("responses")}`;
+}
+
+/**
  * A page of responses for the admin list, newest first, with the total matching
  * count for pagination. Joins `submissions` for the flag reason; because the
  * base is `reporting.responses`, erased and non-submitted sessions are already
@@ -94,6 +123,7 @@ function responseWhere(filter: ResponseFilter, flagged?: boolean): SQL {
  */
 export async function listResponses(
   exec: Executor,
+  environment: string,
   filter: ResponseFilter & { flagged?: boolean; limit: number; offset: number },
 ): Promise<{ rows: ResponseListRow[]; total: number }> {
   const where = responseWhere(filter, filter.flagged);
@@ -101,7 +131,7 @@ export async function listResponses(
     select r.session_id as "sessionId", r.form_id as "formId", r.form_version as "formVersion",
            r.submitted_at as "submittedAt", r.access_mode as "accessMode", r.answers as "answers",
            sub.flagged_reason as "flaggedReason"
-    from reporting.responses r
+    from ${reportingSchema(environment)} r
     join submissions sub on sub.session_id = r.session_id
     where ${where}
     order by r.submitted_at desc, r.session_id desc
@@ -109,7 +139,7 @@ export async function listResponses(
   `);
   const counted = await exec.execute<{ total: number }>(sql`
     select count(*)::int as "total"
-    from reporting.responses r
+    from ${reportingSchema(environment)} r
     join submissions sub on sub.session_id = r.session_id
     where ${where}
   `);
@@ -125,6 +155,7 @@ export async function listResponses(
  */
 export async function getResponse(
   exec: Executor,
+  environment: string,
   formId: FormId,
   sessionId: SessionId,
 ): Promise<ResponseDetailRow | undefined> {
@@ -132,7 +163,7 @@ export async function getResponse(
     select r.session_id as "sessionId", r.form_id as "formId", r.form_version as "formVersion",
            r.submitted_at as "submittedAt", r.access_mode as "accessMode", r.answers as "answers",
            sub.flagged_reason as "flaggedReason", sub.content_hash as "contentHash"
-    from reporting.responses r
+    from ${reportingSchema(environment)} r
     join submissions sub on sub.session_id = r.session_id
     where r.form_id = ${formId} and r.session_id = ${sessionId}
     limit 1
@@ -152,6 +183,7 @@ export async function getResponse(
  */
 export async function fetchResponsePage(
   exec: Executor,
+  environment: string,
   filter: ResponseFilter & { afterSessionId?: SessionId; limit: number },
 ): Promise<ReportingResponseRow[]> {
   const conds: SQL[] = [sql`r.form_id = ${filter.formId}`];
@@ -163,7 +195,7 @@ export async function fetchResponsePage(
   const res = await exec.execute<ReportingResponseRow>(sql`
     select r.session_id as "sessionId", r.form_id as "formId", r.form_version as "formVersion",
            r.submitted_at as "submittedAt", r.access_mode as "accessMode", r.answers as "answers"
-    from reporting.responses r
+    from ${reportingSchema(environment)} r
     where ${where}
     order by r.session_id asc
     limit ${filter.limit}

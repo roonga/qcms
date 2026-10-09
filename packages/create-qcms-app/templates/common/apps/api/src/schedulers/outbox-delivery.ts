@@ -106,6 +106,14 @@ export interface DeliveryPassOptions {
    * contract must survive. Never set in production.
    */
   readonly afterSend?: (deliveryId: string) => void | Promise<void>;
+  /**
+   * Which environment's outbox this pass drains (ADR-40, Q3).
+   *
+   * Defaults to the one a request would be served from, which is what a test composing
+   * one database against `makeDeps` gets. The **scheduler** does not default: it calls
+   * {@link runDeliveryPassForEveryEnvironment}, which names each environment in turn.
+   */
+  readonly environment?: string;
 }
 
 /** Per-pass counts logged as structured fields (no secrets, no answer values). */
@@ -128,11 +136,39 @@ export async function runDeliveryPass(
   deps: Deps,
   options: DeliveryPassOptions = {},
 ): Promise<DeliveryPassMetrics> {
-  const materialized = await materialize(deps, options);
-  const outcome = await deliverDue(deps, options);
+  const environment = options.environment ?? deps.databases.forRequest().environment;
+  const exec = deps.databases.for(environment);
+  const materialized = await materialize(deps, exec, options);
+  const outcome = await deliverDue(deps, exec, options);
   const metrics: DeliveryPassMetrics = { materialized, ...outcome };
-  deps.logger.info("outbox delivery pass", { ...metrics });
+  deps.logger.info("outbox delivery pass", { environment, ...metrics });
   return metrics;
+}
+
+/**
+ * Run one delivery pass **per environment in the live set** (Q1, Q2, criterion 9).
+ *
+ * The deliverer still starts **once** per process, under `config.mount.internal`, and
+ * iterates rather than multiplying, so `docs/deploy-enterprise.md`'s scheduler-singleton
+ * rule holds unchanged. Each environment's outbox and webhooks are its own schema's, so
+ * a test submission can never fire a production endpoint - that is structural under
+ * Q3 rather than a filter this loop has to remember.
+ *
+ * Sequential, and each environment's failure is logged and stepped over rather than
+ * ending the pass: one environment whose database is briefly unreachable must not stop
+ * another's queue from draining.
+ */
+export async function runDeliveryPassForEveryEnvironment(
+  deps: Deps,
+  options: DeliveryPassOptions = {},
+): Promise<void> {
+  for (const environment of deps.databases.names) {
+    try {
+      await runDeliveryPass(deps, { ...options, environment });
+    } catch (error: unknown) {
+      deps.logger.error("outbox delivery pass failed", { environment, err: error });
+    }
+  }
 }
 
 /**
@@ -140,9 +176,13 @@ export async function runDeliveryPass(
  * webhooks as delivery rows, consuming each event. One transaction - a crash
  * rolls back to un-fanned events, never to half-created deliveries.
  */
-async function materialize(deps: Deps, options: DeliveryPassOptions): Promise<number> {
+async function materialize(
+  deps: Deps,
+  exec: Executor,
+  options: DeliveryPassOptions,
+): Promise<number> {
   const now = options.now ?? deps.clock.now();
-  return deps.db.transaction(async (tx) => {
+  return exec.transaction(async (tx) => {
     const events = await claimDue(tx, deps.config.webhooks.deliveryBatchSize, now);
     let created = 0;
     for (const event of events) {
@@ -194,6 +234,7 @@ function resolveFormId(payload: unknown): FormId | undefined {
  */
 async function deliverDue(
   deps: Deps,
+  exec: Executor,
   options: DeliveryPassOptions,
 ): Promise<Omit<DeliveryPassMetrics, "materialized">> {
   const now = options.now ?? deps.clock.now();
@@ -203,7 +244,7 @@ async function deliverDue(
   let deadLettered = 0;
 
   for (let i = 0; i < deps.config.webhooks.deliveryBatchSize; i += 1) {
-    const outcome = await deps.db.transaction(async (tx) => {
+    const outcome = await exec.transaction(async (tx) => {
       const [due] = await claimDueDeliveries(tx, 1, now);
       if (due === undefined) return "empty" as const;
 

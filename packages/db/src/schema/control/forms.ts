@@ -1,0 +1,81 @@
+import { sql } from "drizzle-orm";
+import { boolean, check, integer, jsonb, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
+import type { FormDefinition, FormId } from "@roonga/qcms-core";
+
+import { formStatus } from "./enums.js";
+
+import { controlSchema } from "../schemas.js";
+
+/**
+ * Form identity. `status` carries the §4.1 lifecycle flag: `open` accepts new
+ * sessions, `closed` stops them (in-flight sessions finish on their pinned
+ * version, R1). Reopening is via a new draft/version.
+ *
+ * `challengeRequired` and `minSubmitMs` are per-form abuse-control settings
+ * (task 026) - operational domain config that lives on the mutable identity
+ * row, not in the immutable published definition and not a deployment flag
+ * (ADR-24). `challengeRequired` gates start-session (018) behind the configured
+ * challenge; `minSubmitMs` overrides the config-default min-time floor the
+ * submit slice (020) enforces (`NULL` = use the config default).
+ */
+export const forms = controlSchema.table("forms", {
+  formId: text("form_id").$type<FormId>().primaryKey(),
+  slug: text("slug").notNull(),
+  defaultLocale: text("default_locale").notNull(),
+  status: formStatus("status").notNull().default("open"),
+  challengeRequired: boolean("challenge_required").notNull().default(false),
+  minSubmitMs: integer("min_submit_ms"),
+});
+
+/**
+ * The mutable working state of a form. The `form_id` primary key enforces the
+ * one-open-draft-per-form invariant (a second draft insert for the same form
+ * fails the PK uniqueness check).
+ */
+export const formDrafts = controlSchema.table("form_drafts", {
+  formId: text("form_id")
+    .$type<FormId>()
+    .primaryKey()
+    .references(() => forms.formId),
+  definition: jsonb("definition").$type<FormDefinition>().notNull(),
+  /**
+   * Whether an agent-assisted proposal has been accepted into this draft (041,
+   * ADR-25). Provenance, not a permission: it is what the builder header and the
+   * publish confirmation show, so the human publishing knows what they are
+   * signing. Sticky within a draft and reset when the draft is discarded, since
+   * a fresh draft has no agent history.
+   */
+  agentAssisted: boolean("agent_assisted").notNull().default(false),
+  updatedAt: timestamp("updated_at", { withTimezone: true, mode: "date" }).notNull().defaultNow(),
+});
+
+/**
+ * Immutable published snapshots (R1, I1, ADR-18): the frozen domain definition,
+ * the compiled A2UI documents served verbatim by the portal, and the version
+ * stamps that make the audit copy self-describing. A BEFORE UPDATE trigger
+ * (`form_versions_reject_update`, migration 0001) rejects every UPDATE.
+ */
+export const formVersions = controlSchema.table(
+  "form_versions",
+  {
+    formId: text("form_id")
+      .$type<FormId>()
+      .notNull()
+      .references(() => forms.formId),
+    version: integer("version").notNull(),
+    definition: jsonb("definition").$type<FormDefinition>().notNull(),
+    compiled: jsonb("compiled").$type<CompiledForm>().notNull(),
+    compilerVersion: text("compiler_version").notNull(),
+    a2uiSpecVersion: text("a2ui_spec_version").notNull(),
+    semanticsVersion: text("semantics_version").notNull(),
+    publishedAt: timestamp("published_at", { withTimezone: true, mode: "date" })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.formId, t.version] }),
+    check("form_versions_version_positive", sql`${t.version} > 0`),
+  ],
+);

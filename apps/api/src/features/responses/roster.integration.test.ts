@@ -40,7 +40,12 @@ import {
   rosterLedger,
   type Executor,
 } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { addRosterInstance, mintForServedGroup, removeRosterInstance } from "./roster.js";
@@ -75,6 +80,7 @@ async function seedSession(id: string): Promise<SessionId> {
   });
   const sessionId = SessionId.parse(`ses_${id}`);
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version.version,

@@ -1,22 +1,15 @@
 /**
- * The @roonga/qcms-db schema surface - every table, enum, and index that migrations
- * are generated from (`drizzle-kit generate` reads this module). Postgres stores
- * and indexes the domain JSONB but never interprets it; the kernel (`@roonga/qcms-core`)
- * owns every invariant, and the database enforces the immutability and
- * append-only backstops via triggers (migration 0001).
+ * The Drizzle schema, in the two planes ADR-40 splits it into.
+ *
+ * - `./control/` is the **control plane**: one copy, in the `control` schema.
+ * - `./data/` is the **data plane**: one copy per environment, in `data_<env>`,
+ *   declared unqualified so the connection's `search_path` chooses the environment.
+ *
+ * Everything is re-exported flat from here, so `import { forms, sessions } from
+ * "@roonga/qcms-db"` is unchanged by the split and no caller has to know which plane a
+ * table is in. The two index modules are what the generator, the per-schema table lists
+ * in `migrations.test.ts` and the disjointness check read.
  */
 
-export * from "./enums.js";
-export * from "./questions.js";
-export * from "./forms.js";
-export * from "./secure-links.js";
-export * from "./webhooks.js";
-export * from "./sessions.js";
-export * from "./answers.js";
-export * from "./answer-group-instances.js";
-export * from "./submissions.js";
-export * from "./erasure.js";
-export * from "./outbox.js";
-export * from "./deliveries.js";
-export * from "./auth.js";
-export * from "./two-factor-resets.js";
+export * from "./control/index.js";
+export * from "./data/index.js";

@@ -38,6 +38,7 @@ import { nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { appGroups } from "./registrars.js";
+import { INTERIM_REQUEST_ENVIRONMENT } from "./environments.js";
 
 /** A JSON OpenAPI document (structurally; we treat it as opaque JSON). */
 export type OpenApiDocument = ReturnType<OpenAPIHono["getOpenAPIDocument"]>;
@@ -59,6 +60,11 @@ const OPS_PATHS = ["/health", "/ready"] as const;
  */
 const CODEGEN_ENV: Record<string, string> = {
   DATABASE_URL: "postgres://codegen:codegen@localhost:5432/codegen",
+  // One credential per environment (ADR-40, Q2). Placeholders like the keys below:
+  // generation never opens a connection and never builds a pool.
+  QCMS_ENVIRONMENTS: "test,prod",
+  QCMS_DATABASE_URL_TEST: "postgres://codegen:codegen@localhost:5432/codegen",
+  QCMS_DATABASE_URL_PROD: "postgres://codegen:codegen@localhost:5432/codegen",
   QCMS_MOUNT: "all",
   QCMS_LINK_KEYS: "codegen-openapi-placeholder-value-000000000",
   QCMS_SESSION_KEYS: "codegen-openapi-placeholder-value-000000000",
@@ -89,8 +95,15 @@ function inertDb(): Executor {
 function codegenDeps(): Deps {
   const config = loadConfig(CODEGEN_ENV);
   const clock = systemClock;
+  const inert = inertDb();
   return {
-    db: inertDb(),
+    databases: {
+      control: inert,
+      names: config.environments.map((environment) => environment.name),
+      defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
+      for: () => inert,
+      forRequest: () => ({ environment: INTERIM_REQUEST_ENVIRONMENT, exec: inert }),
+    },
     config,
     clock,
     logger: createNullLogger(),

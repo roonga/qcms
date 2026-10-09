@@ -26,6 +26,7 @@ import type { ApiEnv } from "../../../openapi.js";
 import {
   checkQuestionDefinition,
   createQuestionWithFirstDraft,
+  requireUnusedQuestionId,
   type DefinitionRefusal,
 } from "../../questions/create.js";
 import { requireFormDefinition, storeDraftDefinition, validateDraft } from "../handler.js";
@@ -70,7 +71,7 @@ function questionLibrary(deps: Deps) {
   return {
     async search(query: string | undefined, limit: number): Promise<readonly LibraryEntry[]> {
       const needle = query?.trim().toLowerCase();
-      const summaries = await listQuestions(deps.db);
+      const summaries = await listQuestions(deps.databases.control);
       const candidates = summaries.filter(
         (q) =>
           needle === undefined ||
@@ -112,7 +113,7 @@ async function latestPublished(
   questionId: QuestionId,
   slug: string,
 ): Promise<LibraryEntry | undefined> {
-  const versions = await listQuestionVersions(deps.db, questionId);
+  const versions = await listQuestionVersions(deps.databases.control, questionId);
   let newest: (typeof versions)[number] | undefined;
   for (const version of versions) {
     if (version.status !== "published") continue;
@@ -207,10 +208,10 @@ export function makeAssistHandler(deps: Deps): RouteHandler<typeof assistRoute, 
     // (the same read-time rule `GET /admin/forms/:id` applies). Without the
     // fallback, asking the assistant anything on a freshly published form would
     // 404 while the builder in front of the author is showing a draft.
-    const draftRow = await getDraft(deps.db, formId);
+    const draftRow = await getDraft(deps.databases.control, formId);
     let definition: FormDefinition;
     if (draftRow === undefined) {
-      const published = await getLatestPublishedVersion(deps.db, formId);
+      const published = await getLatestPublishedVersion(deps.databases.control, formId);
       if (published === undefined) throw fail.noDraft();
       definition = published.definition;
     } else {
@@ -369,7 +370,22 @@ export function makeAcceptProposalHandler(
       };
     });
 
-    const stored = await deps.db.transaction(async (tx) => {
+    // R6's answer-ledger half, once per proposed question per environment in the live set,
+    // and before the transaction opens for the same reason validation is: those reads are on
+    // the environment pools, a transaction is one connection, and no transaction should be
+    // opened for a proposal that is going to be refused (ADR-40, Q1).
+    for (const question of proposed) {
+      try {
+        await requireUnusedQuestionId(deps.databases, question.definition.questionId);
+      } catch (error) {
+        // The same record the in-transaction refusals get below, for the same reason: an
+        // R6 refusal is an outcome of the accept and has to be attributable to a question.
+        logRefusal(deps, formId, question.definition.questionId, codeOf(error), []);
+        throw error;
+      }
+    }
+
+    const stored = await deps.databases.control.transaction(async (tx) => {
       const created: CreatedQuestion[] = [];
       for (const question of proposed) {
         // Sequential rather than concurrent: these share one connection handle,

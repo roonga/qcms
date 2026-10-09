@@ -1,475 +1,461 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { SHIPPED_ENVIRONMENTS } from "./environment/baseline.js";
+import { environmentObjectNames } from "./environment/sql.js";
+import { CONTROL_TABLE_NAMES } from "./schema/control/index.js";
 import {
-  CONTAINER_BOOT_TIMEOUT_MS,
-  applyMigrations,
-  startTestDb,
-  type TestDb,
-} from "./testing/harness.js";
+  DATA_PLANE_TABLE_NAMES,
+  DATA_PLANE_TRIGGERS,
+  SESSION_ENVIRONMENT_CHECK,
+} from "./schema/data/index.js";
+import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "./testing/harness.js";
 
 /**
- * Every table the schema declares (14 domain + 1 break-glass audit + 5 better-auth).
+ * A fresh database is created in the target shape (ADR-40, criteria 1, 1a, 2 and 8).
  *
- * A new migration that creates a table must add the table to this list, or
- * "creates every table on an empty database" fails naming it.
+ * ## What changed here, and why the shape of the assertion had to change with it
  *
- * That is true because the assertion below compares the created set to this one
- * exactly (issue #861). It was a subset check (`toContain` per entry) until then, so
- * a table a later migration created passed while unlisted: `two_factor_resets`
- * (migration 0021) reached this list because a reviewer noticed it was missing, not
- * because the assertion complained, and it would not have.
+ * This file used to compare one flat set of tables in `public` against a hand-kept
+ * list. Under ADR-40 there is no flat set: the control plane is one copy in `control`
+ * and the data plane is one copy per environment in `data_<env>`, so the list becomes
+ * **a fixed table list per schema** (section 4a). Keeping it an **exact** comparison is
+ * what keeps the test's original purpose, which is that a migration creating a table
+ * nobody listed fails naming it (issue #861) - a subset check passes a table nobody
+ * listed, which is how `two_factor_resets` went unlisted for two months.
  *
- * `answer_group_instances` (migration 0022, ADR-42) is the eighth **data-plane**
- * table, which is a smaller set than this one: ADR-40 counts the tables that carry
- * a session's respondent-linked state and multiply per environment, while this
- * list is every table in `public`.
+ * ## The lists are derived, not re-typed
+ *
+ * `CONTROL_TABLE_NAMES` and `DATA_PLANE_TABLE_NAMES` come from the two schema modules,
+ * which is the same place the baseline and the environment command emit from. A second
+ * hand-kept copy here would be a list that agrees with the schema until somebody
+ * changed one of them, and the whole point of issue #861's assertion is that it is the
+ * thing that notices.
+ *
+ * That also gives criterion 3a's disjointness as a by-product: a name in both modules
+ * would appear in both schemas and the search path would resolve it to the
+ * environment's copy with no error anywhere. `scripts/check-schema-disjoint.mjs` is the
+ * cheap check that runs in CI without a container; this is the one that runs against
+ * the database the migration actually built.
  */
-const EXPECTED_TABLES = [
-  "questions",
-  "question_versions",
-  "forms",
-  "form_drafts",
-  "form_versions",
-  "secure_links",
-  "webhooks",
-  "sessions",
-  "answers",
-  "answer_group_instances",
-  "submissions",
-  "erasure_tombstones",
-  "outbox",
-  "webhook_deliveries",
-  "two_factor_resets",
-  "user",
-  "session",
-  "account",
-  "verification",
-  "twoFactor",
-] as const;
 
 /**
- * Drizzle's own migration journal: bookkeeping the migrator writes about itself,
- * not schema this package declares. The node-postgres migrator keeps it in the
- * `drizzle` schema, so it does not reach the query below at all; excluded by name so
- * that a migrator default which moved it into `public` could not be mistaken for an
- * unlisted new table by the exact-set assertion.
+ * Drizzle's own migration journal: bookkeeping the migrator writes about itself, not
+ * schema this package declares. The node-postgres migrator keeps it in the `drizzle`
+ * schema, so it never reaches a per-schema assertion below.
  */
-const DRIZZLE_JOURNAL_TABLE = "__drizzle_migrations";
+const DRIZZLE_JOURNAL_SCHEMA = "drizzle";
 
 /**
  * The per-test budget for a body that talks to the container (issue #932).
  *
- * Vitest's 5000 ms default is sized for in-process work. Every test in this file issues
- * real DDL and catalogue queries against a Postgres container that the rest of this
- * package's Docker-backed files are booting at the same moment, so its wall time tracks
- * how busy the daemon is rather than how much the assertion asks of it. Declared on the
- * suite rather than test by test, because that is the honest scope of the claim: it is
- * true of every body here, including the next one added.
- *
- * Measured alone on an idle host by bisecting the per-test budget, which is the only
- * reading that means anything here. A reporter duration counts the container-booting
- * `beforeEach` as part of the test (7010 ms reported against a 1.0 s body, measured with
- * a probe), and that hook is budgeted separately, at CONTAINER_BOOT_TIMEOUT_MS below.
- * Every body here clears 1500 ms; the two that apply migrations in the body clear
- * 1000 ms on a warm image and not on a cold one. So the bodies cost roughly 0.3 s to
- * 1.2 s, and the default left them 4x to 16x of headroom: enough alone, and not enough
- * during a forced `turbo run test`, where the #936 delta review recorded
- * `Test timed out in 5000ms` here while the whole file took 107.7 s and was 5/5 green
- * alone at load 0.44.
- *
- * 30 s is about 25x the slowest measured body. It is the figure PR #937 gave the same
- * class of work in this package (`packages/db/src/testing/harness-deps.test.ts`), and it
- * stays far below the 240 s hook budget, so a migration that genuinely became
- * pathological still fails here rather than passing slowly.
+ * Vitest's 5000 ms default is sized for in-process work. Every test here issues
+ * catalogue queries against a Postgres container that the rest of this package's
+ * Docker-backed files are booting at the same moment, so its wall time tracks how busy
+ * the daemon is rather than how much the assertion asks of it. 30 s is the figure
+ * PR #937 gave the same class of work in this package, so a migration that genuinely
+ * became pathological still fails here rather than passing slowly.
  */
 const MIGRATION_STEP_TIMEOUT_MS = 30_000;
 
-async function publicTables(testDb: TestDb): Promise<Set<string>> {
+let testDb: TestDb;
+
+beforeAll(async () => {
+  // One container for the whole file. The baseline is the only migration there is, so
+  // there is no "apply N, then N+1" path left to exercise on a container of its own.
+  testDb = await startTestDb();
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+afterAll(async () => {
+  await testDb?.teardown();
+}, CONTAINER_BOOT_TIMEOUT_MS);
+
+async function tablesIn(schema: string): Promise<string[]> {
   const res = await testDb.client.query<{ table_name: string }>(
-    `select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'`,
+    `select table_name from information_schema.tables
+      where table_schema = $1 and table_type = 'BASE TABLE'`,
+    [schema],
   );
-  return new Set(
-    res.rows.map((r) => r.table_name).filter((name) => name !== DRIZZLE_JOURNAL_TABLE),
-  );
+  return res.rows.map((row) => row.table_name).sort();
 }
 
-async function triggerExists(testDb: TestDb, name: string): Promise<boolean> {
-  const res = await testDb.client.query(`select 1 from pg_trigger where tgname = $1`, [name]);
-  return res.rowCount === 1;
+async function triggerNamesOn(schema: string): Promise<string[]> {
+  const res = await testDb.client.query<{ tgname: string }>(
+    `select t.tgname from pg_trigger t
+       join pg_class c on c.oid = t.tgrelid
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = $1 and not t.tgisinternal`,
+    [schema],
+  );
+  return res.rows.map((row) => row.tgname).sort();
 }
 
-/**
- * `true` for `NOT NULL`, `false` for nullable, `undefined` for "no such column" - three
- * answers rather than two, because the assertions below turn on the difference between a
- * column that was relaxed and a column that is gone.
- */
-async function columnIsNotNull(
-  testDb: TestDb,
-  table: string,
-  column: string,
-): Promise<boolean | undefined> {
-  const res = await testDb.client.query<{ is_nullable: string }>(
-    `select is_nullable from information_schema.columns
-       where table_schema = 'public' and table_name = $1 and column_name = $2`,
-    [table, column],
+async function constraintNamesOn(schema: string, kind: string): Promise<string[]> {
+  const res = await testDb.client.query<{ conname: string }>(
+    `select con.conname from pg_constraint con
+       join pg_class c on c.oid = con.conrelid
+       join pg_namespace n on n.oid = c.relnamespace
+      where n.nspname = $1 and con.contype = $2`,
+    [schema, kind],
   );
-  const row = res.rows[0];
-  return row === undefined ? undefined : row.is_nullable === "NO";
+  return res.rows.map((row) => row.conname).sort();
 }
 
-async function indexExists(testDb: TestDb, name: string): Promise<boolean> {
-  const res = await testDb.client.query(
-    `select 1 from pg_indexes where schemaname = 'public' and indexname = $1`,
-    [name],
+async function indexNamesOn(schema: string): Promise<string[]> {
+  const res = await testDb.client.query<{ indexname: string }>(
+    `select indexname from pg_indexes where schemaname = $1`,
+    [schema],
   );
-  return res.rowCount === 1;
+  return res.rows.map((row) => row.indexname).sort();
 }
 
 describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, () => {
-  describe("migrate from zero", () => {
-    let testDb: TestDb;
+  it("creates exactly the control-plane tables in `control`, and only those", async () => {
+    expect(await tablesIn("control")).toEqual([...CONTROL_TABLE_NAMES].sort());
+  });
 
-    beforeEach(async () => {
-      // Fresh container, then the full package-owned migration set via the
-      // official Drizzle migrator - the exact path adopters run.
-      testDb = await startTestDb();
-    }, CONTAINER_BOOT_TIMEOUT_MS);
+  it.each(SHIPPED_ENVIRONMENTS)(
+    "creates exactly the data-plane tables in data_%s, and only those",
+    async (environment) => {
+      expect(await tablesIn(`data_${environment}`)).toEqual([...DATA_PLANE_TABLE_NAMES].sort());
+    },
+  );
 
-    afterEach(async () => {
-      await testDb?.teardown();
-    }, CONTAINER_BOOT_TIMEOUT_MS);
+  it("leaves `public` holding no QCMS object at all (criterion 2)", async () => {
+    // The whole of what "public is left empty" means, asserted rather than assumed. A
+    // table here would be reachable by an unqualified name on any connection whose
+    // search path fell back to the default, which is the failure Q20 removed.
+    expect(await tablesIn("public")).toEqual([]);
+  });
 
-    it("creates every table on an empty database, and only those", async () => {
-      // Exact equality, sorted, rather than a `toContain` per entry (issue #861): a
-      // subset check passes a table nobody listed, which is how `two_factor_resets`
-      // went unlisted. Compared as sorted arrays because the diff Vitest prints for
-      // two arrays names the table that appeared or vanished, which is the whole
-      // message this assertion has to carry.
-      const tables = await publicTables(testDb);
-      expect([...tables].sort()).toEqual([...EXPECTED_TABLES].sort());
-    });
+  it("puts `public` on no search path and grants CREATE on it to nobody", async () => {
+    const searchPath = await testDb.client.query<{ search_path: string }>(
+      `select current_setting('search_path') as search_path`,
+    );
+    expect(searchPath.rows[0]?.search_path).not.toContain("public");
 
-    it("leaves account keyed on the provider pair, with no issuer column or index", async () => {
-      // better-auth 1.7.6 recognizes an account by `(providerId, accountId)`, as 1.6 did,
-      // and never writes `issuer` (issue #849, migration 0020). A `NOT NULL` column the
-      // library does not write is not dead weight: 1.7.3 refuses to boot against one, so
-      // the shape of this table at the end of the chain is a startup precondition rather
-      // than tidiness. Asserted against a real Postgres because that is what the running
-      // API meets; the Drizzle mirror it is checked against is source, not evidence.
-      expect(await columnIsNotNull(testDb, "account", "issuer")).toBeUndefined();
-      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(false);
+    // PostgreSQL 15 revokes this by default and the baseline states it anyway; what is
+    // asserted is the outcome, on the database the migration built.
+    const create = await testDb.client.query<{ has: boolean }>(
+      `select has_schema_privilege('public', 'public', 'CREATE') as has`,
+    );
+    expect(create.rows[0]?.has).toBe(false);
+  });
 
-      // The floor under the two lines above: a query that found no `account` table at all
-      // would make both of them pass while asserting nothing.
-      expect(await columnIsNotNull(testDb, "account", "accountId")).toBe(true);
-      expect(await columnIsNotNull(testDb, "account", "providerId")).toBe(true);
-    });
+  it("keeps drizzle's own bookkeeping in its own schema", async () => {
+    const res = await testDb.client.query<{ n: number }>(
+      `select count(*)::int as n from information_schema.tables where table_schema = $1`,
+      [DRIZZLE_JOURNAL_SCHEMA],
+    );
+    expect(res.rows[0]?.n).toBeGreaterThan(0);
+  });
 
-    it("installs the append-only and immutability triggers", async () => {
-      expect(await triggerExists(testDb, "answers_reject_update")).toBe(true);
-      expect(await triggerExists(testDb, "answers_reject_delete")).toBe(true);
-      expect(await triggerExists(testDb, "question_versions_freeze_published")).toBe(true);
-      expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
+  it("installs the control-plane immutability triggers", async () => {
+    expect(await triggerNamesOn("control")).toEqual([
+      "form_versions_reject_update",
+      "question_versions_freeze_published",
+    ]);
+  });
 
-      // The roster's pair (migration 0022, ADR-42): the same two guards the answer
-      // ledger carries, one table over, the delete one honouring the same door.
-      expect(await triggerExists(testDb, "answer_group_instances_reject_update")).toBe(true);
-      expect(await triggerExists(testDb, "answer_group_instances_reject_delete")).toBe(true);
-    });
+  describe.each(SHIPPED_ENVIRONMENTS)("the per-environment set in data_%s", (environment) => {
+    const expected = environmentObjectNames(environment);
+    const schema = `data_${environment}`;
 
-    it("keys the answer ledger by instance and pins the roster's event vocabulary", async () => {
-      // The column is NULLABLE and that is the additive half of migration 0022: a row
-      // written before it, and a row written after it for a question outside every
-      // repeating group, are the same row (ADR-42).
-      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBe(false);
-
-      // The index keeps its name and gains `instance_id` before `answered_at`, so its
-      // leading columns are exactly `latestAnswers`'s DISTINCT ON key. Read off the
-      // live definition rather than off the mirror, which is source and not evidence.
-      const definition = await testDb.client.query<{ indexdef: string }>(
-        `select indexdef from pg_indexes
-           where schemaname = 'public' and indexname = 'answers_session_question_answered_at_idx'`,
-      );
-      expect(definition.rows[0]?.indexdef).toContain("session_id, question_id, instance_id");
-
-      // The CHECK is the third of this table's four guards, and it is hand-authored
-      // in SQL rather than declared in the Drizzle mirror, exactly as
-      // `answers_retraction_value` (0009) is. So the assertion has to be against the
-      // database: the mirror would report nothing either way.
-      await expect(
-        testDb.client.query(
-          `insert into answer_group_instances (session_id, group_id, instance_id, event)
-             values ('ses_nope', 'grp_pax', 'ins_1', 'archived')`,
-        ),
-      ).rejects.toMatchObject({ constraint: "answer_group_instances_event" });
-    });
-
-    it("carries ADR-40's per-environment counts, derived from the live catalogue", async () => {
-      // ADR-40's amendment states eight data-plane tables, seventeen guards and eight
-      // foreign keys per environment, and task 072 is where those figures are checked
-      // against real SQL rather than against the prose that produced them. Task 064
-      // checks its generator against the same numbers, so a drift found here is found
-      // before a generator is written to the wrong total.
+    it("carries every guard the data-plane module declares, and only those", async () => {
+      // Criterion 1, the half whose absence is silent. An environment missing
+      // `answers_reject_delete` has an erasable ledger and nothing anywhere says so, so
+      // this is an exact set rather than a presence check per name.
       //
-      // The criterion is ADR-40's own and is mechanical: any trigger, CHECK, UNIQUE
-      // constraint or index declared on one of the data-plane tables. Primary keys ride
-      // the CREATE TABLE and are excluded, and so is the index a UNIQUE constraint
-      // creates for itself, which would otherwise be counted twice.
-      const dataPlane = [
-        "sessions",
-        "answers",
-        "submissions",
-        "erasure_tombstones",
-        "outbox",
-        "webhook_deliveries",
-        "webhooks",
-        "answer_group_instances",
-      ];
-      const tables = await publicTables(testDb);
-      expect(dataPlane.filter((name) => tables.has(name))).toEqual(dataPlane);
+      // Postgres backs a UNIQUE constraint and a PRIMARY KEY with an index of the same
+      // name, so a naive union double-counts the unique and adds the primary keys. The
+      // primary keys ride `CREATE TABLE` and are not guards; the unique is one, counted
+      // once.
+      const primaryKeys = new Set(await constraintNamesOn(schema, "p"));
+      const guards = new Set([
+        ...(await triggerNamesOn(schema)),
+        ...(await constraintNamesOn(schema, "c")),
+        ...(await constraintNamesOn(schema, "u")),
+        ...(await indexNamesOn(schema)).filter((name) => !primaryKeys.has(name)),
+      ]);
+      expect([...guards].sort()).toEqual([...new Set(expected.guards)].sort());
+    });
 
-      const guards = await testDb.client.query<{ kind: string; name: string }>(
-        `select 'trigger' as kind, t.tgname as name
-           from pg_trigger t join pg_class c on c.oid = t.tgrelid
-           where not t.tgisinternal and c.relname = any($1)
-         union all
-         select case con.contype when 'c' then 'check' else 'unique' end, con.conname
-           from pg_constraint con join pg_class c on c.oid = con.conrelid
-           where con.contype in ('c', 'u') and c.relname = any($1)
-         union all
-         select 'index', ic.relname
-           from pg_index i
-           join pg_class c on c.oid = i.indrelid
-           join pg_class ic on ic.oid = i.indexrelid
-           where c.relname = any($1)
-             and not i.indisprimary
-             and not exists (select 1 from pg_constraint k where k.conindid = i.indexrelid)`,
-        [dataPlane],
+    it("carries every foreign key, each pointing at the schema it should", async () => {
+      // Criterion 1a. The in-plane keys are the ones a generator gets wrong quietly:
+      // written once against `data_test` and copied, they can end up pointing at
+      // another environment's `sessions`, which is a cross-environment reference the
+      // search path would never reveal. So the target schema is read back per key.
+      const res = await testDb.client.query<{ conname: string; target: string }>(
+        `select con.conname, tn.nspname as target
+           from pg_constraint con
+           join pg_class c on c.oid = con.conrelid
+           join pg_namespace n on n.oid = c.relnamespace
+           join pg_class tc on tc.oid = con.confrelid
+           join pg_namespace tn on tn.oid = tc.relnamespace
+          where n.nspname = $1 and con.contype = 'f'`,
+        [schema],
       );
+      const byName = new Map(res.rows.map((row) => [row.conname, row.target]));
 
-      // Sixteen off the chain: twelve ADR-40 reads off migrations 0000 to 0018, plus the
-      // four this task's table declares. The seventeenth is the `CHECK (environment =
-      // '<env>')` on `data_<env>.sessions` that #995's design adds and task 064 writes,
-      // so it cannot exist here and its absence is the honest reading of that record
-      // rather than a shortfall. Named as a list so a failure says which guard moved.
-      expect(guards.rows.map((row) => row.name).sort()).toEqual(
-        [
-          "answers_reject_update",
-          "answers_reject_delete",
-          "answers_retraction_value",
-          "answers_session_question_answered_at_idx",
-          "answer_group_instances_reject_update",
-          "answer_group_instances_reject_delete",
-          "answer_group_instances_event",
-          "answer_group_instances_session_group_occurred_at_idx",
-          "sessions_status_expires_at_idx",
-          "outbox_delivery_idx",
-          "outbox_payload_retention_idx",
-          "outbox_redacted_payload_has_no_answers",
-          "webhook_deliveries_due_idx",
-          "webhook_deliveries_event_webhook_uq",
-          "webhook_deliveries_snippet_requires_attempt",
-          "webhook_deliveries_snippet_retention_idx",
-        ].sort(),
-      );
+      expect([...byName.keys()].sort()).toEqual([...expected.foreignKeys].sort());
+      for (const name of expected.inPlaneForeignKeys) expect(byName.get(name)).toBe(schema);
+      for (const name of expected.crossingForeignKeys) expect(byName.get(name)).toBe("control");
+    });
 
-      const foreignKeys = await testDb.client.query<{ name: string }>(
-        `select con.conname as name
-           from pg_constraint con join pg_class c on c.oid = con.conrelid
-           where con.contype = 'f' and c.relname = any($1)`,
-        [dataPlane],
+    it("pins every session row to this schema and nowhere else (Q46)", async () => {
+      const res = await testDb.client.query<{ definition: string }>(
+        `select pg_get_constraintdef(con.oid) as definition
+           from pg_constraint con
+           join pg_class c on c.oid = con.conrelid
+           join pg_namespace n on n.oid = c.relnamespace
+          where n.nspname = $1 and con.conname = $2`,
+        [schema, SESSION_ENVIRONMENT_CHECK],
       );
-      // Eight, the eighth being the roster's own `session_id` reference into the same
-      // plane. ADR-40 names the other seven: three cross into `control` and four stay
-      // inside one schema.
-      expect(foreignKeys.rows.map((row) => row.name).sort()).toEqual(
-        [
-          // The three that cross into what ADR-40 calls `control`.
-          "sessions_form_version_fk",
-          "sessions_link_id_secure_links_link_id_fk",
-          "webhooks_form_id_forms_form_id_fk",
-          // The four that stay inside one plane, and the roster's, which is the
-          // eighth and is also in-plane.
-          "answers_session_id_sessions_session_id_fk",
-          "submissions_session_id_sessions_session_id_fk",
-          "webhook_deliveries_outbox_id_outbox_id_fk",
-          "webhook_deliveries_webhook_id_webhooks_webhook_id_fk",
-          "answer_group_instances_session_id_sessions_session_id_fk",
-        ].sort(),
+      expect(res.rows[0]?.definition).toContain(`'${environment}'`);
+    });
+
+    it("keeps this schema's `sessions.environment` NOT NULL, which is what makes it a guard", async () => {
+      // A CHECK passes when the column is NULL, and a composite foreign key under the
+      // default MATCH SIMPLE is not checked at all when any referencing column is NULL.
+      // So a nullable `environment` would skip both halves, and neither half's presence
+      // would say so. The key's other end, `control.secure_links.environment`, is
+      // asserted once below rather than once per environment, since there is one of it;
+      // the refusals the pair actually produces are asserted there too.
+      const res = await testDb.client.query<{ is_nullable: string }>(
+        `select is_nullable from information_schema.columns
+          where table_schema = $1 and table_name = 'sessions' and column_name = 'environment'`,
+        [schema],
       );
+      expect(res.rows[0]?.is_nullable).toBe("NO");
+    });
+
+    it("runs each ledger trigger against the single function body in `control`", async () => {
+      // The functions stay single so a fix to one is one edit rather than one per
+      // environment. A trigger carrying its own copy would drift silently.
+      const res = await testDb.client.query<{ tgname: string; nspname: string }>(
+        `select t.tgname, fn.nspname
+           from pg_trigger t
+           join pg_class c on c.oid = t.tgrelid
+           join pg_namespace n on n.oid = c.relnamespace
+           join pg_proc p on p.oid = t.tgfoid
+           join pg_namespace fn on fn.oid = p.pronamespace
+          where n.nspname = $1 and not t.tgisinternal`,
+        [schema],
+      );
+      expect(res.rows.map((row) => row.tgname).sort()).toEqual(
+        DATA_PLANE_TRIGGERS.map((trigger) => trigger.name).sort(),
+      );
+      for (const row of res.rows) expect(row.nspname).toBe("control");
+    });
+
+    it("holds the environment's own reporting views and nothing else", async () => {
+      const res = await testDb.client.query<{ table_name: string }>(
+        `select table_name from information_schema.views where table_schema = $1`,
+        [`reporting_${environment}`],
+      );
+      expect(res.rows.map((row) => row.table_name).sort()).toEqual(["answers_flat", "responses"]);
     });
   });
 
-  describe("migrate forward, one migration at a time (apply N, then N+1)", () => {
-    let testDb: TestDb;
+  /**
+   * Criterion 1a's behavioural half: the thirteenth guard **refused a real insert**.
+   *
+   * Every other assertion in this file reads the catalogue, which proves the guard was
+   * declared. None of them proves it bites. The two clauses criterion 1a states
+   * (`plan/environments-and-workspaces.md`, criterion 1a) are about what the database
+   * does to a row:
+   *
+   * - a session started in one environment from a link row naming another is refused;
+   * - a public session with a NULL `link_id` still carries its environment and is
+   *   still pinned by the CHECK.
+   *
+   * Both halves matter because each guard alone is satisfiable. The composite foreign
+   * key is `MATCH SIMPLE`, so it is **not checked at all** when `link_id` is NULL,
+   * which is every anonymous session; the CHECK is what pins those. And the CHECK only
+   * compares the row against its own schema, so a link minted elsewhere is the foreign
+   * key's job. A change that dropped `environment` from the composite key would leave
+   * the catalogue assertions above passing while a `prod` link quietly started a `test`
+   * session, which is the scenario these four inserts close.
+   */
+  describe("refuses the cross-environment session rather than merely declaring it (Q46)", () => {
+    // Derived, not re-typed: the home environment is the first shipped one and the
+    // foreign one is the second, so adding a third environment does not silently turn
+    // this into a test of one schema against itself.
+    //
+    // Two is a real precondition rather than a type-checker formality: with one
+    // environment there is no "another environment" to be refused from, and every
+    // refusal below would be asserting nothing. So it throws at collection time instead
+    // of defaulting to a name, which would build `data_undefined` and fail obscurely.
+    const [homeEnvironment, foreignEnvironment] = SHIPPED_ENVIRONMENTS;
+    if (homeEnvironment === undefined || foreignEnvironment === undefined) {
+      throw new Error(
+        "the thirteenth guard needs two shipped environments to compare, " +
+          `and SHIPPED_ENVIRONMENTS names ${SHIPPED_ENVIRONMENTS.length}`,
+      );
+    }
+    const homeSchema = `data_${homeEnvironment}`;
+    const foreignSchema = `data_${foreignEnvironment}`;
 
-    beforeEach(async () => {
-      // No migrations yet - we apply them incrementally below.
-      testDb = await startTestDb({ migrate: false });
+    const FORM_ID = "q46-guard-form";
+    const linkIdFor = (environment: string) => `q46-link-${environment}`;
+
+    beforeAll(async () => {
+      // One form and one version, because `sessions_form_version_fk` has to be
+      // satisfiable for the row to reach the guard under test. Then one link per
+      // environment, which is what makes "a link naming another environment" a real
+      // row rather than a dangling id.
+      await testDb.client.query(
+        `insert into control.forms (form_id, slug, default_locale)
+         values ($1, $1, 'en')`,
+        [FORM_ID],
+      );
+      await testDb.client.query(
+        `insert into control.form_versions
+           (form_id, version, definition, compiled, compiler_version,
+            a2ui_spec_version, semantics_version)
+         values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+        [FORM_ID],
+      );
+      for (const environment of SHIPPED_ENVIRONMENTS) {
+        await testDb.client.query(
+          `insert into control.secure_links (link_id, form_id, expires_at, environment)
+           values ($1, $2, now() + interval '1 day', $3)`,
+          [linkIdFor(environment), FORM_ID, environment],
+        );
+      }
     }, CONTAINER_BOOT_TIMEOUT_MS);
 
-    afterEach(async () => {
-      await testDb?.teardown();
-    }, CONTAINER_BOOT_TIMEOUT_MS);
+    /**
+     * Attempts one session insert and reports what the database said about it: `null`
+     * when the row was accepted, or the SQLSTATE and the constraint that refused it.
+     * Asserting the constraint by name and not just the class of error is the point -
+     * a row refused by the wrong guard would otherwise read as a pass.
+     */
+    async function attemptSession(
+      schema: string,
+      row: { sessionId: string; linkId: string | null; environment: string },
+    ): Promise<{ code: string; constraint: string } | null> {
+      try {
+        await testDb.client.query(
+          `insert into "${schema}".sessions
+             (session_id, form_id, form_version, access_mode, link_id, environment, expires_at)
+           values ($1, $2, 1, $3, $4, $5, now() + interval '1 hour')`,
+          [
+            row.sessionId,
+            FORM_ID,
+            row.linkId === null ? "anonymous" : "secure_link",
+            row.linkId,
+            row.environment,
+          ],
+        );
+        return null;
+      } catch (error) {
+        const failure = error as { code?: string; constraint?: string };
+        return { code: failure.code ?? "", constraint: failure.constraint ?? "" };
+      }
+    }
 
-    it("applies 0000 (tables), then 0001 (triggers), each taking effect in turn", async () => {
-      // Apply only migration 0000: tables exist, triggers do not.
-      await applyMigrations(testDb.client, { to: 0 });
-      const tablesAfter0000 = await publicTables(testDb);
-      expect(tablesAfter0000).toContain("answers");
-      expect(tablesAfter0000).toContain("form_versions");
-      expect(await triggerExists(testDb, "answers_reject_update")).toBe(false);
-
-      // Apply the next migration 0001: the triggers now exist.
-      await applyMigrations(testDb.client, { from: 1, to: 1 });
-      expect(await triggerExists(testDb, "answers_reject_update")).toBe(true);
-      expect(await triggerExists(testDb, "form_versions_reject_update")).toBe(true);
+    it("refuses a session in one environment started from another environment's link", async () => {
+      // The clause in full: the link row exists, is not expired and is not revoked, and
+      // the only thing wrong with it is the environment it names. 23503 is
+      // foreign_key_violation.
+      const refusal = await attemptSession(homeSchema, {
+        sessionId: "q46-foreign-link",
+        linkId: linkIdFor(foreignEnvironment),
+        environment: homeEnvironment,
+      });
+      expect(refusal).toEqual({ code: "23503", constraint: "sessions_secure_link_fk" });
     });
 
-    it("applies 0022 over a populated database without disturbing a stored answer", async () => {
-      // The upgrade path an adopter takes, which is the only one that can fail: a
-      // database created after 0022 has the column from the start and proves nothing
-      // about adding it to a table that already holds rows. Everything through 0021
-      // first, then a session and an answer of the shape that existed before ADR-42.
-      //
-      // The index is literal at 21/22 because migration history is append-only and
-      // immutable once released (ADR-18): 0022 is index 22 for good.
-      await applyMigrations(testDb.client, { to: 21 });
-      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBeUndefined();
+    it.each([
+      ["carrying that environment's link", true],
+      ["carrying no link at all", false],
+    ])("refuses a row claiming another environment's name, %s", async (_label, withLink) => {
+      // 23514 is check_violation. The second case is the one the foreign key cannot
+      // catch: with a NULL `link_id`, MATCH SIMPLE skips the key entirely, so the CHECK
+      // is the only thing standing between a `prod` row and the `test` schema.
+      const refusal = await attemptSession(homeSchema, {
+        sessionId: `q46-claims-foreign-${withLink ? "linked" : "anonymous"}`,
+        linkId: withLink ? linkIdFor(foreignEnvironment) : null,
+        environment: foreignEnvironment,
+      });
+      expect(refusal).toEqual({ code: "23514", constraint: SESSION_ENVIRONMENT_CHECK });
+    });
 
-      await testDb.client.query(
-        `insert into forms (form_id, slug, default_locale) values ('frm_0022', 'pre-0022', 'en')`,
-      );
-      await testDb.client.query(
-        `insert into form_versions
-           (form_id, version, definition, compiled, compiler_version, a2ui_spec_version, semantics_version)
-         values ('frm_0022', 1, '{}'::jsonb, '{}'::jsonb, '0.0.0', '0.0.0', '0.0.0')`,
-      );
-      await testDb.client.query(
-        `insert into sessions (session_id, form_id, form_version, access_mode, expires_at)
-         values ('ses_0022', 'frm_0022', 1, 'anonymous', now() + interval '1 day')`,
-      );
-      await testDb.client.query(
-        `insert into answers (session_id, question_id, value)
-         values ('ses_0022', 'q_meal', '"vegetarian"'::jsonb)`,
-      );
-
-      await applyMigrations(testDb.client, { from: 22, to: 22 });
-
-      // The column arrived nullable and the pre-existing row reads back with NULL in
-      // it, which is the whole claim the changeset makes to adopters: the migration is
-      // additive and there is no backfill, because "outside a repeating group" is
-      // exactly what NULL already means for every row that existed.
-      expect(await columnIsNotNull(testDb, "answers", "instance_id")).toBe(false);
-      const survivor = await testDb.client.query(
-        `select "question_id", "instance_id", "value" from answers where session_id = 'ses_0022'`,
-      );
-      expect(survivor.rows).toEqual([
-        { question_id: "q_meal", instance_id: null, value: "vegetarian" },
-      ]);
-
-      // And the roster table with its guards is there, on the same existing chain.
-      expect(await publicTables(testDb)).toContain("answer_group_instances");
-      expect(await triggerExists(testDb, "answer_group_instances_reject_update")).toBe(true);
-      expect(await triggerExists(testDb, "answer_group_instances_reject_delete")).toBe(true);
+    it("accepts the anonymous session that carries its own environment", async () => {
+      // Criterion 1a's positive half, and the reason the CHECK cannot simply be
+      // replaced by a stricter key: every public response starts life as this row.
       expect(
-        await indexExists(testDb, "answer_group_instances_session_group_occurred_at_idx"),
-      ).toBe(true);
+        await attemptSession(homeSchema, {
+          sessionId: "q46-anonymous-home",
+          linkId: null,
+          environment: homeEnvironment,
+        }),
+      ).toBeNull();
     });
 
-    it("applies 0023 over a populated database and marks no existing admin provisional", async () => {
-      // Task 061, and the claim this asserts is a promise the changeset makes to adopters
-      // rather than a property of the column: an account that predates the control is
-      // **not** marked on upgrade. For such a row nobody can tell whether its password was
-      // ever changed, and backfilling `true` would make a migration take a policy action on
-      // every live deployment's administrator.
-      //
-      // Only the upgrade path can fail. A database created after 0023 has the column from
-      // the start and proves nothing about adding it to a `user` table that already holds
-      // an administrator. So: everything through 0022 first, then an account of the shape
-      // that existed before this migration.
-      //
-      // The indexes are literal at 22/23 for the reason the 0022 case above gives:
-      // migration history is append-only and immutable once released (ADR-18).
-      await applyMigrations(testDb.client, { to: 22 });
-      expect(await columnIsNotNull(testDb, "user", "mustChangePassword")).toBeUndefined();
-
-      await testDb.client.query(
-        `insert into "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-         values ('usr_pre_0023', 'Existing Admin', 'existing@qcms.test', true, now(), now())`,
-      );
-
-      await applyMigrations(testDb.client, { from: 23, to: 23 });
-
-      // The column is NOT NULL with a default, so the pre-existing row reads back `false`:
-      // present, and saying "this account is not on a provisional credential". `true` here
-      // would be the migration forcing a password change on an administrator who may well
-      // have chosen their own password years ago.
-      expect(await columnIsNotNull(testDb, "user", "mustChangePassword")).toBe(true);
-      const survivor = await testDb.client.query(
-        `select "email", "mustChangePassword" from "user" where id = 'usr_pre_0023'`,
-      );
-      expect(survivor.rows).toEqual([{ email: "existing@qcms.test", mustChangePassword: false }]);
+    it("accepts the secure session whose link, schema and environment all agree", async () => {
+      // The other positive half, in the other schema, so a guard that refused
+      // everything would fail here rather than read as four passes above.
+      expect(
+        await attemptSession(foreignSchema, {
+          sessionId: "q46-secure-foreign",
+          linkId: linkIdFor(foreignEnvironment),
+          environment: foreignEnvironment,
+        }),
+      ).toBeNull();
     });
 
-    it("applies 0020 over a database that 0017 left carrying account.issuer", async () => {
-      // The upgrade path a developer's own stack takes, which is the only one that can
-      // fail: a database created after 0020 never has the column, so migrating from zero
-      // proves nothing about the drop. Everything through 0019 first, so the starting
-      // state is the one 0017 built.
-      //
-      // The two indices are literals rather than a derivation because migration history
-      // is append-only and immutable once released (ADR-18): 0020 is index 20 for good,
-      // and a later migration lands at 21 without moving this boundary.
-      await applyMigrations(testDb.client, { to: 19 });
-      expect(await columnIsNotNull(testDb, "account", "issuer")).toBe(true);
-      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(true);
-
-      // A row of the shape 0017 made possible, written BEFORE the drop and carrying the
-      // one issuer QCMS could produce. The changeset tells adopters that a database
-      // created by 0017 needs nothing beyond applying 0020; that is a claim about what
-      // `DROP COLUMN` does to existing rows, and this row is what makes it an asserted
-      // fact here rather than an appeal to Postgres semantics.
-      await testDb.client.query(
-        `insert into "user" ("id", "name", "email") values ('u-0017', 'Pre-drop Admin', 'pre-drop@qcms.test')`,
+    it("keeps `control.secure_links.environment` NOT NULL, the half the per-schema CHECK cannot reach", async () => {
+      // The sessions side of this is asserted per environment above. This is the other
+      // end of the composite key: a nullable column here would let a link match a
+      // session in any environment under MATCH SIMPLE, and no per-schema CHECK would
+      // see it, because the CHECK lives on the referencing table.
+      const res = await testDb.client.query<{ is_nullable: string }>(
+        `select is_nullable from information_schema.columns
+          where table_schema = 'control' and table_name = 'secure_links'
+            and column_name = 'environment'`,
       );
-      await testDb.client.query(
-        `insert into "account" ("id", "issuer", "accountId", "providerId", "userId")
-           values ('a-0017', 'local:credential', 'pre-drop@qcms.test', 'credential', 'u-0017')`,
-      );
-
-      // 0020 alone, and the column is gone rather than relaxed. The upgrade guide's
-      // Postgres tab would have left it nullable; its Drizzle tab regenerates, and the
-      // regenerated model has no field to leave behind.
-      await applyMigrations(testDb.client, { from: 20, to: 20 });
-      expect(await columnIsNotNull(testDb, "account", "issuer")).toBeUndefined();
-      expect(await indexExists(testDb, "account_issuer_accountId_key")).toBe(false);
-
-      // The pre-drop account is still there, still linked to its user, and still keyed
-      // on the pair better-auth now looks it up by. Only the column went.
-      const survivor = await testDb.client.query(
-        `select "id", "accountId", "providerId", "userId" from "account" where "id" = 'a-0017'`,
-      );
-      expect(survivor.rows).toEqual([
-        {
-          id: "a-0017",
-          accountId: "pre-drop@qcms.test",
-          providerId: "credential",
-          userId: "u-0017",
-        },
-      ]);
-
-      // And an insert better-auth's shape can satisfy now succeeds, which is the thing
-      // the `NOT NULL` column actually broke: a sign-up naming no `issuer`.
-      await testDb.client.query(
-        `insert into "user" ("id", "name", "email") values ('u-849', 'Upgrade Probe', 'upgrade-probe@qcms.test')`,
-      );
-      await testDb.client.query(
-        `insert into "account" ("id", "accountId", "providerId", "userId")
-           values ('a-849', 'upgrade-probe@qcms.test', 'credential', 'u-849')`,
-      );
-      const accounts = await testDb.client.query(`select "id" from "account" order by "id"`);
-      expect(accounts.rows).toEqual([{ id: "a-0017" }, { id: "a-849" }]);
+      expect(res.rows[0]?.is_nullable).toBe("NO");
     });
+
+    it("keeps the unique key the composite foreign key references, by name", async () => {
+      // A composite foreign key needs a unique constraint on exactly those columns to
+      // reference. Dropping it does not fail quietly later; it fails the baseline. The
+      // name is asserted because that is what a future migration would have to keep.
+      expect(await constraintNamesOn("control", "u")).toContain("secure_links_link_environment_uq");
+    });
+  });
+
+  it("holds every environment the live set names, and no schema it does not", async () => {
+    // Criterion 1's other direction: `control.environments` is the source of the live
+    // set and `data_%` is the consistency check, so the two agreeing is the assertion.
+    const rows = await testDb.client.query<{ name: string }>(
+      `select name from control.environments order by position`,
+    );
+    expect(rows.rows.map((row) => row.name)).toEqual([...SHIPPED_ENVIRONMENTS]);
+
+    const schemas = await testDb.client.query<{ nspname: string }>(
+      `select nspname from pg_namespace where nspname like 'data\\_%'`,
+    );
+    expect(schemas.rows.map((row) => row.nspname).sort()).toEqual(
+      SHIPPED_ENVIRONMENTS.map((environment) => `data_${environment}`).sort(),
+    );
+  });
+
+  it("leaves `account` keyed on the provider pair, with no issuer column or index", async () => {
+    // better-auth 1.7.6 recognizes an account by `(providerId, accountId)`, as 1.6 did,
+    // and never writes `issuer` (issue #849). A `NOT NULL` column the library does not
+    // write is not dead weight: it refuses to boot against one, so the shape of this
+    // table is a startup precondition rather than tidiness. Asserted against a real
+    // Postgres because that is what the running API meets; the Drizzle mirror it is
+    // checked against is source, not evidence.
+    const columns = await testDb.client.query<{ column_name: string; is_nullable: string }>(
+      `select column_name, is_nullable from information_schema.columns
+        where table_schema = 'control' and table_name = 'account'`,
+    );
+    const byName = new Map(columns.rows.map((row) => [row.column_name, row.is_nullable]));
+    expect(byName.has("issuer")).toBe(false);
+    expect(byName.get("accountId")).toBe("NO");
+    expect(byName.get("providerId")).toBe("NO");
   });
 });

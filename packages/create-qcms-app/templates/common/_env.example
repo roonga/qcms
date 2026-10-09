@@ -125,11 +125,24 @@ QCMS_APP_KEY=
 # (optional, default caddy:2-alpine)
 # QCMS_CADDY_IMAGE=
 
-# Password for qcms_app, the role the API runs as: DML on the operational
-# tables, no DDL, not the schema owner. See [Least-privilege database
-# roles](#least-privilege-database-roles).
+# Password for qcms_app_control, the role the API's control pool runs as: DML
+# on control with the break-glass audit carved out, and INSERT on each
+# environment's outbox and nothing else in any data schema. See
+# [Least-privilege database roles](#least-privilege-database-roles).
 # (required, secret)
-QCMS_DB_APP_PASSWORD=
+QCMS_DB_APP_CONTROL_PASSWORD=
+
+# Password for qcms_app_prod, the role the API's prod pool runs as: DML on
+# data_prod only, and a named read list on control. See [Least-privilege
+# database roles](#least-privilege-database-roles).
+# (required, secret)
+QCMS_DB_APP_PROD_PASSWORD=
+
+# Password for qcms_app_test, the role the API's test pool runs as: DML on
+# data_test only, and a named read list on control. See [Least-privilege
+# database roles](#least-privilege-database-roles).
+# (required, secret)
+QCMS_DB_APP_TEST_PASSWORD=
 
 # Password for qcms_migrate, the role that owns the schema and runs the
 # one-shot migration. Held by the migrate service and by nothing else. See
@@ -142,15 +155,26 @@ QCMS_DB_MIGRATE_PASSWORD=
 # QCMS_DB_NAME=
 
 # Postgres bootstrap superuser password. Compose refuses to start without it.
-# The db-roles one-shot uses it to create the two least-privilege roles below,
-# and nothing that serves traffic holds it (SEC-10).
+# The db-roles one-shot uses it to create the least-privilege roles below -
+# the migration role, the control role and one per environment - and nothing
+# that serves traffic holds it (SEC-10).
 # (required, secret)
 QCMS_DB_PASSWORD=
 
 # Bootstrap superuser created on first boot of the Postgres volume. It creates
-# the split roles and is used for nothing else (SEC-10).
+# the least-privilege roles and is used for nothing else (SEC-10).
 # (optional, default qcms)
 # QCMS_DB_USER=
+
+# The live environment set, comma-separated. Each name needs its own
+# QCMS_DATABASE_URL_<ENV>. The API reads control.environments at boot and
+# refuses to start when the two disagree in either direction, so a credential
+# without a row and a row without a credential are both a boot failure rather
+# than an environment served from nowhere. It must include prod: every request
+# and every newly minted link resolves there until the /<env>/ route prefix
+# and the admin switcher exist (ADR-40, Q53).
+# (optional, default test,prod)
+# QCMS_ENVIRONMENTS=
 
 # Version stamped into the images at build time
 # (org.opencontainers.image.version). pnpm qcms:build-images derives a real

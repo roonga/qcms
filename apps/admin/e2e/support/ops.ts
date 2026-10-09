@@ -281,6 +281,9 @@ export function openDeliverer(): {
   const { db, query, close: closePool } = openDbHandle(fixtures.databaseUrl);
   const env = buildEnv({
     DATABASE_URL: fixtures.databaseUrl,
+    QCMS_ENVIRONMENTS: "test,prod",
+    QCMS_DATABASE_URL_TEST: fixtures.databaseUrl,
+    QCMS_DATABASE_URL_PROD: fixtures.databaseUrl,
     QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
     QCMS_APP_KEY: FIXED_APP_KEY,
     QCMS_MOUNT: "all",

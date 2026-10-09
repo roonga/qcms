@@ -5,8 +5,13 @@ import { FormId, GroupId, InstanceId, QuestionId, SessionId } from "@roonga/qcms
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import { reportingViewColumns } from "../reporting-views.js";
-import { erasureTombstones } from "../schema/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import { erasureTombstones, reportingSchemaName } from "../schema/index.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+  DEFAULT_TEST_ENVIRONMENT,
+} from "../testing/harness.js";
 import {
   addInstances,
   appendAnswer,
@@ -20,6 +25,15 @@ import {
   purgeExpired,
   sweepExpiredSessions,
 } from "./index.js";
+
+/**
+ * The reporting schema this suite's connection reads (ADR-40, Q10).
+ *
+ * One view set per environment, `reporting_<env>`, and it is on **no** search path, so
+ * every read below names it. Derived from the harness's own environment rather than
+ * written as `reporting_prod`, so the suite follows the connection it was given.
+ */
+const REPORTING = reportingSchemaName(DEFAULT_TEST_ENVIRONMENT);
 
 let testDb: TestDb;
 
@@ -97,6 +111,7 @@ async function seedSubmitted(
   accessMode: "anonymous" | "secure_link" = "anonymous",
 ): Promise<void> {
   await createSession(testDb.db, {
+    environment: DEFAULT_TEST_ENVIRONMENT,
     sessionId,
     formId,
     formVersion: version,
@@ -113,7 +128,7 @@ async function seedSubmitted(
   });
 }
 
-describe("reporting.responses view", () => {
+describe("reporting_<env>.responses view", () => {
   it("shows submitted sessions with answers keyed by questionId; hides others", async () => {
     const { formId, version } = await seedForm("frm_report");
 
@@ -128,6 +143,7 @@ describe("reporting.responses view", () => {
     // in_progress: future expiry so the sweep below never touches it.
     const inProgress = SessionId.parse("ses_report_inprogress");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: inProgress,
       formId,
       formVersion: version,
@@ -139,6 +155,7 @@ describe("reporting.responses view", () => {
     // expired: past expiry, then swept to `expired`.
     const expired = SessionId.parse("ses_report_expired");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: expired,
       formId,
       formVersion: version,
@@ -149,7 +166,7 @@ describe("reporting.responses view", () => {
     expect((await getSession(testDb.db, expired))?.status).toBe("expired");
 
     const rows = await testDb.client.query<{ session_id: string }>(
-      `select session_id from reporting.responses where form_id = $1`,
+      `select session_id from ${REPORTING}.responses where form_id = $1`,
       [formId],
     );
     const ids = rows.rows.map((r) => r.session_id);
@@ -163,9 +180,10 @@ describe("reporting.responses view", () => {
       answers: Record<string, unknown>;
       access_mode: string;
       form_version: number;
-    }>(`select answers, access_mode, form_version from reporting.responses where session_id = $1`, [
-      "ses_report_submitted",
-    ]);
+    }>(
+      `select answers, access_mode, form_version from ${REPORTING}.responses where session_id = $1`,
+      ["ses_report_submitted"],
+    );
     expect(res.rowCount).toBe(1);
     expect(res.rows[0]!.answers).toEqual({
       q_text: "hello",
@@ -191,17 +209,17 @@ describe("reporting.responses view", () => {
     });
 
     const res = await testDb.client.query(
-      `select session_id from reporting.responses where session_id = $1`,
+      `select session_id from ${REPORTING}.responses where session_id = $1`,
       [erased],
     );
     expect(res.rowCount).toBe(0);
   });
 });
 
-describe("reporting.answers_flat view", () => {
+describe("reporting_<env>.answers_flat view", () => {
   it("emits one row per (submitted session, questionId, value)", async () => {
     const res = await testDb.client.query<{ question_id: string; value: unknown }>(
-      `select question_id, value from reporting.answers_flat where session_id = $1 order by question_id`,
+      `select question_id, value from ${REPORTING}.answers_flat where session_id = $1 order by question_id`,
       ["ses_report_submitted"],
     );
     expect(res.rows).toEqual([
@@ -212,10 +230,10 @@ describe("reporting.answers_flat view", () => {
     ]);
   });
 
-  it("inherits the submitted-only, non-erased exclusion from reporting.responses", async () => {
+  it("inherits the submitted-only, non-erased exclusion from ${REPORTING}.responses", async () => {
     // The erased session contributes no flat rows either.
     const res = await testDb.client.query(
-      `select 1 from reporting.answers_flat where session_id = $1`,
+      `select 1 from ${REPORTING}.answers_flat where session_id = $1`,
       ["ses_erased"],
     );
     expect(res.rowCount).toBe(0);
@@ -223,7 +241,7 @@ describe("reporting.answers_flat view", () => {
 
   it("reports a null instance_id for every answer outside a group", async () => {
     const res = await testDb.client.query<{ question_id: string; instance_id: string | null }>(
-      `select question_id, instance_id from reporting.answers_flat
+      `select question_id, instance_id from ${REPORTING}.answers_flat
         where session_id = $1 order by question_id`,
       ["ses_report_submitted"],
     );
@@ -242,6 +260,7 @@ describe("the reporting views carry repeated answers", () => {
   beforeAll(async () => {
     const { formId, version } = await seedForm("frm_repeat_report");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId,
       formId,
       formVersion: version,
@@ -282,7 +301,7 @@ describe("the reporting views carry repeated answers", () => {
     // returned a single scalar under `q_name` and the second passenger's name was
     // gone from every reporting consumer and every export.
     const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
-      `select answers from reporting.responses where session_id = $1`,
+      `select answers from ${REPORTING}.responses where session_id = $1`,
       [sessionId],
     );
     expect(res.rows[0]!.answers).toEqual({
@@ -317,7 +336,7 @@ describe("the reporting views carry repeated answers", () => {
   it("orders the group's array by the locked set's roster order", async () => {
     const res = await testDb.client.query<{ ids: string[] }>(
       `select array_agg(inst ->> 'instance_id' order by ord) as ids
-         from reporting.responses r,
+         from ${REPORTING}.responses r,
               jsonb_array_elements(r.answers -> 'grp_passengers') with ordinality as e(inst, ord)
         where r.session_id = $1`,
       [sessionId],
@@ -331,7 +350,7 @@ describe("the reporting views carry repeated answers", () => {
       instance_id: string | null;
       value: unknown;
     }>(
-      `select question_id, instance_id, value from reporting.answers_flat
+      `select question_id, instance_id, value from ${REPORTING}.answers_flat
         where session_id = $1
         order by instance_id nulls first, question_id`,
       [sessionId],
@@ -351,7 +370,7 @@ describe("the reporting views carry repeated answers", () => {
     // of option id strings). Getting that wrong would silently change the grain
     // of every multiChoice answer in the long projection.
     const res = await testDb.client.query<{ count: string }>(
-      `select count(*)::text as count from reporting.answers_flat
+      `select count(*)::text as count from ${REPORTING}.answers_flat
         where session_id = $1 and question_id = 'q_meal'`,
       [sessionId],
     );
@@ -368,6 +387,7 @@ describe("the reporting views carry repeated answers", () => {
     const blankSession = SessionId.parse("ses_repeat_blank");
     const middle = InstanceId.parse("ins_blank");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: blankSession,
       formId,
       formVersion: version,
@@ -397,7 +417,7 @@ describe("the reporting views carry repeated answers", () => {
     });
 
     const res = await testDb.client.query<{ answers: Record<string, unknown> }>(
-      `select answers from reporting.responses where session_id = $1`,
+      `select answers from ${REPORTING}.responses where session_id = $1`,
       [blankSession],
     );
     expect(res.rows[0]!.answers).toEqual({
@@ -411,13 +431,13 @@ describe("the reporting views carry repeated answers", () => {
     // So the array's length is the group's live instance count for this session.
     const counted = await testDb.client.query<{ n: number }>(
       `select jsonb_array_length(answers -> 'grp_passengers') as n
-         from reporting.responses where session_id = $1`,
+         from ${REPORTING}.responses where session_id = $1`,
       [blankSession],
     );
     expect(counted.rows[0]!.n).toBe(3);
     // And it contributes no answers_flat row, because it holds no answer.
     const flat = await testDb.client.query(
-      `select 1 from reporting.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
+      `select 1 from ${REPORTING}.answers_flat where session_id = $1 and instance_id = 'ins_blank'`,
       [blankSession],
     );
     expect(flat.rowCount).toBe(0);
@@ -429,7 +449,7 @@ describe("the reporting views carry repeated answers", () => {
     // array, a null `instance_id` member or a reordered object for a
     // non-repeating form.
     const res = await testDb.client.query<{ answers: string }>(
-      `select answers::text as answers from reporting.responses where session_id = $1`,
+      `select answers::text as answers from ${REPORTING}.responses where session_id = $1`,
       ["ses_report_submitted"],
     );
     expect(res.rows[0]!.answers).toBe(
@@ -451,12 +471,18 @@ describe("reporting contract - no column drift", () => {
     reportingViewColumns.map((view) => [view.name, [...view.columns]]),
   );
 
-  it("matches the live reporting schema view columns", async () => {
+  // Every environment's schema holds the same two view names with the same columns in
+  // the same order (ADR-40, Q10). Asserted per environment rather than once, because
+  // "identical apart from the rows" is the property a BI tool binds to: a consumer
+  // repointing from `reporting_prod` to `reporting_test` changes one identifier and
+  // nothing else.
+  it.each(["test", "prod"])("matches the live reporting_%s view columns", async (environment) => {
     const res = await testDb.client.query<{ table_name: string; column_name: string }>(
       `select table_name, column_name
          from information_schema.columns
-        where table_schema = 'reporting'
+        where table_schema = $1
         order by table_name, ordinal_position`,
+      [`reporting_${environment}`],
     );
     const live: Record<string, string[]> = {};
     for (const row of res.rows) {
@@ -475,6 +501,7 @@ describe("sweepExpiredSessions", () => {
 
     const atBoundary = SessionId.parse("ses_sweep_at");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: atBoundary,
       formId,
       formVersion: version,
@@ -483,6 +510,7 @@ describe("sweepExpiredSessions", () => {
     });
     const justAfter = SessionId.parse("ses_sweep_after");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: justAfter,
       formId,
       formVersion: version,
@@ -505,6 +533,7 @@ describe("sweepExpiredSessions", () => {
     // A submitted session whose expiry is in the past - must stay submitted.
     const submitted = SessionId.parse("ses_sweep_submitted");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: submitted,
       formId,
       formVersion: version,
@@ -515,6 +544,7 @@ describe("sweepExpiredSessions", () => {
 
     const abandoned = SessionId.parse("ses_sweep_abandoned");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: abandoned,
       formId,
       formVersion: version,
@@ -544,6 +574,7 @@ describe("purgeExpired", () => {
     // (a) expired, never submitted, older than horizon, with answers → purged.
     const purgeable = SessionId.parse("ses_purge_old");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: purgeable,
       formId,
       formVersion: version,
@@ -559,6 +590,7 @@ describe("purgeExpired", () => {
     // (b) expired, but exactly at the horizon → retained (strictly-before).
     const atHorizon = SessionId.parse("ses_purge_athorizon");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: atHorizon,
       formId,
       formVersion: version,
@@ -569,6 +601,7 @@ describe("purgeExpired", () => {
     // (c) submitted (status) with past expiry → never purged.
     const submitted = SessionId.parse("ses_purge_submitted");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: submitted,
       formId,
       formVersion: version,
@@ -611,6 +644,7 @@ describe("purgeExpired", () => {
     const { formId, version } = await seedForm("frm_purge_edge");
     const edge = SessionId.parse("ses_purge_edge");
     await createSession(testDb.db, {
+      environment: DEFAULT_TEST_ENVIRONMENT,
       sessionId: edge,
       formId,
       formVersion: version,

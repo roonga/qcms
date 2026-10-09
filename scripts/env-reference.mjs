@@ -870,7 +870,7 @@ export const ENV_REFERENCE = [
     fallback: "",
     secret: true,
     description:
-      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the two least-privilege roles below, and nothing that serves traffic holds it (SEC-10).",
+      "Postgres **bootstrap** superuser password. Compose refuses to start without it. The `db-roles` one-shot uses it to create the least-privilege roles below - the migration role, the control role and one per environment - and nothing that serves traffic holds it (SEC-10).",
   },
   {
     name: "QCMS_DB_MIGRATE_PASSWORD",
@@ -882,13 +882,57 @@ export const ENV_REFERENCE = [
       "Password for `qcms_migrate`, the role that owns the schema and runs the one-shot migration. Held by the `migrate` service and by nothing else. See [Least-privilege database roles](#least-privilege-database-roles).",
   },
   {
-    name: "QCMS_DB_APP_PASSWORD",
+    name: "QCMS_DB_APP_CONTROL_PASSWORD",
     process: "compose",
     requirement: "required",
     fallback: "",
     secret: true,
     description:
-      "Password for `qcms_app`, the role the API runs as: DML on the operational tables, no DDL, not the schema owner. See [Least-privilege database roles](#least-privilege-database-roles).",
+      "Password for `qcms_app_control`, the role the API's control pool runs as: DML on `control` with the break-glass audit carved out, and `INSERT` on each environment's `outbox` and nothing else in any data schema. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_DB_APP_TEST_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_app_test`, the role the API's `test` pool runs as: DML on `data_test` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_DB_APP_PROD_PASSWORD",
+    process: "compose",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "Password for `qcms_app_prod`, the role the API's `prod` pool runs as: DML on `data_prod` only, and a named read list on `control`. See [Least-privilege database roles](#least-privilege-database-roles).",
+  },
+  {
+    name: "QCMS_ENVIRONMENTS",
+    process: "api",
+    requirement: "optional",
+    fallback: "test,prod",
+    description:
+      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere. It must include `prod`: every request and every newly minted link resolves there until the `/<env>/` route prefix and the admin switcher exist (ADR-40, Q53).",
+  },
+  {
+    name: "QCMS_DATABASE_URL_TEST",
+    process: "api",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "The `test` environment's connection string, connecting as `qcms_app_test`. There is one `QCMS_DATABASE_URL_<ENV>` per name in `QCMS_ENVIRONMENTS`, upper-cased, so an environment created later needs a new variable of the same shape. Never read from the database: a credential the database hands out is a credential the database can be made to hand out.",
+  },
+  {
+    name: "QCMS_DATABASE_URL_PROD",
+    process: "api",
+    requirement: "required",
+    fallback: "",
+    secret: true,
+    description:
+      "The `prod` environment's connection string, connecting as `qcms_app_prod`. See `QCMS_DATABASE_URL_TEST` for the naming rule.",
   },
   {
     name: "QCMS_DB_NAME",
@@ -903,7 +947,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "qcms",
     description:
-      "Bootstrap superuser created on first boot of the Postgres volume. It creates the split roles and is used for nothing else (SEC-10).",
+      "Bootstrap superuser created on first boot of the Postgres volume. It creates the least-privilege roles and is used for nothing else (SEC-10).",
   },
   {
     name: "QCMS_POSTGRES_IMAGE",
@@ -1188,7 +1232,27 @@ const RATE_CLASS_SUFFIX = /`\$\{prefix\}(_[A-Z][A-Z0-9_]*)`/g;
 /** A parser call naming its variable: `parseX(env, "NAME"`. */
 const HELPER_CALL = /\b(parse[A-Za-z_]+)\(\s*\n?\s*env,\s*\n?\s*"([A-Z][A-Z0-9_]*)"/g;
 
+/**
+ * `environmentDatabaseUrlVariable(name)` - one call, one variable per environment
+ * (ADR-40, Q2).
+ *
+ * The same shape as `parseRateClass`: a call site that names no variable, because the
+ * variable's name is computed. The API reads `QCMS_DATABASE_URL_<ENV>` for each name in
+ * `QCMS_ENVIRONMENTS`, so the scanner cannot see a literal and the table would otherwise
+ * be told it documents two variables nobody reads.
+ */
+const ENVIRONMENT_URL_CALL = /\benvironmentDatabaseUrlVariable\(/;
+
+/** The prefix that helper interpolates the environment into, read from its own body. */
+const ENVIRONMENT_URL_PREFIX = /return `([A-Z][A-Z0-9_]*_)\$\{environment\.toUpperCase\(\)\}`/;
+
+/** The environment set the API defaults to, read from `parseEnvironments`'s own fallback. */
+const DEFAULT_ENVIRONMENT_SET = /env\.QCMS_ENVIRONMENTS \?\? "([a-z0-9,]+)"/;
+
 const API_CONFIG = "apps/api/src/config.ts";
+
+/** Where the one derivation of the per-environment variable name lives. */
+const ENVIRONMENT_NAMING = "packages/db/src/environment/naming.ts";
 
 /**
  * Tracked, non-test source files under `roots`.
@@ -1219,8 +1283,40 @@ export function rateClassSuffixes() {
 }
 
 /**
- * What one source TEXT contributes to the scan: the variable names it reads, and the
- * rate-class prefixes it names.
+ * The `QCMS_DATABASE_URL_<ENV>` variables the API reads by default (ADR-40, Q2).
+ *
+ * **Both halves are derived, neither is typed here.** The prefix comes from the one
+ * helper that builds the name (`ENVIRONMENT_NAMING`), so a rename moves this with it; the
+ * environment names come from the fallback in `parseEnvironments`, so the table documents
+ * exactly the set a deployment that configures nothing gets. An operator who adds an
+ * environment adds a variable of the same shape, which is what the `QCMS_DATABASE_URL_TEST`
+ * row says in prose - the table cannot enumerate a set chosen at deploy time, and this is
+ * the same compromise `rateClassSuffixes` makes for a prefix that names a pair.
+ */
+export function environmentDatabaseUrlVariables() {
+  const naming = readFileSync(join(REPOSITORY_ROOT, ENVIRONMENT_NAMING), "utf8");
+  const prefix = ENVIRONMENT_URL_PREFIX.exec(naming)?.[1];
+  if (prefix === undefined) {
+    throw new Error(
+      `${ENVIRONMENT_NAMING}: found no \`QCMS_..._\${environment.toUpperCase()}\` template. The per-environment connection-string variables cannot be derived; update scripts/env-reference.mjs.`,
+    );
+  }
+  const config = readFileSync(join(REPOSITORY_ROOT, API_CONFIG), "utf8");
+  const fallback = DEFAULT_ENVIRONMENT_SET.exec(config)?.[1];
+  if (fallback === undefined) {
+    throw new Error(
+      `${API_CONFIG}: found no \`QCMS_ENVIRONMENTS ?? "..."\` fallback. The default environment set cannot be derived; update scripts/env-reference.mjs.`,
+    );
+  }
+  return fallback
+    .split(",")
+    .filter((name) => name !== "")
+    .map((name) => `${prefix}${name.toUpperCase()}`);
+}
+
+/**
+ * What one source TEXT contributes to the scan: the variable names it reads, the
+ * rate-class prefixes it names, and whether it reads a per-environment connection string.
  *
  * Split out of {@link scanEnvNames} so the scanner can be exercised on a planted
  * source rather than only on the tree (issue #773). `sourceFiles` lists TRACKED files,
@@ -1228,7 +1324,7 @@ export function rateClassSuffixes() {
  * test for a comment shape that eats reads had no way in.
  *
  * @param {string} text one file's contents, comments and all.
- * @returns {{ names: Set<string>; rateClassPrefixes: Set<string> }}
+ * @returns {{ names: Set<string>; rateClassPrefixes: Set<string>; readsEnvironmentUrls: boolean }}
  */
 export function scanSourceText(text) {
   const stripped = stripComments(text);
@@ -1237,7 +1333,11 @@ export function scanSourceText(text) {
   for (const match of stripped.matchAll(DIRECT_READ)) names.add(match[1] ?? match[2]);
   for (const match of stripped.matchAll(NAME_LITERAL)) names.add(match[1]);
   for (const match of stripped.matchAll(RATE_CLASS_CALL)) rateClassPrefixes.add(match[1]);
-  return { names, rateClassPrefixes };
+  return {
+    names,
+    rateClassPrefixes,
+    readsEnvironmentUrls: ENVIRONMENT_URL_CALL.test(stripped),
+  };
 }
 
 /**
@@ -1278,10 +1378,16 @@ export function scanEnvNames(processName) {
 
   const suffixes = processName === "api" ? rateClassSuffixes() : [];
   const rateClassPrefixes = new Set();
+  let readsEnvironmentUrls = false;
   for (const file of sourceFiles(SOURCE_ROOTS[processName])) {
     const scanned = scanSourceText(readFileSync(join(REPOSITORY_ROOT, file), "utf8"));
     for (const name of scanned.names) found.add(name);
     for (const prefix of scanned.rateClassPrefixes) rateClassPrefixes.add(prefix);
+    if (scanned.readsEnvironmentUrls) readsEnvironmentUrls = true;
+  }
+  // One call, one variable per environment in the default set (ADR-40, Q2).
+  if (readsEnvironmentUrls) {
+    for (const name of environmentDatabaseUrlVariables()) found.add(name);
   }
   // A rate-class prefix is not itself a variable: it names a pair.
   for (const prefix of rateClassPrefixes) {

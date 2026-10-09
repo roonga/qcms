@@ -21,10 +21,16 @@ import {
   toVSafePattern,
   type QuestionDefinition,
 } from "@roonga/qcms-core";
-import { createQuestion, createQuestionVersion, isQuestionIdTaken } from "@roonga/qcms-db";
+import {
+  createQuestion,
+  createQuestionVersion,
+  isQuestionIdInAnswerLedger,
+  isQuestionIdTaken,
+} from "@roonga/qcms-db";
 import type { Executor, QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 
 import { ApiError } from "../../errors.js";
+import type { Databases } from "../../environments.js";
 
 /**
  * What a definition refusal carries: the kernel's own `QuestionDefinitionError`
@@ -165,13 +171,61 @@ function isUniqueViolation(err: unknown): boolean {
 }
 
 /**
+ * R6's **answer-ledger** half, across every environment in the live set (ADR-40, Q1).
+ *
+ * # Why R6 needs a second call at all now
+ *
+ * R6 says a `questionId` is stable forever and is never reused with a different meaning,
+ * and it holds even for an id that survives *only* in an answer ledger - its question
+ * deprecated, or erased along with the question itself. So the check has always spanned
+ * `questions` and `answers`, and it used to be one `union all` on one connection.
+ *
+ * ADR-40 makes that impossible, and deliberately. `answers` is a **data-plane** table with
+ * one copy per environment; authoring runs on the **control** pool, whose `search_path` is
+ * `control` alone and whose role holds no read on any data-plane table, because "an author
+ * never reads production personal data" is the property Q40 exists to buy. The old
+ * statement therefore failed outright on the new layout - `answers` resolved to nothing -
+ * and widening the control role to fix it would have given away exactly what the split was
+ * drawn to remove.
+ *
+ * So the rule is asked of each environment on **that environment's own pool**, where the
+ * grant already is, and the set comes from `databases.names`, which is the live set (Q1)
+ * rather than a compiled-in pair. An environment created later is covered after a restart
+ * with no code change.
+ *
+ * # Why this runs before the transaction rather than inside it
+ *
+ * A transaction is one connection, and these reads are on other connections, so they could
+ * not be inside it whatever the ordering. That costs nothing that was ever guaranteed: what
+ * actually stops two questions sharing an id is `control.questions`' primary key inside the
+ * transaction, and this check exists to widen the *refusal* to ids the library no longer
+ * holds. An id in that state is not one being concurrently created.
+ *
+ * Sequential rather than concurrent: the live set is small, the refusal is the same
+ * whichever environment raises it, and a pool-per-environment fan-out on an authoring
+ * request buys nothing.
+ */
+export async function requireUnusedQuestionId(
+  databases: Databases,
+  questionId: QuestionDefinition["questionId"],
+): Promise<void> {
+  for (const environment of databases.names) {
+    if (await isQuestionIdInAnswerLedger(databases.for(environment), questionId)) {
+      throw questionFail.idReused(questionId);
+    }
+  }
+}
+
+/**
  * Create the library identity and its first **draft** version, in whatever
  * transaction the caller owns.
  *
- * R6 is enforced here rather than by the callers: a `questionId` ever used -
- * including for a deprecated or erased question - is refused. The first version
- * is a draft, never published: publishing is a separate human act (§4.2), and
- * that is what makes this reusable by 041's accept without accept becoming a
+ * R6's **library** half is enforced here rather than by the callers: a `questionId` the
+ * library has ever held, including for a deprecated or erased question, is refused. Its
+ * answer-ledger half is {@link requireUnusedQuestionId}, which a caller runs before opening
+ * its transaction because that read is on another plane, another connection and another
+ * role. The first version is a draft, never published: publishing is a separate human act
+ * (§4.2), and that is what makes this reusable by 041's accept without accept becoming a
  * publish.
  */
 export async function createQuestionWithFirstDraft(
@@ -180,7 +234,10 @@ export async function createQuestionWithFirstDraft(
 ): Promise<{ question: QuestionRow; version: QuestionVersionRow }> {
   const questionId = input.definition.questionId;
 
-  // R6: reject any id ever used - including a deprecated/erased one.
+  // R6, the LIBRARY half: reject any id the library has ever held, including one whose
+  // question is deprecated or erased. The **answer-ledger** half is the caller's, before it
+  // opens this transaction, because after ADR-40 that read is on a different plane, a
+  // different connection and a different role: see `requireUnusedQuestionId`.
   if (await isQuestionIdTaken(exec, questionId)) throw questionFail.idReused(questionId);
 
   // R6 passed: insert the identity (slug collision -> clean 409) then its first
