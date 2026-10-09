@@ -791,16 +791,27 @@ Four options, and the Code Owner picks one:
 
 A second question rides with it: whether the blanket published-fix rule should become a **per-id acceptance ledger** with removal conditions, in the style of CONTRIBUTING's security-overrides table. Neither question is answered here, and this change builds no ledger.
 
-**Debian fixed the perl half on its own, five of the seven stopped being unfixed, and option 4 was taken for one package (2026-10-10, issue #1047).**
+**Debian fixed the perl half on its own, five of the seven stopped being unfixed, and option 4 is approved for `perl-base` alone (Code Owner, 2026-10-10, issue #1047).**
 The paragraphs above are left standing because they are the record of what was true before it.
 What changed is Debian's side of the ledger and nothing at all in this tree: `perl 5.36.0-7+deb12u4` reached `bookworm-security`, which fixes `perl-base` and therefore every perl row of the table above (`CVE-2026-8376`, `CVE-2026-12087`, `CVE-2026-13221`, `CVE-2026-42496`, `CVE-2026-57433`).
 Those five moved from `wont-fix` and `not-fixed` to `fixed: 5.36.0-7+deb12u4`, which is the one transition the blocking rule is sensitive to, so the `scan` job went red on `main` at `37a29f9e` and on every branch in flight, reporting five findings at or above `critical` each with a published fix.
 The same scan passed on `main` on 2026-10-03 and on 2026-10-05, so the diff caused none of it.
 **The published-fix rule behaved exactly as designed, and what it exposed is that an interim blocking floor has no answer when the fix exists in the archive and not in the base image.**
 Option 2's cheap neighbour, the plain digest bump that `docs/operations.md` names as the triage for a `deb` finding, does not reach it.
-Measured on 2026-10-10: the newest published `node:24-bookworm-slim` is `sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20`, built 2026-10-06 and newer than the pinned digest, and `docker run --rm <that digest> dpkg -l perl-base` still reports `5.36.0-7+deb12u3`, while `apt-cache policy perl-base` inside the same image reports candidate `5.36.0-7+deb12u4` from `bookworm-security`.
+Measured on 2026-10-10: the newest published `node:24-bookworm-slim` is `sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20`, built 2026-10-06 and newer than the pinned digest, and `docker run --rm <that digest> dpkg -l perl-base` still reports `5.36.0-7+deb12u3`, while `docker run --rm <that digest> sh -c 'apt-get update -qq && apt-cache policy perl-base'` reports `Installed: 5.36.0-7+deb12u3` and `Candidate: 5.36.0-7+deb12u4` from `deb.debian.org/debian-security bookworm-security/main`.
+**The `apt-get update` in that second command is load-bearing, and the command is recorded in the form that reproduces the measurement.**
+A fresh `node:24-bookworm-slim` ships no apt package lists, so `apt-cache policy perl-base` on its own reports the installed version as the candidate and names no `bookworm-security` source at all, which is the exact inverse of the finding and would read to the next person as "there is no newer version, so this layer is unjustified".
+A measurement is only re-checkable if the command written down is the command that produces it.
 The fix is reachable at build time and present in no published layer.
-**Option 4 is therefore taken, scoped to `perl-base` alone.**
+**Option 4 is therefore taken, scoped to `perl-base` alone, and the Code Owner ruled it so on 2026-10-10 (issue #1047).**
+The pick is reserved here ("Four options, and the Code Owner picks one"), and it stays reserved however plainly Debian's publication forced the question, because option 4's cost is the digest-reproducibility property the #372 ruling established, and it is given up in these three images and in every scaffolded adopter's.
+**What the ruling covers, exactly.**
+`perl-base`, in `docker/{api,portal,admin}.Dockerfile` and the templates generated from them, for as long as the archive carries a fix that no published base digest carries.
+It is not a general licence to upgrade packages at build time, and a second package needs its own ruling.
+**It decides nothing about the glibc pair**: `CVE-2026-5450` against `libc6` and `libc-bin` remains the open question recorded above, with all four options still on the table for it, and this ruling neither accepts those two findings nor narrows the choice about them.
+**The removal condition is part of the ruling rather than a note beside it.**
+The layer goes as soon as a published base digest ships the fix, which is what `docker run --rm node:24-bookworm-slim dpkg -l perl-base` answers, since `dpkg -l` reports what the image itself carries; the companion `apt-cache policy` check below, which answers whether the archive is still ahead of it, needs an `apt-get update` first.
+The Dockerfile comment carries the `dpkg -l` form where someone will act on it.
 Each runtime stage in `docker/{api,portal,admin}.Dockerfile` runs `apt-get update && apt-get install --only-upgrade -y --no-install-recommends perl-base && rm -rf /var/lib/apt/lists/*` as root before `USER node`, and the reasoning, the cost and the removal condition are in the Dockerfile comment rather than only here, because that is where someone deletes the layer.
 It is not the whole-image `apt-get upgrade` option 4 describes, and the difference is the point: one named package, named because Debian has published a fix for it, leaves every other package where the pinned digest puts it.
 **The cost option 4 records is real and is paid.**
@@ -808,7 +819,10 @@ These three images are no longer reproducible from the `FROM` digest alone, beca
 Two things bound it.
 The floor is held by the `scan` job rather than by a version pin, so a `perl-base` that falls behind a published fix is a red gate again; and a hard `perl-base=5.36.0-7+deb12u4` would have been worse rather than better, because `bookworm-security` publishes only the current revision, so the build would break on the day Debian supersedes it, in a scaffolded adopter's repository as much as in this one.
 **The two glibc criticals are untouched and still unfixed**: `CVE-2026-5450` against `libc6` and `libc-bin` has no fixed version in Debian 12, so it is reported and blocks nothing, and the open question above is now a question about two findings rather than seven.
-`util-linux`, `zlib1g` and `gcc-12-base`, which the same run reports at `high`, are in that position too: `apt-cache policy` in the current base offers no newer candidate for any of the three, measured the same day, so there is nothing to upgrade and nothing is attempted.
+`util-linux`, `zlib1g` and `gcc-12-base`, which the same run reports at `high`, are in that position too: `apt-cache policy` after an `apt-get update` in the current base offers no newer candidate for any of the three, measured the same day, so there is nothing to upgrade and nothing is attempted.
+**Upgrading `perl-base` also changes what the weekly issue reports, which is worth stating before it surprises the person reading it.**
+`5.36.0-7+deb12u4` carries two highs of its own that the `deb12u3` rows did not show: `CVE-2026-82560` (`not-fixed`) and `CVE-2026-9538` (`wont-fix`).
+Both are reporting-only, neither has a fixed version in Debian 12, and neither blocks, so the exchange in full is five blocking criticals for two reported highs.
 **The per-id acceptance ledger that rides with the open question is still not built**, and this change does not build one either.
 
 **What a trixie base would buy, measured.**
@@ -846,7 +860,8 @@ The keyless cosign signature over `checksums.txt` was **not** checked; no cosign
 Dependabot does not track a digest in a workflow `env`, so a bump is a deliberate edit: hash the new asset, confirm it against those two publications, wait out the repository's 24-hour release-age hold (CONTRIBUTING, "The release-age hold", whose reasoning applies with more force to a binary CI executes), and record the digest in the same commit.
 
 **Weekly, and how a finding reaches a person.**
-The workflow gained a `schedule` trigger for the same reason `audit.yml` has one: the images are a deterministic function of the tree (digest-pinned bases, `--frozen-lockfile`), so what moves between runs is the advisory database, and nothing would surface a CVE disclosed against an already-published image unless a run happened without a commit.
+The workflow gained a `schedule` trigger for the same reason `audit.yml` has one: the images are a near-deterministic function of the tree (digest-pinned bases, `--frozen-lockfile`, and since 2026-10-10 the one `--only-upgrade perl-base` layer recorded above, which resolves against `bookworm-security` at build time), so what moves between runs is the advisory database and that single package, and nothing would surface a CVE disclosed against an already-published image unless a run happened without a commit.
+That exception argues for the schedule rather than against it: while the layer exists, a scheduled rebuild is also how a newly published `perl-base` reaches these images at all.
 A scheduled run builds and **publishes nothing**.
 `scan-issue` is the only job in the workflow holding `issues: write`, it runs only on the schedule, and it files or updates one `security`-labeled issue the way the `pnpm audit` run does.
 Three properties keep that issue worth reading.
