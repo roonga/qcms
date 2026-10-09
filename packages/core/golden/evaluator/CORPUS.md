@@ -27,9 +27,12 @@ questions for them) is always welcome and is how the corpus grows.
 every file in `scenarios/` and asserts each, so an appended scenario cannot
 retire an existing one. A correction is therefore an amendment in place, under a
 recorded exception below, or it is not taken at all. The two exceptions granted
-so far are both **defect corrections**, each hash-pinned in the guard.
+so far are both **defect corrections**. Only the second is **hash-pinned** in the
+guard: the first predates the guard covering this corpus at all, so there was
+nothing for it to be pinned against (`packages/core/golden/evaluator/` joined
+`GUARDED_PREFIXES` on 2026-09-02, the day after that amendment landed).
 
-### The one recorded exception (issue #128, 2026-08-31)
+### The first recorded exception (issue #128, 2026-08-31)
 
 `answered-falsy-values` was amended without a version bump, on the Code Owner's
 ruling that **required means non-blank**: an empty or whitespace-only text value
@@ -61,7 +64,7 @@ needs the evaluator to be able to honor both versions before it is taken.
 Code Owner's ruling that **a step holding a repeating group counts as a visible
 step even when its roster is empty**, because the group's own chrome - its
 heading and its Add control - is content a respondent can act on. Three fields
-moved in that one scenario and the other 76 are untouched:
+moved in that one scenario and the other 58 are untouched:
 
 | Field              | Was              | Is                         |
 | ------------------ | ---------------- | -------------------------- |

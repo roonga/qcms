@@ -142,6 +142,30 @@ function recordBatchRejection(
   if (constraint !== undefined) constraints[field] = constraint;
 }
 
+/**
+ * Whether a refused submission was refused for a repeating group's COUNT
+ * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
+ *
+ * The submit's 422 carries the kernel's whole sweep in `details.errors`, and this route
+ * has always acted on none of it. A count refusal is the one entry with no field to
+ * report against, so it becomes a page-level notice; everything else still returns the
+ * respondent to the step, which is where the per-field report already is.
+ *
+ * It reads the shape rather than trusting it, because `details` crosses the BFF boundary
+ * as `unknown`.
+ */
+function isCountRefusal(details: unknown): boolean {
+  if (typeof details !== "object" || details === null) return false;
+  const errors = (details as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as { code?: unknown }).code === "REPEAT_COUNT_OUT_OF_RANGE",
+  );
+}
+
 /** `ins_7k2/q_plate`, or the bare question id outside every group (ADR-42, Q15). */
 function fieldKey(questionId: string, instanceId?: string): string {
   return instanceId === undefined
@@ -352,9 +376,27 @@ export async function POST(
     await writeReceiptCookie(receipt);
     await clearSessionToken();
     return NextResponse.redirect(new URL("/done", request.url), 303);
-  } catch {
+  } catch (error) {
     // A submit that fails the API's final sweep (e.g. a missing required answer)
     // returns the respondent to the step to complete it.
+    //
+    // **With a notice when the sweep refused a group's COUNT** (`REPEAT_COUNT_OUT_OF_RANGE`,
+    // ADR-42). That refusal has no field to hang a message on - it is about a group's size
+    // rather than a question - so without this the press returned the same step and said
+    // nothing, which is the silent dead end this route exists to remove. A respondent
+    // reaches it by removing instances below the group's `min`, which the roster operation
+    // deliberately allows so they can empty a group and rebuild it (ADR-43). The notice
+    // rides as a catalogue KEY exactly as Q29's does, so an unrecognised key renders
+    // nothing and a cookie from an earlier build cannot put a blank banner on the page.
+    if (error instanceof ApiError && isCountRefusal(error.details)) {
+      await writeStepContext({
+        values,
+        errors: {},
+        constraints: {},
+        missingRequired: [],
+        notice: "step.countOutOfRange",
+      });
+    }
     return backToStep(request, sessionId);
   }
 }

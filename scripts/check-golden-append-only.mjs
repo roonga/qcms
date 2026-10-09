@@ -93,7 +93,7 @@ export const PINNED_EXCEPTIONS = [
       "SEMANTICS_VERSION bump, for the reason that precedent records: the evaluator",
       "implements one version at a time, so a bump would fail every published snapshot",
       "instead of preserving its behaviour. Three fields move - currentStep, visibleSteps",
-      "and visibleStepViews - and the other 76 scenarios are untouched. The second",
+      "and visibleStepViews - and the other 58 scenarios are untouched. The second",
       "recorded exception in CORPUS.md carries the same reasoning for a human reader.",
     ].join(" "),
   },

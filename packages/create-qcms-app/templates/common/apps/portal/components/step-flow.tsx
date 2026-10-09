@@ -101,6 +101,32 @@ async function isSupersededSemantics(res: Response): Promise<boolean> {
  * the lost-session notice, which says something untrue and invites a retry that cannot
  * help.
  */
+/**
+ * Whether a refused submission was refused for a repeating group's COUNT
+ * (`REPEAT_COUNT_OUT_OF_RANGE`, ADR-42).
+ *
+ * The submit's 422 carries the kernel's whole sweep in `details.errors`, and the portal
+ * has always read only the missing-required half of it. A count refusal has no field to
+ * hang a message on - it is about a group's size, not a question - so without this branch
+ * pressing Submit showed the error summary with nothing in it: the press did nothing and
+ * said nothing, which is the silent dead end this surface keeps closing.
+ *
+ * A respondent reaches it by removing instances below the group's `min`, which the roster
+ * operation deliberately allows so they can empty a group and rebuild it (ADR-43); the
+ * refusal is the submit's, as ADR-42 rules.
+ */
+function isCountRefusal(details: unknown): boolean {
+  if (typeof details !== "object" || details === null) return false;
+  const errors = (details as { errors?: unknown }).errors;
+  if (!Array.isArray(errors)) return false;
+  return errors.some(
+    (entry) =>
+      typeof entry === "object" &&
+      entry !== null &&
+      (entry as { code?: unknown }).code === "REPEAT_COUNT_OUT_OF_RANGE",
+  );
+}
+
 async function isNotVisible(res: Response): Promise<boolean> {
   if (res.status !== 409) return false;
   return errorCodeOf(await readJsonSafely(res)) === "QUESTION_NOT_VISIBLE";
@@ -382,6 +408,8 @@ export function StepFlow({
   const focusedAtUpdateRef = useRef<string | undefined>(undefined);
   const errorSummaryRef = useRef<HTMLDivElement>(null);
   const primaryRef = useRef<HTMLButtonElement>(null);
+  /** A submission the sweep refused for a group's count (ADR-42), page-level. */
+  const [countRefused, setCountRefused] = useState(false);
   const prevReadyRef = useRef<boolean>(initial.flowState.readyToSubmit);
 
   /**
@@ -699,6 +727,9 @@ export function StepFlow({
         return;
       }
       if (res.status === 422) {
+        // The sweep's own codes, not only its missing-required half: a count refusal has
+        // no field to show a message beside, so it gets a page-level one.
+        setCountRefused(isCountRefusal(errorDetailsOf(await readJsonSafely(res))));
         setShowMissing(true);
       } else if (res.status === 401 || (await isSupersededSemantics(res))) {
         window.location.assign(`/s/${encodeURIComponent(sessionId)}`);
@@ -967,6 +998,12 @@ export function StepFlow({
         {failed ? (
           <p role="alert" className="text-sm text-(--color-danger-fg)">
             {t("session.lost.body")}
+          </p>
+        ) : null}
+
+        {countRefused ? (
+          <p role="alert" data-testid="count-refusal" className="text-sm text-(--color-danger-fg)">
+            {t("repeat.countOutOfRange")}
           </p>
         ) : null}
 

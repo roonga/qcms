@@ -460,6 +460,38 @@ export async function removeRosterInstance(
 }
 
 /**
+ * The groups that still owe a mint: their minted history is shorter than the target the
+ * count source asks for, ignoring the render-step gate (task 076, Q30's serve consequence,
+ * Code Owner 2026-10-10).
+ *
+ * It answers "which steps has this session not opened yet", which is what a **cursor-less
+ * serve** needs. `mintDueAndLoadRosters` below asks a narrower question - which groups are
+ * due on the step being rendered - and cannot be reused for this, because the step being
+ * rendered is exactly what is being chosen.
+ *
+ * It compares against `minted`, not against the live set, for the same reason the mint
+ * does: a respondent who removed every instance of an `open` group has a full minted
+ * history and owes nothing, so a serve must not keep sending them back to that step. A
+ * target of zero owes nothing either, which is what keeps a `fromAnswer` group whose count
+ * is unanswered from capturing the serve.
+ *
+ * Read-only. The caller owns the transaction and the mint.
+ */
+export async function groupsOwedAMint(
+  exec: Executor,
+  input: { sessionId: SessionId; steps: readonly Step[]; answers: AnswerMap },
+): Promise<ReadonlySet<GroupId>> {
+  const rows = await readRosters(exec, input.sessionId);
+  const owed = new Set<GroupId>();
+  for (const group of repeatGroups(input.steps)) {
+    const target = mintTarget(group.count, input.answers);
+    if (target <= 0) continue;
+    if (target - (rows.get(group.groupId)?.minted.length ?? 0) > 0) owed.add(group.groupId);
+  }
+  return owed;
+}
+
+/**
  * Mint whatever this request has made due, and return the live `RosterMap`.
  *
  * **Which groups are due, and why it is not "all of them".** A mint is auditable and

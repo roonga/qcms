@@ -85,6 +85,47 @@ const FLEET = corpusQuestion("q-rep-fleet-name.json");
 const QUESTIONS = [PLATE, FLEET];
 
 /** One step, holding ONE STACKED GROUP and nothing else. */
+/**
+ * The group's step FIRST, then a step holding a required plain question (Q30's serve
+ * consequence, Code Owner 2026-10-10).
+ *
+ * This is the shape that loses the cursor-less first serve to semantic 5's first tier: an
+ * unminted group contributes no visible question, so `currentStep` nominates the later
+ * step with the missing required answer, and a fresh session would open on "Step 2 of 2".
+ * It is the passengers-then-contact-details shape of the plan's section 1.1.
+ */
+function defineGroupFirst(formId: string): FormDefinition {
+  const parsed = parseFormDefinition({
+    formId,
+    defaultLocale: "en",
+    title: { en: "Group first" },
+    steps: [
+      {
+        stepId: "stp_only",
+        title: { en: "Vehicles" },
+        items: [
+          {
+            groupId: "grp_only",
+            label: { en: "Vehicles" },
+            instanceLabel: { en: "Vehicle {n}" },
+            presentation: "stacked",
+            count: { source: "open", min: 2, max: 4 },
+            items: [{ questionId: PLATE.questionId, version: 1 }],
+          },
+        ],
+      },
+      {
+        stepId: "stp_after",
+        title: { en: "Contact" },
+        items: [{ questionId: FLEET.questionId, version: 1 }],
+      },
+    ],
+    rules: [],
+  });
+  if (!parsed.ok) throw new Error(`did not parse: ${JSON.stringify(parsed.error)}`);
+  return parsed.value;
+}
+
 function define(formId: string, presentation: string, lead: boolean): FormDefinition {
   const group = {
     groupId: "grp_only",
@@ -174,6 +215,7 @@ interface StepBody {
   readonly flowState: {
     readonly currentStep: string | null;
     readonly visibleQuestions: readonly string[];
+    readonly missingRequired: readonly string[];
     readonly readyToSubmit: boolean;
   };
   readonly rosters: readonly { readonly groupId: string; readonly instances: readonly string[] }[];
@@ -182,9 +224,15 @@ interface StepBody {
   readonly progress: { readonly stepIndex: number; readonly totalVisibleSteps: number };
 }
 
-async function serve(formId: FormId): Promise<StepBody> {
+/** One session on a seeded form, and the bearer that reaches it. */
+interface Session {
+  readonly sessionId: string;
+  readonly token: string;
+}
+
+async function newSession(formId: FormId, label: string): Promise<Session> {
   seeded += 1;
-  const sessionId = SessionId.parse(`ses_only_${String(seeded)}`);
+  const sessionId = SessionId.parse(`ses_only_${label}_${String(seeded)}`);
   await createSession(testDb.db, {
     sessionId,
     formId,
@@ -198,20 +246,32 @@ async function serve(formId: FormId): Promise<StepBody> {
     new Date(NOW.getTime() + 86_400_000),
     signingKey!,
   );
-  const res = await app.request(`/sessions/${sessionId}/step`, {
+  return { sessionId, token };
+}
+
+/** One step read, with the ADR-28 cursor when a case supplies one. */
+async function readStep(session: Session, cursor?: number): Promise<StepBody> {
+  const query = cursor === undefined ? "" : `?step=${String(cursor)}`;
+  const res = await app.request(`/sessions/${session.sessionId}/step${query}`, {
     headers: {
       "content-type": "application/json",
       "x-qcms-internal-token": internalToken,
-      authorization: `Bearer ${token}`,
+      authorization: `Bearer ${session.token}`,
     },
   });
   expect(res.status).toBe(200);
-  const body = (await res.json()) as StepBody;
+  return (await res.json()) as StepBody;
+}
+
+/** A fresh session's cursor-less first serve, with the roster ledger asserted. */
+async function serve(formId: FormId): Promise<StepBody> {
+  const session = await newSession(formId, "serve");
+  const body = await readStep(session);
   // The roster LEDGER, not only the projection: what was minted has to be a fact about
-  // the rows rather than about what the response chose to report. A group-only step that
-  // is served mints its `min`; one behind a plain step is not served yet and mints
-  // nothing, which is the mint gate working rather than the defect.
-  const ledger = await rosterLedger(testDb.db, sessionId);
+  // the rows rather than about what the response chose to report. A group's step that is
+  // served mints its `min`; one the serve has not reached mints nothing, which is the
+  // mint gate working rather than the defect.
+  const ledger = await rosterLedger(testDb.db, SessionId.parse(session.sessionId));
   expect(ledger.length).toBe(body.step?.stepId === "stp_only" ? 2 : 0);
   return body;
 }
@@ -247,8 +307,76 @@ describe("a step whose every item is a repeating group is reachable (Q30)", () =
     expect(body.progress.totalVisibleSteps).toBe(2);
     expect(body.step?.stepId).toBe("stp_lead");
     // The lead step's own required question is what makes it current, and the group's
-    // step is the one after it rather than one the respondent can never get to.
+    // step is the one after it rather than one the respondent can never get to. The
+    // serve's unopened-group preference does not pull them forward onto it, because the
+    // earlier of the two candidates wins.
     expect(body.flowState.currentStep).toBe("stp_lead");
+  });
+
+  it("GROUP FIRST, a required question after it: the first serve opens the group's step", async () => {
+    // Q30's serve consequence (Code Owner, 2026-10-10). `currentStep` is frozen semantic
+    // 5 - `firstMissingRequiredStep ?? firstIncompleteStep` - and an unminted group is
+    // never in the first tier, so the LATER step's missing required answer wins it. The
+    // serve corrects that for a cursor-less read: it prefers the first view whose step
+    // holds a group this session has never opened.
+    //
+    // Without it a fresh session opened on "Step 2 of 2", with a Back button to a step it
+    // had never seen, the group unminted, and Submit on the page - which the submission
+    // sweep then refuses with `REPEAT_COUNT_OUT_OF_RANGE`.
+    const formId = await publish(defineGroupFirst("frm_group_first"), "group-first");
+    const body = await serve(formId);
+    expect(body.step?.stepId).toBe("stp_only");
+    expect(body.progress.stepIndex).toBe(0);
+    expect(body.progress.totalVisibleSteps).toBe(2);
+    // `min: 2` minted on this very serve, which is what being opened means.
+    const live = body.rosters.find((entry) => entry.groupId === "grp_only")?.instances ?? [];
+    expect(live).toHaveLength(2);
+    // The kernel is untouched, and the projection is coherent rather than merely
+    // overridden: the serve opened the step, the mint ran, so the re-evaluated flow has
+    // this group's required plate missing and `currentStep` names this step on its own.
+    // Before the mint the first tier named `stp_after`, which is what the serve passed
+    // over; after it, the flow agrees with the page.
+    expect(body.flowState.currentStep).toBe("stp_only");
+    // Qualified, because the projection reports the answer KEY and a repeated question's
+    // key carries its instance (`instanceId/questionId`).
+    expect(
+      body.flowState.missingRequired.filter((key) => key.endsWith("/q_rep_plate")),
+    ).toHaveLength(2);
+  });
+
+  it("serves the EARLIER candidate, so a plain required step before the group still wins", async () => {
+    // The narrowing taken deliberately against the ruling's wording. Read as an
+    // unconditional first tier, the preference would mirror the harm it fixes: this form's
+    // required question is on step 1 and its group on step 2, so a fresh session would
+    // open on "Step 2 of 2" and the no-JS walk would then send the respondent backwards.
+    // The two candidates are compared in document order instead.
+    const formId = await publish(define("frm_lead_then_group", "stacked", true), "lead-then-group");
+    const body = await serve(formId);
+    expect(body.step?.stepId).toBe("stp_lead");
+    expect(body.progress.stepIndex).toBe(0);
+    // And the group is left unopened, because the serve never reached its step: the mint
+    // is still gated on the step being rendered.
+    expect(body.rosters.find((entry) => entry.groupId === "grp_only")?.instances).toEqual([]);
+  });
+
+  it("does NOT move an explicit cursor, even onto an unopened group's step", async () => {
+    // The preference is for a cursor-less serve alone, or Back and Continue would be
+    // overridden by it. A cursor of 1 draws the later step even though the group is still
+    // unopened, and the group is still minted by the serve that named `stp_only` first.
+    const formId = await publish(defineGroupFirst("frm_group_first_cursor"), "group-first-cursor");
+    const session = await newSession(formId, "cursor");
+    const withCursor = await readStep(session, 1);
+    expect(withCursor.step?.stepId).toBe("stp_after");
+    expect(withCursor.progress.stepIndex).toBe(1);
+    // Nothing was minted, because the cursor named a step that holds no group: the mint
+    // is still gated on the step being rendered.
+    expect(withCursor.rosters.find((entry) => entry.groupId === "grp_only")?.instances).toEqual([]);
+    // And the cursor-less read of the same session opens the group's step and mints it.
+    const withoutCursor = await readStep(session);
+    expect(withoutCursor.step?.stepId).toBe("stp_only");
+    expect(
+      withoutCursor.rosters.find((entry) => entry.groupId === "grp_only")?.instances,
+    ).toHaveLength(2);
   });
 
   it("PER-INSTANCE, the only step: identical, so the fix is not this presentation's", async () => {

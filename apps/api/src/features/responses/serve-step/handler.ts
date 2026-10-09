@@ -77,6 +77,7 @@ import type { ApiEnv } from "../../../openapi.js";
 import { spendAnswerAllowance } from "../rate-limits.js";
 import {
   applyRosterOp,
+  groupsOwedAMint,
   loadRosters,
   mintDueAndLoadRosters,
   type RosterRefusalCode,
@@ -369,13 +370,46 @@ function stepViewsOf(flow: FlowState): readonly StepView[] {
 function renderTarget(
   flow: FlowState,
   requestedIndex?: number,
+  unopened?: UnopenedGroups,
 ): { readonly view: StepView | null; readonly stepIndex: number } {
   const views = stepViewsOf(flow);
-  if (requestedIndex === undefined) return servedView(flow, views);
+  if (requestedIndex === undefined) return servedView(flow, views, unopened);
   // A degenerate flow with no visible steps: nothing to render.
   if (views.length === 0) return { view: null, stepIndex: 0 };
   const clamped = Math.min(requestedIndex, views.length - 1);
   return { view: views[clamped] ?? null, stepIndex: clamped };
+}
+
+/**
+ * The groups a session still owes a mint, by id, and the steps that hold them.
+ *
+ * Assembled by the caller, which is the only place that can read the roster rows.
+ */
+interface UnopenedGroups {
+  readonly groupIds: ReadonlySet<GroupId>;
+  readonly stepOf: ReadonlyMap<GroupId, StepId>;
+}
+
+/**
+ * The first view, in document order, whose step holds a group this session has never
+ * opened, or `null` when there is none (Q30's serve consequence).
+ *
+ * "In document order" is the view list's own order, which is the order a respondent walks
+ * them in, so the earliest unopened step wins over a later one.
+ */
+function firstUnopenedView(
+  views: readonly StepView[],
+  unopened?: UnopenedGroups,
+): { readonly view: StepView; readonly stepIndex: number } | null {
+  if (unopened === undefined || unopened.groupIds.size === 0) return null;
+  const steps = new Set<StepId>();
+  for (const groupId of unopened.groupIds) {
+    const stepId = unopened.stepOf.get(groupId);
+    if (stepId !== undefined) steps.add(stepId);
+  }
+  const index = views.findIndex((view) => steps.has(view.stepId));
+  const view = index < 0 ? undefined : views[index];
+  return view === undefined ? null : { view, stepIndex: index };
 }
 
 /**
@@ -401,6 +435,50 @@ function renderTarget(
  * instead would show a finished page with no way to add.
  */
 function servedView(
+  flow: FlowState,
+  views: readonly StepView[],
+  unopened?: UnopenedGroups,
+): { readonly view: StepView | null; readonly stepIndex: number } {
+  // **A step the session has never opened is a candidate, and the EARLIER candidate wins**
+  // (Q30's serve consequence, Code Owner 2026-10-10).
+  //
+  // `currentStep` cannot nominate an unopened group's step: an unminted group contributes
+  // no visible question, so it is never in semantic 5's first tier, and a LATER step with
+  // a missing required answer wins. A fresh session would then open on "Step 2 of 2" with
+  // a Back button to a step it had never seen, with the group unminted and Submit on the
+  // page - which `checkRepeatCounts` refuses with `REPEAT_COUNT_OUT_OF_RANGE`.
+  //
+  // **The two candidates are compared in document order rather than ranked in tiers**, and
+  // that is a narrowing of the ruling's wording taken deliberately. Read as an
+  // unconditional first tier it reintroduces the same harm mirrored: a form whose plain
+  // required question comes FIRST and whose group comes second would open on step 2 of 2,
+  // skipping an unanswered question the respondent must still reach, and the no-JS walk
+  // would then send them backwards. Taking the earlier of the two candidates serves the
+  // ruling's purpose - a group-bearing first step is opened rather than skipped - in both
+  // shapes, and can never move a respondent further forward than the flow already did.
+  //
+  // The fix is here rather than in the kernel on purpose: semantic 5's tier order is
+  // frozen, so `currentStep` keeps `firstMissingRequiredStep ?? firstIncompleteStep` and
+  // the corpus and `SEMANTICS_VERSION` are untouched. What a cursor-less serve chooses is
+  // this surface's own decision, and this is the only place that makes it.
+  //
+  // It applies to a cursor-less serve alone: the first serve of a session and the no-JS
+  // path. An explicit cursor is never moved by it (see `renderTarget`), so Back and
+  // Continue are unaffected.
+  const owed = firstUnopenedView(views, unopened);
+  const byFlow = currentStepView(flow, views);
+  if (owed !== null && (byFlow.view === null || owed.stepIndex < byFlow.stepIndex)) return owed;
+  return byFlow;
+}
+
+/**
+ * The view the flow's own `currentStep` names: the step, and the first of its views whose
+ * instance is still incomplete, else its last.
+ *
+ * This is what a cursor-less serve chose before Q30's serve consequence, and it is still
+ * the answer whenever no unopened group's step comes earlier.
+ */
+function currentStepView(
   flow: FlowState,
   views: readonly StepView[],
 ): { readonly view: StepView | null; readonly stepIndex: number } {
@@ -461,8 +539,9 @@ function project(
   answers: AnswerMap,
   rosters: RosterMap,
   requestedIndex?: number,
+  unopened?: UnopenedGroups,
 ): StepResponse {
-  const { view, stepIndex } = renderTarget(flow, requestedIndex);
+  const { view, stepIndex } = renderTarget(flow, requestedIndex, unopened);
 
   let step: StepResponse["step"] = null;
   let rendered: RenderedQuestions = { visibleQuestions: [], values: {} };
@@ -563,12 +642,25 @@ async function projectWithRosters(
     answers,
     await liveRosters(exec, sessionId, snapshot, answers),
   );
-  const renderStep = renderTarget(first, requestedIndex).view?.stepId ?? null;
+  // Which groups this session has never opened, and which step each one sits on. Read
+  // before the mint, because the mint is what makes the answer change (Q30's serve
+  // consequence, Code Owner 2026-10-10): a cursor-less serve prefers the first view whose
+  // step holds one, so that a group-bearing step is opened rather than skipped by a later
+  // step's missing required answer.
+  const unopened = {
+    groupIds: await groupsOwedAMint(exec, { sessionId, steps, answers }),
+    stepOf: groupStepIndex(steps),
+  };
+  const renderStep = renderTarget(first, requestedIndex, unopened).view?.stepId ?? null;
   // Pass two is the one write: whatever this request has made due, one statement per
   // group, at most once per group.
   const rosters = await mintDueAndLoadRosters(exec, { sessionId, steps, renderStep, answers });
   const flow = evaluateOrThrow(snapshot, answers, rosters);
-  return project(snapshot, flow, answers, rosters, requestedIndex);
+  // Pass two's projection takes the SAME preference, so the view it draws is the view the
+  // mint was chosen for. Recomputing `groupsOwedAMint` after the write would say "nothing
+  // is owed" and send the response back to the step `currentStep` names, which is the
+  // step this preference exists to pass over.
+  return project(snapshot, flow, answers, rosters, requestedIndex, unopened);
 }
 
 /**
@@ -588,6 +680,17 @@ async function liveRosters(
   answers: AnswerMap,
 ): Promise<RosterMap> {
   return loadRosters(exec, sessionId, snapshot.frozen.definition.steps, answers);
+}
+
+/** Which step each repeating group sits on, by group id. */
+function groupStepIndex(steps: readonly FormDefinition["steps"][number][]): Map<GroupId, StepId> {
+  const stepOf = new Map<GroupId, StepId>();
+  for (const step of steps) {
+    for (const item of step.items) {
+      if (isRepeatGroup(item)) stepOf.set(item.groupId, step.stepId);
+    }
+  }
+  return stepOf;
 }
 
 /** The repeating group this id names in the pinned snapshot, or `undefined`. */

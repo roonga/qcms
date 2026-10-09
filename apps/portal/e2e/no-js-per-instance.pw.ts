@@ -136,6 +136,47 @@ test("the walk completes through all three views with one button and no Back", a
   }
 });
 
+test("a submit refused for the group's count carries a notice, without scripting", async ({
+  page,
+}) => {
+  // The same refusal on the path with no rapid feedback at all (`REPEAT_COUNT_OUT_OF_RANGE`,
+  // ADR-42). Without the notice the press returned the same step and said nothing, which on
+  // this path reaches the respondent least equipped for it.
+  await startTour(page);
+  // One answer first, for the same reason as the hydrated case: a session with no answers
+  // at all is refused earlier and differently (`NOTHING_TO_SUBMIT`).
+  //
+  // The plate is filled with it, and that is the browser rather than a choice: the plate
+  // carries HTML `required`, so a Continue with it empty never leaves the page - which is
+  // the 2026-09-13 ruling working. What survives the removals is the DEPOT answer, since a
+  // removed instance's answers are excluded (I6), and that is what gets the session past
+  // `NOTHING_TO_SUBMIT` to the sweep.
+  await page.getByLabel("Depot name").fill("Northern depot");
+  await card(page).getByLabel("Registration plate").fill("AAA111");
+  await submitStep(page);
+  await expect(page.getByLabel("Depot name")).toHaveValue("Northern depot");
+
+  // Label-agnostic, because each removal renumbers the ordinal the drawn instance reads.
+  for (const round of [1, 2, 3]) {
+    const served = page.waitForResponse(
+      (response) => response.request().isNavigationRequest() && response.status() === 200,
+    );
+    await page.locator('[data-qcms-repeat-action="remove"]').first().click();
+    await served;
+    void round;
+  }
+  await expect(card(page)).toHaveCount(0);
+
+  // Nothing required is left, so this press reaches the submit rather than the step route's
+  // own missing-required report.
+  await submitStep(page);
+  await expect(page.getByTestId("step-notice")).toBeVisible();
+  await expect(page.getByTestId("step-notice")).toHaveText(
+    "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
+  );
+  await expect(page).not.toHaveURL(/\/done$/);
+});
+
 test("the Add on the last view grows the group and the walk gains a view", async ({ page }) => {
   await startTour(page);
   // Walk to the last view, which is where the Add control is.

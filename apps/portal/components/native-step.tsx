@@ -108,6 +108,19 @@ function viewProgress(
   return label === undefined ? { current, total } : { current, total, label };
 }
 
+/**
+ * The page-level notice for a catalogue key the re-render context carries, or `undefined`.
+ *
+ * A KEY and never a sentence, because the catalogue is where the portal's wording lives
+ * and a cookie from an earlier build must not be able to put arbitrary text on the page.
+ * An unrecognised key renders nothing, which is what keeps that true as keys are added.
+ */
+function noticeFor(key: string | undefined): string | undefined {
+  if (key === "step.notSaved") return t("step.notSaved");
+  if (key === "step.countOutOfRange") return t("step.countOutOfRange");
+  return undefined;
+}
+
 export function NativeStep({
   sessionId,
   initial,
@@ -243,7 +256,7 @@ export function NativeStep({
   // say: a refused batch (ruling Q29). It is a KEY in the cookie, looked up here, because
   // the catalogue is where the portal's wording lives; an unrecognised key renders nothing,
   // so a cookie from an earlier build cannot put a blank banner on the page.
-  const notice = context?.notice === "step.notSaved" ? t("step.notSaved") : undefined;
+  const notice = noticeFor(context?.notice);
 
   return (
     <PortalShell progress={progress}>

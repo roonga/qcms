@@ -87,7 +87,7 @@ The **address forms above are `prod`'s, and they keep exactly that spelling** (C
 
 ### ADR-43 - Repeat rendering and the no-JS roster operation
 
-**Status:** built for the stacked and per-instance-step presentations (tasks 073 and 076); the table presentation is decided and not built (task 077). Code Owner rulings of 2026-09-29, recorded question by question in `plan/repeating-groups-and-table-input.md` section 10. Nothing here is open. The kernel half is ADR-42.
+**Status:** built, all three presentations (tasks 073, 076 and 077). Code Owner rulings of 2026-09-29, recorded question by question in `plan/repeating-groups-and-table-input.md` section 10. Nothing here is open. The kernel half is ADR-42.
 
 **Decision.** The compiler emits a **`RepeatGroup` template** node carrying the group's member controls once. The renderer clones it per live instance, in roster order, and qualifies each cloned control's `name` from `q_passport` to `ins_7k2/q_passport`, so the stored compiled document is served verbatim and expansion is a render-time transform on the precedent `withNativeSubmit` and `documentForVisible` already set (ADR-18 unaffected). The **qualified name is the field's whole identity everywhere below the API**, so the ten places that key on `name` keep keying on one opaque string and none of them learns about instances. The roster reaches the renderer from the API's step projection; the portal still evaluates nothing (R2).
 

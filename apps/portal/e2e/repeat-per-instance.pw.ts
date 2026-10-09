@@ -14,13 +14,14 @@ import { waitForHydration } from "./support/hydration.js";
  * **views** before the respondent has done anything, which is this task's exit criterion
  * written as a fixture rather than as a sequence of clicks.
  *
- * The plain question is on the step because a step whose every item is a group is
- * unreachable - a defect of merged code, pinned by
- * `apps/api/src/features/responses/group-only-step.integration.test.ts` - and it is
- * optional so that the Continue gate on each view is that view's own plate and nothing
- * else. A view narrows the step to one instance of the paginating group and to nothing
- * else, so it appears on every page of the walk, which is asserted below rather than
- * worked around.
+ * The plain question is **optional**, so the Continue gate on each view is that view's
+ * own plate and nothing else. It was first added because a step whose every item was a
+ * repeating group could not be served at all; Q30 (2026-10-03) fixed that, and
+ * `apps/api/src/features/responses/group-only-step.integration.test.ts` now asserts a
+ * group-only step is reachable on all three presentations. It stays because of what it
+ * buys here: a view narrows the step to one instance of the paginating group and to
+ * nothing else, so it appears on every page of the walk, which is asserted below rather
+ * than worked around.
  *
  * Exit criteria proved here: **1** (three views, the indicator says three, Back and
  * Continue traverse them in roster order), **2** (answering never moves the page by
@@ -292,6 +293,63 @@ test("the first Add to an emptied paginated group lands focus on the new instanc
   // Q11's primary destination and what 073 already did for a stacked group.
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Vehicle 1" })).toBeFocused();
+});
+
+test("a submit refused for the group's count says so instead of nothing", async ({
+  page,
+  browserGuard,
+}) => {
+  // A refused submit is a 422 the browser logs as a failed resource, so the console census
+  // is told to expect exactly one. Declared rather than suppressed: an expectation that
+  // never fires is reported as a failure of this test, so the hatch cannot go quiet.
+  browserGuard.expectRequestFailure({ status: 422, url: /\/submit$/ });
+  // `REPEAT_COUNT_OUT_OF_RANGE` (ADR-42): the roster operation deliberately lets a
+  // respondent empty a group so they can rebuild it, and the submission sweep is what
+  // refuses a count below `min`. That refusal is the one sweep entry with no field to
+  // report against - it is about a group's size, not a question - so the portal showed the
+  // error summary with nothing in it and the press did nothing and said nothing. That is
+  // the silent dead end issues #920, #974, #18 and #988 each closed once.
+  await startTour(page);
+  // One answer first, and the step's own optional question is the one that does not depend
+  // on an instance: a session with NO answers at all is refused earlier and differently
+  // (`NOTHING_TO_SUBMIT`, 409), which would test the wrong gate.
+  const posted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/answers"),
+  );
+  await page.getByLabel("Depot name").fill("Northern depot");
+  await page.getByLabel("Depot name").blur();
+  await posted;
+
+  for (const round of [1, 2, 3]) {
+    const removed = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        new URL(response.url()).pathname.endsWith("/roster"),
+    );
+    await page.locator('[data-qcms-repeat-action="remove"]').first().click();
+    expect((await removed).status(), `removal ${String(round)}`).toBe(200);
+  }
+  // Nothing required is left, so the flow says it is ready and Submit is offered. The
+  // group is below its `min: 3`, which only the sweep knows.
+  await expect(page.locator("fieldset[data-qcms-instance]")).toHaveCount(0);
+  await expect(page.getByTestId("primary-action")).toHaveText("Submit");
+
+  const refused = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname.endsWith("/submit"),
+  );
+  await page.getByTestId("primary-action").click();
+  expect((await refused).status()).toBe(422);
+
+  // Told, and still on the step rather than at the receipt.
+  await expect(page.getByTestId("count-refusal")).toBeVisible();
+  await expect(page.getByTestId("count-refusal")).toHaveText(
+    "One of the repeated sections does not have enough entries to submit. Add the entries it needs and try again.",
+  );
+  await expect(page).not.toHaveURL(/\/done$/);
 });
 
 test("an Add announces without moving the page, and a removal clamps onto Q11's destination", async ({
