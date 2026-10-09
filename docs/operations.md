@@ -29,7 +29,11 @@ directly. The admin's import-surface test refuses a database import outright.
 All three are two-stage builds on one digest-pinned `node:24-bookworm-slim` base. The
 build stage installs the whole workspace and compiles it; the runtime stage receives
 only what the process needs, runs as the unprivileged `node` user, and listens on 3000
-inside the container. Every image carries `org.opencontainers.image.title`, `.version`
+inside the container. One exception to "the base is what the digest says" is live and
+temporary: each runtime stage upgrades `perl-base` from `bookworm-security` at build
+time, because Debian has fixed five criticals against it and no published base digest
+carries the fixed package yet (issue #1047). The layer states its own removal condition
+and the scan triage below names the shape. Every image carries `org.opencontainers.image.title`, `.version`
 and `.source`; `pnpm qcms:build-images` stamps a real version (the workspace version
 plus the short commit, marked when the tree was dirty) and attaches an SBOM and SLSA
 provenance attestation, which is what the `Images` workflow runs before it publishes
@@ -117,28 +121,36 @@ posts that fact, so silence never means "the scan broke".
 fix**, and the job exits `2` when that happens against `1` when the scan could not be
 performed at all. Every finding is counted, kept and named either way; the published-fix
 rule decides only what can fail a job. The reason is in `docs/SECURITY_DESIGN.md`
-section 9, and the short form has to be stated carefully: the pinned base image carries
-seven criticals for which **Debian 12** has no fixed version, so a floor counting them
+section 9, and the short form has to be stated carefully: the pinned base image carried
+seven criticals for which **Debian 12** had no fixed version, so a floor counting them
 would be permanently red and permanently ignored. `wont-fix` and `not-fixed` in the
 report are **grype's** labels for that, not a statement that upstream refuses to fix; all
-six are fixed in Debian 13. What Debian itself has said about them differs per id and is
-tabulated in that section rather than summarised, because the difference matters: three
-carry a bookworm note on the source package in the image (`CVE-2026-5450`,
-`CVE-2026-8376`, `CVE-2026-42496`, all "Minor issue"), `CVE-2026-12087` carries one only
-on a sibling source package the images do not ship, and `CVE-2026-13221` and
-`CVE-2026-57433` carry **none at all** - Debian has not triaged those two for bookworm.
-Whether to accept them, move the base, wait for a point release, or upgrade packages at
-build time is an open Code Owner decision recorded in that section. The job is not a
-required check, so a red scan never blocks a merge.
+of them are fixed in Debian 13. What Debian itself has said about them differs per id and
+is tabulated in that section rather than summarised, because the difference matters.
+
+**Five of those seven are no longer in that position (2026-10-10, issue #1047).** Debian
+published `perl 5.36.0-7+deb12u4` in `bookworm-security`, which fixes `perl-base` and so
+all five perl criticals (`CVE-2026-8376`, `CVE-2026-12087`, `CVE-2026-13221`,
+`CVE-2026-42496`, `CVE-2026-57433`). They became findings **with a published fix**, which
+is the one thing the blocking rule is sensitive to, and the job went red repository-wide
+with nothing in the tree having changed. No published `node:24-bookworm-slim` carries the
+fixed package yet, so each runtime stage in `docker/*.Dockerfile` now upgrades that one
+package at build time; the Dockerfile comment carries the reasoning, the cost to
+reproducibility and the condition for deleting the layer again. **Two criticals remain
+unfixed in Debian 12**, `CVE-2026-5450` against `libc6` and `libc-bin`, tagged
+`<no-dsa> (Minor issue)` on the `glibc` source in the image. Whether to accept those,
+move the base, or wait for a point release is an open Code Owner decision recorded in
+that section. The job is not a required check, so a red scan never blocks a merge.
 
 **Triage, in the order the causes actually occur.**
 
-| The finding is against                                   | It is cleared by                                                                                                                                                                               |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| a `deb` package                                          | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.                                 |
-| an `npm` package under `/usr/local/lib/node_modules/npm` | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                                              |
-| an `npm` package in the application tree                 | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                                                    |
-| nothing with a fix available in this distribution        | nothing in this repository, yet. It is reported and not silenced, and `wont-fix` is the scanner's label rather than upstream's verdict; check the Debian security tracker before repeating it. |
+| The finding is against                                                    | It is cleared by                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| a `deb` package                                                           | a base-image digest bump. Dependabot's `docker` ecosystem opens it; the digest sits beside the tag in each `docker/*.Dockerfile`, and all three move together.                                                                                                                                                                                                                          |
+| a `deb` package Debian has fixed and no published base digest carries yet | an `--only-upgrade` of that one package in each runtime stage, as `perl-base` is upgraded today. Check it first with `docker run --rm node:24-bookworm-slim dpkg -l <package>` against `apt-cache policy <package>` in the same image: the layer is only justified while the archive has the fix and the published image does not, and it is deleted once the digest bump brings it in. |
+| an `npm` package under `/usr/local/lib/node_modules/npm`                  | the same base-image bump. That is npm's own bundled tree, shipped by the Node image, and no change to this workspace's dependencies can reach it.                                                                                                                                                                                                                                       |
+| an `npm` package in the application tree                                  | a dependency bump, or a targeted entry in CONTRIBUTING > Security overrides, which is the removal-condition ledger for one.                                                                                                                                                                                                                                                             |
+| nothing with a fix available in this distribution                         | nothing in this repository, yet. It is reported and not silenced, and `wont-fix` is the scanner's label rather than upstream's verdict; check the Debian security tracker before repeating it.                                                                                                                                                                                          |
 
 **Reproducing a finding locally.** Build the images with their attestations, then scan
 them. grype is not a workspace dependency; install it yourself and point the script at

@@ -25,6 +25,38 @@ LABEL org.opencontainers.image.title="{{projectName}}-admin" \
 # it lives. Add the label yourself once it has a home:
 #   org.opencontainers.image.source="https://example.com/your/repository"
 
+# The one package Debian has fixed and no published `node:24-bookworm-slim` layer
+# carries yet (issue #1047). Debian's `perl` 5.36.0-7+deb12u4 in `bookworm-security`
+# closes five criticals against `perl-base` (CVE-2026-8376, CVE-2026-12087,
+# CVE-2026-13221, CVE-2026-42496 and CVE-2026-57433), and the `Images` workflow's
+# `scan` job blocks on them because they now have a published fix. The newest
+# published base digest, built 2026-10-06, still installs 5.36.0-7+deb12u3, so a digest
+# bump, which is the normal way a `deb` finding is cleared here, clears nothing. This
+# layer is the narrowest thing that does.
+#
+# What it costs, stated rather than glossed: the image is no longer reproducible from
+# the pinned `FROM` digest alone, because two builds of this commit on different days
+# can install different `perl-base` revisions. That is the property the digest pin of
+# issue #372 exists for, and `docs/SECURITY_DESIGN.md` section 9 lists this step as
+# option 4 against exactly that cost. The cost is taken for one named package rather
+# than a whole-image `apt-get upgrade`, and the scan job holds the floor that a hard
+# `perl-base=5.36.0-7+deb12u4` pin would otherwise hold: if this package is ever behind
+# a published fix again, the gate says so. A hard pin would instead break every build
+# on the day Debian supersedes that revision, because `bookworm-security` publishes
+# only the current one, and those builds include a scaffolded adopter's.
+#
+# Remove it, rather than carry it forward, as soon as a published base digest ships the
+# fix. The check is one command:
+#
+#   docker run --rm node:24-bookworm-slim dpkg -l perl-base
+#
+# If that reports 5.36.0-7+deb12u4 or later, delete this layer from all three
+# Dockerfiles, run `pnpm qcms:sync-templates`, and let the Dependabot `docker` digest
+# bump carry the base forward on its own again.
+RUN apt-get update \
+ && apt-get install --only-upgrade -y --no-install-recommends perl-base \
+ && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 ENV NODE_ENV=production
 # Next's standalone `server.js` reads its bind address and port from the environment
