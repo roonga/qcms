@@ -164,6 +164,21 @@ export {
 // outside `eraseSession`/`purgeExpired`.
 export { SessionNotFoundError, eraseSession } from "./erasure.js";
 
+// The release record (ADR-40, task 065): what is released to an environment, which is
+// what a new session resolves in place of "the newest published version". Promotion
+// writes a row and copies nothing, and the rollback reading is derived from the row's
+// predecessor rather than stored.
+export {
+  type CurrentRelease,
+  type FormReleaseHistoryRow,
+  type FormReleaseRow,
+  getReleasedVersion,
+  insertFormRelease,
+  listCurrentReleases,
+  listFormReleases,
+  listReleasedVersions,
+} from "./releases.js";
+
 export {
   type OutboxRow,
   type OutboxPayloadRedactionResult,

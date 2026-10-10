@@ -150,7 +150,13 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
   });
 
   it("installs the control-plane immutability triggers", async () => {
+    // One copy each, because their tables are control-plane. The two `form_releases`
+    // guards are task 065's and arrive with the migration that creates that table: the
+    // release history is append-only (ADR-40), and rolling back is a new row rather than
+    // an edit to the row that recorded the version it replaces (criterion 7).
     expect(await triggerNamesOn("control")).toEqual([
+      "form_releases_reject_delete",
+      "form_releases_reject_update",
       "form_versions_reject_update",
       "question_versions_freeze_published",
     ]);

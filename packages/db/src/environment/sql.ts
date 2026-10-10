@@ -44,6 +44,7 @@ import {
 
 import { reportingViewStatements } from "../reporting-views.js";
 import {
+  APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
   CONTROL_SCHEMA,
   dataSchemaName,
@@ -401,8 +402,8 @@ export function createEnvironmentStatements(environment: string): string[] {
  *     environment's; `USAGE` on its own `reporting_<env>` with `SELECT` on that
  *     schema's views and on no other environment's (Q52); and on `control` the named
  *     read list plus one `UPDATE`, so a defect on the anonymous respondent path cannot
- *     rewrite a grant row or a staff session. That list is **five** `SELECT`s today and
- *     **six** once task 065 creates `form_releases`; see {@link CONTROL_READ_TABLES}.
+ *     rewrite a grant row or a staff session. That list is **six** `SELECT`s, the sixth
+ *     guarded on its table existing; see {@link CONTROL_READ_TABLES}.
  *   - **`qcms_app_control`** holds `INSERT` on this environment's `outbox` and **nothing
  *     else in any data schema** (Q49), because a release record and its `form.released`
  *     event commit in one transaction. `USAGE` on the schema is the unavoidable
@@ -429,12 +430,13 @@ export function grantEnvironmentStatements(environment: string): string[] {
     `GRANT USAGE ON SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT SELECT ON ALL TABLES IN SCHEMA ${quote(reporting)} TO ${quote(role)}`,
     `GRANT USAGE ON SCHEMA ${quote(CONTROL_SCHEMA)} TO ${quote(role)}`,
-    // The `control` reads of Q40 as amended by Q48: five today, six once 065 lands.
+    // The `control` reads of Q40 as amended by Q48: six, the sixth emitted below under
+    // its own guard because the baseline runs before the migration that creates it.
     // `question_versions` is on the list because `getQuestionVersion` runs on every
     // step served and every submission; without it every respondent request fails on
     // permission.
     ...CONTROL_READ_TABLES.filter(
-      (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
+      (table) => !CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.includes(table),
     ).map((table) => `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`),
     // One-time link consumption (`consumeSecureLink`). Deliberately no `INSERT`: an
     // environment role redeems and consumes a link, it never mints one. Minting runs on
@@ -460,11 +462,11 @@ export function grantEnvironmentStatements(environment: string): string[] {
 
   return [
     guardedOnRole(role, environmentGrants),
-    // `form_releases` is on the six-table read list and is **task 065's** table, so its
-    // grant is guarded on the table existing rather than left out: the list is the
-    // decision, and a grant that had to be remembered when 065 landed would be a
-    // boundary nobody wrote down.
-    ...CONTROL_READ_TABLES_NOT_YET_CREATED.map((table) =>
+    // `form_releases` is on the six-table read list and is created by task 065's
+    // migration, which is after the baseline this function also serves - so its grant is
+    // guarded on the table existing rather than left out. One emission has to be correct
+    // both before that migration and after it.
+    ...CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE.map((table) =>
       guardedOnRoleAndTable(role, CONTROL_SCHEMA, table, [
         `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
       ]),
@@ -478,15 +480,97 @@ export function grantEnvironmentStatements(environment: string): string[] {
 }
 
 /**
+ * The grants for a control-plane table created by a migration **after** the baseline
+ * (ADR-40's grant table; task 065's `form_releases` is the first).
+ *
+ * # Why a new control-plane table needs its own grants at all
+ *
+ * The baseline hands `qcms_app_control` its rights with `GRANT ... ON ALL TABLES IN
+ * SCHEMA control`, which is a grant on the tables that exist **at that moment** and not
+ * a standing rule, and task 064 deliberately set **no `ALTER DEFAULT PRIVILEGES`**: a
+ * default is keyed on (role, schema, object type) with no per-table filter, so "every
+ * table except the break-glass audit" is not expressible as one. A later table therefore
+ * arrives with nobody granted on it, and the failure is found at **runtime** - a table
+ * the running API cannot read - rather than by the migration, which succeeds.
+ *
+ * So a grant belongs to the migration that creates its table, which is migration 0021's
+ * own rule and the shape task 069 uses for the SEC-15 audit.
+ *
+ * # What it emits, and the two roles it emits for
+ *
+ *   - **`qcms_app_control`** gets DML, which is what ADR-40's role table gives it on
+ *     `control` outside the two audit carve-outs. Append-only, where a table is
+ *     append-only, is a **trigger** rather than a narrower grant here, exactly as
+ *     `control.form_versions` already does it: the record says DML, and a privilege
+ *     model is easier to audit when the grant matches the record and the immutability is
+ *     a guard with an error message.
+ *   - **every `qcms_app_<env>`** gets `SELECT` when the table is on
+ *     {@link CONTROL_READ_TABLES}, and nothing at all when it is not. The roles are
+ *     enumerated from `control.environments` at migration time rather than written out,
+ *     because the live set is a table and an operator may have created a third
+ *     environment before this migration runs.
+ *
+ * Both halves are guarded on the role existing, for the reason migration 0021's revoke
+ * is: most databases this runs against have no `qcms_app%` role at all, and an unguarded
+ * `GRANT` would fail on them and take the whole migration with it.
+ *
+ * The statements are **checked in** as part of the migration, because a migration is a
+ * file the migrator reads; `control-table-grants.test.ts` asserts the checked-in text is
+ * still what this function emits.
+ */
+export function grantControlTableStatements(table: string): string[] {
+  const statements = [
+    guardedOnRole(CONTROL_ROLE, [
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(CONTROL_ROLE)}`,
+    ]),
+  ];
+  if (CONTROL_READ_TABLES.includes(table)) {
+    statements.push(grantControlReadToEnvironmentRolesStatement(table));
+  }
+  return statements;
+}
+
+/**
+ * `SELECT` on one `control` table to **every** environment role in the live set.
+ *
+ * A loop over `control.environments` rather than a statement per shipped name, for the
+ * reason {@link revokeMigrateOnlyStatement} loops over `pg_roles`: there are as many
+ * environment roles as there are environments, an operator may create more, and a list
+ * written into a migration goes stale the first time they do. Looping over the
+ * environments table rather than over `qcms_app%` roles is what keeps
+ * `qcms_app_control` out of it - that role gets DML above, not a bare `SELECT`.
+ *
+ * The role may not exist for an environment that has a row (a database that migrates as
+ * one superuser has no application role at all), so each iteration is guarded by the
+ * `EXISTS` in the cursor rather than by a wrapper around the whole loop.
+ */
+function grantControlReadToEnvironmentRolesStatement(table: string): string {
+  const grant = `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO %I`;
+  return `DO $$
+DECLARE environment_role text;
+BEGIN
+\tFOR environment_role IN
+\t\tSELECT ${literal(`${APPLICATION_ROLE_PREFIX}_`)} || environment.name
+\t\t\tFROM ${CONTROL_SCHEMA}.environments AS environment
+\t\t\tWHERE EXISTS (
+\t\t\t\tSELECT 1 FROM pg_roles
+\t\t\t\t WHERE rolname = ${literal(`${APPLICATION_ROLE_PREFIX}_`)} || environment.name)
+\tLOOP
+\t\tEXECUTE format(${literal(grant)}, environment_role);
+\tEND LOOP;
+END
+$$;`;
+}
+
+/**
  * The `control` tables an environment role may read (Q40 as amended by Q48).
  *
- * **Five are granted at this task's landing and the sixth arrives with task 065.**
- * `form_releases` is **task 065's** table and does not exist yet, so its grant is
- * guarded on the table existing rather than left out: the list is the decision, and a
- * grant that had to be remembered when 065 landed would be a boundary nobody wrote
- * down. Exported because `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts
- * the list per role from the catalogue, and a test that re-typed it would pass while
- * the grant drifted.
+ * **Six**, with `form_releases` the sixth: task 064 granted five because that table did
+ * not exist yet, and task 065's migration creates it and grants it. The list is the
+ * decision in both tasks, which is why the member arrived here ahead of its table rather
+ * than being remembered later. Exported because
+ * `apps/api/e2e/security/03-db-least-privilege.e2e.ts` asserts the list per role from the
+ * catalogue, and a test that re-typed it would pass while the grant drifted.
  */
 export const CONTROL_READ_TABLES: readonly string[] = [
   "forms",
@@ -498,10 +582,20 @@ export const CONTROL_READ_TABLES: readonly string[] = [
 ];
 
 /**
- * The members of {@link CONTROL_READ_TABLES} whose table a later task creates, so
- * their grant is guarded on the table existing. `form_releases` is task 065's.
+ * The members of {@link CONTROL_READ_TABLES} whose grant is guarded on the table
+ * existing, because this generator runs in places the table may not exist yet.
+ *
+ * `form_releases` is on it and stays on it now that task 065 has created the table. The
+ * guard is not about which task is current: {@link grantEnvironmentStatements} is called
+ * by the **baseline**, which runs before the migration that creates this table, and by
+ * the **environment command**, which runs after it. One emission has to be correct in
+ * both positions, and the guard is what makes it so.
+ *
+ * It is therefore **not** the list of tables an environment role does not hold `SELECT`
+ * on. After task 065's migration every environment role holds all six, which is what the
+ * least-privilege suite asserts.
  */
-export const CONTROL_READ_TABLES_NOT_YET_CREATED: readonly string[] = ["form_releases"];
+export const CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE: readonly string[] = ["form_releases"];
 
 /**
  * The tables an environment role must hold **no privilege of any kind** on (Q40).
