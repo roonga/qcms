@@ -51,6 +51,7 @@ describe("query helper import surface", () => {
     // both, and a rollback is a release of an earlier version rather than an edit.
     // Nothing here re-pins a session either - `getReleasedVersion` is what a session
     // resolves at start, and I4 holds because there is no second resolution.
+    "listEnvironments",
     "insertFormRelease",
     "getReleasedVersion",
     "listFormReleases",

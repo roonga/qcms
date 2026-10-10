@@ -1353,7 +1353,7 @@ allowlist intact rather than collapsing to `application.event`.
 
 ### Webhook dead-letters
 
-Domain events (`response.submitted`, `form.published`) are written to the `outbox`
+Domain events (`response.submitted`, `form.released`) are written to the `outbox`
 table in the same transaction as the state change they describe, then delivered by
 the background deliverer with exponential backoff. Delivery is at-least-once, never
 best-effort. After retries are exhausted a row is **dead-lettered**: `dead_lettered_at`

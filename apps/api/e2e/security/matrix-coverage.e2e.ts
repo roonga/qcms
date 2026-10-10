@@ -56,7 +56,7 @@ const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   "Start anonymous session": "start-session",
   "Redeem secure link": "redeem-link",
   "Get step / answer / submit": "step-answer-submit",
-  "Question/form authoring, publish": "authoring",
+  "Question/form authoring, publish, release": "authoring",
   "Responses read/export": "responses-read",
   Erasure: "erasure",
   "Links mint/revoke, webhook config": "links-webhooks",

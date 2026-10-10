@@ -88,18 +88,18 @@ A closed, typed JSON rule language: `equals`, `notEquals`, `in`, `gt/gte/lt/lte`
 
 Operational tables (owned by `@roonga/qcms-db`):
 
-| Table                            | Purpose                                                                                                                                             |
-| -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `questions`, `question_versions` | Question library; versions immutable once referenced by a published form                                                                            |
-| `forms`, `form_drafts`           | Form identity and mutable working state (at most one open draft per form)                                                                           |
-| `form_versions`                  | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compilerVersion` + `a2uiSpecVersion` + semantics version                       |
-| `sessions`                       | Respondent sessions; pinned to a form version via the composite FK `(form_id, form_version)`, access mode, expiry                                   |
-| `secure_links`                   | Server-side state for secure-link tokens (010/013): revocation, atomic one-time consumption - a signature alone is never sufficient (SEC-2)         |
-| `answers`                        | **Append-only** ledger `(session_id, question_id, value, answered_at)`; current = latest row; submission locks the set. No UPDATE path exists.      |
-| `submissions`                    | Lock records: session, locked answer-set hash, submitted timestamp                                                                                  |
-| `erasure_tombstones`             | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                        |
-| `outbox`                         | Transactionally written domain events (`response.submitted`, `form.published`) with delivery state, attempt count, next-retry, and dead-letter flag |
-| better-auth tables               | Users, sessions, accounts for admin (2FA enabled) + later respondent identity                                                                       |
+| Table                            | Purpose                                                                                                                                            |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `questions`, `question_versions` | Question library; versions immutable once referenced by a published form                                                                           |
+| `forms`, `form_drafts`           | Form identity and mutable working state (at most one open draft per form)                                                                          |
+| `form_versions`                  | Immutable published snapshots: domain JSONB + compiled A2UI JSONB + `compilerVersion` + `a2uiSpecVersion` + semantics version                      |
+| `sessions`                       | Respondent sessions; pinned to a form version via the composite FK `(form_id, form_version)`, access mode, expiry                                  |
+| `secure_links`                   | Server-side state for secure-link tokens (010/013): revocation, atomic one-time consumption - a signature alone is never sufficient (SEC-2)        |
+| `answers`                        | **Append-only** ledger `(session_id, question_id, value, answered_at)`; current = latest row; submission locks the set. No UPDATE path exists.     |
+| `submissions`                    | Lock records: session, locked answer-set hash, submitted timestamp                                                                                 |
+| `erasure_tombstones`             | ADR-17: `(session_id, form_id, form_version, erased_at, reason)` - existence without content                                                       |
+| `outbox`                         | Transactionally written domain events (`response.submitted`, `form.released`) with delivery state, attempt count, next-retry, and dead-letter flag |
+| better-auth tables               | Users, sessions, accounts for admin (2FA enabled) + later respondent identity                                                                      |
 
 **Reporting.** Read-only `reporting.responses` (and friends) is the documented SQL contract for BI/ETL - the pull path shipping at launch in place of the deferred API. Erased sessions are excluded by construction.
 

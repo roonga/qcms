@@ -245,16 +245,16 @@ Respondent authorization is structural: a session token authorizes exactly `{rea
 
 ### 3.2 Authorization matrix (launch)
 
-| Action                            | Anonymous          | Session-token holder | Admin (2FA session)                     | Internal service token alone |
-| --------------------------------- | ------------------ | -------------------- | --------------------------------------- | ---------------------------- |
-| Start anonymous session           | ✔ (rate-limited)   | -                    | ✔                                       | ✖                            |
-| Redeem secure link                | ✔ with valid token | -                    | -                                       | ✖                            |
-| Get step / answer / submit        | ✖                  | ✔ own session only   | ✖ (admins use preview)                  | ✖                            |
-| Question/form authoring, publish  | ✖                  | ✖                    | ✔                                       | ✖                            |
-| Responses read/export             | ✖                  | ✖                    | ✔                                       | ✖                            |
-| Erasure                           | ✖                  | ✖                    | ✔ (confirmed UI / explicit scope later) | ✖                            |
-| Links mint/revoke, webhook config | ✖                  | ✖                    | ✔                                       | ✖                            |
-| Health/ready                      | ✔                  | ✔                    | ✔                                       | ✔                            |
+| Action                                    | Anonymous          | Session-token holder | Admin (2FA session)                     | Internal service token alone |
+| ----------------------------------------- | ------------------ | -------------------- | --------------------------------------- | ---------------------------- |
+| Start anonymous session                   | ✔ (rate-limited)   | -                    | ✔                                       | ✖                            |
+| Redeem secure link                        | ✔ with valid token | -                    | -                                       | ✖                            |
+| Get step / answer / submit                | ✖                  | ✔ own session only   | ✖ (admins use preview)                  | ✖                            |
+| Question/form authoring, publish, release | ✖                  | ✖                    | ✔                                       | ✖                            |
+| Responses read/export                     | ✖                  | ✖                    | ✔                                       | ✖                            |
+| Erasure                                   | ✖                  | ✖                    | ✔ (confirmed UI / explicit scope later) | ✖                            |
+| Links mint/revoke, webhook config         | ✖                  | ✖                    | ✔                                       | ✖                            |
+| Health/ready                              | ✔                  | ✔                    | ✔                                       | ✔                            |
 
 The service token authorizes no action by itself - it only opens the channel (SEC-4). Enforcement tests for this matrix are `apps/api/e2e/security/01-authorization-matrix.e2e.ts` (task 040): the rows are declared as data and walked once per credential shape, with a positive control ahead of every negative case.
 

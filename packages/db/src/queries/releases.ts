@@ -4,9 +4,37 @@ import type { FormId } from "@roonga/qcms-core";
 
 import { formReleases } from "../schema/index.js";
 import type { Executor } from "./executor.js";
+import type { AssignableTo } from "./schema-drift.js";
 
-/** One row of `control.form_releases`. */
-export type FormReleaseRow = typeof formReleases.$inferSelect;
+/**
+ * One row of `control.form_releases`. Hand-authored (issue #5), like `FormRow`.
+ *
+ * `$inferSelect` resolves soundly inside this package and degrades across the emitted
+ * `.d.ts` for a table whose columns carry a `$type<>` brand, which `form_releases` does
+ * through `FormId`: a consumer then sees an `error` type, `tsc` hides it under
+ * `skipLibCheck`, and `typescript-eslint` surfaces it as an unsafe assignment in
+ * `apps/api`. The drift guard below keeps this interface in lockstep with the table, so a
+ * column added, dropped or retyped in `schema/control/releases.ts` stops compiling here
+ * until this is brought back into step.
+ */
+export interface FormReleaseRow {
+  formId: FormId;
+  environment: string;
+  version: number;
+  sequence: number;
+  fromEnvironment: string | null;
+  releasedBy: string;
+  approvedBy: string | null;
+  releasedAt: Date;
+}
+
+// Both directions, so any column change in `schema/control/releases.ts` breaks this
+// instantiation until `FormReleaseRow` matches the table again.
+export type _FormReleaseRowMatchesTable = AssignableTo<
+  FormReleaseRow,
+  typeof formReleases.$inferSelect
+> &
+  AssignableTo<typeof formReleases.$inferSelect, FormReleaseRow>;
 
 /**
  * A release row with the one thing the history needs that the row does not carry: that

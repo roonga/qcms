@@ -978,6 +978,51 @@
           "publishedAt"
         ]
       },
+      "PublishedAndReleasedResponse": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 1
+          },
+          "publishedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "environment": {
+            "type": "string",
+            "example": "test"
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "version",
+          "publishedAt",
+          "environment",
+          "releasedAt"
+        ]
+      },
+      "PublishAndReleaseBody": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          }
+        },
+        "required": [
+          "environment"
+        ],
+        "additionalProperties": false
+      },
       "FormStatusResponse": {
         "type": "object",
         "properties": {
@@ -1327,6 +1372,221 @@
           "sessionId",
           "released"
         ]
+      },
+      "EnvironmentSetResponse": {
+        "type": "object",
+        "properties": {
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 53,
+                  "pattern": "^[a-z][a-z0-9]*$",
+                  "example": "test"
+                },
+                "position": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "exclusiveMinimum": true,
+                  "example": 1
+                }
+              },
+              "required": [
+                "name",
+                "position"
+              ]
+            }
+          }
+        },
+        "required": [
+          "environments"
+        ]
+      },
+      "CurrentReleasesResponse": {
+        "type": "object",
+        "properties": {
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CurrentRelease"
+            }
+          }
+        },
+        "required": [
+          "releases"
+        ]
+      },
+      "CurrentRelease": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 3
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedBy": {
+            "type": "string",
+            "example": "usr_01H..."
+          }
+        },
+        "required": [
+          "formId",
+          "environment",
+          "version",
+          "releasedAt",
+          "releasedBy"
+        ]
+      },
+      "ReleaseHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "releases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReleaseRecord"
+            }
+          }
+        },
+        "required": [
+          "releases"
+        ]
+      },
+      "ReleaseRecord": {
+        "type": "object",
+        "properties": {
+          "formId": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 3
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 2
+          },
+          "fromEnvironment": {
+            "type": "string",
+            "nullable": true,
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "releasedBy": {
+            "type": "string",
+            "example": "usr_01H..."
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "approvedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "replacedVersion": {
+            "type": "integer",
+            "nullable": true,
+            "minimum": 0,
+            "exclusiveMinimum": true
+          },
+          "rollback": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "formId",
+          "environment",
+          "version",
+          "sequence",
+          "fromEnvironment",
+          "releasedBy",
+          "releasedAt",
+          "approvedBy",
+          "replacedVersion",
+          "rollback"
+        ]
+      },
+      "ReleasedResponse": {
+        "type": "object",
+        "properties": {
+          "release": {
+            "$ref": "#/components/schemas/ReleaseRecord"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 3
+          }
+        },
+        "required": [
+          "release",
+          "version"
+        ]
+      },
+      "ReleaseVersionBody": {
+        "type": "object",
+        "properties": {
+          "environment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "example": 3
+          },
+          "fromEnvironment": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 53,
+            "pattern": "^[a-z][a-z0-9]*$",
+            "example": "test"
+          }
+        },
+        "required": [
+          "environment",
+          "version"
+        ],
+        "additionalProperties": false
       },
       "MintLinksResponse": {
         "type": "object",
@@ -3353,6 +3613,105 @@
         }
       }
     },
+    "/admin/forms/{id}/publish-and-release": {
+      "post": {
+        "summary": "Publish the draft and release the new version to an environment, in one act (admin)",
+        "description": "The combined action finding 2 accepted: one intent is one act. It publishes a real, immutable version and keeps it - there is no draft-level release and nothing skips publishing - and the publish, the release record and the `form.released` event share one transaction, so it happens atomically or not at all.",
+        "tags": [
+          "forms"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishAndReleaseBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The new published version and the environment it was released to",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublishedAndReleasedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable entity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/admin/forms/{id}/close": {
       "post": {
         "summary": "Close a form to new sessions; in-flight sessions finish (admin)",
@@ -4100,6 +4459,272 @@
           },
           "404": {
             "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/environments": {
+      "get": {
+        "summary": "The live environment set, in canonical order (admin)",
+        "description": "The set the Q6 switcher offers and a release may name. Read from the environments table, which is the source of the set; the per-environment settings on those rows are not exposed here.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The environments this deployment serves",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnvironmentSetResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/releases": {
+      "get": {
+        "summary": "What is released where: the current release of every form that has one (admin)",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 53,
+              "pattern": "^[a-z][a-z0-9]*$",
+              "example": "test"
+            },
+            "required": false,
+            "name": "environment",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The current release per form and environment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentReleasesResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/releases": {
+      "get": {
+        "summary": "The release history of a form: who released what, when, and from where (admin)",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 53,
+              "pattern": "^[a-z][a-z0-9]*$",
+              "example": "test"
+            },
+            "required": false,
+            "name": "environment",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Every release of this form, newest first, each rollback marked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseHistoryResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Release a published version to an environment, or promote it there (admin)",
+        "description": "Writes one release record and copies nothing: the form id and the version number are the published ones. Releasing an earlier version than the one it replaces is a rollback and is the same act. A release never re-pins a session already open.",
+        "tags": [
+          "releases"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_signup"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReleaseVersionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The release record just written",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleasedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
