@@ -79,10 +79,9 @@ const DEFINITION = {
   required: true,
 } as unknown as QuestionDefinitionView;
 
-/** An action that is never reached: every case here stops before a submission. */
-function neverCalledCreateAction(): ReturnType<
-  (state: CreateFormState, formData: FormData) => Promise<CreateFormState>
-> {
+// Actions that are never reached: every case here stops before a submission, which is the
+// point - a press that got through would be the defect.
+function neverCalledCreateAction(): Promise<CreateFormState> {
   return Promise.resolve(IDLE_CREATE_FORM);
 }
 
