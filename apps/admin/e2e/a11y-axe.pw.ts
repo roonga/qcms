@@ -953,24 +953,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.getByRole("alertdialog").getByRole("button", { name: "Publish v2" }).click();
   await expect(page.getByText("Published as v2.")).toBeVisible({ timeout: 30_000 });
 
-  // Published AND released, because a published version is served nowhere until a release
-  // record says where (ADR-40, task 065): the operations sweep below starts respondent
-  // sessions on this form, and without the release the respondent route answers 409.
-  await page.goto(`/forms/${formId}/releases`);
-  await expect(page.getByTestId("qcms-release-panel")).toBeVisible();
-  await expectNoViolations(page, "the release screen, nothing released yet");
-  await page.getByRole("button", { name: "Release a version…" }).click();
-  await expect(page.getByRole("alertdialog")).toBeVisible();
-  // The release confirmation restates the environment (Q6), so it is swept with the other
-  // confirmations in this file rather than left to the specs that drive the flow.
-  await expectNoViolations(page, "release confirmation");
-  await page.getByRole("button", { name: "Release to prod" }).click();
-  await expect(page.getByTestId("qcms-release-status")).toContainText("prod");
-  await expectNoViolations(page, "the release screen with a history");
-
-  // Released, so respondents can submit to it and its submissions can fan out to a
-  // webhook. That is what the operations sweep below needs, and this is the only place
-  // in this file that pays for authoring a form (see `pubForm`).
+  // Published, and released below, because a published version is served nowhere until a
+  // release record says where (ADR-40, task 065): the operations sweep further down starts
+  // respondent sessions on this form, and without the release the respondent route answers
+  // 409.
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
   // The close confirmation, whose whole body is the R1 explanation.
@@ -978,6 +964,20 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");
+
+  // The release screen and its confirmation (ADR-40, task 065). Swept here, with the other
+  // confirmations, because a dialog that restates the environment is exactly the shape this
+  // gate exists for - and the release itself is what lets the operations sweep below start a
+  // respondent session on this form.
+  await page.goto(`/forms/${formId}/releases`);
+  await expect(page.getByTestId("qcms-release-panel")).toBeVisible();
+  await expectNoViolations(page, "the release screen, nothing released yet");
+  await page.getByRole("button", { name: "Release a version…" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expectNoViolations(page, "release confirmation");
+  await page.getByRole("button", { name: "Release to prod" }).click();
+  await expect(page.getByTestId("qcms-release-status")).toContainText("prod");
+  await expectNoViolations(page, "the release screen with a history");
 
   await page.goto(`/forms/${formId}/preview`);
   await expect(
