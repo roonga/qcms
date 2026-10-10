@@ -145,10 +145,13 @@ describe("scaffold", () => {
       expect(dockerfile).not.toContain("COPY packages ./packages");
       expect(dockerfile).not.toContain("COPY scripts ./scripts");
       // The `...` suffix means "and every workspace dependency", which the scaffold
-      // has none of. Asserted on the RUN line rather than on the whole file, because
-      // the portal Dockerfile's prose legitimately quotes the old command.
-      expect(dockerfile).not.toContain(`RUN pnpm --filter qcms-${app}... build`);
-      expect(dockerfile).toContain(`RUN pnpm --filter qcms-${app} build`);
+      // has none of. Asserted on the FILTER rather than on a whole `RUN pnpm ...` line,
+      // because the portal's build command now carries an environment prefix for the
+      // Server Action salt (issue #1035) and so no longer begins with `RUN pnpm`. The
+      // filter is specific enough by itself: the only build command any of these files
+      // quote in prose names `@roonga/qcms-db`, never an app.
+      expect(dockerfile).not.toContain(`--filter qcms-${app}... build`);
+      expect(dockerfile).toContain(`--filter qcms-${app} build`);
     }
   });
 
