@@ -68,10 +68,29 @@ import { trackedFilesUnder } from "./tracked-files.mjs";
  * the reader does not already need for `.github/dependabot.yml`.
  *
  * The scaffolding templates under `packages/create-qcms-app/templates/` declare the same
- * six and are deliberately NOT scanned: they are generated from `apps/admin`, they are
- * not workspace members, and Dependabot's npm updater only edits workspace members
- * (issue #834, `scripts/dependabot-changeset.mjs`). A group cannot cover what the updater
- * cannot see.
+ * six and are deliberately NOT scanned by the derivation here: they are generated from
+ * `apps/admin`, they are not workspace members, and a group cannot cover what the updater
+ * does not edit (issue #834, `scripts/dependabot-changeset.mjs`).
+ *
+ * ## The templates are excluded in the config too, and that is why there is still one npm entry
+ *
+ * The sentence above was a claim about what Dependabot edits, and the sentence it is next to
+ * was a claim about what Dependabot SCANS. Those came apart: the generated manifests were
+ * being scanned, so a bump arrived twice, the second time against files whose contents are
+ * derived and which `pnpm check:templates` requires to equal the real ones. The npm entry now
+ * carries `exclude-paths` for the template tree, and the first `describe` below holds it
+ * (issue #1050).
+ *
+ * **It is `exclude-paths` rather than a second `package-ecosystem: npm` entry, and the
+ * refusal of a second entry below is therefore left exactly as it was.** That refusal is not
+ * a style preference: this guard models ONE entry's groups, so a second entry's groups would
+ * go unread, and a catch-all there can claim the `@codemirror/*` family while every line of
+ * the entry above stays as it is. Teaching it to model two means resolving each entry's
+ * directories against the manifests, which is machinery for an arrangement nothing needs -
+ * and GitHub documents `exclude-paths` for precisely the case that tempted one ("exclude
+ * automatic pull requests for manifests in selected subdirectories", 2025-08-26). So the
+ * exclusion costs two lines on the entry that already exists, and the stronger invariant
+ * stays: exactly one npm entry, fully modelled.
  *
  * ## Why here
  *
@@ -279,6 +298,8 @@ interface Group {
 interface EcosystemEntry {
   directory: string;
   groups: Group[];
+  /** `exclude-paths` on the entry itself, which is not a group criterion (issue #1050). */
+  excludePaths: string[];
 }
 
 /**
@@ -327,6 +348,7 @@ export function ecosystemEntries(config: YamlNode, ecosystem: string): Ecosystem
       const groups = asMap(item?.get("groups"));
       return {
         directory: typeof directory === "string" ? directory : "(unset)",
+        excludePaths: asList(item?.get("exclude-paths")),
         groups:
           groups === undefined
             ? []
@@ -566,6 +588,7 @@ function mutated(change: (groups: Group[]) => Group[]): EcosystemEntry[] {
   return [
     {
       directory: npmEntries[0]?.directory ?? "/",
+      excludePaths: [...(npmEntries[0]?.excludePaths ?? [])],
       groups: change(
         npmGroups.map((group) => ({
           ...group,
@@ -578,6 +601,87 @@ function mutated(change: (groups: Group[]) => Group[]): EcosystemEntry[] {
     },
   ];
 }
+
+/** The scaffolded tree whose generated manifests Dependabot must not scan (issue #1050). */
+const TEMPLATE_ROOT = "packages/create-qcms-app/templates/";
+
+/**
+ * Whether `excludePaths` covers every path under {@link TEMPLATE_ROOT}.
+ *
+ * The patterns are matched the way GitHub documents `exclude-paths`: `**` recursive, `*`
+ * one segment, relative to the entry's `directory`. So the question is not whether a
+ * literal string is present - a reader could write the tree three equivalent ways - but
+ * whether a manifest inside it is matched. The probes are the three real ones.
+ *
+ * @param excludePaths the entry's `exclude-paths` list
+ */
+export function templateExclusionProblems(excludePaths: string[]): string[] {
+  const probes = ["admin", "api", "portal"].map(
+    (app) => `${TEMPLATE_ROOT}common/apps/${app}/package.json`,
+  );
+  const covered = (path: string): boolean =>
+    excludePaths.some((pattern) => matchesPathPattern(pattern, path));
+  const missed = probes.filter((probe) => !covered(probe));
+  if (missed.length === 0) return [];
+  return [
+    ".github/dependabot.yml's npm entry does not exclude the scaffolding templates, so " +
+      `Dependabot scans ${missed.join(", ")} and opens a second pull request for every bump ` +
+      "against generated files. Add the path to `exclude-paths` on that entry; see the " +
+      `comment there. Declared: ${excludePaths.length === 0 ? "(none)" : excludePaths.join(", ")}.`,
+  ];
+}
+
+/**
+ * `exclude-paths` globbing, which is NOT the `patterns` wildcard above.
+ *
+ * `patterns` matches package names with `*` meaning "any characters"; a path pattern has
+ * segments, `*` stops at a `/` and `**` does not. Written out rather than reusing
+ * `matchesPattern`, because collapsing the two would make `src/*` match `src/a/b` and the
+ * reference says in as many words that it does not.
+ */
+function matchesPathPattern(pattern: string, path: string): boolean {
+  const escape = (part: string): string => part.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+  const source = pattern
+    .split("**")
+    .map((between) =>
+      between
+        .split("*")
+        .map((part) => escape(part))
+        .join("[^/]*"),
+    )
+    .join(".*");
+  return new RegExp(`^${source}$`).test(path);
+}
+
+describe("the scaffolding templates stay out of Dependabot's npm scan (issue #1050)", () => {
+  it("excludes the generated template manifests", () => {
+    expect(npmEntries).toHaveLength(1);
+    expect(templateExclusionProblems((npmEntries[0] as EcosystemEntry).excludePaths)).toEqual([]);
+  });
+
+  it("reads the exclusion out of the config text rather than from a literal here", () => {
+    // The same reason the second-npm-entry case below mutates the TEXT: a defect in how
+    // `exclude-paths` becomes the list is invisible to a mutation of the list.
+    expect(dependabotText).toContain("exclude-paths:");
+    expect((npmEntries[0] as EcosystemEntry).excludePaths).toContain(`${TEMPLATE_ROOT}**`);
+  });
+
+  it("fails when the exclusion is dropped", () => {
+    expect(templateExclusionProblems([]).join("\n")).toContain("does not exclude the scaffolding");
+  });
+
+  it("fails when the exclusion is narrowed to one directory level", () => {
+    // `*` stops at a separator, so this covers nothing under `common/apps/`. The case exists
+    // because the narrowed form reads like the right answer.
+    expect(templateExclusionProblems([`${TEMPLATE_ROOT}*`]).join("\n")).toContain(
+      "common/apps/admin/package.json",
+    );
+  });
+
+  it("accepts an equivalent spelling, because the property is coverage and not a string", () => {
+    expect(templateExclusionProblems(["packages/create-qcms-app/**"])).toEqual([]);
+  });
+});
 
 describe("the codemirror Dependabot group", () => {
   it("holds every @codemirror/* package the workspace declares, at every update level", () => {
