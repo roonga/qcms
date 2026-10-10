@@ -1121,20 +1121,32 @@ operation re-renders the step with "We could not make that change" and writes no
 is lost, no roster row is written, and nothing is silently accepted. What a respondent cannot do
 is add or remove an instance, so a form whose group has `min: 1` still completes and one that
 needs a second instance does not. The symptom in the logs is an `origin.belt.refused` line with
-`beltRoute: "/s/{sessionId}"`, or, when Next refuses before the belt runs, a 500 on a POST to the
-flow page with no belt line at all. That second shape is also what a **stale action id** looks like
-after a deploy, and it is not a misconfiguration.
+`beltRoute: "/s/{sessionId}"`, or, when Next refuses before the belt runs, a **`409`** on a POST to
+the flow page with no belt line at all. That second shape is also what a **stale action id** looks
+like after a deploy, and it is not a misconfiguration. Before next 16.4.0 that shape was a bare
+`500`, so a log search over a window that straddles the upgrade wants both.
 
 **What the respondent gets in that case, measured against a production build rather than inferred**
-(Code Owner, 2026-10-02; ADR-43's amendment carries the measurements, and issue #1035 tracks giving
-them a page of our own):
+(Code Owner, 2026-10-02, amended 2026-10-10 for next 16.4.0; ADR-43's amendment carries the
+measurements, and issue #1035 tracks giving them a page of our own):
 
-- **a bare `500` with `Content-Type: text/plain` and the body `Internal Server Error`.** No page of
-  the portal renders. Next recalculates Server Action ids between builds, so a page held across a
-  deploy posts an id the new build does not know, and Next's action handler throws before the flow
-  segment renders. An App Router error boundary catches what its own subtree throws while
-  rendering, so it is never reached; an App Router `app/500/page.tsx` and a Pages Router
-  `pages/_error.tsx` were both tried against a production build and neither is consulted.
+- **a `409` with `Content-Type: text/plain`, the body `Server Action unavailable.` and the header
+  `x-nextjs-action-not-found: 1`.** No page of the portal renders. Next recalculates Server Action
+  ids between builds, so a page held across a deploy posts an id the new build does not know, and
+  Next's action handler refuses it before the flow segment renders. An App Router error boundary
+  catches what its own subtree throws while rendering, so it is never reached; an App Router
+  `app/500/page.tsx` and a Pages Router `pages/_error.tsx` were both tried against a production
+  build and neither is consulted. **The header and the status together are the signal to search on**: Next
+  sends `x-nextjs-action-not-found` on an action-id refusal and on nothing the app itself answers,
+  which separates this from any other 409 the stack can produce, and the 409 rather than the 400 is
+  what makes it skew.
+- **a _malformed_ action id gets `400` and `Invalid Server Action request.` instead**, on the same
+  path and **carrying the same header**. That one is not deploy skew: a real stale id is well
+  formed, so a `400` here means the request was shaped by something other than a browser holding
+  one of our pages. Do not read the header on its own as a deploy signal.
+- **before next 16.4.0 both of those were a bare `500` with the body `Internal Server Error`**, with
+  no distinguishing header at all. The reachability has not changed, only the status, so a runbook
+  entry or log filter written against the 500 needs moving rather than reinterpreting.
 - **the framework's own wording stays in the server log**, not on the page, so nothing about the
   deployment is disclosed.
 - **the recovery is a reload**, and the respondent has to find it themselves: a GET of the step
@@ -1145,8 +1157,9 @@ them a page of our own):
   nothing already saved is affected, but do not tell a respondent on a support call that they lost
   nothing.
 
-So a lone 500 on a POST to a flow page, with no belt line beside it and a deploy in the window, is
-this and needs no action beyond knowing a respondent may have retyped a step.
+So a lone `409` carrying `x-nextjs-action-not-found: 1` on a POST to a flow page, with no belt line
+beside it and a deploy in the window, is this and needs no action beyond knowing a respondent may
+have retyped a step. On a build older than next 16.4.0, read a lone `500` the same way.
 
 `docs/deploy-ingress.md` carries the same caution beside the ALB header recipe.
 

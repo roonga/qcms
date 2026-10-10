@@ -69,6 +69,20 @@ blob-report/
 apps/*/AGENTS.md
 apps/*/CLAUDE.md
 
+# turbo 2.11.x writes a managed `AGENTS.md` block at the REPOSITORY ROOT, which the two
+# rules above do not reach because they are scoped to app directories (PR #1049, which
+# carried turbo 2.11.4 to 2.11.7 and surfaced it). It is the same class as #431 one
+# directory up: `turbo` re-adds the block "before repository-scoped commands when an AI
+# agent is detected", so deleting it only re-creates it, and the file's own text argues
+# the reader into committing it. Ignored on the same stopgap reasoning, and it carries no
+# em dash today, so the gate would not have caught a `git add -A` sweeping it in.
+#
+# **This one has an opt-out the Next case does not**, and choosing it is the (b) half of
+# #431's open question rather than something a dependency bump should settle: `"agentGuidance":
+# false` in the root `turbo.json` stops the generation at source, though turbo's own text says
+# it does not remove a block already written. Left for the Code Owner with the rest of #431.
+/AGENTS.md
+
 # Chromium profile directories a Lighthouse run drops in the repository root under
 # WSL, where its Windows-style default user-data path becomes one directory whose
 # NAME contains backslashes. Each is a throwaway browser profile of a few hundred
