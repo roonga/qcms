@@ -5,10 +5,14 @@ import { AccountMenu } from "@/components/account-menu";
 import { AdminNav } from "@/components/admin-nav";
 import { Announcer } from "@/components/announcer";
 import { AppearanceMenu } from "@/components/appearance-menu";
+import { EnvironmentBanner } from "@/components/environment-banner";
+import { EnvironmentSwitcher } from "@/components/environment-switcher";
 import { MeasuredMain } from "@/components/measured-main";
 import { TopbarHeight } from "@/components/topbar-height";
 import { MODE_COOKIE, parseMode } from "@/lib/appearance";
+import { PROD_ENVIRONMENT } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
+import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
 import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -82,6 +86,16 @@ export default async function ShellLayout({
   // the enrollment cookies and the API's better-auth instance decide from, so all three
   // cookie families on this origin carry the same `Secure` attribute (see its doc).
   const mode = parseMode((await cookies()).get(MODE_COOKIE)?.value);
+  // The environment set is the API's answer, not a literal here (ADR-40: the set is a
+  // table and an operator may add to it), and the selection is validated against it so a
+  // cookie naming an environment this deployment no longer serves falls through to
+  // production rather than being carried into every screen's reads. A failed read leaves
+  // one option, `prod`, which is the environment every deployment has: a switcher that
+  // could not list the set must not offer a choice it cannot stand behind.
+  const set = await listEnvironments(session);
+  const environments =
+    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT];
+  const environment = await selectedEnvironment(environments);
 
   return (
     <div className="flex min-h-dvh flex-col">
@@ -140,10 +154,26 @@ export default async function ShellLayout({
             <AdminNav />
           </div>
           <div className="flex flex-shrink-0 items-center gap-x-2">
+            {/* The one global environment control (Q6). First in the trailing group,
+                because it is the widest-reaching of the three: appearance changes how a
+                screen looks and the account menu is about who is signed in, while this one
+                changes which rows every screen is showing. */}
+            <EnvironmentSwitcher
+              environments={environments}
+              selected={environment}
+              secureCookies={secureCookies()}
+            />
             <AppearanceMenu mode={mode} secureCookies={secureCookies()} />
             <AccountMenu email={session.email} name={session.name} />
           </div>
         </div>
+        {/* The persistent banner (Q6), INSIDE the sticky bar rather than under it, which
+            is two properties for one decision: it stays on screen while the operator
+            scrolls, and `TopbarHeight` measures the bar it is part of, so the page's scroll
+            padding already accounts for it and SC 2.4.11 holds with no second measurement.
+            Absent under `prod`, which is what makes its presence information rather than
+            furniture. */}
+        <EnvironmentBanner environment={environment} />
       </header>
       {/* The shell body: the rail's track and the content column, and the thing that grows
           to fill whatever height the topbar leaves (issue 559, and N2 of

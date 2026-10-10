@@ -43,14 +43,17 @@ import { t } from "./i18n/en.ts";
  */
 
 /**
- * The seven sections of one form, as `forms.tab.*` names them.
+ * The eight sections of one form, as `forms.tab.*` names them.
  *
  * Six until issue #669, which gave rule editing a route (`/forms/{formId}/rules`) rather
- * than leaving it a selection on the builder. A section here is a screen with a tab title,
- * a breadcrumb crumb, an `<h1>` and a rail row, and the rules screen is all four.
+ * than leaving it a selection on the builder. **Eight since task 065**, which gave releases
+ * one: what is released to each environment is a different question from what versions
+ * exist, and ADR-40 makes it the question that decides what a respondent is served. A
+ * section here is a screen with a tab title, a breadcrumb crumb, an `<h1>` and a rail row,
+ * and the release screen is all four.
  */
 export type FormSection =
-  "builder" | "rules" | "preview" | "versions" | "links" | "responses" | "webhooks";
+  "builder" | "rules" | "preview" | "versions" | "releases" | "links" | "responses" | "webhooks";
 
 /** One route's metadata: its page name, in the app's one title pattern. */
 export function pageMetadata(page: string): Metadata {

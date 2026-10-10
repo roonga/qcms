@@ -8,6 +8,7 @@ import {
 } from "./config.ts";
 import type { AdminSession } from "./session.ts";
 import { serverLogger } from "./logger.ts";
+import { ENVIRONMENT_HEADER, currentEnvironment } from "./request-environment.ts";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id.ts";
 
 /**
@@ -15,9 +16,10 @@ import { REQUEST_ID_HEADER, currentRequestId } from "./request-id.ts";
  * task 056).
  *
  * Every admin screen that needs questionnaire data goes through here, and what
- * happens here is exactly three things: attach the SEC-4 internal service token
+ * happens here is exactly four things: attach the SEC-4 internal service token
  * (the channel credential), attach the signed-in admin's better-auth session token
- * (the user credential), and forward. No validation, no rule evaluation, no
+ * (the user credential), attach the environment the operator's switcher has selected
+ * (ADR-40 Q6), and forward. No validation, no rule evaluation, no
  * business decision, no domain database access - the API is the sole authority for
  * all of that, and the admin app has no `@roonga/qcms-core` value import at all (enforced
  * by `r2-import-surface.test.ts`).
@@ -74,6 +76,12 @@ export async function adminApiFetch(
     ...options.headers,
     [INTERNAL_TOKEN_HEADER]: internalToken(),
     [ADMIN_SESSION_HEADER]: session.token,
+    // The Q6 switcher's environment, on EVERY admin call (ADR-40, task 065). Here rather
+    // than at each screen, because "the switcher sets the environment for every screen" is
+    // a property of this door: a screen added next month cannot forget a header it never
+    // assembles. The API validates the name against the live set and refuses an unknown
+    // one, so this is a selection and not an authority.
+    [ENVIRONMENT_HEADER]: await currentEnvironment(),
   };
   if (requestId !== undefined) requestHeaders[REQUEST_ID_HEADER] = requestId;
   if (options.body !== undefined) requestHeaders["content-type"] = "application/json";

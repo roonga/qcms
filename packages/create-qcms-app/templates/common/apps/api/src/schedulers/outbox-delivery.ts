@@ -17,7 +17,7 @@
  *    outbox is the fan-out source; the delivery rows are the per-endpoint queue,
  *    each with its own independent retry state (so one webhook failing never
  *    stalls another - exit criterion 5). Event types with no launch subscriber
- *    (e.g. `form.published`) are consumed without fan-out.
+ *    (e.g. `form.released`) are consumed without fan-out.
  * 2. **Deliver.** Claim a due delivery row in its own transaction - which holds
  *    the row lock across the POST - sign and send, then record the outcome and
  *    commit. Holding the lock across the POST is what makes it *exclusive* across

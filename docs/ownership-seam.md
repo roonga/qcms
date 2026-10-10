@@ -93,20 +93,21 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (402 files common to both shapes)
+### Scaffolded paths (417 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 391   |
-| `apps/admin/`                                                        | 236   |
-| `apps/admin/app/`                                                    | 69    |
-| `apps/admin/app/(shell)/`                                            | 51    |
-| `apps/admin/app/(shell)/@rail/`                                      | 21    |
-| `apps/admin/app/(shell)/@rail/forms/`                                | 12    |
-| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 10    |
+| `apps/`                                                              | 406   |
+| `apps/admin/`                                                        | 246   |
+| `apps/admin/app/`                                                    | 71    |
+| `apps/admin/app/(shell)/`                                            | 53    |
+| `apps/admin/app/(shell)/@rail/`                                      | 22    |
+| `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/preview/`               | 1     |
+| `apps/admin/app/(shell)/@rail/forms/[formId]/releases/`              | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/`             | 2     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/` | 1     |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/rules/`                 | 1     |
@@ -121,12 +122,13 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
-| `apps/admin/app/(shell)/forms/`                                      | 17    |
-| `apps/admin/app/(shell)/forms/[formId]/`                             | 11    |
+| `apps/admin/app/(shell)/forms/`                                      | 18    |
+| `apps/admin/app/(shell)/forms/[formId]/`                             | 12    |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/export/`                      | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/links/`                       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/preview/`                     | 1     |
+| `apps/admin/app/(shell)/forms/[formId]/releases/`                    | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/`                   | 2     |
 | `apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/`       | 1     |
 | `apps/admin/app/(shell)/forms/[formId]/rules/`                       | 1     |
@@ -158,33 +160,34 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 76    |
-| `apps/admin/components/forms/`                                       | 32    |
+| `apps/admin/components/`                                             | 79    |
+| `apps/admin/components/forms/`                                       | 33    |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 84    |
-| `apps/admin/lib/forms/`                                              | 24    |
+| `apps/admin/lib/`                                                    | 89    |
+| `apps/admin/lib/forms/`                                              | 25    |
 | `apps/admin/lib/i18n/`                                               | 2     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
-| `apps/admin/lib/server/`                                             | 23    |
-| `apps/api/`                                                          | 85    |
-| `apps/api/src/`                                                      | 82    |
-| `apps/api/src/features/`                                             | 51    |
+| `apps/admin/lib/server/`                                             | 26    |
+| `apps/api/`                                                          | 90    |
+| `apps/api/src/`                                                      | 87    |
+| `apps/api/src/features/`                                             | 55    |
 | `apps/api/src/features/auth/`                                        | 4     |
 | `apps/api/src/features/forms/`                                       | 12    |
 | `apps/api/src/features/forms/assist/`                                | 9     |
 | `apps/api/src/features/links/`                                       | 3     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 4     |
+| `apps/api/src/features/releases/`                                    | 4     |
 | `apps/api/src/features/responses/`                                   | 19    |
 | `apps/api/src/features/responses/admin/`                             | 4     |
 | `apps/api/src/features/responses/serve-step/`                        | 3     |
 | `apps/api/src/features/responses/start-session/`                     | 3     |
 | `apps/api/src/features/responses/submit/`                            | 3     |
 | `apps/api/src/features/webhooks/`                                    | 6     |
-| `apps/api/src/middleware/`                                           | 6     |
+| `apps/api/src/middleware/`                                           | 7     |
 | `apps/api/src/routes/`                                               | 1     |
 | `apps/api/src/schedulers/`                                           | 4     |
 | `apps/portal/`                                                       | 70    |
@@ -230,7 +233,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2446` lines across `356` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2529` lines across `371` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -245,7 +248,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (402)</summary>
+<summary>Every scaffolded file (417)</summary>
 
 ```
 .dockerignore
@@ -258,6 +261,7 @@ apps/admin/app/(shell)/@rail/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/preview/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rail-slot.tsx
+apps/admin/app/(shell)/@rail/forms/[formId]/releases/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/@rail/forms/[formId]/rules/page.tsx
@@ -279,6 +283,7 @@ apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
 apps/admin/app/(shell)/forms/[formId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/preview/page.tsx
+apps/admin/app/(shell)/forms/[formId]/releases/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/[sessionId]/page.tsx
 apps/admin/app/(shell)/forms/[formId]/responses/page.tsx
 apps/admin/app/(shell)/forms/[formId]/rules/page.tsx
@@ -330,6 +335,8 @@ apps/admin/components/auth-screen.tsx
 apps/admin/components/copy-entity-id.tsx
 apps/admin/components/empty-state.tsx
 apps/admin/components/entity-id.tsx
+apps/admin/components/environment-banner.tsx
+apps/admin/components/environment-switcher.tsx
 apps/admin/components/forms/agent-provenance-tag.tsx
 apps/admin/components/forms/assist-panel.tsx
 apps/admin/components/forms/builder-breadcrumb.tsx
@@ -348,6 +355,7 @@ apps/admin/components/forms/operand-control.tsx
 apps/admin/components/forms/ownership-grid.tsx
 apps/admin/components/forms/public-form-link.tsx
 apps/admin/components/forms/rail-steps.tsx
+apps/admin/components/forms/release-panel.tsx
 apps/admin/components/forms/rule-targets.tsx
 apps/admin/components/forms/rule-test-bench.tsx
 apps/admin/components/forms/rule-wizard.tsx
@@ -404,6 +412,7 @@ apps/admin/lib/appearance.ts
 apps/admin/lib/auth-failure-message.ts
 apps/admin/lib/builder-notice.ts
 apps/admin/lib/entity-id.ts
+apps/admin/lib/environment.ts
 apps/admin/lib/forms/assist-diff.ts
 apps/admin/lib/forms/assist-stream.ts
 apps/admin/lib/forms/autosave.ts
@@ -421,6 +430,7 @@ apps/admin/lib/forms/pin-grid.ts
 apps/admin/lib/forms/preview-views.ts
 apps/admin/lib/forms/public-link.ts
 apps/admin/lib/forms/publish.ts
+apps/admin/lib/forms/releases.ts
 apps/admin/lib/forms/rule-sentence.ts
 apps/admin/lib/forms/rule-targets.ts
 apps/admin/lib/forms/settings.ts
@@ -465,6 +475,7 @@ apps/admin/lib/server/client-address.ts
 apps/admin/lib/server/config.ts
 apps/admin/lib/server/csp.ts
 apps/admin/lib/server/enrollment.ts
+apps/admin/lib/server/environments.ts
 apps/admin/lib/server/form-rail.ts
 apps/admin/lib/server/form-verdict.ts
 apps/admin/lib/server/forms.ts
@@ -474,6 +485,8 @@ apps/admin/lib/server/origin-belt-log.ts
 apps/admin/lib/server/password-refusal.ts
 apps/admin/lib/server/question-rail.ts
 apps/admin/lib/server/questions.ts
+apps/admin/lib/server/releases.ts
+apps/admin/lib/server/request-environment.ts
 apps/admin/lib/server/request-id.ts
 apps/admin/lib/server/responses.ts
 apps/admin/lib/server/route-helpers.ts
@@ -523,6 +536,10 @@ apps/api/src/features/questions/create.ts
 apps/api/src/features/questions/handler.ts
 apps/api/src/features/questions/route.ts
 apps/api/src/features/questions/schema.ts
+apps/api/src/features/releases/handler.ts
+apps/api/src/features/releases/release.ts
+apps/api/src/features/releases/route.ts
+apps/api/src/features/releases/schema.ts
 apps/api/src/features/responses/admin/csv.ts
 apps/api/src/features/responses/admin/handler.ts
 apps/api/src/features/responses/admin/route.ts
@@ -554,6 +571,7 @@ apps/api/src/main.ts
 apps/api/src/middleware/admin-auth.ts
 apps/api/src/middleware/error-envelope.ts
 apps/api/src/middleware/internal-token.ts
+apps/api/src/middleware/request-environment.ts
 apps/api/src/middleware/request-logger.ts
 apps/api/src/middleware/security-headers.ts
 apps/api/src/middleware/validation-hook.ts
