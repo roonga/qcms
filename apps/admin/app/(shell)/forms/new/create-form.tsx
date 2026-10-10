@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { Alert, Button, TextField } from "@/components/kit";
 import { IDLE_CREATE_FORM, type CreateFormState } from "@/lib/forms/builder-state";
 import { formIdFromSlug } from "@/lib/forms/draft";
+import { useIsHydrated } from "@/lib/hydrated";
 import { t } from "@/lib/i18n/en";
 
 /**
@@ -49,6 +50,11 @@ export function CreateForm({
   readonly action: (state: CreateFormState, formData: FormData) => Promise<CreateFormState>;
 }) {
   const [state, formAction, isPending] = useActionState(action, IDLE_CREATE_FORM);
+  // Issue #1032: this screen's submit is a REAL `type="submit"` inside a Server Action
+  // form, and the whole form is in the served bytes, so a press before React attaches
+  // leaves as a full navigation POST with `Origin: null` and Next refuses it. The control
+  // below is disabled until the attach; `lib/hydrated.ts` carries the mechanism.
+  const isHydrated = useIsHydrated();
   const [slug, setSlug] = useState(state.submitted?.slug ?? "");
   // Restore a rejected submission that arrived through a pre-hydration full POST, where
   // the initialiser above has already run with an empty value. Adjusting state during
@@ -101,7 +107,11 @@ export function CreateForm({
       />
 
       <div>
-        <Button type="submit" variant="primary" size="md" isDisabled={isPending}>
+        {/* The label is the same string across the hydration boundary, so the accessible
+          name does not move; only `forms.create.submitting` changes it, and that state is
+          only reachable after the attach. `isDisabled` renders the native `disabled`, which
+          removes the control from the tab order rather than leaving a focusable dead end. */}
+        <Button type="submit" variant="primary" size="md" isDisabled={isPending || !isHydrated}>
           {isPending ? t("forms.create.submitting") : t("forms.create.submit")}
         </Button>
       </div>
