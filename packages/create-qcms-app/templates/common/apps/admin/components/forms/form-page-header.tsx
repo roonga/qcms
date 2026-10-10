@@ -72,7 +72,7 @@ export function FormPageHeader({
    * called one thing in the breadcrumb and another in the heading above it.
    */
   readonly section:
-    "builder" | "rules" | "preview" | "versions" | "links" | "responses" | "webhooks";
+    "builder" | "rules" | "preview" | "versions" | "releases" | "links" | "responses" | "webhooks";
   readonly status?: "open" | "closed";
   /**
    * Overrides the `<h1>` for a route whose subject is one child of the form.

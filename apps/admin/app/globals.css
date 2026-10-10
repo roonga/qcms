@@ -4170,3 +4170,115 @@ div:has(> [role="dialog"] [data-qcms-dialog="wide"]) {
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
+
+/* --- The environment switcher and its banner (ADR-40 Q6, task 065) --------------------
+
+   Q6 asks for one global switcher and a persistent banner on every page while a non-prod
+   environment is selected, because an erasure performed against the wrong environment is
+   not undoable. Both live in the sticky bar: the control in the trailing group beside
+   appearance and account, the banner as the bar's own second line, which is what keeps it
+   on screen while the operator scrolls and keeps `--admin-topbar-measured-h` honest.
+
+   THE COLOUR IS NEVER THE ONLY CARRIER (WCAG 1.4.1). The banner names the environment in
+   words, the switcher shows the same name, and the trigger carries a border of its own
+   rather than a tint alone - so an operator who cannot distinguish the warning hue still
+   reads which environment they are in. The tokens are the warning family the alert
+   components already use; nothing here invents a colour. */
+.qcms-envswitch {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+/* Wider than the two 32px icon triggers beside it, because it carries a WORD: an
+   environment name is data (`test`, `prod`, whatever an operator created) and truncating
+   it would make the one control that says where you are the one control you cannot read.
+   The 32px block size matches its neighbours, so the bar's first row is one height. */
+.qcms-envtrigger {
+  block-size: 32px;
+  /* Same opt-out as the appearance trigger: a `min-block-size` floor beats `block-size`,
+     and these bar controls are 32px by design. */
+  min-block-size: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding-inline: 0.625rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.qcms-envtrigger[data-hovered],
+.qcms-envtrigger[aria-expanded="true"] {
+  background-color: var(--color-ghost-hover);
+  box-shadow: 0 0 0 2px var(--color-border-strong);
+}
+/* The non-prod state is on the WRAPPER, so the trigger reads as part of the banner's
+   warning rather than as a second, unrelated signal. Still not colour alone: the name
+   inside it is the fact. */
+.qcms-envswitch[data-nonprod="true"] .qcms-envtrigger {
+  border-color: var(--color-warning);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+}
+.qcms-envswitch[data-pending="true"] .qcms-envtrigger {
+  /* The refresh re-reads every server component on the screen; the control says so rather
+     than looking idle while the page changes under it. */
+  opacity: 0.7;
+}
+:root.hc .qcms-envtrigger {
+  border: 2px solid var(--color-border-strong);
+}
+
+/* The banner is the bar's second line: full width, left-aligned with everything else on
+   the page through the same `--admin-section-pad` the bar and `<main>` both spend. */
+.qcms-envbanner {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  padding: 0.375rem var(--admin-section-pad);
+  border-block-start: 1px solid var(--color-warning);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  font-size: 0.8rem;
+}
+.qcms-envbanner__name {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+:root.hc .qcms-envbanner {
+  border-block-start: 2px solid var(--color-border-strong);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}
+
+/* The rollback marking on a release row (ADR-40, criterion 4).
+   A WORD in a badge, never a colour on its own (WCAG 1.4.1): "released version 4 after
+   version 7" is what an incident review reads, so the row says "Rollback" and the cell
+   under it says which version it went back from. The badge is the same warning family the
+   environment banner uses, which is the one other place this app says "look at this
+   because of where it lands". */
+.qcms-rollback {
+  display: inline-block;
+  padding-inline: 0.375rem;
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-control);
+  background-color: var(--color-warning-subtle);
+  color: var(--color-warning-fg);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  /* Figures in this cell are tabular; the badge is not a figure. */
+  font-variant-numeric: normal;
+}
+:root.hc .qcms-rollback {
+  border: 2px solid var(--color-border-strong);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+}

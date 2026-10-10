@@ -47,6 +47,7 @@ import {
 } from "@roonga/qcms-db";
 import { zipStream, type ZipEntry } from "@roonga/qcms-csv";
 
+import type { Databases } from "../../../environments.js";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
@@ -177,7 +178,7 @@ export function makeListResponsesHandler(
     const filter = parseFilter(q);
     const { page, pageSize, limit, offset } = pageWindow(q.page, q.pageSize);
 
-    const request = deps.databases.forRequest();
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
     const { rows, total } = await listResponses(request.exec, request.environment, {
       formId,
       ...filter,
@@ -215,13 +216,16 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
 
     // Reads the reporting view: an erased session is absent (tombstone anti-join)
     // → undefined → 404. Detail cannot bypass the exclusion.
-    const request = deps.databases.forRequest();
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
     const detail = await getResponse(request.exec, request.environment, formId, sessionId);
     if (detail === undefined) throw fail.responseNotFound();
 
     // The append-only answer ledger - the audit history (every revision, oldest
     // first). Present because the session is non-erased (erasure deletes it).
-    const ledger = await answerLedger(deps.databases.forRequest().exec, sessionId);
+    const ledger = await answerLedger(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      sessionId,
+    );
 
     return c.json(
       {
@@ -258,7 +262,10 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
 
     if (format === "json") {
       // JSON may span versions (no version filter required).
-      const stream = jsonExportStream(deps, { formId, ...filter });
+      const stream = jsonExportStream(deps.databases.forRequest(c.get("requestEnvironment")), {
+        formId,
+        ...filter,
+      });
       return new Response(stream, {
         status: 200,
         headers: {
@@ -275,7 +282,11 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     }
     const version = filter.version;
     const shape: ExportShape = q.shape ?? LONG_SHAPE;
-    const formVersion = await getFormVersion(deps.databases.forRequest().exec, formId, version);
+    const formVersion = await getFormVersion(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      formId,
+      version,
+    );
     if (formVersion === undefined) throw fail.versionNotFound();
     const definition = formVersion.definition satisfies FormDefinition;
     const columns = responseColumns(definition, shape);
@@ -288,24 +299,47 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     // the single file it always did - same bytes, same content type, same name -
     // so no existing adopter's pipeline moves (Q17).
     if (groups.length > 0) {
-      return new Response(zipExportStream(deps, pageFilter, columns, groups), {
-        status: 200,
-        headers: {
-          "content-type": "application/zip",
-          "content-disposition": `attachment; filename="${name}.zip"`,
+      return new Response(
+        zipExportStream(
+          deps.databases.forRequest(c.get("requestEnvironment")),
+          pageFilter,
+          columns,
+          groups,
+        ),
+        {
+          status: 200,
+          headers: {
+            "content-type": "application/zip",
+            "content-disposition": `attachment; filename="${name}.zip"`,
+          },
         },
-      });
+      );
     }
 
-    return new Response(csvExportStream(deps, pageFilter, columns), {
-      status: 200,
-      headers: {
-        "content-type": "text/csv; charset=utf-8",
-        "content-disposition": `attachment; filename="${name}.csv"`,
+    return new Response(
+      csvExportStream(deps.databases.forRequest(c.get("requestEnvironment")), pageFilter, columns),
+      {
+        status: 200,
+        headers: {
+          "content-type": "text/csv; charset=utf-8",
+          "content-disposition": `attachment; filename="${name}.csv"`,
+        },
       },
-    });
+    );
   };
 }
+
+/**
+ * The pool one request is served from, resolved once by the handler and carried into the
+ * export streams.
+ *
+ * The streams outlive the handler frame that built them - a `ReadableStream`'s `pull` runs
+ * long after the response has been returned - so the environment the Q6 switcher named has
+ * to be captured when the handler still has its context, not read again per page. Passing
+ * the resolved pair rather than `Deps` is what makes that structural: there is no
+ * `databases` in scope inside a stream to resolve it from a second time.
+ */
+type RequestDatabase = ReturnType<Databases["forRequest"]>;
 
 /** Filter shape the export streams page over. */
 interface ExportFilter {
@@ -321,7 +355,7 @@ interface ExportFilter {
  * are ever held in memory, so the export is O(page), not O(table).
  */
 function csvExportStream(
-  deps: Deps,
+  request: RequestDatabase,
   filter: ExportFilter,
   columns: readonly ResponseColumn[],
 ): ReadableStream<Uint8Array> {
@@ -338,7 +372,7 @@ function csvExportStream(
         started = true;
         return;
       }
-      const rows = await nextPage(deps, filter, after);
+      const rows = await nextPage(request, filter, after);
       if (rows.length === 0) {
         controller.close();
         done = true;
@@ -378,7 +412,7 @@ function csvExportStream(
  * passes are sequential by construction and never two cursors at once.
  */
 function zipExportStream(
-  deps: Deps,
+  request: RequestDatabase,
   filter: ExportFilter,
   columns: readonly ResponseColumn[],
   groups: readonly GroupFileColumns[],
@@ -393,7 +427,7 @@ function zipExportStream(
     yield encoder.encode(UTF8_BOM + header);
     let after: SessionId | undefined;
     for (;;) {
-      const rows = await nextPage(deps, filter, after);
+      const rows = await nextPage(request, filter, after);
       if (rows.length === 0) return;
       let chunk = "";
       for (const row of rows) chunk += body(row);
@@ -425,7 +459,10 @@ function zipExportStream(
  * A memory-bounded JSON array stream: emit `[`, then reporting rows keyset-paged
  * and comma-separated, then `]`. Same bounded working set as CSV.
  */
-function jsonExportStream(deps: Deps, filter: ExportFilter): ReadableStream<Uint8Array> {
+function jsonExportStream(
+  request: RequestDatabase,
+  filter: ExportFilter,
+): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
   let after: SessionId | undefined;
   let started = false;
@@ -440,7 +477,7 @@ function jsonExportStream(deps: Deps, filter: ExportFilter): ReadableStream<Uint
         started = true;
         return;
       }
-      const rows = await nextPage(deps, filter, after);
+      const rows = await nextPage(request, filter, after);
       if (rows.length === 0) {
         controller.enqueue(encoder.encode("]"));
         controller.close();
@@ -465,11 +502,10 @@ function jsonExportStream(deps: Deps, filter: ExportFilter): ReadableStream<Uint
 
 /** One keyset page of reporting rows for an export. */
 function nextPage(
-  deps: Deps,
+  request: RequestDatabase,
   filter: ExportFilter,
   after: SessionId | undefined,
 ): Promise<ReportingResponseRow[]> {
-  const request = deps.databases.forRequest();
   return fetchResponsePage(request.exec, request.environment, {
     formId: filter.formId,
     ...(filter.version !== undefined ? { version: filter.version } : {}),
@@ -515,7 +551,7 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
       // against the outcome here. That ordering is the point - a comparison after
       // the fact would run once the deletes had already happened.
       const outcome = await eraseSession(
-        deps.databases.forRequest().exec,
+        deps.databases.forRequest(c.get("requestEnvironment")).exec,
         formId,
         sessionId,
         reason,
@@ -548,7 +584,7 @@ export function makeListErasuresHandler(
     const formId = q.formId === undefined ? undefined : requireFormId(q.formId);
     const { limit, offset } = pageWindow(q.page, q.pageSize);
 
-    const rows = await listTombstones(deps.databases.forRequest().exec, {
+    const rows = await listTombstones(deps.databases.forRequest(c.get("requestEnvironment")).exec, {
       ...(formId !== undefined ? { formId } : {}),
       limit,
       offset,
@@ -582,38 +618,47 @@ export function makeUnflagHandler(deps: Deps): RouteHandler<typeof unflagRoute, 
     // does not exist. This read also supplies the formId/formVersion the released
     // event carries, so scoping costs no extra round trip - the handler already
     // needed the session row.
-    const session = await getSessionInForm(deps.databases.forRequest().exec, formId, sessionId);
+    const session = await getSessionInForm(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      formId,
+      sessionId,
+    );
     if (session === undefined) throw fail.sessionNotFound();
 
     // The submission carries the audit payload (contentHash, locked answers) the
     // withheld event needs; a session without one has nothing to release → 404.
     // Safe unscoped: the session it belongs to is proven in-form immediately above,
     // and a submission is keyed by that session.
-    const submission = await getSubmission(deps.databases.forRequest().exec, sessionId);
+    const submission = await getSubmission(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      sessionId,
+    );
     if (submission === undefined) throw fail.submissionNotFound();
 
     // One transaction: the conditional flag-clear and the released event commit
     // together (transactional outbox, §11). `clearSubmissionFlag` is race-safe -
     // only the caller that actually flips the flag gets `true`, so the event is
     // enqueued exactly once even under concurrent unflags (idempotent).
-    const released = await deps.databases.forRequest().exec.transaction(async (tx) => {
-      const flipped = await clearSubmissionFlag(tx, sessionId);
-      if (flipped) {
-        await enqueue(tx, {
-          eventType: RESPONSE_SUBMITTED,
-          payload: {
-            sessionId,
-            formId: session.formId,
-            formVersion: session.formVersion,
-            submittedAt: submission.submittedAt.toISOString(),
-            contentHash: submission.contentHash,
-            // Locked (hidden-excluded, I6) answers - never the raw ledger.
-            answers: submission.lockedAnswers.answers,
-          },
-        });
-      }
-      return flipped;
-    });
+    const released = await deps.databases
+      .forRequest(c.get("requestEnvironment"))
+      .exec.transaction(async (tx) => {
+        const flipped = await clearSubmissionFlag(tx, sessionId);
+        if (flipped) {
+          await enqueue(tx, {
+            eventType: RESPONSE_SUBMITTED,
+            payload: {
+              sessionId,
+              formId: session.formId,
+              formVersion: session.formVersion,
+              submittedAt: submission.submittedAt.toISOString(),
+              contentHash: submission.contentHash,
+              // Locked (hidden-excluded, I6) answers - never the raw ledger.
+              answers: submission.lockedAnswers.answers,
+            },
+          });
+        }
+        return flipped;
+      });
 
     return c.json({ sessionId, released }, 200);
   };

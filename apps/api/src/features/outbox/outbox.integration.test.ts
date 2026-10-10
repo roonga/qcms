@@ -554,7 +554,7 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the ADR-17 re
   });
 
   it("still redelivers an event that names no session at all", async () => {
-    // `form.published` and friends carry no `sessionId`; the guard must read that as
+    // `form.released` and friends carry no `sessionId`; the guard must read that as
     // "not erased" rather than refusing every non-response event.
     const deliveryId = await seedDeliveryForSession(null);
     expect((await redeliver(deliveryId)).status).toBe(200);

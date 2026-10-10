@@ -187,7 +187,7 @@ export async function eraseSession(
  * own `sessionId`. There is no `outbox.session_id` column - the outbox stores
  * whole domain events, and a session id is a property of one event *type* - so the
  * jsonb member is the join key. Event types that carry no `sessionId`
- * (`form.published`) never match, which is the intended behaviour: they hold no
+ * (`form.released`) never match, which is the intended behaviour: they hold no
  * respondent data.
  */
 function outboxRowsForSession(sessionId: SessionId) {

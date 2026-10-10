@@ -100,6 +100,10 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   "sessions",
   "erasures",
   "outbox",
+  // Task 065's. `GET /admin/environments` serves the live set to the admin's switcher,
+  // and an environment named `environments` would make `/environments/...` two addresses.
+  "environments",
+  "releases",
   "health",
   "ready",
   "internal",

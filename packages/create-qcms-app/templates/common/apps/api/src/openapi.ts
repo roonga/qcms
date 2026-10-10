@@ -41,6 +41,13 @@ export interface ApiEnv {
     requestId: string;
     /** Authenticated admin principal, set by the admin-auth middleware (021). */
     adminPrincipal?: AdminPrincipal;
+    /**
+     * The environment this request is served from, as the admin's Q6 switcher named it
+     * (ADR-40, task 065). Set by `middleware/request-environment.ts`, which is mounted
+     * on the **admin group alone**, so it is absent on every respondent request and
+     * `Databases.forRequest` then falls back to the interim `prod` of Q53.
+     */
+    requestEnvironment?: string;
   };
 }
 

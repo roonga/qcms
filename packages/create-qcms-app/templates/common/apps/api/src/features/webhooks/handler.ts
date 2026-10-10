@@ -29,6 +29,7 @@ import {
   updateWebhook,
   type WebhookRow,
 } from "@roonga/qcms-db";
+import type { Executor } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -101,8 +102,15 @@ function requireFormId(id: string): FormId {
   return parsed.value;
 }
 
-async function requireForm(deps: Deps, formId: FormId): Promise<void> {
-  const form = await getForm(deps.databases.forRequest().exec, formId);
+/**
+ * 404 unless the form exists, read on the pool the request is served from.
+ *
+ * The executor is the caller's rather than resolved here, because which environment a
+ * webhook configuration screen is about is the Q6 switcher's answer and the handler is
+ * what holds the request (ADR-40, task 065).
+ */
+async function requireForm(exec: Executor, formId: FormId): Promise<void> {
+  const form = await getForm(exec, formId);
   if (form === undefined) throw fail.formNotFound();
 }
 
@@ -150,14 +158,14 @@ export function makeCreateWebhookHandler(
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const body = c.req.valid("json");
-    await requireForm(deps, formId);
+    await requireForm(deps.databases.forRequest(c.get("requestEnvironment")).exec, formId);
 
     const url = requireAllowedUrl(deps, body.url);
     // Secret: caller-supplied or generated. Shown once, encrypted for storage.
     const secret = body.secret ?? generateWebhookSecret();
     const secretEncrypted = await encryptWebhookSecret(secret, deps.config.keys.app);
 
-    const row = await insertWebhook(deps.databases.forRequest().exec, {
+    const row = await insertWebhook(deps.databases.forRequest(c.get("requestEnvironment")).exec, {
       webhookId: newWebhookId(),
       formId,
       url,
@@ -186,9 +194,12 @@ export function makeListWebhooksHandler(
 ): RouteHandler<typeof listWebhooksRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    await requireForm(deps, formId);
+    await requireForm(deps.databases.forRequest(c.get("requestEnvironment")).exec, formId);
 
-    const rows = await listWebhooks(deps.databases.forRequest().exec, formId);
+    const rows = await listWebhooks(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      formId,
+    );
     return c.json({ webhooks: rows.map(toSummary) }, 200);
   };
 }
@@ -203,7 +214,11 @@ export function makeUpdateWebhookHandler(
     const formId = requireFormId(id);
     const body = c.req.valid("json");
 
-    const existing = await getWebhook(deps.databases.forRequest().exec, formId, webhookId);
+    const existing = await getWebhook(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      formId,
+      webhookId,
+    );
     if (existing === undefined) throw fail.webhookNotFound();
 
     const url = body.url === undefined ? undefined : requireAllowedUrl(deps, body.url);
@@ -218,16 +233,21 @@ export function makeUpdateWebhookHandler(
       secretEncrypted = await encryptWebhookSecret(newSecret, deps.config.keys.app);
     }
 
-    const updated = await updateWebhook(deps.databases.forRequest().exec, formId, webhookId, {
-      ...(url === undefined ? {} : { url }),
-      ...(secretEncrypted === undefined ? {} : { secretEncrypted }),
-      ...(body.active === undefined ? {} : { active: body.active }),
-      // Reactivating clears the deactivation stamp; deactivating stamps it.
-      ...(body.active === undefined
-        ? {}
-        : { deactivatedAt: body.active ? null : deps.clock.now() }),
-      now: deps.clock.now(),
-    });
+    const updated = await updateWebhook(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      formId,
+      webhookId,
+      {
+        ...(url === undefined ? {} : { url }),
+        ...(secretEncrypted === undefined ? {} : { secretEncrypted }),
+        ...(body.active === undefined ? {} : { active: body.active }),
+        // Reactivating clears the deactivation stamp; deactivating stamps it.
+        ...(body.active === undefined
+          ? {}
+          : { deactivatedAt: body.active ? null : deps.clock.now() }),
+        now: deps.clock.now(),
+      },
+    );
     if (updated === undefined) throw fail.webhookNotFound();
 
     return c.json(
@@ -254,7 +274,7 @@ export function makeDeactivateWebhookHandler(
     const formId = requireFormId(id);
 
     const row = await deactivateWebhook(
-      deps.databases.forRequest().exec,
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
       formId,
       webhookId,
       deps.clock.now(),

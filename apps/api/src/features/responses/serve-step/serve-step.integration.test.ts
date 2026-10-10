@@ -31,6 +31,7 @@ import {
   createQuestion,
   createQuestionVersion,
   createSession,
+  insertFormRelease,
   insertFormVersion,
   latestAnswers,
   markSubmitted,
@@ -182,13 +183,22 @@ async function seedForm(
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
-  await insertFormVersion(testDb.db, {
+  const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
     semanticsVersion,
+  });
+  // The version has to be **released** to be served: publishing reaches no environment
+  // (ADR-40, task 065), so a fixture that published alone would describe a form no
+  // session can start on.
+  await insertFormRelease(testDb.db, {
+    formId,
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    version: version.version,
+    releasedBy: "usr_fixture",
   });
   return formId;
 }
@@ -597,13 +607,20 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
     }
     const formId = FormId.parse("frm_kitchen_sink");
     await createForm(testDb.db, { formId, slug: "kitchen", defaultLocale: "en" });
-    await insertFormVersion(testDb.db, {
+    const kitchenVersion = await insertFormVersion(testDb.db, {
       formId,
       definition: KITCHEN_SINK_DEF,
       compiled: KITCHEN_SINK_GOLDEN as unknown as VersionInput["compiled"],
       compilerVersion: KITCHEN_SINK_GOLDEN.compilerVersion,
       a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
       semanticsVersion: "1",
+    });
+    // Released, because publishing reaches no environment (ADR-40, task 065).
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      version: kitchenVersion.version,
+      releasedBy: "usr_fixture",
     });
   }, CONTAINER_BOOT_TIMEOUT_MS);
 

@@ -43,17 +43,23 @@ import type { Config } from "./config.js";
 const { Pool } = pg;
 
 /**
- * The environment every request and every newly minted link resolves to, until tasks 065
- * and 066 land (Code Owner, 2026-09-29, Q53).
+ * The environment a request resolves to when **nothing named one**, and the environment
+ * every newly minted link still gets until task 066 lands (Code Owner, 2026-09-29, Q53).
  *
  * **A constant rather than a setting**, and that is the ruling rather than a preference.
  * ADR-40 takes the request's environment from the `/<env>/` route group on the
  * respondent side (Q21, task 066) and from the administrator's switcher on the authoring
- * side (Q6, task 065). Neither exists yet, and Q19 refuses a *default* for link minting
- * for a precise reason: a script that omits the field and silently gets a production
- * link is the failure that rule exists to prevent. An operator-settable interim default
- * would be exactly that failure wearing a configuration key, so the interim answer is
- * fixed, is `prod`, and is one identifier the two later tasks replace.
+ * side (Q6, task 065). Q19 refuses a *default* for link minting for a precise reason: a
+ * script that omits the field and silently gets a production link is the failure that
+ * rule exists to prevent. An operator-settable interim default would be exactly that
+ * failure wearing a configuration key, so the interim answer is fixed, is `prod`, and is
+ * one identifier task 066 replaces.
+ *
+ * **Task 065 replaced the other half.** An admin-group request now carries the Q6
+ * switcher's environment (`middleware/request-environment.ts`), so
+ * {@link Databases.forRequest} takes a name and this constant is what it falls back to:
+ * the respondent path, which has no `/<env>/` prefix until 066, and any admin client that
+ * names no environment.
  *
  * **`test` is not dead while this stands.** It exists on the layout, the baseline creates
  * it, the environment generator's tests and the least-privilege suite exercise it - by
@@ -85,11 +91,12 @@ export interface Databases {
   /** Every environment in the live set, in the order the configuration names them. */
   readonly names: readonly string[];
   /**
-   * The environment a request is served from until task 066's `/<env>/` route group and
-   * task 065's switcher exist: {@link INTERIM_REQUEST_ENVIRONMENT}.
+   * The environment a request is served from when nothing named one:
+   * {@link INTERIM_REQUEST_ENVIRONMENT}.
    *
    * On the interface rather than read from the constant at each call site, so a test can
-   * substitute it and 065 and 066 have one field to make per-request.
+   * substitute it. It is still the respondent path's answer, which is task 066's to
+   * replace with the `/<env>/` route group's value.
    */
   readonly defaultEnvironment: string;
   /**
@@ -105,14 +112,20 @@ export interface Databases {
    * The environment a respondent or response-reading request is served from, with its
    * executor.
    *
-   * **This is the one interim seam** (see {@link Databases.defaultEnvironment}). Task
-   * 066 replaces its body with the `/<env>/` route group's value and task 065 with the
-   * administrator's switcher; until then every such request resolves to the one
-   * configured default. Everything downstream of it - the pool, the grants, the search
-   * path, the per-environment tests - is already real, so what those tasks change is the
-   * choosing and nothing else.
+   * `environment` is what the request itself named, which today means the Q6 switcher's
+   * value on an admin-group request (`middleware/request-environment.ts` validates it
+   * against the live set and refuses an unknown name, so a name that reaches here is one
+   * this process holds a pool for). `undefined` falls back to
+   * {@link Databases.defaultEnvironment}, which is the respondent path's answer until
+   * task 066's `/<env>/` route group names it.
+   *
+   * **The argument is optional on purpose and the respondent path passes nothing.** The
+   * switcher's header is read by middleware mounted on the **admin** group alone, so a
+   * respondent request cannot name an environment at all: there is no header for it to
+   * set, which is what keeps "test is reachable through secure links only" (ADR-40,
+   * SEC-14) a routing fact rather than a handler's good manners.
    */
-  forRequest(): { readonly environment: string; readonly exec: Executor };
+  forRequest(environment?: string): { readonly environment: string; readonly exec: Executor };
 }
 
 /**
@@ -149,8 +162,9 @@ export function openDatabases(config: Config): {
       }
       return found.executor;
     },
-    forRequest(): { readonly environment: string; readonly exec: Executor } {
-      return { environment: this.defaultEnvironment, exec: this.for(this.defaultEnvironment) };
+    forRequest(environment?: string): { readonly environment: string; readonly exec: Executor } {
+      const chosen = environment ?? this.defaultEnvironment;
+      return { environment: chosen, exec: this.for(chosen) };
     },
   };
 

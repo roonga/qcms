@@ -376,11 +376,15 @@ test("559 gives every rail row a real destination, which is what anchors-not-but
   const hrefs = await page
     .locator(".qcms-rail__link")
     .evaluateAll((links) => links.map((link) => link.getAttribute("href") ?? ""));
-  // NINE: the form's own row, its two steps, and the seven sibling screens. Rules is one
-  // of the seven since issue #669 gave it a route; it used to be a row `rail-steps.tsx`
-  // drew itself, carrying `#rules` because it switched a selection the builder made, and
-  // it is an ordinary sibling link now.
-  expect(hrefs).toHaveLength(9);
+  // TEN: the form's own row, its two steps, and the seven sibling screens - eight siblings
+  // since task 065 gave releases a route. Rules became one of them when issue #669 gave it
+  // a route; it used to be a row `rail-steps.tsx` drew itself, carrying `#rules` because it
+  // switched a selection the builder made, and it is an ordinary sibling link now.
+  expect(hrefs).toHaveLength(10);
+  expect(
+    hrefs.filter((href) => href.endsWith("/releases")),
+    "the releases row points at the release route",
+  ).toHaveLength(1);
   expect(
     hrefs.filter((href) => href.endsWith("/rules")),
     "the rules row points at the rules route",

@@ -29,6 +29,7 @@
 
 import type { RouteHandler, z } from "@hono/zod-openapi";
 import { compileForm } from "@roonga/qcms-a2ui-compiler";
+import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   type AnswerKey,
   answerKey,
@@ -84,12 +85,13 @@ import {
   updateFormSettings,
   upsertDraft,
 } from "@roonga/qcms-db";
-import type { Executor, FormDraftRow } from "@roonga/qcms-db";
+import type { Executor, FormDraftRow, FormVersionRow } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { recordRelease } from "../releases/release.js";
 import type {
   closeFormRoute,
   createFormRoute,
@@ -98,6 +100,7 @@ import type {
   listFormsRoute,
   previewConditionRoute,
   previewDraftRoute,
+  publishAndReleaseFormRoute,
   publishFormRoute,
   putDraftRoute,
   reopenFormRoute,
@@ -1482,68 +1485,148 @@ export function makeUpdateFormSettingsHandler(
 
 // --- POST /admin/forms/:id/publish ------------------------------------------
 
+/**
+ * Everything a publish does before it writes: the reads, the parse and the compile.
+ *
+ * Separated from the write so the **combined publish-and-release action** (finding 2) can
+ * run both writes in one transaction without a second copy of the validation. Nothing
+ * here persists anything, so a refusal costs no database work - which is also why every
+ * failure it raises is raised before a transaction is open.
+ */
+async function freezeDraft(
+  deps: Deps,
+  formId: FormId,
+): Promise<{ snapshot: FrozenSnapshot; compiled: CompiledForm }> {
+  const form = await getForm(deps.databases.control, formId);
+  if (form === undefined) throw fail.formNotFound();
+
+  const draft = await getDraft(deps.databases.control, formId);
+  if (draft === undefined) throw fail.noDraft();
+
+  // Re-parse the stored draft (its JSONB is unknown at the type level, and a
+  // draft may be temporarily inconsistent): a malformed draft is a 422, never
+  // a 500.
+  const definition = requireDefinition(draft.definition);
+  if (definition.formId !== formId) throw fail.idMismatch();
+
+  // The aggregate: validate every publish invariant (all errors, not first) -
+  // deprecated-pin gate + compileDraft (008). Nothing is persisted on failure.
+  const { issues, snapshot } = await validateDraft(deps, definition);
+  if (issues.length > 0 || snapshot === undefined) throw fail.publishRejected(issues);
+
+  // Project the frozen snapshot to A2UI once (ADR-18): the stored copy is
+  // served forever; serve (019) never recompiles.
+  return { snapshot, compiled: compileForm(snapshot, {}) };
+}
+
+/** Freeze the version and drop the draft, in the caller's transaction (§11). */
+async function writeVersion(
+  tx: Executor,
+  formId: FormId,
+  frozen: { snapshot: FrozenSnapshot; compiled: CompiledForm },
+  publishedAt: Date,
+): Promise<FormVersionRow> {
+  const version = await insertFormVersion(tx, {
+    formId,
+    definition: frozen.snapshot.definition,
+    compiled: frozen.compiled,
+    compilerVersion: frozen.compiled.compilerVersion,
+    a2uiSpecVersion: frozen.compiled.a2uiSpecVersion,
+    semanticsVersion: String(frozen.snapshot.semanticsVersion),
+    publishedAt,
+  });
+  await deleteDraft(tx, formId);
+  return version;
+}
+
 export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishFormRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
     const now = deps.clock.now();
-
-    const form = await getForm(deps.databases.control, formId);
-    if (form === undefined) throw fail.formNotFound();
-
-    const draft = await getDraft(deps.databases.control, formId);
-    if (draft === undefined) throw fail.noDraft();
-
-    // Re-parse the stored draft (its JSONB is unknown at the type level, and a
-    // draft may be temporarily inconsistent): a malformed draft is a 422, never
-    // a 500.
-    const definition = requireDefinition(draft.definition);
-    if (definition.formId !== formId) throw fail.idMismatch();
-
-    // The aggregate: validate every publish invariant (all errors, not first) -
-    // deprecated-pin gate + compileDraft (008). Nothing is persisted on failure.
-    const { issues, snapshot } = await validateDraft(deps, definition);
-    if (issues.length > 0 || snapshot === undefined) throw fail.publishRejected(issues);
-
-    // Project the frozen snapshot to A2UI once (ADR-18): the stored copy is
-    // served forever; serve (019) never recompiles.
-    const compiled = compileForm(snapshot, {});
+    const frozen = await freezeDraft(deps, formId);
 
     // **Publishing queues nothing** (Code Owner, 2026-09-30, Q60). One transaction still,
     // so the draft never lingers past its publish (§11), but there is no event in it.
     //
     // Under ADR-40 publishing a version stopped being the act that reaches an environment:
     // a version exists in `control`, one copy, and what makes it live somewhere is a
-    // **release** (task 065). So `form.published` had nobody left to tell - it announced a
-    // library change to a queue whose consumers are per environment - and Q49 always had it
+    // **release**. So `form.published` had nobody left to tell - it announced a library
+    // change to a queue whose consumers are per environment - and Q49 always had it
     // retiring in favour of `form.released`. Q60 is that end state reached one task early
     // rather than a new decision: an event nobody receives is worth less than the grant it
     // would take to write, and writing it here would mean an authoring transaction reaching
     // into a data schema for nothing.
     //
-    // **Task 065 writes `form.released`** into the released environment's `outbox`, in the
-    // same transaction as the release record, on the control pool under Q49's `INSERT`.
-    // `enqueueInEnvironment` in `@roonga/qcms-db` is the helper for exactly that: a plain
-    // insert that names the schema and has no `RETURNING`, because the control role holds
-    // `INSERT` there and no `SELECT` anywhere in a data schema. It ships in this task and
-    // is called by 065.
-    const inserted = await deps.databases.control.transaction(async (tx) => {
-      // Freeze the immutable version with all stamps and delete the draft, in one
-      // transaction.
-      const version = await insertFormVersion(tx, {
-        formId,
-        definition: snapshot.definition,
-        compiled,
-        compilerVersion: compiled.compilerVersion,
-        a2uiSpecVersion: compiled.a2uiSpecVersion,
-        semanticsVersion: String(snapshot.semanticsVersion),
-        publishedAt: now,
-      });
-      await deleteDraft(tx, formId);
-      return version;
-    });
+    // **`form.released` is written by the release**, in `../releases/release.ts`, into the
+    // released environment's `outbox` in the same transaction as the release record. This
+    // route still writes no outbox row at all, in any environment, and
+    // `forms.integration.test.ts` asserts that by count rather than leaving it to the
+    // absence of a line here.
+    const inserted = await deps.databases.control.transaction((tx) =>
+      writeVersion(tx, formId, frozen, now),
+    );
 
     return c.json(
       { version: inserted.version, publishedAt: inserted.publishedAt.toISOString() },
+      200,
+    );
+  };
+}
+
+// --- POST /admin/forms/:id/publish-and-release ------------------------------
+
+/**
+ * One intent, one act: publish the open draft and release the new version (finding 2).
+ *
+ * The churn finding 2 accepted is real - every iteration an author wants to try in a
+ * non-prod environment is an immutable published version and R1 keeps it - and both
+ * mitigations are **presentation**. This is the first: a combined action, so an author who
+ * means "try this in `dev`" performs one act rather than two. What it must not become is a
+ * second model, and it does not: it publishes a real version, keeps it, and then releases
+ * it. There is no draft-level release and nothing skips publishing.
+ *
+ * **Atomically or not at all**, which is the unnumbered exit criterion: one transaction
+ * holds the version, the draft deletion, the release record and the `form.released` event,
+ * so a failed release leaves no published version behind to explain. That is the whole
+ * reason the publish core is split into `freezeDraft` and `writeVersion` above.
+ */
+export function makePublishAndReleaseFormHandler(
+  deps: Deps,
+): RouteHandler<typeof publishAndReleaseFormRoute, ApiEnv> {
+  return async (c) => {
+    const formId = requireFormId(c.req.valid("param").id);
+    const environment = c.req.valid("json").environment;
+    if (!deps.databases.names.includes(environment)) {
+      throw new ApiError(
+        "UNKNOWN_ENVIRONMENT",
+        400,
+        `This deployment serves no environment named ${environment}`,
+      );
+    }
+    const now = deps.clock.now();
+    const frozen = await freezeDraft(deps, formId);
+    const principal = c.get("adminPrincipal");
+
+    const result = await deps.databases.control.transaction(async (tx) => {
+      const version = await writeVersion(tx, formId, frozen, now);
+      const release = await recordRelease(tx, {
+        formId,
+        environment,
+        version: version.version,
+        releasedBy: principal?.userId ?? "",
+        // No source: the version is new, so it was released nowhere before this (Q4).
+        fromEnvironment: undefined,
+      });
+      return { version, release };
+    });
+
+    return c.json(
+      {
+        version: result.version.version,
+        publishedAt: result.version.publishedAt.toISOString(),
+        environment: result.release.environment,
+        releasedAt: result.release.releasedAt.toISOString(),
+      },
       200,
     );
   };

@@ -109,6 +109,20 @@ export class AdminClient {
     return parse<T>(await this.req("POST", `/forms/${formId}/publish`));
   }
 
+  /**
+   * Release a published version to an environment, or promote it there (ADR-40, task 065).
+   *
+   * Beside `publishForm` rather than folded into it, because the two are different acts:
+   * publishing puts a version in the library and serves it nowhere, and this is what puts
+   * it in front of a respondent. A scenario that walks the respondent loop needs both.
+   */
+  async releaseVersion<T = unknown>(
+    formId: string,
+    input: { environment: string; version: number; fromEnvironment?: string },
+  ): Promise<JsonResult<T>> {
+    return parse<T>(await this.req("POST", `/forms/${formId}/releases`, input));
+  }
+
   // --- secure links ---------------------------------------------------------
 
   async mintLinks<T = unknown>(

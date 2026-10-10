@@ -12,8 +12,13 @@
  */
 
 import { FormId, importCompactTokenKey, verifySecureLink } from "@roonga/qcms-core";
-import { createForm, insertFormVersion } from "@roonga/qcms-db";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
+import { createForm, insertFormRelease, insertFormVersion } from "@roonga/qcms-db";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  DEFAULT_TEST_ENVIRONMENT,
+  startTestDb,
+  type TestDb,
+} from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
@@ -89,13 +94,22 @@ beforeAll(async () => {
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
 
   await createForm(testDb.db, { formId: FORM_ID, slug: "links-it", defaultLocale: "en" });
-  await insertFormVersion(testDb.db, {
+  const version = await insertFormVersion(testDb.db, {
     formId: FORM_ID,
     definition: emptyDef,
     compiled: emptyCompiled,
     compilerVersion: "1.0.0",
     a2uiSpecVersion: "1.0.0",
     semanticsVersion: "1",
+  });
+  // Redeeming a link resolves what is **released** to the session's environment (ADR-40,
+  // task 065), so the fixture releases the version it publishes. Minting itself is
+  // environment-agnostic until task 066 gives the mint its own environment (Q19).
+  await insertFormRelease(testDb.db, {
+    formId: FORM_ID,
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    version: version.version,
+    releasedBy: "usr_fixture",
   });
 
   await createForm(testDb.db, {

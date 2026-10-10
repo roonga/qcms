@@ -180,7 +180,7 @@ describe("one pass reaches every environment in the live set (criterion 9)", () 
     for (const environment of LIVE_SET) {
       const exec = databases.for(environment);
       const row = await enqueue(exec, {
-        eventType: "form.published",
+        eventType: "form.released",
         payload: { environment },
       });
       eventIds.set(environment, row.id);
@@ -235,7 +235,7 @@ describe("one pass reaches every environment in the live set (criterion 9)", () 
       // row alone cannot make.
       //
       // Note what the metrics on this line do *not* say: every one of them counts
-      // webhook **delivery rows**, not consumed outbox events, so `form.published`
+      // webhook **delivery rows**, not consumed outbox events, so `form.released`
       // leaves them all at zero however many events it consumed. The drained row below
       // is the only evidence of consumption, which is why both assertions are here.
       const pass = lines.find(
@@ -249,7 +249,7 @@ describe("one pass reaches every environment in the live set (criterion 9)", () 
     }
 
     for (const environment of LIVE_SET) {
-      // `form.published` fans out to no webhook, so the pass's whole visible effect here
+      // `form.released` fans out to no webhook, so the pass's whole visible effect here
       // is the event being consumed - which is the right signal: `markDelivered` is
       // written by the materialize phase in the environment the pass reached, and by
       // nothing else. The read is unqualified, so it can only see this environment's

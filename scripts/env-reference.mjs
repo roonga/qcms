@@ -914,7 +914,7 @@ export const ENV_REFERENCE = [
     requirement: "optional",
     fallback: "test,prod",
     description:
-      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere. It must include `prod`: every request and every newly minted link resolves there until the `/<env>/` route prefix and the admin switcher exist (ADR-40, Q53).",
+      "The live environment set, comma-separated. Each name needs its own `QCMS_DATABASE_URL_<ENV>`. The API reads `control.environments` at boot and refuses to start when the two disagree in either direction, so a credential without a row and a row without a credential are both a boot failure rather than an environment served from nowhere. It must include `prod`: a request that names no environment resolves there, which is every respondent request until the `/<env>/` route prefix exists (task 066) and every newly minted link until then too (ADR-40, Q53). An **admin** request carries the environment the administrator's switcher has selected, as `x-qcms-environment`, validated against this set and refused with a 400 when it names something not in it (task 065).",
   },
   {
     name: "QCMS_DATABASE_URL_TEST",
