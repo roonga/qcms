@@ -79,13 +79,22 @@ const STATIC_SOURCE = join(DIST, "static");
 const STATIC_TARGET = "apps/portal/.next/static";
 
 /**
- * A page that exists, needs no session and reaches no API.
+ * Where to post, and it has to be the page that DECLARES the action.
  *
- * The id check happens before any of the app runs, so the unpinned round never renders
- * anything; the pinned round does render this page, which is why it has to be one that
- * can render on its own.
+ * An action id is resolved against the posted page's own action manifest rather than
+ * against a global one: each entry's `workers` map is keyed by page, and this action's
+ * only worker is `app/s/[sessionId]/page`. So posting a perfectly valid id to any other
+ * path is "action not found" too, which is a false positive this script hit on its first
+ * run and which `apps/e2e/full-stack-conditional-form.pw.ts` never could, because the ids
+ * it posts were minted by no build and are unknown everywhere.
+ *
+ * `/s/[sessionId]` is dynamic, so any session-shaped segment matches. No real session is
+ * needed: the unpinned round is refused before any of the app runs, and in the pinned
+ * round the action returns with nothing to apply (the post carries no `__qop`), after
+ * which the page's own read fails and it renders its recovery screen. Only the refusal
+ * header and the status are read, so neither outcome matters.
  */
-const PROBE_PATH = "/expired";
+const PROBE_PATH = "/s/ses_probe_action_id_stability";
 
 /** How long to wait for a standalone server to answer before giving up. */
 const READY_TIMEOUT_MS = 30_000;
@@ -300,8 +309,10 @@ async function main() {
     const kept = await serving("pinned 2", second.tree, (origin) => replay(origin, first.actionId));
     check(
       !kept.refused,
-      `build 1's id is not refused by build 2 (status ${String(kept.status)}, no ` +
-        "x-nextjs-action-not-found), so a held page's Add still runs",
+      "build 1's id is not refused by build 2, so a held page's Add still runs " +
+        `(status ${String(kept.status)}, x-nextjs-action-not-found ${
+          kept.refused ? "present" : "absent"
+        })`,
     );
 
     const lost = await serving("unpinned", third.tree, (origin) => replay(origin, first.actionId));
