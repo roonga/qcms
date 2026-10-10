@@ -58,13 +58,19 @@ on:
       - "**/*.md"
       - "plan/**"
   # Weekly, for the `scan` job below and for nothing else (issue #894). The three images
-  # are a deterministic function of the tree - the base images are digest-pinned (#372)
-  # and the install is `--frozen-lockfile` - so rebuilding the same commit next week
-  # produces the same SBOM it produces today. What moves between runs is the
-  # vulnerability database, which is published upstream and fetched at scan time. A
-  # weekly rebuild-and-scan is therefore how a CVE disclosed against a package already
-  # inside a published image becomes visible without anyone pushing a commit. Same shape
-  # as `audit.yml`'s weekly `pnpm audit`, an hour later so the two never queue together.
+  # are a NEAR-deterministic function of the tree - the base images are digest-pinned
+  # (#372), the install is `--frozen-lockfile`, and since 2026-10-10 each runtime stage
+  # carries one `--only-upgrade perl-base` layer that resolves against
+  # `bookworm-security` at build time (issue #1047, Code Owner ruling of the same day;
+  # `docs/SECURITY_DESIGN.md` section 9 carries the reasoning and the removal
+  # condition) - so rebuilding the same commit next week produces the same SBOM it
+  # produces today except for that one package. What moves between runs is the
+  # vulnerability database, which is published upstream and fetched at scan time, plus
+  # that package. A weekly rebuild-and-scan is therefore how a CVE disclosed against a
+  # package already inside a published image becomes visible without anyone pushing a
+  # commit, and while that layer exists it is also how a newly published `perl-base`
+  # reaches the images at all. Same shape as `audit.yml`'s weekly `pnpm audit`, an hour
+  # later so the two never queue together.
   #
   # A scheduled run deliberately PUBLISHES NOTHING; see the `PUBLISH` env below.
   schedule:
