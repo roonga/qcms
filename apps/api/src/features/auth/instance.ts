@@ -74,7 +74,7 @@ import type { Logger } from "../../logger.js";
  * backup codes but leaves `user.twoFactorEnabled` false until a real TOTP code
  * verifies, so an abandoned enrollment cannot leave an account half-protected.
  *
- * **better-auth 1.7.6 refuses a second enrollment over a verified factor** rather than
+ * **better-auth 1.7.7 refuses a second enrollment over a verified factor** rather than
  * re-provisioning one: `enableTwoFactor` throws `TOTP_ALREADY_ENABLED` when a
  * `twoFactor` row exists whose `verified` is not false, and the `verified` it writes is
  * `skipVerificationOnEnable` alone rather than inheriting an existing `true`
@@ -87,7 +87,7 @@ import type { Logger } from "../../logger.js";
  * (`dist/plugins/two-factor/index.mjs:135-138`) <!-- expect: const encryptedSecret = await symmetricEncrypt( --> and the recovery codes
  * (`.../backup-codes/index.mjs:19-22`). <!-- expect: storeBackupCodes === "encrypted" --> That used to make `QCMS_ADMIN_AUTH_SECRET` a
  * key nobody could change without destroying every enrolment, which task 056 recorded
- * as permanent. It is not permanent any more: better-auth 1.7.6 carries a versioned
+ * as permanent. It is not permanent any more: better-auth 1.7.7 carries a versioned
  * key set (`secrets`) and writes a `$ba$<version>$` envelope, so an operator adds a new
  * version, keeps the old one for reading, and stored material re-encodes under the
  * current version as it is used. Recovery-code blobs re-encode on **every redemption**
@@ -178,7 +178,7 @@ export function warnIfBreachCheckDisabled(
  * ## Why this exists
  *
  * The throttle is better-auth's. Until issue #390 whether it ran was decided by
- * `NODE_ENV`: read against better-auth 1.7.6, the pinned version,
+ * `NODE_ENV`: read against better-auth 1.7.7, the pinned version,
  * `dist/context/create-context.mjs:172` <!-- expect: options.rateLimit?.enabled ?? isProduction --> resolves it as
  * `options.rateLimit?.enabled ?? isProduction`, and `isProduction` is a module-scope
  * `const` in `@better-auth/core/dist/env/env-impl.mjs:32` <!-- expect: isProduction = nodeENV === "production" --> (`nodeENV === "production"`,
@@ -197,7 +197,7 @@ export function warnIfBreachCheckDisabled(
  * ## Read back, never echoed
  *
  * Every field comes from `await auth.$context`, which is the object the limiter itself
- * consults: in better-auth 1.7.6, `dist/api/rate-limiter/index.mjs:290` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
+ * consults: in better-auth 1.7.7, `dist/api/rate-limiter/index.mjs:293` <!-- expect: if (!ctx.rateLimit.enabled) return --> gates on
  * `ctx.rateLimit.enabled`, and
  * `getIP` (`@better-auth/core/dist/utils/ip.mjs:206`) <!-- expect: ipAddressHeaders || DEFAULT_IP_HEADERS --> reads the header list off
  * `ctx.options.advanced.ipAddress`. Reporting the options this file passes in instead
@@ -214,8 +214,8 @@ export function warnIfBreachCheckDisabled(
  *
  * ## What is deliberately not in here
  *
- * The **numbers**. In better-auth 1.7.6 the sign-in rule is three attempts per ten
- * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:302-308`, <!-- expect: window: 10, max: 3 --> matching
+ * The **numbers**. In better-auth 1.7.7 the sign-in rule is three attempts per ten
+ * seconds (`getDefaultSpecialRules`, `dist/api/rate-limiter/index.mjs:305-311`, <!-- expect: window: 10, max: 3 --> matching
  * `/sign-in`, `/sign-up`, `/change-password` and `/change-email`), and the two-factor
  * plugin adds the same shape for `/two-factor/*`
  * (`dist/plugins/two-factor/index.mjs:338-344`). <!-- expect: path.startsWith("/two-factor/") --> Neither is reachable from the resolved
@@ -232,7 +232,7 @@ export interface SignInThrottleState {
   readonly enabled: boolean;
   /**
    * The headers the limiter resolves a caller's address from, in order, as
-   * `getIP` reads them (better-auth 1.7.6, the pinned version:
+   * `getIP` reads them (better-auth 1.7.7, the pinned version:
    * `@better-auth/core/dist/utils/ip.mjs:206`). Header
    * **names**, never a value: an address identifies a person and SEC-8 and
    * SEC-13 keep it out of a log line, which is why this reports where the
@@ -608,7 +608,7 @@ export function createAdminAuth(input: AdminAuthInput) {
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
-    // (issue #319). better-auth 1.7.6 resolves these together in
+    // (issue #319). better-auth 1.7.7 resolves these together in
     // `dist/context/create-context.mjs:70-82`: with `secrets` present it builds a
     // `SecretConfig` whose current version encrypts, whose whole map decrypts, and
     // whose `legacySecret` is `secret` - used only for ciphertext that predates the
@@ -636,7 +636,7 @@ export function createAdminAuth(input: AdminAuthInput) {
     // SEC-1's brute-force throttle on sign-in, change-password and two-factor, stated
     // rather than inferred (issue #390).
     //
-    // better-auth 1.7.6, the pinned version, resolves this as
+    // better-auth 1.7.7, the pinned version, resolves this as
     // `options.rateLimit?.enabled ?? isProduction`
     // (`dist/context/create-context.mjs:172`), and `isProduction` is
     // `nodeENV === "production"` over a `NODE_ENV` captured once when
@@ -646,7 +646,7 @@ export function createAdminAuth(input: AdminAuthInput) {
     // for unrelated reasons. Nothing else about the limiter changes: `window`, `max`
     // and `storage` keep the vendor defaults (`:172-174`), and the sign-in allowance is
     // still `getDefaultSpecialRules`' three attempts per ten seconds
-    // (`dist/api/rate-limiter/index.mjs:302-308`).
+    // (`dist/api/rate-limiter/index.mjs:305-311`).
     //
     // `adminAuth.signInThrottle` defaults to **true**, so a deployment that configures
     // nothing is throttled. It is a whole boolean rather than an "is this development"
@@ -837,7 +837,7 @@ export function createAdminAuth(input: AdminAuthInput) {
           // Recovery codes are ciphertext at rest, under the versioned key set above
           // (issue #319, SEC-7).
           //
-          // This restates better-auth 1.7.6's own default rather than changing it:
+          // This restates better-auth 1.7.7's own default rather than changing it:
           // `dist/plugins/two-factor/index.mjs:25-27` <!-- expect: storeBackupCodes: "encrypted" --> builds `backupCodeOptions` as
           // `{ storeBackupCodes: "encrypted", ...options?.backupCodeOptions }`, so
           // an instance that passes nothing already encrypts. Verified against the
