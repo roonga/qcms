@@ -1,4 +1,21 @@
 # syntax=docker/dockerfile:1
+# check=skip=SecretsUsedInArgOrEnv
+# The one BuildKit check this file skips, and the reason is measured rather than
+# asserted (issue #1035). `ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` below is a secret, so
+# that check fires; its premise is that an ARG value can be recovered from the image, and
+# for this image it cannot be recovered from anywhere the check is about. Verified on a
+# build carrying a known value: `docker history --no-trunc` contains neither the value nor
+# the variable's name, and `docker inspect` carries it in no env, label or cmd. What the
+# image does carry is the key Next wrote into
+# `.next/server/server-reference-manifest.{js,json}`, which is how the running server gets
+# it (`next/dist/server/app-render/encryption-utils.js` reads
+# `process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || serverActionsManifest.encryptionKey`)
+# and which is true of the random per-build key as well, so no build mechanism removes it.
+# A `--mount=type=secret` would therefore hide the value from nothing that holds it today
+# while turning one `--build-arg` into a secret file every adopter has to plumb. SEC-7 and
+# SEC-8 carry the full reading; `scripts/build-images.mjs` passes only `VERSION`, so the
+# PUBLISHED images cannot acquire a key even by accident.
+#
 # Base image pinned by digest as well as tag (issue #372): the tag is what a human
 # reads, the digest is what is actually pulled, so a rebuild months from now produces
 # the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
