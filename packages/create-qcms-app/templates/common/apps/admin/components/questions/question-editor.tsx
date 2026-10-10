@@ -312,6 +312,36 @@ export function QuestionEditor({
 
   return (
     <>
+      {/* WHERE THE PRE-HYDRATION SUBMIT IS STOPPED, AND WHY IT IS NOT STOPPED HERE
+        (issue #1032, Code Owner ruling 2026-10-10, issue #1050).
+
+        React's server renderer gives this shape the progressive-enhancement markup, so the
+        served bytes are a form that posts natively. Under this app's `Referrer-Policy:
+        no-referrer` such a post carries `Origin: null`, which Next's action handler refuses
+        outright. The ruling is that the submit controls render disabled until the attach.
+
+        THIS SCREEN NEEDS NO DISABLED STATE, because it has no submit control in the served
+        bytes at all. The only one is `components/questions/question-save.tsx`, which renders
+        `null` until `usePublishQuestionSave`'s effect has published the save state, and an
+        effect runs after the hydrating commit. It is also `type="button"` outside the form and
+        saves by `requestSubmit()`. So the window holds no press, which is stronger than a
+        press that does nothing, and `question-editor-hydration.test.tsx` pins it against the
+        server render so a server-visible submit control added here is a red.
+
+        The other two Server Action forms in this app, because the next reader will want the
+        survey rather than the grep: `app/(shell)/forms/new/create-form.tsx` has a real
+        in-form `type="submit"` and is guarded the same way, and
+        `components/questions/lifecycle-actions.tsx` needs no guard because its `ConfirmDialog`
+        is mounted by a press and therefore never appears in a server render. Every other
+        admin `<form>` is either `method="get"` or posts to a named route handler, which is a
+        path the `Origin: null` refusal does not apply to.
+
+        What is left, and it is recorded rather than fixed: implicit submission. A form with no
+        in-form submit button still posts on Enter when it has at most ONE field that blocks
+        implicit submission, and that is a property of how many text-like controls a panel
+        happens to render rather than of anything asserted here. It is not reachable today and
+        there is no control to disable for it, so adding an in-form submit button to this form
+        would be the change that needs this comment re-read. */}
       <form
         id={QUESTION_FORM_ID}
         action={formAction}
