@@ -34,6 +34,7 @@ import {
 import {
   closeForm,
   createForm,
+  insertFormRelease,
   createQuestionVersion,
   createQuestion,
   insertFormVersion,
@@ -259,11 +260,32 @@ function questionDefinitionFor(
 }
 
 /**
+ * Release a seeded version into the environment these fixtures serve (ADR-40, task 065).
+ *
+ * **Publishing a version reaches no environment**, so a fixture that only published would
+ * stand up a form no session can start on. Every seed here therefore releases what it
+ * publishes, which keeps "seeded" meaning what it has always meant to the suites that read
+ * these forms: a form a respondent can walk.
+ *
+ * `usr_e2e_seed` is the actor, which is a seed's own identity rather than an administrator:
+ * these rows are written through the `@roonga/qcms-db` helpers, not through the release
+ * route, exactly as the version beside them is.
+ */
+async function releaseSeededVersion(db: Db, formId: string, version: number): Promise<void> {
+  await insertFormRelease(db, {
+    formId: FormId.parse(formId),
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    version,
+    releasedBy: "usr_e2e_seed",
+  });
+}
+
+/**
  * Append another published version of the insurance form (identical bytes). Used
  * by the version-pinning scenario to publish "v2" after a session pinned v1.
  */
 export async function publishInsuranceVersion(db: Db, formId: string): Promise<void> {
-  await insertFormVersion(db, {
+  const version = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: DEF,
     compiled: COMPILED,
@@ -271,6 +293,10 @@ export async function publishInsuranceVersion(db: Db, formId: string): Promise<v
     a2uiSpecVersion: INSURANCE_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  // Released as well as published, which is what makes the new version the one a session
+  // started after this resolves (ADR-40). The version-pinning scenario depends on exactly
+  // that: a session already open stays on v1 and a new one gets v2.
+  await releaseSeededVersion(db, formId, version.version);
 }
 
 // --- kitchen-sink form (all seven question types, task 045) -----------------
@@ -373,7 +399,7 @@ export async function seedKitchenSinkForm(
   }
   await seedKitchenSinkUniqueQuestions(db);
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
-  await insertFormVersion(db, {
+  const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: KS_DEF,
     compiled: KS_COMPILED,
@@ -381,6 +407,7 @@ export async function seedKitchenSinkForm(
     a2uiSpecVersion: KITCHEN_SINK_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
 }
 
@@ -406,7 +433,7 @@ export async function seedAuthorMessagesForm(
     );
   }
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
-  await insertFormVersion(db, {
+  const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: AUTHOR_MESSAGES_DEF as FormVersionInput["definition"],
     compiled: AUTHOR_MESSAGES_GOLDEN as unknown as FormVersionInput["compiled"],
@@ -414,6 +441,7 @@ export async function seedAuthorMessagesForm(
     a2uiSpecVersion: AUTHOR_MESSAGES_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
 }
 
@@ -445,7 +473,7 @@ export async function seedRepeatFleetForm(
     );
   }
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
-  await insertFormVersion(db, {
+  const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_FLEET_DEF as FormVersionInput["definition"],
     compiled: REPEAT_FLEET_GOLDEN as unknown as FormVersionInput["compiled"],
@@ -453,6 +481,7 @@ export async function seedRepeatFleetForm(
     a2uiSpecVersion: REPEAT_FLEET_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
 }
 
@@ -486,7 +515,7 @@ export async function seedRepeatTableForm(
     );
   }
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
-  await insertFormVersion(db, {
+  const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TABLE_DEF as FormVersionInput["definition"],
     compiled: REPEAT_TABLE_GOLDEN as unknown as FormVersionInput["compiled"],
@@ -494,6 +523,7 @@ export async function seedRepeatTableForm(
     a2uiSpecVersion: REPEAT_TABLE_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
 }
 
@@ -526,7 +556,7 @@ export async function seedRepeatTourForm(
     );
   }
   await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
-  await insertFormVersion(db, {
+  const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TOUR_DEF as FormVersionInput["definition"],
     compiled: REPEAT_TOUR_GOLDEN as unknown as FormVersionInput["compiled"],
@@ -534,6 +564,7 @@ export async function seedRepeatTourForm(
     a2uiSpecVersion: REPEAT_TOUR_GOLDEN.a2uiSpecVersion,
     semanticsVersion: "1",
   });
+  await releaseSeededVersion(db, formId, seeded.version);
   return { formId, slug };
 }
 
