@@ -72,15 +72,20 @@ apps/*/CLAUDE.md
 # turbo 2.11.x writes a managed `AGENTS.md` block at the REPOSITORY ROOT, which the two
 # rules above do not reach because they are scoped to app directories (PR #1049, which
 # carried turbo 2.11.4 to 2.11.7 and surfaced it). It is the same class as #431 one
-# directory up: `turbo` re-adds the block "before repository-scoped commands when an AI
-# agent is detected", so deleting it only re-creates it, and the file's own text argues
-# the reader into committing it. Ignored on the same stopgap reasoning, and it carries no
-# em dash today, so the gate would not have caught a `git add -A` sweeping it in.
+# directory up: the block is re-added "before repository-scoped commands when an AI agent
+# is detected", and the file's own text argues the reader into committing it.
 #
-# **This one has an opt-out the Next case does not**, and choosing it is the (b) half of
-# #431's open question rather than something a dependency bump should settle: `"agentGuidance":
-# false` in the root `turbo.json` stops the generation at source, though turbo's own text says
-# it does not remove a block already written. Left for the Code Owner with the rest of #431.
+# **THE OPT-OUT IS NOW TAKEN, AND THIS RULE IS WHAT IS LEFT OVER.** `"agentGuidance": false`
+# sits in the root `turbo.json` with the reasoning beside it (Code Owner, 2026-10-10, issue
+# #1050), which is the (b) half of #431's open question answered for the case that has an
+# opt-out. Nothing generates this file any more.
+#
+# The rule stays because turbo's own documentation says opting out "does not delete an
+# existing `AGENTS.md` file or Turborepo block": any checkout, worktree or seat that ran
+# turbo 2.11 before the opt-out landed still has one on disk, and this repository cannot
+# delete it on another machine. Dropping the rule would put that leftover file back into
+# `git status` and invite a `git add -A` to commit it. It can go once no live checkout
+# predates the opt-out, and nothing here depends on when that is.
 /AGENTS.md
 
 # Chromium profile directories a Lighthouse run drops in the repository root under

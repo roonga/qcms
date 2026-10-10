@@ -1,5 +1,26 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  // NO MANAGED `AGENTS.md` AT THE REPOSITORY ROOT (Code Owner, 2026-10-10, issue #1050).
+  // This is the **(b) half of issue #431**: #431 asked whether a dependency that writes
+  // agent instructions into this repository should be ignored (a) or switched off (b), and
+  // (b) is the answer for the case that has an opt-out. turbo 2.11 maintains a managed
+  // block in a root `AGENTS.md` "before repository-scoped commands when an AI agent is
+  // detected"; `agentGuidance: false` stops that at source.
+  //
+  // Why this repository does not want it. QCMS is agent-driven end to end, and its
+  // instruction hierarchy is deliberate and reviewed: `CLAUDE.md`, `PROJECT_INSTRUCTIONS.md`,
+  // `CONTRIBUTING.md`, `.claude/skills/`. A root `AGENTS.md` is loaded as directory-scoped
+  // instructions by every executor and reviewer that works here, so leaving it generated
+  // means an upstream package co-authors the rules, and re-authors them on every upgrade.
+  // Measured on 2026-10-10 at turbo 2.11.7: `CLAUDECODE=1 pnpm exec turbo run typecheck`
+  // writes 1341 bytes of it beginning "This is NOT the Turborepo you know", and with this
+  // setting the same command writes nothing.
+  //
+  // `.gitignore` keeps its `/AGENTS.md` rule, and that is not redundant: turbo's own
+  // documentation says opting out "does not delete an existing `AGENTS.md` file or
+  // Turborepo block", so a checkout that ran turbo before this landed still has one on
+  // disk. The rule's comment there records that (b) was taken.
+  "agentGuidance": false,
   // `scripts/eslint-workspace.mjs` belongs here for the same reason `eslint.config.js`
   // does: every package's `lint` task now runs through it, and it lives outside every
   // package, so without this entry editing it would leave `turbo run lint` replaying a
