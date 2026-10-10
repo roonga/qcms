@@ -135,12 +135,49 @@ describe("startTestDb transaction handling (issue #30)", () => {
 });
 
 /**
- * A reference no registry can serve: port 1 on loopback refuses the connection
- * immediately, so the assertion never depends on a real registry's wording, on
- * network access, or on a slow timeout. The failure the harness must dress up is
- * the same class Docker Hub produced in CI (HTTP 500 from the registry).
+ * The registry host both unpullable-image cases dial, and the reason it is a
+ * LITERAL v4 address rather than `localhost` (issue #1026).
+ *
+ * The point of the reference is a connect that is refused in microseconds, so the
+ * assertion depends on neither a real registry's wording, nor network access, nor
+ * a timeout. `localhost:1` was assumed to do that and does not: **`localhost` is
+ * not guaranteed to resolve to a v4 address, and port 1 is not guaranteed to
+ * refuse.** On a WSL2 host whose hosts file has no `127.0.0.1 localhost` line,
+ * `localhost` resolves to `::1` only, `[::1]:1` black-holes rather than refusing,
+ * and Docker spends its own dial timeout - measured at 30.2s on a lane host on
+ * 2026-10-02, against a 60s case budget that was meant to be pure slack. CI never
+ * saw it because a GitHub runner's hosts file does have the v4 line, so this was a
+ * property of the host rather than of the suite.
+ *
+ * `127.0.0.1` cannot go through name resolution and cannot reach a v6 socket, so
+ * the connect is refused on every supported host. Measured on the same WSL2 host:
+ * `docker pull 127.0.0.1:1/qcms-no-such-image:16-alpine` fails in 0.12s with
+ * `dial tcp 127.0.0.1:1: connect: connection refused`, which `PULL_FAILURE_MARKERS`
+ * still classifies as a pull failure (`/connection refused/i`) and which is not a
+ * `DAEMON_FAILURE_MARKERS` match, because a bare errno is deliberately not one of
+ * those - see the note beside them in `harness.ts`.
+ *
+ * The failure the harness must dress up is the same class Docker Hub produced in
+ * CI (HTTP 500 from the registry).
  */
-const UNPULLABLE_IMAGE = "localhost:1/qcms-no-such-image:16-alpine";
+const UNPULLABLE_REGISTRY = "127.0.0.1:1";
+
+/** A reference that registry can never serve. */
+const UNPULLABLE_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-no-such-image:16-alpine`;
+
+/**
+ * A SECOND unpullable reference, so the fail-fast case can prime the cache itself
+ * (issue #1026).
+ *
+ * The replay cache in `harness.ts` is keyed by image reference and written in the
+ * `catch` of a pull attempt, so the second case used to depend on the first case
+ * having completed in the same worker process. A first case killed on its budget
+ * left nothing cached, and the second then made its own fresh dial and failed on a
+ * message with no `not retried` in it: two reds, the second one reading like a
+ * broken fail-fast cache rather than like the budget it actually was. A reference
+ * of its own makes the case self-contained and ordering-independent.
+ */
+const UNPULLABLE_IMAGE_FOR_REPLAY = `${UNPULLABLE_REGISTRY}/qcms-no-such-image-replay:16-alpine`;
 
 /**
  * Docker's wording for the registry timeout that failed PR #149's portal-e2e leg:
@@ -242,32 +279,56 @@ describe("startTestDb teardown ordering (issue #888)", () => {
 });
 
 describe("startTestDb image-pull failure reporting (issue #74)", () => {
-  it("reports the registry failure and the image instead of Docker's opaque error", async () => {
-    const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
+  // Both cases take the file's own boot budget rather than a local 60s (issue #1026).
+  // The dial itself now costs about a tenth of a second, so the budget is not covering
+  // it: what it covers is everything `startTestDb` does BEFORE the pull, which is the
+  // Testcontainers infrastructure step, and that step can pull the Ryuk reaper on a cold
+  // host. `CONTAINER_BOOT_TIMEOUT_MS` is the number the rest of this file uses for
+  // exactly that, and a case whose own work is milliseconds has no business carrying a
+  // tighter budget than the work it has to get through first.
+  it(
+    "reports the registry failure and the image instead of Docker's opaque error",
+    async () => {
+      const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
 
-    expect(failure).toBeInstanceOf(Error);
-    // Everything a reader needs to diagnose a CI-side registry outage: what
-    // failed, which image, and the knob that redirects it at a mirror.
-    expect(failure?.message).toContain("Could not PULL the test Postgres image");
-    expect(failure?.message).toContain(UNPULLABLE_IMAGE);
-    expect(failure?.message).toContain("QCMS_TEST_POSTGRES_IMAGE");
-    // The underlying Docker error is preserved rather than swallowed.
-    expect(failure?.message).toMatch(/cause:.+localhost:1/s);
-    expect(failure?.cause).toBeDefined();
-    // The other direction of issue #150: a genuine image failure must not be
-    // dressed up as a reaper problem either.
-    expect(failure?.message).not.toContain("Ryuk");
-  }, 60_000);
+      expect(failure).toBeInstanceOf(Error);
+      // Everything a reader needs to diagnose a CI-side registry outage: what
+      // failed, which image, and the knob that redirects it at a mirror.
+      expect(failure?.message).toContain("Could not PULL the test Postgres image");
+      expect(failure?.message).toContain(UNPULLABLE_IMAGE);
+      expect(failure?.message).toContain("QCMS_TEST_POSTGRES_IMAGE");
+      // The underlying Docker error is preserved rather than swallowed. Built from the
+      // constant rather than written out, so moving the registry host cannot leave this
+      // asserting the old one.
+      expect(failure?.message).toMatch(
+        new RegExp(`cause:.+${UNPULLABLE_REGISTRY.replace(".", "\\.")}`, "s"),
+      );
+      expect(failure?.cause).toBeDefined();
+      // The other direction of issue #150: a genuine image failure must not be
+      // dressed up as a reaper problem either.
+      expect(failure?.message).not.toContain("Ryuk");
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
 
-  it("fails the next attempt immediately rather than waiting on the registry again", async () => {
-    // The image already failed in the test above (same worker process), so this
-    // call must short-circuit: in CI that saves every later test file another
-    // pull timeout against a registry known to be unusable.
-    const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE });
+  it(
+    "fails the next attempt immediately rather than waiting on the registry again",
+    async () => {
+      // Primed HERE rather than by the case above, through the same code path that
+      // writes the cache in a real run (issue #1026). This case used to read the entry
+      // the previous case happened to leave behind, so it reported that case's failure
+      // as a broken fail-fast cache whenever the previous one was cut off.
+      const first = await captureStartFailure({ image: UNPULLABLE_IMAGE_FOR_REPLAY });
+      expect(first?.message).toContain("Could not PULL the test Postgres image");
+      expect(first?.message).not.toContain("not retried");
 
-    expect(failure?.message).toContain("not retried");
-    expect(failure?.message).toContain(UNPULLABLE_IMAGE);
-  }, 60_000);
+      const failure = await captureStartFailure({ image: UNPULLABLE_IMAGE_FOR_REPLAY });
+
+      expect(failure?.message).toContain("not retried");
+      expect(failure?.message).toContain(UNPULLABLE_IMAGE_FOR_REPLAY);
+    },
+    CONTAINER_BOOT_TIMEOUT_MS,
+  );
 });
 
 /**
