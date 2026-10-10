@@ -89,11 +89,16 @@ export const messages = {
   "repeat.removed": "{label} removed, {count} remaining.",
   "repeat.removedLast": "{label} removed, none remaining.",
   // The flow segment's error boundary (task 073). It is NOT the deploy-skew landing, which
-  // no page of this app can be: Next throws before the segment renders and a production
-  // build answers a bare 500 (ADR-43's amendment). What reaches this screen is an error
-  // thrown while the segment renders, and the remedy is the same, which is to re-read the
-  // step. The body says what survived, because a respondent arriving here has no other way
-  // to know.
+  // no page of this app can be: Next validates the action id and throws before the segment
+  // renders, so the framework answers and nothing here is consulted. At next 16.4.0 that
+  // answer is `409` with `Content-Type: text/plain`, the body `Server Action unavailable.`
+  // and the header `x-nextjs-action-not-found: 1` for a well-formed unknown id, which is
+  // what deployment skew produces, and `400` with `Invalid Server Action request.` for a
+  // malformed one (ADR-43's amendment of 2026-10-10; it was a bare 500 for both at 16.3.x,
+  // which is what this comment used to say). What reaches this screen is an error thrown
+  // while the segment renders, and the remedy is the same, which is to re-read the step.
+  // The body says what survived, because a respondent arriving here has no other way to
+  // know.
   "repeat.staleStep.title": "This page was out of date",
   "repeat.staleStep.body":
     "We could not show that step. Every answer you had already saved is kept. Anything you typed on this step without saving will need typing again.",
