@@ -70,5 +70,29 @@ export default function portalNextConfig(phase: string): NextConfig {
     // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
     // gate green.
     images: { unoptimized: true },
+    experimental: {
+      // NO UPGRADE NUDGE, because the nudge is a network call this repository did not
+      // ask for (Code Owner, 2026-10-10, issue #1050). `experimental.agentUpgrade`
+      // defaults to `"security"` at next 16.4.0, and on that default
+      // `next/dist/lib/upgrade/nudge.js` reaches
+      // `https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` whenever
+      // `@vercel/detect-agent` reports an agent. Measured on 2026-10-10 against this
+      // app's real config with `CLAUDECODE=1`, `CI=1` and the output piped - none of
+      // which suppress it - and measured again with this setting in place, where no
+      // fetch happens at all: `nudgeUpgrade` returns before it assesses anything when
+      // the policy is not one of `security`, `latest` or `experimental-future`.
+      //
+      // The objection is not the bandwidth. It is that building this app reaches a
+      // third-party registry to be told what version to be, on a machine that may be
+      // offline or behind an egress policy, and the answer is advice no gate here acts
+      // on: `.changeset/` and Dependabot are how a version moves in this repository.
+      // Same reasoning as the two generated-`AGENTS.md` opt-outs recorded in
+      // `.gitignore` and `turbo.json` - a dependency does not get to add a source of
+      // instruction or a network dependency to this repository by default.
+      //
+      // `experimental.agentFeedback` is deliberately NOT set here: it already defaults
+      // to `false`, and writing a default down makes the next reader think it moved.
+      agentUpgrade: false,
+    },
   };
 }
