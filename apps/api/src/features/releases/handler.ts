@@ -37,11 +37,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "./release.js";
-import type {
-  environmentSetRoute,
-  releaseHistoryRoute,
-  releaseVersionRoute,
-} from "./route.js";
+import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
 
 // --- typed failures (envelope codes the admin app keys off) -----------------
 

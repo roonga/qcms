@@ -416,7 +416,6 @@ describe("the release history (criteria 4 and 7)", () => {
     expect(body.releases[0]?.releasedBy).toBe(adminUserId);
     expect(Date.parse(body.releases[0]?.releasedAt ?? "")).not.toBeNaN();
   });
-
 });
 
 describe("refusals", () => {
