@@ -226,6 +226,10 @@ export default tseslint.config(
     languageOptions: {
       globals: {
         Buffer: "readonly",
+        // Beside `fetch`, and for the same reason: a script that posts a multipart body
+        // the way a browser does builds it with `FormData`, which Node has had as a
+        // global since 18 (`scripts/probe-action-id-stability.mjs`, issue #1035).
+        FormData: "readonly",
         crypto: "readonly",
         URL: "readonly",
         URLSearchParams: "readonly",

@@ -303,13 +303,25 @@ test.describe.serial("conditional form journey", () => {
     // development: `next dev` replaces the error component with its overlay driver, so a
     // dev probe says nothing about what a respondent receives.
     //
-    // Next recalculates action ids between builds, so a page held across a deploy posts an
-    // id this build does not know. The action handler validates every id BEFORE dispatch,
-    // so no page of this app renders for either case: not the flow segment's error
-    // boundary, which catches only what its own subtree throws while rendering, and not an
-    // App Router `app/500/page.tsx` or a Pages Router `pages/_error.tsx`, both of which
-    // were tried against a production build and neither of which is consulted. ADR-43's
-    // amendment carries the measurements; these two tests are what hold them true.
+    // A page held across a deploy can post an id this build does not know. The action
+    // handler validates every id BEFORE dispatch, so no page of this app renders for either
+    // case: not the flow segment's error boundary, which catches only what its own subtree
+    // throws while rendering, and not an App Router `app/500/page.tsx` or a Pages Router
+    // `pages/_error.tsx`, both of which were tried against a production build and neither
+    // of which is consulted. ADR-43's amendment carries the measurements; these two tests
+    // are what hold them true.
+    //
+    // **What makes an id stale is a per-build salt, and these two tests deliberately do not
+    // depend on it** (Code Owner, 2026-10-10, issue #1035). `next build` hashes every action
+    // id with a key it generates per build, caches under `<distDir>/cache/.rscinfo` for
+    // fourteen days and reuses for later builds in the same tree, so an image build rotates
+    // every id and an in-place local rebuild does not. Pinning
+    // `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` at image build keeps the ids and is what stops a
+    // held step breaking on a deploy; `scripts/probe-action-id-stability.mjs` measures that,
+    // because it needs clean production builds and two servers, which no Playwright project
+    // here has. What THESE tests pin is the other half, which the pin does not change: the
+    // response a genuinely unknown id gets. The ids below are literals no build ever minted,
+    // so they are unknown whatever the salt did, and that is why they belong here.
     //
     // **Since next 16.4.0 the two cases answer differently, and telling them apart is the
     // point of splitting this in two** (vercel/next.js#98123, ADR-43's amendment of
@@ -373,10 +385,13 @@ test.describe.serial("conditional form journey", () => {
       expect(response.status()).toBe(409);
       expect(response.headers()["content-type"]).toContain("text/plain");
       // The header is load-bearing beyond this test: Next sends it on an action-id refusal
-      // and on nothing this app answers itself, which is the signal issue #1035's proxy
-      // pre-check can rewrite on without minting a build stamp of our own. It rides the 400
-      // below too, so the STATUS is what makes this skew and the header is what makes it the
-      // framework talking; the malformed test asserts the other half of that pair.
+      // and on nothing this app answers itself. It rides the 400 below too, so the STATUS is
+      // what makes this skew and the header is what makes it the framework talking; the
+      // malformed test asserts the other half of that pair. That pair is the trigger the
+      // deferred half of #1035 would use, at the ingress rather than in the proxy: the proxy
+      // runs BEFORE the route and can see no response status, and the build-stamp pre-check
+      // #1035 was written around is refused for answering ahead of SEC-9's belt (ADR-43's
+      // amendment of 2026-10-10).
       expect(
         response.headers()["x-nextjs-action-not-found"],
         "the signal a proxy can tell deploy skew by",
