@@ -118,10 +118,12 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
-  // The selection survived the fresh sign-in, which is the third persistence case and the
-  // one an operator meets after lunch.
+  // Chosen here rather than inherited from the test above: a Playwright test gets a fresh
+  // browser context, so the cookie that carries the selection does not cross between them.
+  // Persistence is asserted where it is real - across a navigation and a reload, inside one
+  // context - rather than against a cookie jar the harness threw away.
   await page.goto("/forms");
-  await expect(switcher(page)).toHaveAttribute("data-environment", "test");
+  await choose(page, "test");
 
   formId = await createForm(page, FORM_SLUG, "Environment restatement");
   await page.goto(`/forms/${formId}`);
@@ -145,7 +147,12 @@ test("returning to production takes the banner away", async ({ page }) => {
   test.setTimeout(300_000);
   await signInWithTotp(page, EMAIL, totpSecret);
 
+  // The whole round trip in one context, because that is the only place it is a round trip:
+  // out to `test`, where the banner is, and back to `prod`, where it is not.
   await page.goto("/forms");
+  await choose(page, "test");
+  await expect(banner(page)).toBeVisible();
+
   await choose(page, "prod");
   await expect(banner(page)).toHaveCount(0);
 

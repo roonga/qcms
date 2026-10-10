@@ -953,7 +953,22 @@ test("publish, preview, history and secure links have zero violations", async ({
   await page.getByRole("alertdialog").getByRole("button", { name: "Publish v2" }).click();
   await expect(page.getByText("Published as v2.")).toBeVisible({ timeout: 30_000 });
 
-  // Published, so respondents can submit to it and its submissions can fan out to a
+  // Published AND released, because a published version is served nowhere until a release
+  // record says where (ADR-40, task 065): the operations sweep below starts respondent
+  // sessions on this form, and without the release the respondent route answers 409.
+  await page.goto(`/forms/${formId}/releases`);
+  await expect(page.getByTestId("qcms-release-panel")).toBeVisible();
+  await expectNoViolations(page, "the release screen, nothing released yet");
+  await page.getByRole("button", { name: "Release a version…" }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  // The release confirmation restates the environment (Q6), so it is swept with the other
+  // confirmations in this file rather than left to the specs that drive the flow.
+  await expectNoViolations(page, "release confirmation");
+  await page.getByRole("button", { name: "Release to prod" }).click();
+  await expect(page.getByTestId("qcms-release-status")).toContainText("prod");
+  await expectNoViolations(page, "the release screen with a history");
+
+  // Released, so respondents can submit to it and its submissions can fan out to a
   // webhook. That is what the operations sweep below needs, and this is the only place
   // in this file that pays for authoring a form (see `pubForm`).
   pubForm = { formId, slug, choiceId, choiceOption, countId };
