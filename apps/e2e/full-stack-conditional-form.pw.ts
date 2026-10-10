@@ -298,52 +298,109 @@ test.describe.serial("conditional form journey", () => {
       expect(response.headers()["set-cookie"] ?? "").not.toContain("qcms_session=");
     });
 
-    test("a stale Server Action id is refused by the framework, and leaks nothing (task 073)", async ({
-      page,
-    }) => {
-      // Asserted HERE and nowhere else, because this is the only suite that runs the portal
-      // as a production build, and the behaviour differs from development: `next dev`
-      // replaces the error component with its overlay driver, so a dev probe says nothing
-      // about what a respondent receives.
-      //
-      // What it receives, measured on 2026-10-02 while reviewing PR #1034: a bare
-      // `500 text/plain`. Next recalculates action ids between builds, so a page held across
-      // a deploy posts an id this build does not know; the action handler validates every id
-      // BEFORE dispatch and throws, so no page of this app renders - not the flow segment's
-      // error boundary, which catches only what its own subtree throws while rendering, and
-      // not an App Router `app/500/page.tsx` or a Pages Router `pages/_error.tsx`, both of
-      // which were tried against this build and neither of which is consulted. ADR-43's
-      // amendment carries that correction; this test is what holds it true.
-      //
-      // The request is what the browser sends: a MULTIPART post carrying an action
-      // descriptor whose id was never built. Multipart matters, because Next treats a
-      // url-encoded POST that is not a fetch action as not an action request at all and
-      // simply renders the page. No session, form or repeating group is needed to reach it,
-      // since the id check happens before anything of the app runs.
-      const unknownActionId = "00112233445566778899aabbccddeeff001122334455";
-      const response = await page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}`, {
+    // Both action-id cases are asserted HERE and nowhere else, because this is the only
+    // suite that runs the portal as a production build, and the behaviour differs from
+    // development: `next dev` replaces the error component with its overlay driver, so a
+    // dev probe says nothing about what a respondent receives.
+    //
+    // Next recalculates action ids between builds, so a page held across a deploy posts an
+    // id this build does not know. The action handler validates every id BEFORE dispatch,
+    // so no page of this app renders for either case: not the flow segment's error
+    // boundary, which catches only what its own subtree throws while rendering, and not an
+    // App Router `app/500/page.tsx` or a Pages Router `pages/_error.tsx`, both of which
+    // were tried against a production build and neither of which is consulted. ADR-43's
+    // amendment carries the measurements; these two tests are what hold them true.
+    //
+    // **Since next 16.4.0 the two cases answer differently, and telling them apart is the
+    // point of splitting this in two** (vercel/next.js#98123, ADR-43's amendment of
+    // 2026-10-10). Next gates the id on its LENGTH first: an id of the wrong length is
+    // malformed and gets a 400, and only a well-formed id reaches the module map and gets a
+    // 409. Before 16.4.0 both were a bare `500 text/plain`, which is why one test covered
+    // both and why its id was never checked against the real shape.
+    //
+    // That is also a defect this split repairs. The single test posted a 44-character id
+    // where a real action id in this build is 42, so it exercised the MALFORMED path while
+    // its name claimed deployment skew, and at 16.3.x nothing could reveal the mistake
+    // because both paths answered 500.
+    //
+    // The request in both is what the browser sends: a MULTIPART post carrying an action
+    // descriptor. Multipart matters, because Next treats a url-encoded POST that is not a
+    // fetch action as not an action request at all and simply renders the page. No session,
+    // form or repeating group is needed to reach either, since the id check happens before
+    // anything of the app runs. The real action id's 200 is covered by the respondent-route
+    // tests below rather than restated here.
+
+    /** A well-formed action id, 42 lowercase hex characters, that no build ever minted. */
+    const UNKNOWN_ACTION_ID = "00112233445566778899aabbccddeeff0011223344";
+    /** The same bytes plus two: the wrong length, so Next refuses the SHAPE rather than the id. */
+    const MALFORMED_ACTION_ID = "00112233445566778899aabbccddeeff001122334455";
+
+    const postActionId = async (page: Page, id: string) =>
+      page.request.post(`${PORTAL_URL}/f/${FORM_SLUG}`, {
         maxRedirects: 0,
         headers: BROWSER_FORM_POST,
         multipart: {
           $ACTION_REF_1: "",
-          "$ACTION_1:0": `{"id":"${unknownActionId}","bound":"$@1"}`,
+          "$ACTION_1:0": `{"id":"${id}","bound":"$@1"}`,
           "$ACTION_1:1": "[{}]",
         },
       });
 
-      expect(response.status()).toBe(500);
-      const body = await response.text();
-      // The assertions that matter are about what is NOT in it. The framework's own words
-      // name the deployment and must not reach a respondent (SEC-13's spirit: a public
-      // surface discloses nothing about the build), and no session identifier appears.
+    /**
+     * What the respondent must never receive, whichever way the id is refused: the
+     * framework's own wording, which names the deployment (SEC-13's spirit: a public
+     * surface discloses nothing about the build), a session identifier, or a page. The
+     * page assertion is positive so "nothing is rendered" cannot quietly become
+     * "something broken is rendered".
+     */
+    const expectLeaksNothing = (body: string) => {
       expect(body, "the framework's deployment wording stays in the log").not.toContain(
         "Failed to find Server Action",
       );
       expect(body).not.toMatch(/ses_[0-9a-f]/);
-      // And it is a dead end rather than a redirect loop: a respondent's recovery is a GET
-      // of the step, which still serves it. Asserted positively so "nothing is rendered"
-      // cannot quietly become "something broken is rendered".
-      expect(body.length, "a bare framework 500 rather than a page").toBeLessThan(200);
+      expect(body.length, "a bare framework response rather than a page").toBeLessThan(200);
+    };
+
+    test("a stale Server Action id is refused as a 409, and leaks nothing (task 073)", async ({
+      page,
+    }) => {
+      // The deployment-skew case: a real stale id is a real id, so it is well formed and
+      // only the module map rejects it.
+      expect(UNKNOWN_ACTION_ID, "a real action id in this build is 42 hex").toHaveLength(42);
+
+      const response = await postActionId(page, UNKNOWN_ACTION_ID);
+
+      expect(response.status()).toBe(409);
+      expect(response.headers()["content-type"]).toContain("text/plain");
+      // The header is load-bearing beyond this test: Next sends it on an action-id refusal
+      // and on nothing this app answers itself, which is the signal issue #1035's proxy
+      // pre-check can rewrite on without minting a build stamp of our own. It rides the 400
+      // below too, so the STATUS is what makes this skew and the header is what makes it the
+      // framework talking; the malformed test asserts the other half of that pair.
+      expect(
+        response.headers()["x-nextjs-action-not-found"],
+        "the signal a proxy can tell deploy skew by",
+      ).toBe("1");
+      const body = await response.text();
+      expect(body.trim()).toBe("Server Action unavailable.");
+      expectLeaksNothing(body);
+    });
+
+    test("a malformed Server Action id is refused as a 400, and leaks nothing (task 073)", async ({
+      page,
+    }) => {
+      // Not deployment skew. A wrong-length id cannot have come from a browser holding one
+      // of our pages, so this is the shaped-request case, and it is asserted separately so
+      // that a future framework change cannot merge the two statuses unnoticed.
+      expect(MALFORMED_ACTION_ID.length, "deliberately not 42").not.toBe(42);
+
+      const response = await postActionId(page, MALFORMED_ACTION_ID);
+
+      expect(response.status()).toBe(400);
+      expect(response.headers()["content-type"]).toContain("text/plain");
+      const body = await response.text();
+      expect(body.trim()).toBe("Invalid Server Action request.");
+      expectLeaksNothing(body);
     });
 
     test("completes the affirmative respondent route", async ({ page }) => {

@@ -12,16 +12,21 @@ import { buttonClass } from "@/lib/ui";
  *
  * It does not catch a stale Server Action id. Next recalculates action ids between builds,
  * so a respondent with scripting off who holds a step page across a deploy posts an id the
- * new build does not know, and Next's action handler validates every id and **throws
- * before this segment renders** (`E975`). An App Router error boundary catches what its own
+ * new build does not know, and Next's action handler validates every id and refuses it
+ * **before this segment renders**. An App Router error boundary catches what its own
  * subtree throws while rendering; a request that never got that far reaches no boundary. A
- * crafted post with an unknown action id showed the framework's 500 instead, which is how
- * the claim was found to be false (PR #1034's review, 2026-10-02).
+ * crafted post with an unknown action id showed the framework's own response instead, which
+ * is how the claim was found to be false (PR #1034's review, 2026-10-02).
  *
- * **Nor does anything else this app can write.** A production build answers that request
- * with `500 text/plain "Internal Server Error"`: an App Router `app/500/page.tsx` and a
- * Pages Router `pages/_error.tsx` were both tried and neither is consulted. ADR-43's
- * amendment carries the measurements, and the respondent's recovery is a reload.
+ * **Nor does anything else this app can write.** Since next 16.4.0 a production build
+ * answers that request with **`409 Conflict`, `text/plain`, `Server Action unavailable.`
+ * and the header `x-nextjs-action-not-found: 1`**, and a *malformed* id with `400` and
+ * `Invalid Server Action request.`; before 16.4.0 both were a bare
+ * `500 text/plain "Internal Server Error"`. The status changed and the reachability did
+ * not: an App Router `app/500/page.tsx` and a Pages Router `pages/_error.tsx` were both
+ * tried and neither is consulted, so no page this repository owns renders for any of them.
+ * ADR-43's amendment of 2026-10-10 carries the measurements, and the respondent's recovery
+ * is a reload either way.
  *
  * ## What it does catch, and why the screen still reads this way
  *

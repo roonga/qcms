@@ -17,8 +17,8 @@
  * ```
  *
  * The lock path is `path.join(distDir, 'lock')`, taken under
- * `experimental.lockDistDir` (default `true`) - vercel/next.js v16.3.8,
- * `packages/next/src/build/index.ts` lines 1292-1298, message raised in
+ * `experimental.lockDistDir` (default `true`) - vercel/next.js v16.4.0,
+ * `packages/next/src/build/index.ts` lines 1370-1376, message raised in
  * `packages/next/src/build/lockfile.ts` line 225 (`acquireWithRetriesOrExit`, which
  * retries for 1000 ms in 10 ms steps and then exits 1). The feature landed in
  * vercel/next.js PR #84428, "Acquire a lockfile on `distDir` in `next dev` and
