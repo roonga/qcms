@@ -10,7 +10,7 @@ every environment (ADR-18); what varies per environment is which published versi
 | Method | Path                          | Scope         | Notes                                                                      |
 | ------ | ----------------------------- | ------------- | -------------------------------------------------------------------------- |
 | `POST` | `/forms/{id}/releases`        | `forms:write` | Release or promote a published version. Writes one record, copies nothing.  |
-| `GET`  | `/forms/{id}/releases`        | `forms:read`  | The release history, newest first, each rollback marked. `?environment=`.   |
+| `GET`  | `/forms/{id}/releases`        | `forms:read`  | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
 | `GET`  | `/releases`                   | `forms:read`  | What is released where: the current release per form. `?environment=`.      |
 | `GET`  | `/environments`               | `forms:read`  | The live set, in `position` order, for the Q6 switcher.                     |
 

@@ -9,7 +9,9 @@ import type {
   FormStatusState,
   MintLinksState,
   PreviewConditionState,
+  PublishReleaseState,
   PublishState,
+  ReleaseState,
   RevokeLinkState,
   SaveDraftState,
   SettingsState,
@@ -30,6 +32,7 @@ import {
   validateDraft,
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
+import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -386,6 +389,72 @@ export async function publishFormAction(formId: string): Promise<PublishState> {
     status: "published",
     version: result.data.version,
     publishedAt: result.data.publishedAt,
+  };
+}
+
+/**
+ * Release a published version to an environment, or promote it there (ADR-40, task 065).
+ *
+ * The environment comes from the **client** here, unlike the form id, and that is correct
+ * rather than an oversight: the operator is choosing it in the dialog, the API validates it
+ * against the live set and refuses one this deployment does not serve, and nothing about
+ * which environment a release names is a privilege this app could grant. What a caller
+ * cannot do is aim the release at another form, because the id is bound from the route.
+ *
+ * **Releasing an earlier version is a rollback and is this same call.** There is no second
+ * action, because there is no second mechanism: the API derives the marking from the
+ * release's predecessor and reports it, and the screen says so afterwards.
+ */
+export async function releaseVersionAction(
+  formId: string,
+  input: {
+    readonly environment: string;
+    readonly version: number;
+    readonly fromEnvironment?: string;
+  },
+): Promise<ReleaseState> {
+  const session = await requireAdminSession();
+  const result = await releaseVersion(session, formId, input);
+  if (!result.ok) return { status: "error", message: result.message };
+  // The release screen, the version list and the form's own header all describe what is
+  // released, so the whole subtree is re-read rather than one route of it.
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${formId}`, "layout");
+  return {
+    status: "released",
+    version: result.data.version,
+    environment: result.data.environment,
+    rollback: result.data.rollback,
+  };
+}
+
+/**
+ * Publish the open draft and release the new version, in one act (finding 2).
+ *
+ * One intent, one act, and **atomically or not at all**: the API writes the version, the
+ * release record and the `form.released` event in one transaction, so a refused release
+ * leaves no published version behind and the author's draft where they left it. A refused
+ * publish comes back as the same work list an ordinary publish's refusal does, because it
+ * is the same refusal.
+ */
+export async function publishAndReleaseAction(
+  formId: string,
+  environment: string,
+): Promise<PublishReleaseState> {
+  const session = await requireAdminSession();
+  const result = await publishAndRelease(session, formId, environment);
+  if (!result.ok) {
+    if (result.issues.length > 0) {
+      return { status: "rejected", issues: result.issues, message: result.message };
+    }
+    return { status: "error", message: result.message };
+  }
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${formId}`, "layout");
+  return {
+    status: "released",
+    version: result.data.version,
+    environment: result.data.environment,
   };
 }
 

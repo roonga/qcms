@@ -10,7 +10,6 @@ import {
   getReleasedVersion,
   insertFormRelease,
   insertFormVersion,
-  listCurrentReleases,
   listFormReleases,
   listReleasedVersions,
 } from "./index.js";
@@ -213,7 +212,7 @@ describe("what is released where (criteria 1 and 5)", () => {
     expect((await getReleasedVersion(testDb.db, formId, "prod"))?.version).toBe(1);
   });
 
-  it("lists the current release per form and environment, newest only", async () => {
+  it("answers the current release per environment from the newest row of each pair", async () => {
     const formId = await seedForm("currentlist", 3);
     for (const version of [1, 2, 3]) {
       await insertFormRelease(testDb.db, {
@@ -231,23 +230,13 @@ describe("what is released where (criteria 1 and 5)", () => {
       fromEnvironment: "test",
     });
 
-    const inTest = (await listCurrentReleases(testDb.db, "test")).filter(
-      (row) => row.formId === formId,
-    );
-    expect(inTest).toHaveLength(1);
-    expect(inTest[0]?.version).toBe(3);
-
-    const everywhere = (await listCurrentReleases(testDb.db)).filter(
-      (row) => row.formId === formId,
-    );
-    expect(
-      everywhere
-        .map((row) => [row.environment, row.version])
-        .sort((a, b) => (a[0]! < b[0]! ? -1 : 1)),
-    ).toEqual([
-      ["prod", 1],
-      ["test", 3],
-    ]);
+    // "What is released where", which is what the admin's release screen shows for one
+    // form: the newest row per environment and nothing older, read per pair rather than
+    // computed from the history by the caller.
+    expect((await getReleasedVersion(testDb.db, formId, "test"))?.version).toBe(3);
+    expect((await getReleasedVersion(testDb.db, formId, "prod"))?.version).toBe(1);
+    // Every row is still there behind those two answers.
+    expect(await listFormReleases(testDb.db, formId)).toHaveLength(4);
   });
 });
 

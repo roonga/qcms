@@ -26,7 +26,6 @@ import {
   getForm,
   getFormVersion,
   getReleasedVersion,
-  listCurrentReleases,
   listEnvironments,
   listFormReleases,
 } from "@roonga/qcms-db";
@@ -39,7 +38,6 @@ import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "./release.js";
 import type {
-  currentReleasesRoute,
   environmentSetRoute,
   releaseHistoryRoute,
   releaseVersionRoute,
@@ -198,31 +196,6 @@ export function makeReleaseHistoryHandler(
 
     const releases = await listFormReleases(deps.databases.control, formId, environment);
     return c.json({ releases: releases.map((row) => releaseBody(row)) }, 200);
-  };
-}
-
-// --- GET /admin/releases ----------------------------------------------------
-
-export function makeCurrentReleasesHandler(
-  deps: Deps,
-): RouteHandler<typeof currentReleasesRoute, ApiEnv> {
-  return async (c) => {
-    const { environment } = c.req.valid("query");
-    if (environment !== undefined) requireEnvironment(deps, environment);
-
-    const releases = await listCurrentReleases(deps.databases.control, environment);
-    return c.json(
-      {
-        releases: releases.map((row) => ({
-          formId: row.formId,
-          environment: row.environment,
-          version: row.version,
-          releasedAt: row.releasedAt.toISOString(),
-          releasedBy: row.releasedBy,
-        })),
-      },
-      200,
-    );
   };
 }
 

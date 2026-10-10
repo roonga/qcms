@@ -173,12 +173,10 @@ export { type EnvironmentRow, listEnvironments } from "./environments.js";
 // writes a row and copies nothing, and the rollback reading is derived from the row's
 // predecessor rather than stored.
 export {
-  type CurrentRelease,
   type FormReleaseHistoryRow,
   type FormReleaseRow,
   getReleasedVersion,
   insertFormRelease,
-  listCurrentReleases,
   listFormReleases,
   listReleasedVersions,
 } from "./releases.js";

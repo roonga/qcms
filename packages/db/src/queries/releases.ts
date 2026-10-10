@@ -59,15 +59,6 @@ export interface FormReleaseHistoryRow extends FormReleaseRow {
   readonly rollback: boolean;
 }
 
-/** The current release of one form in one environment, as the admin's screens read it. */
-export interface CurrentRelease {
-  readonly formId: FormId;
-  readonly environment: string;
-  readonly version: number;
-  readonly releasedAt: Date;
-  readonly releasedBy: string;
-}
-
 /**
  * Record a release of a published version into one environment (ADR-40).
  *
@@ -195,35 +186,6 @@ export async function listFormReleases(
     replacedVersion: row.replacedVersion === null ? null : Number(row.replacedVersion),
     rollback: row.replacedVersion !== null && Number(row.replacedVersion) > row.version,
   }));
-}
-
-/**
- * What is released where: the current release of every form that has one, in one
- * environment or across the live set.
- *
- * `distinct on (form_id, environment)` with the ordering the current release is defined
- * by, which is one index scan rather than a per-form subquery; the admin's environment
- * screen is the caller.
- */
-export async function listCurrentReleases(
-  exec: Executor,
-  environment?: string,
-): Promise<CurrentRelease[]> {
-  const selection = exec
-    .selectDistinctOn([formReleases.formId, formReleases.environment], {
-      formId: formReleases.formId,
-      environment: formReleases.environment,
-      version: formReleases.version,
-      releasedAt: formReleases.releasedAt,
-      releasedBy: formReleases.releasedBy,
-    })
-    .from(formReleases);
-  const rows = await (
-    environment === undefined
-      ? selection
-      : selection.where(eq(formReleases.environment, environment))
-  ).orderBy(formReleases.formId, formReleases.environment, desc(formReleases.sequence));
-  return rows;
 }
 
 /**

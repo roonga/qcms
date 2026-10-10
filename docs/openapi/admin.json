@@ -1406,57 +1406,6 @@
           "environments"
         ]
       },
-      "CurrentReleasesResponse": {
-        "type": "object",
-        "properties": {
-          "releases": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CurrentRelease"
-            }
-          }
-        },
-        "required": [
-          "releases"
-        ]
-      },
-      "CurrentRelease": {
-        "type": "object",
-        "properties": {
-          "formId": {
-            "type": "string",
-            "example": "frm_signup"
-          },
-          "environment": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 53,
-            "pattern": "^[a-z][a-z0-9]*$",
-            "example": "test"
-          },
-          "version": {
-            "type": "integer",
-            "minimum": 0,
-            "exclusiveMinimum": true,
-            "example": 3
-          },
-          "releasedAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "releasedBy": {
-            "type": "string",
-            "example": "usr_01H..."
-          }
-        },
-        "required": [
-          "formId",
-          "environment",
-          "version",
-          "releasedAt",
-          "releasedBy"
-        ]
-      },
       "ReleaseHistoryResponse": {
         "type": "object",
         "properties": {
@@ -4491,67 +4440,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EnvironmentSetResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid credentials",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/admin/releases": {
-      "get": {
-        "summary": "What is released where: the current release of every form that has one (admin)",
-        "tags": [
-          "releases"
-        ],
-        "security": [
-          {
-            "MachineToken": [
-              "forms:read"
-            ]
-          }
-        ],
-        "parameters": [
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 53,
-              "pattern": "^[a-z][a-z0-9]*$",
-              "example": "test"
-            },
-            "required": false,
-            "name": "environment",
-            "in": "query"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "The current release per form and environment",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CurrentReleasesResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorEnvelope"
                 }
               }
             }

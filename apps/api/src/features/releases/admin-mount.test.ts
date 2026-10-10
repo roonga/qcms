@@ -53,7 +53,7 @@ describe("releases admin auth seam", () => {
   it("gates the reads the same way → 401", async () => {
     const deps = makeDeps();
     const app = createApp(deps, ADMIN_ONLY, adminGroups);
-    for (const path of ["/admin/releases", "/admin/environments", "/admin/forms/frm_x/releases"]) {
+    for (const path of ["/admin/environments", "/admin/forms/frm_x/releases"]) {
       const res = await app.request(path, {
         headers: { "x-qcms-internal-token": internalTokenFor(deps.config) },
       });

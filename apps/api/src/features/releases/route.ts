@@ -23,15 +23,13 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { errorResponses, jsonBody, withScopes } from "../../openapi.js";
 import {
-  makeCurrentReleasesHandler,
   makeEnvironmentSetHandler,
   makeReleaseHistoryHandler,
   makeReleaseVersionHandler,
 } from "./handler.js";
 import {
-  CurrentReleasesQuery,
-  CurrentReleasesResponse,
   EnvironmentSetResponse,
+  ReleaseHistoryQuery,
   FormIdParam,
   ReleaseHistoryResponse,
   ReleaseVersionBody,
@@ -68,29 +66,13 @@ export const releaseHistoryRoute = createRoute({
   path: "/forms/{id}/releases",
   summary: "The release history of a form: who released what, when, and from where (admin)",
   tags,
-  request: { params: FormIdParam, query: CurrentReleasesQuery },
+  request: { params: FormIdParam, query: ReleaseHistoryQuery },
   responses: {
     200: {
       description: "Every release of this form, newest first, each rollback marked",
       content: { "application/json": { schema: ReleaseHistoryResponse } },
     },
     ...errorResponses(400, 401, 404),
-  },
-  ...withScopes("forms:read"),
-});
-
-export const currentReleasesRoute = createRoute({
-  method: "get",
-  path: "/releases",
-  summary: "What is released where: the current release of every form that has one (admin)",
-  tags,
-  request: { query: CurrentReleasesQuery },
-  responses: {
-    200: {
-      description: "The current release per form and environment",
-      content: { "application/json": { schema: CurrentReleasesResponse } },
-    },
-    ...errorResponses(400, 401),
   },
   ...withScopes("forms:read"),
 });
@@ -117,7 +99,6 @@ export const environmentSetRoute = createRoute({
 
 export const registerReleases: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(environmentSetRoute, makeEnvironmentSetHandler(deps));
-  group.openapi(currentReleasesRoute, makeCurrentReleasesHandler(deps));
   group.openapi(releaseHistoryRoute, makeReleaseHistoryHandler(deps));
   group.openapi(releaseVersionRoute, makeReleaseVersionHandler(deps));
 };

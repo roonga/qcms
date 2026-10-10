@@ -96,23 +96,8 @@ export const ReleasedResponse = z
   })
   .openapi("ReleasedResponse");
 
-/** The current release of one form in one environment: what is released where. */
-export const CurrentRelease = z
-  .object({
-    formId: z.string().openapi({ example: "frm_signup" }),
-    environment: EnvironmentName,
-    version: z.number().int().positive().openapi({ example: 3 }),
-    releasedAt: z.iso.datetime(),
-    releasedBy: z.string().openapi({ example: "usr_01H..." }),
-  })
-  .openapi("CurrentRelease");
-
-export const CurrentReleasesResponse = z
-  .object({ releases: z.array(CurrentRelease) })
-  .openapi("CurrentReleasesResponse");
-
-/** Narrow the "what is released where" read to one environment. */
-export const CurrentReleasesQuery = z.object({
+/** Narrow the history to one environment. */
+export const ReleaseHistoryQuery = z.object({
   environment: EnvironmentName.optional().openapi({
     param: { name: "environment", in: "query" },
   }),

@@ -417,20 +417,6 @@ describe("the release history (criteria 4 and 7)", () => {
     expect(Date.parse(body.releases[0]?.releasedAt ?? "")).not.toBeNaN();
   });
 
-  it("answers what is released where, across forms", async () => {
-    const { formId } = await seedForm("whatwhere", 2);
-    await post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
-
-    const res = await get("/releases?environment=test");
-    const body = (await res.json()) as {
-      releases: Array<{ formId: string; environment: string; version: number }>;
-    };
-    expect(body.releases).toContainEqual(
-      expect.objectContaining({ formId, environment: "test", version: 2 }),
-    );
-    // One row per form and environment: the newest, which is what "released" means.
-    expect(body.releases.filter((row) => row.formId === formId)).toHaveLength(1);
-  });
 });
 
 describe("refusals", () => {
@@ -494,13 +480,15 @@ describe("the switcher's environment steers an admin read (Q6)", () => {
     // The release reads here are control-plane and take their environment from the query,
     // so what the header steers is every per-environment admin read behind it. The
     // observable proof that the middleware ran at all is its refusal.
-    const refused = await get("/releases", { [REQUEST_ENVIRONMENT_HEADER]: "staging" });
+    const refused = await get(`/forms/${formId}/releases`, {
+      [REQUEST_ENVIRONMENT_HEADER]: "staging",
+    });
     expect(refused.status).toBe(400);
     expect(((await refused.json()) as { error: { code: string } }).error.code).toBe(
       "UNKNOWN_ENVIRONMENT",
     );
 
-    const accepted = await get("/releases?environment=test", {
+    const accepted = await get(`/forms/${formId}/releases?environment=test`, {
       [REQUEST_ENVIRONMENT_HEADER]: "test",
     });
     expect(accepted.status).toBe(200);

@@ -55,7 +55,6 @@ describe("query helper import surface", () => {
     "insertFormRelease",
     "getReleasedVersion",
     "listFormReleases",
-    "listCurrentReleases",
     "listReleasedVersions",
     // sessions
     "createSession",

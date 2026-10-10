@@ -95,6 +95,7 @@ describe("the rail's markup", () => {
       "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
+      "/forms/frm_life/releases",
       "/forms/frm_life/links",
       "/forms/frm_life/responses",
       "/forms/frm_life/webhooks",

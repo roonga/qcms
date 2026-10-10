@@ -6,8 +6,8 @@ import { useCallback, useState, useTransition } from "react";
 import { Alert, Button, Dialog } from "@/components/kit";
 import { AgentProvenanceTag } from "@/components/forms/agent-provenance-tag";
 import { IssueEntry } from "@/components/forms/validation-panel";
-import type { FormStatusState, PublishState } from "@/lib/forms/builder-state";
-import { IDLE_FORM_STATUS, IDLE_PUBLISH } from "@/lib/forms/builder-state";
+import type { FormStatusState, PublishReleaseState, PublishState } from "@/lib/forms/builder-state";
+import { IDLE_FORM_STATUS, IDLE_PUBLISH, IDLE_PUBLISH_RELEASE } from "@/lib/forms/builder-state";
 import { freezeSummary, nextVersion } from "@/lib/forms/publish";
 import type { DraftForm, FormIssue } from "@/lib/forms/types";
 import { t, tPlural } from "@/lib/i18n/en";
@@ -54,7 +54,9 @@ export function FormActions({
   draft,
   latestVersion,
   publish,
+  publishAndRelease,
   setStatus,
+  environment,
   agentAssisted = false,
 }: {
   readonly slug: string;
@@ -63,7 +65,24 @@ export function FormActions({
   readonly draft: DraftForm | null;
   readonly latestVersion: number | undefined;
   readonly publish: () => Promise<PublishState>;
+  /**
+   * The combined action finding 2 accepted: publish this draft and release the new version
+   * to one environment, atomically or not at all.
+   *
+   * A second prop rather than a flag on `publish`, because the two are different acts with
+   * different consequences: one adds a version to the library, the other also decides what
+   * a respondent in that environment is served.
+   */
+  readonly publishAndRelease: (environment: string) => Promise<PublishReleaseState>;
   readonly setStatus: (action: "close" | "reopen") => Promise<FormStatusState>;
+  /**
+   * The environment the operator's Q6 switcher has selected.
+   *
+   * It is what the combined action releases to, and it is **named in every confirmation on
+   * this screen**: an act performed against the wrong environment is not undoable, which is
+   * the whole reason Q6 asks for the restatement.
+   */
+  readonly environment: string;
   /**
    * Task 041's provenance marker: whether the stored draft this dialog is about to
    * freeze carries any agent-assisted change (ADR-25). Server-sourced, from the same
@@ -73,8 +92,11 @@ export function FormActions({
    */
   readonly agentAssisted?: boolean;
 }) {
-  const [dialog, setDialog] = useState<"publish" | "close" | "reopen" | null>(null);
+  const [dialog, setDialog] = useState<"publish" | "publishRelease" | "close" | "reopen" | null>(
+    null,
+  );
   const [published, setPublished] = useState<PublishState>(IDLE_PUBLISH);
+  const [releasedState, setReleased] = useState<PublishReleaseState>(IDLE_PUBLISH_RELEASE);
   const [lifecycle, setLifecycle] = useState<FormStatusState>(IDLE_FORM_STATUS);
   const [isPending, startTransition] = useTransition();
 
@@ -107,6 +129,26 @@ export function FormActions({
         });
     });
   }, [publish]);
+
+  const runPublishRelease = useCallback(() => {
+    startTransition(() => {
+      void publishAndRelease(environment)
+        .then((state) => {
+          setReleased(state);
+          // A rejection carries the same work list an ordinary publish's does, and that
+          // list lives on the page behind this dialog - so the dialog closes either way,
+          // exactly as the publish one does.
+          setDialog(null);
+        })
+        // The same trap as `runPublish`: `adminApiFetch` does not throw on a non-2xx, but a
+        // transport failure still rejects and without this the dialog would sit there
+        // looking like a slow network.
+        .catch(() => {
+          setReleased({ status: "error", message: unexpected() });
+          setDialog(null);
+        });
+    });
+  }, [publishAndRelease, environment]);
 
   const runStatus = useCallback(
     (action: "close" | "reopen") => {
@@ -147,6 +189,20 @@ export function FormActions({
           }}
         >
           {t("forms.publish.action")}
+        </Button>
+        {/* One intent, one act (finding 2). Beside Publish rather than replacing it,
+            because publishing without releasing is still what an author does when the
+            version is not ready to serve anywhere. */}
+        <Button
+          variant="secondary"
+          size="md"
+          isDisabled={!canPublish || isPending}
+          onPress={() => {
+            setReleased(IDLE_PUBLISH_RELEASE);
+            setDialog("publishRelease");
+          }}
+        >
+          {t("forms.publishRelease.action")}
         </Button>
         <Button
           variant="secondary"
@@ -206,6 +262,24 @@ export function FormActions({
             {t("forms.publish.failed", { message: published.message ?? "" })}
           </Alert>
         )}
+        {releasedState.status === "released" && (
+          <Alert
+            variant="success"
+            title={t("forms.publishRelease.done", {
+              version: releasedState.version ?? version,
+              environment: releasedState.environment ?? environment,
+            })}
+          >
+            <Link className="qcms-text-link" href={`/forms/${encodeURIComponent(formId)}/releases`}>
+              {t("forms.tab.releases")}
+            </Link>
+          </Alert>
+        )}
+        {releasedState.status === "error" && (
+          <Alert variant="error">
+            {t("forms.publishRelease.failed", { message: releasedState.message ?? "" })}
+          </Alert>
+        )}
         {lifecycle.status === "error" && (
           <Alert variant="error">
             {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}
@@ -215,6 +289,10 @@ export function FormActions({
 
       {published.status === "rejected" && draft !== null && (
         <PublishRejection issues={published.issues ?? []} draft={draft} />
+      )}
+
+      {releasedState.status === "rejected" && draft !== null && (
+        <PublishRejection issues={releasedState.issues ?? []} draft={draft} />
       )}
 
       {dialog === "publish" && (
@@ -256,9 +334,81 @@ export function FormActions({
               {t("forms.publish.sessions", { version })}
             </p>
             <p className="text-sm text-(--color-text-muted)">{t("forms.publish.immutable")}</p>
+            {/* Publishing reaches no environment at all (ADR-40): the version joins the
+                library and is served nowhere until it is released. Said here because
+                "Publish" is the word an author is most likely to read as "make it live". */}
+            <p className="text-sm text-(--color-text-muted)">{t("forms.releases.intro")}</p>
             <div className="flex flex-wrap gap-2">
               <Button variant="primary" size="md" isDisabled={isPending} onPress={runPublish}>
                 {isPending ? t("forms.publish.pending") : t("forms.publish.confirm", { version })}
+              </Button>
+              <Button
+                variant="ghost"
+                size="md"
+                isDisabled={isPending}
+                onPress={() => {
+                  setDialog(null);
+                }}
+              >
+                {t("forms.publish.cancel")}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
+
+      {dialog === "publishRelease" && (
+        <Dialog
+          isOpen
+          role="alertdialog"
+          title={t("forms.publishRelease.title", { slug, environment })}
+          description={t("forms.publishRelease.body", { environment })}
+          isDismissable={!isPending}
+          onOpenChange={(isOpen) => {
+            if (!isOpen) setDialog(null);
+          }}
+        >
+          <div className="flex flex-col gap-4" data-testid="qcms-publish-release-dialog">
+            {agentAssisted && <AgentProvenanceTag />}
+            <p className="text-sm text-(--color-text)">
+              {t("forms.publish.freezes", {
+                steps: tPlural(
+                  "forms.publish.freezes.steps.one",
+                  "forms.publish.freezes.steps.other",
+                  summary.steps,
+                ),
+                pins: tPlural(
+                  "forms.publish.freezes.pins.one",
+                  "forms.publish.freezes.pins.other",
+                  summary.pins,
+                ),
+                rules: tPlural(
+                  "forms.publish.freezes.rules.one",
+                  "forms.publish.freezes.rules.other",
+                  summary.rules,
+                ),
+              })}
+            </p>
+            {/* Q6's restatement, on the one action here that decides what a respondent is
+                served. */}
+            <p className="text-sm font-semibold" data-testid="qcms-publish-release-environment">
+              {t("environment.inThis", { environment })}
+            </p>
+            {releasedState.status === "error" && (
+              <Alert variant="error">
+                {t("forms.publishRelease.failed", { message: releasedState.message ?? "" })}
+              </Alert>
+            )}
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="primary"
+                size="md"
+                isDisabled={isPending}
+                onPress={runPublishRelease}
+              >
+                {isPending
+                  ? t("forms.publishRelease.pending")
+                  : t("forms.publishRelease.confirm", { environment })}
               </Button>
               <Button
                 variant="ghost"
@@ -293,6 +443,13 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4">
+            {/* Q6 again. Closing is still a whole-form state until task 066 makes it per
+                environment, and the restatement is what this task owes it: an operator who
+                has been working in `test` all morning must not read a confirmation that
+                says nothing about where it lands. */}
+            <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
+              {t("environment.inThis", { environment })}
+            </p>
             {lifecycle.status === "error" && (
               <Alert variant="error">
                 {t("forms.lifecycle.failed", { message: lifecycle.message ?? "" })}
