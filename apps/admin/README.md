@@ -210,8 +210,15 @@ It is a **development** tool. It writes the database directly, which is why it l
   without discarding unsaved work, which a redirect-with-an-error-code round trip cannot
   do. A server action is still a POST endpoint that nothing guards for you, so each one
   calls `requireAdminSession()` itself, and each returns the rejected submission alongside
-  the error so the form can be restored (a form submitted before hydration posts as a full
-  navigation, which resets client state).
+  the error so the form can be restored. **A submission that leaves before hydration is not
+  one of those cases, and this bullet used to say it was** (issue #1032): the post goes as a
+  full navigation, this app sets `Referrer-Policy: no-referrer`, so the request carries
+  `Origin: null`, and Next's action handler refuses that outright - a missing `Origin` is let
+  through with a warning, the literal string `null` is not. Nothing is restored, because
+  nothing reaches the action. The Code Owner's answer (2026-10-10) is that the submit controls
+  render disabled until the page has hydrated, so the window holds no reachable press;
+  `lib/hydrated.ts` carries the mechanism and the reasoning. The returned-submission path is
+  still real for every refusal that arrives after the attach, which is all of them.
 - **The single-question preview is compiled by the API**, at
   `GET /admin/questions/{id}/versions/{v}/preview`, and only rendered here, through
   `A2UIStepRenderer` from `@roonga/qcms-ui`. Compiling in the app would put the compiler and the

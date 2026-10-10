@@ -69,5 +69,24 @@ export default function adminNextConfig(phase: string): NextConfig {
     // keeps the MIT-redistribution no-copyleft policy pure and the check:licenses
     // gate green.
     images: { unoptimized: true },
+    experimental: {
+      // NO UPGRADE NUDGE, for the reason the portal's config states at length (Code
+      // Owner, 2026-10-10, issue #1050). `experimental.agentUpgrade` defaults to
+      // `"security"` at next 16.4.0, and on that default
+      // `next/dist/lib/upgrade/nudge.js` reaches
+      // `https://registry.npmjs.org/-/npm/v1/security/advisories/bulk` whenever
+      // `@vercel/detect-agent` reports an agent - measured on 2026-10-10 against this
+      // app's real config with `CLAUDECODE=1`, `CI=1` and the output piped, which do
+      // not suppress it, and measured again with this setting, where no fetch happens.
+      //
+      // Set in both apps rather than once, because there is no shared Next config in
+      // this repository and a per-app config is the only place Next reads it from. The
+      // scaffolding templates carry the same setting, synced by
+      // `pnpm qcms:sync-templates`.
+      //
+      // `experimental.agentFeedback` is deliberately NOT set: it already defaults to
+      // `false`.
+      agentUpgrade: false,
+    },
   };
 }
