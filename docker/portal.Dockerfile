@@ -22,13 +22,43 @@ COPY scripts ./scripts
 COPY tooling ./tooling
 
 RUN pnpm install --frozen-lockfile
+
+# Next's Server Action salt, and the one build input that decides whether a no-JS
+# respondent survives a deploy (issue #1035, Code Owner 2026-10-10).
+#
+# `next build` hashes every Server Action id with a key it generates per build, caches
+# under `<distDir>/cache/.rscinfo` for fourteen days and reuses for later builds IN THE
+# SAME TREE. An image build is never the same tree, so every image gets a fresh key, so
+# every image renames every action id, so a respondent holding a repeating step across a
+# deploy posts an id the new build does not know and gets Next's `409`. Pin this and the
+# ids survive: the held page's Add still runs, including across a build that changed the
+# action's own implementation. `docs/deploy-ingress.md` has the operator's version and
+# `scripts/probe-action-id-stability.mjs` is the measurement.
+#
+# Empty, which is the default here, is what Next treats as absent, so an operator who
+# sets nothing gets exactly the behaviour this image has always had.
+#
+# **It is a secret, and pinning it does not put it anywhere it was not already.** Next
+# writes the key it used into `.next/server/server-reference-manifest.json`, which the
+# runtime stage copies, because `next/dist/server/app-render/encryption-utils.js` reads
+# the key from that manifest when the environment does not carry it. So the key is
+# recoverable from any portal image whether it is pinned or random; what pinning changes
+# is that one image's key is then also every other image's. SEC-7 and SEC-8 carry the
+# reading, including why the PUBLISHED `ghcr.io/roonga/qcms-portal` images must never be
+# built with a shared one.
+#
+# It is scoped to the build stage and consumed inside the RUN below rather than promoted
+# to an `ENV`, so no layer of the runtime image carries it and `docker history` shows the
+# unexpanded name.
+ARG NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=""
 # The `pnpm --filter @roonga/qcms-db... build` prefix that used to lead this line is gone.
 # It existed because Next type-checked the portal's E2E support files, which import
 # @roonga/qcms-db even though the production portal has no runtime database dependency, and
 # building that package was one way to satisfy them. The image now excludes `**/e2e`
 # and `**/*.test.*` from the build context instead (.dockerignore), so those files
 # are not in the image to type-check and the workaround has nothing left to fix.
-RUN pnpm --filter qcms-portal... build
+RUN NEXT_SERVER_ACTIONS_ENCRYPTION_KEY="${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY}" \
+    pnpm --filter qcms-portal... build
 
 FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS runtime
 
