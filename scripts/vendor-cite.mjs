@@ -56,7 +56,7 @@
  * a line that moves under a citation whose file still opens is invisible to any gate -
  * that is exactly the #857 defect. An expectation closes that for one citation:
  *
- *     (`dist/api/rate-limiter/index.mjs:290`) <!-- expect: ctx.rateLimit.enabled -->
+ *     (`dist/api/rate-limiter/index.mjs:293`) <!-- expect: ctx.rateLimit.enabled -->
  *
  * The marker is an HTML comment because that is the one comment syntax that is
  * invisible in rendered Markdown *and* legal inside a JSDoc block, so one convention
@@ -384,7 +384,7 @@ function lineIndex(text) {
  * Where an installed package at an exact version lives.
  *
  * pnpm's store encodes a scope as `+` and appends a peer-dependency hash, so
- * `@better-auth/core@1.7.6` is a directory named `@better-auth+core@1.7.6_<hash>` whose
+ * `@better-auth/core@1.7.7` is a directory named `@better-auth+core@1.7.6_<hash>` whose
  * `node_modules` holds the real package. **Matching the version exactly is the point**:
  * a tree carrying two copies of a package would otherwise hand back whichever one the
  * directory listing returned first, and the citation would be read against a version
