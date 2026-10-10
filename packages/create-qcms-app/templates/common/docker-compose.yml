@@ -351,7 +351,17 @@ services:
     build:
       context: .
       dockerfile: docker/portal.Dockerfile
-      args: *image-build-args
+      # The one service whose build args are not just the shared anchor, and the extra
+      # one is a BUILD input rather than a runtime variable (issue #1035). Pinning Next's
+      # Server Action salt is what lets a no-JS respondent's held repeating step survive
+      # a deploy; left unset it is empty, which Next treats as absent, so the image
+      # behaves exactly as it always has. It is a secret: `docker/portal.Dockerfile`
+      # carries why pinning it does not expose it anywhere new, and SEC-7 and SEC-8 carry
+      # the rule for the published images. Not on the anchor, because the admin has no
+      # no-JS Server Action and the api is not a Next app.
+      args:
+        <<: *image-build-args
+        NEXT_SERVER_ACTIONS_ENCRYPTION_KEY: ${NEXT_SERVER_ACTIONS_ENCRYPTION_KEY:-}
     environment:
       QCMS_API_BASE_URL: http://api:3000
       QCMS_INTERNAL_TOKEN: ${QCMS_INTERNAL_TOKEN:?set QCMS_INTERNAL_TOKEN in .env}

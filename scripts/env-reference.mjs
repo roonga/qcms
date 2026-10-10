@@ -989,6 +989,15 @@ export const ENV_REFERENCE = [
       "Version stamped into the images at build time (`org.opencontainers.image.version`). `pnpm qcms:build-images` derives a real one; a bare `docker compose build` leaves it `dev`.",
   },
   {
+    name: "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY",
+    process: "compose",
+    requirement: "optional",
+    fallback: "unset - Next generates a fresh key for every build",
+    secret: true,
+    description:
+      "Next's Server Action salt for the **portal image**, passed to `docker/portal.Dockerfile` as a build arg, so it applies only when you build that image yourself (issue #1035). `next build` hashes every Server Action id with a key it generates per build, so each image renames every id, and a respondent with scripting off who holds a repeating step across a deploy then gets a `409` on Add or Remove and loses what they had typed into that step since their last Continue. Pin this to one value, 32 bytes base64, and the ids survive the deploy. It is a secret, and it is **readable from any portal image either way**, because Next writes whichever key it used into that image's own server manifest; what pinning changes is that one image's key is also every other image's. The published `ghcr.io/roonga/qcms-portal` images are deliberately **not** built with a shared one (SEC-7, SEC-8). The operator's reading is in `docs/deploy-ingress.md`.",
+  },
+  {
     name: "QCMS_CADDY_IMAGE",
     process: "compose",
     requirement: "optional",
