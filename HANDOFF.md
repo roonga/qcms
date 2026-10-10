@@ -24,11 +24,11 @@ runbook in `docs/operations.md`, and the case comments in
 them (`node apps/portal/server.js`), with a temporary probe page carrying a `useActionState`
 Server Action of the same shape as the step form's:
 
-| What changed between two builds                                                                | `BUILD_ID` | the action's id | a POST captured from the old build, replayed against the new one |
-| ---------------------------------------------------------------------------------------------- | ---------- | --------------- | ---------------------------------------------------------------- |
-| nothing (same source, built twice)                                                             | changed    | **unchanged**   | **`200`, the action ran**                                        |
+| What changed between two builds                                                                                    | `BUILD_ID` | the action's id | a POST captured from the old build, replayed against the new one |
+| ------------------------------------------------------------------------------------------------------------------ | ---------- | --------------- | ---------------------------------------------------------------- |
+| nothing (same source, built twice)                                                                                 | changed    | **unchanged**   | **`200`, the action ran**                                        |
 | the action's own implementation, the client component that renders it, plus a new unrelated action added elsewhere | changed    | **unchanged**   | **`200`, the action ran, with the new implementation**           |
-| the action's **export name**                                                                   | changed    | **changed**     | not replayed; a changed id is the `409` case below               |
+| the action's **export name**                                                                                       | changed    | **changed**     | not replayed; a changed id is the `409` case below               |
 
 The id is content-addressed, not build-salted: `SERVER_REFERENCE_ID_LENGTH` is 42 and
 `extractInfoFromServerReferenceId` reads an info byte holding the used-argument mask followed by a
@@ -50,7 +50,7 @@ same production standalone build, and matching ADR-43's amendment exactly:
 - a malformed id (44 hex) answers `400`, `Invalid Server Action request.`, same header;
 - a real id answers `200` with `text/html` and no such header;
 - the framework's own wording (`Failed to find Server Action "..."`, `Invalid Server Actions
-  request.`) goes to the server log only.
+request.`) goes to the server log only.
 
 ## 2. Feasibility, option by option
 
