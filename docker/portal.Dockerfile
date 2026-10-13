@@ -4,7 +4,7 @@
 # the same base rather than whatever `24-bookworm-slim` points at then. The `docker`
 # ecosystem in `.github/dependabot.yml` moves the tag and the digest together, and
 # records why pinning and that coverage had to land in one change.
-FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS build
+FROM node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS build
 
 WORKDIR /workspace
 RUN corepack enable
@@ -30,7 +30,7 @@ RUN pnpm install --frozen-lockfile
 # are not in the image to type-check and the workaround has nothing left to fix.
 RUN pnpm --filter qcms-portal... build
 
-FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS runtime
+FROM node:24-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 AS runtime
 
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="qcms-portal" \
