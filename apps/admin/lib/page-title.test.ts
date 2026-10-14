@@ -105,6 +105,7 @@ describe("every route titles its own browser tab", () => {
       "/forms/[formId]",
       "/forms/[formId]/links",
       "/forms/[formId]/preview",
+      "/forms/[formId]/releases",
       "/forms/[formId]/responses",
       "/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",

@@ -83,6 +83,18 @@ The **address forms above are `prod`'s, and they keep exactly that spelling** (C
 
 **Amendment - the closed state that overrides a link is the environment's (Code Owner, 2026-09-26, issue #995, ADR-40).** The paragraph above says "the whole-form closed state overrides every public and secure link", and under ADR-40 that becomes **the environment's** closed state overriding every link **into that environment**. Closing `prod` intake while a test run continues, and the reverse, are ordinary operations, so closed cannot be one column on the form: the per-environment release state carries the value, and `forms.status` with its `form_status` enum goes away or becomes derived from those states. Nothing else in this decision moves. The override is still absolute, a secure link still cannot enter a closed environment, and `apps/api/src/features/responses/start-session/handler.ts` still checks that state after the link's own and before anything is spent, which is what the Note above records. Tasks 063 and 066 therefore touch the same check as well as the same row, and 066 owns the state.
 
+**Note - "Always latest" now means "what is released to this environment" (ADR-40, task 065).**
+The decision above says Always latest resolves the newest published version at session
+start, and that sentence described the serving path as it was. ADR-40 replaced it: a
+version is published once into `control` and is served nowhere until it is **released**, so
+what a new session resolves is the version released to its environment
+(`getReleasedVersion`, task 065). Nothing in this decision's shape changes - the row still
+carries the target rather than the token, Pin to version still names one published version,
+and a session still stays on what it resolved at start - but task 063 builds "Always
+latest" against release resolution rather than against `getLatestPublishedVersion`, which
+no longer decides what anybody is served. A version pinned by a link and released nowhere
+is a case 063 owns.
+
 **Note.** The live gap this note recorded is closed (issue #724, PR #742): the secure path in `apps/api/src/features/responses/start-session/handler.ts` now checks `form.status` after the link's own state and before anything is spent, so a closed form refuses secure-link entry without consuming a one-time link or charging a challenge, exactly as this record says. What remains is wording, not behavior: "pinned version" already means question-version pinning (ADR-02), so task 063 should choose distinct wording for link targets.
 
 ### ADR-43 - Repeat rendering and the no-JS roster operation

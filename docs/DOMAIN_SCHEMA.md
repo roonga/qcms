@@ -322,10 +322,10 @@ stateDiagram-v2
     Closed --> Draft : reopened via new version
     note right of Published_vN
         Immutable (R1).
-        New sessions bind to newest
-        published version; in-flight
-        sessions finish on the version
-        they started.
+        A new session binds to the version
+        RELEASED to its environment
+        (ADR-40); in-flight sessions finish
+        on the version they started.
     end note
 ```
 
@@ -343,7 +343,23 @@ flowchart LR
     B -- all hold --> C["PublishOutcome:\nFrozenSnapshot (FormDefinition +\nresolved QuestionVersionRecords,\ndeep-frozen clone, + semanticsVersion\n+ schemaVersion)\n+ PublishWarning[] (never blocking)"]
     C --> D["@roonga/qcms-a2ui-compiler\nFormDefinition → A2UI docs/step\n+ compilerVersion + a2uiSpecVersion"]
     D --> F["FormVersion vN\ndefinition + compiled + stamps + publishedAt"]
-    F --> G["outbox: form.published"]
+```
+
+**Publishing ends there, and a release is a second act (ADR-40, tasks 064 and 065).** The
+diagram once ended in an `outbox: form.published` node; publishing queues nothing now
+(Q60). A version lives once in `control` and is shared by every environment (ADR-18), and
+what makes it live somewhere is a **release**: one `control.form_releases` row per release,
+naming the environment, the version, who released it and where it was promoted from, with
+`form.released` written into that environment's `outbox` in the same transaction (Q49). So
+a published version is served nowhere until it is released, and promotion is a record
+rather than a copy:
+
+```mermaid
+flowchart LR
+    F["FormVersion vN\n(one copy, in control)"] --> R1["form_releases\n(test, vN)"]
+    F --> R2["form_releases\n(prod, vN)"]
+    R1 --> O1["data_test.outbox:\nform.released"]
+    R2 --> O2["data_prod.outbox:\nform.released"]
 ```
 
 **Implementation (task 008, `@roonga/qcms-core` `compile-draft.ts`).** The implemented signature is `compileDraft(draft: DraftInput): PublishResult` with `DraftInput = { definition: FormDefinition, resolveQuestion: (questionId, version) => QuestionVersionRecord | undefined, publishedQuestionVersions: ReadonlyMap<QuestionId, ReadonlySet<number>> }` - the caller supplies both lookups; core never does I/O (R3). On success the `FrozenSnapshot` carries the definition plus the resolved `QuestionVersionRecord` per pin (document order), deep-frozen as a clone (the caller's draft stays editable), stamped `{ semanticsVersion: SEMANTICS_VERSION, schemaVersion: SNAPSHOT_SCHEMA_VERSION }`. Compiled A2UI and its stamps are attached by the API slice using 011's compiler (nodes D/F above are 011/013/022) - core does not import the compiler. Parse-level refinements (duplicate step/question pins, the condition depth cap) are re-checked with structured domain paths, so a hand-built definition still yields a complete publish report.

@@ -51,7 +51,6 @@ import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/test
 import {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
-  CONTROL_READ_TABLES_NOT_YET_CREATED,
   DATA_PLANE_ENUM_TYPES,
   DATA_PLANE_TABLE_NAMES,
 } from "@roonga/qcms-db";
@@ -407,6 +406,76 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
       /permission denied/i,
     );
   });
+
+  it("releases a version, under its own grants, and queues exactly one event (Q49, criterion 8)", async () => {
+    // The other half of criterion 8, and the half that catches the `RETURNING` trap. The
+    // release transaction runs here exactly as `recordRelease` issues it - the record in
+    // `control`, the event in the released environment's `outbox`, one transaction, one
+    // connection - on a connection holding precisely the grants the API holds. A
+    // superuser would have passed whatever the handler did.
+    const control = clients.get(CONTROL_ROLE)!;
+    const formId = "q49-release-count";
+
+    await owner.query(
+      `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
+      [formId],
+    );
+    await owner.query(
+      `insert into control.form_versions
+         (form_id, version, definition, compiled, compiler_version,
+          a2ui_spec_version, semantics_version)
+       values ($1, 1, '{}'::jsonb, '{}'::jsonb, '0', '0', '0')`,
+      [formId],
+    );
+
+    const releasedRows = async (): Promise<number> => {
+      const res = await owner.query<{ n: string }>(
+        `select count(*) as n from data_prod.outbox
+          where event_type = 'form.released' and payload->>'formId' = $1`,
+        [formId],
+      );
+      return Number(res.rows[0]?.n ?? "-1");
+    };
+    expect(await releasedRows()).toBe(0);
+
+    await control.query("begin");
+    await control.query(
+      `insert into control.form_releases
+         (form_id, environment, version, sequence, released_by)
+       values ($1, 'prod', 1, 1, 'usr_e2e')`,
+      [formId],
+    );
+    // No `RETURNING`. The role holds `INSERT` on this table and nothing else in any data
+    // schema, so a `RETURNING` here is a read Postgres refuses - which is the whole
+    // reason `enqueueInEnvironment` exists beside `enqueue`.
+    await control.query(
+      `insert into data_prod.outbox ("event_type", "payload")
+       values ('form.released', jsonb_build_object('formId', $1::text, 'version', 1,
+               'environment', 'prod', 'releasedBy', 'usr_e2e'))`,
+      [formId],
+    );
+    await control.query("commit");
+
+    // Exactly one event, and exactly one record, neither observed without the other.
+    expect(await releasedRows()).toBe(1);
+    const record = await owner.query<{ n: string }>(
+      `select count(*) as n from control.form_releases where form_id = $1`,
+      [formId],
+    );
+    expect(Number(record.rows[0]?.n)).toBe(1);
+
+    // And the history is append-only even for the credential that wrote it: the grant is
+    // DML, and the trigger is what refuses the rewrite (criterion 7).
+    expect(
+      await refusalFor(
+        control,
+        `update control.form_releases set version = 1 where form_id = '${formId}'`,
+      ),
+    ).toMatch(/append-only/i);
+    expect(
+      await refusalFor(control, `delete from control.form_releases where form_id = '${formId}'`),
+    ).toMatch(/append-only/i);
+  });
 });
 
 describe.each(ENVIRONMENTS)(
@@ -471,13 +540,13 @@ describe.each(ENVIRONMENTS)(
 
     it("holds exactly the named SELECT list on `control`, and UPDATE on one table", async () => {
       const held = await tablePrivileges("control", role);
-      // `form_releases` is task 065's table and does not exist yet, so its grant is
-      // guarded on the table existing. The list is the decision either way: five today,
-      // six once 065 has landed, and this is the line that notices.
-      const expectedReads = CONTROL_READ_TABLES.filter(
-        (table) => !CONTROL_READ_TABLES_NOT_YET_CREATED.includes(table),
-      );
-      expect(expectedReads).toHaveLength(5);
+      // **Six**, `form_releases` included. Task 064 granted five because that table did
+      // not exist yet and its clause was guarded on the table existing; task 065's
+      // migration creates it and grants it, to every environment role in the live set
+      // rather than to the two shipped names. The list is the decision in both tasks and
+      // this is the line that notices either way.
+      const expectedReads = CONTROL_READ_TABLES;
+      expect(expectedReads).toHaveLength(6);
       expect(Object.keys(held).sort()).toEqual([...expectedReads].sort());
       for (const table of expectedReads) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];

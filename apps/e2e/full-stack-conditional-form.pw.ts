@@ -12,6 +12,7 @@ import {
   closeRuleEditor,
   createForm,
   pinQuestion,
+  releaseNewestVersion,
   rule,
   savedStamp,
   toggleTarget,
@@ -279,6 +280,20 @@ test.describe.serial("conditional form journey", () => {
       );
       await publish.getByRole("button", { name: "Publish v1" }).click();
       await expect(page.getByText("Published as v1.")).toBeVisible({ timeout: 30_000 });
+    });
+
+    test("releases the published version, which is what puts it in front of a respondent", async ({
+      page,
+    }) => {
+      // ADR-40, task 065. Publishing froze the version into `control`, shared by every
+      // environment, and served it nowhere: what a new session resolves is the version
+      // **released** to its environment. Without this the respondent route below answers
+      // 409 and the portal shows its unavailable state - which is exactly what it should
+      // do, and is why this is a step of the journey rather than a detail of the harness.
+      //
+      // `prod` is the environment the deployed stack serves: the portal has no `/<env>/`
+      // prefix until task 066, so a respondent request names none and resolves there.
+      await releaseNewestVersion(page, formId);
     });
 
     test("refuses a cross-site Start and creates no session (SEC-9, issue #487)", async ({

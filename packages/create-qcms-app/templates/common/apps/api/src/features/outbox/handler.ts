@@ -70,7 +70,9 @@ const MAX_DELIVERY_LIMIT = 200;
 
 export function makeDeadLettersHandler(deps: Deps): RouteHandler<typeof deadLettersRoute, ApiEnv> {
   return async (c) => {
-    const rows = await listDeadLetterDeliveries(deps.databases.forRequest().exec);
+    const rows = await listDeadLetterDeliveries(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+    );
     return c.json(
       {
         deadLetters: rows.map((r) => ({
@@ -128,11 +130,14 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
   return async (c) => {
     const parsed = parseFormId(c.req.valid("param").id);
     if (!parsed.ok) throw fail.invalidId();
-    const form = await getForm(deps.databases.forRequest().exec, parsed.value);
+    const form = await getForm(
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
+      parsed.value,
+    );
     if (form === undefined) throw fail.formNotFound();
 
     const rows = await listRecentDeliveries(
-      deps.databases.forRequest().exec,
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
       parsed.value,
       parseLimit(c.req.valid("query").limit),
     );
@@ -219,14 +224,17 @@ export function makeRedeliverHandler(deps: Deps): RouteHandler<typeof redeliverR
     // someone else's row exists. Scoped, it returns undefined and the reset below
     // produces the ordinary 404.
     if (
-      (await redeliveryRefusalFor(deps.databases.forRequest().exec, formId, deliveryId)) !==
-      undefined
+      (await redeliveryRefusalFor(
+        deps.databases.forRequest(c.get("requestEnvironment")).exec,
+        formId,
+        deliveryId,
+      )) !== undefined
     ) {
       throw fail.notRedeliverable();
     }
 
     const reset = await resetDeliveryForRedelivery(
-      deps.databases.forRequest().exec,
+      deps.databases.forRequest(c.get("requestEnvironment")).exec,
       formId,
       deliveryId,
       deps.clock.now(),

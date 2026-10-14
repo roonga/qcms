@@ -33,6 +33,7 @@ import {
   createQuestionVersion,
   createSession,
   getSubmission,
+  insertFormRelease,
   insertFormVersion,
   markInProgress,
 } from "@roonga/qcms-db";
@@ -167,13 +168,22 @@ async function seedForm(
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
-  await insertFormVersion(testDb.db, {
+  const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
     compiled,
     compilerVersion: GOLDEN.compilerVersion,
     a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
     semanticsVersion,
+  });
+  // The version has to be **released** to be served: publishing reaches no environment
+  // (ADR-40, task 065), so a fixture that published alone would describe a form no
+  // session can start on.
+  await insertFormRelease(testDb.db, {
+    formId,
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    version: version.version,
+    releasedBy: "usr_fixture",
   });
   return formId;
 }
@@ -678,13 +688,20 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
       defaultLocale: "en",
       minSubmitMs: 3_000,
     });
-    await insertFormVersion(testDb.db, {
+    const gatedVersion = await insertFormVersion(testDb.db, {
       formId: gatedFormId,
       definition: INSURANCE_DEF,
       compiled: GOLDEN as unknown as VersionInput["compiled"],
       compilerVersion: GOLDEN.compilerVersion,
       a2uiSpecVersion: GOLDEN.a2uiSpecVersion,
       semanticsVersion: "1",
+    });
+    // Released, because publishing reaches no environment (ADR-40, task 065).
+    await insertFormRelease(testDb.db, {
+      formId: gatedFormId,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      version: gatedVersion.version,
+      releasedBy: "usr_fixture",
     });
 
     // Default app: global antiAbuse.minSubmitMs is 0 (off) - only the form floor bites.

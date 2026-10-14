@@ -73,17 +73,19 @@ describe("the route-to-cap table", () => {
     expect(Object.values(MEASURE_BY_ROUTE)).not.toContain("default");
   });
 
-  it("counts the drawings: eleven at 1600, three at 40rem, two at 1080", () => {
+  it("counts the drawings: twelve at 1600, three at 40rem, two at 1080", () => {
     // Restated from the POCs rather than derived from the table, so a wrong row is a
     // failure here instead of a table that agrees with itself.
     const measures = Object.values(MEASURE_BY_ROUTE);
     const count = (measure: string) => measures.filter((value) => value === measure).length;
-    expect(count("wide")).toBe(11);
+    // Twelve since task 065's release screen, which takes the width of the version
+    // history it sits beside rather than a number of its own.
+    expect(count("wide")).toBe(12);
     expect(count("prose")).toBe(3);
     expect(count("list")).toBe(2);
     expect(count("ops")).toBe(1);
     expect(count("log")).toBe(1);
-    expect(measures).toHaveLength(18);
+    expect(measures).toHaveLength(19);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

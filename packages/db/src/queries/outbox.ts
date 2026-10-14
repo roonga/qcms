@@ -357,7 +357,7 @@ export interface OutboxPayloadRedactionResult {
  *   exists to cover.
  *
  * Only rows that actually hold answers are touched, so the marker records a real
- * removal and never lands on an event type that never carried any (`form.published`).
+ * removal and never lands on an event type that never carried any (`form.released`).
  * Idempotent: a second run finds nothing left with answers in that window, and the
  * `payload_redacted_at is null` filter keeps a re-run from moving an existing stamp.
  *

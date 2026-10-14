@@ -20,12 +20,14 @@ import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
 import { registerQuestions } from "./features/questions/route.js";
+import { registerReleases } from "./features/releases/route.js";
 import { registerAdminResponses } from "./features/responses/admin/route.js";
 import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
+import { registerRequestEnvironment } from "./middleware/request-environment.js";
 
 /**
  * Slice registrars per surface (the enterprise topology, ARCHITECTURE §5.1):
@@ -34,7 +36,10 @@ import { registerAdminAuth } from "./middleware/admin-auth.js";
  *
  * `registerAdminAuth` MUST be first in `admin`: it installs the admin-session
  * gate every admin route below sits behind (021; 031 swaps the stub for real
- * better-auth verification).
+ * better-auth verification). `registerRequestEnvironment` is second, because the Q6
+ * switcher's environment is what every admin slice below reads its per-environment data
+ * through (ADR-40, task 065) and an unauthenticated request should be refused by the
+ * gate rather than by the name it sent.
  *
  * The `auth` bucket is the admin's identity provider (task 056), mounted on
  * `/api/auth` with the admin surface but deliberately outside the admin group: it is
@@ -46,11 +51,13 @@ export const appGroups: RouteGroups = {
   internal: [],
   admin: [
     registerAdminAuth,
+    registerRequestEnvironment,
     registerQuestions,
     registerForms,
     // 041: registers nothing when QCMS_FLAG_AGENT_AUTHORING=none (routes absent).
     registerFormsAssist,
     registerAdminResponses,
+    registerReleases,
     registerLinks,
     registerWebhooks,
     registerOutboxOps,

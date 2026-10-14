@@ -176,6 +176,66 @@ test("publishes a draft and reports what it froze (exit criterion 1)", async ({ 
   await expect(page.getByRole("link", { name: "View version history" })).toBeVisible();
 });
 
+test("releases a published version to an environment and records it (task 065)", async ({
+  page,
+}) => {
+  // ADR-40: publishing put v1 in the library and served it nowhere. This is the act that
+  // puts it in front of a respondent, and it is a RECORD - the version number and the form
+  // id are the published ones, and nothing is copied.
+  test.setTimeout(180_000);
+  await signInWithTotp(page, EMAIL, totpSecret);
+
+  await page.goto(`/forms/${formId}/releases`);
+  await expect(page.locator("h1").first()).toHaveText("Releases");
+
+  // Nothing is released yet, and the screen says so for every environment rather than
+  // leaving a row out: "not released in prod" is the answer an operator most needs.
+  const now = page.getByTestId("qcms-released-now");
+  await expect(now.locator('tr[data-environment="prod"]')).toContainText("Nothing released");
+  await expect(now.locator('tr[data-environment="test"]')).toContainText("Nothing released");
+
+  await page.getByRole("button", { name: "Release a version…" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+
+  // The dialog opens on the environment the switcher has selected, which is `prod` here:
+  // that is the environment the respondent harness serves until task 066 gives the portal
+  // its `/<env>/` prefix, and every test below this one walks that path.
+  //
+  // Q6's restatement, on the act that decides what a respondent is served. It is in the
+  // dialog's body and on its confirm button, not inferable from a control elsewhere.
+  await expect(dialog.getByTestId("qcms-release-environment")).toContainText("prod");
+  await dialog.getByRole("button", { name: "Release to prod" }).click();
+
+  await expect(page.getByTestId("qcms-release-status")).toContainText(
+    "v1 is now released to prod.",
+  );
+  await expect(now.locator('tr[data-environment="prod"]')).toContainText("v1");
+  // And `test`, where nothing was released, is untouched: a release reaches one environment,
+  // which is the property the API suite asserts from both sides.
+  await expect(now.locator('tr[data-environment="test"]')).toContainText("Nothing released");
+
+  // The history answers who, when and from where. No source environment, because there was
+  // none: a release with no prior release anywhere is allowed and is recorded as such (Q4).
+  const history = page.getByTestId("qcms-release-history");
+  await expect(history.locator('tr[data-environment="prod"]')).toContainText("v1");
+  await expect(history.locator('tr[data-rollback="true"]')).toHaveCount(0);
+  // ADR-27 again: an operator-facing table renders a formatted date, never the wire value.
+  await expect(history).not.toContainText(ISO_TIMESTAMP);
+
+  // The version list now says where v1 reached, which is the column the Published column
+  // used to answer on its own and no longer does.
+  await page.goto(`/forms/${formId}/versions`);
+  const versions = page.getByRole("table", { name: "Published versions" });
+  await expect(versions.locator('tr[data-form-version="1"]')).toContainText("prod");
+
+  // The filter's default shows every version, so nothing is hidden by surprise (finding 2).
+  const filter = page.getByTestId("qcms-history-filter");
+  await expect(filter.getByRole("radio", { name: "Every version" })).toBeChecked();
+  await filter.getByRole("radio", { name: "Released anywhere" }).check();
+  await expect(versions.locator('tr[data-form-version="1"]')).toBeVisible();
+});
+
 test("walks the draft's branches in the shared renderer (exit criterion 1)", async ({ page }) => {
   test.setTimeout(180_000);
   await signInWithTotp(page, EMAIL, totpSecret);

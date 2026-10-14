@@ -172,6 +172,16 @@ export const MEASURE_BY_ROUTE = {
   /** `preview-versions-poc.html` `.main` 1600, its version-history table. */
   "/forms/[formId]/versions": "wide",
   /**
+   * `preview-versions-poc.html` `.main` 1600 as well, and the nineteenth row (task 065).
+   *
+   * The screen it draws is the version history, and the release screen is the same shape
+   * at the same width: two wide tables of audit rows, one of them the history itself. No
+   * POC draws a release screen, there being none when those files were written, so the
+   * width is taken from the drawn screen this one sits beside rather than invented - which
+   * is also what an author gets as they move between the two.
+   */
+  "/forms/[formId]/releases": "wide",
+  /**
    * `preview-versions-poc.html` again, `.main` 1600: the stored render is the same 640px
    * frame, shared unmodified (`:829`, and the POC says so in as many words). Same
    * arrangement as the draft preview above and for the same reason - one measure on both

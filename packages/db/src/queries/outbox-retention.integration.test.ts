@@ -68,7 +68,7 @@ let seq = 0;
 
 /**
  * A form, one active webhook, and one queued event. `answers: false` seeds a
- * `form.published` event instead: the same lifecycle, no respondent content.
+ * `form.released` event instead: the same lifecycle, no respondent content.
  * `repeat: true` seeds the payload shape a repeating form enqueues (task 075): the
  * `answers` member is a `LockedAnswer[]` whose entries may carry an `instanceId`.
  */
@@ -86,7 +86,7 @@ async function seedEvent(options: { answers?: boolean; repeat?: boolean } = {}):
   });
   const withAnswers = options.answers !== false;
   const event = await enqueue(testDb.db, {
-    eventType: withAnswers ? "response.submitted" : "form.published",
+    eventType: withAnswers ? "response.submitted" : "form.released",
     payload: withAnswers
       ? {
           sessionId: `ses_retain_${seq}`,
@@ -343,7 +343,7 @@ describe("redactAgedOutboxPayloads (issue #329)", () => {
   });
 
   it("does not mark an event that never carried answers", async () => {
-    // `form.published` holds no respondent content. Marking it would claim a removal
+    // `form.released` holds no respondent content. Marking it would claim a removal
     // that never happened, and make "was this redacted?" unanswerable for the rows
     // where it matters.
     const seeded = await seedEvent({ answers: false });
@@ -500,7 +500,7 @@ describe("outbox_redacted_payload_has_no_answers (issue #329)", () => {
     await markDelivered(testDb.db, live.outboxId, LONG_AGO);
     expect((await outboxRow(live.outboxId)).payloadRedactedAt).toBeNull();
 
-    // 2. No answers, no marker: `form.published`, and any adopter event type.
+    // 2. No answers, no marker: `form.released`, and any adopter event type.
     const answerFree = await seedEvent({ answers: false });
     expect((await outboxRow(answerFree.outboxId)).payloadRedactedAt).toBeNull();
 

@@ -153,7 +153,14 @@ export function singleDatabase(exec: Executor, config: Config): Databases {
     names: config.environments.map((environment) => environment.name),
     defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
     for: () => exec,
-    forRequest: () => ({ environment: INTERIM_REQUEST_ENVIRONMENT, exec }),
+    // The argument is honoured even though every pool is the same handle, because what a
+    // handler does with the **name** is real: a reporting read takes it as a parameter, so
+    // a suite exercising the Q6 switcher's header would otherwise read `prod`'s views
+    // under a `test` header and pass (ADR-40, task 065).
+    forRequest: (environment?: string) => ({
+      environment: environment ?? INTERIM_REQUEST_ENVIRONMENT,
+      exec,
+    }),
   };
 }
 

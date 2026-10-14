@@ -810,7 +810,7 @@ describe("outbox helpers", () => {
   });
 
   it("records failures with backoff and dead-letters after the max, then redelivers", async () => {
-    const event = await enqueue(testDb.db, { eventType: "form.published", payload: {} });
+    const event = await enqueue(testDb.db, { eventType: "form.released", payload: {} });
     const from = new Date("2026-07-20T00:00:00.000Z");
 
     let row = await recordFailure(testDb.db, event.id, "boom", from);

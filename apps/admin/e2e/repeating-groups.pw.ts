@@ -24,6 +24,7 @@ import {
   groupPanel,
   issue,
   openFormDetails,
+  releaseNewestVersion,
   openGroupPanel,
   openRulePhase,
   openStep,
@@ -459,6 +460,10 @@ test("expands a group through the portal's own renderer (case 61)", async ({ pag
     .getByRole("button", { name: /^Publish v/ })
     .click();
   await expect(page.getByText(/^Published as v/)).toBeVisible({ timeout: 60_000 });
+
+  // And released: a published version is served nowhere until a release record says where
+  // (ADR-40, task 065), and what follows walks the portal.
+  await releaseNewestVersion(page, formId);
 
   /**
    * ## What is compared, and why it is the same document

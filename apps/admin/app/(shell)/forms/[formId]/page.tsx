@@ -6,16 +6,19 @@ import { Alert } from "@/components/kit";
 import { BuilderBreadcrumb } from "@/components/forms/builder-breadcrumb";
 import { FormActions } from "@/components/forms/form-actions";
 import { CONCURRENT_NOTICE_COOKIE, isConcurrentNoticeDismissed } from "@/lib/builder-notice";
+import { PROD_ENVIRONMENT } from "@/lib/environment";
 import { FormBuilder } from "@/components/forms/form-builder";
 import type { FormDetail } from "@/lib/forms/types";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
 import { readState } from "@/lib/read-state";
 import { agentAuthoringEnabled } from "@/lib/server/agent";
+import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
 import { getForm, loadPinnableQuestions } from "@/lib/server/forms";
 import { requireAdminSession } from "@/lib/server/session";
 
 import {
+  publishAndReleaseAction,
   publishFormAction,
   saveDraftAction,
   setFormStatusAction,
@@ -102,10 +105,18 @@ export default async function FormBuilderPage({
   const { formId } = await params;
   const query = await searchParams;
 
-  const [detail, library] = await Promise.all([
+  const [detail, library, set] = await Promise.all([
     getForm(session, formId),
     loadPinnableQuestions(session),
+    // The combined publish-and-release action releases to the operator's selected
+    // environment and every confirmation on this screen names it (Q6), so the screen has
+    // to know which one that is. Validated against the live set, so a stale cookie reads
+    // as production rather than as an environment this deployment cannot serve.
+    listEnvironments(session),
   ]);
+  const environment = await selectedEnvironment(
+    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT],
+  );
 
   if (!detail.ok) {
     if (detail.code === "FORM_NOT_FOUND" || detail.code === "INVALID_FORM_ID") notFound();
@@ -172,7 +183,9 @@ export default async function FormBuilderPage({
             draft={form.draft}
             latestVersion={form.versions[0]?.version}
             publish={publishFormAction.bind(null, form.formId)}
+            publishAndRelease={publishAndReleaseAction.bind(null, form.formId)}
             setStatus={setFormStatusAction.bind(null, form.formId)}
+            environment={environment}
             agentAssisted={form.draftAgentAssisted}
           />
         }

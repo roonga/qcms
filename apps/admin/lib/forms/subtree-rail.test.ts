@@ -43,17 +43,21 @@ function rail(current: Parameters<typeof formSubtreeRail>[0]["current"], counts 
 }
 
 describe("the form-subtree rail's contents", () => {
-  it("carries the seven sibling routes in §7's order, and Validation is not one of them", () => {
+  it("carries the eight sibling routes in §7's order, and Validation is not one of them", () => {
     // RULES IS ONE OF THEM SINCE 2026-09-05 and Validation still is not, which is the pair
     // reading as a decision rather than as an inconsistency. Rule editing moved to a route
     // (issue #669) with its anchors rebuilt as route-plus-fragment links; Validation could
     // not move, because its entries point at controls the BUILDER renders and the publish
     // rejection reuses the same list verbatim (`plan/admin-ux-audit.md` §5.5).
+    // RELEASES JOINED THEM WITH TASK 065, directly after the version history: what is
+    // released to each environment is a different question from what versions exist, and
+    // under ADR-40 it is the question that decides what a respondent is served.
     expect([...RAIL_SECTIONS]).toStrictEqual([
       "builder",
       "rules",
       "preview",
       "versions",
+      "releases",
       "links",
       "responses",
       "webhooks",
@@ -83,6 +87,8 @@ describe("the form-subtree rail's contents", () => {
       // "Version history" since issue 679, which named the version list's screen and so,
       // by §7's rule that the rail carries the screen's own name, named this row too.
       "Version history",
+      // Task 065's screen, named the same way: the rail carries the screen's own name.
+      "Releases",
       "Links",
       "Responses",
       "Webhooks",
@@ -96,6 +102,7 @@ describe("the form-subtree rail's contents", () => {
       "/forms/frm_life/rules",
       "/forms/frm_life/preview",
       "/forms/frm_life/versions",
+      "/forms/frm_life/releases",
       "/forms/frm_life/links",
       "/forms/frm_life/responses",
       "/forms/frm_life/webhooks",

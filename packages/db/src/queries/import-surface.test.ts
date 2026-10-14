@@ -46,6 +46,16 @@ describe("query helper import surface", () => {
     "closeForm",
     "reopenForm",
     "updateFormSettings",
+    // releases (ADR-40, task 065). `insertFormRelease` writes a NEW row and nothing
+    // here updates or deletes one: the history is append-only, the database rejects
+    // both, and a rollback is a release of an earlier version rather than an edit.
+    // Nothing here re-pins a session either - `getReleasedVersion` is what a session
+    // resolves at start, and I4 holds because there is no second resolution.
+    "listEnvironments",
+    "insertFormRelease",
+    "getReleasedVersion",
+    "listFormReleases",
+    "listReleasedVersions",
     // sessions
     "createSession",
     "getSession",

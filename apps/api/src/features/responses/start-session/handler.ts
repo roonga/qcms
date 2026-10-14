@@ -9,15 +9,25 @@
  *
  * Two entry modes (SEC-2):
  *
- * - **Anonymous** (`{ formSlug }`): the form must exist, be `open`, and have at
- *   least one published version → a session pinned to the *newest* published
- *   version, TTL from config.
+ * - **Anonymous** (`{ formSlug }`): the form must exist, be `open`, and have a version
+ *   **released to this environment** → a session pinned to that version, TTL from config.
  * - **Secure link** (`{ token }`): the token verifies under `QCMS_LINK_KEYS`,
  *   the `secure_links` row must agree (not revoked; one-time links are consumed
  *   atomically - a signature alone is never sufficient), and the form must be
  *   `open` (the whole-form closed state overrides every link, ADR-39) → a
- *   session pinned to the *link's* form's newest published version, expiring at
+ *   session pinned to the version released to this environment, expiring at
  *   `min(link expiry, session TTL)` so it never outlives the token (SEC-2).
+ *
+ * **What a new session resolves is what is released here, not the newest published
+ * version** (ADR-40, task 065). A version lives once in `control` and is shared by every
+ * environment (ADR-18); what varies per environment is which version is released there,
+ * so a version released to `test` and not to `prod` is served in `test` and refused in
+ * `prod`. The read is `getReleasedVersion` on the request's own environment pool, which
+ * holds `SELECT` on `control.form_releases` (Q48's read list).
+ *
+ * **A release never re-pins a session already open** (ADR-07, invariant I4, Q5). The
+ * resolution below happens once, at start; nothing re-reads it for a live session, and
+ * there is no write path that could move a pin.
  *
  * Every pinning insert goes through `createSession`, whose `(formId,
  * formVersion)` write is the sole path that sets a session's version - that
@@ -32,7 +42,7 @@ import {
   createSession,
   getForm,
   getFormBySlug,
-  getLatestPublishedVersion,
+  getReleasedVersion,
   getSecureLink,
   getSession,
   sessionExpiresAt,
@@ -54,6 +64,15 @@ import type { getSessionRoute, startSessionRoute } from "./route.js";
 const fail = {
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   formClosed: (): ApiError => new ApiError("FORM_CLOSED", 409, "This form is closed"),
+  /**
+   * No version of this form is **released to this environment** (ADR-40).
+   *
+   * The code and the status are unchanged from when the resolution was "the newest
+   * published version", deliberately: a respondent is told the form is not available
+   * here, and which of "never published" and "published but not released here" it is is
+   * not a distinction a respondent-facing code should draw. The message says the same
+   * thing the code has always said, and the operator's answer is on the release screens.
+   */
   noPublishedVersion: (): ApiError =>
     new ApiError("NO_PUBLISHED_VERSION", 409, "This form has no published version"),
   linkInvalid: (): ApiError => new ApiError("LINK_INVALID", 400, "This link is not valid"),
@@ -149,8 +168,9 @@ async function startAnonymous(
   if (form.status === "closed") throw fail.formClosed();
   await enforceChallenge(deps, form.challengeRequired, challenge);
 
-  const version = await getLatestPublishedVersion(deps.databases.forRequest().exec, form.formId);
-  if (version === undefined) throw fail.noPublishedVersion();
+  const request = deps.databases.forRequest();
+  const released = await getReleasedVersion(request.exec, form.formId, request.environment);
+  if (released === undefined) throw fail.noPublishedVersion();
 
   const expiresAt = sessionExpiresAt({
     accessMode: "anonymous",
@@ -158,11 +178,10 @@ async function startAnonymous(
     config: ttlConfig(deps.config),
   });
   const sessionId = newSessionId();
-  const request = deps.databases.forRequest();
   await createSession(request.exec, {
     sessionId,
     formId: form.formId,
-    formVersion: version.version,
+    formVersion: released.version,
     accessMode: "anonymous",
     // The connection's own environment (Q46). The row lands in `data_<env>` by search
     // path and the per-schema CHECK refuses it if the two disagree, so a mismatch is a
@@ -171,7 +190,7 @@ async function startAnonymous(
     expiresAt,
   });
 
-  return finish(deps, sessionId, version.version, expiresAt);
+  return finish(deps, sessionId, released.version, expiresAt);
 }
 
 async function startFromSecureLink(
@@ -261,8 +280,12 @@ function assertLinkUsable(row: SecureLinkRow, now: Date): void {
 }
 
 /**
- * Insert a version-pinned secure-link session, resolving the newest published
- * version first (I4). Returns the pinned version number.
+ * Insert a version-pinned secure-link session, resolving **what is released to this
+ * environment** first (ADR-40, I4). Returns the pinned version number.
+ *
+ * The environment is the connection's own, which is also the environment the link's row
+ * names - the composite foreign key refuses the pair otherwise - so the release this
+ * reads is the release of the environment the session is about to land in.
  */
 async function insertPinnedSession(
   exec: Executor,
@@ -272,12 +295,12 @@ async function insertPinnedSession(
   linkId: LinkId,
   expiresAt: Date,
 ): Promise<number> {
-  const version = await getLatestPublishedVersion(exec, formId);
-  if (version === undefined) throw fail.noPublishedVersion();
+  const released = await getReleasedVersion(exec, formId, environment);
+  if (released === undefined) throw fail.noPublishedVersion();
   await createSession(exec, {
     sessionId,
     formId,
-    formVersion: version.version,
+    formVersion: released.version,
     accessMode: "secure_link",
     linkId,
     // The connection's own environment (Q46). With a link, the composite foreign key
@@ -286,7 +309,7 @@ async function insertPinnedSession(
     environment,
     expiresAt,
   });
-  return version.version;
+  return released.version;
 }
 
 /** Mint the binding session token and assemble the response payload. */

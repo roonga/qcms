@@ -53,6 +53,7 @@ export function ResponseDetail({
   labels,
   labelsFailed,
   linksHref,
+  environment,
   erase,
   unflag,
 }: {
@@ -62,6 +63,17 @@ export function ResponseDetail({
   /** True when the pinned wording could not be read, so captions are ids. */
   readonly labelsFailed: boolean;
   readonly linksHref: string;
+  /**
+   * The environment this response belongs to: the operator's Q6 switcher selection, which
+   * is also the environment the API read it from (ADR-40, task 065).
+   *
+   * It is named in the erasure confirmation because **an erasure performed against the
+   * wrong environment is not undoable**, which is the failure mode Q6's restatement rule
+   * exists for. ADR-02's amendment makes an erasure act in the selected environment only
+   * and never cross a boundary in one act; task 067 builds the cross-environment hint that
+   * goes with it.
+   */
+  readonly environment: string;
   readonly erase: (
     sessionId: string,
     reason: ErasureReason,
@@ -294,6 +306,7 @@ export function ResponseDetail({
       {dialog === "erase" && (
         <EraseDialog
           sessionId={detail.sessionId}
+          environment={environment}
           isPending={isPending}
           onConfirm={runErase}
           onClose={() => {
@@ -498,11 +511,13 @@ function LedgerTimeline({
  */
 function EraseDialog({
   sessionId,
+  environment,
   isPending,
   onConfirm,
   onClose,
 }: {
   readonly sessionId: string;
+  readonly environment: string;
   readonly isPending: boolean;
   readonly onConfirm: (reason: ErasureReason) => void;
   readonly onClose: () => void;
@@ -525,6 +540,12 @@ function EraseDialog({
         <p className="text-sm text-(--color-text)">{t("ops.erase.irreversible")}</p>
         <p className="text-sm text-(--color-text)">{t("ops.erase.tombstoneStays")}</p>
         <p className="text-sm text-(--color-text)">{t("ops.erase.consumersUnaffected")}</p>
+        {/* Q6's restatement, on the one act in this app that cannot be undone at all. The
+            typed-confirmation field below asks the operator to prove they mean this
+            session; this line is what tells them which environment's copy of it. */}
+        <p className="text-sm font-semibold" data-testid="qcms-erase-environment">
+          {t("environment.inThis", { environment })}
+        </p>
         <Select
           label={t("ops.erase.reason")}
           value={reason}

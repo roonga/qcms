@@ -26,6 +26,7 @@ export * from "./questions.js";
 export * from "./forms.js";
 export * from "./secure-links.js";
 export * from "./environments.js";
+export * from "./releases.js";
 export * from "./auth.js";
 export * from "./two-factor-resets.js";
 
@@ -33,6 +34,7 @@ import * as environmentsModule from "./environments.js";
 import * as authModule from "./auth.js";
 import * as formsModule from "./forms.js";
 import * as questionsModule from "./questions.js";
+import * as releasesModule from "./releases.js";
 import * as secureLinksModule from "./secure-links.js";
 import * as twoFactorResetsModule from "./two-factor-resets.js";
 
@@ -45,6 +47,7 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   formsModule.formVersions,
   secureLinksModule.secureLinks,
   environmentsModule.environments,
+  releasesModule.formReleases,
   authModule.authUser,
   authModule.authSession,
   authModule.authAccount,

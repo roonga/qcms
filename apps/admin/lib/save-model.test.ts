@@ -184,6 +184,11 @@ const SCREENS: readonly ScreenRow[] = [
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
   },
   {
+    route: "app/(shell)/@rail/forms/[formId]/releases/page.tsx",
+    model: "readonly",
+    why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
+  },
+  {
     route: "app/(shell)/@rail/forms/[formId]/links/page.tsx",
     model: "readonly",
     why: "Navigation only. §7 gives the rail no actions at all, so there is nothing on it to save.",
@@ -289,6 +294,11 @@ const SCREENS: readonly ScreenRow[] = [
     route: "app/(shell)/forms/[formId]/versions/[version]/page.tsx",
     model: "readonly",
     why: "One immutable version. Its content can never change again.",
+  },
+  {
+    route: "app/(shell)/forms/[formId]/releases/page.tsx",
+    model: "action",
+    why: "An append-only history plus one discrete act (ADR-40, task 065): releasing a published version to an environment. There is nothing accumulating to autosave - the operator picks a version and an environment in a confirmation dialog and presses once - and nothing on the screen is editable, every release row being immutable.",
   },
   {
     route: "app/(shell)/forms/[formId]/webhooks/page.tsx",

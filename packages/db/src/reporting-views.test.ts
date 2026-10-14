@@ -48,20 +48,34 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("../migrations/", import.meta.url))
  * Task 075 found its migration by the generator's own path in the preamble, because the
  * chain was append-only and the next reshape would append rather than replace: the
  * highest-numbered migration naming the generator was the one whose body it still had to
- * produce. Under Q41 the chain is one per-environment baseline, so there is exactly one
- * migration and the question is no longer which one but whether it carries the
- * generator's output for each environment. The derivation below reads the only migration
- * there is and still matches its name by shape, never by number.
+ * produce. Under Q41 the chain is a per-environment baseline, so the question is no longer
+ * which migration reshaped the views but which one **creates** them.
+ *
+ * It is found by what it does rather than by its position, and task 065 is why that
+ * matters: it appended the first migration after the baseline, so "the newest `.sql`" -
+ * which is what this read used while the chain was one file long - started resolving to a
+ * migration with no view in it and every assertion below failed against the wrong file.
+ * Matching on `CREATE SCHEMA "reporting_` is a derivation that survives both an appended
+ * migration and a future re-baseline, and the single-match check is what keeps it one
+ * answer: two migrations creating a `reporting_` schema would mean the launch view set had
+ * been reshaped somewhere this file is not looking.
  */
-/** The one baseline the chain is, read once for the assertions below. */
+/** The migration that creates the reporting view sets, read once for the assertions below. */
 function baselineSql(): { name: string; body: string } {
-  const named = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
+  const bodies = readdirSync(MIGRATIONS_DIR, { withFileTypes: true })
     .filter((entry) => entry.isFile() && entry.name.endsWith(".sql"))
     .map((entry) => entry.name)
-    .sort();
-  const newest = named.at(-1);
-  if (newest === undefined) throw new Error(`no migration in ${MIGRATIONS_DIR}`);
-  return { name: newest, body: readFileSync(path.join(MIGRATIONS_DIR, newest), "utf8") };
+    .sort()
+    .map((name) => ({ name, body: readFileSync(path.join(MIGRATIONS_DIR, name), "utf8") }))
+    .filter((migration) => migration.body.includes('CREATE SCHEMA "reporting_'));
+  const only = bodies[0];
+  if (only === undefined) throw new Error(`no view-creating migration in ${MIGRATIONS_DIR}`);
+  if (bodies.length > 1) {
+    throw new Error(
+      `${String(bodies.length)} migrations create a reporting schema; this file assumes one`,
+    );
+  }
+  return only;
 }
 
 describe("the generator and the baseline agree, per environment", () => {

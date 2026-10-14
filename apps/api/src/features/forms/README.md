@@ -127,6 +127,14 @@ boolean means adding or renaming a provider changes nothing on the wire.
    environment's outbox in the same transaction as the release record.
 6. Response: `{ version, publishedAt }`.
 
+**`POST /forms/{id}/publish-and-release`** is the same five steps with the release inside
+the same transaction: `writeVersion`, then `recordRelease` from `../releases/release.ts`,
+which writes the `control.form_releases` row and `form.released` into the released
+environment's `outbox`. One intent, one act - the combined action finding 2 accepted - and
+**atomically or not at all**, so a refused release leaves no published version behind and
+the author's draft where they left it. It publishes a real, immutable version and keeps it:
+there is no draft-level release and nothing skips publishing.
+
 Nothing is persisted on a failed publish, and nothing is persisted if the
 transaction rolls back (an induced failure between the version insert and the
 draft delete leaves no version, an intact draft, and no outbox event - exit

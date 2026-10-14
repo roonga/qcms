@@ -546,6 +546,34 @@ export const PublishedResponse = z
   })
   .openapi("PublishedResponse");
 
+/**
+ * `POST /admin/forms/:id/publish-and-release`: which environment the new version goes to.
+ *
+ * One intent, one act (finding 2's first mitigation). The body is the environment and
+ * nothing else: the version is the one this call creates, so there is nothing to choose,
+ * and a first release has no source environment (Q4).
+ */
+export const PublishAndReleaseBody = z
+  .strictObject({
+    environment: z
+      .string()
+      .min(1)
+      .max(53)
+      .regex(/^[a-z][a-z0-9]*$/)
+      .openapi({ example: "test" }),
+  })
+  .openapi("PublishAndReleaseBody");
+
+/** `POST /admin/forms/:id/publish-and-release`: the version, and where it now serves. */
+export const PublishedAndReleasedResponse = z
+  .object({
+    version: z.number().int().positive().openapi({ example: 1 }),
+    publishedAt: z.iso.datetime(),
+    environment: z.string().openapi({ example: "test" }),
+    releasedAt: z.iso.datetime(),
+  })
+  .openapi("PublishedAndReleasedResponse");
+
 /** `POST /admin/forms/:id/close|reopen`: the resulting lifecycle status. */
 export const FormStatusResponse = z
   .object({

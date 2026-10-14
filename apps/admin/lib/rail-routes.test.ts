@@ -58,6 +58,7 @@ const CURRENT_SECTION: Readonly<Record<string, string>> = {
   "/forms/[formId]/preview": "preview",
   "/forms/[formId]/versions": "versions",
   "/forms/[formId]/versions/[version]": "versions",
+  "/forms/[formId]/releases": "releases",
   "/forms/[formId]/links": "links",
   "/forms/[formId]/responses": "responses",
   "/forms/[formId]/responses/[sessionId]": "responses",
@@ -153,17 +154,20 @@ describe("every screen has a page in the slot, whether or not it has a rail", ()
 });
 
 describe("which screens carry the form-subtree section", () => {
-  it("counts the nine form-scoped screens, which is the audit's eight plus the rules route", () => {
+  it("counts the ten form-scoped screens: the audit's eight, the rules route and releases", () => {
     // `plan/admin-ux-audit.md` §1: "of the sixteen authenticated screens, eight are
     // form-scoped and would get a populated rail". A NINTH arrived on 2026-09-05, and it
     // arrived the way this test asks a screen to: the Code Owner ruled on issue #669 that
     // `plan/admin-shell-poc/rules-screen-poc.html` is built as drawn, so rule editing left
     // the builder for `/forms/[formId]/rules` and its rail row is `rules`. A tenth is the
-    // moment the same question has to be asked again, so it fails here.
+    // A TENTH arrived with task 065 and arrived the same way: ADR-40 makes "what is
+    // released where" a question the version history cannot answer, so it is a screen. An
+    // eleventh is the moment the same question has to be asked again, so it fails here.
     expect(sorted(formScopedScreens())).toEqual([
       "/forms/[formId]",
       "/forms/[formId]/links",
       "/forms/[formId]/preview",
+      "/forms/[formId]/releases",
       "/forms/[formId]/responses",
       "/forms/[formId]/responses/[sessionId]",
       "/forms/[formId]/rules",

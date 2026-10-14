@@ -3,7 +3,7 @@ import { check, index, integer, jsonb, pgTable, text, timestamp, uuid } from "dr
 
 /**
  * The transactional outbox (`ARCHITECTURE.md` §5.3). Domain events
- * (`response.submitted`, `form.published`) are written in the same transaction
+ * (`response.submitted`, `form.released`) are written in the same transaction
  * as the state change they describe, then delivered by the background deliverer
  * with exponential backoff. After retries are exhausted a row is dead-lettered
  * (`dead_lettered_at` set) and surfaced in the admin UI for manual redelivery.
@@ -104,7 +104,7 @@ export const outbox = pgTable(
     //
     // One direction only: a payload with no `answers` member and no marker is the
     // ordinary shape of every event type that never carried answers
-    // (`form.published`), so it stays legal.
+    // (`form.released`), so it stays legal.
     check(
       "outbox_redacted_payload_has_no_answers",
       sql`${t.payloadRedactedAt} is null or not jsonb_exists(${t.payload}, 'answers')`,

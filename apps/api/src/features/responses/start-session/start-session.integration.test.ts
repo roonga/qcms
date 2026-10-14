@@ -28,6 +28,7 @@ import {
   createForm,
   getSecureLink,
   getSession,
+  insertFormRelease,
   insertFormVersion,
   insertSecureLink,
   revokeSecureLink,
@@ -64,7 +65,17 @@ let linkKey: CryptoKey;
 
 beforeAll(async () => {
   testDb = await startTestDb();
-  deps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), env: validEnv() });
+  deps = makeDeps({
+    db: testDb.db,
+    clock: fixedClock(NOW),
+    // The per-IP session-create cap is lifted for this suite, and only here. The default
+    // is 20 an hour and the clock is fixed, so the cap is a hard budget for the whole
+    // file - which this file had quietly spent, so adding a case made an unrelated test
+    // read 429 as its own failure. The limiter has its own coverage in
+    // `../rate-limits.test.ts`, where the cap is set low on purpose; nothing in this file
+    // asserts a 429.
+    env: validEnv({ QCMS_RL_SESSION_CREATE_MAX: "200" }),
+  });
   app = createApp(deps, PUBLIC_ONLY, { groups: { public: [registerStartSession] } });
   internalToken = internalTokenFor(deps.config);
   linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]));
@@ -106,11 +117,24 @@ interface ErrBody {
 
 // --- seed helpers -----------------------------------------------------------
 
-/** Seed a form with `versions` published versions (v1..vN). Returns the FormId. */
+/**
+ * Seed a form with `versions` published versions (v1..vN), the last of them **released**
+ * to the environment this harness serves.
+ *
+ * The release is part of the fixture because publishing stopped being the act that
+ * reaches a respondent (ADR-40, task 065): a published version is served nowhere until it
+ * is released, so a seed that published alone would describe a form no session can start
+ * on. `release: false` is for the tests that want exactly that state.
+ */
 async function seedForm(
   id: string,
   slug: string,
-  opts: { versions?: number; closed?: boolean; challengeRequired?: boolean } = {},
+  opts: {
+    versions?: number;
+    closed?: boolean;
+    challengeRequired?: boolean;
+    release?: boolean;
+  } = {},
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, {
@@ -119,7 +143,8 @@ async function seedForm(
     defaultLocale: "en",
     ...(opts.challengeRequired !== undefined ? { challengeRequired: opts.challengeRequired } : {}),
   });
-  for (let i = 0; i < (opts.versions ?? 0); i++) {
+  const versions = opts.versions ?? 0;
+  for (let i = 0; i < versions; i++) {
     await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
@@ -129,8 +154,21 @@ async function seedForm(
       semanticsVersion: "1",
     });
   }
+  if (versions > 0 && opts.release !== false) {
+    await release(formId, versions);
+  }
   if (opts.closed) await closeForm(testDb.db, formId);
   return formId;
+}
+
+/** Release one version of a form into the environment this harness serves (ADR-40). */
+async function release(formId: FormId, version: number): Promise<void> {
+  await insertFormRelease(testDb.db, {
+    formId,
+    environment: DEFAULT_TEST_ENVIRONMENT,
+    version,
+    releasedBy: "usr_fixture",
+  });
 }
 
 /** How many sessions exist for a form - 0 proves a refusal created nothing. */
@@ -364,14 +402,16 @@ describe("one-time link race (exit criterion 1)", () => {
 
 // --- exit criterion 2: pinning + exit criterion 4: newest-version -----------
 
-describe("version pinning (exit criterion 2) and newest-version selection (exit criterion 4)", () => {
-  it("a session keeps its pinned version after a later publish (I4)", async () => {
+describe("version pinning (exit criterion 2) and release resolution (exit criterion 4)", () => {
+  it("a session keeps its pinned version after a later publish and its release (I4)", async () => {
     const formId = await seedForm("frm_pin", "pin-form", { versions: 1 });
     const start = await post({ formSlug: "pin-form" });
     const body = (await start.json()) as StartBody;
     expect(body.formVersion).toBe(1);
 
-    // Publish v2 AFTER the session was created.
+    // Publish v2 AFTER the session was created. Publishing alone reaches no environment
+    // (ADR-40), so this changes nothing a respondent sees - including a session that has
+    // not started yet.
     await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
@@ -380,6 +420,12 @@ describe("version pinning (exit criterion 2) and newest-version selection (exit 
       a2uiSpecVersion: "1.0.0",
       semanticsVersion: "1",
     });
+    const unreleased = (await (await post({ formSlug: "pin-form" })).json()) as StartBody;
+    expect(unreleased.formVersion).toBe(1);
+
+    // Releasing it is the act that moves the environment, and it still does not move the
+    // open session: ADR-07's invariant I4 has no re-pin path (task 065, criterion 3).
+    await release(formId, 2);
 
     const status = await get(body.sessionId, { authorization: `Bearer ${body.sessionToken}` });
     expect(status.status).toBe(200);
@@ -388,15 +434,26 @@ describe("version pinning (exit criterion 2) and newest-version selection (exit 
     expect(view.status).toBe("created");
     expect(view.position).toBeNull();
 
-    // A new session now binds to v2 (newest).
+    // A new session binds to what is now released.
     const later = (await (await post({ formSlug: "pin-form" })).json()) as StartBody;
     expect(later.formVersion).toBe(2);
   });
 
-  it("selects the newest of three published versions", async () => {
-    await seedForm("frm_three", "three-form", { versions: 3 });
+  it("serves the version released to this environment, not the newest published one", async () => {
+    // Three published versions and the middle one released: the newest published version
+    // is no longer what a session resolves (ADR-40, task 065). This is the assertion that
+    // would have passed either way before releases existed.
+    const formId = await seedForm("frm_three", "three-form", { versions: 3, release: false });
+    await release(formId, 2);
     const body = (await (await post({ formSlug: "three-form" })).json()) as StartBody;
-    expect(body.formVersion).toBe(3);
+    expect(body.formVersion).toBe(2);
+  });
+
+  it("refuses a form with published versions and no release in this environment", async () => {
+    await seedForm("frm_unreleased", "unreleased-form", { versions: 2, release: false });
+    const res = await post({ formSlug: "unreleased-form" });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as ErrBody).error.code).toBe("NO_PUBLISHED_VERSION");
   });
 });
 

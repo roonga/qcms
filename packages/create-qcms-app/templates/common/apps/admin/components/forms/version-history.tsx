@@ -31,24 +31,50 @@ import { t } from "@/lib/i18n/en";
  * calls the draft-preview endpoint, because history shows the audit copy and a
  * recompilation would be a different document.
  */
+/** Which versions the table shows. `all` is the default, so nothing is hidden by surprise. */
+type Filter = "all" | "released";
+
 export function VersionHistory({
   formId,
   versions,
   definitionsByVersion,
+  releasedBy = {},
 }: {
   readonly formId: string;
   /** Newest first, as the detail read returns them. */
   readonly versions: readonly FormVersionSummary[];
   /** The frozen definition of each version, for the diff. Keyed by version number. */
   readonly definitionsByVersion: Readonly<Record<string, unknown>>;
+  /**
+   * Which environments each version has reached, keyed by version number (ADR-40, task
+   * 065). A version absent from this map was released nowhere.
+   *
+   * It defaults to empty rather than being required, because a form with no release at all
+   * is the ordinary state of a form an author has just published to: the column then says
+   * "nowhere" for every row, which is the honest answer and the thing the author needs to
+   * know before they go looking for their form in front of a respondent.
+   */
+  readonly releasedBy?: Readonly<Record<string, readonly string[]>>;
 }) {
   const [older, setOlder] = useState<string>("");
   const [newer, setNewer] = useState<string>("");
+  const [filter, setFilter] = useState<Filter>("all");
 
   const items = versions.map((version) => ({
     value: String(version.version),
     label: t("forms.version.value", { version: version.version }),
   }));
+
+  // The second churn mitigation finding 2 accepted, and it is presentation only: every
+  // iteration an author tries in a non-prod environment is an immutable published version
+  // and R1 keeps it, so a week of iterating leaves a long list. **The default shows every
+  // version**, so nothing is hidden by surprise, and the filter is a view of the same rows
+  // rather than a different read.
+  const shown =
+    filter === "released"
+      ? versions.filter((version) => (releasedBy[String(version.version)] ?? []).length > 0)
+      : versions;
+  const hidden = versions.length - shown.length;
 
   const diff = useMemo(() => {
     if (older === "" || newer === "" || older === newer) return undefined;
@@ -92,6 +118,34 @@ export function VersionHistory({
           (`plan/admin-mobile-stance.md`, item 5). No `min-inline-size` is declared here,
           so there is none to reset at the boundary, and with the stamps gone the scroll
           container is the fallback rather than the default experience. */}
+      {/* The filter, above the table it narrows. A radio pair rather than a checkbox,
+          because "every version" is a real choice and not the absence of one: an author
+          who has turned the filter on and wants the whole list back is choosing, and a
+          checkbox would make the default state unnameable. */}
+      <fieldset className="flex flex-wrap items-center gap-3" data-testid="qcms-history-filter">
+        <legend className="text-sm text-(--color-text-muted)">
+          {t("forms.history.filter.legend")}
+        </legend>
+        {(["all", "released"] as const).map((value) => (
+          <label key={value} className="flex items-center gap-1 text-sm">
+            <input
+              type="radio"
+              name="qcms-history-filter"
+              value={value}
+              checked={filter === value}
+              onChange={() => {
+                setFilter(value);
+              }}
+            />
+            {t(`forms.history.filter.${value}`)}
+          </label>
+        ))}
+        {filter === "released" && hidden > 0 && (
+          <span className="text-sm text-(--color-text-muted)" data-testid="qcms-history-hidden">
+            {t("forms.history.filter.hidden", { count: hidden })}
+          </span>
+        )}
+      </fieldset>
       <div className="qcms-table qcms-table--versions">
         <table data-testid="qcms-history-table">
           <caption className="qcms-visually-hidden">{t("forms.history.table")}</caption>
@@ -112,10 +166,15 @@ export function VersionHistory({
               <th scope="col" className="qcms-cell--drop">
                 {t("forms.history.column.semanticsVersion")}
               </th>
+              {/* Where this version has reached. Not a `qcms-cell--drop`: under ADR-40 it
+                  is the column that answers "is this what a respondent sees", which is the
+                  question the Published column used to answer on its own and no longer
+                  does. */}
+              <th scope="col">{t("forms.history.column.released")}</th>
             </tr>
           </thead>
           <tbody>
-            {versions.map((version) => (
+            {shown.map((version) => (
               <tr key={version.version} data-form-version={version.version}>
                 {/* The view link, folded back into the row it belongs to (issue 570).
                     It used to be a separate list under the table, because a kit table
@@ -145,6 +204,13 @@ export function VersionHistory({
                 <td className="qcms-cell--drop">{version.compilerVersion}</td>
                 <td className="qcms-cell--drop">{version.a2uiSpecVersion}</td>
                 <td className="qcms-cell--drop">{version.semanticsVersion}</td>
+                <td data-released={(releasedBy[String(version.version)] ?? []).join(" ")}>
+                  {(releasedBy[String(version.version)] ?? []).length === 0
+                    ? t("forms.history.releasedNowhere")
+                    : t("forms.history.releasedIn", {
+                        environments: (releasedBy[String(version.version)] ?? []).join(", "),
+                      })}
+                </td>
               </tr>
             ))}
           </tbody>

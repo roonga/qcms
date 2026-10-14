@@ -126,6 +126,32 @@ export async function openRail(page: Page): Promise<void> {
  * which changes nothing. Helpers below that act on a form-level panel go through here
  * rather than each spec remembering to.
  */
+/**
+ * Release a form's newest published version through the release screen (ADR-40, task 065).
+ *
+ * **Every spec that publishes through the UI and then walks the portal needs this**, and
+ * that is the model rather than a harness quirk: a published version is served nowhere
+ * until a release record says where, so a spec that only published left a form no session
+ * could start on and the respondent route answered 409 `NO_PUBLISHED_VERSION`.
+ *
+ * The dialog opens on the environment the switcher has selected and on the newest version,
+ * so releasing to that environment is one press. `prod` is the default because that is the
+ * environment the respondent harness serves until task 066 gives the portal its `/<env>/`
+ * prefix.
+ */
+export async function releaseNewestVersion(
+  page: Page,
+  formId: string,
+  environment = "prod",
+): Promise<void> {
+  await page.goto(`/forms/${encodeURIComponent(formId)}/releases`);
+  await page.getByRole("button", { name: "Release a version…" }).click();
+  const dialog = page.getByRole("alertdialog");
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: `Release to ${environment}` }).click();
+  await expect(page.getByTestId("qcms-release-status")).toContainText(environment);
+}
+
 export async function openFormDetails(page: Page): Promise<void> {
   await openRail(page);
   // BY ITS PLACE IN THE RAIL, not by its name. That row is named after the FORM now - it

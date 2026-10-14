@@ -29,6 +29,7 @@ import {
   makeListFormsHandler,
   makePreviewConditionHandler,
   makePreviewDraftHandler,
+  makePublishAndReleaseFormHandler,
   makePublishFormHandler,
   makePutDraftHandler,
   makeReopenFormHandler,
@@ -51,6 +52,8 @@ import {
   PreviewConditionResponse,
   PreviewDraftBody,
   PreviewDraftResponse,
+  PublishAndReleaseBody,
+  PublishedAndReleasedResponse,
   PublishedResponse,
   SavedDraftResponse,
   UpdateFormSettingsBody,
@@ -244,6 +247,29 @@ export const publishFormRoute = createRoute({
   ...withScopes("forms:write"),
 });
 
+export const publishAndReleaseFormRoute = createRoute({
+  method: "post",
+  path: "/forms/{id}/publish-and-release",
+  summary: "Publish the draft and release the new version to an environment, in one act (admin)",
+  description:
+    "The combined action finding 2 accepted: one intent is one act. It publishes a real, " +
+    "immutable version and keeps it - there is no draft-level release and nothing skips " +
+    "publishing - and the publish, the release record and the `form.released` event share " +
+    "one transaction, so it happens atomically or not at all.",
+  tags,
+  request: { params: FormIdParam, body: jsonBody(PublishAndReleaseBody) },
+  responses: {
+    200: {
+      description: "The new published version and the environment it was released to",
+      content: { "application/json": { schema: PublishedAndReleasedResponse } },
+    },
+    // 400: an environment this deployment does not serve. 409: no draft to publish.
+    // 422: publish invariants fail (PublishError[]).
+    ...errorResponses(400, 401, 404, 409, 422),
+  },
+  ...withScopes("forms:write"),
+});
+
 export const closeFormRoute = createRoute({
   method: "post",
   path: "/forms/{id}/close",
@@ -306,6 +332,7 @@ export const registerForms: SliceRegistrar = (group, deps: Deps): void => {
   group.openapi(previewDraftRoute, makePreviewDraftHandler(deps));
   group.openapi(updateFormSettingsRoute, makeUpdateFormSettingsHandler(deps));
   group.openapi(publishFormRoute, makePublishFormHandler(deps));
+  group.openapi(publishAndReleaseFormRoute, makePublishAndReleaseFormHandler(deps));
   group.openapi(closeFormRoute, makeCloseFormHandler(deps));
   group.openapi(reopenFormRoute, makeReopenFormHandler(deps));
   group.openapi(getFormVersionRoute, makeGetFormVersionHandler(deps));

@@ -79,7 +79,7 @@ interface Screen {
 }
 
 /**
- * All nine form-scoped screens, in the order the rail draws their rows.
+ * All ten form-scoped screens, in the order the rail draws their rows.
  *
  * The two detail routes expect their SECTION rather than themselves, and that is the same
  * answer the app has given on those URLs since task 034: neither a stored version nor one
@@ -115,6 +115,15 @@ function screens(): readonly Screen[] {
       current: "section:versions",
       children: true,
       title: `Version history: ${FORM_ID} - QCMS`,
+    },
+    {
+      // Task 065's screen. Its rail carries the form's STEPS like every other one: a rail
+      // listing environments beside a table of environments is the rail §5.4 rejects for
+      // repeating the page's own body.
+      path: `/forms/${FORM_ID}/releases`,
+      current: "section:releases",
+      children: true,
+      title: `Releases: ${FORM_ID} - QCMS`,
     },
     {
       path: `/forms/${FORM_ID}/versions/1`,
@@ -162,7 +171,7 @@ test.beforeAll(async () => {
   await createTestAdmin(EMAIL);
 });
 
-test("561 puts the rail on all nine form-scoped screens, marking the row the screen is", async ({
+test("561 puts the rail on all ten form-scoped screens, marking the row the screen is", async ({
   page,
 }) => {
   test.setTimeout(600_000);

@@ -206,7 +206,7 @@ describe("a scaffolded QCMS deployment", () => {
     expect(response.status).toBe(401);
   });
 
-  it("completes the scenario-1 loop: author, publish, link, respond, submit, read back", async () => {
+  it("completes the scenario-1 loop: author, publish, release, link, respond, submit, read back", async () => {
     // 1. Author a question and publish version 1.
     await json(
       `${API}/admin/questions`,
@@ -273,6 +273,23 @@ describe("a scaffolded QCMS deployment", () => {
       [200, 201],
     );
     expect(published["version"]).toBe(1);
+
+    // 2b. Release it. Publishing froze the version into `control`, shared by every
+    //     environment, and served it nowhere (ADR-40, task 065): what a new session
+    //     resolves is the version **released** to its environment, so without this the
+    //     redemption below reaches a form with nothing to serve. `prod` is the environment
+    //     a scaffolded deployment serves, which is also the one the respondent surface
+    //     resolves while it carries no `/<env>/` prefix.
+    const released = await json(
+      `${API}/admin/forms/${FORM_ID}/releases`,
+      {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({ environment: "prod", version: published["version"] }),
+      },
+      [200, 201],
+    );
+    expect(released["version"]).toBe(1);
 
     // 3. Mint a secure link. The token exists only inside the returned URL, which is
     //    built from QCMS_PORTAL_BASE_URL, so this also proves the scaffolder put the

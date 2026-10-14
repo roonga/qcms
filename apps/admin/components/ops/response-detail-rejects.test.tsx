@@ -55,6 +55,7 @@ function renderDetail(props: {
       labels={new Map()}
       labelsFailed={false}
       linksHref="/forms/form-1/links"
+      environment="test"
       erase={props.erase ?? (() => Promise.resolve({ status: "error" as const }))}
       unflag={props.unflag ?? (() => Promise.resolve({ status: "error" as const }))}
     />,

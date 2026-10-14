@@ -109,6 +109,17 @@ export const messages = {
   // which is what the visible chip used to do between its border and its check mark.
   "appearance.trigger": "Appearance: {mode}",
 
+  // The global environment switcher and its banner (ADR-40 Q6, task 065). The environment
+  // NAMES are data, not copy: they come from `control.environments` and an operator may
+  // create a third, so no key here spells one.
+  "environment.legend": "Environment",
+  "environment.trigger": "Environment: {environment}",
+  "environment.banner":
+    "You are working in {environment}. It is not production: what you release, close or erase here affects this environment only.",
+  // Named in a destructive confirmation, which Q6 requires of each one: an erasure
+  // performed against the wrong environment is not undoable.
+  "environment.inThis": "In {environment}.",
+
   // The account menu (task 032). Unlike the appearance trigger above, this one is NOT
   // wordless: it paints an initials monogram, and WCAG 2.2 SC 2.5.3 (label in name)
   // requires an accessible name that contains the text a sighted operator can read. It
@@ -1461,6 +1472,10 @@ export const messages = {
   "forms.tab.preview": "Preview",
   "forms.tab.versions": "Version history",
   "forms.tab.links": "Links",
+  // The eighth section (ADR-40, task 065). "Releases" is a screen name like the seven
+  // beside it: it heads `/forms/{formId}/releases`, ends that screen's breadcrumb, names
+  // its rail row and composes its browser-tab title.
+  "forms.tab.releases": "Releases",
 
   "forms.publish.action": "Publish",
   "forms.publish.title": "Publish {slug}?",
@@ -1509,6 +1524,63 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed. New sessions are refused; in-flight sessions finish normally.",
 
+  // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
+  // nothing is reverted, and rolling back is releasing an earlier version.
+  "forms.releases.intro":
+    "A published version is served nowhere until it is released. Releasing records who released what, when and from where; nothing is copied, and sessions already under way stay on the version they started.",
+  "forms.releases.currentHeading": "Released now",
+  "forms.releases.currentTable": "The version released to each environment",
+  "forms.releases.column.environment": "Environment",
+  "forms.releases.column.version": "Version",
+  "forms.releases.column.releasedAt": "Released",
+  "forms.releases.column.releasedBy": "Released by",
+  "forms.releases.column.fromEnvironment": "Promoted from",
+  "forms.releases.column.approvedBy": "Approved by",
+  "forms.releases.none": "Nothing released",
+  "forms.releases.noSource": "Released directly",
+  "forms.releases.noApproval": "No approval recorded",
+  "forms.releases.historyHeading": "Release history",
+  "forms.releases.historyTable": "Every release of this form",
+  "forms.releases.emptyTitle": "Not released anywhere",
+  "forms.releases.empty":
+    "This form has never been released. Publishing a version does not serve it: release it to an environment to put it in front of respondents.",
+  "forms.releases.notPublished":
+    "There is nothing to release yet: publish a version first, and it becomes releasable.",
+  // Derived from the row and its predecessor, never typed by an administrator. "Released
+  // version 4 after version 7" is the shape an incident review reads, so the history says
+  // so rather than leaving an operator to count backwards.
+  "forms.releases.rollback": "Rollback",
+  "forms.releases.rollbackFrom": "Rolled back from v{replaced}",
+  "forms.releases.replaced": "Replaced v{replaced}",
+  "forms.releases.first": "First release here",
+  "forms.releases.action": "Release a version…",
+  "forms.releases.dialogTitle": "Release v{version} to {environment}?",
+  "forms.releases.dialogBody":
+    "This becomes the version new sessions in {environment} start on. Sessions already under way stay on the version they pinned, and every earlier release stays in the history.",
+  "forms.releases.rollbackWarning":
+    "This is a rollback: {environment} is on v{current}, and v{version} is older.",
+  "forms.releases.version": "Version to release",
+  "forms.releases.environment": "Environment",
+  "forms.releases.fromEnvironment": "Promoted from (optional)",
+  "forms.releases.fromNone": "Nowhere: release it directly",
+  "forms.releases.confirm": "Release to {environment}",
+  "forms.releases.cancel": "Cancel",
+  "forms.releases.pending": "Releasing...",
+  "forms.releases.released": "v{version} is now released to {environment}.",
+  "forms.releases.failed": "Nothing was released. {message}",
+  "forms.releases.rollbackDone": "v{version} is released to {environment} again, as a rollback.",
+
+  // The combined action finding 2 accepted: one intent is one act. It publishes a real,
+  // immutable version and keeps it - nothing here skips publishing.
+  "forms.publishRelease.action": "Publish and release…",
+  "forms.publishRelease.title": "Publish {slug} and release it to {environment}?",
+  "forms.publishRelease.body":
+    "One act: the new version is frozen and released to {environment} together, or neither happens. New sessions in {environment} start on it; other environments are untouched.",
+  "forms.publishRelease.confirm": "Publish and release to {environment}",
+  "forms.publishRelease.pending": "Publishing and releasing...",
+  "forms.publishRelease.done": "Published as v{version} and released to {environment}.",
+  "forms.publishRelease.failed": "Nothing was published or released. {message}",
+
   "forms.preview.heading": "Preview",
   "forms.preview.banner": "Preview - not published",
   // The respondent frame's bar (issue 668), drawn in
@@ -1544,6 +1616,17 @@ export const messages = {
   "forms.history.emptyTitle": "Not published yet",
   "forms.history.empty": "This form has never been published.",
   "forms.history.table": "Published versions",
+  // The second churn mitigation finding 2 accepted, and it is presentation only: every
+  // `dev` iteration is an immutable published version and R1 keeps it, so the list grows.
+  // The DEFAULT shows every version, so nothing is hidden by surprise.
+  "forms.history.filter.all": "Every version",
+  "forms.history.filter.released": "Released anywhere",
+  "forms.history.filter.legend": "Show",
+  "forms.history.filter.hidden":
+    "{count} versions are hidden because they were never released anywhere.",
+  "forms.history.column.released": "Released",
+  "forms.history.releasedIn": "{environments}",
+  "forms.history.releasedNowhere": "Nowhere",
   "forms.history.column.version": "Version",
   "forms.history.column.publishedAt": "Published",
   "forms.history.column.compilerVersion": "Compiler",

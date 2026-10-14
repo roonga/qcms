@@ -3,14 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import { FormActions } from "./form-actions.tsx";
-import { IDLE_FORM_STATUS, IDLE_PUBLISH } from "../../lib/forms/builder-state.ts";
+import {
+  IDLE_FORM_STATUS,
+  IDLE_PUBLISH,
+  IDLE_PUBLISH_RELEASE,
+} from "../../lib/forms/builder-state.ts";
 import type { DraftForm } from "../../lib/forms/types.ts";
 import { t } from "../../lib/i18n/en.ts";
 import { unexpected } from "../../lib/ops/unexpected.ts";
 
 /**
  * What an author sees when a form-level action REJECTS rather than returning a failure
- * (issue #352, handlers 4 and 5 of nine).
+ * (issue #352, handlers 4 and 5 of nine; task 065 adds the combined publish-and-release).
  *
  * ## What is faked, and why it is the right edge
  *
@@ -58,7 +62,9 @@ describe("a rejected form-level action", () => {
         draft={DRAFT}
         latestVersion={1}
         publish={transportFailure}
+        publishAndRelease={() => Promise.resolve(IDLE_PUBLISH_RELEASE)}
         setStatus={() => Promise.resolve(IDLE_FORM_STATUS)}
+        environment="prod"
       />,
     );
 
@@ -75,6 +81,38 @@ describe("a rejected form-level action", () => {
     expect(screen.queryByRole("alertdialog")).toBeNull();
   });
 
+  it("says nothing was published or released, and closes the combined dialog", async () => {
+    const user = userEvent.setup();
+    render(
+      <FormActions
+        slug="intake"
+        formId="form-1"
+        status="open"
+        draft={DRAFT}
+        latestVersion={1}
+        publish={() => Promise.resolve(IDLE_PUBLISH)}
+        publishAndRelease={transportFailure}
+        setStatus={() => Promise.resolve(IDLE_FORM_STATUS)}
+        environment="test"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: t("forms.publishRelease.action") }));
+    await user.click(
+      await screen.findByRole("button", {
+        name: t("forms.publishRelease.confirm", { environment: "test" }),
+      }),
+    );
+
+    // One sentence covering both halves, because the API writes both or neither: a
+    // message that said "published but not released" would describe a state that cannot
+    // exist (the unnumbered churn-mitigation criterion).
+    expect(
+      await screen.findByText(t("forms.publishRelease.failed", { message: unexpected() })),
+    ).toBeTruthy();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
+
   it("says the status did not change, and keeps the lifecycle dialog open to say it", async () => {
     const user = userEvent.setup();
     render(
@@ -85,7 +123,9 @@ describe("a rejected form-level action", () => {
         draft={DRAFT}
         latestVersion={1}
         publish={() => Promise.resolve(IDLE_PUBLISH)}
+        publishAndRelease={() => Promise.resolve(IDLE_PUBLISH_RELEASE)}
         setStatus={transportFailure}
+        environment="prod"
       />,
     );
 

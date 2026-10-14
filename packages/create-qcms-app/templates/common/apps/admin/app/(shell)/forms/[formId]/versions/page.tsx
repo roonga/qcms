@@ -6,7 +6,9 @@ import { FormPageHeader } from "@/components/forms/form-page-header";
 import { VersionHistory } from "@/components/forms/version-history";
 import { t } from "@/lib/i18n/en";
 import { formSectionName, pageMetadata } from "@/lib/page-title";
+import { environmentsByVersion } from "@/lib/forms/releases";
 import { getForm, getFormVersion } from "@/lib/server/forms";
+import { listReleases } from "@/lib/server/releases";
 import { requireAdminSession } from "@/lib/server/session";
 
 /** The browser-tab title for this route (issue #536): the section, and the form it belongs to. */
@@ -51,6 +53,11 @@ export default async function FormVersionsPage({
   }
   const form = detail.data;
 
+  // Where each version has reached (ADR-40, task 065). Read here rather than derived from
+  // the version rows, because a version row says when it was frozen and nothing about
+  // whether a respondent ever saw it - which is the distinction releases introduced.
+  const history = await listReleases(session, form.formId);
+
   const snapshots = await Promise.all(
     form.versions.map(async (version) => getFormVersion(session, form.formId, version.version)),
   );
@@ -72,6 +79,7 @@ export default async function FormVersionsPage({
         formId={form.formId}
         versions={form.versions}
         definitionsByVersion={definitionsByVersion}
+        releasedBy={history.ok ? environmentsByVersion(history.data) : {}}
       />
     </div>
   );

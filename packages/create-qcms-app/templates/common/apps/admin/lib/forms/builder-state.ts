@@ -173,6 +173,41 @@ export interface DraftPreviewState {
 
 export const IDLE_DRAFT_PREVIEW: DraftPreviewState = { status: "idle" };
 
+/**
+ * A release attempt's result (ADR-40, task 065).
+ *
+ * `rollback` is reported rather than asked for: the API derives it from the release's
+ * predecessor in that environment, and the screen says so afterwards. There is no
+ * "rollback" status, because a rollback is not a different outcome - it is a release of an
+ * earlier version, which is the same act with the same result (criterion 4).
+ */
+export interface ReleaseState {
+  readonly status: "idle" | "released" | "error";
+  readonly version?: number;
+  readonly environment?: string;
+  readonly rollback?: boolean;
+  readonly message?: string;
+}
+
+export const IDLE_RELEASE: ReleaseState = { status: "idle" };
+
+/**
+ * The combined publish-and-release result (finding 2's first mitigation).
+ *
+ * `rejected` carries the publish issues, exactly as {@link PublishState} does, because the
+ * publish half can refuse for every reason an ordinary publish can and the author needs
+ * the same work list. There is no half-done status: the API writes both or neither.
+ */
+export interface PublishReleaseState {
+  readonly status: "idle" | "released" | "rejected" | "error";
+  readonly version?: number;
+  readonly environment?: string;
+  readonly issues?: readonly FormIssue[];
+  readonly message?: string;
+}
+
+export const IDLE_PUBLISH_RELEASE: PublishReleaseState = { status: "idle" };
+
 /** Close/reopen. The screen re-reads the form afterwards; this only reports the outcome. */
 export interface FormStatusState {
   readonly status: "idle" | "changed" | "error";
