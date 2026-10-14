@@ -73,7 +73,7 @@ export function QuestionSave({ mode }: { readonly mode: "create" | "edit" }) {
         2. It is `type="button"` outside the form and saves by `requestSubmit()`, which is
            client JavaScript.
 
-        `components/questions/question-editor-hydration.test.tsx` pins (1) against the server
+        `components/hydrated-submit.test.tsx` pins (1) against the server
         render, so adding a server-visible submit control to this screen is a red rather than
         a silent reopening of the window. The guard that does real work is in
         `app/(shell)/forms/new/create-form.tsx`, whose submit is a real in-form `type="submit"`

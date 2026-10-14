@@ -166,6 +166,22 @@ const UNPULLABLE_REGISTRY = "127.0.0.1:1";
 const UNPULLABLE_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-no-such-image:16-alpine`;
 
 /**
+ * Every regex metacharacter in `literal` escaped, so a constant can be dropped into a
+ * pattern and match itself and nothing else.
+ *
+ * Written out because the alternative is the trap it replaces: `String.prototype.replace`
+ * with a STRING pattern rewrites the first match only, so `"127.0.0.1:1".replace(".", "\\.")`
+ * yields `127\.0.0.1:1`, whose remaining dots are still wildcards. That matched anyway,
+ * because an unescaped `.` matches a literal dot, so nothing failed and the claim that the
+ * matcher is safe against a host change was quietly false (PR #1051's review).
+ *
+ * @param literal text to match literally
+ */
+function escapeForRegExp(literal: string): string {
+  return literal.replaceAll(/[.*+?^${}()|[\]\\]/gu, String.raw`\$&`);
+}
+
+/**
  * A SECOND unpullable reference, so the fail-fast case can prime the cache itself
  * (issue #1026).
  *
@@ -299,9 +315,13 @@ describe("startTestDb image-pull failure reporting (issue #74)", () => {
       expect(failure?.message).toContain("QCMS_TEST_POSTGRES_IMAGE");
       // The underlying Docker error is preserved rather than swallowed. Built from the
       // constant rather than written out, so moving the registry host cannot leave this
-      // asserting the old one.
+      // asserting the old one - which is only true if EVERY metacharacter is escaped, so
+      // the escape is a real one rather than one dot (PR #1051's review). It read
+      // `.replace(".", "\\.")`, which escapes the first dot only and left
+      // `127\.0.0.1:1`, matching today because an unescaped `.` matches a literal dot and
+      // silently not matching the day the host gains a `+` or a `(`.
       expect(failure?.message).toMatch(
-        new RegExp(`cause:.+${UNPULLABLE_REGISTRY.replace(".", "\\.")}`, "s"),
+        new RegExp(`cause:.+${escapeForRegExp(UNPULLABLE_REGISTRY)}`, "s"),
       );
       expect(failure?.cause).toBeDefined();
       // The other direction of issue #150: a genuine image failure must not be
@@ -484,8 +504,30 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
  * test that caused it.
  */
 describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
-  /** Its own image reference, so this test exercises the fresh path, not the cache. */
-  const SNAPSHOT_PROBE_IMAGE = "localhost:1/qcms-host-snapshot-probe:16-alpine";
+  /**
+   * Its own image reference, so this test exercises the fresh path, not the cache.
+   *
+   * On `UNPULLABLE_REGISTRY` rather than `localhost:1`, for the reason the header of this
+   * file now states at length (issue #1026, carried here by PR #1051's review): `localhost`
+   * is not guaranteed to resolve to a v4 address and port 1 is not guaranteed to refuse.
+   * This dial was the third in the file and the one left behind, measured at 30.14s through
+   * `[::1]:1` on a review host whose `/etc/hosts` does carry the v4 line, against 0.11s for
+   * the literal address. It was under its budget and green, which is exactly why it was
+   * easy to miss: a file that states the rule in its header and then relies on the thing
+   * the rule warns about, 330 lines down.
+   */
+  const SNAPSHOT_PROBE_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-host-snapshot-probe:16-alpine`;
+
+  /**
+   * And a second reference for the replay case below, so it primes its own cache.
+   *
+   * Same reasoning as `UNPULLABLE_IMAGE_FOR_REPLAY`: keyed by reference, the cache is
+   * written in the `catch` of a pull attempt, so a replay case reading the entry the
+   * previous case happened to leave behind fails for the previous case's reason whenever
+   * that one is cut off. That is the ordering coupling issue #1026 removed from the two
+   * cases above, and this describe block still had it.
+   */
+  const SNAPSHOT_REPLAY_IMAGE = `${UNPULLABLE_REGISTRY}/qcms-host-snapshot-replay:16-alpine`;
 
   it(
     "says what the host was doing beside the failure it is already reporting",
@@ -523,7 +565,15 @@ describe("startTestDb host snapshot on a failed boot (issue #812)", () => {
       // host as it stood at some earlier file's failure, which is the exact failure mode
       // CONTRIBUTING warns about for gate logs: a stale reading is indistinguishable from
       // a current one.
-      const failure = await captureStartFailure({ image: SNAPSHOT_PROBE_IMAGE });
+      //
+      // Primed HERE, on this case's own reference, through the same code path that writes
+      // the cache in a real run. It used to read the entry the case above happened to
+      // leave behind, which made a failure there report as a broken fail-fast cache here.
+      const first = await captureStartFailure({ image: SNAPSHOT_REPLAY_IMAGE });
+      expect(first?.message).toContain("Could not PULL the test Postgres image");
+      expect(first?.message).not.toContain("not retried");
+
+      const failure = await captureStartFailure({ image: SNAPSHOT_REPLAY_IMAGE });
 
       expect(failure?.message).toContain("not retried");
       expect(failure?.message).toContain(HOST_SNAPSHOT_PREFIX);

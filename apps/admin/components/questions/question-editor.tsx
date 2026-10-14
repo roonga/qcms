@@ -325,7 +325,7 @@ export function QuestionEditor({
         `null` until `usePublishQuestionSave`'s effect has published the save state, and an
         effect runs after the hydrating commit. It is also `type="button"` outside the form and
         saves by `requestSubmit()`. So the window holds no press, which is stronger than a
-        press that does nothing, and `question-editor-hydration.test.tsx` pins it against the
+        press that does nothing, and `components/hydrated-submit.test.tsx` pins it against the
         server render so a server-visible submit control added here is a red.
 
         The other two Server Action forms in this app, because the next reader will want the
