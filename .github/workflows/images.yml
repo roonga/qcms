@@ -186,10 +186,28 @@ jobs:
       # SBOM step pulls docker/buildkit-syft-scanner, and the images build FROM
       # node:24-bookworm-slim. Both are build-time pulls, which is the same exception
       # the full-stack-e2e job already documents for the base image.
+      #
+      # AND NOT PRE-PULLED EITHER, which is the one place this job differs from every
+      # other image-building job in this repository (Code Owner, 2026-10-11, issue
+      # #1050). `.github/actions/prepull-base-images` puts the base and the
+      # `docker/dockerfile:1` frontend on the runner's DAEMON, and a compose build
+      # resolves both from there. This job does not use a compose build: `ensureBuilder()`
+      # creates a **docker-container** driver builder, because `--sbom` requires one, and
+      # that driver keeps its own content store and asks the registry regardless of what
+      # is on the daemon. Measured on 2026-10-15 by building a Dockerfile whose base and
+      # `# syntax=` both named tags that exist in no registry: the `docker` driver built it
+      # from the local store, and the docker-container driver failed at `resolve image
+      # config for ...` with `pull access denied ... authorization failed`.
+      #
+      # So the retry goes around the build, which is the narrowest place left, and
+      # `scripts/retry-registry.sh` makes it conditional: it retries only when the output
+      # names a registry or a transport failure, so a genuine build failure still fails on
+      # the first attempt rather than costing three builds.
       - name: Build the three images with SBOM, provenance and a version stamp
         if: env.PUBLISH != 'true'
         run: |
-          pnpm qcms:build-images -- \
+          bash scripts/retry-registry.sh \
+            pnpm qcms:build-images -- \
             --output "${RUNNER_TEMP}/images" \
             --attestations "${RUNNER_TEMP}/attestations"
 
@@ -202,8 +220,14 @@ jobs:
         if: env.PUBLISH == 'true'
         env:
           NAMESPACE: ${{ steps.registry.outputs.namespace }}
+        # Through the same conditional retry as the unpublished build above, and for the
+        # same reason: the base image and the BuildKit frontend come from Docker Hub
+        # whether or not the result is pushed to GHCR. A publish that a Hub blip stops is
+        # the worse case of the two, because it is the lane that mints the tag a deploy
+        # would pin.
         run: |
-          pnpm qcms:build-images -- \
+          bash scripts/retry-registry.sh \
+            pnpm qcms:build-images -- \
             --output "${RUNNER_TEMP}/images" \
             --attestations "${RUNNER_TEMP}/attestations" \
             --push "${NAMESPACE}" \
