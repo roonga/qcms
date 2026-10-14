@@ -5,6 +5,7 @@ import { answerKey, FormId, GroupId, InstanceId, QuestionId, SessionId } from "@
 import type { FormDefinition } from "@roonga/qcms-core";
 
 import {
+  SEED_WORKSPACE_ID,
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
   startTestDb,
@@ -57,7 +58,12 @@ async function seedSession(
   expiresAt = new Date(Date.now() + 86_400_000),
 ): Promise<SessionId> {
   const formId = FormId.parse(`frm_${id}`);
-  await createForm(testDb.db, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,

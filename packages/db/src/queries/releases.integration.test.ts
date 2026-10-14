@@ -4,7 +4,12 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import { FormId } from "@roonga/qcms-core";
 import type { FormDefinition } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  SEED_WORKSPACE_ID,
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 import {
   createForm,
   getReleasedVersion,
@@ -61,7 +66,12 @@ async function refusedBy(run: () => Promise<unknown>): Promise<string | undefine
 /** A form with `versions` published versions, so a release has something to name. */
 async function seedForm(label: string, versions = 1): Promise<FormId> {
   const formId = FormId.parse(`frm_${label}`);
-  await createForm(testDb.db, { formId, slug: `${label}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${label}-slug`,
+    defaultLocale: "en",
+  });
   for (let i = 0; i < versions; i += 1) {
     await insertFormVersion(testDb.db, {
       formId,

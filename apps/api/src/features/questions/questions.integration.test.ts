@@ -21,7 +21,7 @@ import {
   HONEYPOT_NODE_TYPE,
 } from "@roonga/qcms-a2ui-compiler";
 import { parseQuestionDefinition, QuestionId } from "@roonga/qcms-core";
-import { createQuestion, createQuestionVersion } from "@roonga/qcms-db";
+import { SEED_WORKSPACE_ID, createQuestion, createQuestionVersion } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -745,7 +745,11 @@ describe("v-invalid patterns are refused at the authoring boundary (#53)", () =>
     const questionId = QuestionId.parse("q_v_legacy");
     const parsed = parseQuestionDefinition(withPattern("q_v_legacy", V_INVALID));
     if (!parsed.ok) throw new Error("legacy fixture did not parse");
-    await createQuestion(testDb.db, { questionId, slug: "v-legacy" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "v-legacy",
+    });
     await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
 
     // Reads: the stored pattern comes back verbatim, unrepaired and unrefused.

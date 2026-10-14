@@ -48,6 +48,7 @@ import {
   type QuestionDefinition,
 } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createQuestion,
   createQuestionVersion,
@@ -173,6 +174,7 @@ beforeAll(async () => {
   internalToken = internalTokenFor(deps.config);
   for (const question of QUESTIONS) {
     await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       questionId: question.questionId,
       slug: question.questionId.replaceAll("_", "-"),
     });
@@ -203,7 +205,12 @@ async function publish(definition: FormDefinition, slug: string): Promise<FormId
   if (!draft.ok) throw new Error(`did not publish: ${JSON.stringify(draft.error)}`);
   const compiled = compileForm(draft.value.snapshot, {});
   const formId = FormId.parse(definition.formId);
-  await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug,
+    defaultLocale: "en",
+  });
   await insertFormVersion(testDb.db, {
     formId,
     definition,

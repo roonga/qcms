@@ -7,6 +7,7 @@ import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms
 import { reportingViewColumns } from "../reporting-views.js";
 import { erasureTombstones, reportingSchemaName } from "../schema/index.js";
 import {
+  SEED_WORKSPACE_ID,
   CONTAINER_BOOT_TIMEOUT_MS,
   startTestDb,
   type TestDb,
@@ -51,7 +52,12 @@ const emptyCompiled = {} as unknown as CompiledForm;
 /** Seed a form + one published version so sessions have valid FKs. */
 async function seedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const v = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,

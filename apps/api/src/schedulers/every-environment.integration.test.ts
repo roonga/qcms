@@ -33,6 +33,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createSession,
   enqueue,
@@ -126,7 +127,12 @@ afterAll(async () => {
  */
 async function seedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
-  await createForm(databases.control, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(databases.control, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(databases.control, {
     formId,
     // Empty definition and compiled output: nothing under test reads form content.

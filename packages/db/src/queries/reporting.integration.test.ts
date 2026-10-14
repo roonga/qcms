@@ -5,6 +5,7 @@ import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
 import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms-core";
 
 import {
+  SEED_WORKSPACE_ID,
   CONTAINER_BOOT_TIMEOUT_MS,
   startTestDb,
   type TestDb,
@@ -48,7 +49,12 @@ const emptyCompiled = {} as unknown as CompiledForm;
 
 async function seedFormVersion(id: string, version = 1): Promise<FormId> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug: `${id}-${String(version)}`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-${String(version)}`,
+    defaultLocale: "en",
+  });
   for (let v = 1; v <= version; v += 1) {
     await insertFormVersion(testDb.db, {
       formId,

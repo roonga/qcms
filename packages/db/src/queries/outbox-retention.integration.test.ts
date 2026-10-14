@@ -17,7 +17,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId } from "@roonga/qcms-core";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  SEED_WORKSPACE_ID,
+  CONTAINER_BOOT_TIMEOUT_MS,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 // Deep import on purpose: the budget is deliberately not on the package's public
 // surface, and deriving the boundary from the constant is what keeps this test on the
 // right side of it when the number moves.
@@ -75,7 +80,12 @@ let seq = 0;
 async function seedEvent(options: { answers?: boolean; repeat?: boolean } = {}): Promise<Seeded> {
   seq += 1;
   const formId = FormId.parse(`frm_retain_${seq}`);
-  await createForm(testDb.db, { formId, slug: `retain-${seq}`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `retain-${seq}`,
+    defaultLocale: "en",
+  });
   const webhookId = `whk_retain_${seq}`;
   await insertWebhook(testDb.db, {
     webhookId,

@@ -12,7 +12,12 @@
  */
 
 import { FormId, importCompactTokenKey, verifySecureLink } from "@roonga/qcms-core";
-import { createForm, insertFormRelease, insertFormVersion } from "@roonga/qcms-db";
+import {
+  SEED_WORKSPACE_ID,
+  createForm,
+  insertFormRelease,
+  insertFormVersion,
+} from "@roonga/qcms-db";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
@@ -93,7 +98,12 @@ beforeAll(async () => {
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
 
-  await createForm(testDb.db, { formId: FORM_ID, slug: "links-it", defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_ID,
+    slug: "links-it",
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(testDb.db, {
     formId: FORM_ID,
     definition: emptyDef,
@@ -113,6 +123,7 @@ beforeAll(async () => {
   });
 
   await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     formId: OTHER_FORM_ID,
     slug: "links-it-other",
     defaultLocale: "en",

@@ -18,6 +18,7 @@
 
 import { parseQuestionDefinition, QuestionId, stepQuestionRefs } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createQuestion,
   createQuestionVersion,
   getDraft,
@@ -130,7 +131,11 @@ async function seedPublishedQuestion(id: string, label: string): Promise<void> {
     label: { en: label },
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
-  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
   await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
@@ -240,7 +245,11 @@ describe("the assist slice over HTTP", () => {
         label: { en: "Versioned" },
       });
       if (!parsed.ok) throw new Error("fixture question did not parse");
-      await createQuestion(testDb.db, { questionId, slug: "versions-only" });
+      await createQuestion(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        questionId,
+        slug: "versions-only",
+      });
       for (const version of [1, 2, 3]) {
         await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
         if (version < 3) await publishQuestionVersion(testDb.db, { questionId, version });

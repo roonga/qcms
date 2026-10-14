@@ -18,6 +18,7 @@ import { FormId } from "@roonga/qcms-core";
 import * as schema from "../schema/index.js";
 import { webhookDeliveries } from "../schema/index.js";
 import {
+  SEED_WORKSPACE_ID,
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
   searchPathOptions,
@@ -63,7 +64,12 @@ async function seedEventWithWebhook(): Promise<{
 }> {
   seq += 1;
   const formId = FormId.parse(`frm_deliv_${seq}`);
-  await createForm(testDb.db, { formId, slug: `deliv-${seq}`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `deliv-${seq}`,
+    defaultLocale: "en",
+  });
   const webhookId = `whk_deliv_${seq}`;
   await insertWebhook(testDb.db, {
     webhookId,
@@ -340,7 +346,12 @@ async function seedFormWithDeliveries(
 ): Promise<{ formId: FormId; deliveryIds: string[] }> {
   seq += 1;
   const formId = FormId.parse(`frm_list_${seq}`);
-  await createForm(testDb.db, { formId, slug: `list-${seq}`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `list-${seq}`,
+    defaultLocale: "en",
+  });
   const event = await enqueue(testDb.db, {
     eventType: "response.submitted",
     payload: { formId },
@@ -538,7 +549,12 @@ describe("delivery claim concurrency (live, pooled connections)", () => {
     // One form + event, six webhooks → six independent delivery rows.
     seq += 1;
     const formId = FormId.parse(`frm_deliv_race_${seq}`);
-    await createForm(testDb.db, { formId, slug: `deliv-race-${seq}`, defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: `deliv-race-${seq}`,
+      defaultLocale: "en",
+    });
     const event = await enqueue(testDb.db, {
       eventType: "response.submitted",
       payload: { formId },

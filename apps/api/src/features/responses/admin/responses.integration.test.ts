@@ -26,6 +26,7 @@ import {
 import type { AnswerValue, LockedSubmission } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
+  SEED_WORKSPACE_ID,
   addInstances,
   createForm,
   createSession,
@@ -119,7 +120,12 @@ function formDefinition(formId: string, steps: [string, string[]][]): FormDefini
 /** Create a form and publish version 1 with the given step→questionIds layout. */
 async function seedForm(formId: string, steps: [string, string[]][]): Promise<FormId> {
   const id = FormId.parse(formId);
-  await createForm(testDb.db, { formId: id, slug: formId.replace(/_/g, "-"), defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: id,
+    slug: formId.replace(/_/g, "-"),
+    defaultLocale: "en",
+  });
   await insertFormVersion(testDb.db, {
     formId: id,
     definition: formDefinition(formId, steps),
@@ -862,7 +868,12 @@ function repeatFormDefinition(formId: string, max: number): FormDefinition {
 /** Create the form and publish one version per `max` given, in order. */
 async function seedRepeatForm(formId: string, maxima: readonly number[]): Promise<FormId> {
   const id = FormId.parse(formId);
-  await createForm(testDb.db, { formId: id, slug: formId.replace(/_/g, "-"), defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: id,
+    slug: formId.replace(/_/g, "-"),
+    defaultLocale: "en",
+  });
   for (const max of maxima) {
     await insertFormVersion(testDb.db, {
       formId: id,

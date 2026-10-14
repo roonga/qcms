@@ -28,6 +28,7 @@ import {
   SessionId,
 } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createQuestion,
   createQuestionVersion,
   createSession,
@@ -122,7 +123,11 @@ async function seedPublishedQuestion(id: string, labelText = "Field"): Promise<v
   const questionId = QuestionId.parse(id);
   const parsed = parseQuestionDefinition(shortText(id, labelText));
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
-  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
   await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
@@ -482,7 +487,11 @@ async function seedPublishedChoice(id: string, optionIds: readonly string[]): Pr
     options: optionIds.map((optionId) => ({ optionId, label: { en: optionId } })),
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
-  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
   await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }
@@ -1046,7 +1055,11 @@ async function seedPublishedMulti(id: string, optionIds: readonly string[]): Pro
     options: optionIds.map((optionId) => ({ optionId, label: { en: optionId } })),
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
-  await createQuestion(testDb.db, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
   await createQuestionVersion(testDb.db, { questionId, definition: parsed.value });
   await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 }

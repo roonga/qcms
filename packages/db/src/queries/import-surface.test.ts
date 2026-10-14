@@ -29,6 +29,11 @@ describe("query helper import surface", () => {
     "listVersionsForQuestions",
     "updateDraftDefinition",
     "listQuestions",
+    "listQuestionOwnership",
+    // Q14's move: one UPDATE on the question's identity row, which is why it reaches no
+    // version and cannot touch a pin. The publish-time rule that decides whether a NEW
+    // pin is allowed is the API's, not a helper here.
+    "moveQuestionToWorkspace",
     "isQuestionIdTaken",
     "isQuestionIdInAnswerLedger",
     // forms
@@ -45,7 +50,24 @@ describe("query helper import surface", () => {
     "listFormVersions",
     "closeForm",
     "reopenForm",
+    "moveFormToWorkspace",
     "updateFormSettings",
+    // workspaces (ADR-41, task 068). **There is no `deleteWorkspace` and there never
+    // is one**, which is criterion 5 asserted at the import surface the way I4 is
+    // asserted above: a workspace is archived, never deleted, so the absence of the
+    // helper is the control and this list is where a future one would have to appear.
+    // `archiveWorkspace` stamps one column and reaches no form, question or response
+    // row, so ADR-17's two whole-session delete doors stay at two.
+    "listWorkspaces",
+    "listActiveWorkspaces",
+    "getWorkspace",
+    "getWorkspaceBySlug",
+    "getSharedWorkspace",
+    "setWorkspaceShared",
+    "archiveWorkspace",
+    "findArchiveBlockers",
+    "countWorkspaceContents",
+    "ensureSeedWorkspace",
     // releases (ADR-40, task 065). `insertFormRelease` writes a NEW row and nothing
     // here updates or deletes one: the history is append-only, the database rejects
     // both, and a rollback is a release of an earlier version rather than an edit.
@@ -197,6 +219,19 @@ describe("query helper import surface", () => {
     );
     expect(new Set(sessionMutators)).toEqual(new Set(["createSession", "expireSessions"]));
     // markInProgress / markSubmitted are status-only and named accordingly.
+  });
+
+  it("exports no path that deletes a workspace (task 068, criterion 5)", () => {
+    // A workspace is archived, never deleted (Q15), and the deliberate absence of a
+    // delete helper is how this package says so - the same shape as the two tests
+    // above. Archiving is one `UPDATE` of one column, so no code path here reaches a
+    // form, a question or a response row from a workspace either, which keeps ADR-17's
+    // whole-session delete doors at two.
+    const workspaceWriters = exportNames.filter((name) => /workspace/i.test(name));
+    expect(
+      workspaceWriters.filter((name) => /^(delete|remove|drop|purge|erase)/i.test(name)),
+    ).toEqual([]);
+    expect(workspaceWriters).toContain("archiveWorkspace");
   });
 
   it("exports no helper named for mutating a form version", () => {

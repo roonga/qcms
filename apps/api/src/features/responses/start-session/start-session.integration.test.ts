@@ -23,6 +23,7 @@ import {
   mintSecureLink,
 } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   closeForm,
   consumeSecureLink,
   createForm,
@@ -138,6 +139,7 @@ async function seedForm(
 ): Promise<FormId> {
   const formId = FormId.parse(id);
   await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     formId,
     slug,
     defaultLocale: "en",

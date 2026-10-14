@@ -13,6 +13,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createSession,
   enqueue,
@@ -51,7 +52,12 @@ afterAll(async () => {
 /** Seed a form + one published version so a session has valid FKs. */
 async function seedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const v = await insertFormVersion(testDb.db, {
     formId,
     // Empty def/compiled: the sweep only reads session status/expiry, never form

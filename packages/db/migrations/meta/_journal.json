@@ -15,6 +15,13 @@
       "when": 1791624235402,
       "tag": "0001_form_releases",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792010417439,
+      "tag": "0002_workspace_ownership",
+      "breakpoints": true
     }
   ]
 }

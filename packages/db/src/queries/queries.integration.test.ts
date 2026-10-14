@@ -9,6 +9,7 @@ import type { AnswerValue, FormDefinition, LockedSubmission } from "@roonga/qcms
 
 import * as schema from "../schema/index.js";
 import {
+  SEED_WORKSPACE_ID,
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
   searchPathOptions,
@@ -93,7 +94,12 @@ const emptyQuestionDef = { any: "shape" } as unknown as Parameters<
 /** Seed a form + one published form_version so sessions/answers have valid FKs. */
 async function seedPublishedForm(id: string): Promise<{ formId: FormId; version: number }> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const v = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,
@@ -108,7 +114,11 @@ async function seedPublishedForm(id: string): Promise<{ formId: FormId; version:
 describe("questions helpers", () => {
   it("creates a question, versions it, publishes and deprecates", async () => {
     const questionId = QuestionId.parse("q_lifecycle");
-    await createQuestion(testDb.db, { questionId, slug: "q-lifecycle-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-lifecycle-slug",
+    });
 
     const v1 = await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
     const v2 = await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
@@ -130,7 +140,11 @@ describe("questions helpers", () => {
 
   it("reads an identity and lists a question's versions oldest-first", async () => {
     const questionId = QuestionId.parse("q_detail");
-    await createQuestion(testDb.db, { questionId, slug: "q-detail-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-detail-slug",
+    });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
 
@@ -145,7 +159,11 @@ describe("questions helpers", () => {
 
   it("updates a draft in place but the WHERE status='draft' guard refuses published and deprecated rows (issue #8)", async () => {
     const questionId = QuestionId.parse("q_editdraft");
-    await createQuestion(testDb.db, { questionId, slug: "q-editdraft-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-editdraft-slug",
+    });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
 
     const nextDef = { edited: true } as unknown as Parameters<
@@ -180,7 +198,11 @@ describe("questions helpers", () => {
     // published, so before the guard this silently overwrote). Now: no match,
     // undefined, definition untouched.
     const questionId2 = QuestionId.parse("q_editdeprecated");
-    await createQuestion(testDb.db, { questionId: questionId2, slug: "q-editdeprecated-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId: questionId2,
+      slug: "q-editdeprecated-slug",
+    });
     await createQuestionVersion(testDb.db, {
       questionId: questionId2,
       definition: emptyQuestionDef,
@@ -204,7 +226,11 @@ describe("questions helpers", () => {
     // write path: prove it still fires on a direct UPDATE of a published row's
     // definition. drizzle wraps the pg error, so "immutable" is on the cause.
     const questionId = QuestionId.parse("q_rawfreeze");
-    await createQuestion(testDb.db, { questionId, slug: "q-rawfreeze-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-rawfreeze-slug",
+    });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
     await publishQuestionVersion(testDb.db, { questionId, version: 1 });
 
@@ -225,7 +251,11 @@ describe("questions helpers", () => {
 
   it("summarizes the latest version per question in listQuestions", async () => {
     const questionId = QuestionId.parse("q_summary");
-    await createQuestion(testDb.db, { questionId, slug: "q-summary-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-summary-slug",
+    });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
     await createQuestionVersion(testDb.db, { questionId, definition: emptyQuestionDef });
     await publishQuestionVersion(testDb.db, { questionId, version: 2 });
@@ -246,8 +276,16 @@ describe("questions helpers", () => {
     const first = QuestionId.parse("q_bulk_one");
     const second = QuestionId.parse("q_bulk_two");
     const absent = QuestionId.parse("q_bulk_missing");
-    await createQuestion(testDb.db, { questionId: first, slug: "q-bulk-one" });
-    await createQuestion(testDb.db, { questionId: second, slug: "q-bulk-two" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId: first,
+      slug: "q-bulk-one",
+    });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId: second,
+      slug: "q-bulk-two",
+    });
     await createQuestionVersion(testDb.db, { questionId: first, definition: emptyQuestionDef });
     await createQuestionVersion(testDb.db, { questionId: first, definition: emptyQuestionDef });
     await publishQuestionVersion(testDb.db, { questionId: first, version: 1 });
@@ -279,7 +317,11 @@ describe("questions helpers", () => {
     // the live set (Q1).
     const questionId = QuestionId.parse("q_taken");
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(false);
-    await createQuestion(testDb.db, { questionId, slug: "q-taken-slug" });
+    await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId,
+      slug: "q-taken-slug",
+    });
     expect(await isQuestionIdTaken(testDb.db, questionId)).toBe(true);
 
     // An id surviving ONLY in the answer ledger - its question deprecated or erased - is
@@ -311,7 +353,12 @@ describe("questions helpers", () => {
 describe("forms helpers", () => {
   it("creates a form, upserts/reads/deletes its draft", async () => {
     const formId = FormId.parse("frm_draft");
-    await createForm(testDb.db, { formId, slug: "frm-draft-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-draft-slug",
+      defaultLocale: "en",
+    });
 
     const first = await upsertDraft(testDb.db, { formId, definition: emptyDef });
     const firstUpdatedAt = first.updatedAt.getTime();
@@ -326,7 +373,12 @@ describe("forms helpers", () => {
 
   it("inserts versions with monotonic numbers and reads latest/list", async () => {
     const formId = FormId.parse("frm_versions");
-    await createForm(testDb.db, { formId, slug: "frm-versions-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-versions-slug",
+      defaultLocale: "en",
+    });
     const v1 = await insertFormVersion(testDb.db, {
       formId,
       definition: emptyDef,
@@ -351,7 +403,12 @@ describe("forms helpers", () => {
 
   it("closes and reopens a form", async () => {
     const formId = FormId.parse("frm_status");
-    await createForm(testDb.db, { formId, slug: "frm-status-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-status-slug",
+      defaultLocale: "en",
+    });
     expect((await closeForm(testDb.db, formId))?.status).toBe("closed");
     expect((await reopenForm(testDb.db, formId))?.status).toBe("open");
   });
@@ -360,6 +417,7 @@ describe("forms helpers", () => {
     // Column defaults: challenge off, no min-time override (config default applies).
     const plainId = FormId.parse("frm_abuse_default");
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: plainId,
       slug: "frm-abuse-default",
       defaultLocale: "en",
@@ -371,6 +429,7 @@ describe("forms helpers", () => {
     // Overrides set at create time survive the read.
     const gatedId = FormId.parse("frm_abuse_gated");
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: gatedId,
       slug: "frm-abuse-gated",
       defaultLocale: "en",
@@ -384,7 +443,12 @@ describe("forms helpers", () => {
 
   it("patches the abuse settings one field at a time (task 033's settings panel)", async () => {
     const formId = FormId.parse("frm_abuse_patch");
-    await createForm(testDb.db, { formId, slug: "frm-abuse-patch", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-abuse-patch",
+      defaultLocale: "en",
+    });
 
     // One key at a time: the other column keeps its value rather than resetting.
     expect(
@@ -469,7 +533,12 @@ describe("sessions helpers and the form-version pin (I4)", () => {
 describe("secure links helpers", () => {
   it("inserts, reads, and revokes a link", async () => {
     const formId = FormId.parse("frm_link");
-    await createForm(testDb.db, { formId, slug: "frm-link-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-link-slug",
+      defaultLocale: "en",
+    });
     const linkId = LinkId.parse("lnk_basic");
     await insertSecureLink(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -491,11 +560,13 @@ describe("secure links helpers", () => {
     const ownerForm = FormId.parse("frm_revoke_owner");
     const otherForm = FormId.parse("frm_revoke_other");
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: ownerForm,
       slug: "frm-revoke-owner-slug",
       defaultLocale: "en",
     });
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: otherForm,
       slug: "frm-revoke-other-slug",
       defaultLocale: "en",
@@ -522,7 +593,12 @@ describe("secure links helpers", () => {
 
   it("consumes a one-time link exactly once (sequential)", async () => {
     const formId = FormId.parse("frm_consume");
-    await createForm(testDb.db, { formId, slug: "frm-consume-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-consume-slug",
+      defaultLocale: "en",
+    });
     const linkId = LinkId.parse("lnk_once");
     await insertSecureLink(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,
@@ -538,7 +614,12 @@ describe("secure links helpers", () => {
 
   it("lists a form's links newest-first (task 024)", async () => {
     const formId = FormId.parse("frm_link_list");
-    await createForm(testDb.db, { formId, slug: "frm-link-list-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-link-list-slug",
+      defaultLocale: "en",
+    });
     for (const [i, tag] of ["a", "b", "c"].entries()) {
       await insertSecureLink(testDb.db, {
         environment: DEFAULT_TEST_ENVIRONMENT,
@@ -564,7 +645,12 @@ describe("secure links helpers", () => {
 describe("webhooks helpers (task 024, SEC-6)", () => {
   it("inserts, lists, reads, rotates the encrypted secret, and soft-deactivates", async () => {
     const formId = FormId.parse("frm_webhook");
-    await createForm(testDb.db, { formId, slug: "frm-webhook-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-webhook-slug",
+      defaultLocale: "en",
+    });
 
     const created = await insertWebhook(testDb.db, {
       webhookId: "whk_one",
@@ -905,7 +991,12 @@ describe("concurrency (live, pooled connections)", () => {
 
   it("consumeSecureLink: exactly one of two concurrent consumers wins", async () => {
     const formId = FormId.parse("frm_race_link");
-    await createForm(testDb.db, { formId, slug: "frm-race-link-slug", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "frm-race-link-slug",
+      defaultLocale: "en",
+    });
     const linkId = LinkId.parse("lnk_race");
     await insertSecureLink(testDb.db, {
       environment: DEFAULT_TEST_ENVIRONMENT,

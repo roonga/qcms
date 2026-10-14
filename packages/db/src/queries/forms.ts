@@ -23,6 +23,8 @@ export type FormStatus = (typeof formStatus.enumValues)[number];
 export interface FormRow {
   formId: FormId;
   slug: string;
+  /** The workspace that owns this form (ADR-41, task 068). Never null. */
+  workspaceId: string;
   defaultLocale: string;
   status: FormStatus;
   challengeRequired: boolean;
@@ -45,8 +47,10 @@ export type FormVersionRow = typeof formVersions.$inferSelect;
  * Read a form identity by its public `slug`, or `undefined`. The anonymous
  * start-session path (018) resolves the respondent-supplied slug to a form here
  * before checking status and picking the newest published version. Shape-
- * preserving read only (R5); `limit(1)` because a slug addresses at most one
- * form (uniqueness is an authoring-time concern, not a DB constraint yet).
+ * preserving read only (R5); `limit(1)` because a slug addresses **exactly** one form:
+ * `forms_slug_unique` since task 068 (criterion 3), where this comment used to say
+ * uniqueness was an authoring-time concern and not a database constraint yet. The
+ * `limit(1)` stays as the statement's shape rather than as what makes the answer single.
  */
 export async function getFormBySlug(exec: Executor, slug: string): Promise<FormRow | undefined> {
   const [row] = await exec.select().from(forms).where(eq(forms.slug, slug)).limit(1);
@@ -74,12 +78,19 @@ export async function listForms(exec: Executor): Promise<FormRow[]> {
  * set here or left to their column defaults (`challengeRequired = false`,
  * `minSubmitMs = NULL` → use the config default floor); the admin builder's
  * settings panel (033) is their normal authoring path, via `updateFormSettings`.
+ *
+ * `workspaceId` is **required and has no default** (ADR-41, task 068, criterion 1): a
+ * form belongs to exactly one workspace and nothing here guesses which. Resolving it -
+ * from the request, or from the installation's single workspace - is the API's
+ * (`apps/api/src/features/workspaces/resolve.ts`), because a default chosen in a query
+ * helper is a default no caller can see.
  */
 export async function createForm(
   exec: Executor,
   input: {
     formId: FormId;
     slug: string;
+    workspaceId: string;
     defaultLocale: string;
     challengeRequired?: boolean;
     minSubmitMs?: number | null;
@@ -90,6 +101,7 @@ export async function createForm(
     .values({
       formId: input.formId,
       slug: input.slug,
+      workspaceId: input.workspaceId,
       defaultLocale: input.defaultLocale,
       ...(input.challengeRequired !== undefined
         ? { challengeRequired: input.challengeRequired }
@@ -219,6 +231,36 @@ export async function listFormVersions(exec: Executor, formId: FormId): Promise<
     .from(formVersions)
     .where(eq(formVersions.formId, formId))
     .orderBy(desc(formVersions.version));
+}
+
+/**
+ * Move a form to another workspace: one `UPDATE` on the identity row (ADR-41, task 068).
+ *
+ * The same shape as Q14's question move and for the same reason: ownership is a property
+ * of the `formId` and not of a version, so no published version changes hands, no
+ * compiled document is touched and no public address moves (criterion 7). The slug does
+ * not move either, because slugs are unique installation-wide rather than per workspace,
+ * which is exactly what spares an ownership change from re-pointing a live link.
+ *
+ * Returns the updated row, or `undefined` when no such form exists. Whether the target
+ * workspace exists and is not archived is the caller's check: the foreign key catches a
+ * workspace that is not there, and `archivedAt` is a rule rather than a constraint.
+ *
+ * Every form has to be reachable this way, because reassignment is what makes an archive
+ * possible at all (criterion 4): archiving is the last step and never a cascade, so the
+ * forms leave first.
+ */
+export async function moveFormToWorkspace(
+  exec: Executor,
+  formId: FormId,
+  workspaceId: string,
+): Promise<FormRow | undefined> {
+  const [row] = await exec
+    .update(forms)
+    .set({ workspaceId })
+    .where(eq(forms.formId, formId))
+    .returning();
+  return row;
 }
 
 /** Close a form to new sessions (§4.1). In-flight sessions finish on their pinned version (R1). */
