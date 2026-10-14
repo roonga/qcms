@@ -469,6 +469,11 @@ describe("startTestDb daemon-connectivity failure reporting (issue #171)", () =>
       // A daemon that went away is not a property of the image, and remembering it
       // as one would fail every later file in the worker with a registry message
       // for a machine that has since recovered.
+      // `localhost:1` here and NOT `UNPULLABLE_REGISTRY`, which is deliberate rather than
+      // the fourth instance of issue #1026: `bootInfrastructure` rejects before any pull
+      // is attempted, so this reference is never dialled at all. It is a cache key, and
+      // the whole point of the case is that nothing gets written under it. A reader
+      // auditing this file for the v4 rule can stop here (PR #1051's review checked it).
       const image = "localhost:1/qcms-daemon-probe:16-alpine";
       const daemonFailure = await captureStartFailure({
         image,
