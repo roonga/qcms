@@ -13,13 +13,13 @@ export const questionStatus = controlSchema.enum("question_status", [
 ]);
 
 /**
- * Form lifecycle status (`DOMAIN_SCHEMA.md` §4.1). `open` accepts new sessions;
- * `closed` is "closed to new sessions" - in-flight sessions still finish on the
- * version they started (R1). Reopening happens via a new draft/version. This is
- * a single-field state (not a cross-row invariant), so the transition is a plain
- * query helper, not a kernel concern (R5).
+ * **`form_status` is gone, since task 066** (Q18). The closed state is per
+ * (form, environment) and is the `closed` flag on `control.form_releases`, read as the
+ * newest row for the pair; nothing stores a whole-form status any more, so there is no
+ * vocabulary left for an enum to close. `FormStatus` in `queries/forms.ts` is now a
+ * derived union of the two readings a screen renders, and `DOMAIN_SCHEMA.md` §4.1
+ * records the state machine as per-environment.
  */
-export const formStatus = controlSchema.enum("form_status", ["open", "closed"]);
 
 /** How a respondent reached a session (`ARCHITECTURE.md` §7; secure links = SEC-2). */
 export const accessMode = controlSchema.enum("access_mode", ["anonymous", "secure_link"]);

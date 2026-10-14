@@ -20,7 +20,6 @@ import {
   answerLedger,
   appendAnswer,
   claimDue,
-  closeForm,
   consumeSecureLink,
   createForm,
   createQuestion,
@@ -65,7 +64,6 @@ import {
   markSubmitted,
   publishQuestionVersion,
   recordFailure,
-  reopenForm,
   resetForRedelivery,
   revokeSecureLink,
   updateFormSettings,
@@ -399,18 +397,6 @@ describe("forms helpers", () => {
     expect((await getFormVersion(testDb.db, formId, 2))?.compilerVersion).toBe("1.1.0");
     expect((await getLatestPublishedVersion(testDb.db, formId))?.version).toBe(2);
     expect((await listFormVersions(testDb.db, formId)).map((r) => r.version)).toEqual([2, 1]);
-  });
-
-  it("closes and reopens a form", async () => {
-    const formId = FormId.parse("frm_status");
-    await createForm(testDb.db, {
-      workspaceId: SEED_WORKSPACE_ID,
-      formId,
-      slug: "frm-status-slug",
-      defaultLocale: "en",
-    });
-    expect((await closeForm(testDb.db, formId))?.status).toBe("closed");
-    expect((await reopenForm(testDb.db, formId))?.status).toBe("open");
   });
 
   it("defaults the per-form abuse settings and round-trips overrides (task 026)", async () => {

@@ -5,21 +5,30 @@ import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition, FormId } from "@roonga/qcms-core";
 
 import { authOrganization } from "./auth.js";
-import { formStatus } from "./enums.js";
 
 import { controlSchema } from "../schemas.js";
 
 /**
- * Form identity. `status` carries the §4.1 lifecycle flag: `open` accepts new
- * sessions, `closed` stops them (in-flight sessions finish on their pinned
- * version, R1). Reopening is via a new draft/version.
+ * Form identity.
+ *
+ * **There is no `status` column, since task 066** (Q18, ADR-39's Amendment). The closed
+ * state is per **(form, environment)** and lives on the per-environment release state,
+ * `control.form_releases`, where closing appends a row carrying that environment's
+ * released version with `closed` set. A single column here could only say "closed
+ * everywhere", which is the one thing Q18 removed: closing `prod` intake while a `test`
+ * run continues is an ordinary operation, and so is the reverse. The `form_status` enum
+ * went with the column.
+ *
+ * What a screen still calls a form's status is therefore **derived, per environment**,
+ * from the newest release row for the pair (`getFormEnvironmentState` and
+ * `environmentStatesByForm` in `queries/releases.ts`), and is never read from here.
  *
  * `challengeRequired` and `minSubmitMs` are per-form abuse-control settings
  * (task 026) - operational domain config that lives on the mutable identity
  * row, not in the immutable published definition and not a deployment flag
- * (ADR-24). `challengeRequired` gates start-session (018) behind the configured
- * challenge; `minSubmitMs` overrides the config-default min-time floor the
- * submit slice (020) enforces (`NULL` = use the config default).
+ * (ADR-24). `challengeRequired` gates start-session (018) behind the environment's
+ * challenge provider (Q11); `minSubmitMs` overrides the config-default min-time floor
+ * the submit slice (020) enforces (`NULL` = use the config default).
  *
  * `workspaceId` is the workspace that owns this form (ADR-41, task 068, criterion 1).
  * **`NOT NULL` with no default**, which is the whole of that criterion: a form cannot
@@ -47,7 +56,6 @@ export const forms = controlSchema.table("forms", {
     .notNull()
     .references(() => authOrganization.id),
   defaultLocale: text("default_locale").notNull(),
-  status: formStatus("status").notNull().default("open"),
   challengeRequired: boolean("challenge_required").notNull().default(false),
   minSubmitMs: integer("min_submit_ms"),
 });

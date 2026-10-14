@@ -11,12 +11,16 @@ import {
   type TestDb,
 } from "../testing/harness.js";
 import {
+  closeFormInEnvironment,
   createForm,
+  environmentStatesByForm,
+  getFormEnvironmentState,
   getReleasedVersion,
   insertFormRelease,
   insertFormVersion,
   listFormReleases,
   listReleasedVersions,
+  reopenFormInEnvironment,
 } from "./index.js";
 
 /**
@@ -25,10 +29,16 @@ import {
  * Real Postgres rather than a fake, because everything asserted below is a property of
  * SQL: whether the sequence a concurrent release gets is unique, whether a window
  * function reaches the previous release of the same environment and not of another,
- * whether `distinct on` picks the newest row per pair, and whether the append-only
- * triggers reject an UPDATE and a DELETE. The grants that decide who may write a release
- * row are a different question and are asserted in
- * `apps/api/e2e/security/03-db-least-privilege.e2e.ts`, which connects as the real roles.
+ * whether `environmentStatesByForm`'s `distinct on (form_id)` picks the newest row per
+ * form in one environment, and whether the append-only triggers reject an UPDATE and a
+ * DELETE. The grants that decide who may write a release row are a different question
+ * and are asserted in `apps/api/e2e/security/03-db-least-privilege.e2e.ts`, which
+ * connects as the real roles.
+ *
+ * **The closed state is here too, since task 066** (Q18): it is a value of this state
+ * rather than a table beside it, so closing and reopening are appends with the same
+ * properties - one read answers both questions, the history records who closed `prod`,
+ * and nothing can rewrite it.
  */
 
 let testDb: TestDb;
@@ -409,5 +419,151 @@ describe("the released-anywhere filter's input", () => {
     // Versions 1 and 3 only ever existed in the library, which is the churn finding 2
     // accepted and this filter hides.
     expect(await listReleasedVersions(testDb.db, FormId.parse("frm_sequence"))).toEqual([2, 1]);
+  });
+});
+
+describe("the closed state is per (form, environment) (Q18, task 066)", () => {
+  it("closes one environment and leaves the other serving (criterion 5)", async () => {
+    const formId = await seedForm("closedsplit", 2);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "test",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 2,
+      releasedBy: "usr_alice",
+    });
+
+    const closed = await closeFormInEnvironment(testDb.db, {
+      formId,
+      environment: "prod",
+      closedBy: "usr_bob",
+    });
+
+    // The close carries the released version forward, so what a respondent would be
+    // pinned to is undisturbed by intake stopping.
+    expect(closed?.version).toBe(2);
+    expect(closed?.closed).toBe(true);
+    expect(closed?.fromEnvironment).toBeNull();
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: true,
+    });
+    // And `test` is untouched, which is the whole of Q18: one form, two environments,
+    // two intake states.
+    expect(await getFormEnvironmentState(testDb.db, formId, "test")).toEqual({
+      version: 1,
+      closed: false,
+    });
+
+    const reopened = await reopenFormInEnvironment(testDb.db, {
+      formId,
+      environment: "prod",
+      reopenedBy: "usr_bob",
+    });
+    expect(reopened?.closed).toBe(false);
+    expect(reopened?.version).toBe(2);
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: false,
+    });
+  });
+
+  it("refuses to close an environment the form was never released to", async () => {
+    const formId = await seedForm("closednothing", 1);
+    // There is no state to close: `version` is NOT NULL and keyed into
+    // `control.form_versions`, so a row carrying no version is not expressible, and a
+    // start there already refuses with NO_PUBLISHED_VERSION.
+    expect(
+      await closeFormInEnvironment(testDb.db, {
+        formId,
+        environment: "test",
+        closedBy: "usr_bob",
+      }),
+    ).toBeUndefined();
+    expect(await getFormEnvironmentState(testDb.db, formId, "test")).toBeUndefined();
+  });
+
+  it("records who closed it and when, append-only, in the one history", async () => {
+    const formId = await seedForm("closedaudit", 1);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, { formId, environment: "prod", closedBy: "usr_bob" });
+
+    const history = await listFormReleases(testDb.db, formId, "prod");
+    const latest = history[0]!;
+    expect([latest.closed, latest.releasedBy, latest.sequence]).toEqual([true, "usr_bob", 2]);
+    // The release that preceded it is intact and is still not a rollback: the close
+    // carried the same version, so no version moved backwards.
+    expect(history[1]!.closed).toBe(false);
+    expect(latest.rollback).toBe(false);
+    expect(latest.replacedVersion).toBe(1);
+  });
+
+  it("carries the closed state forward across a later release", async () => {
+    const formId = await seedForm("closedcarry", 2);
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, { formId, environment: "prod", closedBy: "usr_bob" });
+    // The release handler reads the current value and passes it (`recordRelease`), which
+    // is what makes "a release does not reopen a closed environment" a property of the
+    // state rather than of a handler's good manners.
+    const current = await getFormEnvironmentState(testDb.db, formId, "prod");
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 2,
+      releasedBy: "usr_alice",
+      closed: current?.closed ?? false,
+    });
+
+    expect(await getFormEnvironmentState(testDb.db, formId, "prod")).toEqual({
+      version: 2,
+      closed: true,
+    });
+  });
+
+  it("reads one environment's newest row per form for the library list", async () => {
+    const closedForm = await seedForm("libclosed", 1);
+    const openForm = await seedForm("libopen", 1);
+    const otherEnvironment = await seedForm("libother", 1);
+    for (const formId of [closedForm, openForm]) {
+      await insertFormRelease(testDb.db, {
+        formId,
+        environment: "prod",
+        version: 1,
+        releasedBy: "usr_alice",
+      });
+    }
+    await insertFormRelease(testDb.db, {
+      formId: otherEnvironment,
+      environment: "test",
+      version: 1,
+      releasedBy: "usr_alice",
+    });
+    await closeFormInEnvironment(testDb.db, {
+      formId: closedForm,
+      environment: "prod",
+      closedBy: "usr_bob",
+    });
+
+    const states = await environmentStatesByForm(testDb.db, "prod");
+    expect(states.get(closedForm)).toEqual({ version: 1, closed: true });
+    expect(states.get(openForm)).toEqual({ version: 1, closed: false });
+    // A form released only to `test` is absent from `prod`'s map rather than present and
+    // open: "nothing is released here" and "released and open" are different answers.
+    expect(states.has(otherEnvironment)).toBe(false);
   });
 });

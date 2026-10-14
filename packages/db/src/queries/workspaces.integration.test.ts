@@ -14,7 +14,6 @@ import {
 } from "../testing/harness.js";
 import {
   archiveWorkspace,
-  closeForm,
   countWorkspaceContents,
   createForm,
   createQuestion,
@@ -311,8 +310,11 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
     expect(blockers.forms).toEqual([openForm, releasedForm].sort());
-    expect(blockers.openForms).toContain(openForm);
-    expect(blockers.openForms).toContain(releasedForm);
+    // "Open" is **open in some environment** since task 066 (Q18): there is no
+    // `forms.status`, so only a form with a release that does not say closed is open
+    // anywhere. `archive_open` has no release and is therefore in neither narrower list,
+    // while `forms` above still names it - which is the ruling this case is about.
+    expect(blockers.openForms).toEqual([releasedForm]);
     expect(blockers.releasedForms).toEqual([releasedForm]);
     expect(blockers.shared).toBe(false);
 
@@ -324,17 +326,22 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
     expect(cleared).toEqual({ forms: [], openForms: [], releasedForms: [], shared: false });
   });
 
-  it("names a CLOSED, never-released form too (Code Owner, 2026-10-16)", async () => {
-    // The reopen loophole, closed at its source. A closed form with no release used to be
-    // no blocker at all, so it could stay behind - and `POST /admin/forms/{id}/reopen`
-    // checks no workspace state, so the archived workspace would then own an open form,
-    // which is the state the archive had just refused. An archived workspace owns no form.
+  it("names a form in NEITHER narrower list too (Code Owner, 2026-10-16)", async () => {
+    // The reopen loophole, closed at its source. A form that is in neither narrower list
+    // used to be no blocker at all, so it could stay behind - and
+    // `POST /admin/forms/{id}/reopen` checks no workspace state, so the archived
+    // workspace could come to own an open form, which is the state the archive had just
+    // refused. An archived workspace owns no form.
+    //
+    // Since task 066 the form this describes is a **never-released** one rather than a
+    // closed one: the closed state lives on the release state (Q18), so a form with no
+    // release is neither open anywhere nor closable anywhere, and it is exactly the case
+    // both narrower lists miss.
     const workspaceId = await makeWorkspace("archive-closed-form");
-    const closedForm = await seedForm("archive_closed", workspaceId);
-    await closeForm(testDb.db, closedForm);
+    const unreleasedForm = await seedForm("archive_closed", workspaceId);
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
-    expect(blockers.forms).toEqual([closedForm]);
+    expect(blockers.forms).toEqual([unreleasedForm]);
     // Not urgent by either narrower reading, and a blocker all the same.
     expect(blockers.openForms).toEqual([]);
     expect(blockers.releasedForms).toEqual([]);

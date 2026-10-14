@@ -3,22 +3,32 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition, FormId } from "@roonga/qcms-core";
 
-import { formDrafts, formStatus, formVersions, forms } from "../schema/index.js";
+import { formDrafts, formVersions, forms } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
 /**
- * Form lifecycle status. Derived from the `formStatus` pgEnum (schema/enums.ts)
- * so the union tracks the DB enum automatically - never re-typed as literals.
+ * A form's lifecycle status **in one environment** (`DOMAIN_SCHEMA.md` §4.1 as amended
+ * by Q18): `open` accepts new sessions there, `closed` stops them, and an in-flight
+ * session finishes on the version it started either way (R1).
+ *
+ * **Derived rather than stored, since task 066.** There is no `forms.status` column and
+ * no `form_status` enum: the state is the `closed` flag on the newest
+ * `control.form_releases` row for the (form, environment) pair, and this union is the
+ * two readings of it a screen renders. `getFormEnvironmentState` and
+ * `environmentStatesByForm` in `queries/releases.ts` derive it.
  */
-export type FormStatus = (typeof formStatus.enumValues)[number];
+export type FormStatus = "open" | "closed";
 
 /**
- * The `forms` identity row. Hand-authored (issue #5) because `forms` is
- * enum-bearing (`status`), and Drizzle's `$inferSelect` degrades to a TypeScript
- * `error` type across this package's emitted `.d.ts` boundary - see
+ * The `forms` identity row. Hand-authored (issue #5) because Drizzle's `$inferSelect`
+ * degrades to a TypeScript `error` type across this package's emitted `.d.ts` boundary
+ * for a table carrying a `$type<>` brand, which `forms` does through `FormId` - see
  * `schema-drift.ts`. Keep every field in lockstep with the `forms` table in
- * `schema/forms.ts`; the drift guard below fails the build if they diverge.
+ * `schema/control/forms.ts`; the drift guard below fails the build if they diverge.
+ *
+ * **No `status`, since task 066** (Q18): the closed state is per (form, environment) and
+ * is read from the release state. See {@link FormStatus}.
  */
 export interface FormRow {
   formId: FormId;
@@ -26,7 +36,6 @@ export interface FormRow {
   /** The workspace that owns this form (ADR-41, task 068). Never null. */
   workspaceId: string;
   defaultLocale: string;
-  status: FormStatus;
   challengeRequired: boolean;
   minSubmitMs: number | null;
 }
@@ -46,11 +55,12 @@ export type FormVersionRow = typeof formVersions.$inferSelect;
 /**
  * Read a form identity by its public `slug`, or `undefined`. The anonymous
  * start-session path (018) resolves the respondent-supplied slug to a form here
- * before checking status and picking the newest published version. Shape-
- * preserving read only (R5); `limit(1)` because a slug addresses **exactly** one form:
- * `forms_slug_unique` since task 068 (criterion 3), where this comment used to say
- * uniqueness was an authoring-time concern and not a database constraint yet. The
- * `limit(1)` stays as the statement's shape rather than as what makes the answer single.
+ * before reading the environment's release state - which carries both the closed
+ * reading and the released version (Q18). Shape-preserving read only (R5);
+ * `limit(1)` because a slug addresses **exactly** one form: `forms_slug_unique` since
+ * task 068 (criterion 3), where this comment used to say uniqueness was an
+ * authoring-time concern and not a database constraint yet. The `limit(1)` stays as the
+ * statement's shape rather than as what makes the answer single.
  */
 export async function getFormBySlug(exec: Executor, slug: string): Promise<FormRow | undefined> {
   const [row] = await exec.select().from(forms).where(eq(forms.slug, slug)).limit(1);
@@ -263,25 +273,11 @@ export async function moveFormToWorkspace(
   return row;
 }
 
-/** Close a form to new sessions (§4.1). In-flight sessions finish on their pinned version (R1). */
-export async function closeForm(exec: Executor, formId: FormId): Promise<FormRow | undefined> {
-  const [row] = await exec
-    .update(forms)
-    .set({ status: "closed" })
-    .where(eq(forms.formId, formId))
-    .returning();
-  return row;
-}
-
-/** Reopen a closed form to new sessions (§4.1). */
-export async function reopenForm(exec: Executor, formId: FormId): Promise<FormRow | undefined> {
-  const [row] = await exec
-    .update(forms)
-    .set({ status: "open" })
-    .where(eq(forms.formId, formId))
-    .returning();
-  return row;
-}
+/*
+ * `closeForm` and `reopenForm` are gone, since task 066 (Q18). Closing is per
+ * (form, environment) and appends to the release state:
+ * `closeFormInEnvironment` / `reopenFormInEnvironment` in `queries/releases.ts`.
+ */
 
 /**
  * Update the per-form abuse-control settings (task 026's domain config, ADR-24
@@ -292,11 +288,12 @@ export async function reopenForm(exec: Executor, formId: FormId): Promise<FormRo
  * and means "use the deployment's configured floor", which is why it is expressed
  * as an explicit `null` rather than by omission.
  *
- * Deliberately narrow. `slug`, `defaultLocale` and `status` are also columns on
- * this row and are **not** reachable here: status has its own lifecycle doors
- * (`closeForm`/`reopenForm`), and slug/locale are identity an author names once.
- * A settings panel that could rewrite a live form's slug is a different feature
- * with different consequences.
+ * Deliberately narrow. `slug` and `defaultLocale` are also columns on this row and are
+ * **not** reachable here: they are identity an author names once, and a settings panel
+ * that could rewrite a live form's slug is a different feature with different
+ * consequences. The closed state is not a column on this row at all since task 066 -
+ * it is per environment, with its own doors (`closeFormInEnvironment` /
+ * `reopenFormInEnvironment`).
  */
 export async function updateFormSettings(
   exec: Executor,

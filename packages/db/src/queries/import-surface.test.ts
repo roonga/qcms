@@ -48,8 +48,6 @@ describe("query helper import surface", () => {
     "getFormVersion",
     "getLatestPublishedVersion",
     "listFormVersions",
-    "closeForm",
-    "reopenForm",
     "moveFormToWorkspace",
     "updateFormSettings",
     // workspaces (ADR-41, task 068). **There is no `deleteWorkspace` and there never
@@ -73,9 +71,15 @@ describe("query helper import surface", () => {
     // both, and a rollback is a release of an earlier version rather than an edit.
     // Nothing here re-pins a session either - `getReleasedVersion` is what a session
     // resolves at start, and I4 holds because there is no second resolution.
+    // Closing and reopening are appends here too, since task 066 (Q18): the state the
+    // respondent path reads carries the closed value, so there is no update anywhere.
     "listEnvironments",
     "insertFormRelease",
     "getReleasedVersion",
+    "getFormEnvironmentState",
+    "environmentStatesByForm",
+    "closeFormInEnvironment",
+    "reopenFormInEnvironment",
     "listFormReleases",
     "listReleasedVersions",
     // sessions
