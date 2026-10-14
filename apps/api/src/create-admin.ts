@@ -139,7 +139,12 @@ async function main(): Promise<number> {
     `Created the first admin account for ${result.email}.\n` +
       "The password you set is temporary. Sign in at the admin app and you will be asked to\n" +
       "choose your own password first, then to set up two-factor authentication, and you\n" +
-      "will be shown recovery codes once. Save them.\n",
+      "will be shown recovery codes once. Save them.\n" +
+      // The workspace is reported because it is where everything this account authors
+      // will live (ADR-41, task 068), and because an operator who later creates a second
+      // workspace has to know which one the forms they already made are in.
+      `This account owns the workspace "${result.workspaceSlug}", which is where forms and\n` +
+      "questions are created until another workspace exists.\n",
   );
   return EXIT_OK;
 }

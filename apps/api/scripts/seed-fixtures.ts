@@ -14,6 +14,7 @@ import {
 import {
   answers,
   createForm,
+  ensureSeedWorkspace,
   createQuestion,
   createQuestionVersion,
   deprecateQuestionVersion,
@@ -275,7 +276,11 @@ function canonicalJson(value: unknown): string {
  * docstring. The interesting library states are arranged afterwards by
  * {@link arrangeQuestionStates}, over questions that already carry a publishable pin.
  */
-async function seedQuestions(db: Db, fixtures: readonly Fixture[]): Promise<Fixture[]> {
+async function seedQuestions(
+  db: Db,
+  fixtures: readonly Fixture[],
+  workspaceId: string,
+): Promise<Fixture[]> {
   const created: Fixture[] = [];
   let skipped = 0;
 
@@ -285,7 +290,7 @@ async function seedQuestions(db: Db, fixtures: readonly Fixture[]): Promise<Fixt
       skipped += 1;
       continue;
     }
-    await createQuestion(db, { questionId, slug: slugOf(questionId) });
+    await createQuestion(db, { questionId, slug: slugOf(questionId), workspaceId });
     await createQuestionVersion(db, { questionId, definition: fixture.definition });
     await publishQuestionVersion(db, { questionId, version: 1 });
     created.push(fixture);
@@ -402,7 +407,7 @@ export class PublishRefused extends Error {
  * through leaves a stack no re-run repairs (a second run skips every question it already
  * created, so the arranging never happens).
  */
-async function seedForm(db: Db): Promise<string | undefined> {
+async function seedForm(db: Db, workspaceId: string): Promise<string | undefined> {
   const { definition, compiled } = readFormFixture();
   const formId = definition.formId;
 
@@ -415,7 +420,12 @@ async function seedForm(db: Db): Promise<string | undefined> {
   const reasons = await unpublishablePins(db, definition);
   if (reasons.length > 0) return publishRefusalMessage(String(formId), reasons);
 
-  await createForm(db, { formId, slug: FORM_SLUG, defaultLocale: definition.defaultLocale });
+  await createForm(db, {
+    formId,
+    slug: FORM_SLUG,
+    workspaceId,
+    defaultLocale: definition.defaultLocale,
+  });
   const version = await insertFormVersion(db, {
     formId,
     definition,
@@ -736,9 +746,15 @@ export async function clear(db: Db): Promise<ClearOutcome> {
  * the run did not do all of what it set out to.
  */
 export async function seed(db: Db): Promise<void> {
+  // A form and a question each need a workspace (ADR-41, task 068, criterion 1), and this
+  // script runs against a stack that may never have had `qcms:create-admin` run against
+  // it - `pnpm dev:up` brings up a database with no accounts. So it adopts the workspace
+  // the installation has, or creates the fixture one if it has none; `ensureSeedWorkspace`
+  // is idempotent and says why a fixture cannot go through better-auth's own call.
+  const workspaceId = await ensureSeedWorkspace(db);
   const fixtures = readQuestionFixtures();
-  const created = await seedQuestions(db, fixtures);
-  const refusal = await seedForm(db);
+  const created = await seedQuestions(db, fixtures, workspaceId);
+  const refusal = await seedForm(db, workspaceId);
   await arrangeQuestionStates(db, created);
   if (refusal !== undefined) throw new PublishRefused(refusal);
 }

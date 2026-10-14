@@ -230,7 +230,20 @@ export async function requireUnusedQuestionId(
  */
 export async function createQuestionWithFirstDraft(
   exec: Executor,
-  input: { readonly definition: QuestionDefinition; readonly slug: string },
+  input: {
+    readonly definition: QuestionDefinition;
+    readonly slug: string;
+    /**
+     * The workspace that will own the question (ADR-41, task 068, criterion 1).
+     *
+     * Required here and resolved by the caller, because the two callers resolve it
+     * differently and neither resolution belongs in this function: `POST
+     * /admin/questions` takes the workspace from the request or from the installation's
+     * only one, and 041's accept uses **the form's own workspace**, since a question the
+     * assistant proposed for that form belongs where the form does.
+     */
+    readonly workspaceId: string;
+  },
 ): Promise<{ question: QuestionRow; version: QuestionVersionRow }> {
   const questionId = input.definition.questionId;
 
@@ -244,7 +257,11 @@ export async function createQuestionWithFirstDraft(
   // draft version.
   let question: QuestionRow;
   try {
-    question = await createQuestion(exec, { questionId, slug: input.slug });
+    question = await createQuestion(exec, {
+      questionId,
+      slug: input.slug,
+      workspaceId: input.workspaceId,
+    });
   } catch (err: unknown) {
     if (isUniqueViolation(err)) throw questionFail.slugTaken(questionId, input.slug);
     throw err;

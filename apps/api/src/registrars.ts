@@ -26,6 +26,7 @@ import { registerServeStep } from "./features/responses/serve-step/route.js";
 import { registerStartSession } from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
+import { registerWorkspaces } from "./features/workspaces/route.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { registerRequestEnvironment } from "./middleware/request-environment.js";
 
@@ -58,6 +59,10 @@ export const appGroups: RouteGroups = {
     registerFormsAssist,
     registerAdminResponses,
     registerReleases,
+    // 068: the workspace container - the list, the one creation path, the shared-library
+    // switch, the archive and the two ownership moves. It grants nothing; the membership
+    // and grant endpoints are task 069's.
+    registerWorkspaces,
     registerLinks,
     registerWebhooks,
     registerOutboxOps,

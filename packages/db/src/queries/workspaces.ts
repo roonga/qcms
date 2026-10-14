@@ -257,8 +257,8 @@ export const SEED_WORKSPACE_NAME = "Default workspace";
 export const SEED_WORKSPACE_SLUG = "default";
 
 /**
- * Create the installation's first workspace **as a fixture**, if it has none, and return
- * its id (task 068).
+ * The installation's first workspace **as a fixture**: the one it already has, or a new
+ * one if it has none, returning its id (task 068).
  *
  * # This is not the product's bootstrap seeding, and the difference is the member row
  *
@@ -275,10 +275,18 @@ export const SEED_WORKSPACE_SLUG = "default";
  * (criterion 1), which makes a workspace a precondition of every control-plane fixture in
  * the repository rather than something a few suites care about.
  *
- * `onConflictDoNothing` on the id keeps it safe to call twice and keeps a caller that
- * seeds a richer workspace of its own from being overwritten by a later call.
+ * **It adopts an existing workspace rather than adding one beside it**, which matters
+ * more than it looks: a development stack that has run `qcms:create-admin` already has a
+ * workspace with this slug, and an installation with two workspaces is one where an
+ * omitted `workspaceId` on a create is refused as ambiguous rather than resolved. So the
+ * read comes first, and the insert is for the case where there is nothing to adopt. It is
+ * therefore idempotent, and safe to call on every seed run.
  */
 export async function ensureSeedWorkspace(exec: Executor): Promise<string> {
+  const existing = await listWorkspaces(exec);
+  const first = existing[0];
+  if (first !== undefined) return first.id;
+
   await exec
     .insert(authOrganization)
     .values({
@@ -286,6 +294,9 @@ export async function ensureSeedWorkspace(exec: Executor): Promise<string> {
       name: SEED_WORKSPACE_NAME,
       slug: SEED_WORKSPACE_SLUG,
     })
+    // A concurrent seeder, which `pnpm dev:up` can produce when two harnesses start
+    // against one database: whichever insert lands second does nothing and both callers
+    // get the same id back.
     .onConflictDoNothing({ target: authOrganization.id });
   return SEED_WORKSPACE_ID;
 }

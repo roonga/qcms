@@ -407,10 +407,18 @@ async function seedKitchenSink({ handle, db, core }) {
 
   log("seeding + publishing the kitchen-sink form...");
 
+  // Every form and question belongs to exactly one workspace (ADR-41, task 068), so the
+  // seed adopts the workspace this database has or creates the fixture one if it has
+  // none. `pnpm dev:portal` brings up a database with no accounts, so there is often
+  // nothing to adopt.
+  const workspaceId = await db.ensureSeedWorkspace(handle);
+
   for (const q of QUESTIONS) {
     const questionId = core.QuestionId.parse(q.id);
     const definition = readJson(q.path);
-    await ignoreDuplicate(() => db.createQuestion(handle, { questionId, slug: q.slug }));
+    await ignoreDuplicate(() =>
+      db.createQuestion(handle, { questionId, slug: q.slug, workspaceId }),
+    );
     for (let v = 1; v <= q.versions; v += 1) {
       const created = await db.createQuestionVersion(handle, { questionId, definition });
       // Publish the version (the fixtures are "published" library questions).
@@ -421,6 +429,7 @@ async function seedKitchenSink({ handle, db, core }) {
   await db.createForm(handle, {
     formId: core.FormId.parse(FORM_ID),
     slug: FORM_SLUG,
+    workspaceId,
     defaultLocale: "en",
   });
 

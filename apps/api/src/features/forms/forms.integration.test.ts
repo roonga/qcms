@@ -29,6 +29,8 @@ import {
 } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
+  archiveWorkspace,
+  authOrganization,
   createQuestion,
   createQuestionVersion,
   createSession,
@@ -37,7 +39,9 @@ import {
   getSession,
   listFormVersions,
   listQuestionVersions,
+  moveQuestionToWorkspace,
   publishQuestionVersion,
+  setWorkspaceShared,
 } from "@roonga/qcms-db";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
@@ -371,6 +375,126 @@ describe("deprecated-pin gate (exit criterion 3)", () => {
         (i) => i.code === "DEPRECATED_PIN",
       ),
     ).toBe(true);
+  });
+});
+
+// --- task 068, criterion 2: the workspace pin gate --------------------------
+
+describe("workspace pin gate (task 068, criterion 2)", () => {
+  /**
+   * A second workspace, inserted directly.
+   *
+   * Through the database rather than the workspaces route, because this suite mounts the
+   * forms slice alone - and because the second workspace has to exist only for the length
+   * of this test: `POST /forms` resolves an omitted workspace to the installation's only
+   * one, which every other test in this file relies on, so the test archives it again at
+   * the end to put the installation back as it found it.
+   */
+  async function otherWorkspace(slug: string): Promise<string> {
+    const id = `org_${slug.replace(/-/g, "_")}`;
+    await testDb.db
+      .insert(authOrganization)
+      .values({ id, name: slug, slug })
+      .onConflictDoNothing({ target: authOrganization.id });
+    return id;
+  }
+
+  it("refuses a new pin to another workspace's question, grandfathers a carried one, and allows the library", async () => {
+    const other = await otherWorkspace("pin-gate-other");
+    try {
+      await seedPublishedQuestion("q_wsp_own", "Own");
+      await seedPublishedQuestion("q_wsp_foreign", "Foreign");
+      await moveQuestionToWorkspace(testDb.db, QuestionId.parse("q_wsp_foreign"), other);
+
+      // A NEW pin onto a question another ordinary workspace owns: refused, through the
+      // same channel and with the same structured path as a deprecated pin, which is
+      // what Q14 means by "one mechanism rather than two".
+      expect(
+        (
+          await post("/forms", {
+            formId: "frm_wsp_new",
+            slug: "wsp-new",
+            workspaceId: SEED_WORKSPACE_ID,
+            defaultLocale: "en",
+          })
+        ).status,
+      ).toBe(201);
+      const newPinDef = formDefinition("frm_wsp_new", [
+        ["stp_a", ["q_wsp_own"]],
+        ["stp_b", ["q_wsp_foreign"]],
+      ]);
+      expect((await put("/forms/frm_wsp_new/draft", { definition: newPinDef })).status).toBe(200);
+      const refused = await post("/forms/frm_wsp_new/publish");
+      expect(refused.status).toBe(422);
+      const body = (await refused.json()) as ErrBody;
+      expect(body.error.code).toBe("PUBLISH_REJECTED");
+      const issue = body.error.details?.issues?.find((i) => i.code === "FOREIGN_WORKSPACE_PIN");
+      expect(issue?.path).toMatchObject({ step: "stp_b", question: "q_wsp_foreign", version: 1 });
+
+      // **The grandfathering, which is two properties and not one** (Q14). A form that
+      // already pinned the question before it moved keeps serving - its published version
+      // is immutable and nothing here touched it - AND keeps that pin in its next draft,
+      // which is the half an implementation drops because the draft is where the refusal
+      // lives.
+      await seedPublishedQuestion("q_wsp_moved", "Moved");
+      expect(
+        (
+          await post("/forms", {
+            formId: "frm_wsp_carry",
+            slug: "wsp-carry",
+            workspaceId: SEED_WORKSPACE_ID,
+            defaultLocale: "en",
+          })
+        ).status,
+      ).toBe(201);
+      const carriedDef = formDefinition("frm_wsp_carry", [
+        ["stp_a", ["q_wsp_moved"]],
+        ["stp_b", ["q_wsp_own"]],
+      ]);
+      expect((await put("/forms/frm_wsp_carry/draft", { definition: carriedDef })).status).toBe(
+        200,
+      );
+      expect((await post("/forms/frm_wsp_carry/publish")).status).toBe(200);
+
+      // The question leaves the workspace AFTER that publish: the pin is now foreign.
+      await moveQuestionToWorkspace(testDb.db, QuestionId.parse("q_wsp_moved"), other);
+      expect((await put("/forms/frm_wsp_carry/draft", { definition: carriedDef })).status).toBe(
+        200,
+      );
+      const carried = await post("/forms/frm_wsp_carry/publish");
+      expect(carried.status).toBe(200);
+      expect(((await carried.json()) as { version: number }).version).toBe(2);
+      // And the version that was serving before the move is byte-identical still.
+      const versions = await listFormVersions(testDb.db, FormId.parse("frm_wsp_carry"));
+      expect(versions).toHaveLength(2);
+
+      // Moving that grandfathered pin to another step is a NEW pin, exactly as it is for
+      // a deprecated version: same mechanism, same consequence.
+      const movedDef = formDefinition("frm_wsp_carry", [
+        ["stp_a", ["q_wsp_own"]],
+        ["stp_b", ["q_wsp_moved"]],
+      ]);
+      expect((await put("/forms/frm_wsp_carry/draft", { definition: movedDef })).status).toBe(200);
+      const movedPin = await post("/forms/frm_wsp_carry/publish");
+      expect(movedPin.status).toBe(422);
+      expect(
+        ((await movedPin.json()) as ErrBody).error.details?.issues?.some(
+          (i) => i.code === "FOREIGN_WORKSPACE_PIN",
+        ),
+      ).toBe(true);
+
+      // **The shared workspace is the exception, and it is the whole point of finding
+      // 10**: mark the same workspace as the installation's library and the identical new
+      // pin is allowed, from a form in another workspace, with nothing else changed.
+      await setWorkspaceShared(testDb.db, other, true);
+      const shared = await post("/forms/frm_wsp_new/publish");
+      expect(shared.status).toBe(200);
+      await setWorkspaceShared(testDb.db, other, false);
+    } finally {
+      // Put the installation back to one active workspace, so an omitted `workspaceId`
+      // keeps resolving for every other test in this file.
+      await archiveWorkspace(testDb.db, other, new Date());
+    }
   });
 });
 
