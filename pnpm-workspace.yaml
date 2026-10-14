@@ -23,15 +23,6 @@ overrides:
   minimatch@9: ^10.2.5
   brace-expansion@5: ^5.0.9
   esbuild@0.18.20: ^0.25.12
-  # A FLOOR, not a fix (Code Owner, 2026-10-11, issue #1050). GHSA-pqg4-j6r4-53mv is
-  # already closed by the lockfile refresh in the same change: `launch-editor@2.14.1`
-  # declares `shell-quote: ^1.8.4`, which admits the patched line, so refreshing moved
-  # the single resolution from 1.10.0 to 1.12.0 and `pnpm audit` is clean without this
-  # line. It is here to keep the floor above the vulnerable range rather than to reach
-  # it. Unscoped because the one consumer in the tree is already on major 1.
-  # CONTRIBUTING's overrides table carries the reason and the removal condition, and
-  # says plainly which of the two closed the advisory.
-  shell-quote: ^1.11.0
 
 allowBuilds:
   cpu-features: true
