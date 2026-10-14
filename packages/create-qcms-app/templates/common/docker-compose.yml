@@ -356,8 +356,8 @@ services:
       # Server Action salt is what lets a no-JS respondent's held repeating step survive
       # a deploy; left unset it is empty, which Next treats as absent, so the image
       # behaves exactly as it always has. It is a secret: `docker/portal.Dockerfile`
-      # carries why pinning it does not expose it anywhere new, and SEC-7 and SEC-8 carry
-      # the rule for the published images. Not on the anchor, because the admin has no
+      # carries why pinning it does not expose it anywhere new, and SEC-7 carries the rule
+      # for the published images. Not on the anchor, because the admin has no
       # no-JS Server Action and the api is not a Next app.
       args:
         <<: *image-build-args

@@ -30,14 +30,19 @@
  *
  * ## What it asserts
  *
+ * Six checks. The count is quoted in issue #1035's PR evidence as well, so a seventh
+ * belongs in both places:
+ *
  *   1. two clean builds with the same pinned key give `rosterOperation` the SAME id;
- *   2. a clean build with no pinned key gives it a DIFFERENT one;
- *   3. replaying build 1's id against build 2 is NOT refused as an unknown action;
- *   4. replaying build 1's id against build 3 IS, with `409`, `text/plain`,
+ *   2. the key those builds used IS the pinned one, read back from the manifest;
+ *   3. every OTHER Server Action in the app keeps its id across those two builds too;
+ *   4. a clean build with no pinned key gives `rosterOperation` a DIFFERENT id;
+ *   5. replaying build 1's id against build 2 is NOT refused as an unknown action;
+ *   6. replaying build 1's id against build 3 IS, with `409`, `text/plain`,
  *      `Server Action unavailable.` and `x-nextjs-action-not-found: 1`.
  *
  * Together those are "pinning the key is what makes a held page survive a deploy", with
- * (4) as the control that the unpinned case really does break.
+ * (6) as the control that the unpinned case really does break.
  *
  * ## Usage
  *
@@ -58,6 +63,7 @@ import { spawn } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { argv, env, exit, stderr, stdout } from "node:process";
+import { pathToFileURL } from "node:url";
 
 import { REPOSITORY_ROOT, runProcess } from "./docker.mjs";
 import { assertPortSeatChosen, PORT_SEAT, stablePort } from "./ports.mjs";
@@ -341,6 +347,10 @@ async function main() {
   say("and leaving it unset does not. docs/deploy-ingress.md is the operator's version.");
 }
 
-if (import.meta.url === `file://${argv[1]}`) {
+// `pathToFileURL` rather than a `file://` template, and the same form every other script
+// here uses (`scripts/build-images.mjs`). `import.meta.url` is percent-encoded, so a
+// checkout path holding a space, or any other character a URL escapes, makes the template
+// comparison false and this script exits silently having measured nothing.
+if (argv[1] !== undefined && import.meta.url === pathToFileURL(argv[1]).href) {
   await main();
 }

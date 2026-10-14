@@ -24,8 +24,8 @@
 # portal image either way, because Next writes whichever key it used into that
 # image's own server manifest; what pinning changes is that one image's key is
 # also every other image's. The published ghcr.io/roonga/qcms-portal images
-# are deliberately not built with a shared one (SEC-7, SEC-8). The operator's
-# reading is in docs/deploy-ingress.md.
+# are deliberately not built with a shared one (SEC-7). The operator's reading
+# is in docs/deploy-ingress.md.
 # (optional, secret, default unset - Next generates a fresh key for every build)
 # NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=
 

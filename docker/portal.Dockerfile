@@ -12,9 +12,10 @@
 # `process.env.NEXT_SERVER_ACTIONS_ENCRYPTION_KEY || serverActionsManifest.encryptionKey`)
 # and which is true of the random per-build key as well, so no build mechanism removes it.
 # A `--mount=type=secret` would therefore hide the value from nothing that holds it today
-# while turning one `--build-arg` into a secret file every adopter has to plumb. SEC-7 and
-# SEC-8 carry the full reading; `scripts/build-images.mjs` passes only `VERSION`, so the
-# PUBLISHED images cannot acquire a key even by accident.
+# while turning one `--build-arg` into a secret file every adopter has to plumb. SEC-7
+# carries the full reading, in `docs/SECURITY_DESIGN.md` section 4;
+# `scripts/build-images.mjs` passes only `VERSION`, so the PUBLISHED images cannot acquire
+# a key even by accident.
 #
 # Base image pinned by digest as well as tag (issue #372): the tag is what a human
 # reads, the digest is what is actually pulled, so a rebuild months from now produces
@@ -60,9 +61,9 @@ RUN pnpm install --frozen-lockfile
 # runtime stage copies, because `next/dist/server/app-render/encryption-utils.js` reads
 # the key from that manifest when the environment does not carry it. So the key is
 # recoverable from any portal image whether it is pinned or random; what pinning changes
-# is that one image's key is then also every other image's. SEC-7 and SEC-8 carry the
-# reading, including why the PUBLISHED `ghcr.io/roonga/qcms-portal` images must never be
-# built with a shared one.
+# is that one image's key is then also every other image's. SEC-7 carries the reading, in
+# `docs/SECURITY_DESIGN.md` section 4, including why the PUBLISHED
+# `ghcr.io/roonga/qcms-portal` images must never be built with a shared one.
 #
 # It is scoped to the build stage and consumed inside the RUN below rather than promoted
 # to an `ENV`, so no layer of the runtime image carries it and `docker history` shows the
