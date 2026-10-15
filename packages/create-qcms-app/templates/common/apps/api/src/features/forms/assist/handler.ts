@@ -17,6 +17,7 @@ import {
   listQuestionVersions,
   listQuestions,
 } from "@roonga/qcms-db";
+import { getForm } from "@roonga/qcms-db";
 import type { QuestionRow, QuestionVersionRow } from "@roonga/qcms-db";
 import { parseFormId, type FormDefinition, type FormId, type QuestionId } from "@roonga/qcms-core";
 
@@ -35,6 +36,7 @@ import type { AssistContext, AssistEvent, AssistTurn, LibraryEntry } from "./typ
 
 const fail = {
   noDraft: (): ApiError => new ApiError("NOT_FOUND", 404, "This form has no draft to work on yet"),
+  formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   invalidId: (): ApiError => new ApiError("INVALID_ID", 400, "Malformed form id"),
   staleDraft: (): ApiError =>
     new ApiError(
@@ -385,13 +387,25 @@ export function makeAcceptProposalHandler(
       }
     }
 
+    // Every proposed question is created in **the form's own workspace** (ADR-41, task
+    // 068): the assistant proposed them for this form, so that is where they belong, and
+    // it is also the only workspace whose questions this form may newly pin without the
+    // publish rule refusing them. Read before the transaction, with the refusals.
+    const form = await getForm(deps.databases.control, formId);
+    if (form === undefined) throw fail.formNotFound();
+
     const stored = await deps.databases.control.transaction(async (tx) => {
       const created: CreatedQuestion[] = [];
       for (const question of proposed) {
         // Sequential rather than concurrent: these share one connection handle,
         // and an id or slug collision has to be attributable to a question.
         try {
-          created.push(await createQuestionWithFirstDraft(tx, question));
+          created.push(
+            await createQuestionWithFirstDraft(tx, {
+              ...question,
+              workspaceId: form.workspaceId,
+            }),
+          );
         } catch (error) {
           // The 409s (R6 id reuse, slug collision) are refusals too, and they get the
           // same record for the same reason the 422 does. Logging here rather than in

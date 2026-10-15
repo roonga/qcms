@@ -56,6 +56,7 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import {
   createQuestionWithFirstDraft,
   requireQuestionDefinition,
@@ -163,17 +164,26 @@ export function makeCreateQuestionHandler(
     // connection (ADR-40, Q1 - see `requireUnusedQuestionId` for why the rule splits).
     await requireUnusedQuestionId(deps.databases, definition.questionId);
 
+    // The owning workspace (ADR-41, criterion 1): the one named, or the only one there
+    // is, refused when more than one workspace could be meant. Before the transaction,
+    // like the R6 read above, so a refusal costs no database work.
+    const workspaceId = await resolveWorkspaceForNewObject(
+      deps.databases.control,
+      body.workspaceId,
+    );
+
     // The identity check, the identity row and the first draft version are one
     // atomic decision, and they live in `create.ts` so 041's accept can make the
     // same one (issue #823) instead of growing a second create path.
     const created = await deps.databases.control.transaction((tx) =>
-      createQuestionWithFirstDraft(tx, { definition, slug: body.slug }),
+      createQuestionWithFirstDraft(tx, { definition, slug: body.slug, workspaceId }),
     );
 
     return c.json(
       {
         questionId: created.question.questionId,
         slug: created.question.slug,
+        workspaceId: created.question.workspaceId,
         createdAt: created.question.createdAt.toISOString(),
         version: toVersionView(created.version),
       },
