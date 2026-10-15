@@ -212,6 +212,8 @@ export const IDLE_PUBLISH_RELEASE: PublishReleaseState = { status: "idle" };
 export interface FormStatusState {
   readonly status: "idle" | "changed" | "error";
   readonly formStatus?: "open" | "closed";
+  /** The environment whose intake changed (Q18, task 066), for the notice to name. */
+  readonly environment?: string;
   readonly message?: string;
 }
 

@@ -16,6 +16,7 @@ import type { MintedLink } from "./types.ts";
 function minted(overrides: Partial<MintedLink> = {}): MintedLink {
   return {
     linkId: "lnk_one",
+    environment: "prod",
     url: "https://forms.example.test/l/abc.def",
     expiresAt: "2030-01-01T00:00:00.000Z",
     ...overrides,

@@ -27,6 +27,7 @@ import { unexpected } from "../../lib/ops/unexpected.ts";
 const LINKS: readonly SecureLink[] = [
   {
     linkId: "lnk_1",
+    environment: "prod",
     state: "active",
     oneTime: false,
     expiresAt: "2027-01-01T00:00:00.000Z",
@@ -50,6 +51,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
     render(
       <SecureLinks
         formId="form-1"
+        environment="prod"
         links={{ ok: true, data: LINKS }}
         canMint
         maxBatch={10}
@@ -66,7 +68,11 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
     await user.click(within(dialog).getByRole("spinbutton", { name: /month/i }));
     await user.keyboard("01012027");
 
-    await user.click(within(dialog).getByRole("button", { name: t("forms.links.confirmMint") }));
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: t("forms.links.confirmMint", { environment: "prod" }),
+      }),
+    );
 
     expect(
       await within(dialog).findByText(t("forms.links.mintFailed", { message: unexpected() })),
@@ -79,6 +85,7 @@ describe("a rejected secure-link action", { timeout: 30_000 }, () => {
     render(
       <SecureLinks
         formId="form-1"
+        environment="prod"
         links={{ ok: true, data: LINKS }}
         canMint
         maxBatch={10}
@@ -134,6 +141,7 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     render(
       <SecureLinks
         formId="form-1"
+        environment="prod"
         links={{ ok: true, data: LINKS }}
         canMint
         maxBatch={10}
@@ -141,7 +149,12 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
           Promise.resolve({
             status: "minted" as const,
             links: [
-              { linkId: "lnk_2", url: "https://example.test/s/token", expiresAt: "2027-01-01" },
+              {
+                linkId: "lnk_2",
+                environment: "prod",
+                url: "https://example.test/l/token",
+                expiresAt: "2027-01-01",
+              },
             ],
           })
         }
@@ -153,7 +166,11 @@ describe("a refused clipboard write on a minted link", { timeout: 30_000 }, () =
     const dialog = await screen.findByRole("dialog");
     await user.click(within(dialog).getByRole("spinbutton", { name: /month/i }));
     await user.keyboard("01012027");
-    await user.click(within(dialog).getByRole("button", { name: t("forms.links.confirmMint") }));
+    await user.click(
+      within(dialog).getByRole("button", {
+        name: t("forms.links.confirmMint", { environment: "prod" }),
+      }),
+    );
 
     const panel = await screen.findByTestId("qcms-minted-links");
     await user.click(within(panel).getByRole("button", { name: t("forms.links.copy") }));

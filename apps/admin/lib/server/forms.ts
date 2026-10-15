@@ -507,23 +507,40 @@ export async function getFormVersion(
 }
 
 /**
- * `POST /admin/forms/{id}/close` and `/reopen` - the door for *new* sessions only.
+ * `POST /admin/forms/{id}/close` and `/reopen` - the door for *new* sessions only, **in
+ * one environment** (Q18, task 066).
  *
  * R1 is the thing the UI copy has to teach here: closing stops new sessions and leaves
- * every in-flight one to finish on the version it pinned. This proxy just forwards.
+ * every in-flight one to finish on the version it pinned. Q18 adds the second half, which
+ * the copy also has to carry: it stops them **in this environment**, so closing `prod`
+ * leaves a `test` run serving and the reverse holds.
+ *
+ * The environment is sent in the **body** rather than left to the switcher's header, which
+ * the one door attaches to every call. That is deliberate and is the same choice the
+ * release and mint bodies make: stopping intake is an operational act with a consequence,
+ * so the environment is a value this call states and the confirmation restates (Q6),
+ * never one it inherits from a header the operator may not have been looking at.
  */
 export async function setFormStatus(
   session: AdminSession,
   formId: string,
   action: "close" | "reopen",
-): Promise<ApiResult<{ readonly status: "open" | "closed" }>> {
-  const result = await read<{ status?: unknown }>(
+  environment: string,
+): Promise<ApiResult<{ readonly status: "open" | "closed"; readonly environment: string }>> {
+  const result = await read<{ status?: unknown; environment?: unknown }>(
     await adminApiFetch(session, `/forms/${encodeURIComponent(formId)}/${action}`, {
       method: "POST",
+      body: { environment },
     }),
   );
   if (!result.ok) return result;
-  return { ok: true, data: { status: result.data.status === "closed" ? "closed" : "open" } };
+  return {
+    ok: true,
+    data: {
+      status: result.data.status === "closed" ? "closed" : "open",
+      environment: typeof result.data.environment === "string" ? result.data.environment : environment,
+    },
+  };
 }
 
 // --- the pinnable library ---------------------------------------------------

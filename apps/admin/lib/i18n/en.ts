@@ -1515,20 +1515,27 @@ export const messages = {
   "forms.publish.viewHistory": "View version history",
   "forms.publish.failed": "The form was not published. {message}",
 
-  "forms.lifecycle.close": "Close form",
-  "forms.lifecycle.reopen": "Reopen form",
-  "forms.lifecycle.closeTitle": "Close {slug} to new sessions?",
+  // Closing is per (form, environment) since task 066 (Q18), and every one of these
+  // strings had to say so: "Close this form" read as "everywhere", which is precisely the
+  // reading Q18 removed. Closing `prod` intake while a test run continues is an ordinary
+  // operation, so the environment is named in the title, the body and the button.
+  "forms.lifecycle.close": "Close in {environment}",
+  "forms.lifecycle.reopen": "Reopen in {environment}",
+  "forms.lifecycle.closeTitle": "Close {slug} to new sessions in {environment}?",
   "forms.lifecycle.closeBody":
-    "No one can start this form after it closes. Sessions already under way keep going and finish on the version they pinned (R1); their answers are unaffected.",
-  "forms.lifecycle.reopenTitle": "Reopen {slug}?",
-  "forms.lifecycle.reopenBody": "New sessions can start again, on the newest published version.",
-  "forms.lifecycle.confirmClose": "Close it",
-  "forms.lifecycle.confirmReopen": "Reopen it",
+    "No one can start this form in {environment} after it closes. Every other environment is unaffected: a test run keeps going if one is under way. Sessions already under way here keep going too and finish on the version they pinned (R1); their answers are unaffected.",
+  "forms.lifecycle.reopenTitle": "Reopen {slug} in {environment}?",
+  "forms.lifecycle.reopenBody":
+    "New sessions can start in {environment} again, on the version released there.",
+  "forms.lifecycle.confirmClose": "Close it in {environment}",
+  "forms.lifecycle.confirmReopen": "Reopen it in {environment}",
   "forms.lifecycle.cancel": "Cancel",
   "forms.lifecycle.pending": "Working...",
   "forms.lifecycle.failed": "The form status did not change. {message}",
   "forms.lifecycle.closedNote":
-    "This form is closed. New sessions are refused; in-flight sessions finish normally.",
+    "This form is closed in {environment}. New sessions there are refused; in-flight sessions finish normally, and other environments are unaffected.",
+  "forms.lifecycle.notReleasedHere":
+    "Nothing is released in {environment}, so there is no intake to close there. Release a version first.",
 
   // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
   // nothing is reverted, and rolling back is releasing an earlier version.
@@ -1670,7 +1677,14 @@ export const messages = {
   "forms.links.needsPublish":
     "Publish this form before minting links: a link opens the newest published version, and there is not one yet.",
   "forms.links.mint": "Mint links",
-  "forms.links.mintTitle": "Mint secure links",
+  // The environment is in the dialog's TITLE rather than only in the banner above the
+  // page (Q6, Q19). Minting is a distributing action: the links leave the building, and
+  // which environment they reach decides where a respondent's answers land. So the
+  // environment is restated in the one place an operator has to read before the act, and
+  // again on the confirm button, because a title is read once and a button is pressed.
+  "forms.links.mintTitle": "Mint secure links for {environment}",
+  "forms.links.mintEnvironment":
+    "These links will start sessions in {environment}, and nowhere else. A non-production link carries the environment's name in its address.",
   "forms.links.expiresAt": "Expires",
   // The zone is named here because this is where the promise is made, and it stays UTC
   // even though the links table went operator-local in issue #279. The two are not in
@@ -1684,7 +1698,7 @@ export const messages = {
   "forms.links.oneTime": "One-time (stops working after the first use)",
   "forms.links.count": "How many",
   "forms.links.countHint": "Up to {max} at a time.",
-  "forms.links.confirmMint": "Mint",
+  "forms.links.confirmMint": "Mint for {environment}",
   "forms.links.pending": "Minting...",
   "forms.links.cancel": "Cancel",
   "forms.links.mintFailed": "No links were minted. {message}",
@@ -1692,6 +1706,7 @@ export const messages = {
   "forms.links.mintedTitle.other": "{count} links minted",
   "forms.links.mintedOnce":
     "Copy these now. The server stores a link's state, never its token, so these URLs cannot be shown again.",
+  "forms.links.mintedEnvironment": "These links are for {environment}.",
   // Spoken, not shown (issue #377). Deliberately NOT the URLs: a token read aloud cannot
   // be copied, and the panel that holds them stays on screen until the operator dismisses
   // it. What the announcement owes is that the mint succeeded and that the panel is the
@@ -1742,6 +1757,10 @@ export const messages = {
   "forms.links.confirmRevoke": "Revoke it",
   "forms.links.revoked": "That link is revoked.",
   "forms.links.revokeFailed": "The link was not revoked. {message}",
+  "forms.links.noPublicAddress":
+    "{environment} has no public form address. A non-production environment is reached through secure links only, which is what keeps an unreleased version off the open internet.",
+  "forms.links.environmentScope":
+    "This table lists {environment}'s links. A link minted for another environment is listed, and revocable, under that environment.",
   "forms.links.listFailed": "The links could not be loaded. {message}",
 
   "forms.error.invalidLinkId": "That is not a valid link.",
