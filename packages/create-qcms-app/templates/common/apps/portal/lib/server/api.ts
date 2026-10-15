@@ -2,6 +2,7 @@ import type { A2UIAnswerValue } from "@roonga/qcms-ui";
 
 import { CLIENT_ADDRESS_HEADER, currentClientAddress } from "./client-address";
 import { INTERNAL_TOKEN_HEADER, apiBaseUrl, internalToken } from "./config";
+import { currentEnvironment, environmentPrefix } from "./environment";
 import { REQUEST_ID_HEADER, currentRequestId } from "./request-id";
 import { serverLogger } from "./logger";
 
@@ -17,6 +18,17 @@ import { splitFieldKey } from "../repeat";
  * imports nothing from @roonga/qcms-core (enforced by the import-surface test); the
  * types below are structural mirrors of the API's response shapes, not kernel
  * imports.
+ *
+ * **Every call goes to the request's own environment's API surface, since task 066**
+ * (ADR-40, Q21). The API mounts one respondent group per environment - `prod`'s at the
+ * unprefixed paths and every other at `/<env>` - so the prefix the browser arrived under
+ * is the prefix this module calls, and the API serves the request from that
+ * environment's pool. It is {@link apiPath} and nothing else, so a new call cannot
+ * forget it: there is no unprefixed path composed anywhere below.
+ *
+ * The environment is **not** sent as a header. A respondent request's environment is the
+ * group that served it, which is what makes "there is no anonymous entry to a non-prod
+ * environment" a routing fact rather than a handler's good manners (SEC-14).
  */
 
 /** One compiled A2UI step document (served verbatim; ADR-18). `null` when the flow is complete. */
@@ -184,6 +196,18 @@ async function baseHeaders(token?: string): Promise<Record<string, string>> {
   return headers;
 }
 
+/**
+ * One API URL, under the environment serving this request.
+ *
+ * `path` is the API's own path with no prefix (`/sessions/{id}/step`), exactly as the
+ * OpenAPI document declares it; the environment's prefix is prepended here. `prod` adds
+ * nothing, so a production deployment's calls are byte-for-byte the ones it always made
+ * (criterion 7).
+ */
+async function apiPath(path: string): Promise<string> {
+  return `${apiBaseUrl()}${environmentPrefix(await currentEnvironment())}${path}`;
+}
+
 async function readJson<T>(res: Response): Promise<T> {
   const text = await res.text();
   if (!res.ok) {
@@ -221,16 +245,50 @@ async function loggedFetch(
   return response;
 }
 
-type StartBody = { readonly formSlug: string } | { readonly token: string };
-
-/** Start a session: anonymous (`{ formSlug }`) or secure-link (`{ token }`). */
-export async function startSession(
-  body: StartBody & { readonly challengeToken?: string },
-): Promise<StartSessionResponse> {
+/**
+ * Start an **anonymous** session from a public form slug.
+ *
+ * `POST /sessions`, which the API mounts on `prod`'s respondent surface **only** (SEC-14,
+ * task 066). The portal does not serve `/f/{slug}` under an environment prefix or on a
+ * host reserved for one, so this is never called for a non-prod environment; if it were,
+ * the answer would be the API's `404` rather than a refusal, which is the point of the
+ * split.
+ */
+export async function startAnonymousSession(body: {
+  readonly formSlug: string;
+  readonly challengeToken?: string;
+}): Promise<StartSessionResponse> {
   const headers = await baseHeaders();
   const res = await loggedFetch(
     "/sessions",
-    `${apiBaseUrl()}/sessions`,
+    await apiPath("/sessions"),
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      cache: "no-store",
+    },
+    headers[REQUEST_ID_HEADER],
+  );
+  return readJson<StartSessionResponse>(res);
+}
+
+/**
+ * Start a session from a **secure link**.
+ *
+ * `POST /sessions/link`, on every environment's respondent surface, because a secure link
+ * is how a non-prod environment is reached at all (ADR-40 ruling 3). The environment is
+ * not in the token and is not sent: the address this call is made at names it, and the
+ * API refuses a token whose `secure_links` row names another one (Q21).
+ */
+export async function startLinkSession(body: {
+  readonly token: string;
+  readonly challengeToken?: string;
+}): Promise<StartSessionResponse> {
+  const headers = await baseHeaders();
+  const res = await loggedFetch(
+    "/sessions/link",
+    await apiPath("/sessions/link"),
     {
       method: "POST",
       headers,
@@ -264,7 +322,7 @@ export async function getStep(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/step",
-    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/step${stepQuery(stepIndex)}`,
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/step${stepQuery(stepIndex)}`),
     {
       headers,
       cache: "no-store",
@@ -289,7 +347,7 @@ export async function submitAnswer(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/answers",
-    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers${stepQuery(stepIndex)}`,
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/answers${stepQuery(stepIndex)}`),
     {
       method: "POST",
       headers,
@@ -314,7 +372,7 @@ export async function submitSession(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/submit",
-    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/submit`,
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/submit`),
     {
       method: "POST",
       headers,
@@ -352,7 +410,7 @@ export async function batchAnswers(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/answers/batch",
-    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/answers/batch${stepQuery(stepIndex)}`,
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/answers/batch${stepQuery(stepIndex)}`),
     {
       method: "POST",
       headers,
@@ -388,7 +446,7 @@ export async function rosterOp(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/roster",
-    `${apiBaseUrl()}/sessions/${encodeURIComponent(sessionId)}/roster${stepQuery(stepIndex)}`,
+    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/roster${stepQuery(stepIndex)}`),
     {
       method: "POST",
       headers,

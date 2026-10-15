@@ -52,6 +52,16 @@ export interface ReleaseInput {
   readonly releasedBy: string;
   /** Where it was promoted from, absent for a first release or a hotfix (Q4). */
   readonly fromEnvironment?: string | undefined;
+  /**
+   * Whether this row leaves the environment **closed** to new sessions (Q18, task 066).
+   *
+   * The caller reads the environment's current value and passes it, which is what makes
+   * "a release does not reopen a closed environment" a property of the state rather than
+   * of a handler's good manners: closing `prod` is a deliberate operational act, and
+   * releasing a version there is not a request to resume intake. Absent means open,
+   * which is right for a form's first release into an environment.
+   */
+  readonly closed?: boolean | undefined;
 }
 
 /**
@@ -72,6 +82,7 @@ export async function recordRelease(tx: Executor, input: ReleaseInput): Promise<
     version: input.version,
     releasedBy: input.releasedBy,
     fromEnvironment: input.fromEnvironment ?? null,
+    closed: input.closed ?? false,
   });
   await enqueueInEnvironment(tx, input.environment, {
     eventType: FORM_RELEASED,
@@ -82,6 +93,10 @@ export async function recordRelease(tx: Executor, input: ReleaseInput): Promise<
       fromEnvironment: release.fromEnvironment,
       releasedBy: release.releasedBy,
       releasedAt: release.releasedAt.toISOString(),
+      // The intake state the release leaves behind (Q18). On the event because a
+      // consumer reading "version 4 is released to prod" and acting on it would
+      // otherwise have no way to know prod is not accepting sessions.
+      closed: release.closed,
     },
   });
   return release;

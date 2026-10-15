@@ -41,6 +41,16 @@ export async function mintLinks(
   session: AdminSession,
   formId: string,
   request: {
+    /**
+     * The environment the links belong to (Q19, task 066).
+     *
+     * **Required, with no default**, on the API and therefore here. A link belongs to
+     * exactly one environment and its row decides which, so the one thing this screen
+     * must not do is guess: a mint that silently produced production links while the
+     * operator was reading a `test` banner is the failure that rule exists to prevent.
+     * The caller takes it from the Q6 switcher and the confirmation restates it.
+     */
+    readonly environment: string;
     readonly expiresAt: string;
     readonly oneTime: boolean;
     readonly count: number;
@@ -56,7 +66,13 @@ export async function mintLinks(
   return { ok: true, data: parseMinted(result.data.links) };
 }
 
-/** `GET /admin/forms/{id}/links` - the lifecycle table. No URLs, by construction. */
+/**
+ * `GET /admin/forms/{id}/links` - the lifecycle table for the switcher's environment.
+ *
+ * One environment's rows since task 066: the API scopes the listing to the environment
+ * the switcher named, so the table and the banner above it are about the same thing. No
+ * URLs, by construction.
+ */
 export async function listLinks(
   session: AdminSession,
   formId: string,
@@ -116,6 +132,9 @@ function parseMinted(raw: unknown): readonly MintedLink[] {
     .filter((entry) => typeof entry["url"] === "string")
     .map((entry) => ({
       linkId: text(entry["linkId"], ""),
+      // The environment the API wrote on the row, echoed so the confirmation restates
+      // what was minted rather than what the screen asked for (Q6).
+      environment: text(entry["environment"], ""),
       url: entry["url"] as string,
       expiresAt: text(entry["expiresAt"], ""),
     }));
@@ -134,6 +153,7 @@ function parseLinks(raw: unknown): readonly SecureLink[] {
     .filter((entry) => typeof entry["linkId"] === "string")
     .map((entry) => ({
       linkId: entry["linkId"] as string,
+      environment: text(entry["environment"], ""),
       state: LINK_STATES.find((state) => state === entry["state"]) ?? "active",
       oneTime: entry["oneTime"] === true,
       expiresAt: text(entry["expiresAt"], ""),

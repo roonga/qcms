@@ -77,6 +77,17 @@ consult the `secure_links` row for revocation and atomic one-time consumption
 (018). Verifying a link mints a session; from then on the session token is the
 credential (SEC-2).
 
+**The environment is on that row and never in the token** (ADR-40, Q21, task 066). A link
+belongs to exactly one environment, and the claims above are unchanged - nothing was added
+to the signed payload, so a leaked token still discloses nothing about where it leads. What
+names the environment is the **address**: `/l/<token>` is `prod`'s and `/<env>/l/<token>` is
+every other environment's, so a test invitation reads as non-production before anybody
+clicks it (Q16). Redemption checks the two against each other and **refuses a token
+presented under the wrong prefix** - a `404`, raised before the link's own state is read
+and before anything is spent, naming no other environment. `data_<env>.sessions` carries a
+composite foreign key into `(link_id, environment)` underneath that check, so a link minted
+for one environment cannot start a session in another however the request arrived.
+
 Secure links are the sole, deliberate case of a token appearing in a URL
 (SEC-8), mitigated by expiry plus that server-side row.
 
@@ -109,18 +120,30 @@ these paths 404, ADR-09):
 
 | Route                                        | Body / effect                                                                                                                                                                             |
 | -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `POST /admin/forms/:id/links`                | `{ expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, url, expiresAt }]`. |
-| `GET /admin/forms/:id/links`                 | Lists the form's links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps.                                      |
-| `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form**, or is already revoked, → 404.                                                             |
+| `POST /admin/forms/:id/links`                | `{ environment, expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, environment, url, expiresAt }]`. |
+| `GET /admin/forms/:id/links`                 | Lists **one environment's** links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps.                                                     |
+| `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form and this environment**, or is already revoked, → 404.                                                                  |
 
-- **Every route is form-scoped** (#478). Revoke carries the form segment because
-  the form is threaded into its `where` clause, so a link minted for another form
-  matches no row and takes the same `404` an unknown link takes. Refusal falls
-  out of the scoped query rather than an ownership comparison, so "not your form"
-  and "no such link" are one code and cannot disagree.
-- **Link URL format:** `${QCMS_PORTAL_BASE_URL}/l/<token>` - the portal's `/l/`
-  entry redeems the token by calling `POST /sessions { token }` (018). The base
-  URL is validated at boot (`config.portalBaseUrl`, an absolute http(s) URL).
+- **`environment` is required on the mint and has no default** (Q19, task 066). A link
+  belongs to exactly one environment, and the reasoning for refusing a default is precise:
+  a script that omits the field and silently gets a **production** link is the failure that
+  rule exists to prevent. The admin takes it from the global environment switcher, shows it
+  in the dialog's title, restates it in the confirmation, and restates again what the API
+  actually wrote. An environment this deployment does not serve → `400 UNKNOWN_ENVIRONMENT`.
+- **Every route is form-scoped** (#478) **and environment-scoped** (task 066). Revoke
+  carries the form segment, and the environment joins the same `where` clause, so a link
+  minted for another form - or in another environment - matches no row and takes the same
+  `404` an unknown link takes. Refusal falls out of the scoped query rather than an
+  ownership comparison, so "not your form", "not this environment" and "no such link" are
+  one code and cannot disagree. The listing is scoped the same way, so the table an
+  administrator reads and the rows they can act on are one environment's.
+- **Link URL format:** `${QCMS_PORTAL_BASE_URL}/l/<token>` for `prod` and
+  `${QCMS_PORTAL_BASE_URL}/<env>/l/<token>` for every other environment (Q21). The
+  portal's `/l/` entry redeems the token by calling `POST /sessions/link { token }` at its
+  own environment's API surface (018, task 066). The base URL is validated at boot
+  (`config.portalBaseUrl`, an absolute http(s) URL); a non-prod environment may also be
+  served on a hostname of its own, which is ingress configuration and not something the
+  mint can know, so the prefix is what a minted URL carries.
 - **Batch cap:** `count` defaults to `1` and is capped at **100**
   (`MAX_LINK_BATCH`); a larger `count` is rejected `400` before any row is
   written. Batch generation shares one imported signing key across the batch.

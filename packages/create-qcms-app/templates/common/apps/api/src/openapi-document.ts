@@ -38,7 +38,7 @@ import { nullChallengeVerifier } from "./features/responses/challenge.js";
 import { createNullLogger } from "./logger.js";
 import { InMemoryRateLimitStore } from "./rate-limit.js";
 import { appGroups } from "./registrars.js";
-import { INTERIM_REQUEST_ENVIRONMENT } from "./environments.js";
+import { PROD_ENVIRONMENT } from "./environments.js";
 
 /** A JSON OpenAPI document (structurally; we treat it as opaque JSON). */
 export type OpenApiDocument = ReturnType<OpenAPIHono["getOpenAPIDocument"]>;
@@ -100,9 +100,9 @@ function codegenDeps(): Deps {
     databases: {
       control: inert,
       names: config.environments.map((environment) => environment.name),
-      defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
+      defaultEnvironment: PROD_ENVIRONMENT,
       for: () => inert,
-      forRequest: () => ({ environment: INTERIM_REQUEST_ENVIRONMENT, exec: inert }),
+      forRequest: () => ({ environment: PROD_ENVIRONMENT, exec: inert }),
     },
     config,
     clock,

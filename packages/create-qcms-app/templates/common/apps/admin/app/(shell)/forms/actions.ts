@@ -33,6 +33,7 @@ import {
 } from "@/lib/server/forms";
 import { MAX_LINK_BATCH, mintLinks, revokeLink } from "@/lib/server/links";
 import { publishAndRelease, releaseVersion } from "@/lib/server/releases";
+import { currentEnvironment } from "@/lib/server/request-environment";
 import { requireAdminSession } from "@/lib/server/session";
 
 /**
@@ -502,24 +503,30 @@ export async function previewDraftAction(
 }
 
 /**
- * Close a form to new sessions, or reopen it.
+ * Close a form to new sessions **in the selected environment**, or reopen it.
  *
- * R1 is the whole of the semantics and the dialog copy carries it: this changes what
- * happens to sessions that have not started. Every session already under way keeps its
- * pinned version and finishes normally.
+ * R1 is half the semantics and the dialog copy carries it: this changes what happens to
+ * sessions that have not started. Every session already under way keeps its pinned
+ * version and finishes normally.
+ *
+ * Q18 is the other half, and the copy carries that too: it changes one **environment's**
+ * intake. Closing `prod` leaves a `test` run serving and the reverse holds, which is why
+ * the environment is read from the Q6 switcher here and restated in the confirmation
+ * before the act rather than reported after it.
  */
 export async function setFormStatusAction(
   formId: string,
   action: "close" | "reopen",
 ): Promise<FormStatusState> {
   const session = await requireAdminSession();
-  const result = await setFormStatus(session, formId, action);
+  const environment = await currentEnvironment();
+  const result = await setFormStatus(session, formId, action, environment);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath("/forms");
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
   // of every screen under it, and the rules route is one of them (issue #669).
   revalidatePath(`/forms/${formId}`, "layout");
-  return { status: "changed", formStatus: result.data.status };
+  return { status: "changed", formStatus: result.data.status, environment: result.data.environment };
 }
 
 /** What the mint dialog sends. `count` is bounded here as well as at the route. */
@@ -550,7 +557,11 @@ export async function mintLinksAction(
     return { status: "error", message: messageForFormCode("LINK_EXPIRY_INVALID") };
   }
 
+  // The Q6 switcher's environment, read on the server where the cookie is (Q19). The
+  // API requires the field and refuses a caller that omits it, so there is no shape in
+  // which this screen mints into an environment nobody chose.
   const result = await mintLinks(session, formId, {
+    environment: await currentEnvironment(),
     expiresAt: endOfDay(request.expiresAt),
     oneTime: request.oneTime,
     count,
@@ -585,6 +596,9 @@ function endOfDay(value: string): string {
 /** Revoke one link. 018 refuses it from that moment; an in-flight session is unaffected. */
 export async function revokeLinkAction(formId: string, linkId: string): Promise<RevokeLinkState> {
   const session = await requireAdminSession();
+  // Scoped to the switcher's environment by the API, which the one door's header carries:
+  // an administrator revokes what the environment they are looking at listed, and a link
+  // in another environment takes the same 404 a cross-form link takes (task 066).
   const result = await revokeLink(session, formId, linkId);
   if (!result.ok) return { status: "error", message: result.message };
   revalidatePath(`/forms/${formId}/links`);

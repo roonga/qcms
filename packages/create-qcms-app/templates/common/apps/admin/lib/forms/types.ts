@@ -495,6 +495,15 @@ export type LinkState = "active" | "consumed" | "expired" | "revoked";
 /** One row of `GET /admin/forms/{id}/links`. The token itself is never stored or listed. */
 export interface SecureLink {
   readonly linkId: string;
+  /**
+   * The environment this link belongs to (Q46, task 066).
+   *
+   * On the row and not only in the banner above the table: a listing whose scope is
+   * stated once, elsewhere, is a listing somebody will read out of context - and a
+   * secure link is the one thing in this app whose environment decides where a
+   * respondent's answers land.
+   */
+  readonly environment: string;
   readonly state: LinkState;
   readonly oneTime: boolean;
   readonly expiresAt: string;
@@ -512,6 +521,13 @@ export interface SecureLink {
  */
 export interface MintedLink {
   readonly linkId: string;
+  /** The environment the API wrote on the row, for the confirmation to restate (Q6). */
+  readonly environment: string;
+  /**
+   * The shareable URL, carrying the signed token **and the environment's address prefix**
+   * (Q21): `/l/<token>` for `prod` and `/<env>/l/<token>` for every other, so a non-prod
+   * link is legible as non-production before anybody clicks it (Q16).
+   */
   readonly url: string;
   readonly expiresAt: string;
 }

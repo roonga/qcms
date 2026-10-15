@@ -370,11 +370,22 @@ the browser asserted.
 
 ## Restricting the test environment
 
-**Status: designed, not built.** ADR-40 makes `test` a release state served from the same
-deployment as `prod`, and **SEC-14** (`docs/SECURITY_DESIGN.md` section 5a) is the control this
-section implements. Nothing here is required by the stack as it ships today, which has one
-environment and one respondent hostname; read it when the environments work lands, or when you
-are sizing the DNS names and firewall rules you will need for it.
+**Status: the app half is built (task 066); the edge half is yours.** ADR-40 makes `test` a release
+state served from the same deployment as `prod`, and **SEC-14** (`docs/SECURITY_DESIGN.md` section
+5a) is the control this section implements. The product now serves `/test/...` addresses and serves
+no anonymous entry under a prefix or on a restricted host, so what is left here is the hostname, the
+certificate and the firewall rules - which are yours, because QCMS terminates no TLS and owns no
+ingress (ADR-20).
+
+**Two product variables pair with the rules below**, both on the portal and both optional:
+
+| Variable                        | What it does                                                                                                                |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `QCMS_PORTAL_ENVIRONMENTS`      | The non-prod environments this portal serves, comma-separated. Empty means `prod` only, and an unlisted environment's addresses are a `404`. |
+| `QCMS_PORTAL_ENVIRONMENT_HOSTS` | `<env>=<host>` pairs. On a host named here the portal serves no `/f/{slug}` at all, which is the host handle in the product. |
+
+Keep the first in step with the API's `QCMS_MOUNT`, which takes an environment's name as a surface:
+an address the portal serves and the API does not mount answers a `404` from the API instead.
 
 The shape is the one this document already uses for portal and admin: **one more hostname**, with
 its own site block or listener rule, and a rule set that differs from the prod one in exactly two
@@ -437,19 +448,18 @@ Two properties make a non-prod row enforceable, and you want both:
   an unprefixed path on a non-prod one. Each direction closes what the other leaves open. It
   survives things the host rule does not, such as a wildcard certificate or a hostname somebody
   later consolidated onto.
-- **The app is meant not to serve anonymous entry on a test surface.** `/f/{slug}` would not be
-  registered there, so it would answer `404` rather than refusing an authorization check
-  (ADR-09), which is the half that survives a listener rule somebody adds during an incident and
-  never removes. **It is designed and not built:** anonymous and secure-link entry are one API
-  route today, so task 066 has to split them and mount each environment's surface separately
-  before this half exists. `docs/SECURITY_DESIGN.md` section 5a lists the three pieces. Plan the
-  hostname and the firewall rule now; do not assume the in-app half is behind you.
+- **The app does not serve anonymous entry on a test surface** (task 066). `/f/{slug}` is not
+  registered under a prefix, nor on a host named in `QCMS_PORTAL_ENVIRONMENT_HOSTS`, and the API
+  mounts the form-slug door on `prod`'s respondent surface alone - so the answer is `404` rather
+  than a refused authorization check (ADR-09). That is the half that survives a listener rule
+  somebody adds during an incident and never removes. An environment left out of `QCMS_MOUNT`
+  has no surface at all, which is the strongest form of this: leave `test` unmounted on a
+  prod-only process and every one of its addresses is a `404`.
 
 None of the three replaces another. With only the host rule, a path somebody routes onto the wrong
 hostname is served. With only the path rule, the whole non-prod surface is on the public internet
 behind link security alone. With only the app rule, an operator has no way to keep strangers off the
-surface in the first place. Since the app half is not built yet, the two edge rules are currently
-the whole of this layer, which is the more reason to get them right.
+surface in the first place.
 
 ### Recipe A: the Caddy overlay
 
@@ -474,10 +484,16 @@ getting it wrong fails in the permissive direction**, so pick it deliberately:
 The trap is the same one "The forwarded client address" describes above, in a different control:
 an address is trustworthy only from the hop that observed it.
 
-Three things move together when this lands: the test hostname (a fourth required value beside
-`QCMS_PORTAL_DOMAIN` and `QCMS_ADMIN_DOMAIN`), its certificate, and
-`QCMS_PORTAL_TRUSTED_PROXY_HOPS` if the test name is fronted differently from the prod one. The
-hop count is per hostname for exactly this reason.
+Four things move together: the test hostname (a fourth value beside `QCMS_PORTAL_DOMAIN` and
+`QCMS_ADMIN_DOMAIN`), its certificate, `QCMS_PORTAL_TRUSTED_PROXY_HOPS` if the test name is fronted
+differently from the prod one - the hop count is per hostname for exactly this reason - and the two
+product variables above, so the portal serves `test`'s addresses and refuses `/f/{slug}` on that
+host.
+
+**Exercised rather than drafted.** `scripts/check-ingress-recipe.test.ts` runs the pair of path
+rules this recipe writes against the address shapes the product actually serves, so the matchers
+above and the routes below cannot drift apart. What it cannot test is your DNS, your certificate
+and your allowlist, which is why they are still written out.
 
 ### Recipe B: ECS and ALB
 

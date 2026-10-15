@@ -24,7 +24,7 @@
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
 import { environmentDatabaseUrlVariableName } from "@roonga/qcms-db/environment";
 
-import { INTERIM_REQUEST_ENVIRONMENT } from "./environments.js";
+import { PROD_ENVIRONMENT } from "./environments.js";
 import {
   DEFAULT_OUTBOX_PAYLOAD_RETENTION_MS,
   DEFAULT_RESPONSE_SNIPPET_RETENTION_MS,
@@ -133,11 +133,32 @@ export interface RateLimitClass {
   readonly max: number;
 }
 
-/** Which route groups a process mounts (ADR-09: admin does not exist in public). */
+/**
+ * Which route groups a process mounts (ADR-09: admin does not exist in public).
+ *
+ * **Since task 066 the respondent surface is one group per environment** (Q21, SEC-14).
+ * `public` is `prod`'s, at the unprefixed addresses it has always had, and
+ * {@link MountFlags.environments} names the non-prod environments whose own `/<env>/`
+ * surface this process also mounts. An environment left out of the list has no routes
+ * here at all, so a request to one of its addresses is a plain `404` - which is what
+ * makes "no anonymous entry to a non-prod environment" a routing fact rather than a
+ * handler's refusal.
+ */
 export interface MountFlags {
   readonly public: boolean;
   readonly internal: boolean;
   readonly admin: boolean;
+  /**
+   * The **non-prod** environments whose respondent surface this process mounts, each at
+   * `/<env>` (Q21). `prod` is never a member: it is {@link MountFlags.public}, and a
+   * prefixed `prod` would be a second spelling of one address.
+   *
+   * Optional, and **absent means none**, which is the fail-closed direction: a
+   * composition that says nothing about non-prod surfaces gets none, so every `/<env>/`
+   * address is a `404`. `parseMount` always states it; a test composing `createApp`
+   * directly may leave it out when the shape it is about has no non-prod surface.
+   */
+  readonly environments?: readonly string[];
 }
 
 const MOUNT_SURFACES = ["public", "internal", "admin"] as const;
@@ -789,33 +810,67 @@ function parseInt_(
   return n;
 }
 
-function parseMount(env: Env, issues: string[]): MountFlags {
+/**
+ * Parse `QCMS_MOUNT` into the surfaces this process serves (ADR-09, Q21).
+ *
+ * Four tokens plus one family. `public`, `internal` and `admin` are the three surfaces
+ * ADR-09 started with, `all` is the solo shortcut, and **an environment's own name is a
+ * surface too, since task 066**: `QCMS_MOUNT=public,admin,test` serves `prod`'s
+ * respondent routes at `/`, the authoring surface at `/admin`, and `test`'s respondent
+ * routes at `/test`. `all` expands to every surface **and** every non-prod environment
+ * the configuration names, which is why `environmentNames` is an argument: the shortcut
+ * has to mean "this whole deployment" rather than "the two environments somebody shipped".
+ *
+ * `prod` is refused as a token rather than accepted as a synonym for `public`. Prod is
+ * the unprefixed address shape (Q21), so a `/prod/` surface would be a second spelling of
+ * one thing, and an operator who wrote it is asking for something this design does not
+ * have - which they should be told rather than quietly given `public`.
+ *
+ * An environment the configuration does not name is an unknown surface, not an empty
+ * mount: there would be no pool to serve it from, and a mount that silently served
+ * nothing is the shape SEC-14 cannot afford.
+ */
+function parseMount(env: Env, environmentNames: readonly string[], issues: string[]): MountFlags {
+  const mountable = environmentNames.filter((name) => name !== PROD_ENVIRONMENT);
+  const allowed = [...MOUNT_SURFACES, "all", ...mountable].join(", ");
   const raw = env.QCMS_MOUNT;
   if (raw === undefined || raw.trim() === "") {
-    issues.push(`QCMS_MOUNT is required (comma-separated: ${MOUNT_SURFACES.join(", ")}, or "all")`);
-    return { public: false, internal: false, admin: false };
+    issues.push(`QCMS_MOUNT is required (comma-separated: ${allowed})`);
+    return { public: false, internal: false, admin: false, environments: [] };
   }
   const tokens = raw
     .split(/[\s,]+/)
     .map((t) => t.trim().toLowerCase())
     .filter((t) => t.length > 0);
   if (tokens.includes("all")) {
-    return { public: true, internal: true, admin: true };
+    return { public: true, internal: true, admin: true, environments: mountable };
   }
   const flags = { public: false, internal: false, admin: false };
+  const environments: string[] = [];
   for (const token of tokens) {
     if ((MOUNT_SURFACES as readonly string[]).includes(token)) {
       flags[token as MountSurface] = true;
-    } else {
+    } else if (token === PROD_ENVIRONMENT) {
       issues.push(
-        `QCMS_MOUNT contains an unknown surface "${token}" (allowed: ${MOUNT_SURFACES.join(", ")}, all)`,
+        `QCMS_MOUNT names "${PROD_ENVIRONMENT}", which is not a surface: ` +
+          `${PROD_ENVIRONMENT} is the unprefixed address shape and is mounted by "public" (ADR-40, Q21)`,
       );
+    } else if (mountable.includes(token)) {
+      if (!environments.includes(token)) environments.push(token);
+    } else {
+      issues.push(`QCMS_MOUNT contains an unknown surface "${token}" (allowed: ${allowed})`);
     }
   }
-  if (!flags.public && !flags.internal && !flags.admin) {
+  if (!flags.public && !flags.internal && !flags.admin && environments.length === 0) {
     issues.push(`QCMS_MOUNT selected no surfaces`);
   }
-  return flags;
+  // In the order the configuration names them, not the order the operator typed, so a
+  // mount list and an address listing read the same way everywhere (Q42's canonical
+  // order, as far as this process can see it before it has a connection).
+  return {
+    ...flags,
+    environments: mountable.filter((name) => environments.includes(name)),
+  };
 }
 
 function parseFlags(env: Env, issues: string[]): Flags {
@@ -1308,21 +1363,25 @@ export function loadConfig(env: Env): Config {
 
   const databaseUrl = parseRequiredString(env, "DATABASE_URL", 1, issues, "setting");
   const environments = parseEnvironments(env, issues);
-  // Q53: until tasks 065 and 066 land, every request and every newly minted link is
-  // `prod`, so a configuration that does not carry it could not serve a request at all.
-  // The constant lives in `environments.ts` beside the pool selection it governs; this
-  // is the boot check that the set can satisfy it.
+  // `prod` is the unprefixed address shape (Q21) and the environment an admin request
+  // that names none resolves to, so a configuration without it has no surface to serve
+  // `/f/{slug}` or `/l/{token}` from at all. The constant lives in `environments.ts`
+  // beside the pool selection it governs; this is the boot check that the set satisfies it.
   if (
     environments.length > 0 &&
-    !environments.some((environment) => environment.name === INTERIM_REQUEST_ENVIRONMENT)
+    !environments.some((environment) => environment.name === PROD_ENVIRONMENT)
   ) {
     issues.push(
-      `QCMS_ENVIRONMENTS must include ${INTERIM_REQUEST_ENVIRONMENT}: every request and every ` +
-        "newly minted link resolves to it until the /<env>/ route prefix and the admin " +
-        "switcher exist (ADR-40, Q53)",
+      `QCMS_ENVIRONMENTS must include ${PROD_ENVIRONMENT}: it is the unprefixed ` +
+        "address shape every prod respondent reaches, and the environment an admin request " +
+        "that names none is served from (ADR-40, Q21)",
     );
   }
-  const mount = parseMount(env, issues);
+  const mount = parseMount(
+    env,
+    environments.map((environment) => environment.name),
+    issues,
+  );
   const link = parseKeyList(env, "QCMS_LINK_KEYS", MIN_SECRET_LENGTH, issues);
   const session = parseKeyList(env, "QCMS_SESSION_KEYS", MIN_SECRET_LENGTH, issues);
   const internal = parseKeyList(env, "QCMS_INTERNAL_TOKEN", MIN_SECRET_LENGTH, issues);

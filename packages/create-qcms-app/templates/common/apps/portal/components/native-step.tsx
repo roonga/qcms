@@ -126,10 +126,23 @@ export function NativeStep({
   initial,
   context,
   opToken,
+  basePath,
 }: {
   readonly sessionId: string;
   readonly initial: StepResponse;
   readonly context?: StepContext | undefined;
+  /**
+   * The environment's address prefix: `""` for `prod` and `/<env>` for every other
+   * (Q21, task 066).
+   *
+   * **A prop and not a derivation.** A client component cannot read the request header
+   * the proxy resolved the environment on, and reading it back out of
+   * `window.location` would make every address below depend on parsing the one the
+   * browser happens to be at. The page that already knows it passes it down, so a
+   * `fetch` from a `test` session's page reaches `test`'s route rather than `prod`'s -
+   * which would answer, and would answer about a session that is a schema away.
+   */
+  readonly basePath: string;
   /**
    * The one-time roster-operation token this page render minted (task 073, ADR-43).
    *
@@ -141,7 +154,7 @@ export function NativeStep({
    */
   readonly opToken: string;
 }) {
-  const action = `/s/${encodeURIComponent(sessionId)}/step`;
+  const action = `${basePath}/s/${encodeURIComponent(sessionId)}/step`;
   const readyToSubmit = initial.flowState.readyToSubmit;
   const submitLabel = readyToSubmit ? t("action.submit") : t("action.continue");
 

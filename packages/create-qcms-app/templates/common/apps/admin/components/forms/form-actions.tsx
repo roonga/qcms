@@ -213,7 +213,9 @@ export function FormActions({
             setDialog(status === "open" ? "close" : "reopen");
           }}
         >
-          {status === "open" ? t("forms.lifecycle.close") : t("forms.lifecycle.reopen")}
+          {status === "open"
+            ? t("forms.lifecycle.close", { environment })
+            : t("forms.lifecycle.reopen", { environment })}
         </Button>
       </div>
 
@@ -222,7 +224,7 @@ export function FormActions({
       )}
       {status === "closed" && (
         <p className="text-sm text-(--color-text-muted)" data-testid="qcms-form-closed">
-          {t("forms.lifecycle.closedNote")}
+          {t("forms.lifecycle.closedNote", { environment })}
         </p>
       )}
 
@@ -431,11 +433,13 @@ export function FormActions({
           role="alertdialog"
           title={
             dialog === "close"
-              ? t("forms.lifecycle.closeTitle", { slug })
-              : t("forms.lifecycle.reopenTitle", { slug })
+              ? t("forms.lifecycle.closeTitle", { slug, environment })
+              : t("forms.lifecycle.reopenTitle", { slug, environment })
           }
           description={
-            dialog === "close" ? t("forms.lifecycle.closeBody") : t("forms.lifecycle.reopenBody")
+            dialog === "close"
+              ? t("forms.lifecycle.closeBody", { environment })
+              : t("forms.lifecycle.reopenBody", { environment })
           }
           isDismissable={!isPending}
           onOpenChange={(isOpen) => {
@@ -443,10 +447,10 @@ export function FormActions({
           }}
         >
           <div className="flex flex-col gap-4">
-            {/* Q6 again. Closing is still a whole-form state until task 066 makes it per
-                environment, and the restatement is what this task owes it: an operator who
-                has been working in `test` all morning must not read a confirmation that
-                says nothing about where it lands. */}
+            {/* Q6 again, and since task 066 this is the environment the act is **about**
+                rather than only the one the operator is reading in: the closed state is per
+                (form, environment), so a confirmation that said nothing about where it
+                lands would be ambiguous rather than merely unhelpful. */}
             <p className="text-sm font-semibold" data-testid="qcms-lifecycle-environment">
               {t("environment.inThis", { environment })}
             </p>
@@ -464,7 +468,7 @@ export function FormActions({
                   runStatus(dialog);
                 }}
               >
-                {isPending ? t("forms.lifecycle.pending") : confirmLabel(dialog)}
+                {isPending ? t("forms.lifecycle.pending") : confirmLabel(dialog, environment)}
               </Button>
               <Button
                 variant="ghost"
@@ -484,11 +488,11 @@ export function FormActions({
   );
 }
 
-/** The verb on a lifecycle dialog's confirm button. */
-function confirmLabel(intent: "close" | "reopen"): string {
+/** The verb on a lifecycle dialog's confirm button, naming the environment it acts in. */
+function confirmLabel(intent: "close" | "reopen", environment: string): string {
   return intent === "close"
-    ? t("forms.lifecycle.confirmClose")
-    : t("forms.lifecycle.confirmReopen");
+    ? t("forms.lifecycle.confirmClose", { environment })
+    : t("forms.lifecycle.confirmReopen", { environment });
 }
 
 /** The anchored work list a refused publish leaves behind. Nothing was persisted. */

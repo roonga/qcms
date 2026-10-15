@@ -4,6 +4,7 @@ import { ApiError, getStep } from "@/lib/server/api";
 import { t } from "@/lib/i18n/en";
 import { readStepContext } from "@/lib/server/route-helpers";
 import { readSessionToken } from "@/lib/server/session-cookie";
+import { currentBasePath } from "@/lib/server/environment";
 import { newOperationToken } from "@/lib/server/operation-token";
 
 /**
@@ -43,6 +44,11 @@ export default async function FlowPage({
         initial={step}
         context={context}
         opToken={newOperationToken()}
+        // The environment's address prefix (Q21, task 066), resolved once here and
+        // passed down: every address the step emits - the native form's action, the
+        // scripted `fetch`es, the completion redirect - has to stay inside the
+        // environment the respondent entered.
+        basePath={await currentBasePath()}
       />
     );
   } catch (error) {

@@ -52,6 +52,16 @@ export interface AppearanceState {
   readonly brandLogoSrc: string | undefined;
   /** Whether the appearance cookies are written with `Secure` (production). */
   readonly secureCookies: boolean;
+  /**
+   * The environment's address prefix: `""` for `prod` and `/<env>` for every other
+   * (Q21, task 066).
+   *
+   * Here for the reason everything else in this context is: the root layout is the one
+   * server component every page passes through, and the appearance form's no-JS return
+   * address has to carry the prefix or a `test` respondent who picks a font lands on
+   * `prod`'s copy of the page they were on.
+   */
+  readonly basePath: string;
 }
 
 const AppearanceContext = createContext<AppearanceState | null>(null);

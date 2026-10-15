@@ -23,7 +23,11 @@ import { registerQuestions } from "./features/questions/route.js";
 import { registerReleases } from "./features/releases/route.js";
 import { registerAdminResponses } from "./features/responses/admin/route.js";
 import { registerServeStep } from "./features/responses/serve-step/route.js";
-import { registerStartSession } from "./features/responses/start-session/route.js";
+import {
+  registerAnonymousEntry,
+  registerLinkEntry,
+  registerSessionStatus,
+} from "./features/responses/start-session/route.js";
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerWorkspaces } from "./features/workspaces/route.js";
@@ -32,8 +36,15 @@ import { registerRequestEnvironment } from "./middleware/request-environment.js"
 
 /**
  * Slice registrars per surface (the enterprise topology, ARCHITECTURE §5.1):
- * the respondent-facing loop is public; authoring, response ops, and webhook
+ * the respondent-facing loop is per environment; authoring, response ops, and webhook
  * config are admin. The internal bucket carries no slices at launch.
+ *
+ * **`respondent` is mounted once per environment and `anonymous` only on `prod`**
+ * (ADR-40, Q21, SEC-14, task 066). That is the whole of criterion 3: a non-prod
+ * environment's surface carries secure-link entry, the session status read, serving a
+ * step and submitting, and carries **no form-slug door at all**, so
+ * `POST /test/sessions` with a form slug is a `404` rather than a handler's `403`.
+ * `app.ts` is where the per-environment mount happens.
  *
  * `registerAdminAuth` MUST be first in `admin`: it installs the admin-session
  * gate every admin route below sits behind (021; 031 swaps the stub for real
@@ -48,7 +59,8 @@ import { registerRequestEnvironment } from "./middleware/request-environment.js"
  * behind that gate. `app.ts` still puts the SEC-4 channel token in front of it.
  */
 export const appGroups: RouteGroups = {
-  public: [registerStartSession, registerServeStep, registerSubmit],
+  respondent: [registerLinkEntry, registerSessionStatus, registerServeStep, registerSubmit],
+  anonymous: [registerAnonymousEntry],
   internal: [],
   admin: [
     registerAdminAuth,
