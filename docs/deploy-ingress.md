@@ -537,6 +537,63 @@ still what starts a test session, and its expiry, one-time consumption and revoc
 bound that. Nor does it protect data at rest. SEC-14 states the three layers and the order they
 apply in; this section is only the outermost one.
 
+## Surviving your own deploys, if you build the portal image yourself
+
+This one is not an ingress rule and it applies to both recipes. It is here because it is a
+**deploy-time** decision an operator makes once, and because the symptom looks like an ingress
+fault and is not.
+
+**The symptom.** A respondent with scripting off has a step with a repeating group open, you
+deploy, and they then press Add or Remove. The post carries a Next Server Action id, the new build
+does not know it, and Next answers **`409 Conflict`, `text/plain`, `Server Action unavailable.`,
+with the header `x-nextjs-action-not-found: 1`**. No page of the portal renders. Everything they
+had already pressed Continue on is saved and the roster is server state, so nothing committed is
+lost; what they lose is the values typed into that step since their last Continue, and the recovery
+is a reload of the step. The same signature with a `400` instead is a malformed request rather than
+a deploy, so read the status and not the header alone. `docs/operations.md`'s #504 entry is the
+runbook.
+
+**The cause, and the knob.** `next build` generates a random key per build and salts every Server
+Action id with it, so a freshly built image renames every id. It caches that key under
+`<distDir>/cache/.rscinfo` for fourteen days and reuses it for later builds **in the same tree**,
+which is why nobody sees this on a developer's machine and every container build has it: an image
+build is never the same tree. Setting `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` pins the key, the ids
+survive, and a held page's Add still works, including across a build that changed that action's own
+implementation.
+
+| What you did                                                             | A held no-JS repeating step after the deploy |
+| ------------------------------------------------------------------------ | -------------------------------------------- |
+| Deployed the **same** image again                                        | works                                        |
+| Built a new image, `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` unset            | the `409` above                              |
+| Built a new image with the **same** `NEXT_SERVER_ACTIONS_ENCRYPTION_KEY` | works                                        |
+
+**How to set it.** It is a **build arg**, not a runtime variable, so it has to be present where the
+image is built and has no effect if you add it to a running container's environment. With the
+Compose build path:
+
+```sh
+# once, kept with your other secrets, never committed
+openssl rand -base64 32
+```
+
+Put it in the same `.env` the stack reads (`.env.compose.example` carries the annotated entry) and
+`docker compose build portal` passes it through. In your own pipeline, pass
+`--build-arg NEXT_SERVER_ACTIONS_ENCRYPTION_KEY=...` to the portal image build from your CI secret
+store.
+
+**What it costs, stated plainly.** It is a secret, and Next writes whichever key it used into the
+image's own server manifest, so it is recoverable from any portal image **whether you pin it or
+not**. Pinning does not put it anywhere new; it makes one image's key also every other image's. In
+QCMS today nothing is encrypted under it, because the portal's one Server Action closes over no
+server value, so the practical cost is the secret handling itself. `docs/SECURITY_DESIGN.md`
+section 4 carries the full reading.
+
+**If you run the published `ghcr.io/roonga/qcms-portal` images, this is not yours to set.** Those
+images are deliberately not built with a shared key: one baked into a published image is a key
+published to everyone who can pull it. Deploying the same published image repeatedly already keeps
+the ids stable, so the `409` is scoped to a QCMS version upgrade landing at exactly the wrong
+moment. Issue #1035 tracks giving that remaining case a page the portal owns.
+
 ## Verifying the routing property
 
 Invariants 3 and 4 hold today by inspection, and inspection is exactly what stops happening the
