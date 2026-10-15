@@ -191,7 +191,11 @@ export { SessionNotFoundError, eraseSession } from "./erasure.js";
 
 // The live environment set (ADR-40, Q1): the source of which environments exist, read
 // by the admin's Q6 switcher and by every per-environment job that enumerates them.
-export { type EnvironmentRow, listEnvironments } from "./environments.js";
+export {
+  type EnvironmentRow,
+  getEnvironmentChallengeProvider,
+  listEnvironments,
+} from "./environments.js";
 
 // The release record (ADR-40, task 065): what is released to an environment, which is
 // what a new session resolves in place of "the newest published version". Promotion

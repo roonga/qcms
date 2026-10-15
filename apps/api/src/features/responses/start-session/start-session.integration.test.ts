@@ -9,9 +9,16 @@
  * pinning across a later publish (I4), newest-version selection, and the
  * session-token gate (missing / tampered / cross-purpose → 401).
  *
- * Also pins the whole-form closed state over secure links (ADR-39, issue #724):
- * a valid link into a closed form is refused, nothing is consumed or created,
- * and the link's own state still answers first when both are bad.
+ * Also pins the **environment's** closed state over secure links (ADR-39 as amended by
+ * Q18, issue #724): a valid link into a closed environment is refused, nothing is
+ * consumed or created, and the link's own state still answers first when both are bad.
+ *
+ * **Two entry routes since task 066** (Q21, criterion 3). `POST /sessions` is anonymous
+ * entry and exists on `prod`'s surface alone; `POST /sessions/link` is secure-link entry
+ * and exists on every environment's. {@link post} sends each body to the route that owns
+ * it, so the cases below read as they did while reaching the routes a deployment serves;
+ * the mount split itself, the `/<env>/` prefix and the wrong-prefix refusal are asserted
+ * in `environment-addresses.integration.test.ts`, which composes more than one surface.
  */
 
 import {
@@ -24,7 +31,7 @@ import {
 } from "@roonga/qcms-core";
 import {
   SEED_WORKSPACE_ID,
-  closeForm,
+  closeFormInEnvironment,
   consumeSecureLink,
   createForm,
   getSecureLink,
@@ -46,11 +53,22 @@ import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import type { ChallengeVerifier } from "../challenge.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
-import { registerStartSession } from "./route.js";
+import {
+  registerAnonymousEntry,
+  registerLinkEntry,
+  registerSessionStatus,
+} from "./route.js";
 
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
-const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
+const PUBLIC_ONLY = {
+  public: true,
+  internal: false,
+  admin: false,
+  // No non-prod respondent surface: this file is about `prod`'s behaviour, and the
+  // per-environment addresses have a file of their own.
+  environments: [],
+} as const;
 
 // Opaque domain JSONB - Postgres does not interpret it; tests store empties.
 // Types derived from the helper so apps/api needn't depend on @roonga/qcms-a2ui-compiler.
@@ -77,7 +95,12 @@ beforeAll(async () => {
     // asserts a 429.
     env: validEnv({ QCMS_RL_SESSION_CREATE_MAX: "200" }),
   });
-  app = createApp(deps, PUBLIC_ONLY, { groups: { public: [registerStartSession] } });
+  app = createApp(deps, PUBLIC_ONLY, {
+    groups: {
+      anonymous: [registerAnonymousEntry],
+      respondent: [registerLinkEntry, registerSessionStatus],
+    },
+  });
   internalToken = internalTokenFor(deps.config);
   linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]));
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -88,8 +111,22 @@ afterAll(async () => {
 
 // --- request helpers --------------------------------------------------------
 
+/**
+ * POST an entry body to the route that owns it (task 066).
+ *
+ * A body carrying `token` goes to `POST /sessions/link` and one carrying `formSlug` to
+ * `POST /sessions`. The dispatch is here rather than at every case because what changed
+ * is which address each mode lives at, not what any of these cases assert; the split
+ * itself is asserted where it belongs, against more than one mounted surface.
+ */
+function entryPath(body: unknown): string {
+  return typeof body === "object" && body !== null && "token" in body
+    ? "/sessions/link"
+    : "/sessions";
+}
+
 async function post(body: unknown, headers: Record<string, string> = {}): Promise<Response> {
-  return app.request("/sessions", {
+  return app.request(entryPath(body), {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -159,7 +196,16 @@ async function seedForm(
   if (versions > 0 && opts.release !== false) {
     await release(formId, versions);
   }
-  if (opts.closed) await closeForm(testDb.db, formId);
+  // Per (form, environment) since task 066 (Q18). This harness serves one environment,
+  // so closing "the form" means closing that environment's intake - and closing is only
+  // expressible once something is released there, which is why it follows the release.
+  if (opts.closed) {
+    await closeFormInEnvironment(testDb.db, {
+      formId,
+      environment: DEFAULT_TEST_ENVIRONMENT,
+      closedBy: "usr_fixture",
+    });
+  }
   return formId;
 }
 
@@ -269,7 +315,7 @@ describe("typed failures (exit criterion 1)", () => {
   it("LINK_REVOKED for a revoked link (403)", async () => {
     const formId = await seedForm("frm_linkrev", "link-rev", { versions: 1 });
     const token = await seedLink(formId, "lnk_revoked");
-    await revokeSecureLink(testDb.db, LinkId.parse("lnk_revoked"), formId, NOW);
+    await revokeSecureLink(testDb.db, LinkId.parse("lnk_revoked"), formId, DEFAULT_TEST_ENVIRONMENT, NOW);
     const res = await post({ token });
     expect(res.status).toBe(403);
     expect(((await res.json()) as ErrBody).error.code).toBe("LINK_REVOKED");
@@ -354,7 +400,13 @@ describe("whole-form closed state binds secure links (ADR-39)", () => {
       closed: true,
     });
     const token = await seedLink(formId, "lnk_closed_rev");
-    await revokeSecureLink(testDb.db, LinkId.parse("lnk_closed_rev"), formId, NOW);
+    await revokeSecureLink(
+      testDb.db,
+      LinkId.parse("lnk_closed_rev"),
+      formId,
+      DEFAULT_TEST_ENVIRONMENT,
+      NOW,
+    );
 
     const res = await post({ token });
     expect(res.status).toBe(403);
@@ -518,11 +570,16 @@ describe("challenge seam for challengeRequired forms", () => {
       config: deps.config,
       challenge: verifier,
     });
-    return createApp(d, PUBLIC_ONLY, { groups: { public: [registerStartSession] } });
+    return createApp(d, PUBLIC_ONLY, {
+      groups: {
+        anonymous: [registerAnonymousEntry],
+        respondent: [registerLinkEntry, registerSessionStatus],
+      },
+    });
   }
 
   async function postTo(targetApp: ReturnType<typeof createApp>, body: unknown): Promise<Response> {
-    return targetApp.request("/sessions", {
+    return targetApp.request(entryPath(body), {
       method: "POST",
       headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
       body: JSON.stringify(body),

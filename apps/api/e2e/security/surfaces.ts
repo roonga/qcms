@@ -96,11 +96,15 @@ export const SURFACES: readonly Surface[] = [
     anonymousReachable: true,
   },
   {
-    name: "POST /sessions (secure link redemption)",
+    // `POST /sessions/link` since task 066: secure-link entry is its own route so the two
+    // entry modes can ride different mount decisions (Q21, SEC-14). Posting a token to
+    // `POST /sessions` would now be refused by the anonymous body's strict object, which
+    // would make this row assert the schema rather than the channel gate.
+    name: "POST /sessions/link (secure link redemption)",
     row: "redeem-link",
     group: "public",
     method: "POST",
-    path: () => "/sessions",
+    path: () => "/sessions/link",
     body: { token: "not-a-real-link-token" },
     anonymousReachable: true,
   },
@@ -197,6 +201,28 @@ export const SURFACES: readonly Surface[] = [
     method: "PUT",
     path: (ctx) => `/admin/forms/${ctx.formId}/draft`,
     body: { definition: {} },
+    anonymousReachable: false,
+  },
+  {
+    // Closing and reopening one environment's intake (Q18, task 066). Two entries rather
+    // than one representative, for the reason the workspace slice below gives: the two
+    // would do opposite things if a gate ever let a caller through, and a probe that
+    // covered only one would leave the other unasserted.
+    name: "POST /admin/forms/{id}/close",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/close`,
+    body: { environment: "prod" },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/forms/{id}/reopen",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/reopen`,
+    body: { environment: "prod" },
     anonymousReachable: false,
   },
   {
@@ -351,7 +377,10 @@ export const SURFACES: readonly Surface[] = [
     group: "admin",
     method: "POST",
     path: (ctx) => `/admin/forms/${ctx.formId}/links`,
-    body: { expiresAt: "2099-01-01T00:00:00.000Z" },
+    // `environment` is required with no default since task 066 (Q19). The shape only has
+    // to survive the gate, not the handler, but a body the schema refuses would make this
+    // row assert the request schema rather than the channel and session gates.
+    body: { environment: "prod", expiresAt: "2099-01-01T00:00:00.000Z" },
     anonymousReachable: false,
   },
   {

@@ -12,7 +12,7 @@ import { authSession, authUser } from "@roonga/qcms-db";
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
 import type { Deps } from "./deps.js";
-import { INTERIM_REQUEST_ENVIRONMENT, type Databases } from "./environments.js";
+import { PROD_ENVIRONMENT, type Databases } from "./environments.js";
 import { selectDraftAssistant } from "./features/forms/assist/assistant.js";
 import type { DraftAssistant } from "./features/forms/assist/types.js";
 import { type ChallengeVerifier, nullChallengeVerifier } from "./features/responses/challenge.js";
@@ -151,14 +151,14 @@ export function singleDatabase(exec: Executor, config: Config): Databases {
   return {
     control: exec,
     names: config.environments.map((environment) => environment.name),
-    defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
+    defaultEnvironment: PROD_ENVIRONMENT,
     for: () => exec,
     // The argument is honoured even though every pool is the same handle, because what a
     // handler does with the **name** is real: a reporting read takes it as a parameter, so
     // a suite exercising the Q6 switcher's header would otherwise read `prod`'s views
     // under a `test` header and pass (ADR-40, task 065).
     forRequest: (environment?: string) => ({
-      environment: environment ?? INTERIM_REQUEST_ENVIRONMENT,
+      environment: environment ?? PROD_ENVIRONMENT,
       exec,
     }),
   };

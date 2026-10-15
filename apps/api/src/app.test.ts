@@ -164,7 +164,7 @@ describe("error envelope (exit criterion 3)", () => {
 describe("internal service token (exit criterion 6, SEC-4)", () => {
   const deps = makeDeps();
   const token = internalTokenFor(deps.config);
-  const app = createApp(deps, ALL, { groups: { public: [registerPing] } });
+  const app = createApp(deps, ALL, { groups: { respondent: [registerPing] } });
 
   it("rejects a mounted request with no token (401)", async () => {
     const res = await app.request("/ping");
@@ -192,7 +192,7 @@ describe("internal service token (exit criterion 6, SEC-4)", () => {
     const a = synthSecret();
     const b = synthSecret();
     const rotDeps = makeDeps({ env: validEnv({ QCMS_INTERNAL_TOKEN: `${a}, ${b}` }) });
-    const rotApp = createApp(rotDeps, ALL, { groups: { public: [registerPing] } });
+    const rotApp = createApp(rotDeps, ALL, { groups: { respondent: [registerPing] } });
     for (const tok of [a, b]) {
       const res = await rotApp.request("/ping", { headers: { "x-qcms-internal-token": tok } });
       expect(res.status).toBe(200);

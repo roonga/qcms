@@ -43,12 +43,11 @@ export type _SecureLinkRowMatchesTable = AssignableTo<
 /**
  * Insert server-side state for a secure link (SEC-2).
  *
- * **`environment` is required, and choosing it is task 066's** (Q19, Q46). This task
- * created the column and the `(link_id, environment)` unique key the thirteenth guard
- * references, so every insert has to name one from the moment the baseline lands; what
- * it does **not** do is decide the value at the API edge. Task 066 takes it from the
- * mint request, refuses a caller that omits it, and refuses a token presented under the
- * wrong prefix. Until then the API passes the environment it serves.
+ * **`environment` is required, and since task 066 it is the caller's own** (Q19, Q46).
+ * Task 064 created the column and the `(link_id, environment)` unique key the thirteenth
+ * guard references; task 066 takes the value from the mint request, where the field is
+ * required on the API and a caller that omits it is refused, and refuses a token later
+ * presented under the wrong prefix.
  *
  * There is no default here on purpose. A helper that quietly defaulted to `prod` would
  * be exactly the failure Q19 refuses: a script that omits the field and silently gets a
@@ -91,16 +90,26 @@ export async function getSecureLink(
 }
 
 /**
- * List every secure link minted for a form, newest first (task 024). Returns
- * the raw rows - the admin slice derives display state
- * (active/consumed/expired/revoked) from `consumedAt`/`revokedAt`/`expiresAt`
- * against the request clock; storage stays shape-preserving (R5).
+ * List the secure links minted for a form **in one environment**, newest first
+ * (task 024, environment-scoped by task 066). Returns the raw rows - the admin slice
+ * derives display state (active/consumed/expired/revoked) from
+ * `consumedAt`/`revokedAt`/`expiresAt` against the request clock; storage stays
+ * shape-preserving (R5).
+ *
+ * `environment` is required rather than optional, and that is the same choice Q19 makes
+ * for minting one layer up: a links screen that quietly listed every environment's links
+ * under a banner naming one would be showing an operator production links while they
+ * believed they were looking at `test`. A caller that wants two environments asks twice.
  */
-export async function listSecureLinks(exec: Executor, formId: FormId): Promise<SecureLinkRow[]> {
+export async function listSecureLinks(
+  exec: Executor,
+  formId: FormId,
+  environment: string,
+): Promise<SecureLinkRow[]> {
   return exec
     .select()
     .from(secureLinks)
-    .where(eq(secureLinks.formId, formId))
+    .where(and(eq(secureLinks.formId, formId), eq(secureLinks.environment, environment)))
     .orderBy(desc(secureLinks.createdAt));
 }
 
@@ -138,17 +147,22 @@ export async function consumeSecureLink(
  * Revoke a secure link so it stops working immediately (SEC-2). Idempotent: a
  * second revoke matches no row (already revoked) and returns `undefined`.
  *
- * Form-scoped (#478, following #305). `formId` is required and joins the `where`
- * clause, so a link belonging to another form is a row this statement never
- * matches rather than one the caller checks after the fact. Refusal therefore
- * falls out of the query: a cross-form link, a never-issued link and an
- * already-revoked link all come back `undefined`, and the caller has one code to
- * answer with instead of two error paths that have to agree.
+ * Form-scoped (#478, following #305) **and environment-scoped** (task 066). Both join
+ * the `where` clause, so a link belonging to another form - or to another environment -
+ * is a row this statement never matches rather than one the caller checks after the fact.
+ * Refusal therefore falls out of the query: a cross-form link, a cross-environment link,
+ * a never-issued link and an already-revoked link all come back `undefined`, and the
+ * caller has one code to answer with instead of error paths that have to agree.
+ *
+ * The environment scope is what keeps the links screen coherent: an administrator revokes
+ * what the environment they are looking at listed, and a link in another environment is
+ * not revocable from here any more than one in another form is.
  */
 export async function revokeSecureLink(
   exec: Executor,
   linkId: LinkId,
   formId: FormId,
+  environment: string,
   now?: Date,
 ): Promise<SecureLinkRow | undefined> {
   const [row] = await exec
@@ -158,6 +172,7 @@ export async function revokeSecureLink(
       and(
         eq(secureLinks.linkId, linkId),
         eq(secureLinks.formId, formId),
+        eq(secureLinks.environment, environment),
         isNull(secureLinks.revokedAt),
       ),
     )

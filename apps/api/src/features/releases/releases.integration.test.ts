@@ -22,21 +22,33 @@
  * credential and asserts the behaviour. Criteria 2 and the rest of 4 and 7 are asserted at
  * the query layer in `packages/db/src/queries/releases.integration.test.ts`.
  *
- * # The one substitution
+ * # Nothing is substituted, since task 066
  *
- * The respondent path has no `/<env>/` prefix until task 066, so until then every
- * respondent request resolves to one environment (Q53). `Databases.defaultEnvironment` is
- * on the interface so a test can substitute it, which is what the two apps below do: one
- * serves respondents from `test` and one from `prod`. Everything downstream of that choice
- * - the pool, the grants, the search path, the release read - is real, so what is
- * substituted is the choosing and nothing else.
+ * This file used to compose **two** apps and substitute `Databases.defaultEnvironment` on
+ * each, because the respondent path had no `/<env>/` prefix and every respondent request
+ * resolved to one environment (Q53). It composes **one** app now, with `prod`'s
+ * respondent surface at `/` and `test`'s at `/test`, and reaches each environment by its
+ * own address. So the pool a request runs on is chosen the way a deployment chooses it.
+ *
+ * One consequence is visible in every release-resolution case below: a session in `test`
+ * is started from a **secure link**, never from a form slug, because anonymous entry
+ * exists on `prod`'s surface alone (SEC-14, task 066's criterion 3). That is not a test
+ * accommodation - it is the design, and a case that still used a slug would be asserting
+ * against a route that does not exist.
  */
 
 import { drizzle } from "drizzle-orm/node-postgres";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { FormId, QuestionId, parseQuestionDefinition } from "@roonga/qcms-core";
+import {
+  FormId,
+  LinkId,
+  QuestionId,
+  importCompactTokenKey,
+  mintSecureLink,
+  parseQuestionDefinition,
+} from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition } from "@roonga/qcms-core";
 import {
@@ -46,6 +58,7 @@ import {
   createQuestionVersion,
   getSession,
   insertFormVersion,
+  insertSecureLink,
   publishQuestionVersion,
   schema,
 } from "@roonga/qcms-db";
@@ -67,38 +80,61 @@ import {
 } from "../../middleware/request-environment.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerForms } from "../forms/route.js";
-import { registerStartSession } from "../responses/start-session/route.js";
+import {
+  registerAnonymousEntry,
+  registerLinkEntry,
+  registerSessionStatus,
+} from "../responses/start-session/route.js";
 import { registerReleases } from "./route.js";
 
 const { Pool } = pg;
 
 const LIVE_SET = ["test", "prod"] as const;
-const MOUNTED = { public: true, internal: false, admin: true } as const;
+/**
+ * Every surface, with `test`'s respondent surface mounted at `/test` (Q21).
+ *
+ * `environments` is the non-prod set, so `prod` is absent from it by construction: prod is
+ * the unprefixed shape and `MOUNT_PREFIX.public` is its mount.
+ */
+const MOUNTED = {
+  public: true,
+  internal: false,
+  admin: true,
+  environments: ["test"],
+} as const;
 
 let testDb: TestDb;
 const executors = new Map<string, Executor>();
-/** One app per respondent environment: see the module docblock's "one substitution". */
-const apps = new Map<string, ReturnType<typeof createApp>>();
+let app: ReturnType<typeof createApp>;
 let control: Executor;
 let internalToken: string;
+let linkKey: CryptoKey;
 let adminSessionToken: string;
 let adminUserId: string;
 
-function databasesServing(respondentEnvironment: string): Databases {
+/** The real pool selection: control plus one per environment, chosen by name. */
+function databases(): Databases {
   return {
     control,
     names: [...LIVE_SET],
-    defaultEnvironment: respondentEnvironment,
+    // Only an admin request that names no environment reaches this; every respondent
+    // request is served by a group that pinned one.
+    defaultEnvironment: "prod",
     for: (environment: string) => {
       const found = executors.get(environment);
       if (found === undefined) throw new Error(`no pool for environment ${environment}`);
       return found;
     },
     forRequest: (environment?: string) => {
-      const chosen = environment ?? respondentEnvironment;
+      const chosen = environment ?? "prod";
       return { environment: chosen, exec: executors.get(chosen)! };
     },
   };
+}
+
+/** The address prefix of one environment's respondent surface (Q21). */
+function prefixOf(environment: string): string {
+  return environment === "prod" ? "" : `/${environment}`;
 }
 
 beforeAll(async () => {
@@ -117,23 +153,16 @@ beforeAll(async () => {
   const seeded = await seedAdminSession(control);
   adminSessionToken = seeded.token;
   adminUserId = seeded.userId;
-  // One environment object for both apps: `validEnv()` mints a fresh synthetic secret on
-  // every call, so calling it twice would give the two apps different internal tokens and
-  // the channel gate would refuse whichever one this file did not keep.
-  const env = validEnv();
-  for (const environment of LIVE_SET) {
-    const deps: Deps = makeDeps({ databases: databasesServing(environment), env });
-    internalToken = internalTokenFor(deps.config);
-    apps.set(
-      environment,
-      createApp(deps, MOUNTED, {
-        groups: {
-          public: [registerStartSession],
-          admin: [registerAdminAuth, registerRequestEnvironment, registerForms, registerReleases],
-        },
-      }),
-    );
-  }
+  const deps: Deps = makeDeps({ databases: databases(), env: validEnv() });
+  internalToken = internalTokenFor(deps.config);
+  linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]!));
+  app = createApp(deps, MOUNTED, {
+    groups: {
+      anonymous: [registerAnonymousEntry],
+      respondent: [registerLinkEntry, registerSessionStatus],
+      admin: [registerAdminAuth, registerRequestEnvironment, registerForms, registerReleases],
+    },
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -149,13 +178,12 @@ function adminHeaders(extra: Record<string, string> = {}): Record<string, string
   };
 }
 
-/** An admin POST on the app serving respondents from `prod` (the ordinary shape). */
 async function post(
   path: string,
   body: unknown,
   extra: Record<string, string> = {},
 ): Promise<Response> {
-  return apps.get("prod")!.request(`/admin${path}`, {
+  return app.request(`/admin${path}`, {
     method: "POST",
     headers: adminHeaders(extra),
     body: JSON.stringify(body),
@@ -163,15 +191,42 @@ async function post(
 }
 
 async function get(path: string, extra: Record<string, string> = {}): Promise<Response> {
-  return apps.get("prod")!.request(`/admin${path}`, { headers: adminHeaders(extra) });
+  return app.request(`/admin${path}`, { headers: adminHeaders(extra) });
 }
 
-/** Start an anonymous session on the app that serves respondents from `environment`. */
-async function startSession(environment: string, slug: string): Promise<Response> {
-  return apps.get(environment)!.request("/sessions", {
+/** Start an **anonymous** session, which exists on `prod`'s surface alone (criterion 3). */
+async function startAnonymous(slug: string): Promise<Response> {
+  return app.request("/sessions", {
     method: "POST",
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
     body: JSON.stringify({ formSlug: slug }),
+  });
+}
+
+let mintedLinks = 0;
+
+/**
+ * Start a session in `environment` by minting a secure link for it and redeeming it at
+ * **that environment's own address**.
+ *
+ * The link is minted at the query layer rather than through the admin route, because what
+ * these cases are about is release resolution and not minting; the mint route has its own
+ * coverage. What is real here is the address, the pool it selects and the environment on
+ * the row the handler checks against it.
+ */
+async function startIn(environment: string, formId: FormId): Promise<Response> {
+  mintedLinks += 1;
+  const linkId = LinkId.parse(`lnk_rel${String(mintedLinks)}`);
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+  await insertSecureLink(control, { linkId, formId, environment, expiresAt, oneTime: false });
+  const token = await mintSecureLink(
+    { formId, linkId, expiresAt: expiresAt.toISOString(), oneTime: false },
+    linkKey,
+  );
+  return app.request(`${prefixOf(environment)}/sessions/link`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
+    body: JSON.stringify({ token }),
   });
 }
 
@@ -253,7 +308,7 @@ describe("release resolution replaces the newest published version (criterion 1)
     // Nothing is released anywhere yet, so a published version is served nowhere. That is
     // the whole of ADR-40 in one assertion: publishing is not the act that reaches a
     // respondent.
-    const beforeRelease = await startSession("test", slug);
+    const beforeRelease = await startIn("test", formId);
     expect(beforeRelease.status).toBe(409);
     expect(((await beforeRelease.json()) as { error: { code: string } }).error.code).toBe(
       "NO_PUBLISHED_VERSION",
@@ -262,13 +317,13 @@ describe("release resolution replaces the newest published version (criterion 1)
     const released = await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
     expect(released.status).toBe(200);
 
-    const inTest = await startSession("test", slug);
+    const inTest = await startIn("test", formId);
     expect(inTest.status).toBe(201);
     expect(((await inTest.json()) as { formVersion: number }).formVersion).toBe(1);
 
     // And `prod`, where nothing was released, still refuses - on the same slug, the same
     // form and the same published version.
-    const inProd = await startSession("prod", slug);
+    const inProd = await startAnonymous(slug);
     expect(inProd.status).toBe(409);
   });
 
@@ -290,7 +345,7 @@ describe("release resolution replaces the newest published version (criterion 1)
     expect(body.release.fromEnvironment).toBe("test");
 
     // Both environments now serve the same version, from one stored copy of it.
-    expect((await startSession("prod", slug)).status).toBe(201);
+    expect((await startAnonymous(slug)).status).toBe(201);
   });
 
   it("records a release straight to `prod` with no prior release anywhere (criterion 5)", async () => {
@@ -307,7 +362,7 @@ describe("a release never re-pins a live session (criterion 3, ADR-07 invariant 
     const { formId, slug } = await seedForm("pinned", 2);
     await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
 
-    const started = await startSession("test", slug);
+    const started = await startIn("test", formId);
     expect(started.status).toBe(201);
     const session = (await started.json()) as {
       sessionId: string;
@@ -322,7 +377,7 @@ describe("a release never re-pins a live session (criterion 3, ADR-07 invariant 
 
     // What the respondent is served is unchanged, read back through the respondent's own
     // credential rather than inferred from the row.
-    const status = await apps.get("test")!.request(`/sessions/${session.sessionId}`, {
+    const status = await app.request(`/test/sessions/${session.sessionId}`, {
       headers: {
         "x-qcms-internal-token": internalToken,
         authorization: `Bearer ${session.sessionToken}`,
@@ -337,7 +392,7 @@ describe("a release never re-pins a live session (criterion 3, ADR-07 invariant 
 
     // A session started after the release gets the new version, which is what makes the
     // assertion above about the pin rather than about the release having failed.
-    const next = await startSession("test", slug);
+    const next = await startIn("test", formId);
     expect(((await next.json()) as { formVersion: number }).formVersion).toBe(2);
   });
 });
@@ -522,7 +577,7 @@ describe("publish and release in one act (finding 2's combined action)", () => {
       slug: "combined-slug",
       defaultLocale: "en",
     });
-    const draft = await apps.get("prod")!.request(`/admin/forms/${formId}/draft`, {
+    const draft = await app.request(`/admin/forms/${formId}/draft`, {
       method: "PUT",
       headers: adminHeaders(),
       body: JSON.stringify({ definition: draftDefinition(formId, "q_combined") }),
@@ -540,7 +595,7 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     expect(await releasedEvents("test", formId)).toBe(1);
     const history = await get(`/forms/${formId}/releases`);
     expect(((await history.json()) as { releases: unknown[] }).releases).toHaveLength(1);
-    expect((await startSession("test", "combined-slug")).status).toBe(201);
+    expect((await startIn("test", formId)).status).toBe(201);
   });
 
   it("publishes nothing when the release half cannot be written", async () => {
@@ -554,7 +609,7 @@ describe("publish and release in one act (finding 2's combined action)", () => {
       slug: "combined-refused-slug",
       defaultLocale: "en",
     });
-    await apps.get("prod")!.request(`/admin/forms/${formId}/draft`, {
+    await app.request(`/admin/forms/${formId}/draft`, {
       method: "PUT",
       headers: adminHeaders(),
       body: JSON.stringify({ definition: draftDefinition(formId, "q_combinedrefused") }),

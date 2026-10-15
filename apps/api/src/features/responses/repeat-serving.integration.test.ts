@@ -238,7 +238,7 @@ beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), env: validEnv() });
   app = createApp(deps, PUBLIC_ONLY, {
-    groups: { public: [registerServeStep, registerSubmit] },
+    groups: { respondent: [registerServeStep, registerSubmit] },
   });
   internalToken = internalTokenFor(deps.config);
 

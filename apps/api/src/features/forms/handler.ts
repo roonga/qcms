@@ -69,8 +69,9 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
-  closeForm,
+  closeFormInEnvironment,
   createForm,
+  environmentStatesByForm,
   deleteDraft,
   getDraft,
   getForm,
@@ -81,8 +82,9 @@ import {
   listQuestionOwnership,
   listFormVersions,
   listQuestionVersions,
+  getFormEnvironmentState,
   type QuestionStatus,
-  reopenForm,
+  reopenFormInEnvironment,
   updateFormSettings,
   upsertDraft,
 } from "@roonga/qcms-db";
@@ -172,6 +174,48 @@ const fail = {
     new ApiError("FORM_SLUG_TAKEN", 409, `The slug "${slug}" is already in use`),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   noDraft: (): ApiError => new ApiError("NO_DRAFT", 409, "This form has no open draft to publish"),
+  unknownEnvironment: (name: string): ApiError =>
+    new ApiError("UNKNOWN_ENVIRONMENT", 400, `This deployment serves no environment named ${name}`),
+  /**
+   * Nothing is released in that environment, so there is no intake to close (Q18).
+   *
+   * The closed state is a value of the release state, and a release row carries a
+   * version: `version` is `NOT NULL` and keyed into `control.form_versions`, so "closed
+   * with nothing released" is not expressible. It is also not a state anybody needs - a
+   * start there already refuses with `NO_PUBLISHED_VERSION` - so this is a legible
+   * refusal rather than a gap.
+   */
+  notReleasedHere: (environment: string): ApiError =>
+    new ApiError(
+      "NOT_RELEASED",
+      409,
+      `This form has no released version in ${environment}, so there is no intake to close or reopen`,
+    ),
+  /**
+   * The environment's intake is already in the state asked for.
+   *
+   * A refusal rather than a second identical row, for the reason the release route
+   * refuses `ALREADY_RELEASED`: the history exists to answer "who stopped production
+   * intake, and when", and a row that recorded no change is noise an incident review has
+   * to read past. A double-pressed button is the ordinary way it happens.
+   */
+  alreadyInState: (environment: string, closed: boolean): ApiError =>
+    new ApiError(
+      closed ? "ALREADY_CLOSED" : "ALREADY_OPEN",
+      409,
+      `Intake in ${environment} is already ${closed ? "closed" : "open"}`,
+    ),
+  /**
+   * No admin principal on a request that writes an actor into the audit.
+   *
+   * A `500` rather than an empty string in the record. Closing production intake is an
+   * operational act the release history answers for, and a row whose actor is `""`
+   * answers nothing - it is worse than no row, because it looks like an answer. The
+   * admin-auth gate makes this unreachable in a mounted process, which is exactly why it
+   * throws rather than being handled.
+   */
+  noPrincipal: (): Error =>
+    new Error("forms: no admin principal on a request that records an actor"),
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
   publishRejected: (issues: readonly PublishIssue[]): ApiError =>
     new ApiError("PUBLISH_REJECTED", 422, "The draft cannot be published", { issues }),
@@ -200,6 +244,19 @@ const fail = {
 // --- shared helpers ---------------------------------------------------------
 
 /** Parse a `:id` path param to a FormId, or 400. */
+/**
+ * Refuse an environment this deployment does not serve, rather than defaulting one.
+ *
+ * `databases.names` is the set this process holds a pool for, which boot has reconciled
+ * with `control.environments` (task 064, criterion 6a). Checked against that rather than
+ * against the table so the answer cannot be "an environment exists but nothing in this
+ * process can reach it".
+ */
+function requireEnvironment(deps: Deps, name: string): string {
+  if (!deps.databases.names.includes(name)) throw fail.unknownEnvironment(name);
+  return name;
+}
+
 function requireFormId(id: string): FormId {
   const parsed = parseFormId(id);
   if (!parsed.ok) throw fail.invalidId();
@@ -607,11 +664,23 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
     const rows = await listForms(deps.databases.control);
+    // The status is **per environment** and derived since task 066 (Q18): the Q6
+    // switcher's environment, read as one query for the whole list rather than one per
+    // form, because the list is the one screen that asks the question N times. A form
+    // with nothing released in this environment is absent from the map and reads `open`:
+    // nobody has closed it, and "nothing is released here" is a different answer that
+    // `latestVersion` and the release screens already give.
+    const environment = requireEnvironment(
+      deps,
+      c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
+    );
+    const states = await environmentStatesByForm(deps.databases.control, environment);
+    const statusOf = (formId: FormId): "open" | "closed" =>
+      states.get(formId)?.closed === true ? "closed" : "open";
 
-    // The status filter is the identity row's own column, so it narrows before the
-    // per-row reads below rather than after them: a closed-only list of a library of
-    // fifty forms should not pay for fifty drafts.
-    const byStatus = status === undefined ? rows : rows.filter((row) => row.status === status);
+    // The status filter narrows before the per-row reads below rather than after them: a
+    // closed-only list of a library of fifty forms should not pay for fifty drafts.
+    const byStatus = status === undefined ? rows : rows.filter((row) => statusOf(row.formId) === status);
 
     // One draft/version read per row is fine at launch admin scale (R7); a
     // denormalized status column is a Phase-4 optimization, not a launch need.
@@ -624,7 +693,7 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
           formId: row.formId,
           slug: row.slug,
           defaultLocale: row.defaultLocale,
-          status: row.status,
+          status: statusOf(row.formId),
           hasDraft: draft !== undefined,
           latestVersion: latest === undefined ? null : latest.version,
           publishedAt: latest === undefined ? null : latest.publishedAt.toISOString(),
@@ -727,6 +796,14 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
 
     const versions = await listFormVersions(deps.databases.control, formId);
     const openDraft = await getDraft(deps.databases.control, formId);
+    const environmentState = await getFormEnvironmentState(
+      deps.databases.control,
+      formId,
+      requireEnvironment(
+        deps,
+        c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
+      ),
+    );
 
     // The draft the editor opens: the open draft if one exists, otherwise seeded
     // from the latest published version (§4.1 "new draft opened, seeded from vN")
@@ -746,7 +823,9 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
         formId: form.formId,
         slug: form.slug,
         defaultLocale: form.defaultLocale,
-        status: form.status,
+        // The Q6 switcher's environment's intake state (Q18), derived from the release
+        // state rather than read from a column that no longer exists.
+        status: environmentState?.closed === true ? ("closed" as const) : ("open" as const),
         draft,
         draftSource,
         draftAgentAssisted: openDraft?.agentAssisted ?? false,
@@ -1748,17 +1827,15 @@ export function makePublishAndReleaseFormHandler(
 ): RouteHandler<typeof publishAndReleaseFormRoute, ApiEnv> {
   return async (c) => {
     const formId = requireFormId(c.req.valid("param").id);
-    const environment = c.req.valid("json").environment;
-    if (!deps.databases.names.includes(environment)) {
-      throw new ApiError(
-        "UNKNOWN_ENVIRONMENT",
-        400,
-        `This deployment serves no environment named ${environment}`,
-      );
-    }
+    const environment = requireEnvironment(deps, c.req.valid("json").environment);
     const now = deps.clock.now();
     const frozen = await freezeDraft(deps, formId);
+    // Thrown rather than recorded as `""`. The release record is the audit answer to
+    // "who put that version into `prod`", and a row whose actor is the empty string
+    // answers nothing while looking like an answer. The admin-auth gate makes this
+    // unreachable in a mounted process, which is why it throws rather than degrading.
     const principal = c.get("adminPrincipal");
+    if (principal === undefined) throw fail.noPrincipal();
 
     const result = await deps.databases.control.transaction(async (tx) => {
       const version = await writeVersion(tx, formId, frozen, now);
@@ -1766,9 +1843,13 @@ export function makePublishAndReleaseFormHandler(
         formId,
         environment,
         version: version.version,
-        releasedBy: principal?.userId ?? "",
+        releasedBy: principal.userId,
         // No source: the version is new, so it was released nowhere before this (Q4).
         fromEnvironment: undefined,
+        // A new version into a closed environment does not resume intake (Q18). Nothing
+        // is released there yet when this is the form's first release, so the current
+        // state is `undefined` and the row lands open.
+        closed: (await getFormEnvironmentState(tx, formId, environment))?.closed ?? false,
       });
       return { version, release };
     });
@@ -1785,28 +1866,59 @@ export function makePublishAndReleaseFormHandler(
   };
 }
 
-// --- POST /admin/forms/:id/close --------------------------------------------
+// --- POST /admin/forms/:id/close and /reopen --------------------------------
 
-export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormRoute, ApiEnv> {
-  return async (c) => {
-    const formId = requireFormId(c.req.valid("param").id);
-    // Closing stops *new* sessions (018 checks status at start); in-flight
-    // sessions finish on their pinned version (R1) - status is the only change.
-    const row = await closeForm(deps.databases.control, formId);
-    if (row === undefined) throw fail.formNotFound();
-    return c.json({ formId: row.formId, status: row.status }, 200);
-  };
+/**
+ * Stop or resume **one environment's** intake (Q18, task 066, ADR-39's Amendment).
+ *
+ * One function for both, because they differ in a boolean and in nothing else: the same
+ * environment check, the same refusals, the same append to the release state, the same
+ * actor. Two copies would be two places for one of the refusals to go missing.
+ *
+ * **Who may do it is task 067's** (Q33: an editor for `dev` and `test`, an approver
+ * holding `prod` in scope for `prod`). This task builds the operation; the role and its
+ * environment scope arrive with 068 and 069, and a check before they exist would be
+ * inventing one.
+ *
+ * Closing stops *new* sessions - `start-session` reads this state before anything is
+ * spent - and in-flight sessions finish on their pinned version (R1, ADR-07 invariant
+ * I4). The read and the append share a transaction so a release landing between them
+ * cannot be closed over with the earlier version.
+ */
+async function setIntake(
+  deps: Deps,
+  c: Parameters<RouteHandler<typeof closeFormRoute, ApiEnv>>[0],
+  closed: boolean,
+): Promise<{ formId: string; environment: string; status: "open" | "closed" }> {
+  const formId = requireFormId(c.req.valid("param").id);
+  const environment = requireEnvironment(deps, c.req.valid("json").environment);
+  const principal = c.get("adminPrincipal");
+  if (principal === undefined) throw fail.noPrincipal();
+
+  const form = await getForm(deps.databases.control, formId);
+  if (form === undefined) throw fail.formNotFound();
+
+  const row = await deps.databases.control.transaction(async (tx) => {
+    const current = await getFormEnvironmentState(tx, formId, environment);
+    if (current === undefined) throw fail.notReleasedHere(environment);
+    if (current.closed === closed) throw fail.alreadyInState(environment, closed);
+    return closed
+      ? await closeFormInEnvironment(tx, { formId, environment, closedBy: principal.userId })
+      : await reopenFormInEnvironment(tx, { formId, environment, reopenedBy: principal.userId });
+  });
+  // `undefined` is unreachable: the read inside the transaction already refused the only
+  // case that produces it, and no release can land between the two under one transaction.
+  if (row === undefined) throw fail.notReleasedHere(environment);
+
+  return { formId: row.formId, environment: row.environment, status: closed ? "closed" : "open" };
 }
 
-// --- POST /admin/forms/:id/reopen -------------------------------------------
+export function makeCloseFormHandler(deps: Deps): RouteHandler<typeof closeFormRoute, ApiEnv> {
+  return async (c) => c.json(await setIntake(deps, c, true), 200);
+}
 
 export function makeReopenFormHandler(deps: Deps): RouteHandler<typeof reopenFormRoute, ApiEnv> {
-  return async (c) => {
-    const formId = requireFormId(c.req.valid("param").id);
-    const row = await reopenForm(deps.databases.control, formId);
-    if (row === undefined) throw fail.formNotFound();
-    return c.json({ formId: row.formId, status: row.status }, 200);
-  };
+  return async (c) => c.json(await setIntake(deps, c, false), 200);
 }
 
 // --- GET /admin/forms/:id/versions/:v ---------------------------------------

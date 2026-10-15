@@ -37,7 +37,8 @@ import {
   synthSecret,
   validEnv,
 } from "../../test-support.js";
-import { registerStartSession } from "../responses/start-session/route.js";
+import { registerRequestEnvironment } from "../../middleware/request-environment.js";
+import { registerLinkEntry } from "../responses/start-session/route.js";
 import { MAX_LINK_BATCH } from "./schema.js";
 import { registerLinks } from "./route.js";
 
@@ -84,7 +85,10 @@ function buildApp(
     env: { ...baseEnv, QCMS_LINK_KEYS: linkKeys },
   });
   const a = createApp(d, ALL, {
-    groups: { public: [registerStartSession], admin: [registerAdminAuth, registerLinks] },
+    groups: {
+      respondent: [registerLinkEntry],
+      admin: [registerAdminAuth, registerRequestEnvironment, registerLinks],
+    },
   });
   return { deps: d, app: a };
 }
@@ -113,8 +117,9 @@ beforeAll(async () => {
     semanticsVersion: "1",
   });
   // Redeeming a link resolves what is **released** to the session's environment (ADR-40,
-  // task 065), so the fixture releases the version it publishes. Minting itself is
-  // environment-agnostic until task 066 gives the mint its own environment (Q19).
+  // task 065), so the fixture releases the version it publishes. Since task 066 the mint
+  // names its environment too (Q19) - `mint` below sends it, because the field is
+  // required and has no default.
   await insertFormRelease(testDb.db, {
     formId: FORM_ID,
     environment: DEFAULT_TEST_ENVIRONMENT,
@@ -144,11 +149,20 @@ function adminHeaders(): Record<string, string> {
   };
 }
 
-async function mint(targetApp: ReturnType<typeof createApp>, body: unknown): Promise<Response> {
+/**
+ * Mint into the environment this harness serves.
+ *
+ * `environment` is spread **first**, so a case that wants to name another one - or to omit
+ * it and see the refusal - overrides it from its own body (Q19).
+ */
+async function mint(
+  targetApp: ReturnType<typeof createApp>,
+  body: Record<string, unknown>,
+): Promise<Response> {
   return targetApp.request(`/admin/forms/${FORM_ID}/links`, {
     method: "POST",
     headers: adminHeaders(),
-    body: JSON.stringify(body),
+    body: JSON.stringify({ environment: DEFAULT_TEST_ENVIRONMENT, ...body }),
   });
 }
 
@@ -165,7 +179,9 @@ async function startFromToken(
   targetApp: ReturnType<typeof createApp>,
   token: string,
 ): Promise<Response> {
-  return targetApp.request("/sessions", {
+  // `POST /sessions/link` since task 066: secure-link entry is its own route, so the two
+  // entry modes can ride different mount decisions (Q21, criterion 3).
+  return targetApp.request("/sessions/link", {
     method: "POST",
     headers: { "content-type": "application/json", "x-qcms-internal-token": internalToken },
     body: JSON.stringify({ token }),

@@ -32,11 +32,22 @@ import {
 /** The fixed wall-clock the suite pins for deterministic tokens/timestamps. */
 export const NOW = new Date("2026-07-20T00:00:00.000Z");
 
-/** Process-shape presets (ADR-09). */
+/**
+ * Process-shape presets (ADR-09).
+ *
+ * `environments` is the **non-prod** respondent surfaces a shape mounts (Q21, task 066).
+ * `all` carries `test`, which is what `QCMS_MOUNT=all` expands to against the shipped
+ * two-environment configuration, so a scenario that reaches `/test/...` is reaching an
+ * address a real solo deployment serves. `prodOnly` is the same shape with the test
+ * surface left out, which is the configuration criterion 3 asserts against: not a
+ * refusal, an absence.
+ */
 export const MOUNT = {
-  all: { public: true, internal: true, admin: true },
-  publicOnly: { public: true, internal: false, admin: false },
-  adminOnly: { public: false, internal: true, admin: true },
+  all: { public: true, internal: true, admin: true, environments: ["test"] },
+  publicOnly: { public: true, internal: false, admin: false, environments: ["test"] },
+  adminOnly: { public: false, internal: true, admin: true, environments: [] },
+  /** Every surface, with no non-prod respondent surface mounted at all. */
+  prodOnly: { public: true, internal: true, admin: true, environments: [] },
 } as const satisfies Record<string, MountFlags>;
 
 /**

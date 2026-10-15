@@ -170,7 +170,7 @@ let seeded = 0;
 beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), env: validEnv() });
-  app = createApp(deps, PUBLIC_ONLY, { groups: { public: [registerServeStep] } });
+  app = createApp(deps, PUBLIC_ONLY, { groups: { respondent: [registerServeStep] } });
   internalToken = internalTokenFor(deps.config);
   for (const question of QUESTIONS) {
     await createQuestion(testDb.db, {

@@ -74,6 +74,7 @@ describe("query helper import surface", () => {
     // Closing and reopening are appends here too, since task 066 (Q18): the state the
     // respondent path reads carries the closed value, so there is no update anywhere.
     "listEnvironments",
+    "getEnvironmentChallengeProvider",
     "insertFormRelease",
     "getReleasedVersion",
     "getFormEnvironmentState",

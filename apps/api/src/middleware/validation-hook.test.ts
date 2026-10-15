@@ -25,7 +25,7 @@ import { z } from "@hono/zod-openapi";
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../app.js";
-import { registerStartSession } from "../features/responses/start-session/route.js";
+import { registerAnonymousEntry } from "../features/responses/start-session/route.js";
 import { internalTokenFor, makeDeps } from "../test-support.js";
 import {
   INVALID_REQUEST,
@@ -34,7 +34,7 @@ import {
   validationErrorHook,
 } from "./validation-hook.js";
 
-const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
+const PUBLIC_ONLY = { public: true, internal: false, admin: false, environments: [] } as const;
 
 interface EnvelopeBody {
   readonly error: { readonly code: string; readonly message: string; readonly details?: unknown };
@@ -45,7 +45,7 @@ function publicApp(): { app: ReturnType<typeof createApp>; token: string } {
   // `unusedDb`: validation refuses the request before any handler queries.
   const deps = makeDeps();
   return {
-    app: createApp(deps, PUBLIC_ONLY, { groups: { public: [registerStartSession] } }),
+    app: createApp(deps, PUBLIC_ONLY, { groups: { anonymous: [registerAnonymousEntry] } }),
     token: internalTokenFor(deps.config),
   };
 }
@@ -79,8 +79,11 @@ describe("a public route's schema refusal is an ErrorEnvelope (issue #182)", () 
   });
 
   it("names the failing location without echoing any submitted value", async () => {
-    // Both fields present violates the slice's exclusive-choice refinement, so
-    // the whole body is the failing location and both values were rejected.
+    // A link token sent to the **anonymous** route. Until task 066 this was the slice's
+    // exclusive-choice refinement firing ("exactly one of formSlug or token"); the two
+    // entry modes are two routes now (Q21), so `token` is simply not a key this body
+    // declares and the strict object refuses it by name. What the case is about is
+    // unchanged: the key is named, neither value is on the wire.
     const secret = "SENTINEL-caller-supplied-value";
     const res = await postSessions({ formSlug: secret, token: `${secret}-two` });
 
@@ -91,7 +94,9 @@ describe("a public route's schema refusal is an ErrorEnvelope (issue #182)", () 
     const body = JSON.parse(raw) as EnvelopeBody;
     expect(body.error.code).toBe(INVALID_REQUEST);
     const details = body.error.details as ValidationFailureDetails;
-    expect(details.issues).toEqual([{ path: "(root)", code: "custom" }]);
+    expect(details.issues).toEqual([
+      { path: "(root)", code: "unrecognized_keys", keys: ["token"] },
+    ]);
   });
 
   it("leaves a valid request alone: the hook only fires on a failure", () => {
@@ -265,16 +270,17 @@ describe("a real respondent route refuses an unknown key on the wire (#893)", ()
   });
 
   it("still accepts the declared keys, so the route did not simply get stricter", async () => {
-    // A body of only declared keys must not be collateral damage. This one is
-    // refused by the slice's exclusive-choice rule, not by the key policy, which
-    // is exactly the distinction: the code is `custom`, no key is named.
-    const res = await postSessions({ formSlug: "a", token: "b" });
+    // A body of only declared keys must not be collateral damage. This one is refused by
+    // the field's own rule - a slug has to be a slug - and not by the key policy, which
+    // is exactly the distinction: the issue names the field, and no key is reported as
+    // unrecognised.
+    const res = await postSessions({ formSlug: "" });
 
     expect(res.status).toBe(400);
     const body = (await res.json()) as EnvelopeBody;
     expect(body.error.message).toBe("The request does not match this route's schema");
     expect((body.error.details as ValidationFailureDetails).issues).toEqual([
-      { path: "(root)", code: "custom" },
+      { path: "formSlug", code: "too_small" },
     ]);
   });
 });

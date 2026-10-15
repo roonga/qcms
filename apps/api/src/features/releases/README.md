@@ -11,8 +11,12 @@ every environment (ADR-18); what varies per environment is which published versi
 | ------ | ---------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST` | `/forms/{id}/releases` | `forms:write` | Release or promote a published version. Writes one record, copies nothing.                                                                               |
 | `GET`  | `/forms/{id}/releases` | `forms:read`  | The release history, newest first, each rollback marked. `?environment=`. It is also what "released where" is read from: the newest row per environment. |
-| `GET`  | `/releases`            | `forms:read`  | What is released where: the current release per form. `?environment=`.                                                                                   |
 | `GET`  | `/environments`        | `forms:read`  | The live set, in `position` order, for the Q6 switcher.                                                                                                  |
+
+There is **no `GET /releases`**. An earlier draft of this table listed one, for "the
+current release per form across forms", and no such route was ever registered. What
+reads that question today is the form library (`GET /forms`), whose `status` is the
+request environment's, and one form's own history above.
 
 The combined **publish and release** action lives in the forms slice
 (`POST /forms/{id}/publish-and-release`), because it publishes: it shares that slice's
@@ -25,7 +29,11 @@ transaction covers both.
 
 1. `insertFormRelease` writes the `control.form_releases` row, its `sequence` assigned by
    a scalar subquery so two concurrent releases into one environment cannot claim the same
-   place in the history.
+   place in the history. The composite primary key is the backstop, and **the loser is
+   refused rather than retried**: it violates that key, the handler types the violation as
+   a `409 RELEASE_RACED`, and repeating the act is the caller's. There is no automatic
+   retry, and there should not be - a release that silently re-ran would write a second
+   audit row nobody asked for.
 2. `enqueueInEnvironment` writes `form.released` into **that environment's** `outbox`.
 
 Both in **one transaction on the control pool** (Q49), so the event is never observed
@@ -80,9 +88,11 @@ because "released version 4 after version 7" is the shape an incident review rea
   two-person rule for `prod` (Q51). Nothing here enforces who may fill it.
 - **No membership check.** The workspace role and its environment scope arrive with tasks
   068 and 069; a check before they exist would be inventing one.
-- **No closed state.** The per-environment closed value is task 066's.
-- **No link minting.** An environment on a minted link is task 066's (Q19), so a link
-  minted today is still `prod` whatever the switcher says.
+- **No link minting.** The environment on a minted link is the links slice's, where task
+  066 made the mint's `environment` a required field (Q19).
+- **No authorisation over closing.** Who may close and reopen an environment is task
+  067's (Q33): an editor for `dev` and `test`, an approver holding `prod` in scope for
+  `prod`. Task 066 built the operation and no role check.
 
 ## The environment set
 
@@ -95,3 +105,22 @@ The switcher's **selection** travels the other way, as the `x-qcms-environment` 
 read by `middleware/request-environment.ts` on the admin group alone - so every admin
 screen reads its own environment's data and a respondent request cannot name an
 environment at all.
+
+## The closed state (task 066, Q18)
+
+The same state carries whether intake is **open** in that environment:
+`control.form_releases.closed`, read as the newest row for the (form, environment) pair.
+So one read answers both "which version is released here" and "is intake open here",
+which is what the respondent path asks on every start.
+
+It sits on this state rather than in a table beside it for a privilege reason as much as a
+shape one: an environment role already holds `SELECT` on `form_releases` (Q48's six-table
+read list), so the respondent path reads the closed state with no new grant, ADR-40's role
+table is unchanged, and the least-privilege suite's expected list stands.
+
+`POST /forms/{id}/close` and `/reopen` (the forms slice) **append** a row carrying the
+released version forward with the flag flipped. They inherit this table's properties
+rather than needing their own: the history records who closed `prod` and when, nothing can
+rewrite it, and a close is never observed as a version change. **A release does not
+reopen a closed environment** - it carries the current value forward, because closing is a
+deliberate operational act and releasing a version is not a request to resume intake.

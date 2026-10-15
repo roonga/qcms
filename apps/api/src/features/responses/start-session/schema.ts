@@ -11,32 +11,64 @@
 import { z } from "@hono/zod-openapi";
 
 /**
- * Start-session request body. Exactly one of `formSlug` (anonymous entry) or
- * `token` (secure-link entry) must be present.
+ * The challenge solution, on both entry bodies.
+ *
+ * Verified by **the environment's** provider since task 066 (Q11): the environment row
+ * names one, or `NULL` leaves the installation-wide typed value in force. Ignored when
+ * the effective provider is `none`.
+ */
+const ChallengeToken = z
+  .string()
+  .optional()
+  .openapi({
+    description:
+      "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. " +
+      "Verified by the environment's provider, or the installation-wide one when the " +
+      "environment names none (task 026, Q11).",
+  });
+
+/**
+ * **Anonymous** entry (`POST /sessions`): a public form slug.
+ *
+ * One field, since task 066. This body carried `formSlug` or `token` with a refinement
+ * saying "exactly one", because anonymous and secure-link entry were one route. They are
+ * two routes now (ADR-09's amended Note), so each body carries its own field and the
+ * refinement is gone: a request that names the wrong one is refused by `strictObject`
+ * before the handler runs, exactly as the refinement used to refuse a request that named
+ * both.
+ *
+ * **This route exists on `prod` alone** (SEC-14, criterion 3). The split is what makes
+ * that a `404` rather than a handler's `403`, and the schema is where the two entry modes
+ * stop being one thing.
  */
 export const StartSessionBody = z
   .strictObject({
-    formSlug: z.string().min(1).optional().openapi({
+    formSlug: z.string().min(1).openapi({
       description: "Public form slug for anonymous entry.",
       example: "customer-feedback",
     }),
-    token: z.string().min(1).optional().openapi({
-      description: "Secure-link token for invited entry.",
-    }),
-    challengeToken: z
-      .string()
-      .optional()
-      .openapi({
-        description:
-          "Challenge solution (e.g. Turnstile token) for a form with challengeRequired set. " +
-          "Verified by the configured provider; ignored when the provider is `none` (task 026).",
-      }),
-  })
-  .refine((b) => (b.formSlug === undefined) !== (b.token === undefined), {
-    message: "Provide exactly one of formSlug or token",
+    challengeToken: ChallengeToken,
   })
   .openapi("StartSessionBody");
 export type StartSessionBody = z.infer<typeof StartSessionBody>;
+
+/**
+ * **Secure-link** entry (`POST /sessions/link`): the opaque link token.
+ *
+ * Mounted on every environment's respondent surface, because a secure link is how a
+ * non-prod environment is reached at all (ADR-40 ruling 3). The environment is **not** in
+ * this body and never in the token (Q21): the address names it and the `secure_links` row
+ * decides it, so a token presented under the wrong prefix is refused rather than honoured.
+ */
+export const StartLinkSessionBody = z
+  .strictObject({
+    token: z.string().min(1).openapi({
+      description: "Secure-link token for invited entry.",
+    }),
+    challengeToken: ChallengeToken,
+  })
+  .openapi("StartLinkSessionBody");
+export type StartLinkSessionBody = z.infer<typeof StartLinkSessionBody>;
 
 /**
  * Start-session response. `sessionToken` is the credential every later

@@ -65,7 +65,42 @@ const fail = {
       409,
       `Version ${version} is already the released version in ${environment}`,
     ),
+  /**
+   * Two releases into one environment raced, and this one lost.
+   *
+   * `insertFormRelease` assigns `sequence` with a scalar subquery and the composite
+   * primary key `(form_id, environment, sequence)` is the backstop, so the loser of a
+   * race violates that key. **Typed as a 409 rather than surfacing as a 500**: the
+   * caller's request was well formed and the answer is "somebody else released first",
+   * which is a conflict and is the caller's to repeat. There is **no automatic retry** -
+   * there never was, and a release that silently re-ran would be a second audit row
+   * nobody asked for - so the status is what tells the caller to read the history and
+   * press again.
+   */
+  releaseRaced: (environment: string): ApiError =>
+    new ApiError(
+      "RELEASE_RACED",
+      409,
+      `Another release into ${environment} landed first; read the history and try again`,
+    ),
+  /**
+   * No admin principal on a request that records an actor.
+   *
+   * A `500` rather than an empty `releasedBy`. The release record is the audit answer to
+   * "who put that version into `prod`", and a row whose actor is `""` answers nothing
+   * while looking like an answer. The admin-auth gate makes this unreachable in a
+   * mounted process, which is why it throws rather than degrading.
+   */
+  noPrincipal: (): Error =>
+    new Error("releases: no admin principal on a request that records an actor"),
 } as const;
+
+/** Whether a driver error is a unique-violation (23505), which here is the release key. */
+function isReleaseKeyViolation(error: unknown): boolean {
+  const code = (error as { code?: string })?.code;
+  const causeCode = (error as { cause?: { code?: string } })?.cause?.code;
+  return code === "23505" || causeCode === "23505";
+}
 
 /** Parse a `:id` path param to a FormId, or 400. */
 function requireFormId(id: string): FormId {
@@ -99,6 +134,7 @@ function releaseBody(row: FormReleaseHistoryRow): {
   approvedBy: string | null;
   replacedVersion: number | null;
   rollback: boolean;
+  closed: boolean;
 } {
   return {
     formId: row.formId,
@@ -111,6 +147,10 @@ function releaseBody(row: FormReleaseHistoryRow): {
     approvedBy: row.approvedBy,
     replacedVersion: row.replacedVersion,
     rollback: row.rollback,
+    // The intake state this row leaves behind (Q18, task 066). On the history because a
+    // close and a reopen are rows here too, so a reader of "version 4, released by
+    // Alice" needs to see which of the three acts it was.
+    closed: row.closed,
   };
 }
 
@@ -145,21 +185,44 @@ export function makeReleaseVersionHandler(
     const version = await getFormVersion(deps.databases.control, formId, body.version);
     if (version === undefined) throw fail.versionNotFound();
 
-    const current = await getReleasedVersion(deps.databases.control, formId, environment);
-    if (current?.version === body.version) {
-      throw fail.alreadyReleased(body.version, environment);
-    }
-
     const principal = c.get("adminPrincipal");
-    const release = await deps.databases.control.transaction((tx) =>
-      recordRelease(tx, {
-        formId,
-        environment,
-        version: body.version,
-        releasedBy: principal?.userId ?? "",
-        fromEnvironment,
-      }),
-    );
+    if (principal === undefined) throw fail.noPrincipal();
+
+    // **The `ALREADY_RELEASED` check runs inside the transaction**, with the read that
+    // decides the response's `replacedVersion` and `rollback`. It was outside, which left
+    // two windows rather than one convenience: a concurrent release could land between
+    // the check and the write, so the refusal could pass on a version that was already
+    // released by the time this row went in, and the response could report a
+    // `replacedVersion` that had never been the current one. One transaction closes both
+    // and costs no extra round trip, because the read was being made anyway.
+    //
+    // It is **not** the race guard. Two releases of *different* versions never meet this
+    // check, and under `READ COMMITTED` neither sees the other's uncommitted row; the
+    // composite primary key refuses the loser, and `releaseRaced` is how that reaches the
+    // caller as a 409 rather than a 500.
+    let current: Awaited<ReturnType<typeof getReleasedVersion>>;
+    let release: Awaited<ReturnType<typeof recordRelease>>;
+    try {
+      release = await deps.databases.control.transaction(async (tx) => {
+        current = await getReleasedVersion(tx, formId, environment);
+        if (current?.version === body.version) {
+          throw fail.alreadyReleased(body.version, environment);
+        }
+        return recordRelease(tx, {
+          formId,
+          environment,
+          version: body.version,
+          releasedBy: principal.userId,
+          fromEnvironment,
+          // Intake stays as it was: releasing a version into a closed environment does
+          // not resume it (Q18). A first release has no current state and lands open.
+          closed: current?.closed ?? false,
+        });
+      });
+    } catch (error) {
+      if (isReleaseKeyViolation(error)) throw fail.releaseRaced(environment);
+      throw error;
+    }
 
     return c.json(
       {

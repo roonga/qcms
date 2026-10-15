@@ -43,31 +43,31 @@ import type { Config } from "./config.js";
 const { Pool } = pg;
 
 /**
- * The environment a request resolves to when **nothing named one**, and the environment
- * every newly minted link still gets until task 066 lands (Code Owner, 2026-09-29, Q53).
+ * `prod`: the unprefixed address shape (Q21), and the environment an **admin** request
+ * that named none is served from.
  *
  * **A constant rather than a setting**, and that is the ruling rather than a preference.
- * ADR-40 takes the request's environment from the `/<env>/` route group on the
- * respondent side (Q21, task 066) and from the administrator's switcher on the authoring
- * side (Q6, task 065). Q19 refuses a *default* for link minting for a precise reason: a
+ * ADR-40 takes a request's environment from exactly two sources, and since task 066 both
+ * exist: the `/<env>/` route group on the respondent side (Q21), and the
+ * administrator's switcher on the authoring side (Q6, task 065). Prod is the one
+ * environment with no prefix, so a prefixed `prod` is not an address and `QCMS_MOUNT`
+ * refuses the token.
+ *
+ * **It is no longer a fallback on the respondent path**, which is what Q53 said it was
+ * until this task: every respondent group is mounted with its own environment
+ * (`fixedEnvironment` in `middleware/request-environment.ts`), so a respondent request
+ * cannot reach a handler without one. What remains is an **admin** client that sends no
+ * `x-qcms-environment` header, which the shipped admin never does - it sets the header in
+ * the one place it assembles them - and a defaulted `prod` is the conservative answer for
+ * a hand-written caller: the authoring surface reads production, which is what the
+ * operator is looking at if they have selected nothing.
+ *
+ * **It is not a default for minting**, and never becomes one (Q19). The mint's
+ * `environment` is required on the API and a caller that omits it is refused, because a
  * script that omits the field and silently gets a production link is the failure that
- * rule exists to prevent. An operator-settable interim default would be exactly that
- * failure wearing a configuration key, so the interim answer is fixed, is `prod`, and is
- * one identifier task 066 replaces.
- *
- * **Task 065 replaced the other half.** An admin-group request now carries the Q6
- * switcher's environment (`middleware/request-environment.ts`), so
- * {@link Databases.forRequest} takes a name and this constant is what it falls back to:
- * the respondent path, which has no `/<env>/` prefix until 066, and any admin client that
- * names no environment.
- *
- * **`test` is not dead while this stands.** It exists on the layout, the baseline creates
- * it, the environment generator's tests and the least-privilege suite exercise it - by
- * naming it explicitly, which is what those suites do anyway because a test that relied
- * on the interim default would stop testing the thing it was written for the moment 066
- * changed it.
+ * rule exists to prevent.
  */
-export const INTERIM_REQUEST_ENVIRONMENT = "prod";
+export const PROD_ENVIRONMENT = "prod";
 
 /** The schema search path a pool for `environment` connects with. */
 export function environmentSearchPath(environment: string): string {
@@ -84,6 +84,20 @@ export function environmentSearchPath(environment: string): string {
  */
 export const CONTROL_SEARCH_PATH = "control";
 
+/**
+ * One environment's executor with the name of the environment it belongs to.
+ *
+ * The pair rather than the executor alone, because almost everything a handler does with
+ * a pool also needs the name: the environment goes into the `sessions` row the per-schema
+ * CHECK pins (Q46), into the release read, into the closed-state read and into the
+ * challenge-provider read. A handler that held only the executor would have to ask
+ * twice and could ask differently.
+ */
+export interface RequestDatabase {
+  readonly environment: string;
+  readonly exec: Executor;
+}
+
 /** The pools this process holds, and the rule for choosing between them. */
 export interface Databases {
   /** The control plane. Authoring, identity, grants, releases, closes. */
@@ -92,11 +106,12 @@ export interface Databases {
   readonly names: readonly string[];
   /**
    * The environment a request is served from when nothing named one:
-   * {@link INTERIM_REQUEST_ENVIRONMENT}.
+   * {@link PROD_ENVIRONMENT}.
    *
    * On the interface rather than read from the constant at each call site, so a test can
-   * substitute it. It is still the respondent path's answer, which is task 066's to
-   * replace with the `/<env>/` route group's value.
+   * substitute it. Since task 066 the respondent path never reaches it - each respondent
+   * group is mounted with its own environment - so what falls back here is an admin
+   * client that sent no switcher header.
    */
   readonly defaultEnvironment: string;
   /**
@@ -112,20 +127,21 @@ export interface Databases {
    * The environment a respondent or response-reading request is served from, with its
    * executor.
    *
-   * `environment` is what the request itself named, which today means the Q6 switcher's
-   * value on an admin-group request (`middleware/request-environment.ts` validates it
-   * against the live set and refuses an unknown name, so a name that reaches here is one
-   * this process holds a pool for). `undefined` falls back to
-   * {@link Databases.defaultEnvironment}, which is the respondent path's answer until
-   * task 066's `/<env>/` route group names it.
+   * `environment` is what the request itself named, and since task 066 there are two
+   * sources and no third (ADR-40, Q2): the **mount group** on a respondent request, and
+   * the **Q6 switcher's header** on an admin request. Both are installed as middleware
+   * that sets `requestEnvironment` (`middleware/request-environment.ts`), and the admin
+   * one validates the name against the live set and refuses an unknown one, so a name
+   * that reaches here is one this process holds a pool for.
    *
-   * **The argument is optional on purpose and the respondent path passes nothing.** The
-   * switcher's header is read by middleware mounted on the **admin** group alone, so a
-   * respondent request cannot name an environment at all: there is no header for it to
-   * set, which is what keeps "test is reachable through secure links only" (ADR-40,
-   * SEC-14) a routing fact rather than a handler's good manners.
+   * **A respondent request still cannot name its own environment.** There is no header
+   * for it to set: its environment comes from which group served it, which is what keeps
+   * "test is reachable through secure links only" (ADR-40, SEC-14) a routing fact rather
+   * than a handler's good manners. `undefined` falls back to
+   * {@link Databases.defaultEnvironment}, which only an admin client that named nothing
+   * can now reach.
    */
-  forRequest(environment?: string): { readonly environment: string; readonly exec: Executor };
+  forRequest(environment?: string): RequestDatabase;
 }
 
 /**
@@ -154,7 +170,7 @@ export function openDatabases(config: Config): {
   const databases: Databases = {
     control: drizzle(controlPool, { schema }),
     names: config.environments.map((environment) => environment.name),
-    defaultEnvironment: INTERIM_REQUEST_ENVIRONMENT,
+    defaultEnvironment: PROD_ENVIRONMENT,
     for(environment: string): Executor {
       const found = byEnvironment.get(environment);
       if (found === undefined) {
@@ -162,7 +178,7 @@ export function openDatabases(config: Config): {
       }
       return found.executor;
     },
-    forRequest(environment?: string): { readonly environment: string; readonly exec: Executor } {
+    forRequest(environment?: string): RequestDatabase {
       const chosen = environment ?? this.defaultEnvironment;
       return { environment: chosen, exec: this.for(chosen) };
     },

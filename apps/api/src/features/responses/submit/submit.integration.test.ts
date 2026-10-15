@@ -54,7 +54,10 @@ import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerServeStep } from "../serve-step/route.js";
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
-import { registerStartSession } from "../start-session/route.js";
+import {
+  registerAnonymousEntry,
+  registerLinkEntry,
+} from "../start-session/route.js";
 import { registerSubmit } from "./route.js";
 
 const NOW = new Date("2026-07-20T00:00:00.000Z");
@@ -118,7 +121,10 @@ beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), env: validEnv() });
   app = createApp(deps, PUBLIC_ONLY, {
-    groups: { public: [registerStartSession, registerServeStep, registerSubmit] },
+    groups: {
+      anonymous: [registerAnonymousEntry],
+      respondent: [registerLinkEntry, registerServeStep, registerSubmit],
+    },
   });
   internalToken = internalTokenFor(deps.config);
 
@@ -667,7 +673,10 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     };
     const fastDeps = makeDeps({ db: testDb.db, clock: fixedClock(NOW), config: fastConfig });
     const fastApp = createApp(fastDeps, PUBLIC_ONLY, {
-      groups: { public: [registerStartSession, registerSubmit] },
+      groups: {
+        anonymous: [registerAnonymousEntry],
+        respondent: [registerLinkEntry, registerSubmit],
+      },
     });
 
     const { sessionId, sessionToken } = await completeValidSession();

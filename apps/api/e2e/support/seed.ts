@@ -32,7 +32,7 @@ import {
   mintSecureLink,
 } from "@roonga/qcms-core";
 import {
-  closeForm,
+  closeFormInEnvironment,
   createForm,
   insertFormRelease,
   createQuestionVersion,
@@ -130,8 +130,11 @@ export interface SeededForm {
  *
  * `sharedQuestionsSeeded` skips the library questions for a second form that
  * pins the same ones (the kitchen-sink seed takes the same option).
- * `closed` publishes the version and then closes the form, which is the state a
- * respondent meets when a link outlives the questionnaire (ADR-39).
+ * `closed` publishes the version, releases it, and then closes **that environment's**
+ * intake, which is the state a respondent meets when a link outlives the questionnaire
+ * (ADR-39 as amended by Q18). The closed state is per (form, environment) since task
+ * 066, so this closes the environment the seed released to - `closedEnvironment` names
+ * another when a scenario needs one environment closed and another serving.
  */
 export async function seedInsuranceForm(
   db: Db,
@@ -140,6 +143,7 @@ export async function seedInsuranceForm(
     slug?: string;
     sharedQuestionsSeeded?: boolean;
     closed?: boolean;
+    closedEnvironment?: string;
   } = {},
 ): Promise<SeededForm> {
   const formId = opts.formId ?? "frm_auto_quote";
@@ -152,7 +156,13 @@ export async function seedInsuranceForm(
     defaultLocale: "en",
   });
   await publishInsuranceVersion(db, formId);
-  if (opts.closed === true) await closeForm(db, FormId.parse(formId));
+  if (opts.closed === true) {
+    await closeFormInEnvironment(db, {
+      formId: FormId.parse(formId),
+      environment: opts.closedEnvironment ?? DEFAULT_TEST_ENVIRONMENT,
+      closedBy: "usr_e2e_seed",
+    });
+  }
   return { formId, slug };
 }
 
