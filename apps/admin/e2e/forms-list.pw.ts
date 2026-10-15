@@ -4,7 +4,7 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import { chooseOption, createForm, field } from "./support/forms.js";
+import { addStep, chooseOption, createForm, field, pinQuestion } from "./support/forms.js";
 
 /**
  * The form library's search, status filter and sort, in the browser (issue 686).
@@ -99,13 +99,30 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await createForm(page, ALPHA, "Alpha zebra");
 
   // Bravo is the closed one, and it is closed here rather than later because
-  // `createForm` leaves the browser on the builder of the form it just made. Closing
-  // needs no publish: it is the identity's own lifecycle, which is exactly what the
-  // Status filter narrows on.
+  // `createForm` leaves the browser on the builder of the form it just made.
+  //
+  // **It has to be published and released first, since task 066** (Q18). The closed state
+  // is per (form, environment) and lives on the per-environment release state, so there
+  // is no intake to close in an environment nothing is released to - and that is the
+  // honest shape of the thing the Status filter narrows on: a closed form in the library
+  // is one that was serving somewhere and was stopped. It used to be the identity row's
+  // own column, which is why this fixture used to need no publish.
+  //
+  // The pinned question is one the harness seeds, so this adds no question authoring to a
+  // fixture that is deliberately about the library's controls.
   await createForm(page, BRAVO, "Bravo quokka");
-  await page.getByRole("button", { name: "Close form" }).click();
+  await addStep(page, "Driving history");
+  await pinQuestion(page, "q_at_fault_accident", 2);
+  await page.getByRole("button", { name: "Publish and release…" }).click();
+  const publishDialog = page.getByRole("alertdialog");
+  await publishDialog.getByRole("button", { name: "Publish and release to prod" }).click();
+  await expect(page.getByText("Published as v1 and released to prod.")).toBeVisible({
+    timeout: 60_000,
+  });
+
+  await page.getByRole("button", { name: "Close in prod" }).click();
   const dialog = page.getByRole("alertdialog");
-  await dialog.getByRole("button", { name: "Close it" }).click();
+  await dialog.getByRole("button", { name: "Close it in prod" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
   await createForm(page, CHARLIE, "Charlie zebra");

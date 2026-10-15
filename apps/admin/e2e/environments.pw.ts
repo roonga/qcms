@@ -128,14 +128,17 @@ test("a destructive confirmation names the environment it is about", async ({ pa
   formId = await createForm(page, FORM_SLUG, "Environment restatement");
   await page.goto(`/forms/${formId}`);
 
-  // Closing a form is still a whole-form act until task 066 makes the closed state per
-  // environment; what this task owes it is the restatement, so an operator who has been
-  // working in `test` all morning is not shown a confirmation that says nothing about
-  // where it lands.
-  await page.getByRole("button", { name: "Close form" }).click();
+  // Closing a form is per (form, environment) since task 066 (Q18), so the environment is
+  // in the trigger, the title, the body and the confirm button: an operator who has been
+  // working in `test` all morning must not read a confirmation that says nothing about
+  // where it lands - and since the act itself is now scoped, "Close form" would be
+  // ambiguous rather than merely unhelpful.
+  await page.getByRole("button", { name: "Close in test" }).click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByTestId("qcms-lifecycle-environment")).toContainText("test");
+  await expect(dialog).toContainText("Every other environment is unaffected");
+  await expect(dialog.getByRole("button", { name: "Close it in test" })).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
 
   // The combined publish-and-release action names it in the button itself, so the operator

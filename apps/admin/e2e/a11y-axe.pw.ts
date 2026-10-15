@@ -960,7 +960,7 @@ test("publish, preview, history and secure links have zero violations", async ({
   pubForm = { formId, slug, choiceId, choiceOption, countId };
 
   // The close confirmation, whose whole body is the R1 explanation.
-  await page.getByRole("button", { name: "Close form" }).click();
+  await page.getByRole("button", { name: /^Close in / }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   await expectNoViolations(page, "close-form confirmation");
   await page.keyboard.press("Escape");

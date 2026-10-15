@@ -657,16 +657,21 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   await signInWithTotp(page, EMAIL, totpSecret);
   await page.goto(`/forms/${formId}`);
 
-  await page.getByRole("button", { name: "Close form" }).click();
+  // Per (form, environment) since task 066 (Q18), so every label names it. This form was
+  // released to `prod` by the release case earlier in this file, which is what gives it
+  // intake to close at all.
+  await page.getByRole("button", { name: "Close in prod" }).click();
   const dialog = page.getByRole("alertdialog");
   // R1 taught in the copy: closing is about sessions that have not started.
   await expect(dialog).toContainText("Sessions already under way keep going");
-  await dialog.getByRole("button", { name: "Close it" }).click();
+  // And Q18's half: the other environments are untouched.
+  await expect(dialog).toContainText("Every other environment is unaffected");
+  await dialog.getByRole("button", { name: "Close it in prod" }).click();
 
   await expect(page.getByTestId("qcms-form-closed")).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: "Reopen form" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Reopen it" }).click();
+  await page.getByRole("button", { name: "Reopen in prod" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Reopen it in prod" }).click();
   await expect(page.getByTestId("qcms-form-closed")).toHaveCount(0, { timeout: 30_000 });
 });
 
