@@ -175,6 +175,10 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       "/admin/forms/{id}/links",
       "/admin/forms/{id}/webhooks",
       "/admin/outbox/dead-letters",
+      // The workspace slice (ADR-41, task 068). Its own prefix, because none of the
+      // entries above would cover it: a workspace is addressed under `/admin/workspaces`
+      // and the two ownership moves hang off the form and question collections.
+      "/admin/workspaces",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),

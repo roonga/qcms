@@ -160,6 +160,29 @@ describe("creating a workspace", () => {
     expect(((await again.json()) as ErrorBody).error.code).toBe("WORKSPACE_SLUG_TAKEN");
   });
 
+  it("answers two concurrent creates of one slug with a 201 and a typed 409", async () => {
+    // The race the pre-check cannot close, and the reason it is mapped twice. Both
+    // requests read the slug as free before either writes, so the loser is refused either
+    // by the plugin's own slug check (a vendor `APIError`, `crud-org.mjs:62`) or by
+    // `organization_slug_unique` underneath it (SQLSTATE 23505) - which one depends on how
+    // the two interleave, and neither is a 500. The assertion is deliberately
+    // order-blind: what is pinned is that one create wins, the other gets
+    // `WORKSPACE_SLUG_TAKEN`, and no caller ever sees a vendor error.
+    const [first, second] = await Promise.all([
+      send("POST", "/workspaces", { name: "Race A", slug: "slug-race" }),
+      send("POST", "/workspaces", { name: "Race B", slug: "slug-race" }),
+    ]);
+    const statuses = [first.status, second.status].sort((a, b) => a - b);
+    expect(statuses).toEqual([201, 409]);
+
+    const loser = first.status === 409 ? first : second;
+    expect(((await loser.json()) as ErrorBody).error.code).toBe("WORKSPACE_SLUG_TAKEN");
+
+    // Exactly one row, whichever path refused the other.
+    const held = (await listWorkspaces(testDb.db)).filter((row) => row.slug === "slug-race");
+    expect(held).toHaveLength(1);
+  });
+
   it("refuses a dotted slug at the edge, because an access-group name is dotted", async () => {
     const res = await send("POST", "/workspaces", { name: "Dotted", slug: "home.insurance" });
     expect(res.status).toBe(400);
@@ -200,7 +223,12 @@ describe("archiving a workspace (criterion 4)", () => {
     expect(refused.status).toBe(409);
     const body = (await refused.json()) as ErrorBody;
     expect(body.error.code).toBe("WORKSPACE_NOT_EMPTY");
-    expect(body.error.details).toEqual({ openForms: [formId], releasedForms: [] });
+    expect(body.error.details).toEqual({
+      forms: [formId],
+      openForms: [formId],
+      releasedForms: [],
+      shared: false,
+    });
 
     // **Reassignment is the operator's act, never the archive's.** Nothing was closed or
     // moved on their behalf by the refusal above, which is the spirit of Q15 rather than
@@ -236,12 +264,89 @@ describe("archiving a workspace (criterion 4)", () => {
     const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
     expect(refused.status).toBe(409);
     expect(refused.status === 409 && ((await refused.json()) as ErrorBody).error.details).toEqual({
+      forms: [formId],
       openForms: [],
       releasedForms: [formId],
+      shared: false,
     });
 
     await send("POST", `/forms/${formId}/workspace`, { workspaceId: elsewhere });
     expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+  });
+
+  it("refuses while a CLOSED, never-released form remains (Code Owner, 2026-10-16)", async () => {
+    // The reopen loophole, closed where it was opened. This form is neither open nor
+    // released, so the first reading of criterion 4 let the archive through and left the
+    // form owned by an archived workspace - and `POST /admin/forms/{id}/reopen` reads no
+    // workspace state, so it could then be reopened. The ruling is that an archived
+    // workspace owns no form at all.
+    const workspaceId = await createWorkspace("archive-closed-form");
+    const elsewhere = await createWorkspace("archive-closed-target");
+    const formId = await seedForm("archive_closed_form", workspaceId);
+    await closeForm(testDb.db, formId);
+
+    const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as ErrorBody;
+    expect(body.error.code).toBe("WORKSPACE_NOT_EMPTY");
+    expect(body.error.details).toEqual({
+      forms: [formId],
+      openForms: [],
+      releasedForms: [],
+      shared: false,
+    });
+
+    // And the form it would have left behind is exactly what reopening would have made
+    // open again, so the refusal is the thing that stops that state existing.
+    await send("POST", `/forms/${formId}/workspace`, { workspaceId: elsewhere });
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+    expect((await send("POST", `/forms/${formId}/reopen`)).status).toBe(200);
+    expect((await getForm(testDb.db, formId))?.workspaceId).toBe(elsewhere);
+  });
+
+  it("refuses while it is the shared library, and says to hand it on (Code Owner, 2026-10-16)", async () => {
+    // Refuse rather than tidy (Q15). Clearing `isShared` for the operator would change
+    // what every other workspace may pin as a side effect of an archive, so the flag is
+    // named as a blocker and the repair is the operator's act.
+    const workspaceId = await createWorkspace("archive-library");
+    expect((await send("PUT", `/workspaces/${workspaceId}/shared`, { shared: true })).status).toBe(
+      200,
+    );
+
+    const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as ErrorBody;
+    expect(body.error.code).toBe("WORKSPACE_NOT_EMPTY");
+    expect(body.error.message).toContain("shared question library");
+    expect(body.error.details).toMatchObject({ shared: true, forms: [] });
+    // The flag is untouched: nothing was tidied on the way to the refusal.
+    expect((await listWorkspaces(testDb.db)).find((row) => row.id === workspaceId)?.isShared).toBe(
+      true,
+    );
+
+    expect((await send("PUT", `/workspaces/${workspaceId}/shared`, { shared: false })).status).toBe(
+      200,
+    );
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+  });
+
+  it("has no unarchive, which is a decision and not an omission (Code Owner, 2026-10-16)", async () => {
+    // An archive is terminal (ADR-41's Note). Asserted as the absence of a route rather
+    // than as a sentence: a later `POST .../unarchive` would have to change this test.
+    const workspaceId = await createWorkspace("archive-terminal");
+    expect((await send("POST", `/workspaces/${workspaceId}/archive`)).status).toBe(200);
+
+    for (const path of [
+      `/workspaces/${workspaceId}/unarchive`,
+      `/workspaces/${workspaceId}/restore`,
+    ]) {
+      expect((await send("POST", path, {})).status).toBe(404);
+    }
+    // And the only write an archived workspace still takes is unmarking the library, so
+    // the one repair path Q15 leaves open stays open.
+    expect((await send("PUT", `/workspaces/${workspaceId}/shared`, { shared: false })).status).toBe(
+      200,
+    );
   });
 
   it("leaves the questions it owns exactly where they were (criterion 5)", async () => {

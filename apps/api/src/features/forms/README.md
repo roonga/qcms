@@ -157,6 +157,29 @@ published-once content - leaving this gate the _sole_ author of the deprecation
 verdict, so a rejected pin is reported once, as `DEPRECATED_PIN`, never doubled as
 `UNPUBLISHED_QUESTION_PIN`.
 
+## Workspace pin gate (a form pins its own workspace, or the library)
+
+The second gate on the same mechanism (ADR-41, task 068). A form may pin a published
+question version owned by its **own** workspace or by the **shared** workspace, which is
+the org-wide question library every workspace may pin from; a pin to any other
+workspace's question is rejected `FOREIGN_WORKSPACE_PIN`.
+
+It is the deprecated-pin gate's shape in every respect an author can see, deliberately:
+the same issue channel, the same structured path, and the **same carried-placement rule**,
+so a placement already in the previous published version is grandfathered and a new or
+moved pin is not. That is Q14's ruling that an author meets "one mechanism rather than
+two", and it is also what makes the grandfathering true in both its halves: a form
+elsewhere that already pins a question keeps **serving** it, because a published version
+is immutable content nothing here touches, and keeps that pin **in its next draft**,
+because the carried set says so. The second half is the one an implementation drops,
+because the draft is where the refusal lives.
+
+Nothing in the gate asks who is publishing: a pin is a fact about the form's workspace and
+the question's, so it holds for every caller, the installation administrator included. The
+rule itself is `features/workspaces/rules.ts` (`mayPinQuestion`), beside the **edit** half
+of the same asymmetry (`mayEditQuestion`), which has no caller until task 069 resolves a
+member. `features/workspaces/README.md` is that slice's own page.
+
 ## New draft after publish is seeded
 
 Publish deletes the draft. `GET /admin/forms/:id` then returns the draft **seeded

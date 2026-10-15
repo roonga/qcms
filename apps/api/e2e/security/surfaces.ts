@@ -75,6 +75,8 @@ export interface PathContext {
   readonly webhookId: string;
   readonly deliveryId: string;
   readonly questionId: string;
+  /** The workspace the seeded form and questions belong to (ADR-41, task 068). */
+  readonly workspaceId: string;
 }
 
 /**
@@ -233,6 +235,71 @@ export const SURFACES: readonly Surface[] = [
     path: () => "/admin/environments",
     anonymousReachable: false,
     readControl: true,
+  },
+  // The workspace slice (ADR-41, task 068). Six routes, one entry each rather than one
+  // representative, because the route *shapes* differ in what they would do if a gate
+  // ever let a caller through: a list, a create, a switch, the archive, and the two
+  // ownership moves. The archive and the moves are the acts worth probing under every
+  // credential shape - an archive is the end of a workspace's life and a move changes
+  // which group can see a form - so "at least one per slice" is not enough here.
+  //
+  // Only the GET is a `readControl`: a positive control has to be genuinely served, and
+  // the five writes would each change the seeded installation. Every other column sends
+  // a credential the gate refuses, so no write below ever reaches a handler.
+  {
+    name: "GET /admin/workspaces",
+    row: "authoring",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/workspaces",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "POST /admin/workspaces",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: () => "/admin/workspaces",
+    // The shape only has to survive the gate, not the handler.
+    body: { name: "Probe", slug: "probe-workspace" },
+    anonymousReachable: false,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/shared",
+    row: "authoring",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/shared`,
+    body: { shared: false },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/archive",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/archive`,
+    body: {},
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/forms/{id}/workspace",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/forms/${ctx.formId}/workspace`,
+    body: { workspaceId: "org_probe_target" },
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/questions/{id}/workspace",
+    row: "authoring",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/questions/${ctx.questionId}/workspace`,
+    body: { workspaceId: "org_probe_target" },
+    anonymousReachable: false,
   },
   {
     name: "GET /admin/forms/{id}/responses",

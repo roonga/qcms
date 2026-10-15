@@ -173,44 +173,72 @@ export async function archiveWorkspace(
 
 /** What stands between a workspace and being archived (criterion 4). */
 export interface ArchiveBlockers {
+  /**
+   * **Every** form this workspace owns, by id, open or closed and released or not.
+   *
+   * An archived workspace owns no form at all (Code Owner, 2026-10-16, PR #1059). The
+   * two lists below are the same forms narrowed, and they exist so the refusal can say
+   * which ones are urgent rather than only how many there are.
+   */
+  readonly forms: readonly FormId[];
   /** Forms in this workspace still accepting new sessions, by id. */
   readonly openForms: readonly FormId[];
   /** Forms in this workspace that have ever been released to an environment, by id. */
   readonly releasedForms: readonly FormId[];
+  /** True when this workspace is the installation's shared question library. */
+  readonly shared: boolean;
 }
 
 /**
- * The forms that make an archive premature: the open ones and the released ones
- * (criterion 4).
+ * What makes an archive premature (criterion 4).
  *
- * # Why "ever released" rather than "released now"
+ * # Every form, not only the open and the released ones (Code Owner, 2026-10-16)
  *
- * `control.form_releases` is append-only and there is no un-release: an environment moves
- * to another version, and the row recording the earlier one stays (ADR-40). So there is no
- * state in which a form that has been released has no released version, and "while a
- * released version remains" can only mean "while this workspace still owns a form that
- * reached an environment". The fix is the one Q15 names either way - reassign the form to
- * another workspace - and reassignment is what makes the refusal go away.
+ * The first reading of criterion 4 refused an archive while an **open** form or a
+ * **released** version remained, which left a closed, never-released form owned by an
+ * archived workspace - and `POST /admin/forms/{id}/reopen` checks no workspace state, so
+ * that form could be reopened afterwards and the archived workspace would then own an open
+ * form, which is the state the archive had just refused. The Code Owner ruled the
+ * literal reading of Q15 instead: "its forms and questions are reassigned first" means an
+ * archived workspace owns **no form**, so every form is a blocker and the loophole closes
+ * without waiting for task 069's membership screens.
  *
- * # Why both lists rather than a count
+ * **Questions stay non-blockers.** They serve the pins that already exist, and a question
+ * in an archived workspace cannot take a **new** pin from anywhere: the publish rule
+ * allows a form to pin its own workspace's questions or the shared workspace's, and an
+ * archived workspace is neither for any live form once its forms have left.
+ *
+ * # The shared library is a blocker too, and is not cleared for the operator
+ * (Code Owner, 2026-10-16)
+ *
+ * A workspace that is the installation's shared question library is refused the archive
+ * while it is marked shared, named as its own blocker. Clearing `isShared` here would be
+ * the cascade Q15 refuses - it would change what every other workspace may pin as a side
+ * effect of one operator act - so the operator unmarks it, or hands the library to
+ * another workspace, and archives after that. The repair path exists either way, because
+ * unmarking a workspace does not require it to be open.
+ *
+ * # Why lists rather than counts
  *
  * A refusal that says "3 forms" sends an operator looking; one that names the forms tells
  * them what to reassign. The same reasoning ADR-40's drop rule applies to an environment,
  * which names the open forms and the session count rather than refusing bare.
  *
- * Questions are deliberately **not** blockers. Criterion 4 names an open form and a
- * released version, and nothing else; a question owned by an archived workspace keeps
- * serving every pin that already exists, and whether it may be edited is a membership
- * question (task 069) rather than an archive one.
+ * # Why "ever released" rather than "released now" on that narrower list
+ *
+ * `control.form_releases` is append-only and there is no un-release: an environment moves
+ * to another version, and the row recording the earlier one stays (ADR-40). So there is no
+ * state in which a form that has been released has no released version, and the list means
+ * "this workspace still owns a form that reached an environment".
  */
 export async function findArchiveBlockers(
   exec: Executor,
   workspaceId: string,
 ): Promise<ArchiveBlockers> {
-  const open = await exec
-    .select({ formId: forms.formId })
+  const owned = await exec
+    .select({ formId: forms.formId, status: forms.status })
     .from(forms)
-    .where(and(eq(forms.workspaceId, workspaceId), eq(forms.status, "open")))
+    .where(eq(forms.workspaceId, workspaceId))
     .orderBy(asc(forms.formId));
 
   const released = await exec
@@ -220,9 +248,13 @@ export async function findArchiveBlockers(
     .where(eq(forms.workspaceId, workspaceId))
     .orderBy(asc(forms.formId));
 
+  const workspace = await getWorkspace(exec, workspaceId);
+
   return {
-    openForms: open.map((row) => row.formId),
+    forms: owned.map((row) => row.formId),
+    openForms: owned.filter((row) => row.status === "open").map((row) => row.formId),
     releasedForms: released.map((row) => row.formId),
+    shared: workspace?.isShared ?? false,
   };
 }
 

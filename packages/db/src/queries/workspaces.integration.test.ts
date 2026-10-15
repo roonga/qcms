@@ -14,6 +14,7 @@ import {
 } from "../testing/harness.js";
 import {
   archiveWorkspace,
+  closeForm,
   countWorkspaceContents,
   createForm,
   createQuestion,
@@ -296,7 +297,7 @@ describe("moving a question between workspaces (Q14)", () => {
 });
 
 describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
-  it("names the open forms and the released forms that stand in the way", async () => {
+  it("names every form it owns, and says which are open and which were released", async () => {
     const workspaceId = await makeWorkspace("archive-blocked");
     const openForm = await seedForm("archive_open", workspaceId);
     const releasedForm = await seedForm("archive_released", workspaceId);
@@ -309,16 +310,49 @@ describe("archiving a workspace (Q15, criteria 4 and 5)", () => {
     });
 
     const blockers = await findArchiveBlockers(testDb.db, workspaceId);
+    expect(blockers.forms).toEqual([openForm, releasedForm].sort());
     expect(blockers.openForms).toContain(openForm);
     expect(blockers.openForms).toContain(releasedForm);
     expect(blockers.releasedForms).toEqual([releasedForm]);
+    expect(blockers.shared).toBe(false);
 
     // Reassignment is what clears it - archiving never closes or moves anything itself.
     const elsewhere = await makeWorkspace("archive-elsewhere");
     await moveFormToWorkspace(testDb.db, openForm, elsewhere);
     await moveFormToWorkspace(testDb.db, releasedForm, elsewhere);
     const cleared = await findArchiveBlockers(testDb.db, workspaceId);
-    expect(cleared).toEqual({ openForms: [], releasedForms: [] });
+    expect(cleared).toEqual({ forms: [], openForms: [], releasedForms: [], shared: false });
+  });
+
+  it("names a CLOSED, never-released form too (Code Owner, 2026-10-16)", async () => {
+    // The reopen loophole, closed at its source. A closed form with no release used to be
+    // no blocker at all, so it could stay behind - and `POST /admin/forms/{id}/reopen`
+    // checks no workspace state, so the archived workspace would then own an open form,
+    // which is the state the archive had just refused. An archived workspace owns no form.
+    const workspaceId = await makeWorkspace("archive-closed-form");
+    const closedForm = await seedForm("archive_closed", workspaceId);
+    await closeForm(testDb.db, closedForm);
+
+    const blockers = await findArchiveBlockers(testDb.db, workspaceId);
+    expect(blockers.forms).toEqual([closedForm]);
+    // Not urgent by either narrower reading, and a blocker all the same.
+    expect(blockers.openForms).toEqual([]);
+    expect(blockers.releasedForms).toEqual([]);
+  });
+
+  it("reports the shared library as a blocker of its own (Code Owner, 2026-10-16)", async () => {
+    // Refuse rather than tidy (Q15): clearing `isShared` would change what every other
+    // workspace may pin as a side effect of one operator act. The flag is reported and
+    // the operator unmarks it or hands the library on.
+    const workspaceId = await makeWorkspace("archive-library");
+    await setWorkspaceShared(testDb.db, workspaceId, true);
+
+    const blockers = await findArchiveBlockers(testDb.db, workspaceId);
+    expect(blockers).toEqual({ forms: [], openForms: [], releasedForms: [], shared: true });
+
+    // And unmarking is possible even once archived, so the repair path never closes.
+    await setWorkspaceShared(testDb.db, workspaceId, false);
+    expect((await findArchiveBlockers(testDb.db, workspaceId)).shared).toBe(false);
   });
 
   it("stamps `archivedAt` once and leaves everything else alone", async () => {

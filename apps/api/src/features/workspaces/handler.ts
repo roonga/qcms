@@ -12,9 +12,10 @@ import {
   moveQuestionToWorkspace,
   setWorkspaceShared,
 } from "@roonga/qcms-db";
-import type { WorkspaceRow } from "@roonga/qcms-db";
+import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
 
 import { parseFormId, parseQuestionId } from "@roonga/qcms-core";
+import { isAPIError } from "better-auth/api";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
@@ -54,6 +55,25 @@ import type {
  *     and is read by task 070. Nothing here sets it.
  */
 
+/**
+ * The sentence an archive refusal carries: what to do next, for the blockers there are.
+ *
+ * One function rather than a nested conditional inside the refusal, because there are
+ * three real cases and each names a different act: reassign the forms, hand the library
+ * on, or both. A refusal that said "this workspace is not empty" would leave an operator
+ * to find out which.
+ */
+function archiveRefusal(blockers: ArchiveBlockers): string {
+  const reassign = "reassign these forms to another workspace";
+  const handOn =
+    "unmark this workspace as the shared question library, or hand the library on to another workspace";
+  if (blockers.shared && blockers.forms.length > 0) {
+    return `Archiving is the last step: ${reassign}, and ${handOn}, first`;
+  }
+  if (blockers.shared) return `Archiving is the last step: ${handOn}, first`;
+  return `Archiving is the last step: ${reassign} first`;
+}
+
 const fail = {
   slugTaken: (slug: string): ApiError =>
     new ApiError("WORKSPACE_SLUG_TAKEN", 409, `A workspace already uses the slug "${slug}"`),
@@ -78,13 +98,27 @@ const fail = {
       `The workspace "${holder.slug}" is already the installation's shared question library; unmark it first`,
       { workspaceId: holder.id, slug: holder.slug },
     ),
-  archiveBlocked: (open: readonly string[], released: readonly string[]): ApiError =>
-    new ApiError(
-      "WORKSPACE_NOT_EMPTY",
-      409,
-      "Archiving is the last step: reassign these forms to another workspace first",
-      { openForms: [...open], releasedForms: [...released] },
-    ),
+  /**
+   * The archive is refused, and the refusal says what to do next.
+   *
+   * **Every form the workspace owns is a blocker** (Code Owner, 2026-10-16, PR #1059), a
+   * closed and never-released one included: `reopen` checks no workspace state, so a
+   * closed form left behind could be reopened afterwards and the archived workspace would
+   * then own an open form - the state the archive had just refused. `openForms` and
+   * `releasedForms` are the same forms narrowed, carried so the operator can tell which
+   * ones are urgent rather than only how many there are.
+   *
+   * **A shared workspace is its own blocker**, and the message says to unmark it or hand
+   * the library on. Clearing `isShared` here would change what every other workspace may
+   * pin as a side effect of one operator act, which is the cascade Q15 refuses.
+   */
+  archiveBlocked: (blockers: ArchiveBlockers): ApiError =>
+    new ApiError("WORKSPACE_NOT_EMPTY", 409, archiveRefusal(blockers), {
+      forms: [...blockers.forms],
+      openForms: [...blockers.openForms],
+      releasedForms: [...blockers.releasedForms],
+      shared: blockers.shared,
+    }),
   alreadyArchived: (): ApiError =>
     new ApiError("WORKSPACE_ARCHIVED", 409, "That workspace is already archived"),
   invalidFormId: (): ApiError => new ApiError("INVALID_FORM_ID", 400, "Malformed form id"),
@@ -99,6 +133,33 @@ function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
   return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
+}
+
+/**
+ * True when `createOrganization` refused the slug itself, which is the **other** way a
+ * concurrent create loses the race.
+ *
+ * The plugin checks the slug before inserting, at
+ * `dist/plugins/organization/routes/crud-org.mjs:62` of better-auth 1.7.7
+ * (`findOrganizationBySlug` then `APIError.from("BAD_REQUEST", ...)`), so a second caller
+ * can be refused there rather than by `organization_slug_unique` underneath. Nothing in
+ * `app.ts` or `errors.ts` maps a vendor `APIError`, so without this branch that caller
+ * would get a 500 from an error the API understands perfectly well.
+ *
+ * **Matched on the status and not on the body**, deliberately: that call site passes the
+ * error-codes entry, which is a plain string, into `APIError.from(status, { code,
+ * message })`, so `body.code` and `body.message` both come out `undefined`
+ * (`@better-auth/core/dist/error/index.mjs`, `static from`). The status is what survives,
+ * and `BAD_REQUEST` has exactly one cause on this endpoint: every other refusal in
+ * `createOrganization` is `UNAUTHORIZED` (no user for the id) or `FORBIDDEN` (creation
+ * disallowed, or an organisation limit), and the body this handler sends carries only
+ * `name`, `slug` and `userId`, so no field validation can raise one either. A wider
+ * match would be wrong, which is why the two are checked together rather than
+ * `isAPIError` alone.
+ */
+function isVendorSlugRefusal(err: unknown): boolean {
+  if (!isAPIError(err)) return false;
+  return (err as { status?: unknown }).status === "BAD_REQUEST";
 }
 
 /** One workspace as the API reports it, with what it owns. */
@@ -177,7 +238,10 @@ export function makeCreateWorkspaceHandler(
         body: { name: body.name, slug: body.slug, userId: principal.userId },
       });
     } catch (err: unknown) {
-      if (isUniqueViolation(err)) throw fail.slugTaken(body.slug);
+      // Two ways to lose the race, one answer. The plugin's own slug check refuses with a
+      // vendor `APIError` and the unique index underneath it with SQLSTATE 23505; which
+      // one fires depends on how the two creates interleave, and neither is a 500.
+      if (isUniqueViolation(err) || isVendorSlugRefusal(err)) throw fail.slugTaken(body.slug);
       throw err;
     }
 
@@ -226,14 +290,30 @@ export function makeSetSharedWorkspaceHandler(
  * Archive a workspace, never delete one (Q15).
  *
  * **It refuses rather than tidying up.** An archive is allowed only once the workspace
- * holds no open form and no released version, and the refusal **names the forms** so an
- * operator knows what to reassign. An implementation that closed or reassigned on the
- * operator's behalf would turn one act into several silent ones, which fails the spirit
- * of Q15 even where it passes the letter: closing a form stops new sessions for real
- * respondents, and moving a form changes who can see it.
+ * owns **no form at all** and is not the shared question library, and the refusal
+ * **names** what stands in the way so an operator knows what to reassign or unmark. An
+ * implementation that closed, reassigned or unmarked on the operator's behalf would turn
+ * one act into several silent ones, which fails the spirit of Q15 even where it passes
+ * the letter: closing a form stops new sessions for real respondents, moving a form
+ * changes who can see it, and unmarking the library changes what every other workspace
+ * may pin.
+ *
+ * **Both conditions are the Code Owner's of 2026-10-16** (PR #1059), widening what this
+ * task first built. The first reading refused only an open form or a released version,
+ * which left a closed never-released form behind and `POST /admin/forms/{id}/reopen` able
+ * to reopen it, so an archived workspace could come to own an open form. The second
+ * reading is Q15 literally: an archived workspace owns no form. The shared-library
+ * condition is the same shape of answer to the same question. `findArchiveBlockers` is
+ * where both live, with the reasoning.
  *
  * "No released version" reads `control.form_releases`, which is task 065's table and the
- * reason this task depends on it (Q63).
+ * reason this task depends on it (Q63). It is now a narrowing of the form list rather
+ * than a condition of its own, and it stays in the refusal because "this one was
+ * serving in production" is what an operator needs to read first.
+ *
+ * **There is no unarchive, and that is a decision rather than an omission** (Code Owner,
+ * 2026-10-16). An archive is terminal: ADR-41's Note records the absence, to be revisited
+ * only if task 069's membership screens need it.
  */
 export function makeArchiveWorkspaceHandler(
   deps: Deps,
@@ -246,8 +326,8 @@ export function makeArchiveWorkspaceHandler(
     if (workspace.archivedAt !== null) throw fail.alreadyArchived();
 
     const blockers = await findArchiveBlockers(deps.databases.control, workspaceId);
-    if (blockers.openForms.length > 0 || blockers.releasedForms.length > 0) {
-      throw fail.archiveBlocked(blockers.openForms, blockers.releasedForms);
+    if (blockers.forms.length > 0 || blockers.shared) {
+      throw fail.archiveBlocked(blockers);
     }
 
     const archived = await archiveWorkspace(deps.databases.control, workspaceId, deps.clock.now());
