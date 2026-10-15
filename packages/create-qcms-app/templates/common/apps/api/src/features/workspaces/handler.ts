@@ -20,7 +20,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { adminAuthFor } from "../auth/route.js";
-import { requireOpenWorkspace } from "./resolve.js";
+import { requireOpenWorkspace, requireWorkspace } from "./resolve.js";
 import type {
   archiveWorkspaceRoute,
   createWorkspaceRoute,
@@ -199,7 +199,12 @@ export function makeSetSharedWorkspaceHandler(
   return async (c) => {
     const workspaceId = c.req.valid("param").id;
     const { shared } = c.req.valid("json");
-    const workspace = await requireOpenWorkspace(deps.databases.control, workspaceId);
+    // **Marking** a workspace shared requires it to be open; **unmarking** does not, and
+    // the asymmetry is deliberate: a workspace archived while it held the library would
+    // otherwise keep it with no way to hand it on, since the archive is not reversible.
+    const workspace = shared
+      ? await requireOpenWorkspace(deps.databases.control, workspaceId)
+      : await requireWorkspace(deps.databases.control, workspaceId);
 
     if (shared && !workspace.isShared) {
       // Read the holder for the refusal's sake. The unique index would refuse the write

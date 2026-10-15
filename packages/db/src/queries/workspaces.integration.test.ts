@@ -74,9 +74,7 @@ const emptyQuestionDef = {} as unknown as QuestionDefinition;
  * both values live on the `cause`. Reading them is what makes an assertion about the
  * guard that fired rather than about something having gone wrong.
  */
-async function refusal(
-  run: () => Promise<unknown>,
-): Promise<{
+async function refusal(run: () => Promise<unknown>): Promise<{
   constraint: string | undefined;
   code: string | undefined;
   column: string | undefined;

@@ -109,6 +109,11 @@ const ISSUE_MESSAGES: Readonly<Record<string, MessageKey>> = {
   DUPLICATE_QUESTION_IN_FORM: "forms.issue.duplicateQuestion",
   DUPLICATE_STEP_ID: "forms.issue.duplicateStep",
   DEPRECATED_PIN: "forms.issue.deprecatedPin",
+  // The workspace's own pin refusal (ADR-41, task 068). It sits beside the deprecated
+  // pin because an author meets one mechanism rather than two: both say "this is not a
+  // version you may newly pin here", and both carry the same structured path, so the
+  // panel anchors them identically and only the sentence differs.
+  FOREIGN_WORKSPACE_PIN: "forms.issue.foreignWorkspacePin",
   BLANK_LOCALIZED_TEXT: "forms.issue.blankText",
   // --- the repeating group's own refusals (ADR-42, Q24 to Q27) ---
   //

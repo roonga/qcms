@@ -86,12 +86,7 @@ import {
   updateFormSettings,
   upsertDraft,
 } from "@roonga/qcms-db";
-import type {
-  Executor,
-  FormDraftRow,
-  FormVersionRow,
-  QuestionOwnership,
-} from "@roonga/qcms-db";
+import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";

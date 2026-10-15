@@ -63,6 +63,19 @@ const fail = {
 export const workspaceFail = fail;
 
 /**
+ * The workspace a named id resolves to, archived or not.
+ *
+ * For the acts a workspace's own end of life does not forbid: reading it, and handing the
+ * shared library on. Everything that would put something new into a workspace uses
+ * {@link requireOpenWorkspace} instead.
+ */
+export async function requireWorkspace(exec: Executor, workspaceId: string): Promise<WorkspaceRow> {
+  const workspace = await getWorkspace(exec, workspaceId);
+  if (workspace === undefined) throw fail.notFound();
+  return workspace;
+}
+
+/**
  * The workspace a named id resolves to: it has to exist and must not be archived.
  *
  * Archived is a refusal rather than a filter, because a caller that named the workspace

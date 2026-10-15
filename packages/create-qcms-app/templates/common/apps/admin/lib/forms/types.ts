@@ -318,7 +318,8 @@ export interface FormDetail {
 /**
  * One publish issue, as `PUT .../draft` and `POST .../draft/validate` return them.
  *
- * The kernel models the codes and the API adds `DEPRECATED_PIN`; the route schema types
+ * The kernel models the codes and the API adds `DEPRECATED_PIN` and
+ * `FOREIGN_WORKSPACE_PIN`; the route schema types
  * the array as `unknown`, so this is a view of the bytes rather than a re-declaration of
  * the union. `code` stays a plain `string` on purpose: a code this build has never heard
  * of must still render its message rather than disappear.
