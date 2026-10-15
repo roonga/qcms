@@ -16,6 +16,7 @@
 
 import { expect, test } from "./support/gates.js";
 
+import { chooseAccident } from "./support/flow.js";
 import { readFixtures } from "./support/fixtures.js";
 import { waitForHydration } from "./support/hydration.js";
 
@@ -36,12 +37,15 @@ test("a test link redeems under its own prefix and the flow stays there", async 
   // form is unmounted and there is no action attribute left to read.
   //
   // The hydration wait is what makes that the SCRIPTED path: before it, the same click is
-  // a native form control and the post is a document navigation to `/step`.
+  // a native form control and the post is a document navigation to `/step`. `chooseAccident`
+  // is the suite's own way to answer this control - it clicks the option's visible label,
+  // because the radio's input is covered by a styled indicator that swallows the pointer -
+  // and it waits for the 200, so the request below has certainly been made by then.
   await waitForHydration(page);
   const answered = page.waitForRequest(
     (request) => request.method() === "POST" && request.url().includes("/answers"),
   );
-  await page.getByRole("radio", { name: "No", exact: true }).click();
+  await chooseAccident(page, "No");
   expect(new URL((await answered).url()).pathname).toMatch(/^\/test\/s\/ses_[^/]+\/answers$/);
 });
 

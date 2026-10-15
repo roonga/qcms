@@ -662,8 +662,10 @@ test("closes the form to new sessions and reopens it (deliverable: close/reopen)
   // intake to close at all.
   await page.getByRole("button", { name: "Close in prod" }).click();
   const dialog = page.getByRole("alertdialog");
-  // R1 taught in the copy: closing is about sessions that have not started.
-  await expect(dialog).toContainText("Sessions already under way keep going");
+  // R1 taught in the copy: closing is about sessions that have not started. Asserted on
+  // R1's own claim rather than on the sentence's opening words, which task 066 rewrote to
+  // say "under way **here**" once closing became per environment.
+  await expect(dialog).toContainText("finish on the version they pinned");
   // And Q18's half: the other environments are untouched.
   await expect(dialog).toContainText("Every other environment is unaffected");
   await dialog.getByRole("button", { name: "Close it in prod" }).click();
