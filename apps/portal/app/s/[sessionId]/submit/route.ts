@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { submitSession } from "@/lib/server/api";
+import { currentBasePath } from "@/lib/server/environment";
 import { apiErrorResponse, isSameOriginPost, writeReceiptCookie } from "@/lib/server/route-helpers";
 import { clearSessionToken, readSessionToken } from "@/lib/server/session-cookie";
 
@@ -36,7 +37,9 @@ export async function POST(
     const receipt = await submitSession(sessionId, token, body);
     await writeReceiptCookie(receipt);
     await clearSessionToken();
-    return NextResponse.json({ ok: true, redirect: "/done" });
+    // The environment's own completion address (Q21, task 066): the browser follows this
+    // itself, so an unprefixed path would move a `test` respondent onto `prod`'s surface.
+    return NextResponse.json({ ok: true, redirect: `${await currentBasePath()}/done` });
   } catch (error) {
     return apiErrorResponse(error);
   }

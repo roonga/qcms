@@ -79,7 +79,8 @@ afterEach(() => {
 
 /** The internal API client: the seam every "did state change?" assertion reads. */
 const api = {
-  startSession: vi.fn(),
+  startAnonymousSession: vi.fn(),
+  startLinkSession: vi.fn(),
   submitAnswer: vi.fn(),
   submitSession: vi.fn(),
   getStep: vi.fn(),
@@ -101,7 +102,8 @@ class FakeApiError extends Error {
 // `api` is initialised, so the mocks are the very same spies the assertions read.
 vi.mock("@/lib/server/api", () => ({
   ApiError: FakeApiError,
-  startSession: api.startSession,
+  startAnonymousSession: api.startAnonymousSession,
+  startLinkSession: api.startLinkSession,
   submitAnswer: api.submitAnswer,
   submitSession: api.submitSession,
   getStep: api.getStep,
@@ -189,6 +191,11 @@ function refusalLines(): Record<string, unknown>[] {
  * test lives, and mocking it would make every assertion below a tautology.
  */
 vi.mock("@/lib/server/config", async () => await import("./config"));
+// Task 066's environment reader, mapped like every other `@/` module here. The real
+// module, not a double: it reads one request header and `prod` is what it answers when
+// nothing set one, so these cases exercise the production address shape - which is what
+// they were written about.
+vi.mock("@/lib/server/environment", async () => await import("./environment"));
 vi.mock("@/lib/server/route-helpers", async () => await import("./route-helpers"));
 vi.mock("@/lib/server/step-form", async () => await import("./step-form"));
 vi.mock("@/lib/server/appearance-form", async () => await import("./appearance-form"));
@@ -350,7 +357,7 @@ const ROUTES: readonly GuardedRoute[] = [
         params: Promise.resolve({ formSlug: "survey" }),
       });
     },
-    acted: () => api.startSession.mock.calls.length > 0,
+    acted: () => api.startAnonymousSession.mock.calls.length > 0,
     assertRefusal: (response) => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe(`${PORTAL_BASE}/f/survey?state=error`);
@@ -491,7 +498,12 @@ describe("app/appearance/route.ts does not emit a Location off this origin", () 
 
 describe.each(ROUTES)("$path", (route) => {
   beforeEach(() => {
-    api.startSession.mockReset().mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
+    api.startAnonymousSession
+      .mockReset()
+      .mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
+    api.startLinkSession
+      .mockReset()
+      .mockResolvedValue({ sessionId: "ses_1", sessionToken: "bearer" });
     // The projection the routes read their gates off. `missingRequired` and
     // `visibleQuestions` are part of the API's published `flowState` and the step
     // route reads the first of them (issue #920), so the double carries them rather

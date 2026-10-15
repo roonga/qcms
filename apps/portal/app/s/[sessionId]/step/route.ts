@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 
 import { splitFieldKey } from "../../../../lib/repeat";
 import { t } from "@/lib/i18n/en";
+import { currentBasePath } from "@/lib/server/environment";
 import {
   ApiError,
   batchAnswers,
@@ -58,9 +59,17 @@ import { defaultAnswerMessage, firstAnswerRejection } from "@/lib/validation-mes
  * handling as every other.
  */
 
-/** Redirect (303) back to the flow page so the server re-renders the step. */
-function backToStep(request: Request, sessionId: string): NextResponse {
-  return NextResponse.redirect(new URL(`/s/${sessionId}`, request.url), 303);
+/**
+ * Redirect (303) back to the flow page so the server re-renders the step.
+ *
+ * **Under the environment's own prefix** (Q21, task 066). `proxy.ts` rewrote this
+ * request's path, so `request.url` carries the unprefixed form and an unprefixed
+ * redirect would send a `test` respondent to `prod`'s address - where their session does
+ * not exist, because the sessions are a schema apart.
+ */
+async function backToStep(request: Request, sessionId: string): Promise<NextResponse> {
+  const basePath = await currentBasePath();
+  return NextResponse.redirect(new URL(`${basePath}/s/${sessionId}`, request.url), 303);
 }
 
 /**
@@ -300,19 +309,19 @@ export async function POST(
   // SEC-9's CSRF belt (issue #487). This is the no-JS whole-step POST, so the
   // refusal is the same 303 back to the flow page every other unusable request on
   // this route gets: the respondent sees their step, not an error code.
-  if (!isSameOriginPost(request)) return backToStep(request, sessionId);
+  if (!isSameOriginPost(request)) return await backToStep(request, sessionId);
 
   const token = await readSessionToken();
   if (token === undefined) {
     // No session credential: let the flow page render its recovery state.
-    return backToStep(request, sessionId);
+    return await backToStep(request, sessionId);
   }
 
   let form: FormData;
   try {
     form = await request.formData();
   } catch {
-    return backToStep(request, sessionId);
+    return await backToStep(request, sessionId);
   }
   const { answers, extras, fields } = decodeStepForm(form);
   const { values, errors, constraints, last, fatal } = await forwardAnswers(
@@ -340,7 +349,7 @@ export async function POST(
       missingRequired: [],
       notice: "step.notSaved",
     });
-    return backToStep(request, sessionId);
+    return await backToStep(request, sessionId);
   }
 
   // The authoritative projection: the one the API returned for the last answer
@@ -368,14 +377,17 @@ export async function POST(
   ) {
     const context: StepContext = { values, errors, constraints, missingRequired };
     await writeStepContext(context);
-    return backToStep(request, sessionId);
+    return await backToStep(request, sessionId);
   }
 
   try {
     const receipt = await submitSession(sessionId, token, extras);
     await writeReceiptCookie(receipt);
     await clearSessionToken();
-    return NextResponse.redirect(new URL("/done", request.url), 303);
+    return NextResponse.redirect(
+      new URL(`${await currentBasePath()}/done`, request.url),
+      303,
+    );
   } catch (error) {
     // A submit that fails the API's final sweep (e.g. a missing required answer)
     // returns the respondent to the step to complete it.
@@ -397,6 +409,6 @@ export async function POST(
         notice: "step.countOutOfRange",
       });
     }
-    return backToStep(request, sessionId);
+    return await backToStep(request, sessionId);
   }
 }

@@ -49,8 +49,8 @@ afterEach(() => {
 
 describe("internal API client headers", () => {
   it("forwards this request's x-request-id beside the SEC-4 internal token", async () => {
-    const { startSession } = await import("./api");
-    await startSession({ formSlug: "demo" });
+    const { startAnonymousSession } = await import("./api");
+    await startAnonymousSession({ formSlug: "demo" });
 
     const call = sent[0];
     expect(call?.headers.get("x-request-id")).toBe(REQUEST_ID);
@@ -84,8 +84,8 @@ describe("internal API client headers", () => {
 describe("vouched client address", () => {
   const startFrom = async (forwardedFor?: string): Promise<Headers | undefined> => {
     if (forwardedFor !== undefined) inbound.set("x-forwarded-for", forwardedFor);
-    const { startSession } = await import("./api");
-    await startSession({ formSlug: "demo" });
+    const { startAnonymousSession } = await import("./api");
+    await startAnonymousSession({ formSlug: "demo" });
     return sent.at(-1)?.headers;
   };
 
@@ -121,5 +121,49 @@ describe("vouched client address", () => {
     vi.stubEnv("QCMS_PORTAL_TRUSTED_PROXY_HOPS", "0");
     const headers = await startFrom("203.0.113.7");
     expect(headers?.has("x-qcms-client-address")).toBe(false);
+  });
+});
+
+/**
+ * Every call goes to the request's own environment's API surface (ADR-40, Q21, task 066).
+ *
+ * The prefix is the whole of how the API chooses a pool for a respondent request, so a
+ * call that lost it would read `prod`'s data for a `test` session - and would do it
+ * quietly, because the unprefixed route exists and answers.
+ */
+describe("the environment's API surface", () => {
+  it("calls the unprefixed paths for prod, so a production deployment is unchanged", async () => {
+    const { startAnonymousSession, getStep } = await import("./api");
+    await startAnonymousSession({ formSlug: "demo" });
+    await getStep("ses_1", "session-bearer");
+
+    expect(sent.map((call) => call.url)).toEqual([
+      "http://api.internal:4000/sessions",
+      "http://api.internal:4000/sessions/ses_1/step",
+    ]);
+  });
+
+  it("prefixes every path with the environment the proxy resolved", async () => {
+    inbound.set("x-qcms-environment", "test");
+    const { startLinkSession, getStep, submitSession } = await import("./api");
+    await startLinkSession({ token: "a-link-token" });
+    await getStep("ses_1", "session-bearer", 2);
+    await submitSession("ses_1", "session-bearer");
+
+    expect(sent.map((call) => call.url)).toEqual([
+      "http://api.internal:4000/test/sessions/link",
+      "http://api.internal:4000/test/sessions/ses_1/step?step=2",
+      "http://api.internal:4000/test/sessions/ses_1/submit",
+    ]);
+  });
+
+  it("does not forward the environment as a header", async () => {
+    inbound.set("x-qcms-environment", "test");
+    const { startLinkSession } = await import("./api");
+    await startLinkSession({ token: "a-link-token" });
+
+    // A respondent request's environment is the API group that served it (SEC-14). A
+    // header would be a second source, and a forgeable one.
+    expect(sent[0]?.headers.get("x-qcms-environment")).toBeNull();
   });
 });
