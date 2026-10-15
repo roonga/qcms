@@ -61,6 +61,8 @@ import { startTestDb, type TestDb } from "../support/index.js";
 
 const MIGRATE_ROLE = "qcms_migrate";
 const CONTROL_ROLE = "qcms_app_control";
+/** The workspace every `control.forms` fixture row below belongs to (task 068). */
+const FIXTURE_WORKSPACE = "org_least_privilege";
 const ENVIRONMENTS = ["test", "prod"] as const;
 const ENVIRONMENT_ROLES = { test: "qcms_app_test", prod: "qcms_app_prod" } as const;
 
@@ -222,6 +224,18 @@ beforeAll(async () => {
   await owner.query(`GRANT USAGE ON SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
   await owner.query(`GRANT SELECT ON ALL TABLES IN SCHEMA reporting_prod TO ${REPORTING_ROLE}`);
   clients.set(REPORTING_ROLE, await connectAs(REPORTING_ROLE, reportingPassword, "reporting_prod"));
+
+  // One workspace, as the owner, because `control.forms.workspace_id` and
+  // `control.questions.workspace_id` are `NOT NULL` with no default since task 068: a
+  // form has to belong to one, and every `insert into control.forms` below names it. The
+  // owner writes it rather than `qcms_app_control` for the reason the form rows are the
+  // owner's too - what these tests measure is a role's rights on the row, not its right
+  // to arrange the fixture.
+  await owner.query(
+    `insert into control.organization (id, name, slug, "createdAt")
+       values ($1, 'Least privilege', 'least-privilege', now())`,
+    [FIXTURE_WORKSPACE],
+  );
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -352,8 +366,9 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     const formId = "q60-publish-count";
 
     await owner.query(
-      `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
-      [formId],
+      `insert into control.forms (form_id, slug, workspace_id, default_locale)
+         values ($1, $1, $2, 'en')`,
+      [formId, FIXTURE_WORKSPACE],
     );
     await owner.query(
       `insert into control.form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,
@@ -417,8 +432,9 @@ describe("qcms_app_control: the control plane, and one grant in each data plane"
     const formId = "q49-release-count";
 
     await owner.query(
-      `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
-      [formId],
+      `insert into control.forms (form_id, slug, workspace_id, default_locale)
+         values ($1, $1, $2, 'en')`,
+      [formId, FIXTURE_WORKSPACE],
     );
     await owner.query(
       `insert into control.form_versions
@@ -613,8 +629,9 @@ describe.each(ENVIRONMENTS)(
       // surfaces here rather than at a respondent's first request.
       const formId = `frm_grant_${environment}`;
       await owner.query(
-        `insert into control.forms (form_id, slug, default_locale) values ($1, $1, 'en')`,
-        [formId],
+        `insert into control.forms (form_id, slug, workspace_id, default_locale)
+           values ($1, $1, $2, 'en')`,
+        [formId, FIXTURE_WORKSPACE],
       );
       await owner.query(
         `insert into control.form_versions

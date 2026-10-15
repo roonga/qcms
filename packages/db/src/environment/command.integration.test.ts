@@ -1,7 +1,12 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  SEED_WORKSPACE_ID,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 
 import {
   RESERVED_ENVIRONMENT_NAMES,
@@ -167,7 +172,11 @@ describe("dropping an environment (Q24, Q43)", { timeout: COMMAND_TIMEOUT_MS }, 
 
   it("refuses while the environment holds a session, naming the count and the open form", async () => {
     await testDb.client.query(
-      `insert into control.forms (form_id, slug, default_locale) values ('frm_drop', 'drop', 'en')`,
+      // `workspace_id` names the workspace the harness seeds after migrating (task 068):
+      // the column is `NOT NULL` with no default, so a fixture form has to belong to one.
+      `insert into control.forms (form_id, slug, workspace_id, default_locale)
+         values ('frm_drop', 'drop', $1, 'en')`,
+      [SEED_WORKSPACE_ID],
     );
     await testDb.client.query(
       `insert into control.form_versions

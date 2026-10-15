@@ -8,7 +8,12 @@ import {
   DATA_PLANE_TRIGGERS,
   SESSION_ENVIRONMENT_CHECK,
 } from "./schema/data/index.js";
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "./testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  SEED_WORKSPACE_ID,
+  startTestDb,
+  type TestDb,
+} from "./testing/harness.js";
 
 /**
  * A fresh database is created in the target shape (ADR-40, criteria 1, 1a, 2 and 8).
@@ -310,9 +315,12 @@ describe("@roonga/qcms-db migrations", { timeout: MIGRATION_STEP_TIMEOUT_MS }, (
       // environment, which is what makes "a link naming another environment" a real
       // row rather than a dangling id.
       await testDb.client.query(
-        `insert into control.forms (form_id, slug, default_locale)
-         values ($1, $1, 'en')`,
-        [FORM_ID],
+        // `workspace_id` names the workspace the harness seeds after migrating (task
+        // 068): the column is `NOT NULL` with no default, so a fixture form belongs to
+        // one like any other.
+        `insert into control.forms (form_id, slug, workspace_id, default_locale)
+         values ($1, $1, $2, 'en')`,
+        [FORM_ID, SEED_WORKSPACE_ID],
       );
       await testDb.client.query(
         `insert into control.form_versions
