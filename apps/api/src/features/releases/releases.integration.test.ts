@@ -549,7 +549,9 @@ describe("publish and release in one act (finding 2's combined action)", () => {
     await createForm(control, {
       workspaceId: SEED_WORKSPACE_ID,
       formId,
-      slug: "refused-slug",
+      // Distinct from `seedForm("refused")`'s slug one describe block up, which it was
+      // only by luck before task 068 made `forms.slug` unique installation-wide.
+      slug: "combined-refused-slug",
       defaultLocale: "en",
     });
     await apps.get("prod")!.request(`/admin/forms/${formId}/draft`, {

@@ -1,6 +1,11 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "../testing/harness.js";
+import {
+  CONTAINER_BOOT_TIMEOUT_MS,
+  SEED_WORKSPACE_ID,
+  startTestDb,
+  type TestDb,
+} from "../testing/harness.js";
 
 let testDb: TestDb;
 
@@ -16,8 +21,11 @@ describe("form_drafts enforces at most one open draft per form", () => {
   it("rejects a second draft for the same form", async () => {
     const formId = "frm_one_draft";
     await testDb.client.query(
-      `insert into forms (form_id, slug, default_locale) values ($1, 'one-draft', 'en')`,
-      [formId],
+      // `workspace_id` is `NOT NULL` with no default since task 068: the harness seeds
+      // the workspace a fixture form belongs to.
+      `insert into forms (form_id, slug, workspace_id, default_locale)
+         values ($1, 'one-draft', $2, 'en')`,
+      [formId, SEED_WORKSPACE_ID],
     );
 
     // First open draft: fine.
@@ -38,8 +46,9 @@ describe("form_drafts enforces at most one open draft per form", () => {
   it("allows independent drafts for different forms", async () => {
     for (const formId of ["frm_draft_a", "frm_draft_b"]) {
       await testDb.client.query(
-        `insert into forms (form_id, slug, default_locale) values ($1, $2, 'en')`,
-        [formId, `${formId}-slug`],
+        `insert into forms (form_id, slug, workspace_id, default_locale)
+           values ($1, $2, $3, 'en')`,
+        [formId, `${formId}-slug`, SEED_WORKSPACE_ID],
       );
       await testDb.client.query(
         `insert into form_drafts (form_id, definition) values ($1, '{}'::jsonb)`,

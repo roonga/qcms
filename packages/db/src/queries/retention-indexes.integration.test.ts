@@ -36,6 +36,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
+  SEED_WORKSPACE_ID,
   startTestDb,
   type TestDb,
 } from "../testing/harness.js";
@@ -137,7 +138,9 @@ describe("the payload sweep's anti-join does not read the deliveries table (issu
    */
   beforeAll(async () => {
     await testDb.client.query(
-      `insert into forms (form_id, slug, default_locale) values ('f-781', 's-781', 'en')`,
+      `insert into forms (form_id, slug, workspace_id, default_locale)
+         values ('f-781', 's-781', $1, 'en')`,
+      [SEED_WORKSPACE_ID],
     );
     await testDb.client.query(
       `insert into webhooks (webhook_id, form_id, url, secret_encrypted)

@@ -428,10 +428,15 @@ const allSurfaces = createApp(
 // Task 065 moved the admin count from 12 to 14 and the all-surfaces one from 19 to 21:
 // releasing a version and the combined publish-and-release action each add a request body
 // (`ReleaseVersionBody`, `PublishAndReleaseBody`), and both are `z.strictObject`.
+//
+// Task 068 moved the admin count from 14 to 18 and the all-surfaces one from 21 to 25:
+// creating a workspace, marking one shared and the two ownership moves each add a request
+// body (`CreateWorkspaceBody`, `SharedWorkspaceBody`, and `MoveToWorkspaceBody` on the
+// form route and the question route), and every one is a `z.strictObject`.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 5],
-  ["admin", committedAdmin, 14],
-  ["all surfaces with every flag on", allSurfaces, 21],
+  ["admin", committedAdmin, 18],
+  ["all surfaces with every flag on", allSurfaces, 25],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {

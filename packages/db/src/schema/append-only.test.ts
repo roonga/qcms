@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   CONTAINER_BOOT_TIMEOUT_MS,
   DEFAULT_TEST_ENVIRONMENT,
+  SEED_WORKSPACE_ID,
   startTestDb,
   type TestDb,
 } from "../testing/harness.js";
@@ -23,8 +24,10 @@ async function seedForm(formId: string): Promise<void> {
   // one; both resolve unqualified here because the harness connects on
   // `data_<env>, control` (ADR-40), which is exactly what an API pool does.
   await testDb.client.query(
-    `insert into forms (form_id, slug, default_locale) values ($1, $2, 'en')`,
-    [formId, `${formId}-slug`],
+    // `workspace_id` is `NOT NULL` with no default since task 068, so a fixture form
+    // belongs to the workspace the harness seeds after migrating.
+    `insert into forms (form_id, slug, workspace_id, default_locale) values ($1, $2, $3, 'en')`,
+    [formId, `${formId}-slug`, SEED_WORKSPACE_ID],
   );
   await testDb.client.query(
     `insert into form_versions
@@ -185,10 +188,10 @@ describe("answer_group_instances is append-only (I5, ADR-42)", () => {
 
 describe("published question_versions are immutable (I1)", () => {
   async function seedQuestionVersion(questionId: string, status: string): Promise<void> {
-    await testDb.client.query(`insert into questions (question_id, slug) values ($1, $2)`, [
-      questionId,
-      `${questionId}-slug`,
-    ]);
+    await testDb.client.query(
+      `insert into questions (question_id, slug, workspace_id) values ($1, $2, $3)`,
+      [questionId, `${questionId}-slug`, SEED_WORKSPACE_ID],
+    );
     await testDb.client.query(
       `insert into question_versions (question_id, version, definition, status)
        values ($1, 1, '{"a":1}'::jsonb, $2)`,
