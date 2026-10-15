@@ -300,9 +300,30 @@ function questionDefinitionFor(
  * route, exactly as the version beside them is.
  */
 async function releaseSeededVersion(db: Db, formId: string, version: number): Promise<void> {
+  await releaseSeededVersionTo(db, formId, version, DEFAULT_TEST_ENVIRONMENT);
+}
+
+/**
+ * Release one version of a seeded form into a **named** environment (ADR-40).
+ *
+ * Exported because the browser harness needs a form served in `test` as well as in the
+ * environment its own connection serves: a `/test/l/{token}` address has nothing to serve
+ * until something is released there, and a spec asserting the address would otherwise pass
+ * against the closed screen for the wrong reason (task 066).
+ *
+ * It is here rather than in the portal's own harness because the portal depends on neither
+ * `@roonga/qcms-core` nor `@roonga/qcms-db` and must not (R2); this file is already the
+ * seam its fixtures come through.
+ */
+export async function releaseSeededVersionTo(
+  db: Db,
+  formId: string,
+  version: number,
+  environment: string,
+): Promise<void> {
   await insertFormRelease(db, {
     formId: FormId.parse(formId),
-    environment: DEFAULT_TEST_ENVIRONMENT,
+    environment,
     version,
     releasedBy: "usr_e2e_seed",
   });

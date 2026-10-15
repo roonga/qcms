@@ -239,6 +239,12 @@ export default defineConfig({
         QCMS_PORTAL_BASE_URL: `http://localhost:${PORT}`,
         QCMS_API_BASE_URL: API_BASE_URL,
         QCMS_INTERNAL_TOKEN: FIXED_INTERNAL_TOKEN,
+        // The non-prod environments this portal serves (ADR-40, Q21, task 066), matching
+        // the composed API's `QCMS_MOUNT: "all"`, which mounts `test`'s respondent
+        // surface at `/test`. `environment-address.pw.ts` is what needs it: criterion 2
+        // asks for the prefix asserted on **both** surfaces, and the portal's half is
+        // only assertable through a browser that followed a `/test/l/<token>` address.
+        QCMS_PORTAL_ENVIRONMENTS: "test",
         // Tracing on, pointed at the in-test OTLP receiver globalSetup boots (task
         // 054). This is also the switch that makes the portal's `instrumentation.ts`
         // call `registerOTel` at all - with it unset the portal starts no SDK, which
