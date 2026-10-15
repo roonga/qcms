@@ -272,7 +272,9 @@ export async function startApiServer(): Promise<void> {
     expiresAt: new Date(nowMs + oneHour),
     oneTime: true,
   });
-  const consumeRes = await app.request("/sessions", {
+  // `POST /sessions/link` since task 066: secure-link entry is its own route so the two
+  // entry modes can ride different mount decisions (Q21).
+  const consumeRes = await app.request("/sessions/link", {
     method: "POST",
     headers: {
       "content-type": "application/json",
