@@ -17,6 +17,7 @@
 import { expect, test } from "./support/gates.js";
 
 import { readFixtures } from "./support/fixtures.js";
+import { waitForHydration } from "./support/hydration.js";
 
 test("a test link redeems under its own prefix and the flow stays there", async ({ page }) => {
   const { testEnvironmentToken } = readFixtures();
@@ -28,11 +29,49 @@ test("a test link redeems under its own prefix and the flow stays there", async 
   await page.waitForURL(/\/test\/s\/ses_/);
   await expect(page.getByText("Any at-fault accident in the last 3 years?")).toBeVisible();
 
-  // The no-JS form posts inside the environment too, which is what carries a scriptless
-  // respondent through the flow rather than onto production's surface. Read from the
-  // server-rendered markup, which is the only render a scriptless respondent gets.
-  const action = await page.locator("form[method='post']").first().getAttribute("action");
-  expect(action).toMatch(/^\/test\/s\/ses_[^/]+\/step$/);
+  // And the SCRIPTED path posts inside the environment, which is what the `basePath` prop
+  // buys: a `fetch` to an unprefixed `/s/{id}/answers` would reach `prod`'s route, which
+  // exists and answers - about a session that is a schema away. Asserted on the request
+  // the browser actually made rather than on markup, because after hydration the native
+  // form is unmounted and there is no action attribute left to read.
+  //
+  // The hydration wait is what makes that the SCRIPTED path: before it, the same click is
+  // a native form control and the post is a document navigation to `/step`.
+  await waitForHydration(page);
+  const answered = page.waitForRequest(
+    (request) => request.method() === "POST" && request.url().includes("/answers"),
+  );
+  await page.getByRole("radio", { name: "No", exact: true }).click();
+  expect(new URL((await answered).url()).pathname).toMatch(/^\/test\/s\/ses_[^/]+\/answers$/);
+});
+
+/**
+ * The no-JS half, in a block of its own so `test.use` scopes the scripting switch to it.
+ *
+ * The step form's `action` is only on the page a scriptless respondent gets: with
+ * JavaScript on, `ProgressiveStep` swaps the native form for the controlled flow and
+ * unmounts it, so there is no attribute left to read. A whole context with scripting off
+ * is also what every other no-JS spec here uses, and it keeps the console and server-log
+ * gates attached to the `page` fixture rather than to a context this file opened itself.
+ */
+test.describe("with JavaScript disabled", () => {
+  test.use({ javaScriptEnabled: false });
+
+  test("the step form posts inside the environment too", async ({ page }) => {
+    const { testEnvironmentToken } = readFixtures();
+    await page.goto(`/test/l/${testEnvironmentToken}`);
+    await page.waitForURL(/\/test\/s\/ses_/);
+
+    // Scoped to the step card: since issue #195 the header's appearance controls are a
+    // second native form on the page, and that is the one an unscoped locator finds
+    // first.
+    const action = await page
+      .getByTestId("step-card")
+      .locator("form[method='post']")
+      .first()
+      .getAttribute("action");
+    expect(action).toMatch(/^\/test\/s\/ses_[^/]+\/step$/);
+  });
 });
 
 test("the prod address is unchanged, which is the half criterion 7 is about", async ({ page }) => {
