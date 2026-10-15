@@ -58,85 +58,116 @@ export const MIRROR_ACTION = "test-postgres-image";
 export const ASSERT_ACTION = "assert-no-docker-hub-pulls";
 
 /**
+ * The build-time setup action: the Docker Hub base image and the BuildKit frontend put
+ * on the runner's daemon with retries (Code Owner, 2026-10-11, issue #1050).
+ *
+ * Modelled here for the reason the two above are. The GHCR mirror was DECLINED for
+ * these two images, so a retried pre-pull is the whole of their availability story, and
+ * an image-building job that omits it is exactly the silent regression this script
+ * exists to catch: it stays green until Docker Hub has a bad five minutes, and then
+ * fails for a reason that reads like the diff.
+ *
+ * `images.yml#build` is the one job that builds images and is classified `false`. It
+ * cannot use this action - its builder is a docker-container driver with its own content
+ * store, which asks the registry whatever is on the daemon - so it carries
+ * `scripts/retry-registry.sh` around the build instead. Its entry says so.
+ */
+export const PREPULL_ACTION = "prepull-base-images";
+
+/**
  * Every job in every workflow, and the guard actions it must reference.
  *
- * Keyed `<workflow file>#<job id>`. `mirror` and `assert` are exact requirements: true
- * means the job must reference that action, false means it must not. Every entry
- * carries the reason, because the entries that say `false` for a job that clearly
- * touches Docker are the ones a future reader will want to argue with.
+ * Keyed `<workflow file>#<job id>`. `mirror`, `assert` and `prepull` are exact
+ * requirements: true means the job must reference that action, false means it must not.
+ * Every entry carries the reason, because the entries that say `false` for a job that
+ * clearly touches Docker are the ones a future reader will want to argue with.
  *
- * @type {Record<string, { mirror: boolean; assert: boolean; why: string }>}
+ * @type {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>}
  */
 export const JOB_GUARDS = {
   "audit.yml#audit": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "reads the dependency tree and files an issue. No container is started.",
   },
   "ci.yml#changes": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "the fast-lane classifier: a checkout and one node invocation over a git diff.",
   },
   "ci.yml#verify": {
     mirror: true,
     assert: true,
+    prepull: false,
     why: "`pnpm test` includes @roonga/qcms-db's integration suites, which boot a Testcontainers Postgres per file.",
   },
   "ci.yml#api-e2e": {
     mirror: true,
     assert: true,
+    prepull: false,
     why: "each of the API scenario files boots its own Testcontainers Postgres.",
   },
   "ci.yml#browser-e2e": {
     mirror: true,
     assert: true,
+    prepull: false,
     why: "the Playwright globalSetup boots a Testcontainers Postgres and composes the API against it.",
   },
   "codeql.yml#analyze": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "GitHub-hosted static analysis. No Docker on the path at all.",
   },
   "create-app-e2e.yml#create-app-e2e": {
     mirror: true,
     assert: false,
-    why: "scaffolds an adopter project and boots its Compose topology on the mirrored Postgres, so it needs the mirror. Deliberately outside the Hub assertion for the same build-time reason as full-stack-e2e: it BUILDS the three application images from the scaffolded tree, whose base image is not mirrored, so the assertion would fail on a pull the job legitimately makes.",
+    prepull: true,
+    why: "scaffolds an adopter project and boots its Compose topology on the mirrored Postgres, so it needs the mirror. It BUILDS the three application images from the scaffolded tree, so it needs the pre-pull too: the scaffolded Dockerfiles carry the same Docker Hub base and the same `docker/dockerfile:1` frontend, and the templates must keep a public default that resolves for an adopter who has never heard of this repository, so a mirror was never an option there. Deliberately outside the Hub assertion for the same build-time reason as full-stack-e2e: the pull is the job's own, and the assertion would fail on it.",
   },
   "e2e.yml#changes": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "the same fast-lane classifier as ci.yml's, in the workflow that needs its own copy.",
   },
   "e2e.yml#full-stack-e2e": {
     mirror: true,
     assert: false,
-    why: "boots the Compose topology on the mirrored Postgres, so it needs the mirror. It is deliberately outside the Hub assertion: it BUILDS the three application images, which are FROM node:24-bookworm-slim and not mirrored, so the assertion would fail on a build-time pull the job legitimately makes. The job says so in a comment of its own.",
+    prepull: true,
+    why: "boots the Compose topology on the mirrored Postgres, so it needs the mirror, and BUILDS the three application images, so it needs the pre-pull: they are FROM node:24-bookworm-slim and name the `docker/dockerfile:1` frontend, neither of which is mirrored, which is a decision rather than a gap (issue #1050). It is deliberately outside the Hub assertion, and the reason survives the change: the Hub pull is now this job's own deliberate one, made before the assertion's baseline is taken. The job says so in a comment of its own.",
   },
   "images.yml#build": {
     mirror: false,
     assert: false,
-    why: "builds the three release images on every push and publishes them to GHCR on main (issue #763). It needs no test Postgres, and it is outside the Hub assertion for the same build-time reason as full-stack-e2e plus the SBOM scanner image; its own registry traffic goes to ghcr.io on the built-in token, not to the Hub. Documented in the workflow.",
+    prepull: false,
+    why: "builds the three release images on every push and publishes them to GHCR on main (issue #763). It needs no test Postgres, and it is outside the Hub assertion for the same build-time reason as full-stack-e2e plus the SBOM scanner image; its own registry traffic goes to ghcr.io on the built-in token, not to the Hub. It is the one image-building job classified `prepull: false`, and not from oversight: `--sbom` forces a docker-container driver builder, which keeps its own content store and asks the registry whatever is on the daemon, so a pre-pull cannot reach it (measured, issue #1050). It carries `scripts/retry-registry.sh` around the build instead, which is the narrowest place left. Documented in the workflow.",
   },
   "images.yml#scan": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "runs grype over the SPDX SBOM the build job persisted (issue #894). It starts no container and pulls no image: the SBOM arrives as a workflow artifact and the vulnerability database comes from the scanner's own endpoint, so neither guard applies.",
   },
   "images.yml#scan-issue": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "reads the scan report artifact and files or updates one labeled issue on the scheduled run, the way audit.yml does. No container is started and no registry is contacted.",
   },
   "mirror-test-images.yml#mirror": {
     mirror: false,
     assert: false,
+    prepull: false,
     why: "this job IS the mirror: it copies the upstream image into GHCR, so a registry call to Docker Hub is its purpose rather than a leak.",
   },
   "restore-drill.yml#drill": {
     mirror: true,
     assert: false,
-    why: "runs the backup-and-restore drill against the mirrored Postgres through Compose. Outside the Hub assertion for the same build-time reason as full-stack-e2e: the drill brings the application images up.",
+    prepull: true,
+    why: "runs the backup-and-restore drill against the mirrored Postgres through Compose, and brings the application images up, so it builds them: mirror and pre-pull both. The pre-pull matters most here, because this workflow runs on a schedule, so a Hub blip fails a run nobody is watching and the drill's whole value is that it ran. Outside the Hub assertion for the same build-time reason as full-stack-e2e.",
   },
 };
 
@@ -173,25 +204,30 @@ export function jobsIn(workflowText) {
  *
  * @param {{ job: string; actions: string[] }[]} declared with `job` already keyed
  *   `<workflow>#<id>`.
- * @param {Record<string, { mirror: boolean; assert: boolean; why: string }>} guards
+ * @param {Record<string, { mirror: boolean; assert: boolean; prepull: boolean; why: string }>} guards
  * @returns {string[]} one line per problem, empty when the two agree.
  */
 export function compareGuards(declared, guards) {
   const problems = [];
   const seen = new Set();
+  // The actions this script models. A local action NOT in here is neither required nor
+  // refused, which is deliberate: the modelled set is the one whose absence is silent,
+  // and a checkout or a setup action announces itself by the job failing without it.
+  const modelled = [MIRROR_ACTION, ASSERT_ACTION, PREPULL_ACTION];
 
   for (const { job, actions } of declared) {
     seen.add(job);
     const entry = guards[job];
     if (entry === undefined) {
       problems.push(
-        `  ${job}: not classified. Add it to JOB_GUARDS with the two flags and the reason.`,
+        `  ${job}: not classified. Add it to JOB_GUARDS with the three flags and the reason.`,
       );
       continue;
     }
     const expected = [
       ...(entry.mirror ? [MIRROR_ACTION] : []),
       ...(entry.assert ? [ASSERT_ACTION] : []),
+      ...(entry.prepull ? [PREPULL_ACTION] : []),
     ];
     for (const action of expected) {
       if (!actions.includes(action)) {
@@ -200,7 +236,7 @@ export function compareGuards(declared, guards) {
       }
     }
     for (const action of actions) {
-      if (!expected.includes(action) && (action === MIRROR_ACTION || action === ASSERT_ACTION)) {
+      if (!expected.includes(action) && modelled.includes(action)) {
         problems.push(
           `  ${job}: uses ./.github/actions/${action} while classified as not needing it.`,
         );
@@ -254,9 +290,12 @@ export function main() {
       "",
       "A job that boots Testcontainers must set the mirrored image up",
       `(./.github/actions/${MIRROR_ACTION}) and prove it made no Docker Hub call`,
-      `(./.github/actions/${ASSERT_ACTION}). The classification in this script is total:`,
-      "every job in every workflow is in it, so adding a job means deciding, in writing,",
-      "which guards it needs. See issue #155 and issue #150.",
+      `(./.github/actions/${ASSERT_ACTION}). A job that BUILDS the application images`,
+      `must pre-pull the Docker Hub base and BuildKit frontend with retries`,
+      `(./.github/actions/${PREPULL_ACTION}), because neither is mirrored. The`,
+      "classification in this script is total: every job in every workflow is in it, so",
+      "adding a job means deciding, in writing, which guards it needs. See issues #155,",
+      "#150 and #1050.",
       "",
     ].join("\n"),
   );

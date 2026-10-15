@@ -44,6 +44,30 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+    # The scaffolding templates are NOT a second project to update (issue #1050).
+    # `packages/create-qcms-app/templates/common/apps/{admin,api,portal}/package.json` are
+    # generated from `apps/*` by `pnpm qcms:sync-templates` and are not workspace members,
+    # so Dependabot scanning them opens a second pull request for the same bump, against
+    # files whose contents are derived rather than authored. The template half of a bump
+    # lands with the real one, through the sync, and that is also the only way the two can
+    # stay equal: `pnpm check:templates` fails if they diverge, so an independent template
+    # PR is red by construction.
+    #
+    # `exclude-paths` rather than a second `updates` entry carrying `ignore`, because it is
+    # what GitHub documents for exactly this case ("Dependabot can now exclude automatic
+    # pull requests for manifests in selected subdirectories", 2025-08-26; the options
+    # reference's own npm example is `directory: "/"` plus an `exclude-paths` list, read
+    # 2026-10-10). Excluded paths are skipped BEFORE manifest parsing, so no pull request is
+    # opened for them, `**` matches recursively, and the patterns are relative to this
+    # entry's `directory`. A second npm entry would have to satisfy the documented
+    # no-overlap rule against `/` as well, and it would split what
+    # `scripts/check-dependabot-groups.test.ts` can model - that file's header says why its
+    # one-npm-entry refusal is deliberately left intact.
+    #
+    # It replaces no `ignore` rule and changes nothing about security updates for the
+    # workspace itself; it only decides which manifests are scanned.
+    exclude-paths:
+      - "packages/create-qcms-app/templates/**"
     groups:
       # The six @codemirror/* packages `apps/admin` depends on move as ONE set, at
       # every update level (issue #712). They are exact-pinned in the manifest, but
@@ -77,7 +101,8 @@ updates:
       # this group is deleted, moved below `minor-and-patch`, stripped of its exclusion
       # there, or left behind by a new `@codemirror/*` package. It also refuses a second
       # `package-ecosystem: npm` entry and any group criterion it does not model, since
-      # either can move the family without touching a line above (issue #889).
+      # either can move the family without touching a line above (issue #889). The
+      # `exclude-paths` entry above is held by the same file (issue #1050).
       codemirror:
         patterns:
           - "@codemirror/*"

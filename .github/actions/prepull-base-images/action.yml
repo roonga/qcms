@@ -1,0 +1,139 @@
+name: Pre-pull the Docker Hub build images
+description: >
+  Put the two Docker Hub images an image build needs onto the runner's daemon
+  before the build, with retries, so a Hub blip is a retried pull rather than a
+  failed job (Code Owner, 2026-10-11, issue #1050). Every job that BUILDS the
+  application images must use this. It mirrors nothing and changes no `FROM` or
+  `# syntax=` line.
+
+inputs:
+  directory:
+    description: >
+      Where the Dockerfiles are read from. Both references are DERIVED from them
+      rather than configured here, so there is no second copy of the digest to
+      drift from the one Dependabot rewrites.
+    required: false
+    default: docker
+
+runs:
+  using: composite
+  steps:
+    # WHY A PRE-PULL WORKS HERE, measured rather than assumed (issue #1050).
+    #
+    # `docker compose build` uses the **`docker` driver**, which is the BuildKit embedded
+    # in dockerd and shares the daemon's image store. Both of the resolutions a build
+    # makes are served from that store when the image is already on the runner:
+    #
+    #   - `FROM node:24-bookworm-slim@sha256:...`, and
+    #   - the `# syntax=docker/dockerfile:1` frontend, which was the open question,
+    #     because BuildKit resolves that directive itself rather than as one of the
+    #     Dockerfile's instructions.
+    #
+    # Measured on 2026-10-15 with docker 29.8.1 and the `docker` driver's BuildKit
+    # v0.33.0, by tagging both images under names that exist in NO registry
+    # (`qcms-frontend-probe:localonly`, `qcms-base-probe:localonly`) and building a
+    # Dockerfile naming both. The build succeeded, which it could only do by resolving
+    # each from the local store. The same Dockerfile on a **`docker-container`** driver
+    # builder failed at `resolve image config for
+    # docker-image://docker.io/library/qcms-frontend-probe:localonly` with `pull access
+    # denied ... authorization failed`, because that driver keeps its own content store
+    # and always asks the registry.
+    #
+    # So this action fixes a compose build and CANNOT fix `images.yml#build`, which uses
+    # the docker-container driver because `--sbom` requires one. That job wraps its build
+    # in `scripts/retry-registry.sh` instead, and says so.
+    #
+    # WHY NOT A GHCR MIRROR. Considered and declined (Code Owner, 2026-10-11, issue
+    # #1050). Issue #74's mirror works because there is a resolution point with a Docker
+    # Hub fallback: `.github/actions/test-postgres-image` tries the mirror, warns, and
+    # falls back, so "the mirror is an availability optimisation, never a new hard
+    # dependency". Neither image here has such a point. A `# syntax=` directive admits no
+    # variable, no build argument and no fallback, and a `FROM` line cannot read the
+    # repository owner, so both would become literal `ghcr.io/<one owner>/...` references
+    # that every fork and every scaffolded adopter inherits as a hard dependency. The
+    # build-argument alternative is worse again: it takes the base out of the
+    # digest-beside-tag pin `docs/SECURITY_DESIGN.md` §9 asserts, and Dependabot cannot
+    # track `FROM ${ARG}` at all.
+    - name: Pre-pull the base image and the BuildKit frontend
+      shell: bash
+      env:
+        DOCKER_DIR: ${{ inputs.directory }}
+      run: |
+        # Each `docker pull` is expected to fail sometimes and each sits inside an `if`, so
+        # `-e` does not break the retry and does still end the step when the plumbing
+        # around them fails (the reasoning issue #171 recorded for the sibling actions).
+        set -euo pipefail
+
+        # DERIVED, NOT CONFIGURED, and that is the load-bearing choice here. A digest
+        # written into this action would be a second copy of the one in the `FROM` lines,
+        # and Dependabot rewrites only the Dockerfiles. The copies would agree until the
+        # next digest bump and then diverge silently: the pre-pull would fetch the old
+        # image, the build would resolve the new one from the registry, and the job would
+        # be exactly as exposed to a Hub outage as before while looking guarded. So the
+        # references come out of the files the build itself reads.
+        #
+        # Every `FROM` must agree on one reference, because one pull has to serve all
+        # three images. If they ever disagree, pulling "the base" is not a well-defined
+        # thing to do and this says so rather than pulling the first one it found.
+        mapfile -t bases < <(
+          grep -hoE '^FROM[[:space:]]+node:[^[:space:]]+' "${DOCKER_DIR}"/{admin,api,portal}.Dockerfile |
+            awk '{print $2}' | sort -u
+        )
+        if [ "${#bases[@]}" -ne 1 ]; then
+          echo "::error title=Base image references disagree::${DOCKER_DIR}/{admin,api,portal}.Dockerfile name ${#bases[@]} distinct node base references (${bases[*]:-none}). One pull cannot serve them, so this action cannot know what to fetch."
+          exit 1
+        fi
+        base="${bases[0]}"
+
+        # The frontend is read from the same files, and may legitimately differ between
+        # them one day, so each distinct directive is pulled rather than refused.
+        mapfile -t frontends < <(
+          grep -hoE '^#[[:space:]]*syntax=[^[:space:]]+' "${DOCKER_DIR}"/*.Dockerfile |
+            sed 's/.*syntax=//' | sort -u
+        )
+        if [ "${#frontends[@]}" -eq 0 ]; then
+          echo "::error title=No BuildKit frontend found::No '# syntax=' directive under ${DOCKER_DIR}. Either the directives moved or this action is reading the wrong directory, and a silent no-op here is the failure it exists to prevent."
+          exit 1
+        fi
+
+        # A digest is what makes the pre-pull worth anything: the build resolves the base
+        # by digest, and a tag-only pull would put a different image on the runner than
+        # the build then asks the registry for.
+        case "${base}" in
+          *@sha256:*) ;;
+          *)
+            echo "::error title=Base image is not digest-pinned::${base} carries no digest, so a pre-pull cannot serve the build's own resolution. docs/SECURITY_DESIGN.md section 9 requires the digest beside the tag."
+            exit 1
+            ;;
+        esac
+
+        pull_with_retries() {
+          image="$1"
+          for attempt in 1 2 3; do
+            if docker pull --quiet "${image}"; then
+              echo "Pulled ${image} on attempt ${attempt} of 3."
+              return 0
+            fi
+            echo "Docker Hub pull attempt ${attempt} of 3 failed for ${image}."
+            # Growing waits rather than a fixed one: a Hub 500 or a rate-limit window does
+            # not clear on a timescale a 10s retry covers. The same 10/20/30 shape
+            # `.github/actions/test-postgres-image` already uses, so this repository has
+            # one retry rhythm rather than two.
+            sleep $((attempt * 10))
+          done
+          echo "::error title=Docker Hub image unavailable::Could not pull ${image} in 3 attempts. This is a container-registry failure, not a build failure."
+          return 1
+        }
+
+        # Every image is attempted even after one fails, and the exit code is kept: a
+        # build needs the frontend as much as the base, so reporting only the first
+        # failure would cost a second run to learn the second one.
+        failures=0
+        for image in "${base}" "${frontends[@]}"; do
+          pull_with_retries "${image}" || failures=$((failures + 1))
+        done
+        if [ "${failures}" -ne 0 ]; then
+          exit 1
+        fi
+
+        echo "Pre-pulled ${base} and ${#frontends[@]} BuildKit frontend reference(s): ${frontends[*]}."

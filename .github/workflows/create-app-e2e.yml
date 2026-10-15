@@ -47,6 +47,20 @@ jobs:
       # Compose file reads it as QCMS_POSTGRES_IMAGE.
       - uses: ./.github/actions/test-postgres-image
 
+      # The scaffolded tree's Dockerfiles carry the same Docker Hub base and the same
+      # `docker/dockerfile:1` frontend the monorepo's do, so this job has the same
+      # build-time Hub exposure and takes the same answer: pre-pull with retries, mirror
+      # nothing (Code Owner, 2026-10-11, issue #1050).
+      #
+      # The adopter's templates are the reason a mirror was never an option here. They
+      # must keep a public default that resolves for someone who has never heard of this
+      # repository, so a `FROM ghcr.io/<our owner>/...` in a generated Dockerfile would
+      # hand every scaffolded project a dependency on our GHCR package staying public.
+      # Pre-pulling is invisible to the template: it changes what is on the runner, not
+      # what the generated file says, so the scaffolded Dockerfiles stay byte-identical
+      # to the ones an adopter would write.
+      - uses: ./.github/actions/prepull-base-images
+
       # Packs the five tarballs, runs the CLI from its own tarball into a temporary
       # directory, installs, builds the three images from the scaffolded tree, starts
       # the stack, bootstraps an administrator, drives the 027 scenario-1 loop over

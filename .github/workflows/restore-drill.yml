@@ -52,6 +52,13 @@ jobs:
       # (issues #74 and #150). Compose reads it as QCMS_POSTGRES_IMAGE below.
       - uses: ./.github/actions/test-postgres-image
 
+      # The drill brings the application images up, so it builds them, so it has the same
+      # build-time Docker Hub exposure as full-stack-e2e and takes the same answer (Code
+      # Owner, 2026-10-11, issue #1050). It matters more here than anywhere else: this
+      # workflow runs on a schedule, so a Hub blip fails a run nobody is watching and the
+      # drill's whole value is that it ran.
+      - uses: ./.github/actions/prepull-base-images
+
       - name: Run the restore drill
         env:
           QCMS_POSTGRES_IMAGE: ${{ env.QCMS_TEST_POSTGRES_IMAGE }}

@@ -8,6 +8,7 @@ import {
   ASSERT_ACTION,
   JOB_GUARDS,
   MIRROR_ACTION,
+  PREPULL_ACTION,
   compareGuards,
   jobsIn,
 } from "./check-docker-job-guards.mjs";
@@ -35,7 +36,9 @@ const TESTCONTAINERS_JOB = [
 ].join("\n");
 
 /** The classification a correctly wired Testcontainers job would carry. */
-const GUARDED = { "x.yml#unit": { mirror: true, assert: true, why: "boots Testcontainers." } };
+const GUARDED = {
+  "x.yml#unit": { mirror: true, assert: true, prepull: false, why: "boots Testcontainers." },
+};
 
 describe("jobsIn", () => {
   it("reads each job and the local actions it references", () => {
@@ -101,7 +104,7 @@ describe("compareGuards", () => {
   it("bites on a classification for a job that no longer exists", () => {
     const problems = compareGuards(jobsInKeyed(TESTCONTAINERS_JOB), {
       ...GUARDED,
-      "x.yml#gone": { mirror: true, assert: true, why: "removed in a refactor." },
+      "x.yml#gone": { mirror: true, assert: true, prepull: false, why: "removed in a refactor." },
     });
 
     expect(problems.join("\n")).toContain("no such job exists");
@@ -109,9 +112,59 @@ describe("compareGuards", () => {
 
   it("bites on a job wired to a guard its class says it does not need", () => {
     const problems = compareGuards(jobsInKeyed(TESTCONTAINERS_JOB), {
-      "x.yml#unit": { mirror: true, assert: false, why: "builds images from an unmirrored base." },
+      "x.yml#unit": {
+        mirror: true,
+        assert: false,
+        prepull: false,
+        why: "builds images from an unmirrored base.",
+      },
     });
 
+    expect(problems.join("\n")).toContain("while classified as not needing it");
+  });
+
+  it("bites when an image-building job is missing the pre-pull (issue #1050)", () => {
+    // The flag added for the Code Owner's 2026-10-11 ruling, proved in both directions
+    // like the two above it. It matters more than it looks: the GHCR mirror was DECLINED
+    // for the base image and the BuildKit frontend, so the retried pre-pull is the whole
+    // of their availability story, and a job that loses it stays green until Docker Hub
+    // has a bad five minutes.
+    const buildsImages = {
+      "x.yml#unit": {
+        mirror: true,
+        assert: false,
+        prepull: true,
+        why: "builds the application images.",
+      },
+    };
+
+    const missing = compareGuards(jobsInKeyed(TESTCONTAINERS_JOB), buildsImages);
+    expect(missing.join("\n")).toContain(PREPULL_ACTION);
+
+    // And silent once the job carries it. The Hub assertion is dropped from the fixture
+    // because this class does not take it: an image-building job pulls from Docker Hub on
+    // purpose, which is the whole reason it is outside the assertion.
+    const wired = [TESTCONTAINERS_JOB, `      - uses: ./.github/actions/${PREPULL_ACTION}`]
+      .join("\n")
+      .split("\n")
+      .filter((line) => !line.includes(ASSERT_ACTION))
+      .join("\n");
+    expect(compareGuards(jobsInKeyed(wired), buildsImages)).toEqual([]);
+  });
+
+  it("bites on a pre-pull a job's class says it does not need", () => {
+    // The other direction, and `images.yml#build` is why it is worth a case: it builds
+    // images and is deliberately classified `prepull: false`, because a docker-container
+    // driver builder keeps its own content store and cannot be served from the daemon's.
+    // Adding the action there would read as fixed while changing nothing, so it is
+    // refused rather than ignored.
+    const wired = [TESTCONTAINERS_JOB, `      - uses: ./.github/actions/${PREPULL_ACTION}`].join(
+      "\n",
+    );
+
+    const problems = compareGuards(jobsInKeyed(wired), GUARDED);
+
+    expect(problems.join("\n")).toContain(PREPULL_ACTION);
     expect(problems.join("\n")).toContain("while classified as not needing it");
   });
 
