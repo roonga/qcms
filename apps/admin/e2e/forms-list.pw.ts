@@ -4,7 +4,14 @@ import { expect, test } from "../../portal/e2e/support/gates.js";
 
 import { createTestAdmin, uniqueAdminEmail } from "./support/admin-account.js";
 import { enrollNewAdmin, fillStable, signInWithTotp } from "./support/flow.js";
-import { addStep, chooseOption, createForm, field, pinQuestion } from "./support/forms.js";
+import {
+  addStep,
+  chooseOption,
+  createForm,
+  field,
+  openFormDetails,
+  pinQuestion,
+} from "./support/forms.js";
 
 /**
  * The form library's search, status filter and sort, in the browser (issue 686).
@@ -113,6 +120,9 @@ test("creates the library this spec reads, and closes one of its forms", async (
   await createForm(page, BRAVO, "Bravo quokka");
   await addStep(page, "Driving history");
   await pinQuestion(page, "q_at_fault_accident", 2);
+  // Back to the form's own screen: the lifecycle actions live there, and pinning left the
+  // browser on the step.
+  await openFormDetails(page);
   await page.getByRole("button", { name: "Publish and release…" }).click();
   const publishDialog = page.getByRole("alertdialog");
   await publishDialog.getByRole("button", { name: "Publish and release to prod" }).click();

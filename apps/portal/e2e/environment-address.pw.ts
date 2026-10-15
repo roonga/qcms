@@ -55,7 +55,11 @@ test("a prod token under the test prefix is refused, not redirected or honoured"
   await expect(page.getByText("This link is not valid")).toBeVisible();
 });
 
-test("there is no anonymous entry under a prefix (criterion 3)", async ({ page }) => {
+test("there is no anonymous entry under a prefix (criterion 3)", async ({ page, browserGuard }) => {
+  // The browser reports any failed resource load as a `console.error`, and the console
+  // gate refuses one unless the test declared it (issue #166). Declared rather than
+  // allowlisted: the 404 is the assertion, so it has to be provoked here and nowhere else.
+  browserGuard.expectRequestFailure({ status: 404, url: /\/test\/f\// });
   const { slug } = readFixtures();
   const response = await page.goto(`/test/f/${slug}`);
   // A 404 because the route does not exist, not a 403 a handler produced (ADR-09). The

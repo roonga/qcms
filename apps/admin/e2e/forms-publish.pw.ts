@@ -559,7 +559,7 @@ test("mints, copies, exports and revokes a secure link (exit criterion 1)", asyn
   const count = dialog.getByRole("textbox", { name: "How many" });
   await count.click();
   await count.fill("2");
-  await dialog.getByRole("button", { name: "Mint", exact: true }).click();
+  await dialog.getByRole("button", { name: "Mint for prod", exact: true }).click();
 
   // The one moment the URLs exist: the API stores a link's state and never its token.
   const minted = page.getByTestId("qcms-minted-links");

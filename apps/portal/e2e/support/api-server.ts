@@ -25,6 +25,7 @@ import {
   adminLogin,
   buildEnv,
   composeApi,
+  environmentDatabases,
   mintInsuranceLink,
   releaseSeededVersionTo,
   seedAuthorMessagesForm,
@@ -235,7 +236,14 @@ export async function startApiServer(): Promise<void> {
     QCMS_FLAG_AGENT_AUTHORING: "fake",
     QCMS_RL_AGENT_ASSIST_MAX: "1000000",
   });
-  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger });
+  // **One pool per environment, not one handle behind every pool** (ADR-40, Q2, task 066).
+  // `MOUNT.all` mounts `test`'s respondent surface at `/test`, so this composition serves
+  // two environments and a single handle would write a `test` session into `data_prod` -
+  // where the per-schema `CHECK` refuses it (Q46, the thirteenth guard). The pools are
+  // built in the API's own e2e support, which is where `@roonga/qcms-db` and `pg` are
+  // dependencies: this harness resolves neither directly, deliberately (`db.ts` says why).
+  const databases = environmentDatabases(testDb);
+  const composed = composeApi(testDb.db, env, MOUNT.all, { logger: apiLogger, databases });
   const app = composed.app;
   const config = composed.deps.config;
 

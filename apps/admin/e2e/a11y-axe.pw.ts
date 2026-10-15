@@ -1050,7 +1050,10 @@ test("publish, preview, history and secure links have zero violations", async ({
   await expectNoViolations(page, "mint dialog");
 
   await fillDate(page, "Expires", "12312030");
-  await page.getByRole("dialog").getByRole("button", { name: "Mint", exact: true }).click();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Mint for prod", exact: true })
+    .click();
   await expect(page.getByTestId("qcms-minted-links")).toBeVisible({ timeout: 30_000 });
   await expectNoViolations(page, "minted links, shown once");
 
