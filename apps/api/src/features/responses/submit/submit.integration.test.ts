@@ -54,10 +54,7 @@ import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerServeStep } from "../serve-step/route.js";
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
-import {
-  registerAnonymousEntry,
-  registerLinkEntry,
-} from "../start-session/route.js";
+import { registerAnonymousEntry, registerLinkEntry } from "../start-session/route.js";
 import { registerSubmit } from "./route.js";
 
 const NOW = new Date("2026-07-20T00:00:00.000Z");

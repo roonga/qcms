@@ -49,12 +49,15 @@ export const FormLinkParams = z.object({
  */
 export const MintLinksBody = z
   .strictObject({
-    environment: z.string().min(1).openapi({
-      description:
-        "The environment this link belongs to; one of the live set. Required, with no " +
-        "default: a caller that omits it is refused (ADR-40, Q19).",
-      example: "test",
-    }),
+    environment: z
+      .string()
+      .min(1)
+      .openapi({
+        description:
+          "The environment this link belongs to; one of the live set. Required, with no " +
+          "default: a caller that omits it is refused (ADR-40, Q19).",
+        example: "test",
+      }),
     expiresAt: z.string().openapi({ example: "2026-12-31T23:59:59.000Z" }),
     oneTime: z.boolean().default(false).openapi({ example: true }),
     count: z.number().int().min(1).max(MAX_LINK_BATCH).default(1).openapi({ example: 1 }),

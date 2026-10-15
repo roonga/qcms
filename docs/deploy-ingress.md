@@ -379,10 +379,10 @@ ingress (ADR-20).
 
 **Two product variables pair with the rules below**, both on the portal and both optional:
 
-| Variable                        | What it does                                                                                                                |
-| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Variable                        | What it does                                                                                                                                 |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `QCMS_PORTAL_ENVIRONMENTS`      | The non-prod environments this portal serves, comma-separated. Empty means `prod` only, and an unlisted environment's addresses are a `404`. |
-| `QCMS_PORTAL_ENVIRONMENT_HOSTS` | `<env>=<host>` pairs. On a host named here the portal serves no `/f/{slug}` at all, which is the host handle in the product. |
+| `QCMS_PORTAL_ENVIRONMENT_HOSTS` | `<env>=<host>` pairs. On a host named here the portal serves no `/f/{slug}` at all, which is the host handle in the product.                 |
 
 Keep the first in step with the API's `QCMS_MOUNT`, which takes an environment's name as a surface:
 an address the portal serves and the API does not mount answers a `404` from the API instead.

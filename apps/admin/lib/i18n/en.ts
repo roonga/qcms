@@ -1419,6 +1419,8 @@ export const messages = {
     "Nothing was saved. The question ID \u201c{question}\u201d has been used before, and an ID is never reused for a different meaning (R6). Ask the assistant for a different ID.",
   "forms.error.proposedQuestionSlugTaken":
     "Nothing was saved. The library slug for the proposed question \u201c{question}\u201d is already in use. Rename the existing question, or ask the assistant for a different ID.",
+  "forms.error.unknownEnvironment":
+    "This deployment serves no such environment. Pick one from the environment switcher.",
   "forms.error.unknown": "The request failed ({code}).",
   "forms.error.unknownCreate": "The form could not be created. Try again.",
   "forms.error.listFailed": "The form library could not be loaded. {message}",
@@ -1535,7 +1537,11 @@ export const messages = {
   "forms.lifecycle.closedNote":
     "This form is closed in {environment}. New sessions there are refused; in-flight sessions finish normally, and other environments are unaffected.",
   "forms.lifecycle.notReleasedHere":
-    "Nothing is released in {environment}, so there is no intake to close there. Release a version first.",
+    "Nothing is released in this environment, so there is no intake to close there. Release a version first.",
+  "forms.lifecycle.alreadyClosedHere":
+    "Intake in this environment is already closed. Nothing changed, and nothing was recorded.",
+  "forms.lifecycle.alreadyOpenHere":
+    "Intake in this environment is already open. Nothing changed, and nothing was recorded.",
 
   // Releases and promotion (ADR-40, task 065). A release is a RECORD: nothing is copied,
   // nothing is reverted, and rolling back is releasing an earlier version.

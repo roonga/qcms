@@ -384,10 +384,7 @@ export async function POST(
     const receipt = await submitSession(sessionId, token, extras);
     await writeReceiptCookie(receipt);
     await clearSessionToken();
-    return NextResponse.redirect(
-      new URL(`${await currentBasePath()}/done`, request.url),
-      303,
-    );
+    return NextResponse.redirect(new URL(`${await currentBasePath()}/done`, request.url), 303);
   } catch (error) {
     // A submit that fails the API's final sweep (e.g. a missing required answer)
     // returns the respondent to the step to complete it.

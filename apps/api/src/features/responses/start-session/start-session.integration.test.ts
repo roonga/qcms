@@ -53,11 +53,7 @@ import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import type { ChallengeVerifier } from "../challenge.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
-import {
-  registerAnonymousEntry,
-  registerLinkEntry,
-  registerSessionStatus,
-} from "./route.js";
+import { registerAnonymousEntry, registerLinkEntry, registerSessionStatus } from "./route.js";
 
 const NOW = new Date("2026-07-20T00:00:00.000Z");
 const TTL_MS = 24 * 60 * 60 * 1000;
@@ -315,7 +311,13 @@ describe("typed failures (exit criterion 1)", () => {
   it("LINK_REVOKED for a revoked link (403)", async () => {
     const formId = await seedForm("frm_linkrev", "link-rev", { versions: 1 });
     const token = await seedLink(formId, "lnk_revoked");
-    await revokeSecureLink(testDb.db, LinkId.parse("lnk_revoked"), formId, DEFAULT_TEST_ENVIRONMENT, NOW);
+    await revokeSecureLink(
+      testDb.db,
+      LinkId.parse("lnk_revoked"),
+      formId,
+      DEFAULT_TEST_ENVIRONMENT,
+      NOW,
+    );
     const res = await post({ token });
     expect(res.status).toBe(403);
     expect(((await res.json()) as ErrBody).error.code).toBe("LINK_REVOKED");

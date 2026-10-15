@@ -535,14 +535,18 @@ describe("secure links helpers", () => {
     });
     expect((await getSecureLink(testDb.db, linkId))?.oneTime).toBe(true);
 
-    expect((await revokeSecureLink(testDb.db, linkId, formId))?.revokedAt).toBeInstanceOf(Date);
+    expect(
+      (await revokeSecureLink(testDb.db, linkId, formId, DEFAULT_TEST_ENVIRONMENT))?.revokedAt,
+    ).toBeInstanceOf(Date);
     // Revoked links cannot be consumed.
     expect(await consumeSecureLink(testDb.db, linkId, new Date())).toBeUndefined();
     // Idempotent revoke.
-    expect(await revokeSecureLink(testDb.db, linkId, formId)).toBeUndefined();
+    expect(
+      await revokeSecureLink(testDb.db, linkId, formId, DEFAULT_TEST_ENVIRONMENT),
+    ).toBeUndefined();
   });
 
-  it("refuses to revoke a link belonging to another form (#478)", async () => {
+  it("refuses to revoke a link belonging to another form (#478) or another environment", async () => {
     const ownerForm = FormId.parse("frm_revoke_owner");
     const otherForm = FormId.parse("frm_revoke_other");
     await createForm(testDb.db, {
@@ -570,11 +574,20 @@ describe("secure links helpers", () => {
     expect((await getSecureLink(testDb.db, linkId))?.formId).toBe(ownerForm);
 
     // Negative: naming the wrong form matches no row, and leaves the link intact.
-    expect(await revokeSecureLink(testDb.db, linkId, otherForm)).toBeUndefined();
+    expect(
+      await revokeSecureLink(testDb.db, linkId, otherForm, DEFAULT_TEST_ENVIRONMENT),
+    ).toBeUndefined();
+    // And naming the wrong ENVIRONMENT matches no row either (task 066), by the same
+    // mechanism: the environment joins the update's `where` clause, so a link in another
+    // environment is not revocable from here any more than one in another form is.
+    expect(await revokeSecureLink(testDb.db, linkId, ownerForm, "test")).toBeUndefined();
+    expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
     expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
 
     // Positive: the owning form revokes it.
-    expect((await revokeSecureLink(testDb.db, linkId, ownerForm))?.revokedAt).toBeInstanceOf(Date);
+    expect(
+      (await revokeSecureLink(testDb.db, linkId, ownerForm, DEFAULT_TEST_ENVIRONMENT))?.revokedAt,
+    ).toBeInstanceOf(Date);
   });
 
   it("consumes a one-time link exactly once (sequential)", async () => {
@@ -618,13 +631,13 @@ describe("secure links helpers", () => {
       });
       await new Promise((r) => setTimeout(r, 5));
     }
-    const rows = await listSecureLinks(testDb.db, formId);
+    const rows = await listSecureLinks(testDb.db, formId, DEFAULT_TEST_ENVIRONMENT);
     expect(rows).toHaveLength(3);
     expect(rows.every((r) => r.formId === formId)).toBe(true);
     // Another form's links never leak in.
-    expect(await listSecureLinks(testDb.db, FormId.parse("frm_link"))).not.toContainEqual(
-      expect.objectContaining({ linkId: "lnk_list_a" }),
-    );
+    expect(
+      await listSecureLinks(testDb.db, FormId.parse("frm_link"), DEFAULT_TEST_ENVIRONMENT),
+    ).not.toContainEqual(expect.objectContaining({ linkId: "lnk_list_a" }));
   });
 });
 

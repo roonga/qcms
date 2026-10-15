@@ -118,8 +118,8 @@ the `links:mint` SEC-5 scope, inert at launch; guarded by the internal
 service-token gate and admin-auth - a public-only process has no admin group, so
 these paths 404, ADR-09):
 
-| Route                                        | Body / effect                                                                                                                                                                             |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Route                                        | Body / effect                                                                                                                                                                                                       |
+| -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `POST /admin/forms/:id/links`                | `{ environment, expiresAt, oneTime?, count? }` → inserts `secure_links` rows and mints a token per row with the **current** signing key (`QCMS_LINK_KEYS[0]`); returns `[{ linkId, environment, url, expiresAt }]`. |
 | `GET /admin/forms/:id/links`                 | Lists **one environment's** links with derived `state` (`active` / `consumed` / `expired` / `revoked`) and the `consumedAt` / `revokedAt` / `createdAt` stamps.                                                     |
 | `POST /admin/forms/:id/links/:linkId/revoke` | Sets `revokedAt`; 018 rejects the link thereafter. A link that does not exist **in this form and this environment**, or is already revoked, → 404.                                                                  |

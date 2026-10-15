@@ -526,7 +526,11 @@ export async function setFormStatusAction(
   // "layout", for the reason `saveDraftAction` records: closing a form changes the header
   // of every screen under it, and the rules route is one of them (issue #669).
   revalidatePath(`/forms/${formId}`, "layout");
-  return { status: "changed", formStatus: result.data.status, environment: result.data.environment };
+  return {
+    status: "changed",
+    formStatus: result.data.status,
+    environment: result.data.environment,
+  };
 }
 
 /** What the mint dialog sends. `count` is bounded here as well as at the route. */

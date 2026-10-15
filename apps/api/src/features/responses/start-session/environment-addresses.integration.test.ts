@@ -143,7 +143,7 @@ beforeAll(async () => {
   const env = validEnv({ QCMS_RL_SESSION_CREATE_MAX: "500" });
   const deps: Deps = makeDeps({ databases: databases(), env, challenge: strictVerifier });
   internalToken = internalTokenFor(deps.config);
-  linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]!));
+  linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]));
   app = createApp(deps, MOUNTED, { groups });
   prodOnlyApp = createApp(deps, PROD_ONLY, { groups });
 }, CONTAINER_BOOT_TIMEOUT_MS);

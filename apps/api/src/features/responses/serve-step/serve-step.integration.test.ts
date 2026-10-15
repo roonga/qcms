@@ -49,10 +49,7 @@ import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { fixedClock, internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { importSessionKeys, mintSessionToken } from "../session-token.js";
-import {
-  registerAnonymousEntry,
-  registerLinkEntry,
-} from "../start-session/route.js";
+import { registerAnonymousEntry, registerLinkEntry } from "../start-session/route.js";
 import { registerServeStep } from "./route.js";
 import { HeldValues } from "./schema.js";
 

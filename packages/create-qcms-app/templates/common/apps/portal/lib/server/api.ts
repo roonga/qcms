@@ -410,7 +410,9 @@ export async function batchAnswers(
   const headers = await baseHeaders(token);
   const res = await loggedFetch(
     "/sessions/:sessionId/answers/batch",
-    await apiPath(`/sessions/${encodeURIComponent(sessionId)}/answers/batch${stepQuery(stepIndex)}`),
+    await apiPath(
+      `/sessions/${encodeURIComponent(sessionId)}/answers/batch${stepQuery(stepIndex)}`,
+    ),
     {
       method: "POST",
       headers,

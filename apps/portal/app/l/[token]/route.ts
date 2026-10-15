@@ -45,10 +45,7 @@ export async function GET(
   try {
     const session = await startLinkSession({ token });
     await writeSessionToken(session.sessionToken);
-    return NextResponse.redirect(
-      new URL(`${basePath}/s/${session.sessionId}`, request.url),
-      303,
-    );
+    return NextResponse.redirect(new URL(`${basePath}/s/${session.sessionId}`, request.url), 303);
   } catch (error) {
     const code = error instanceof ApiError ? error.code : "internal";
     const kind = ERROR_KIND[code] ?? "invalid";

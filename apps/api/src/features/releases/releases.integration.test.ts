@@ -155,7 +155,7 @@ beforeAll(async () => {
   adminUserId = seeded.userId;
   const deps: Deps = makeDeps({ databases: databases(), env: validEnv() });
   internalToken = internalTokenFor(deps.config);
-  linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]!));
+  linkKey = await importCompactTokenKey(new TextEncoder().encode(deps.config.keys.link[0]));
   app = createApp(deps, MOUNTED, {
     groups: {
       anonymous: [registerAnonymousEntry],
@@ -359,7 +359,7 @@ describe("release resolution replaces the newest published version (criterion 1)
 
 describe("a release never re-pins a live session (criterion 3, ADR-07 invariant I4)", () => {
   it("leaves an open session on the version it started, and pins the next one to the new version", async () => {
-    const { formId, slug } = await seedForm("pinned", 2);
+    const { formId } = await seedForm("pinned", 2);
     await post(`/forms/${formId}/releases`, { environment: "test", version: 1 });
 
     const started = await startIn("test", formId);

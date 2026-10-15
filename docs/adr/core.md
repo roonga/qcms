@@ -194,13 +194,13 @@ _Consequence:_ the one golden scenario that pinned the old reading, `repeat-ever
 
 **Note - the groups, as amended by task 066.** **Five kinds of group ride four mount decisions**, and mounting also installs the SEC-4 internal-token gate, so a mount is a topology control plus a channel gate.
 
-| Group        | Mounted at      | By                                     |
-| ------------ | --------------- | -------------------------------------- |
+| Group        | Mounted at       | By                                                                                         |
+| ------------ | ---------------- | ------------------------------------------------------------------------------------------ |
 | `respondent` | `/` and `/<env>` | `QCMS_MOUNT=public` for `prod`, and each environment's own name for a non-prod environment |
-| `anonymous`  | `/`             | `QCMS_MOUNT=public`, and nothing else  |
-| `internal`   | `/internal`     | `QCMS_MOUNT=internal`                  |
-| `admin`      | `/admin`        | `QCMS_MOUNT=admin`                     |
-| `auth`       | `/api/auth`     | `QCMS_MOUNT=admin`, with the admin group |
+| `anonymous`  | `/`              | `QCMS_MOUNT=public`, and nothing else                                                      |
+| `internal`   | `/internal`      | `QCMS_MOUNT=internal`                                                                      |
+| `admin`      | `/admin`         | `QCMS_MOUNT=admin`                                                                         |
+| `auth`       | `/api/auth`      | `QCMS_MOUNT=admin`, with the admin group                                                   |
 
 The count changed because **task 066 split anonymous entry from secure-link entry**, and the Note this replaces recorded why it had to. The two were one route, `POST /sessions`, discriminated by a body refine ("Provide exactly one of formSlug or token"), so SEC-14's "there is no anonymous entry to a non-prod environment" could only have been a handler's `403`. They are two routes now - `POST /sessions` and `POST /sessions/link` - and the non-prod respondent surface registers the second and not the first. So the refusal is a `404` because the route does not exist, which is what this decision says a mount decision means.
 

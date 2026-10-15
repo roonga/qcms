@@ -77,6 +77,23 @@ function isAnonymousEntry(path: string): boolean {
   return path === "/f" || path.startsWith("/f/");
 }
 
+/**
+ * Where this request is rewritten to, or `undefined` for one that is served as it came.
+ *
+ * Three outcomes, in order: a refused anonymous entry goes to a path no route matches, so
+ * the answer is the framework's own `404`; a prefixed path goes to its unprefixed form,
+ * carrying the query; anything else is already the path the route tree declares.
+ */
+function rewriteTarget(
+  request: NextRequest,
+  path: string,
+  anonymousRefused: boolean,
+): URL | undefined {
+  if (anonymousRefused) return new URL("/qcms-no-such-route", request.nextUrl);
+  if (path === request.nextUrl.pathname) return undefined;
+  return new URL(`${path}${request.nextUrl.search}`, request.nextUrl);
+}
+
 export function proxy(request: NextRequest): NextResponse {
   const nonceBytes = crypto.getRandomValues(new Uint8Array(16));
   const nonce = btoa(String.fromCharCode(...nonceBytes));
@@ -102,14 +119,9 @@ export function proxy(request: NextRequest): NextResponse {
   // and none on a hostname reserved for one (SEC-14). Rewritten to a path no route
   // matches, so the answer is Next's own 404 rather than a refusal this file composed.
   const anonymousRefused =
-    isAnonymousEntry(path) &&
-    (environment !== PROD_ENVIRONMENT || hostEnvironment !== undefined);
+    isAnonymousEntry(path) && (environment !== PROD_ENVIRONMENT || hostEnvironment !== undefined);
 
-  const rewritten = anonymousRefused
-    ? new URL("/qcms-no-such-route", request.nextUrl)
-    : path === request.nextUrl.pathname
-      ? undefined
-      : new URL(`${path}${request.nextUrl.search}`, request.nextUrl);
+  const rewritten = rewriteTarget(request, path, anonymousRefused);
 
   const response =
     rewritten === undefined

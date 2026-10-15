@@ -44,12 +44,14 @@ describe("loadConfig - presence and shape (SEC-7, SEC-8)", () => {
   });
 
   it("mounts one named non-prod environment's respondent surface and no other", () => {
+    // The third environment's credential is the harness's own synthetic one rather than a
+    // second URL written here: a literal would carry a port, and the port allocation is
+    // derived and never typed out (R8, `scripts/check-ports.mjs`).
     const mount = loadConfig(
       validEnv({
         QCMS_MOUNT: "public,admin,dev",
         QCMS_ENVIRONMENTS: "dev,test,prod",
-        QCMS_DATABASE_URL_DEV: "postgres://qcms_app_dev@localhost:5432/qcms",
-        QCMS_DATABASE_URL_TEST: "postgres://qcms_app_test@localhost:5432/qcms",
+        QCMS_DATABASE_URL_DEV: validEnv().QCMS_DATABASE_URL_TEST,
       }),
     ).mount;
     expect(mount).toEqual({

@@ -308,6 +308,18 @@ export interface DropRefusal {
   readonly reason: string;
   readonly openForms: readonly string[];
   readonly sessionCount: number;
+  /**
+   * How many release records name this environment (task 066's observation, 065's
+   * schema).
+   *
+   * **Not a new rule** - the database already refused this drop - and that is the whole
+   * reason it is counted here. `control.form_releases.environment` is a foreign key into
+   * `control.environments`, and the history rejects DELETE, so an environment anything
+   * was ever released to cannot be dropped **at all**: the delete of the `environments`
+   * row violates that key, with no sanctioned door to the rows holding it. Counting the
+   * rows turns a constraint violation into a refusal that says what happened.
+   */
+  readonly releaseCount: number;
 }
 
 /**
@@ -332,14 +344,19 @@ export interface DropRefusal {
  * through retention, which is a sanctioned door, and not by dropping the schema out from
  * under it.
  *
- * ## What "every form in it is closed" means before task 066
+ * ## What "every form in it is closed" means
  *
- * The closed state is **per form and environment** from 066 (Q18); today `forms.status`
- * is installation-wide. So until then this reads the open forms that **hold sessions in
- * this environment**, which is the set an operator has to act on: a form with no data
- * here is not in this environment in any sense the drop cares about. When 066 lands, the
- * same query reads that environment's own closed state and the two halves stop
- * collapsing into one.
+ * The closed state is **per form and environment** (Q18, task 066), so this reads **this
+ * environment's own** state: a form is open here when the newest `control.form_releases`
+ * row for the (form, environment) pair does not say closed. Before 066 it read
+ * `forms.status`, which was installation-wide, so "open" and "open here" collapsed into
+ * one and the query narrowed by sessions to compensate.
+ *
+ * It still narrows by sessions, and now for its own reason rather than as a stand-in: the
+ * refusal exists to name what an operator has to act on, and a form released here with no
+ * data here is not something they have to close before a drop that would remove nothing.
+ * The session count beside it is the other half of the refusal, so a form with data is
+ * named either way.
  */
 export async function dropEnvironment(
   exec: Executor,
@@ -350,6 +367,7 @@ export async function dropEnvironment(
       reason: `${UNDROPPABLE_ENVIRONMENT} can never be dropped`,
       openForms: [],
       sessionCount: 0,
+      releaseCount: 0,
     };
   }
 
@@ -368,19 +386,45 @@ export async function dropEnvironment(
     select distinct f.form_id
       from ${sql.identifier(CONTROL_SCHEMA)}.forms f
       join ${schema}.sessions s on s.form_id = f.form_id
-     where f.status = 'open'
+     where exists (
+             select 1
+               from ${sql.identifier(CONTROL_SCHEMA)}.form_releases r
+              where r.form_id = f.form_id
+                and r.environment = ${name}
+                and r.sequence = (
+                      select max(r2.sequence)
+                        from ${sql.identifier(CONTROL_SCHEMA)}.form_releases r2
+                       where r2.form_id = f.form_id
+                         and r2.environment = ${name})
+                and r.closed = false)
      order by f.form_id
   `);
   const open = openForms.rows.map((row) => row.form_id);
 
-  if (sessionCount > 0 || open.length > 0) {
+  // The release history, counted so the refusal below can say so. The database refuses
+  // this drop whatever this command does - see `DropRefusal.releaseCount` - so what is
+  // bought here is a legible refusal in place of a foreign-key violation, and nothing
+  // about whether the drop happens.
+  const releases = await exec.execute<{ count: number }>(
+    sql`select count(*)::int as count
+          from ${sql.identifier(CONTROL_SCHEMA)}.form_releases
+         where environment = ${name}`,
+  );
+  const releaseCount = releases.rows[0]?.count ?? 0;
+
+  if (sessionCount > 0 || open.length > 0 || releaseCount > 0) {
     return {
       reason:
         `${name} cannot be dropped: it holds ${String(sessionCount)} session(s)` +
         (open.length > 0 ? ` and these forms are still open in it: ${open.join(", ")}` : "") +
-        ". Close the forms and let retention empty the environment, then drop it.",
+        (releaseCount > 0
+          ? `. ${String(releaseCount)} release record(s) name it, and the release history is` +
+            " append-only, so there is no door to remove them: an environment anything was" +
+            " ever released to cannot be dropped"
+          : ". Close the forms and let retention empty the environment, then drop it."),
       openForms: open,
       sessionCount,
+      releaseCount,
     };
   }
 

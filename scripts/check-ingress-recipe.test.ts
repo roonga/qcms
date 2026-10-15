@@ -122,7 +122,10 @@ describe("the shipped stack is prod-only, so the recipe is what adds a surface",
     // Compose passes the variable through with an empty default, so a stack nobody
     // configured serves `prod` only and every `/<env>/` address is a 404. The recipe is
     // what turns one on, deliberately, beside the hostname and the allowlist.
-    const compose = readFileSync(fileURLToPath(new URL("../docker-compose.yml", import.meta.url)), "utf8");
+    const compose = readFileSync(
+      fileURLToPath(new URL("../docker-compose.yml", import.meta.url)),
+      "utf8",
+    );
     expect(compose).toContain("QCMS_PORTAL_ENVIRONMENTS: ${QCMS_PORTAL_ENVIRONMENTS:-}");
     expect(compose).toContain("QCMS_PORTAL_ENVIRONMENT_HOSTS: ${QCMS_PORTAL_ENVIRONMENT_HOSTS:-}");
   });

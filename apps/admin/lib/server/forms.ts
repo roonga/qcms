@@ -538,7 +538,8 @@ export async function setFormStatus(
     ok: true,
     data: {
       status: result.data.status === "closed" ? "closed" : "open",
-      environment: typeof result.data.environment === "string" ? result.data.environment : environment,
+      environment:
+        typeof result.data.environment === "string" ? result.data.environment : environment,
     },
   };
 }

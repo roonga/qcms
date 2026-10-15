@@ -680,7 +680,8 @@ export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsR
 
     // The status filter narrows before the per-row reads below rather than after them: a
     // closed-only list of a library of fifty forms should not pay for fifty drafts.
-    const byStatus = status === undefined ? rows : rows.filter((row) => statusOf(row.formId) === status);
+    const byStatus =
+      status === undefined ? rows : rows.filter((row) => statusOf(row.formId) === status);
 
     // One draft/version read per row is fine at launch admin scale (R7); a
     // denormalized status column is a Phase-4 optimization, not a launch need.
@@ -799,10 +800,7 @@ export function makeGetFormHandler(deps: Deps): RouteHandler<typeof getFormRoute
     const environmentState = await getFormEnvironmentState(
       deps.databases.control,
       formId,
-      requireEnvironment(
-        deps,
-        c.get("requestEnvironment") ?? deps.databases.defaultEnvironment,
-      ),
+      requireEnvironment(deps, c.get("requestEnvironment") ?? deps.databases.defaultEnvironment),
     );
 
     // The draft the editor opens: the open draft if one exists, otherwise seeded
