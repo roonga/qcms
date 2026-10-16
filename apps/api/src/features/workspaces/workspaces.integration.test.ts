@@ -221,6 +221,17 @@ describe("archiving a workspace (criterion 4)", () => {
     const workspaceId = await createWorkspace("archive-open");
     const elsewhere = await createWorkspace("archive-open-target");
     const formId = await seedForm("archive_open_form", workspaceId);
+    // Released, which is what makes it open **somewhere** since task 066 (Q18): there is
+    // no `forms.status`, so a form is open in an environment only where a release says
+    // so. Without the release this case would be about a form in neither narrower list,
+    // which is the case below.
+    await insertFormRelease(testDb.db, {
+      formId,
+      environment: "prod",
+      version: 1,
+      releasedBy: "usr_test",
+      fromEnvironment: null,
+    });
 
     const refused = await send("POST", `/workspaces/${workspaceId}/archive`);
     expect(refused.status).toBe(409);
@@ -229,7 +240,7 @@ describe("archiving a workspace (criterion 4)", () => {
     expect(body.error.details).toEqual({
       forms: [formId],
       openForms: [formId],
-      releasedForms: [],
+      releasedForms: [formId],
       shared: false,
     });
 

@@ -438,14 +438,14 @@ const allSurfaces = createApp(
 // form route and the question route), and every one is a `z.strictObject`.
 //
 // Task 066 then moved the respondent count from 5 to 6, the admin one from 18 to 20 and
-// the all-surfaces one from 25 to 27. Secure-link entry is its own route and so its own
+// the all-surfaces one from 25 to 28. Secure-link entry is its own route and so its own
 // body (`StartLinkSessionBody`), which is the split SEC-14's 404 claim rests on; close
 // and reopen each gained a body naming the environment whose intake they act on
 // (`FormEnvironmentBody`, Q18). Every one is a `z.strictObject`.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
   ["admin", committedAdmin, 20],
-  ["all surfaces with every flag on", allSurfaces, 27],
+  ["all surfaces with every flag on", allSurfaces, 28],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {
