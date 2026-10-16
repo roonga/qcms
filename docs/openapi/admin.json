@@ -4983,7 +4983,7 @@
     "/admin/workspaces/{id}/archive": {
       "post": {
         "summary": "Archive a workspace (admin)",
-        "description": "Refused while the workspace holds an open form or a released version, naming the forms to reassign. Nothing is deleted, closed or moved on the operator's behalf, and no response row is reached.",
+        "description": "Refused while the workspace owns any form at all, closed and never-released ones included, or while it is the shared question library. The refusal names the forms to reassign, reports the open and the released ones separately, and says to unmark the library or hand it on. Nothing is deleted, closed, moved or unmarked on the operator's behalf, and no response row is reached. An archive is terminal: there is no unarchive, and the only write an archived workspace still takes is unmarking the shared library.",
         "tags": [
           "workspaces"
         ],

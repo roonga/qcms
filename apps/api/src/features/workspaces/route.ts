@@ -114,9 +114,13 @@ export const archiveWorkspaceRoute = createRoute({
   path: "/workspaces/{id}/archive",
   summary: "Archive a workspace (admin)",
   description:
-    "Refused while the workspace holds an open form or a released version, naming the " +
-    "forms to reassign. Nothing is deleted, closed or moved on the operator's behalf, " +
-    "and no response row is reached.",
+    "Refused while the workspace owns any form at all, closed and never-released ones " +
+    "included, or while it is the shared question library. The refusal names the forms " +
+    "to reassign, reports the open and the released ones separately, and says to unmark " +
+    "the library or hand it on. Nothing is deleted, closed, moved or unmarked on the " +
+    "operator's behalf, and no response row is reached. An archive is terminal: there " +
+    "is no unarchive, and the only write an archived workspace still takes is unmarking " +
+    "the shared library.",
   tags,
   request: { params: WorkspaceIdParam },
   responses: {
@@ -124,7 +128,8 @@ export const archiveWorkspaceRoute = createRoute({
       description: "The archived workspace",
       content: { "application/json": { schema: WorkspaceResponse } },
     },
-    // 409: an open form or a released version remains, or it is archived already.
+    // 409: the workspace still owns a form, or it is the shared library, or it is
+    // archived already.
     ...errorResponses(401, 404, 409),
   },
   ...withScopes("forms:write"),

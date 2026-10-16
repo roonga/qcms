@@ -2,18 +2,21 @@
  * The workspace routes against a real Postgres (task 068, ADR-41). Requires Docker.
  *
  * Driven through `app.request()` with a real admin session, because what these tests are
- * about is the refusals: the archive that is refused while an open form or a released
- * version remains (criterion 4), the second shared workspace, the ambiguous create, and
- * the move that makes the archive possible. Each of those is a handler rule over several
- * tables, so a fake database would be asserting the fake.
+ * about is the refusals: the archive that is refused while the workspace owns **any**
+ * form - open, closed and never released, or released - or while it is the shared
+ * question library (criterion 4 as Q64 and Q65 widened it), the second shared workspace,
+ * the ambiguous create, and the move that makes the archive possible. Each of those is a
+ * handler rule over several tables, so a fake database would be asserting the fake.
  *
- * Which criteria live here: **4** in full (refused, then allowed once the forms are
- * reassigned), **5**'s route half (no path deletes a workspace, and the one that ends its
- * life reaches no response row), and the create-path half of **1** (a form or question
- * created with no workspace named is resolved or refused, never left unowned). Criterion
- * **2** is in `../forms/forms.integration.test.ts`, where publish lives; **3** and the
- * database half of 1, 5 and 7 are in `packages/db/src/queries/workspaces.integration.test.ts`;
- * **6**'s two halves are `rules.test.ts` and that publish test.
+ * Which criteria live here: **4** in full (each refusal with its named blockers, then
+ * allowed once the forms are reassigned and the library is handed on, and the archive
+ * asserted terminal), **5**'s route half (no path deletes a workspace, and the one that
+ * ends its life reaches no response row), and the create-path half of **1** (a form or
+ * question created with no workspace named is resolved or refused, never left unowned).
+ * Criterion **2** is in `../forms/forms.integration.test.ts`, where publish lives; **3**
+ * and the database half of 1, 5 and 7 are in
+ * `packages/db/src/queries/workspaces.integration.test.ts`; **6**'s two halves are
+ * `rules.test.ts` and that publish test.
  */
 
 import { QuestionId, parseQuestionDefinition } from "@roonga/qcms-core";

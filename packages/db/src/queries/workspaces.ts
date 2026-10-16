@@ -150,9 +150,15 @@ export async function setWorkspaceShared(
  * **Never a cascade and never a delete.** No form, question, version, release or response
  * row is touched, which is the property criterion 5 asserts: ADR-17 keeps exactly two
  * whole-session delete paths and "archive a workspace" is deliberately not allowed to
- * become a third. The refusal that has to happen first - no open form, no released
- * version - is the caller's, because it is a rule over other tables rather than a
- * property of this row (`apps/api/src/features/workspaces/handler.ts`).
+ * become a third. The refusal that has to happen first - **no form of any kind, and not
+ * the shared library** (Q64, Q65) - is the caller's, because it is a rule over other
+ * tables and over this row's own `isShared` rather than a property of the stamp
+ * ({@link findArchiveBlockers} below, and
+ * `apps/api/src/features/workspaces/handler.ts`).
+ *
+ * **There is no unarchive** (Q66), which is why this stamp is written once and why the
+ * only write an archived workspace still takes is {@link setWorkspaceShared} unmarking
+ * the library.
  *
  * `WHERE "archivedAt" IS NULL` makes it idempotent in the honest direction: a workspace
  * already archived matches nothing, so the stamp of the act that archived it is never

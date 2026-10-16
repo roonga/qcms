@@ -146,7 +146,7 @@ first three fields on the organisation row, the owner's `member` row, and the tw
 non-null references into it from `control.forms` and `control.questions`. The rules over
 those columns are **QCMS's own code and do not move with the table**: the slug is unique
 installation-wide at the database, at most one workspace is marked shared, the archive
-refuses while an open form or a released version remains, and the publish-time pin rule
+refuses while the workspace owns any form at all or is the shared library, and the publish-time pin rule
 allows a form to pin its own workspace's questions or the shared workspace's and refuses
 everything else (`apps/api/src/features/workspaces/rules.ts`). A replacement has to satisfy
 those; it does not have to re-derive them. The team rows, the six roles, the scope and the
