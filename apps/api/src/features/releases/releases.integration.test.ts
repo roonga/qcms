@@ -40,6 +40,7 @@ import { FormId, QuestionId, parseQuestionDefinition } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createQuestion,
   createQuestionVersion,
@@ -191,7 +192,11 @@ async function seedPublishedQuestion(id: string): Promise<void> {
     label: { en: "Field" },
   });
   if (!parsed.ok) throw new Error(`fixture question ${id} did not parse`);
-  await createQuestion(control, { questionId, slug: id.replace(/_/g, "-") });
+  await createQuestion(control, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId,
+    slug: id.replace(/_/g, "-"),
+  });
   await createQuestionVersion(control, { questionId, definition: parsed.value });
   await publishQuestionVersion(control, { questionId, version: 1 });
 }
@@ -217,7 +222,7 @@ function draftDefinition(formId: string, questionId: string): Record<string, unk
 async function seedForm(label: string, versions = 1): Promise<{ formId: FormId; slug: string }> {
   const formId = FormId.parse(`frm_${label}`);
   const slug = `${label}-slug`;
-  await createForm(control, { formId, slug, defaultLocale: "en" });
+  await createForm(control, { workspaceId: SEED_WORKSPACE_ID, formId, slug, defaultLocale: "en" });
   for (let i = 0; i < versions; i += 1) {
     await insertFormVersion(control, {
       formId,
@@ -511,7 +516,12 @@ describe("publish and release in one act (finding 2's combined action)", () => {
   it("publishes a version and releases it, atomically", async () => {
     const formId = FormId.parse("frm_combined");
     await seedPublishedQuestion("q_combined");
-    await createForm(control, { formId, slug: "combined-slug", defaultLocale: "en" });
+    await createForm(control, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "combined-slug",
+      defaultLocale: "en",
+    });
     const draft = await apps.get("prod")!.request(`/admin/forms/${formId}/draft`, {
       method: "PUT",
       headers: adminHeaders(),
@@ -536,7 +546,14 @@ describe("publish and release in one act (finding 2's combined action)", () => {
   it("publishes nothing when the release half cannot be written", async () => {
     const formId = FormId.parse("frm_combinedrefused");
     await seedPublishedQuestion("q_combinedrefused");
-    await createForm(control, { formId, slug: "refused-slug", defaultLocale: "en" });
+    await createForm(control, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      // Distinct from `seedForm("refused")`'s slug one describe block up, which it was
+      // only by luck before task 068 made `forms.slug` unique installation-wide.
+      slug: "combined-refused-slug",
+      defaultLocale: "en",
+    });
     await apps.get("prod")!.request(`/admin/forms/${formId}/draft`, {
       method: "PUT",
       headers: adminHeaders(),

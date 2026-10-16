@@ -1322,6 +1322,12 @@ export const messages = {
   "forms.issue.duplicateStep": "Two steps share an ID, so a rule targeting it would be ambiguous.",
   "forms.issue.deprecatedPin":
     "This pin points at a deprecated version. It keeps working exactly as it is, and a new pin cannot be made to it.",
+  // The workspace pin rule (ADR-41, task 068). Deliberately parallel to the sentence
+  // above, because the shape of the answer is the same: what is already pinned keeps
+  // working, and a new pin needs a question this form's workspace may pin. The two ways
+  // forward are both named, since an author who cannot see them reads this as a wall.
+  "forms.issue.foreignWorkspacePin":
+    "This pin points at a question another workspace owns. Pins that were already published keep working; a new one needs a question in this form's own workspace or in the shared library.",
   "forms.issue.unknown": "The engine reported an issue this screen has no wording for ({code}).",
   // Blank authored text (issue #366). The publish gate names the question and the locale;
   // this is the sentence that says why a value made of spaces is not a value.

@@ -51,8 +51,11 @@ export {
   listVersionsForQuestions,
   updateDraftDefinition,
   listQuestions,
+  listQuestionOwnership,
+  moveQuestionToWorkspace,
   isQuestionIdTaken,
   isQuestionIdInAnswerLedger,
+  type QuestionOwnership,
 } from "./questions.js";
 
 export {
@@ -73,8 +76,32 @@ export {
   listFormVersions,
   closeForm,
   reopenForm,
+  moveFormToWorkspace,
   updateFormSettings,
 } from "./forms.js";
+
+// Workspaces (ADR-41, task 068): a workspace is better-auth's `organization` row, and
+// these are the QCMS reads of it plus the two writes its own fields take - the shared
+// flag and the archive stamp. Creating one is the library's call (`createOrganization`),
+// except for `ensureSeedWorkspace`, which is the fixture path and says why.
+export {
+  type WorkspaceRow,
+  type ArchiveBlockers,
+  type WorkspaceContents,
+  SEED_WORKSPACE_ID,
+  SEED_WORKSPACE_NAME,
+  SEED_WORKSPACE_SLUG,
+  listWorkspaces,
+  listActiveWorkspaces,
+  getWorkspace,
+  getWorkspaceBySlug,
+  getSharedWorkspace,
+  setWorkspaceShared,
+  archiveWorkspace,
+  findArchiveBlockers,
+  countWorkspaceContents,
+  ensureSeedWorkspace,
+} from "./workspaces.js";
 
 export {
   type SessionRow,

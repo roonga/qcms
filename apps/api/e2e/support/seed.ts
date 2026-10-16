@@ -42,7 +42,7 @@ import {
   publishQuestionVersion,
   upsertDraft,
 } from "@roonga/qcms-db";
-import { DEFAULT_TEST_ENVIRONMENT, type TestDb } from "@roonga/qcms-db/testing";
+import { SEED_WORKSPACE_ID, DEFAULT_TEST_ENVIRONMENT, type TestDb } from "@roonga/qcms-db/testing";
 
 import {
   AUTHOR_MESSAGES_DEF,
@@ -101,12 +101,20 @@ async function appendPublishedVersion(
 /** The library questions the insurance form pins: q_at_fault_accident@2, q_accident_count@1. */
 export async function seedInsuranceQuestions(db: Db): Promise<void> {
   const accident = QuestionId.parse("q_at_fault_accident");
-  await createQuestion(db, { questionId: accident, slug: "accident" });
+  await createQuestion(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId: accident,
+    slug: "accident",
+  });
   // The form pins q_at_fault_accident@2, so create v1 then v2 (identical definitions).
   await appendPublishedVersion(db, accident, ACCIDENT_DEF);
   await appendPublishedVersion(db, accident, ACCIDENT_DEF);
   const accidentCount = QuestionId.parse("q_accident_count");
-  await createQuestion(db, { questionId: accidentCount, slug: "accident-count" });
+  await createQuestion(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId: accidentCount,
+    slug: "accident-count",
+  });
   await appendPublishedVersion(db, accidentCount, ACCIDENT_COUNT_DEF);
 }
 
@@ -137,7 +145,12 @@ export async function seedInsuranceForm(
   const formId = opts.formId ?? "frm_auto_quote";
   const slug = opts.slug ?? "auto";
   if (opts.sharedQuestionsSeeded !== true) await seedInsuranceQuestions(db);
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   await publishInsuranceVersion(db, formId);
   if (opts.closed === true) await closeForm(db, FormId.parse(formId));
   return { formId, slug };
@@ -178,7 +191,7 @@ export async function seedUnpublishedPinForm(
   const items: { questionId: string; version: number }[] = [];
   for (const question of STALE_PIN_QUESTIONS) {
     const questionId = QuestionId.parse(question.questionId);
-    await createQuestion(db, { questionId, slug: question.slug });
+    await createQuestion(db, { workspaceId: SEED_WORKSPACE_ID, questionId, slug: question.slug });
     // No publish, and that is the whole fixture: an appended version is a draft.
     const row = await createQuestionVersion(db, {
       questionId,
@@ -186,7 +199,12 @@ export async function seedUnpublishedPinForm(
     });
     items.push({ questionId: question.questionId, version: row.version });
   }
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   await upsertDraft(db, {
     formId: FormId.parse(formId),
     definition: {
@@ -312,7 +330,7 @@ async function seedQuestionVersion(
   definition: QuestionVersionInput["definition"],
 ): Promise<void> {
   const parsed = QuestionId.parse(questionId);
-  await createQuestion(db, { questionId: parsed, slug });
+  await createQuestion(db, { workspaceId: SEED_WORKSPACE_ID, questionId: parsed, slug });
   await appendPublishedVersion(db, parsed, definition);
 }
 
@@ -375,7 +393,11 @@ export async function seedKitchenSinkUniqueQuestions(db: Db): Promise<void> {
 export async function seedKitchenSinkSharedQuestions(db: Db): Promise<void> {
   // q_at_fault_accident is pinned @2: create v1 then v2 (identical definitions).
   const accident = QuestionId.parse("q_at_fault_accident");
-  await createQuestion(db, { questionId: accident, slug: "accident" });
+  await createQuestion(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId: accident,
+    slug: "accident",
+  });
   await appendPublishedVersion(db, accident, ACCIDENT_DEF);
   await appendPublishedVersion(db, accident, ACCIDENT_DEF);
   await seedQuestionVersion(db, "q_accident_count", "accident-count", ACCIDENT_COUNT_DEF);
@@ -398,7 +420,12 @@ export async function seedKitchenSinkForm(
     await seedKitchenSinkSharedQuestions(db);
   }
   await seedKitchenSinkUniqueQuestions(db);
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: KS_DEF,
@@ -432,7 +459,12 @@ export async function seedAuthorMessagesForm(
       question.definition as QuestionVersionInput["definition"],
     );
   }
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: AUTHOR_MESSAGES_DEF as FormVersionInput["definition"],
@@ -472,7 +504,12 @@ export async function seedRepeatFleetForm(
       question.definition as QuestionVersionInput["definition"],
     );
   }
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_FLEET_DEF as FormVersionInput["definition"],
@@ -514,7 +551,12 @@ export async function seedRepeatTableForm(
       question.definition as QuestionVersionInput["definition"],
     );
   }
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TABLE_DEF as FormVersionInput["definition"],
@@ -555,7 +597,12 @@ export async function seedRepeatTourForm(
       question.definition as QuestionVersionInput["definition"],
     );
   }
-  await createForm(db, { formId: FormId.parse(formId), slug, defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FormId.parse(formId),
+    slug,
+    defaultLocale: "en",
+  });
   const seeded = await insertFormVersion(db, {
     formId: FormId.parse(formId),
     definition: REPEAT_TOUR_DEF as FormVersionInput["definition"],

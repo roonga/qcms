@@ -41,6 +41,7 @@ import {
   stepQuestionRefs,
 } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   appendAnswer,
   createForm,
   createQuestion,
@@ -104,12 +105,21 @@ function handAuthoredDefinition() {
 }
 
 async function authorByHand(): Promise<void> {
-  await createQuestion(db, { questionId: HAND_AUTHORED, slug: "hand-authored" });
+  await createQuestion(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    questionId: HAND_AUTHORED,
+    slug: "hand-authored",
+  });
   await createQuestionVersion(db, {
     questionId: HAND_AUTHORED,
     definition: handAuthoredDefinition(),
   });
-  await createForm(db, { formId: HAND_AUTHORED_FORM, slug: "hand-authored", defaultLocale: "en" });
+  await createForm(db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: HAND_AUTHORED_FORM,
+    slug: "hand-authored",
+    defaultLocale: "en",
+  });
 }
 
 /** Every question id in a library right now, sorted. */
@@ -285,7 +295,11 @@ describe("the derivation boundary (issue #994 review)", () => {
     // serving a snapshot that describes the fixture long-text question while the pin
     // resolves to the operator's short-text one - and, on an unpublished pin, the exact
     // state `UNPUBLISHED_QUESTION_PIN` exists to prevent.
-    await createQuestion(db2, { questionId: TAKEN, slug: "medical-history" });
+    await createQuestion(db2, {
+      workspaceId: SEED_WORKSPACE_ID,
+      questionId: TAKEN,
+      slug: "medical-history",
+    });
     await createQuestionVersion(db2, { questionId: TAKEN, definition: theirDefinition() });
 
     await expect(seed(db2)).rejects.toBeInstanceOf(PublishRefused);

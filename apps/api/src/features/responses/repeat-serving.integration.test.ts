@@ -40,6 +40,7 @@ import {
   type QuestionDefinition,
 } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   answerLedger,
   createForm,
   createQuestion,
@@ -243,6 +244,7 @@ beforeAll(async () => {
 
   for (const question of QUESTIONS) {
     await createQuestion(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       questionId: question.questionId,
       slug: question.questionId.replaceAll("_", "-"),
     });
@@ -285,7 +287,12 @@ beforeAll(async () => {
   const wideCompiled = compileForm(wideDraft.value.snapshot, {});
 
   formId = FormId.parse("frm_repeat_serving");
-  await createForm(testDb.db, { formId, slug: "two-fleets", defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: "two-fleets",
+    defaultLocale: "en",
+  });
   await insertFormVersion(testDb.db, {
     formId,
     definition: DEFINITION,
@@ -312,7 +319,12 @@ beforeAll(async () => {
   const piCompiled = compileForm(piDraft.value.snapshot, {});
 
   wideFormId = FormId.parse("frm_repeat_wide");
-  await createForm(testDb.db, { formId: wideFormId, slug: "wide-fleet", defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: wideFormId,
+    slug: "wide-fleet",
+    defaultLocale: "en",
+  });
   await insertFormVersion(testDb.db, {
     formId: wideFormId,
     definition: WIDE_DEFINITION,
@@ -324,6 +336,7 @@ beforeAll(async () => {
 
   perInstanceFormId = FormId.parse("frm_per_instance");
   await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     formId: perInstanceFormId,
     slug: "one-vehicle-at-a-time",
     defaultLocale: "en",

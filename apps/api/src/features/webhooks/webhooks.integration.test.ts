@@ -10,7 +10,7 @@
  */
 
 import { FormId } from "@roonga/qcms-core";
-import { createForm, getWebhook } from "@roonga/qcms-db";
+import { SEED_WORKSPACE_ID, createForm, getWebhook } from "@roonga/qcms-db";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -54,7 +54,12 @@ beforeAll(async () => {
   ({ deps, app } = buildApp(baseEnv));
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
-  await createForm(testDb.db, { formId: FORM_ID, slug: "webhooks-it", defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_ID,
+    slug: "webhooks-it",
+    defaultLocale: "en",
+  });
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {

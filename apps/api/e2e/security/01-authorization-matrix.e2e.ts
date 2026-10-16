@@ -35,6 +35,8 @@ import { Buffer } from "node:buffer";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { SEED_WORKSPACE_ID } from "@roonga/qcms-db/testing";
+
 import { seedAdminSession, synthSecret } from "../../src/test-support.js";
 import {
   adminLogin,
@@ -196,6 +198,12 @@ beforeAll(async () => {
     // credential the gate refuses before any handler resolves the id.
     deliveryId: "dlv_matrix_probe",
     questionId: "q_at_fault_accident",
+    // The workspace the seed put the form and its questions in (ADR-41, task 068). A real
+    // id, so `GET /admin/workspaces` is genuinely servable as a positive control and the
+    // archive and shared-switch probes name a row that exists: a probe against an id that
+    // did not would be refused by the handler even where a gate had failed, which is the
+    // one way these probes could pass for the wrong reason.
+    workspaceId: SEED_WORKSPACE_ID,
   };
 });
 

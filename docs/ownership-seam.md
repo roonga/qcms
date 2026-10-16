@@ -93,12 +93,12 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (418 files common to both shapes)
+### Scaffolded paths (423 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 407   |
+| `apps/`                                                              | 412   |
 | `apps/admin/`                                                        | 247   |
 | `apps/admin/app/`                                                    | 71    |
 | `apps/admin/app/(shell)/`                                            | 53    |
@@ -171,9 +171,9 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
 | `apps/admin/lib/server/`                                             | 26    |
-| `apps/api/`                                                          | 90    |
-| `apps/api/src/`                                                      | 87    |
-| `apps/api/src/features/`                                             | 55    |
+| `apps/api/`                                                          | 95    |
+| `apps/api/src/`                                                      | 92    |
+| `apps/api/src/features/`                                             | 60    |
 | `apps/api/src/features/auth/`                                        | 4     |
 | `apps/api/src/features/forms/`                                       | 12    |
 | `apps/api/src/features/forms/assist/`                                | 9     |
@@ -187,6 +187,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/api/src/features/responses/start-session/`                     | 3     |
 | `apps/api/src/features/responses/submit/`                            | 3     |
 | `apps/api/src/features/webhooks/`                                    | 6     |
+| `apps/api/src/features/workspaces/`                                  | 5     |
 | `apps/api/src/middleware/`                                           | 7     |
 | `apps/api/src/routes/`                                               | 1     |
 | `apps/api/src/schedulers/`                                           | 4     |
@@ -233,7 +234,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2540` lines across `372` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2605` lines across `377` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -248,7 +249,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (418)</summary>
+<summary>Every scaffolded file (423)</summary>
 
 ```
 .dockerignore
@@ -566,6 +567,11 @@ apps/api/src/features/webhooks/route.ts
 apps/api/src/features/webhooks/schema.ts
 apps/api/src/features/webhooks/signing.ts
 apps/api/src/features/webhooks/ssrf.ts
+apps/api/src/features/workspaces/handler.ts
+apps/api/src/features/workspaces/resolve.ts
+apps/api/src/features/workspaces/route.ts
+apps/api/src/features/workspaces/rules.ts
+apps/api/src/features/workspaces/schema.ts
 apps/api/src/index.ts
 apps/api/src/logger.ts
 apps/api/src/main.ts

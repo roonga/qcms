@@ -78,6 +78,7 @@ import {
   getLatestPublishedVersion,
   insertFormVersion,
   listForms,
+  listQuestionOwnership,
   listFormVersions,
   listQuestionVersions,
   type QuestionStatus,
@@ -85,13 +86,15 @@ import {
   updateFormSettings,
   upsertDraft,
 } from "@roonga/qcms-db";
-import type { Executor, FormDraftRow, FormVersionRow } from "@roonga/qcms-db";
+import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "@roonga/qcms-db";
 
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
+import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
+import { mayPinQuestion } from "../workspaces/rules.js";
 import type {
   closeFormRoute,
   createFormRoute,
@@ -121,7 +124,20 @@ interface DeprecatedPinIssue {
   readonly message: string;
   readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
 }
-export type PublishIssue = PublishError | DeprecatedPinIssue;
+/**
+ * A new-or-moved pin to a question another workspace owns (ADR-41, Q14, task 068).
+ *
+ * The same shape as `DEPRECATED_PIN` and reported through the same channel, because the
+ * ruling is explicit that an author should meet **one mechanism rather than two**: both
+ * are "this version is not one you may newly pin here", both are refused at publish, and
+ * both carry the structured path the admin's publish panel already renders.
+ */
+interface ForeignWorkspacePinIssue {
+  readonly code: "FOREIGN_WORKSPACE_PIN";
+  readonly message: string;
+  readonly path: { readonly step: StepId; readonly question: QuestionId; readonly version: number };
+}
+export type PublishIssue = PublishError | DeprecatedPinIssue | ForeignWorkspacePinIssue;
 /**
  * Re-exported so the assist slice (041) takes the advisory contract from the one
  * place that produces it, rather than importing half of it from here and half
@@ -145,6 +161,15 @@ const fail = {
     ),
   idTaken: (): ApiError =>
     new ApiError("FORM_ID_TAKEN", 409, "This formId is already in use (ids are never reused)"),
+  /**
+   * The slug is taken, installation-wide (ADR-41, task 068, criterion 3).
+   *
+   * Installation-wide and not per workspace, deliberately: `/f/{slug}` carries no
+   * workspace segment, so a slug names at most one form however many workspaces exist,
+   * and a second workspace cannot quietly claim an address another one serves.
+   */
+  slugTaken: (slug: string): ApiError =>
+    new ApiError("FORM_SLUG_TAKEN", 409, `The slug "${slug}" is already in use`),
   formNotFound: (): ApiError => new ApiError("FORM_NOT_FOUND", 404, "No such form"),
   noDraft: (): ApiError => new ApiError("NO_DRAFT", 409, "This form has no open draft to publish"),
   versionNotFound: (): ApiError => new ApiError("VERSION_NOT_FOUND", 404, "No such form version"),
@@ -313,14 +338,7 @@ function deprecatedPinGate(
   statusByPin: ReadonlyMap<string, QuestionStatus>,
   publishedQuestionVersions: Map<QuestionId, Set<number>>,
 ): DeprecatedPinIssue[] {
-  const carried = new Set<string>();
-  if (previousDefinition !== undefined) {
-    for (const step of previousDefinition.steps) {
-      for (const item of stepQuestionRefs(step)) {
-        carried.add(placementKey(step.stepId, item.questionId, item.version));
-      }
-    }
-  }
+  const carried = carriedPlacements(previousDefinition);
 
   const issues: DeprecatedPinIssue[] = [];
   for (const step of definition.steps) {
@@ -341,6 +359,85 @@ function deprecatedPinGate(
 }
 
 /**
+ * The carried-over placements of a draft's previous published version.
+ *
+ * `(step, question, version)` keyed, which is what "carried over" means for both gates
+ * below: the author did not touch this pin. A pin moved to another step, or repointed to
+ * another version, is a **new** pin even though the same question is involved, and both
+ * gates treat it as one.
+ */
+function carriedPlacements(previousDefinition: FormDefinition | undefined): Set<string> {
+  const carried = new Set<string>();
+  if (previousDefinition === undefined) return carried;
+  for (const step of previousDefinition.steps) {
+    for (const item of stepQuestionRefs(step)) {
+      carried.add(placementKey(step.stepId, item.questionId, item.version));
+    }
+  }
+  return carried;
+}
+
+/**
+ * The workspace pin gate (ADR-41, Q14, finding 10; task 068's criterion 2).
+ *
+ * A form may pin a published question version owned by its **own** workspace or by the
+ * **shared** workspace, and by nowhere else. A pin to any other workspace's question is
+ * refused `FOREIGN_WORKSPACE_PIN` - unless the exact placement was already in the
+ * previous published version, in which case it is **grandfathered**.
+ *
+ * # The grandfathering is two properties, not one
+ *
+ * Q14 says a form elsewhere that already pins a moved question keeps serving **and**
+ * keeps that pin in its next draft. The first half needs no code: a published version is
+ * immutable and the serve path replays it (R1, ADR-18), so a question moving workspaces
+ * cannot disturb it. **The second half is this `carried` check**, and it is the half an
+ * implementation drops, because the draft is where the refusal lives: without it, the
+ * first ordinary edit to an unrelated step of that form would be unpublishable.
+ *
+ * # Why the mechanism is the deprecated-pin gate's
+ *
+ * The ruling asks for one mechanism rather than two, so this gate is the other one's
+ * shape in every respect that is visible to an author: the same issue channel, the same
+ * structured path, the same carried-placement rule, and therefore the same consequence
+ * for a moved pin. Moving a grandfathered pin to another step is a new pin and is
+ * refused; the author's way forward is the same as it is for a deprecated version, which
+ * is to pin something they are allowed to pin.
+ *
+ * # What it does NOT do
+ *
+ * It does not ask who is publishing. A pin is a fact about the form's workspace and the
+ * question's (`features/workspaces/rules.ts`), so this gate needs no membership and holds
+ * for every caller, the installation administrator included. The **edit** half of
+ * finding 10's asymmetry - that only the owning workspace's members may change a shared
+ * question's wording - is the same module's `mayEditQuestion`, whose caller arrives with
+ * task 069's resolver.
+ */
+function workspacePinGate(
+  definition: FormDefinition,
+  formWorkspaceId: string,
+  ownershipByQuestion: ReadonlyMap<QuestionId, QuestionOwnership>,
+  carried: ReadonlySet<string>,
+): ForeignWorkspacePinIssue[] {
+  const issues: ForeignWorkspacePinIssue[] = [];
+  for (const step of definition.steps) {
+    for (const item of stepQuestionRefs(step)) {
+      const question = ownershipByQuestion.get(item.questionId);
+      // A question with no ownership row is a question that does not exist, which
+      // `compileDraft` reports as an unresolvable pin. Nothing to add here.
+      if (question === undefined) continue;
+      if (mayPinQuestion({ formWorkspaceId, question })) continue;
+      if (carried.has(placementKey(step.stepId, item.questionId, item.version))) continue;
+      issues.push({
+        code: "FOREIGN_WORKSPACE_PIN",
+        message: `Step "${step.stepId}" pins question "${item.questionId}"@${String(item.version)}, which another workspace owns, as a new or moved pin`,
+        path: { step: step.stepId, question: item.questionId, version: item.version },
+      });
+    }
+  }
+  return issues;
+}
+
+/**
  * Run the full publish validation in dry-run: the deprecated-pin gate plus
  * `compileDraft` (008). Returns every issue (all errors, never first-only),
  * every non-blocking warning, and - when the draft is clean - the frozen
@@ -352,9 +449,9 @@ function deprecatedPinGate(
  * kernel error suppresses every warning (issue #123).
  *
  * It is **not** true that a warning cannot appear beside an issue. `issues` also
- * carries this layer's `DEPRECATED_PIN` findings, so a draft that moves a pin
- * onto a deprecated version *and* reveals a same-step question from a
- * multiChoice answer has both facts and reports both. That coexistence is
+ * carries this layer's `DEPRECATED_PIN` and `FOREIGN_WORKSPACE_PIN` findings, so
+ * a draft that moves a pin onto a deprecated version *and* reveals a same-step
+ * question from a multiChoice answer has both facts and reports both. That coexistence is
  * deliberate rather than tolerated: suppressing the advisory because an
  * unrelated deprecation is open would drop information the author needs, and
  * would make the warning list depend on which *other* problems happen to exist.
@@ -376,6 +473,7 @@ export async function validateDraft(
   );
   const previous = await getLatestPublishedVersion(deps.databases.control, definition.formId);
   const previousDefinition: FormDefinition | undefined = previous?.definition;
+  const carried = carriedPlacements(previousDefinition);
 
   const deprecatedIssues = deprecatedPinGate(
     definition,
@@ -384,9 +482,32 @@ export async function validateDraft(
     publishedQuestionVersions,
   );
 
+  // The workspace gate (068). The form's own workspace is read here rather than passed
+  // in, because every caller of this function has the `formId` and not the row, and the
+  // rule is about the state at validation time: a form moved between two publishes is
+  // judged against the workspace it is in NOW, which is what makes the answer the same
+  // one the publish a moment later will give.
+  const form = await getForm(deps.databases.control, definition.formId);
+  const ownership = await listQuestionOwnership(deps.databases.control, [
+    ...pinnedQuestionIds(definition),
+  ]);
+  const workspaceIssues =
+    form === undefined
+      ? []
+      : workspacePinGate(
+          definition,
+          form.workspaceId,
+          new Map(ownership.map((row) => [row.questionId, row])),
+          carried,
+        );
+
   const draft: DraftInput = { definition, resolveQuestion, publishedQuestionVersions };
   const result = compileDraft(draft);
-  const issues: PublishIssue[] = [...deprecatedIssues, ...(result.ok ? [] : result.error)];
+  const issues: PublishIssue[] = [
+    ...deprecatedIssues,
+    ...workspaceIssues,
+    ...(result.ok ? [] : result.error),
+  ];
   return {
     issues,
     warnings: result.ok ? result.value.warnings : [],
@@ -399,6 +520,22 @@ function isUniqueViolation(err: unknown): boolean {
   const codeOf = (e: unknown): string | undefined =>
     typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined;
   return codeOf(err) === "23505" || codeOf((err as { cause?: unknown }).cause) === "23505";
+}
+
+/**
+ * Whether a unique violation came from `forms_slug_unique` rather than the primary key.
+ *
+ * Read off the constraint name, which the driver puts on the error (or on its `cause`,
+ * since Drizzle wraps it). Naming the constraint is what lets one `catch` answer two
+ * different mistakes correctly; matching on the message would couple the refusal to
+ * Postgres's prose.
+ */
+function isSlugViolation(err: unknown): boolean {
+  const constraintOf = (e: unknown): string | undefined =>
+    typeof e === "object" && e !== null ? (e as { constraint?: string }).constraint : undefined;
+  const constraint =
+    constraintOf(err) ?? constraintOf((err as { cause?: unknown }).cause) ?? undefined;
+  return constraint === "forms_slug_unique";
 }
 
 // --- POST /admin/forms ------------------------------------------------------
@@ -423,12 +560,27 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       rules: [],
     };
 
+    // The owning workspace (ADR-41, criterion 1): the one named, or the only one there
+    // is. Resolved before the transaction, so a refusal costs no database work, and
+    // refused rather than defaulted when more than one workspace could be meant
+    // (`features/workspaces/resolve.ts` carries Q19's reasoning for that).
+    const workspaceId = await resolveWorkspaceForNewObject(
+      deps.databases.control,
+      body.workspaceId,
+    );
+
     const created = await deps.databases.control.transaction(async (tx) => {
       try {
-        await createForm(tx, { formId, slug: body.slug, defaultLocale: locale.value });
+        await createForm(tx, { formId, slug: body.slug, workspaceId, defaultLocale: locale.value });
       } catch (err: unknown) {
-        // formId is the primary key: a collision is a reused id, a clean 409.
-        if (isUniqueViolation(err)) throw fail.idTaken();
+        // Two unique keys can fire here now. `form_id` is the primary key, so a
+        // collision is a reused id; `forms_slug_unique` is task 068's installation-wide
+        // slug constraint (criterion 3), and a collision there is a different mistake
+        // with a different fix, so it gets its own code rather than being reported as a
+        // reused id.
+        if (isUniqueViolation(err)) {
+          throw isSlugViolation(err) ? fail.slugTaken(body.slug) : fail.idTaken();
+        }
         throw err;
       }
       await upsertDraft(tx, { formId, definition: emptyDraft });
@@ -439,6 +591,7 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
       {
         formId,
         slug: body.slug,
+        workspaceId,
         defaultLocale: locale.value,
         status: "open" as const,
         draft: created,

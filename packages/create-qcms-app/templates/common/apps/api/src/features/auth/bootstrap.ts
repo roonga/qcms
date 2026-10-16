@@ -1,4 +1,9 @@
-import { countAdminUsers } from "@roonga/qcms-db";
+import {
+  SEED_WORKSPACE_NAME,
+  SEED_WORKSPACE_SLUG,
+  countAdminUsers,
+  listWorkspaces,
+} from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
 import type { AdminAuth } from "./instance.js";
@@ -66,6 +71,17 @@ import {
  * mount, and that is the point rather than a convenience: sign-up is not on the
  * mount's allowlist, so it is not reachable over HTTP in any composition. A CLI is not
  * HTTP-reachable, which is the distinction SEC-1 draws.
+ *
+ * **It also seeds the installation's first workspace** (ADR-41, task 068). A form and a
+ * question each belong to exactly one workspace, enforced by a `NOT NULL` column
+ * (criterion 1), so a bootstrapped installation with no workspace is one nothing can be
+ * authored in. The seed runs here because this is the act that brings the first account
+ * into existence, and ADR-41 requires the workspace to be attributed to it: the
+ * server-side `createOrganization` with an explicit `userId` writes the organisation row
+ * **and** the `member` row carrying `forms.owner`, where the request-scoped form has no
+ * user to attribute anything to. The two-person switch is **off** on it, by the field's
+ * declared default (Q13): an installation with one administrator cannot satisfy that rule
+ * at all, so defaulting it on would teach the feature by teaching how to switch it off.
  */
 
 /** Why a bootstrap attempt was refused. Every case is actionable by the operator. */
@@ -88,10 +104,28 @@ export type BootstrapRefusal =
    * Any other non-2xx from `signUpEmail`, carrying the vendor's own status and
    * message. Both are safe to surface: neither carries the credential (SEC-8).
    */
-  | { readonly kind: "sign-up-rejected"; readonly status: number; readonly detail: string };
+  | { readonly kind: "sign-up-rejected"; readonly status: number; readonly detail: string }
+  /**
+   * The account was created and the first workspace was not (task 068).
+   *
+   * Its own kind, because the recovery is different from every other refusal here: the
+   * account exists, so re-running the command is refused as already-bootstrapped, and
+   * what the operator needs is to create the workspace through
+   * `POST /admin/workspaces` once the API is up. Reporting this as a generic failure
+   * would send them looking for an account that is already there.
+   */
+  | { readonly kind: "workspace-seed-failed"; readonly email: string; readonly detail: string };
 
 export type BootstrapResult =
-  | { readonly ok: true; readonly userId: string; readonly email: string }
+  | {
+      readonly ok: true;
+      readonly userId: string;
+      readonly email: string;
+      /** The workspace this installation was seeded with, or the one it already had. */
+      readonly workspaceId: string;
+      /** The workspace's slug, for the line the command prints. */
+      readonly workspaceSlug: string;
+    }
   | { readonly ok: false; readonly refusal: BootstrapRefusal };
 
 /**
@@ -169,7 +203,59 @@ export async function createInitialAdmin(
     await auth.api.revokeSessions({ headers: new Headers({ cookie: cookies.join("; ") }) });
   }
 
-  return { ok: true, userId: body.user.id, email: body.user.email };
+  // The first workspace, attributed to the account just created (task 068, ADR-41).
+  try {
+    const workspace = await seedFirstWorkspace(auth, exec, body.user.id);
+    return {
+      ok: true,
+      userId: body.user.id,
+      email: body.user.email,
+      workspaceId: workspace.id,
+      workspaceSlug: workspace.slug,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      refusal: {
+        kind: "workspace-seed-failed",
+        email: body.user.email,
+        detail: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+/**
+ * The installation's first workspace, created through better-auth's **server-side**
+ * `createOrganization` with an explicit `userId` (ADR-41, task 068).
+ *
+ * The `userId` form is the whole reason this is not the request-scoped call: the seed runs
+ * from a command line with nobody signed in, and the plugin treats a call with no session
+ * and an explicit `userId` as a system action - which is also what lets it through
+ * `allowUserToCreateOrganization: false`, the guard that stops an administrator making
+ * workspaces by signing in. The same call writes the `member` row whose role is
+ * `forms.owner` (the plugin's `creatorRole`), so the workspace never exists without an
+ * owner, and the organisation's own fields take their declared defaults: not shared, not
+ * archived, and the two-person switch **off** (Q13).
+ *
+ * **Idempotent by inspection rather than by conflict handling.** An installation that
+ * already has a workspace keeps it: this is the first-run path, so the only way to reach
+ * it with a workspace already present is a database somebody has worked on, and adopting
+ * what is there is better than adding a second one beside it.
+ */
+async function seedFirstWorkspace(
+  auth: AdminAuth,
+  exec: Executor,
+  userId: string,
+): Promise<{ id: string; slug: string }> {
+  const existing = await listWorkspaces(exec);
+  const first = existing[0];
+  if (first !== undefined) return { id: first.id, slug: first.slug };
+
+  const created = await auth.api.createOrganization({
+    body: { name: SEED_WORKSPACE_NAME, slug: SEED_WORKSPACE_SLUG, userId },
+  });
+  return { id: created.id, slug: created.slug };
 }
 
 /** A one-line, value-free explanation of a refusal, safe to print (SEC-8). */
@@ -192,6 +278,12 @@ export function describeRefusal(refusal: BootstrapRefusal): string {
       // API's 503 body carries only the first sentence and names no variable; this is
       // where the variable belongs, beside the other two `QCMS_ADMIN_*` names above.
       return `Refusing: ${BREACH_LOOKUP_FAILED_MESSAGE} ${BREACH_LOOKUP_OPERATOR_GUIDANCE}`;
+    case "workspace-seed-failed":
+      return (
+        `Created the admin account for ${refusal.email}, but could not seed the first ` +
+        `workspace (${refusal.detail}). The account exists, so re-running this command ` +
+        "is refused; create the workspace with POST /admin/workspaces once the API is up."
+      );
     case "sign-up-rejected":
       return (
         `Refusing: creating the account failed with HTTP ${refusal.status} (${refusal.detail}). ` +

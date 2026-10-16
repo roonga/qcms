@@ -22,9 +22,18 @@ erDiagram
     SESSION ||--o| ERASURE_TOMBSTONE : "may erase into (ADR-17)"
     SUBMISSION ||--|| OUTBOX_EVENT : "emits response.submitted"
 
+    WORKSPACE ||--o{ QUESTION : "owns"
+    WORKSPACE ||--o{ FORM : "owns"
+
+    WORKSPACE {
+        string workspaceId PK "better-auth's organization row (ADR-41, Q32)"
+        boolean isShared "the org-wide question library; at most one per installation"
+        datetime archivedAt "archived, never deleted (ADR-41)"
+    }
     QUESTION {
         string questionId PK "stable forever, never reused (R6)"
-        string slug "human handle"
+        string slug "human handle, unique installation-wide"
+        string workspaceId FK "exactly one owning workspace (ADR-41)"
     }
     QUESTION_VERSION {
         string questionId FK
@@ -33,7 +42,8 @@ erDiagram
     }
     FORM {
         string formId PK
-        string slug
+        string slug "unique installation-wide, so /f/{slug} needs no workspace segment"
+        string workspaceId FK "exactly one owning workspace (ADR-41)"
         string defaultLocale
     }
     FORM_DRAFT {

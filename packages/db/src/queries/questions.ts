@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { QuestionDefinition, QuestionId } from "@roonga/qcms-core";
 
-import { questionStatus, questions, questionVersions } from "../schema/index.js";
+import { authOrganization, questionStatus, questions, questionVersions } from "../schema/index.js";
 import type { Executor } from "./executor.js";
 import type { AssignableTo } from "./schema-drift.js";
 
@@ -17,6 +17,8 @@ import type { AssignableTo } from "./schema-drift.js";
 export interface QuestionRow {
   questionId: QuestionId;
   slug: string;
+  /** The workspace that owns this question (ADR-41, task 068). Never null. */
+  workspaceId: string;
   createdAt: Date;
 }
 
@@ -68,16 +70,58 @@ export interface QuestionSummary {
   readonly publishedAt: Date | null;
 }
 
-/** Insert a question library identity (R6: `questionId` is stable forever). */
+/**
+ * Insert a question library identity (R6: `questionId` is stable forever).
+ *
+ * `workspaceId` is required and has no default, for the reason `createForm`'s is
+ * (criterion 1): a question belongs to exactly one workspace and the column is what
+ * enforces it. The API resolves which one.
+ */
 export async function createQuestion(
   exec: Executor,
-  input: { questionId: QuestionId; slug: string },
+  input: { questionId: QuestionId; slug: string; workspaceId: string },
 ): Promise<QuestionRow> {
   const [row] = await exec
     .insert(questions)
-    .values({ questionId: input.questionId, slug: input.slug })
+    .values({
+      questionId: input.questionId,
+      slug: input.slug,
+      workspaceId: input.workspaceId,
+    })
     .returning();
   return row!;
+}
+
+/**
+ * Move a question to another workspace: **one `UPDATE` on the identity row, touching no
+ * version** (Q14, ADR-41's Note of 2026-09-26).
+ *
+ * That is the whole of the move, and the two halves of Q14's grandfathering follow from
+ * it rather than from anything written here. A form in another workspace that already
+ * pins one of this question's versions **keeps serving**, because the version it pins is
+ * immutable content that this statement does not reach (ADR-02, R1), and a `questionId`
+ * never changes meaning (R6). It also **keeps that pin in its next draft**, because the
+ * publish-time rule grandfathers a placement that was already in the previous published
+ * version; that is the half an implementation drops, and it lives in
+ * `apps/api/src/features/forms/handler.ts` with the deprecated-pin gate rather than here.
+ *
+ * What is refused is a **new** pin from another workspace onto a question outside the
+ * shared workspace, through the same path that refuses a pin to a `deprecated` version,
+ * so an author meets one mechanism rather than two.
+ *
+ * Returns the updated row, or `undefined` when no such question exists.
+ */
+export async function moveQuestionToWorkspace(
+  exec: Executor,
+  questionId: QuestionId,
+  workspaceId: string,
+): Promise<QuestionRow | undefined> {
+  const [row] = await exec
+    .update(questions)
+    .set({ workspaceId })
+    .where(eq(questions.questionId, questionId))
+    .returning();
+  return row;
 }
 
 /**
@@ -260,6 +304,48 @@ export async function listQuestions(exec: Executor): Promise<QuestionSummary[]> 
     .innerJoin(questionVersions, eq(questions.questionId, questionVersions.questionId))
     .orderBy(questions.questionId, desc(questionVersions.version));
   return rows;
+}
+
+/** A question's owning workspace and whether that workspace is the shared library. */
+export interface QuestionOwnership {
+  readonly questionId: QuestionId;
+  readonly workspaceId: string;
+  /** Whether the owning workspace is the installation's shared question library. */
+  readonly workspaceIsShared: boolean;
+}
+
+/**
+ * The owning workspace of many questions in one read, with each owner's shared flag
+ * (ADR-41, task 068).
+ *
+ * The input to the publish-time pin rule, which needs two facts per pinned question - who
+ * owns it, and whether that owner is the org-wide library - and needs them for every pin
+ * in a draft at once. One read with a join rather than a read per pin: `loadQuestionLookups`
+ * in the forms slice already pays one round trip per pinned question for the versions, and
+ * a second loop beside it would double that for two columns.
+ *
+ * `innerJoin` rather than a left join: `questions.workspace_id` is `NOT NULL` with a
+ * foreign key, so a question with no owning workspace row is not a state the database
+ * permits, and a left join would invite a caller to write a branch for it.
+ *
+ * An empty id list short-circuits rather than issuing `IN ()`, as `listVersionsForQuestions`
+ * does one function up.
+ */
+export async function listQuestionOwnership(
+  exec: Executor,
+  questionIds: readonly QuestionId[],
+): Promise<QuestionOwnership[]> {
+  if (questionIds.length === 0) return [];
+  return exec
+    .select({
+      questionId: questions.questionId,
+      workspaceId: questions.workspaceId,
+      workspaceIsShared: authOrganization.isShared,
+    })
+    .from(questions)
+    .innerJoin(authOrganization, eq(questions.workspaceId, authOrganization.id))
+    .where(inArray(questions.questionId, [...questionIds]))
+    .orderBy(questions.questionId);
 }
 
 /**

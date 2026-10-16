@@ -104,6 +104,10 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   // and an environment named `environments` would make `/environments/...` two addresses.
   "environments",
   "releases",
+  // Task 068's. `GET /admin/workspaces` and the two ownership moves sit at this root, so
+  // an environment named `workspaces` would make `/workspaces/...` two addresses the way
+  // `environments` would. The derivation test in `scripts/` is what asked for this entry.
+  "workspaces",
   "health",
   "ready",
   "internal",

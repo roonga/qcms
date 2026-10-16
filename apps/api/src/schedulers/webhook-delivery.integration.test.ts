@@ -39,6 +39,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createSession,
   DELIVERY_CANCELLED_SESSION_ERASED,
@@ -195,7 +196,12 @@ async function seed(
 ): Promise<{ formId: FormId; version: number; webhookIds: string[] }> {
   seq += 1;
   const formId = FormId.parse(`frm_wd_${seq}`);
-  await createForm(testDb.db, { formId, slug: `wd-${seq}`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `wd-${seq}`,
+    defaultLocale: "en",
+  });
   const v = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,

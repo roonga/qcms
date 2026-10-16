@@ -10,6 +10,7 @@ import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 
+import { SEED_WORKSPACE_ID, ensureSeedWorkspace } from "../queries/workspaces.js";
 import * as schema from "../schema/index.js";
 
 import { hostSnapshotLine } from "./host-snapshot.js";
@@ -26,6 +27,15 @@ import {
 } from "./teardown.js";
 
 export type { DrainableConnection } from "./teardown.js";
+
+/**
+ * The workspace a migrated harness database is seeded with (task 068).
+ *
+ * Re-exported here so a suite that calls `createForm` or `createQuestion` takes the id
+ * from the harness it already imports rather than from the package root, and so the
+ * harness's own seeding and the suites' use of it cannot name two different rows.
+ */
+export { SEED_WORKSPACE_ID };
 
 const { Client, Pool } = pg;
 
@@ -328,6 +338,23 @@ interface StartOptions {
    * Production test suites leave this unset.
    */
   readonly bootInfrastructure?: () => Promise<void>;
+  /**
+   * Seed the one workspace every control-plane fixture needs (default true; task 068).
+   *
+   * `control.forms.workspace_id` and `control.questions.workspace_id` are `NOT NULL` with
+   * no default (ADR-41, criterion 1), so a migrated database holds no row a form or a
+   * question could be created against until a workspace exists. A real installation gets
+   * one from `pnpm qcms:create-admin`, which seeds it through better-auth's
+   * `createOrganization` so the first administrator also gets the `forms.owner` member row
+   * (ADR-41). A harness has no auth instance and no account, so it seeds the row directly
+   * with `ensureSeedWorkspace`, and {@link SEED_WORKSPACE_ID} is the id to pass to
+   * `createForm` and `createQuestion`.
+   *
+   * Pass `false` to get a migrated database with **no** workspace in it, which is what a
+   * suite about the seeding itself needs: with the row already there, "the bootstrap
+   * creates the first workspace" would assert nothing.
+   */
+  readonly seedWorkspace?: boolean;
 }
 
 /**
@@ -690,6 +717,14 @@ export async function startTestDb(options: StartOptions = {}): Promise<TestDb> {
       // down and the eventual container stop landed on live connections.
       await stopAfterFailedStart(teardown);
       throw cause;
+    }
+    if (options.seedWorkspace ?? true) {
+      try {
+        await ensureSeedWorkspace(db);
+      } catch (cause) {
+        await stopAfterFailedStart(teardown);
+        throw cause;
+      }
     }
   }
 

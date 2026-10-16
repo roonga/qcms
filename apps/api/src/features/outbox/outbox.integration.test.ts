@@ -28,6 +28,7 @@
 
 import { FormId, SessionId, type FormDefinition } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   createForm,
   createSession,
   enqueue,
@@ -180,11 +181,36 @@ beforeAll(async () => {
   app = createApp(deps, ADMIN_ONLY, { groups: { admin: [registerAdminAuth, registerOutboxOps] } });
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
 
-  await createForm(testDb.db, { formId: FORM_A, slug: "ops-a", defaultLocale: "en" });
-  await createForm(testDb.db, { formId: FORM_B, slug: "ops-b", defaultLocale: "en" });
-  await createForm(testDb.db, { formId: FORM_SNIPPET, slug: "ops-snippet", defaultLocale: "en" });
-  await createForm(testDb.db, { formId: FORM_BULK, slug: "ops-bulk", defaultLocale: "en" });
-  await createForm(testDb.db, { formId: FORM_ERASED, slug: "ops-erased", defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_A,
+    slug: "ops-a",
+    defaultLocale: "en",
+  });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_B,
+    slug: "ops-b",
+    defaultLocale: "en",
+  });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_SNIPPET,
+    slug: "ops-snippet",
+    defaultLocale: "en",
+  });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_BULK,
+    slug: "ops-bulk",
+    defaultLocale: "en",
+  });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId: FORM_ERASED,
+    slug: "ops-erased",
+    defaultLocale: "en",
+  });
   // A published version, so the ADR-17 cases can create real sessions and erase them
   // rather than hand-writing a tombstone for a session that never existed.
   erasedFormVersion = (
@@ -589,6 +615,7 @@ describe("POST /admin/forms/:id/deliveries/:deliveryId/redeliver - the delivery 
 
   beforeAll(async () => {
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: FORM_ID_SHAPE,
       slug: "ops-id-shape",
       defaultLocale: "en",
@@ -766,11 +793,13 @@ describe("form scope on redeliver (issue #305)", () => {
 
   beforeAll(async () => {
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: FORM_SCOPE_OWNER,
       slug: "scope-owner",
       defaultLocale: "en",
     });
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: FORM_SCOPE_OTHER,
       slug: "scope-other",
       defaultLocale: "en",

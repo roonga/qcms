@@ -98,6 +98,18 @@ export const CreateFormBody = z
     formId: z.string().min(1).openapi({ example: "frm_signup" }),
     slug: z.string().min(1).openapi({ example: "signup" }),
     defaultLocale: z.string().min(1).openapi({ example: "en" }),
+    /**
+     * The workspace that will own this form (ADR-41, task 068).
+     *
+     * **Optional on the request and required on the row.** `control.forms.workspace_id`
+     * is `NOT NULL` with no default, so every form has exactly one workspace; what is
+     * optional is naming it. Omitted, it resolves to the installation's single workspace
+     * - the ordinary case, since a bootstrapped deployment is seeded with one - and is
+     * **refused** when more than one workspace exists, naming the candidates. There is
+     * no safe default among several (`features/workspaces/resolve.ts`), and the picker
+     * that will make this field ordinary arrives with task 069's screens.
+     */
+    workspaceId: z.string().min(1).optional().openapi({ example: "org_default_workspace" }),
   })
   .openapi("CreateFormBody");
 
@@ -376,6 +388,8 @@ export const CreatedFormResponse = z
   .object({
     formId: z.string().openapi({ example: "frm_signup" }),
     slug: z.string().openapi({ example: "signup" }),
+    /** The workspace that owns it, echoed because the request may not have named it. */
+    workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     defaultLocale: z.string().openapi({ example: "en" }),
     status: FormStatus.openapi({ example: "open" }),
     /** The seeded empty draft definition (no steps yet). */

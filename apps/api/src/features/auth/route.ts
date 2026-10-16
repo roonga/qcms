@@ -83,8 +83,19 @@ import { AUTH_BASE_PATH, createAdminAuth, type AdminAuth } from "./instance.js";
  * `two-factor/send-otp` and `two-factor/verify-otp`, because OTP delivery is Phase 4;
  * `two-factor/get-totp-uri`,
  * because the URI is handed to the enrollment screen by the sign-in POST that
- * provisioned it (the admin's `lib/server/enrollment.ts` explains why); and every
- * social, organization and passkey route, since no such plugin is configured.
+ * provisioned it (the admin's `lib/server/enrollment.ts` explains why); and every social
+ * and passkey route, since no such plugin is configured.
+ *
+ * **And every `organization` route, although that plugin IS configured since task 068.**
+ * This is the HTTP half of Q45: grants and membership are written through QCMS endpoints
+ * and the plugin's own write endpoints are "disabled, or refused, for everyone", a
+ * `forms.owner` included. Being off this list is what makes that true of the whole
+ * composition rather than of a handler: `/organization/create`, `/organization/update`,
+ * `/organization/delete`, the invitation routes and the team and member routes all answer
+ * 404, as every path this list does not name does. `features/workspaces/` is the one write
+ * path for a workspace, and it calls `createOrganization` **in process**, which is the
+ * same distinction SEC-1 draws about sign-up: a function the API calls is not a surface
+ * the network can reach. `auth-mount.test.ts` asserts it by request.
  */
 export const ALLOWED_AUTH_ENDPOINTS: readonly string[] = [
   "POST /sign-in/email",

@@ -31,6 +31,7 @@ import {
 } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
+  SEED_WORKSPACE_ID,
   appendAnswer,
   createForm,
   createSession,
@@ -69,7 +70,12 @@ const emptyCompiled = {} as unknown as CompiledForm;
 
 async function seedSession(id: string): Promise<SessionId> {
   const formId = FormId.parse(`frm_${id}`);
-  await createForm(testDb.db, { formId, slug: `${id}-slug`, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug: `${id}-slug`,
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: emptyDef,

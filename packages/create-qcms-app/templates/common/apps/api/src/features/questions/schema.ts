@@ -121,6 +121,16 @@ export const CreateQuestionBody = z
   .strictObject({
     slug: z.string().min(1).openapi({ example: "favourite-colour" }),
     definition: OpaqueDefinition,
+    /**
+     * The workspace that will own this question (ADR-41, task 068).
+     *
+     * Optional on the request and required on the row, exactly as it is for a form:
+     * omitted, it resolves to the installation's single workspace, and it is refused
+     * when more than one exists (`features/workspaces/resolve.ts`). A question owned by
+     * the **shared** workspace is the org-wide library every workspace may pin from, and
+     * marking a workspace shared is a workspace route rather than a field here.
+     */
+    workspaceId: z.string().min(1).optional().openapi({ example: "org_default_workspace" }),
   })
   .openapi("CreateQuestionBody");
 
@@ -150,6 +160,8 @@ export const CreatedQuestionResponse = z
   .object({
     questionId: z.string().openapi({ example: "q_favourite_colour" }),
     slug: z.string().openapi({ example: "favourite-colour" }),
+    /** The workspace that owns it, echoed because the request may not have named it. */
+    workspaceId: z.string().openapi({ example: "org_default_workspace" }),
     createdAt: z.iso.datetime(),
     version: QuestionVersionView,
   })

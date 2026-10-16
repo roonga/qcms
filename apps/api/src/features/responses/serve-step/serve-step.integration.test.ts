@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 
 import { FormId, QuestionId, SessionId } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   answerLedger,
   createForm,
   createQuestion,
@@ -148,6 +149,7 @@ afterAll(async () => {
 /** Seed the two library questions the insurance form pins (q_at_fault_accident@2, q_accident_count@1). */
 async function seedQuestions(): Promise<void> {
   await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_at_fault_accident"),
     slug: "accident",
   });
@@ -161,6 +163,7 @@ async function seedQuestions(): Promise<void> {
     definition: Q_ACCIDENT_DEF,
   });
   await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_accident_count"),
     slug: "accident-count",
   });
@@ -182,7 +185,12 @@ async function seedForm(
   semanticsVersion = "1",
 ): Promise<FormId> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug,
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
@@ -592,7 +600,11 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       ["q_medical_history", "history", "long-text.json"],
       ["q_coverage_level", "coverage", "single-choice.json"],
     ] as const) {
-      await createQuestion(testDb.db, { questionId: QuestionId.parse(questionId), slug });
+      await createQuestion(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        questionId: QuestionId.parse(questionId),
+        slug,
+      });
       await createQuestionVersion(testDb.db, {
         questionId: QuestionId.parse(questionId),
         definition: readFixture(
@@ -606,7 +618,12 @@ describe("an empty value is refused, never stored and never a retraction (ADR-33
       });
     }
     const formId = FormId.parse("frm_kitchen_sink");
-    await createForm(testDb.db, { formId, slug: "kitchen", defaultLocale: "en" });
+    await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      formId,
+      slug: "kitchen",
+      defaultLocale: "en",
+    });
     const kitchenVersion = await insertFormVersion(testDb.db, {
       formId,
       definition: KITCHEN_SINK_DEF,

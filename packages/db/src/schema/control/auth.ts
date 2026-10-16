@@ -1,4 +1,5 @@
-import { boolean, integer, text, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
+import { boolean, integer, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
 import { controlSchema } from "../schemas.js";
 
@@ -215,27 +216,50 @@ export const authTwoFactor = controlSchema.table("twoFactor", {
  *    a default there would be a grant nobody wrote.
  */
 
-export const authOrganization = controlSchema.table("organization", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
-  slug: text("slug").notNull().unique(),
-  logo: text("logo"),
-  createdAt: timestamp("createdAt").notNull().defaultNow(),
-  /**
-   * The plugin's free-form column. **QCMS uses it for nothing enforced** (Q39): any
-   * holder of `organization: update` replaces it wholesale, so every value the API
-   * reads to make a decision is a typed additional field instead.
-   */
-  metadata: text("metadata"),
-  /** The org-wide question library every workspace may pin from (ADR-41). */
-  isShared: boolean("isShared").notNull().default(false),
-  /** The per-workspace two-person switch for `prod` (Q13: off by default). */
-  requireSecondApprover: boolean("requireSecondApprover").notNull().default(false),
-  /** Set when the workspace is archived; a workspace is archived, never deleted (Q15). */
-  archivedAt: timestamp("archivedAt"),
-  /** F17's convenience, as a visible setting rather than a habit (Q39). */
-  seedNewEditorsWithTestData: boolean("seedNewEditorsWithTestData").notNull().default(false),
-});
+export const authOrganization = controlSchema.table(
+  "organization",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    slug: text("slug").notNull().unique(),
+    logo: text("logo"),
+    createdAt: timestamp("createdAt").notNull().defaultNow(),
+    /**
+     * The plugin's free-form column. **QCMS uses it for nothing enforced** (Q39): any
+     * holder of `organization: update` replaces it wholesale, so every value the API
+     * reads to make a decision is a typed additional field instead.
+     */
+    metadata: text("metadata"),
+    /** The org-wide question library every workspace may pin from (ADR-41). */
+    isShared: boolean("isShared").notNull().default(false),
+    /** The per-workspace two-person switch for `prod` (Q13: off by default). */
+    requireSecondApprover: boolean("requireSecondApprover").notNull().default(false),
+    /** Set when the workspace is archived; a workspace is archived, never deleted (Q15). */
+    archivedAt: timestamp("archivedAt"),
+    /** F17's convenience, as a visible setting rather than a habit (Q39). */
+    seedNewEditorsWithTestData: boolean("seedNewEditorsWithTestData").notNull().default(false),
+  },
+  (t) => [
+    /**
+     * **At most one shared workspace per installation** (ADR-41, task 068).
+     *
+     * A partial unique index over the flag rather than a check in one write path: the
+     * shared workspace is the org-wide question library every other workspace pins
+     * from (finding 10), and two of them would make "a form may pin its own
+     * workspace's questions or the shared workspace's" a sentence with no single
+     * answer. `WHERE "isShared"` is what leaves every ordinary workspace out of the
+     * index, so the constraint says "one true value" rather than "one row".
+     *
+     * The API refuses the second one with a legible error before it gets here
+     * (`features/workspaces/handler.ts`); this is the backstop that holds whatever
+     * path reached the table, which is the same division of labour
+     * `questions_slug_unique` and the slug check already have.
+     */
+    uniqueIndex("organization_shared_uq")
+      .on(t.isShared)
+      .where(sql`${t.isShared}`),
+  ],
+);
 
 export const authMember = controlSchema.table("member", {
   id: text("id").primaryKey(),

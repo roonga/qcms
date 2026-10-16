@@ -1,5 +1,8 @@
 import {
   authAccount,
+  authInvitation,
+  authMember,
+  authOrganization,
   authSession,
   authTwoFactor,
   authUser,
@@ -11,7 +14,7 @@ import { betterAuth } from "better-auth";
 import type { BetterAuthPlugin } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { APIError, isAPIError } from "better-auth/api";
-import { haveIBeenPwned } from "better-auth/plugins";
+import { haveIBeenPwned, organization } from "better-auth/plugins";
 import { twoFactor } from "better-auth/plugins/two-factor";
 
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
@@ -605,6 +608,19 @@ export function createAdminAuth(input: AdminAuthInput) {
         account: authAccount,
         verification: authVerification,
         twoFactor: authTwoFactor,
+        // The organisation plugin's models (ADR-41, Q32, task 068). The adapter
+        // resolves a model by this map alone - without an entry it looks for a table
+        // named after its own model and finds nothing - so the three go in with the
+        // plugin. `team` and `teamMember` are **absent on purpose**: the plugin
+        // declares them only while `teams.enabled` is on, which is task 069's
+        // configuration, and their `role`, `environments` and `forms` columns are
+        // `NOT NULL` with no default, so declaring them before 069 declares the
+        // matching required additional fields would fail the library's own startup
+        // schema check in the other direction (`packages/db/src/schema/control/auth.ts`
+        // has the two rules).
+        organization: authOrganization,
+        member: authMember,
+        invitation: authInvitation,
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
@@ -898,6 +914,75 @@ export function createAdminAuth(input: AdminAuthInput) {
       // at this position. See the plugin's own note (issue #436). Fail-closed is
       // untouched; the refusal just stops reading like an authentication failure.
       breachLookupDiagnostics(input.warn),
+      // ADR-41's workspace, which is this plugin's `organization` row (Q32).
+      //
+      // # What this task declares, and what it deliberately does not
+      //
+      // Task 068 builds the **container**: the row, what it owns, how a question moves
+      // between workspaces and how a workspace is archived. It grants nothing. So the
+      // declaration below carries the organisation's own typed fields and the three
+      // configuration values those fields and `createOrganization` need, and **no role,
+      // no statement, no team and no write path**: the six roles, the scope, the
+      // resolver, the middleware, the grant endpoints and the SEC-15 audit are task
+      // 069's, and `teams.enabled` stays off until that task declares `role`,
+      // `environments` and `forms` as the team's required additional fields.
+      //
+      // # Why it is declared here at all, when nothing authorises yet
+      //
+      // Because the seeding needs it. A bootstrapped installation has to have one
+      // workspace to author in (Q13), `forms.workspace_id` is `NOT NULL`, and ADR-41
+      // requires that seed to run through the server-side `createOrganization` with an
+      // explicit `userId` so the first administrator also gets the `member` row that
+      // carries `forms.owner`. That call is this plugin's (`features/auth/bootstrap.ts`).
+      //
+      // # No organisation route is reachable over HTTP
+      //
+      // `route.ts`'s allowlist answers 404 for every path it does not name, and it names
+      // none of this plugin's, so declaring the plugin publishes no endpoint. That is the
+      // HTTP half of Q45 - grants are written only through QCMS endpoints - and
+      // `auth-mount.test.ts` asserts it by request rather than by reading this comment.
+      organization({
+        // `forms.owner` on the member row (Q32, Q38), so the plugin's creator-role and
+        // last-owner protections work on the name ADR-41 uses. A dot is a plain string
+        // in the plugin's role list; task 069 declares the statements behind the name.
+        creatorRole: "forms.owner",
+        // A workspace is created by an operator act, never by an administrator signing
+        // in and making one (ADR-41: a workspace is not a tenant). The server-side
+        // `createOrganization` with an explicit `userId` is a system action and is
+        // unaffected by this (`dist/plugins/organization/routes/crud-org.mjs:57`),
+        // <!-- expect: const isSystemAction = !session && ctx.body.userId -->
+        // which is what lets the bootstrap seed one while refusing every session-bound
+        // caller.
+        allowUserToCreateOrganization: false,
+        // A workspace is archived, never deleted (Q15). The endpoint is unreachable
+        // behind the allowlist as well, and `@roonga/qcms-db` exports no delete path
+        // (criterion 5): three independent reasons, because this is the door ADR-17
+        // must not gain a third of.
+        disableOrganizationDeletion: true,
+        schema: {
+          organization: {
+            // Typed additional fields, never `organization.metadata` (Q39): the free-form
+            // column is replaced wholesale by any holder of `organization: update`, so a
+            // decision resting on it is a decision anybody with that statement rewrites.
+            //
+            // All three are `input: false`, so no request body sets them. Each has a
+            // QCMS write path of its own where it has one at all: the shared flag and the
+            // archive stamp are workspace routes (`features/workspaces/`), and
+            // `requireSecondApprover` is written by nothing in this task - it is declared
+            // off and task 070 is what reads it (Q13).
+            additionalFields: {
+              isShared: { type: "boolean", required: false, defaultValue: false, input: false },
+              requireSecondApprover: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+                input: false,
+              },
+              archivedAt: { type: "date", required: false, input: false },
+            },
+          },
+        },
+      }),
     ],
   });
 }

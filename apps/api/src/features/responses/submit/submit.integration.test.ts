@@ -26,6 +26,7 @@ import { fileURLToPath } from "node:url";
 import { HONEYPOT_FIELD_NAME } from "@roonga/qcms-a2ui-compiler";
 import { FormId, type LockedSubmission, QuestionId, SessionId } from "@roonga/qcms-core";
 import {
+  SEED_WORKSPACE_ID,
   answerLedger,
   appendAnswer,
   createForm,
@@ -133,6 +134,7 @@ afterAll(async () => {
 
 async function seedQuestions(): Promise<void> {
   await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_at_fault_accident"),
     slug: "accident",
   });
@@ -146,6 +148,7 @@ async function seedQuestions(): Promise<void> {
     definition: Q_ACCIDENT_DEF,
   });
   await createQuestion(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
     questionId: QuestionId.parse("q_accident_count"),
     slug: "accident-count",
   });
@@ -167,7 +170,12 @@ async function seedForm(
   semanticsVersion = "1",
 ): Promise<FormId> {
   const formId = FormId.parse(id);
-  await createForm(testDb.db, { formId, slug, defaultLocale: "en" });
+  await createForm(testDb.db, {
+    workspaceId: SEED_WORKSPACE_ID,
+    formId,
+    slug,
+    defaultLocale: "en",
+  });
   const version = await insertFormVersion(testDb.db, {
     formId,
     definition: INSURANCE_DEF,
@@ -683,6 +691,7 @@ describe("silent anti-abuse flags (exit criterion 5)", () => {
     // so this proves the per-form override path, not the config default.
     const gatedFormId = FormId.parse("frm_minfloor");
     await createForm(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
       formId: gatedFormId,
       slug: "minfloor",
       defaultLocale: "en",

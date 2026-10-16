@@ -12,8 +12,16 @@ task does not have to rediscover it.
 additional fields carry a role and its environment and form scope, and QCMS evaluates the
 plugin's own statements in its API middleware. So **leaving better-auth now means migrating
 authorisation too**, not only the thing that issues sessions. The three seams below are
-still the three seams, and a fourth has joined them. That is decided and not built: the
-tables arrive with task 069.
+still the three seams, and a fourth has joined them.
+
+**Half of that fourth seam is now built** (task 068). The plugin is configured, the
+`organization` row **is** a workspace with `isShared`, `requireSecondApprover` and
+`archivedAt` as typed additional fields, `control.forms` and `control.questions` each
+carry a non-null reference to it, and the first-run bootstrap creates one through the
+library's own server-side `createOrganization`. **The roles, the teams and the grants
+arrive with task 069**, so what a swap has to carry today is the workspace row, its three
+fields, the owner's `member` row and those two foreign keys - and the rest of seam 4 joins
+it when 069 lands.
 
 **And the likely direction is not a swap at all.** Enterprise single sign-on is planned as
 **better-auth's own SSO plugins** rather than as a replacement of the library (track C in
@@ -100,16 +108,25 @@ Two rules survive the swap:
 
 ### 3. The tables and the bootstrap
 
-`packages/db/src/schema/auth.ts` owns the auth tables and the migration history. An
-external IdP that holds identity itself makes `user`/`account`/`twoFactor` unused, but
-**a session table is still the API's verification surface** unless seam 1 is replaced with
-token introspection.
+`packages/db/src/schema/control/auth.ts` owns the auth tables and the migration history
+(the file moved into the control-plane module with task 064's re-baseline). An external
+IdP that holds identity itself makes `user`/`account`/`twoFactor` unused, but **a session
+table is still the API's verification surface** unless seam 1 is replaced with token
+introspection.
 
 `pnpm qcms:create-admin` (`apps/api/src/features/auth/bootstrap.ts`, entry
 `apps/api/src/create-admin.ts`) exists because there is no other way to create the first
 account. Under an IdP the first admin is whoever the IdP says, so the command becomes
 unnecessary - but it must not simply be deleted while the better-auth path still exists in
 any supported composition.
+
+**It also seeds the installation's first workspace** (task 068), through the server-side
+`createOrganization` with an explicit `userId`, which writes the organisation row and the
+`member` row carrying `forms.owner` in one act. A swap has to keep that: a form and a
+question each reference a workspace with a non-null foreign key, so an installation with
+no workspace is one in which nothing can be authored. Whatever replaces the library has to
+leave something for `control.forms.workspace_id` to point at, and has to create it before
+the first form.
 
 ### 4. Authorisation, which is the seam issue #995 added
 
@@ -123,6 +140,24 @@ whose additional fields hold a role and its `environments` and `forms` scope; th
 `externalGroupId`, which carries a unique constraint and is the key a directory mapping joins
 on (Q39), so a swap that dropped it would strand every group-derived grant; and the statement
 evaluation the middleware calls.
+
+**What is built, and therefore what a swap would have to carry today** (task 068): the
+first three fields on the organisation row, the owner's `member` row, and the two
+non-null references into it from `control.forms` and `control.questions`. The rules over
+those columns are **QCMS's own code and do not move with the table**: the slug is unique
+installation-wide at the database, at most one workspace is marked shared, the archive
+refuses while the workspace owns any form at all or is the shared library, and the publish-time pin rule
+allows a form to pin its own workspace's questions or the shared workspace's and refuses
+everything else (`apps/api/src/features/workspaces/rules.ts`). A replacement has to satisfy
+those; it does not have to re-derive them. The team rows, the six roles, the scope and the
+statement evaluation are still ahead, with task 069.
+
+**One write path is worth naming, because a replacement will want to short-cut it.** A
+workspace is created by calling the library's server-side `createOrganization`, never by
+inserting the row: that call is what writes the owner's `member` row in the same act, and
+the plugin's own HTTP endpoints are refused for everyone (Q45), so there is exactly one
+door. Whatever replaces the library needs one door with the same property, or a workspace
+will eventually exist with no owner.
 
 What does **not** move is the model. The two role families, the environment and form scopes,
 the administer-only installation claim, the two-person switch and the access audit are QCMS

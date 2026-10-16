@@ -48,6 +48,17 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
     expect(suspicious).toEqual([]);
   });
 
+  it("the allowlist names no organisation or team endpoint (Q45, task 068)", () => {
+    // Grants and membership are written through QCMS endpoints and the plugin's own
+    // write endpoints are not an owner path. The list is the control, so the list is
+    // what this asserts: a later entry here would be a second write path to the
+    // membership tables, which is the shape Q45 refused.
+    const grantShaped = ALLOWED_AUTH_ENDPOINTS.filter((entry) =>
+      /(organization|team|member)/i.test(entry),
+    );
+    expect(grantShaped).toEqual([]);
+  });
+
   it("POST /api/auth/sign-up/email is a 404, not a created account", async () => {
     const { deps, app } = compose(ALL);
     const res = await app.request("/api/auth/sign-up/email", {
@@ -81,6 +92,20 @@ describe("SEC-1: no self-registration path exists in any composition", () => {
       "/api/auth/two-factor/get-totp-uri",
       "/api/auth/list-sessions",
       "/api/auth/update-user",
+      // The organisation plugin's own write endpoints (task 068, Q45). The plugin is
+      // configured from that task on, which makes these real endpoints inside the
+      // library rather than paths that were never going to resolve - and they are
+      // refused for **everyone**, a `forms.owner` included, because grants and
+      // membership are written through QCMS endpoints and nowhere else. The workspace
+      // routes call `createOrganization` in process, which the network cannot reach.
+      "/api/auth/organization/create",
+      "/api/auth/organization/update",
+      "/api/auth/organization/delete",
+      "/api/auth/organization/invite-member",
+      "/api/auth/organization/add-member",
+      "/api/auth/organization/remove-member",
+      "/api/auth/organization/create-team",
+      "/api/auth/organization/add-team-member",
     ];
     const statuses = await Promise.all(
       denied.map(async (path) => {

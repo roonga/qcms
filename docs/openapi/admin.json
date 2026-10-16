@@ -64,6 +64,10 @@
             "type": "string",
             "example": "favourite-colour"
           },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -75,6 +79,7 @@
         "required": [
           "questionId",
           "slug",
+          "workspaceId",
           "createdAt",
           "version"
         ]
@@ -156,6 +161,11 @@
           },
           "definition": {
             "$ref": "#/components/schemas/QuestionDefinitionInput"
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "org_default_workspace"
           }
         },
         "required": [
@@ -332,6 +342,10 @@
             "type": "string",
             "example": "signup"
           },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
           "defaultLocale": {
             "type": "string",
             "example": "en"
@@ -351,6 +365,7 @@
         "required": [
           "formId",
           "slug",
+          "workspaceId",
           "defaultLocale",
           "status"
         ]
@@ -372,6 +387,11 @@
             "type": "string",
             "minLength": 1,
             "example": "en"
+          },
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "org_default_workspace"
           }
         },
         "required": [
@@ -1534,6 +1554,149 @@
         "required": [
           "environment",
           "version"
+        ],
+        "additionalProperties": false
+      },
+      "WorkspaceListResponse": {
+        "type": "object",
+        "properties": {
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceView"
+            }
+          }
+        },
+        "required": [
+          "workspaces"
+        ]
+      },
+      "WorkspaceView": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          },
+          "name": {
+            "type": "string",
+            "example": "Default workspace"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "example": "home-insurance"
+          },
+          "isShared": {
+            "type": "boolean"
+          },
+          "requireSecondApprover": {
+            "type": "boolean"
+          },
+          "archivedAt": {
+            "type": "string",
+            "nullable": true,
+            "format": "date-time"
+          },
+          "forms": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 2
+          },
+          "questions": {
+            "type": "integer",
+            "minimum": 0,
+            "example": 17
+          }
+        },
+        "required": [
+          "workspaceId",
+          "name",
+          "slug",
+          "isShared",
+          "requireSecondApprover",
+          "archivedAt",
+          "forms",
+          "questions"
+        ]
+      },
+      "WorkspaceResponse": {
+        "type": "object",
+        "properties": {
+          "workspace": {
+            "$ref": "#/components/schemas/WorkspaceView"
+          }
+        },
+        "required": [
+          "workspace"
+        ]
+      },
+      "CreateWorkspaceBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "example": "Home insurance"
+          },
+          "slug": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+            "example": "home-insurance"
+          }
+        },
+        "required": [
+          "name",
+          "slug"
+        ],
+        "additionalProperties": false
+      },
+      "SharedWorkspaceBody": {
+        "type": "object",
+        "properties": {
+          "shared": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "shared"
+        ],
+        "additionalProperties": false
+      },
+      "MovedResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "frm_signup"
+          },
+          "workspaceId": {
+            "type": "string",
+            "example": "org_default_workspace"
+          }
+        },
+        "required": [
+          "id",
+          "workspaceId"
+        ]
+      },
+      "MoveToWorkspaceBody": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "org_default_workspace"
+          }
+        },
+        "required": [
+          "workspaceId"
         ],
         "additionalProperties": false
       },
@@ -4577,6 +4740,446 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ReleasedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces": {
+      "get": {
+        "summary": "Every workspace, with what it owns (admin)",
+        "description": "Oldest first, archived workspaces included: a workspace is archived and never deleted, and one that still owns questions is what a reader needs to see.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The installation's workspaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create a workspace (admin)",
+        "description": "The account making the request becomes the workspace's owner. Slugs are unique installation-wide.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The workspace just created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/shared": {
+      "put": {
+        "summary": "Mark a workspace as the installation's shared question library, or unmark it (admin)",
+        "description": "At most one workspace is shared. Every workspace's editors may pin a shared question; only the shared workspace's own members may edit one.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedWorkspaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The workspace as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/archive": {
+      "post": {
+        "summary": "Archive a workspace (admin)",
+        "description": "Refused while the workspace owns any form at all, closed and never-released ones included, or while it is the shared question library. The refusal names the forms to reassign, reports the open and the released ones separately, and says to unmark the library or hand it on. Nothing is deleted, closed, moved or unmarked on the operator's behalf, and no response row is reached. An archive is terminal: there is no unarchive, and the only write an archived workspace still takes is unmarking the shared library.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived workspace",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/workspace": {
+      "post": {
+        "summary": "Move a form to another workspace (admin)",
+        "description": "One update on the identity row: no published version changes hands and the slug does not move, so no public address changes.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveToWorkspaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The form and the workspace that owns it now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/questions/{id}/workspace": {
+      "post": {
+        "summary": "Move a question to another workspace (admin)",
+        "description": "One update on the identity row, touching no version: a form elsewhere that already pins one of its versions keeps serving it and keeps that pin in its next draft, while a new pin from another workspace is refused at publish.",
+        "tags": [
+          "workspaces"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "questions:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveToWorkspaceBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The question and the workspace that owns it now",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MovedResponse"
                 }
               }
             }
