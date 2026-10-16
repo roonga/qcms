@@ -14,15 +14,15 @@ the _only_ caller of `compileForm`.
 | Method & path                                   | Scope (SEC-5) | Notes                                                                                                                                                                                      |
 | ----------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `POST /admin/forms`                             | `forms:write` | Create a form identity + an empty draft. Body: `{ formId, slug, defaultLocale }`.                                                                                                          |
-| `GET /admin/forms`                              | `forms:read`  | List forms with draft/published status.                                                                                                                                                    |
+| `GET /admin/forms`                              | `forms:read`  | List forms with draft/published state. `status` is the **request environment's** (Q18), derived from the release state in one query for the whole list.                                    |
 | `GET /admin/forms/:id`                          | `forms:read`  | Detail: identity, the current draft (open, else **seeded** from the latest published version), version summary.                                                                            |
 | `PUT /admin/forms/:id/draft`                    | `forms:write` | Replace the draft definition (kernel-parsed, 004; parse errors → 422). Returns `{ draft, issues }` - advisory validation for the editor. Issues never block saving; they block publishing. |
 | `POST /admin/forms/:id/draft/validate`          | `forms:write` | Dry-run publish validation (no save) for editor debounce. Includes `analyzeRuleGraph`'s backward-target and cycle findings, because `compileDraft` runs it.                                |
 | `POST /admin/forms/:id/draft/preview-condition` | `forms:write` | Rule test bench (033): evaluate one rule's condition against hypothetical answers on a synthetic snapshot. Read-only.                                                                      |
 | `PATCH /admin/forms/:id/settings`               | `forms:write` | Per-form abuse-control settings (`challengeRequired`, `minSubmitMs`) - ADR-24 tier 2, columns from 026. Partial body.                                                                      |
 | `POST /admin/forms/:id/publish`                 | `forms:write` | The aggregate (below).                                                                                                                                                                     |
-| `POST /admin/forms/:id/close`                   | `forms:write` | Close to **new** sessions; in-flight sessions finish on their pinned version (R1).                                                                                                         |
-| `POST /admin/forms/:id/reopen`                  | `forms:write` | Reopen a closed form.                                                                                                                                                                      |
+| `POST /admin/forms/:id/close`                   | `forms:write` | Close **one environment's** intake to new sessions (Q18); body `{ environment }`, required. In-flight sessions finish on their pinned version (R1) and other environments are untouched.   |
+| `POST /admin/forms/:id/reopen`                  | `forms:write` | Reopen one environment's intake. The mirror of close, same body.                                                                                                                           |
 | `GET /admin/forms/:id/versions/:v`              | `forms:read`  | One published version's full snapshot (definition + compiled) for version history (034).                                                                                                   |
 
 Scopes are **inert at launch** - the `/api/v1` surface is reserved (R7). They ride
@@ -90,14 +90,17 @@ republishing it, and an in-flight session's frozen snapshot (R1) is untouched.
 `GET /admin/forms/:id` carries them so the builder's settings panel renders in one
 read; `PATCH .../settings` writes them. The body is partial (an absent key leaves
 its setting alone) and `minSubmitMs: null` means "use the deployment's configured
-floor", not "no floor". `slug`, `defaultLocale` and `status` are deliberately not
-reachable through it - they have their own doors.
+floor", not "no floor". `slug` and `defaultLocale` are deliberately not reachable through
+it - they are identity an author names once. There is no `status` column to reach at all
+since task 066: the closed state is per (form, environment) and lives on the release
+state, with its own doors.
 
 A body with **neither** key is rejected by the schema (400). Partial semantics
 otherwise make the helper's `undefined` return ambiguous: it would mean either
 "no such form" (404) or "nothing asked for" (200), two answers behind one
 sentinel. Refusing the empty patch keeps `undefined` meaning exactly not-found,
-so the handler needs no pre-read and matches `closeForm`/`reopenForm`'s shape.
+so the handler needs no pre-read, exactly as the per-environment close and reopen rely on
+their own read inside the transaction.
 
 Both the detail read and the patch response carry **`challengeEnforceable`**, a
 boolean derived from `config.flags` by `challengeEnforceable` in `src/config.ts`:
@@ -200,7 +203,10 @@ all (ADR-09), so these paths 404, never 403.
 
 - `GET /admin/forms` reads each row's draft + latest version (one read per row).
   Fine at launch admin scale; a denormalized status column is a Phase-4
-  optimization (R7), not a launch need.
+  optimization (R7), not a launch need. The **status** is not one of those per-row
+  reads: `environmentStatesByForm` reads the request environment's newest release row
+  per form in one query, because the list is the one screen that asks that question N
+  times.
 - `@roonga/qcms-db`'s enum-bearing (and branded-id) row types resolve to a TS _error_
   type through the emitted `.d.ts` (issue #5). Reads are laundered through narrow
   local views with a single cast on an unannotated const - the sanctioned
