@@ -4,6 +4,8 @@ import {
   authMember,
   authOrganization,
   authSession,
+  authTeam,
+  authTeamMember,
   authTwoFactor,
   authUser,
   authVerification,
@@ -20,6 +22,8 @@ import { twoFactor } from "better-auth/plugins/two-factor";
 import { CLIENT_ADDRESS_HEADER } from "../../client-address.js";
 import type { Config } from "../../config.js";
 import type { Logger } from "../../logger.js";
+import { accessControl, roles } from "../membership/policy.js";
+import { pluginWriteBackstop } from "./plugin-write-backstop.js";
 
 /**
  * better-auth, configured in owned shell code (ADR-06, SECURITY_DESIGN §2.1 SEC-1).
@@ -525,6 +529,24 @@ export function explainBreachLookupFailure(
   });
 }
 
+/**
+ * The membership limit, raised from the plugin's default of **100** (ADR-41's
+ * configuration guards, task 069's criterion 9).
+ *
+ * **That default is a real limit rather than a formality**: an installation with more
+ * than a hundred people in one workspace would start refusing grants, with no message
+ * anybody expects and nothing in the product saying why. A government department sharing
+ * an installation is exactly the deployment this design was tested against, and a
+ * hundred is not a lot of people.
+ *
+ * Five thousand is a bound rather than a policy: it is far past any staff count a single
+ * QCMS installation is for, and it is still a number rather than infinity, so a runaway
+ * sync path at task C3 fails against a limit instead of filling a table. Exported so the
+ * assertion against the running instance reads the same number this configuration passes
+ * rather than a second copy of it.
+ */
+export const MEMBERSHIP_LIMIT = 5_000;
+
 /** The `init` argument better-auth hands a plugin, without restating its type. */
 type PluginInitContext = Parameters<NonNullable<BetterAuthPlugin["init"]>>[0];
 
@@ -608,19 +630,24 @@ export function createAdminAuth(input: AdminAuthInput) {
         account: authAccount,
         verification: authVerification,
         twoFactor: authTwoFactor,
-        // The organisation plugin's models (ADR-41, Q32, task 068). The adapter
+        // The organisation plugin's models (ADR-41, Q32; tasks 068 and 069). The adapter
         // resolves a model by this map alone - without an entry it looks for a table
-        // named after its own model and finds nothing - so the three go in with the
-        // plugin. `team` and `teamMember` are **absent on purpose**: the plugin
-        // declares them only while `teams.enabled` is on, which is task 069's
-        // configuration, and their `role`, `environments` and `forms` columns are
-        // `NOT NULL` with no default, so declaring them before 069 declares the
-        // matching required additional fields would fail the library's own startup
-        // schema check in the other direction (`packages/db/src/schema/control/auth.ts`
-        // has the two rules).
+        // named after its own model and finds nothing - so all five go in with the
+        // plugin.
+        //
+        // `team` and `teamMember` join the map **with task 069**, and the pairing is
+        // load-bearing in both directions: the plugin declares those two models only
+        // while `teams.enabled` is on, and their `role`, `environments` and `forms`
+        // columns are `NOT NULL` with no default, so the mirror is legal only once this
+        // task declares the matching **required** additional fields. Task 068 left them
+        // out for exactly that reason (`packages/db/src/schema/control/auth.ts` has the
+        // two rules), and turning teams on without this entry would make the library
+        // look for a table named after its own model and find nothing.
         organization: authOrganization,
         member: authMember,
         invitation: authInvitation,
+        team: authTeam,
+        teamMember: authTeamMember,
       },
     }),
     // The **versioned** key set, and `secret` beside it as the legacy fallback
@@ -914,38 +941,72 @@ export function createAdminAuth(input: AdminAuthInput) {
       // at this position. See the plugin's own note (issue #436). Fail-closed is
       // untouched; the refusal just stops reading like an authentication failure.
       breachLookupDiagnostics(input.warn),
-      // ADR-41's workspace, which is this plugin's `organization` row (Q32).
+      // ADR-41's workspace, which is this plugin's `organization` row (Q32), and since
+      // task 069 the membership that authorises work inside it.
       //
-      // # What this task declares, and what it deliberately does not
+      // # What is declared here and what is enforced elsewhere
       //
-      // Task 068 builds the **container**: the row, what it owns, how a question moves
-      // between workspaces and how a workspace is archived. It grants nothing. So the
-      // declaration below carries the organisation's own typed fields and the three
-      // configuration values those fields and `createOrganization` need, and **no role,
-      // no statement, no team and no write path**: the six roles, the scope, the
-      // resolver, the middleware, the grant endpoints and the SEC-15 audit are task
-      // 069's, and `teams.enabled` stays off until that task declares `role`,
-      // `environments` and `forms` as the team's required additional fields.
+      // Task 068 built the **container**: the row, what it owns, how a question moves
+      // between workspaces and how a workspace is archived. **Task 069 adds the
+      // membership**: the six roles as disjoint statements, the team's typed additional
+      // fields, the configuration guards, and the plugin's before-hooks as a backstop.
       //
-      // # Why it is declared here at all, when nothing authorises yet
+      // What is **not** here is the enforcement. The check runs in the QCMS API
+      // middleware (`features/membership/`), which resolves the caller's `member` row and
+      // teams and then calls the plugin's own **authorize function** directly: the
+      // plugin's HTTP `hasPermission` is not used, because it needs the signed cookie
+      // this API does not hold. Never in a BFF (R2) and never only in the UI (SEC-3).
       //
-      // Because the seeding needs it. A bootstrapped installation has to have one
-      // workspace to author in (Q13), `forms.workspace_id` is `NOT NULL`, and ADR-41
-      // requires that seed to run through the server-side `createOrganization` with an
-      // explicit `userId` so the first administrator also gets the `member` row that
-      // carries `forms.owner`. That call is this plugin's (`features/auth/bootstrap.ts`).
-      //
-      // # No organisation route is reachable over HTTP
+      // # No organisation route is reachable over HTTP, and that is Q45's HTTP half
       //
       // `route.ts`'s allowlist answers 404 for every path it does not name, and it names
-      // none of this plugin's, so declaring the plugin publishes no endpoint. That is the
-      // HTTP half of Q45 - grants are written only through QCMS endpoints - and
-      // `auth-mount.test.ts` asserts it by request rather than by reading this comment.
+      // none of this plugin's, so declaring the plugin publishes no endpoint. **Grants
+      // are written only through QCMS endpoints** (Q45): the QCMS endpoints are where the
+      // validation and the SEC-15 rows live, so a second path is a path on which a grant
+      // changes without an audit row, and the plugin's removal cascades run inside the
+      // library, below any endpoint QCMS could gate. `auth-mount.test.ts` asserts the 404
+      // by request rather than by reading this comment.
+      //
+      // The before-hooks below are therefore a **backstop** rather than the mechanism:
+      // they catch a call that reaches the plugin anyway, through a configuration slip or
+      // a library change. Two write paths, one rule set.
       organization({
         // `forms.owner` on the member row (Q32, Q38), so the plugin's creator-role and
         // last-owner protections work on the name ADR-41 uses. A dot is a plain string
-        // in the plugin's role list; task 069 declares the statements behind the name.
+        // in the plugin's comma-separated role list, and `roles` below declares the
+        // statements behind the name.
         creatorRole: "forms.owner",
+        // The six roles as **disjoint statements**, with the plugin's own `admin`,
+        // `member` and `owner` overridden with empty statements.
+        // `features/membership/policy.ts` is where each statement set is written, beside
+        // the cell of the permissions matrix it is, and it is also what the middleware
+        // evaluates - one declaration, read by the library here and by the resolver
+        // there.
+        ac: accessControl,
+        roles,
+        // **Off, deliberately** (ADR-41). Owner-defined roles could recreate the
+        // mixed-family role this design removed, and they cannot be enumerated in the
+        // section 3.2 matrix. Stated rather than left to the library's default so an
+        // upstream default flip cannot turn it on.
+        dynamicAccessControl: { enabled: false },
+        // Raised from the plugin's default of **100**, which is a real limit rather than
+        // a formality: an installation with more than a hundred people in one workspace
+        // would start refusing grants with no message anybody expects.
+        membershipLimit: MEMBERSHIP_LIMIT,
+        teams: {
+          // Teams are access groups, and every grant but `forms.owner` is one (Q32).
+          enabled: true,
+          // **No default team.** A team is a grant, so one created for every new
+          // workspace would be a grant nobody wrote, carrying a role and a scope this
+          // configuration would have had to invent.
+          defaultTeam: { enabled: false },
+          // A workspace may hold **no** access groups, which is the state every
+          // workspace starts in: its owner is a `member` row and nothing else exists
+          // yet. The plugin's default refuses the removal of an organisation's last
+          // team, which would make the last grant unrevokable.
+          allowRemovingAllTeams: true,
+        },
+        organizationHooks: pluginWriteBackstop(input.db),
         // A workspace is created by an operator act, never by an administrator signing
         // in and making one (ADR-41: a workspace is not a tenant). The server-side
         // `createOrganization` with an explicit `userId` is a system action and is
@@ -979,6 +1040,46 @@ export function createAdminAuth(input: AdminAuthInput) {
                 input: false,
               },
               archivedAt: { type: "date", required: false, input: false },
+              // F17's convenience as a visible setting rather than a habit (Q39, Q57).
+              //
+              // **Defaults off**, and turning it on is an owner's deliberate act that
+              // writes a SEC-15 row of kind `setting` (Q61), because a grant on `test`
+              // responses is a grant on **personal data**: a test run can involve real
+              // respondents. The admin's help text for the setting says so in those
+              // terms. `input: false`, so no request body sets it; the workspace
+              // settings route is its one write path.
+              seedNewEditorsWithTestData: {
+                type: "boolean",
+                required: false,
+                defaultValue: false,
+                input: false,
+              },
+            },
+          },
+          team: {
+            // The team's typed additional fields: **the grant itself** (Q32, Q39).
+            //
+            // `role`, `environments` and `forms` are **required with no default**,
+            // because they are the grant and a default would be a grant nobody wrote.
+            // That is also why `packages/db/src/schema/control/auth.ts` declares all
+            // three `NOT NULL` with no default: the library's two-direction startup
+            // schema check makes a `NOT NULL` column it never writes fatal, so a
+            // required field here and a `NOT NULL` column there are one decision.
+            //
+            // The two scopes are `string[]`, which the Drizzle adapter maps to a
+            // Postgres `text[]` on `pg`. `all` is the single-element set meaning the
+            // whole of that dimension.
+            additionalFields: {
+              role: { type: "string", required: true },
+              environments: { type: "string[]", required: true },
+              forms: { type: "string[]", required: true },
+              // Task C3's join key (Q39, Q37 rule 3). `input: false`, unique at the
+              // database, and **written only by the C3 sync path**: declared now so the
+              // column exists before C3 rather than arriving as a later migration
+              // against a live deployment. Criterion 15 asserts the absence - it is on
+              // no request body the API accepts and no code path but the sync seam
+              // writes it, and the before-hook below refuses it outright.
+              externalGroupId: { type: "string", required: false, input: false },
             },
           },
         },

@@ -342,6 +342,26 @@ const SCREENS: readonly ScreenRow[] = [
     model: "action",
     why: "Redeliver and redeliver-all over dead letters.",
   },
+  {
+    route: "app/(shell)/@rail/workspaces/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/@rail/workspaces/[workspaceId]/page.tsx",
+    model: "readonly",
+    why: "Returns null. The route has a rail, contributes no section of its own, and so has nothing on it to save.",
+  },
+  {
+    route: "app/(shell)/workspaces/page.tsx",
+    model: "readonly",
+    why: "The workspaces this administrator administers, and their own grants. Nothing on it is authored: a grant is not something its holder changes, and the one act a reader can take from here is following a link to a workspace.",
+  },
+  {
+    route: "app/(shell)/workspaces/[workspaceId]/page.tsx",
+    model: "action",
+    why: "Grants, revokes, a member row's role and the two workspace settings. Every one is a deliberate act reported as an outcome and written to the access audit, which is exactly why none of them autosaves: a switch that saved on every keystroke would put a row in the audit for a change nobody finished making.",
+  },
 ];
 
 /**

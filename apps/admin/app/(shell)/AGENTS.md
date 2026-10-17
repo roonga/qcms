@@ -37,7 +37,7 @@ every gate stayed green.
   an `<h1>` and a rail row. Adding one also means `FormSection` in
   `apps/admin/lib/page-title.ts` and `RAIL_SECTIONS` in `apps/admin/lib/forms/subtree-rail.ts`.
 - **The screen count is spelled out in prose in several files** and every one of them moves
-  when a screen arrives. `grep -rn "eighteen screens" apps/admin packages/create-qcms-app`
+  when a screen arrives. `grep -rn "twenty-one screens" apps/admin packages/create-qcms-app`
   finds them, whatever the current number is. Issue #882 proposes deriving or deleting
   those counts; until that is decided they are hand-maintained.
 - **This app has a twin.** Non-test source under `apps/admin` is generated into

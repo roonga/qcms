@@ -68,7 +68,20 @@ export function uniqueAdminEmail(label: string): string {
  */
 export async function createTestAdmin(
   email: string,
-  options: { readonly name?: string; readonly mustChangePassword?: boolean } = {},
+  options: {
+    readonly name?: string;
+    readonly mustChangePassword?: boolean;
+    /**
+     * Which roles this account holds, as access groups scoped to `all` (task 069).
+     *
+     * Defaults to every team role plus `forms.owner`, because from ADR-41 a session is
+     * necessary and not sufficient: the installation claim authorises no authoring and no
+     * response read anywhere. A spec that is **about** a narrower grant names one; the
+     * API-side helper's docblock carries the reasoning.
+     */
+    readonly grants?: readonly string[];
+    readonly owner?: boolean;
+  } = {},
 ): Promise<void> {
   await createAdminAccount({
     databaseUrl: readFixtures().databaseUrl,
@@ -77,6 +90,8 @@ export async function createTestAdmin(
     email,
     password: TEST_PASSWORD,
     ...(options.name !== undefined && { name: options.name }),
+    ...(options.grants !== undefined && { grants: options.grants }),
+    ...(options.owner !== undefined && { owner: options.owner }),
     mustChangePassword: options.mustChangePassword === true,
   });
 }

@@ -1,7 +1,9 @@
 import {
   SEED_WORKSPACE_NAME,
   SEED_WORKSPACE_SLUG,
+  addAccessGroupHolder,
   countAdminUsers,
+  createAccessGroup,
   listWorkspaces,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
@@ -255,8 +257,80 @@ async function seedFirstWorkspace(
   const created = await auth.api.createOrganization({
     body: { name: SEED_WORKSPACE_NAME, slug: SEED_WORKSPACE_SLUG, userId },
   });
+  await seedFirstAdminGrants(exec, created.id, userId);
   return { id: created.id, slug: created.slug };
 }
+
+/**
+ * The access groups the first administrator is seeded with (task 069).
+ *
+ * # Why a bootstrapped installation needs them at all
+ *
+ * From ADR-41 the installation-wide claim **administers and authorises nothing inside a
+ * workspace** (Q29): authoring needs a `forms.` grant in that form's workspace, and
+ * `forms.owner` - which `createOrganization` puts on the member row above - touches no
+ * form, release, link, webhook or response row at all. So an installation seeded with the
+ * claim and the owner row alone is one whose single administrator can administer the
+ * workspace and **cannot author in it**.
+ *
+ * That is correct as a model and wrong as a first run. A bootstrapped deployment has one
+ * account, and Q13 already rules on this shape once - the two-person switch defaults off
+ * precisely because "an installation with one administrator cannot satisfy the rule at
+ * all, so defaulting it on would teach an operator the feature by teaching them to switch
+ * it off". The same reasoning reaches here: a first run that cannot create a form teaches
+ * nothing except how to get round the model.
+ *
+ * # What is seeded and what is not
+ *
+ * **Seeded:** `all.forms.editor` and `all.forms.approver`, so the first administrator can
+ * draft, publish, release, close, mint a link and configure an endpoint, in every
+ * environment, exactly as they could before this task.
+ *
+ * **Not seeded:** any `responses.*` grant. Reading, exporting and erasing response data
+ * stays a **deliberate act** somebody performs and the audit records (Q29, Q56, Q57): the
+ * first administrator grants it to themselves through the membership screen, which with
+ * the two-person switch off is allowed and audited, and which is what keeps a one-account
+ * installation able to read its own responses without that access being something nobody
+ * chose.
+ *
+ * Each seeded group is an **ordinary visible access group** in the list, with its own
+ * name, role and scope (finding 17's rule that a convenience is never an implication), so
+ * an operator can read what their account holds and revoke either one.
+ *
+ * # No audit row
+ *
+ * A seed is not an act somebody performed: there is no actor but the command, and the
+ * installation did not exist a moment before. SEC-15 records grant **writes** made through
+ * the membership endpoints, and the first-run seed is the installation coming into
+ * existence rather than a change to it - the same reason `two_factor_resets` records a
+ * reset and not the creation of the account.
+ */
+async function seedFirstAdminGrants(
+  exec: Executor,
+  workspaceId: string,
+  userId: string,
+): Promise<void> {
+  for (const role of SEEDED_FIRST_ADMIN_ROLES) {
+    const name = `all.${role}`;
+    const group = await createAccessGroup(exec, {
+      workspaceId,
+      name,
+      role,
+      environments: ["all"],
+      forms: ["all"],
+    });
+    await addAccessGroupHolder(exec, group.teamId, userId);
+  }
+}
+
+/**
+ * The roles the first administrator is seeded with: the authoring family, and no
+ * `responses.*` grant.
+ *
+ * Exported so the bootstrap's own test asserts the list rather than restating it, and so
+ * the absence of a response grant is a thing a reader can see.
+ */
+export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.approver"];
 
 /** A one-line, value-free explanation of a refusal, safe to print (SEC-8). */
 export function describeRefusal(refusal: BootstrapRefusal): string {

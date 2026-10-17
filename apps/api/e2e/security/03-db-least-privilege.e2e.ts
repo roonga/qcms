@@ -802,7 +802,7 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
       // `actor` and `workspace` are values this role cannot verify - it holds no `SELECT`
       // on `user` or `member` - and that is the no-foreign-key precedent working as
       // intended rather than a gap.
-      const client = clients.get(ENVIRONMENT_ROLES[environment] as string);
+      const client = clients.get(ENVIRONMENT_ROLES[environment]);
       expect(client).toBeDefined();
       await (client as pg.Client).query("begin");
       await (client as pg.Client).query(
@@ -830,7 +830,7 @@ describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)"
       // the statement would succeed; for the control-pool path the assertion is from the
       // source, where `writeAccessAuditRow` is the only write and names no `returning`.
       const refusal = await refusalFor(
-        clients.get(ENVIRONMENT_ROLES[environment] as string)!,
+        clients.get(ENVIRONMENT_ROLES[environment])!,
         `insert into control.access_audit (actor, workspace_id, kind)
          values ('usr_e2e', 'org_e2e', 'read') returning id`,
       );

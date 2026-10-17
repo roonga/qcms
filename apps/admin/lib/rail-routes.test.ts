@@ -83,6 +83,13 @@ const NO_SECTION = [
   "/responses",
   "/responses/erasures",
   "/webhooks",
+  // Membership and the access audit (ADR-41, task 069). No rail on either, for the reason
+  // the list above gives: a rail there would either be empty or repeat the page's own
+  // headings, "and now there are two of them and they can disagree". The workspace page
+  // has four panels in one scroll and each is a different authority, which is a shape the
+  // Settings exception does not cover.
+  "/workspaces",
+  "/workspaces/[workspaceId]",
 ];
 
 /**

@@ -93,6 +93,7 @@ import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { workspaceFilterFor } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
@@ -663,7 +664,14 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
-    const rows = await listForms(deps.databases.control);
+    // Narrowed to the workspaces the caller holds `form: read` in (ADR-41, task 069).
+    // The grant middleware resolved that set before this handler ran, so the list cannot
+    // show a form an act on that form would be refused for, and two groups sharing one
+    // installation do not see each other's forms. `undefined` is the installation-wide
+    // claim's answer, which is every workspace.
+    const rows = await listForms(deps.databases.control, {
+      ...workspaceFilterFor(c.get("grantContext")),
+    });
     // The status is **per environment** and derived since task 066 (Q18): the Q6
     // switcher's environment, read as one query for the whole list rather than one per
     // form, because the list is the one screen that asks the question N times. A form
