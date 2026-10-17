@@ -44,6 +44,19 @@ every gate stayed green.
   `packages/create-qcms-app/templates/common/apps/admin`, so a new page means
   `pnpm qcms:sync-templates`; `pnpm check:templates` refuses the drift otherwise.
 
+## One more thing a screen with a NEW dynamic segment needs
+
+The six above are per **screen**. `apps/admin/e2e/reflow.pw.ts` is per **segment**: it
+derives the route tree itself, so a new screen is swept without being listed, but a route
+whose dynamic segment the sweep has no fixture value for fails loudly rather than being
+skipped. A screen at `/thing/[thingId]` therefore adds `"[thingId]"` to that spec's
+`fills`. Task 069 met this with `[workspaceId]`; a screen whose segments are all ones
+already listed needs nothing.
+
+It is not a seventh place for the same reason the derived gate below is not: it holds no
+per-route data. What it holds is one value per **kind** of id, and those are far fewer
+than the screens.
+
 `apps/admin/lib/route-registration.test.ts` is not a seventh place. It holds no per-route
 data of its own: it reads the route tree from git and asks the six whether they have heard
 of each route. Adding one there is never part of adding a screen.
