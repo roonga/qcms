@@ -41,7 +41,7 @@ export default async function WorkspacesPage() {
   const [workspaces, mine] = await Promise.all([listWorkspaces(session), readMyAccess(session)]);
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-8">
       <div className="flex flex-col gap-1">
         <h1 className="text-xl font-semibold text-(--color-text)">{t("membership.area.title")}</h1>
         <p className="text-sm text-(--color-text-muted)">{t("membership.area.intro")}</p>

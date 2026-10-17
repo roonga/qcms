@@ -52,7 +52,10 @@ export function WorkspaceSettingsPanel({
   const [pending, startTransition] = useTransition();
 
   return (
-    <section aria-labelledby="qcms-workspace-settings-heading" className="flex flex-col gap-3">
+    <section
+      aria-labelledby="qcms-workspace-settings-heading"
+      className="flex min-w-0 flex-col gap-3"
+    >
       <h2
         id="qcms-workspace-settings-heading"
         className="text-lg font-semibold text-(--color-text)"

@@ -2387,6 +2387,11 @@ export const messages = {
     "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the holder of the installation-wide claim can read this list.",
   "membership.members.loadFailed": "The membership list could not be read: {message}",
   "membership.members.none": "This workspace has no members yet.",
+  // The accessible name of each table, visually hidden, because a table needs one and
+  // the heading above it names the panel rather than the table (issue #616's siblings on
+  // every other admin table do the same).
+  "membership.members.table": "Members of this workspace and the access groups each holds",
+  "membership.audit.table": "The access audit for this workspace, newest first",
   "membership.members.columnEmail": "Account",
   "membership.members.columnRole": "Member row",
   "membership.members.columnGroups": "Access groups",
@@ -2432,6 +2437,12 @@ export const messages = {
   "membership.groups.holderAdded": "{email} now holds {name}.",
   "membership.groups.holderFailed": "The grant was not written: {message}",
   "membership.groups.removeHolder": "Revoke",
+  // The accessible name of one holder's revoke control. The visible label is "Revoke" and
+  // this contains it, which is what WCAG 2.5.3 Label in Name requires of a name that says
+  // more than the text does; the email is what makes one of several buttons tellable
+  // apart. It is NOT the visible label, because an email in a button makes the button as
+  // wide as the address and the screen stops fitting a 320px viewport (SC 1.4.10).
+  "membership.groups.removeHolderFor": "Revoke this access group from {email}",
   "membership.groups.holderRemoved":
     "The grant was revoked, and the revoke is on the access audit.",
   "membership.groups.noHolders": "Nobody",

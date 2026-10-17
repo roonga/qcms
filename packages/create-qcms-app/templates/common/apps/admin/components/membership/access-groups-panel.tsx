@@ -89,8 +89,8 @@ export function AccessGroupsPanel({
   }
 
   return (
-    <section aria-labelledby="qcms-access-groups-heading" className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
+    <section aria-labelledby="qcms-access-groups-heading" className="flex min-w-0 flex-col gap-4">
+      <div className="flex min-w-0 flex-col gap-1">
         <h2 id="qcms-access-groups-heading" className="text-lg font-semibold text-(--color-text)">
           {t("membership.groups.heading")}
         </h2>
@@ -113,17 +113,17 @@ export function AccessGroupsPanel({
         (list.groups.length === 0 ? (
           <p className="text-sm text-(--color-text-muted)">{t("membership.groups.none")}</p>
         ) : (
-          <ul className="flex flex-col gap-4">
+          <ul className="flex min-w-0 flex-col gap-4">
             {list.groups.map((group) => (
-              <li key={group.teamId} className="flex flex-col gap-2 border-t pt-2">
-                <p className="text-sm font-medium text-(--color-text)">{group.name}</p>
-                <p className="text-xs text-(--color-text-muted)">
+              <li key={group.teamId} className="flex min-w-0 flex-col gap-2 border-t pt-2">
+                <p className="text-sm font-medium break-all text-(--color-text)">{group.name}</p>
+                <p className="text-xs break-all text-(--color-text-muted)">
                   {t("membership.groups.derivedName", {
                     fullName: group.fullName,
                     directoryName: group.directoryName,
                   })}
                 </p>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-(--color-text-muted)">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs break-all text-(--color-text-muted)">
                   <dt>{t("membership.groups.columnRole")}</dt>
                   <dd>{group.role}</dd>
                   <dt>{t("membership.groups.columnEnvironments")}</dt>
@@ -134,11 +134,11 @@ export function AccessGroupsPanel({
                   <dd>
                     {group.holders.length === 0
                       ? t("membership.groups.noHolders")
-                      : group.holders.map((holder) => holder.email).join(", ")}
+                      : String(group.holders.length)}
                   </dd>
                 </dl>
 
-                <div className="flex flex-wrap items-end gap-2">
+                <div className="flex min-w-0 flex-wrap items-end gap-2">
                   <TextField
                     label={t("membership.groups.addHolderEmail")}
                     type="email"
@@ -167,17 +167,31 @@ export function AccessGroupsPanel({
                 </div>
 
                 {group.holders.length > 0 && (
-                  <ul className="flex flex-wrap gap-2">
+                  <ul className="flex min-w-0 flex-col gap-1">
                     {group.holders.map((holder) => (
-                      <li key={holder.userId}>
+                      <li key={holder.userId} className="flex min-w-0 flex-wrap items-center gap-2">
+                        <span className="min-w-0 text-xs break-all text-(--color-text-muted)">
+                          {holder.email}
+                        </span>
+                        {/*
+                         * "Revoke" visible, the address in the accessible name. An email
+                         * in the label makes the control as wide as the address, and a
+                         * screen with several holders then stops fitting a 320px viewport
+                         * (SC 1.4.10); the accessible name still says which holder, which
+                         * is what tells one of several buttons from another, and it
+                         * contains the visible text as WCAG 2.5.3 requires.
+                         */}
                         <Button
                           variant="secondary"
                           isDisabled={pending}
+                          aria-label={t("membership.groups.removeHolderFor", {
+                            email: holder.email,
+                          })}
                           onPress={() => {
                             run(() => revoke(workspaceId, group.teamId, holder.userId));
                           }}
                         >
-                          {t("membership.groups.removeHolder")} {holder.email}
+                          {t("membership.groups.removeHolder")}
                         </Button>
                       </li>
                     ))}
@@ -188,7 +202,7 @@ export function AccessGroupsPanel({
           </ul>
         ))}
 
-      <div className="flex flex-col gap-2 border-t pt-4">
+      <div className="flex min-w-0 flex-col gap-2 border-t pt-4">
         <h3 className="text-sm font-semibold text-(--color-text)">
           {t("membership.groups.create")}
         </h3>

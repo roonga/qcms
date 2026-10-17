@@ -21,6 +21,10 @@ import type { MembershipActionState, WorkspaceMember } from "@/lib/membership/ty
  * **The groups each member holds are in the list.** Finding 17's point is that access is
  * visible rather than inferred, and a list of member rows alone would say nothing about
  * what anybody may do.
+ *
+ * `.qcms-table` is the one table wrapper in this app (issue #616): the table scrolls
+ * inside its own box rather than widening the page, which is what keeps every screen
+ * inside a 320px viewport (SC 1.4.10) while a data table stays a data table.
  */
 export function MembersPanel({
   workspaceId,
@@ -41,7 +45,7 @@ export function MembersPanel({
   const [pending, startTransition] = useTransition();
 
   return (
-    <section aria-labelledby="qcms-members-heading" className="flex flex-col gap-3">
+    <section aria-labelledby="qcms-members-heading" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-1">
         <h2 id="qcms-members-heading" className="text-lg font-semibold text-(--color-text)">
           {t("membership.members.heading")}
@@ -61,59 +65,64 @@ export function MembersPanel({
         (members.length === 0 ? (
           <p className="text-sm text-(--color-text-muted)">{t("membership.members.none")}</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-xs text-(--color-text-muted)">
-                <th scope="col">{t("membership.members.columnEmail")}</th>
-                <th scope="col">{t("membership.members.columnRole")}</th>
-                <th scope="col">{t("membership.members.columnGroups")}</th>
-                <th scope="col">
-                  <span className="sr-only">{t("membership.members.makeOwner")}</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((member) => {
-                const owner = member.role === "forms.owner";
-                return (
-                  <tr key={member.userId} className="align-top">
-                    <td>{member.email}</td>
-                    <td>
-                      {owner
-                        ? t("membership.members.ownerRole")
-                        : t("membership.members.emptyRole")}
-                    </td>
-                    <td>
-                      {member.groups.length === 0
-                        ? t("membership.members.noGroups")
-                        : member.groups.join(", ")}
-                    </td>
-                    <td>
-                      <Button
-                        variant="secondary"
-                        isDisabled={pending}
-                        onPress={() => {
-                          startTransition(async () => {
-                            setState(
-                              await setRole(
-                                workspaceId,
-                                member.userId,
-                                owner ? "member" : "forms.owner",
-                              ),
-                            );
-                          });
-                        }}
-                      >
+          <div className="qcms-table min-w-0">
+            <table>
+              <caption className="qcms-visually-hidden">{t("membership.members.table")}</caption>
+              <thead>
+                <tr>
+                  <th scope="col">{t("membership.members.columnEmail")}</th>
+                  <th scope="col">{t("membership.members.columnRole")}</th>
+                  <th scope="col">{t("membership.members.columnGroups")}</th>
+                  <th scope="col">
+                    <span className="qcms-visually-hidden">
+                      {t("membership.members.makeOwner")}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {members.map((member) => {
+                  const owner = member.role === "forms.owner";
+                  return (
+                    <tr key={member.userId}>
+                      <td>{member.email}</td>
+                      <td>
                         {owner
-                          ? t("membership.members.removeOwner")
-                          : t("membership.members.makeOwner")}
-                      </Button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                          ? t("membership.members.ownerRole")
+                          : t("membership.members.emptyRole")}
+                      </td>
+                      <td>
+                        {member.groups.length === 0
+                          ? t("membership.members.noGroups")
+                          : member.groups.join(", ")}
+                      </td>
+                      <td>
+                        <Button
+                          variant="secondary"
+                          isDisabled={pending}
+                          onPress={() => {
+                            startTransition(async () => {
+                              setState(
+                                await setRole(
+                                  workspaceId,
+                                  member.userId,
+                                  owner ? "member" : "forms.owner",
+                                ),
+                              );
+                            });
+                          }}
+                        >
+                          {owner
+                            ? t("membership.members.removeOwner")
+                            : t("membership.members.makeOwner")}
+                        </Button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         ))}
     </section>
   );

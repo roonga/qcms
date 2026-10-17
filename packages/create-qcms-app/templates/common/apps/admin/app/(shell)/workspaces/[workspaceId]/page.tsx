@@ -96,7 +96,7 @@ export default async function WorkspacePage({
     : undefined;
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex min-w-0 flex-col gap-8">
       <div className="flex flex-col gap-1">
         <Link href="/workspaces" className="text-xs text-(--color-link) underline">
           {t("membership.workspace.back")}

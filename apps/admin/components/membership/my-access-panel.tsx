@@ -26,7 +26,7 @@ export function MyAccessPanel({
   readonly message: string | undefined;
 }) {
   return (
-    <section aria-labelledby="qcms-my-access-heading" className="flex flex-col gap-3">
+    <section aria-labelledby="qcms-my-access-heading" className="flex min-w-0 flex-col gap-3">
       <div className="flex flex-col gap-1">
         <h2 id="qcms-my-access-heading" className="text-lg font-semibold text-(--color-text)">
           {t("membership.mine.heading")}
@@ -46,9 +46,9 @@ export function MyAccessPanel({
         (access.workspaces.length === 0 ? (
           <p className="text-sm text-(--color-text-muted)">{t("membership.mine.none")}</p>
         ) : (
-          <ul className="flex flex-col gap-3">
+          <ul className="flex min-w-0 flex-col gap-3">
             {access.workspaces.map((workspace) => (
-              <li key={workspace.workspaceId} className="flex flex-col gap-1">
+              <li key={workspace.workspaceId} className="flex min-w-0 flex-col gap-1">
                 <p className="text-sm font-medium text-(--color-text)">
                   {workspace.name} ({workspace.slug})
                 </p>
@@ -59,7 +59,7 @@ export function MyAccessPanel({
                 ) : (
                   <ul className="flex flex-col gap-0.5">
                     {workspace.grants.map((grant) => (
-                      <li key={grant.name} className="text-xs text-(--color-text-muted)">
+                      <li key={grant.name} className="text-xs break-all text-(--color-text-muted)">
                         {grant.name} - {grant.role} - {grant.environments.join(", ")} -{" "}
                         {grant.forms.join(", ")}
                       </li>
