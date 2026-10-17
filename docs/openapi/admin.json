@@ -1349,6 +1349,55 @@
         ],
         "additionalProperties": false
       },
+      "ErasureScopeResponse": {
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "example": "ses_abc123"
+          },
+          "environment": {
+            "type": "string",
+            "example": "prod"
+          },
+          "alreadyErased": {
+            "type": "boolean",
+            "example": false
+          },
+          "otherEnvironments": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "environment": {
+                  "type": "string",
+                  "example": "test"
+                },
+                "alreadyErased": {
+                  "type": "boolean",
+                  "example": false
+                }
+              },
+              "required": [
+                "environment",
+                "alreadyErased"
+              ]
+            },
+            "example": [
+              {
+                "environment": "test",
+                "alreadyErased": false
+              }
+            ]
+          }
+        },
+        "required": [
+          "sessionId",
+          "environment",
+          "alreadyErased",
+          "otherEnvironments"
+        ]
+      },
       "ErasuresResponse": {
         "type": "object",
         "properties": {
@@ -2531,6 +2580,7 @@
           },
           "url": {
             "type": "string",
+            "description": "The endpoint URL. A caller holding only forms.viewer sees the query string replaced by (hidden); forms.editor and above see the whole URL. Do not put credentials in an endpoint URL: use the signing secret.",
             "example": "https://consumer.example.com/qcms-hook"
           },
           "active": {
@@ -2761,6 +2811,7 @@
           },
           "url": {
             "type": "string",
+            "description": "The endpoint URL. A caller holding only forms.viewer sees the query string replaced by (hidden); forms.editor and above see the whole URL.",
             "example": "https://consumer.example.com/qcms-hook"
           },
           "status": {
@@ -5030,6 +5081,84 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/EraseResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/forms/{id}/responses/{sessionId}/erasure-scope": {
+      "get": {
+        "summary": "Which environment an erasure acts in, and where else this subject has something (admin)",
+        "description": "An erasure acts in the selected environment only (ADR-17, Q7). This read says which other environments in the live set hold something for the same subject identifier, narrowed to the ones the caller may erase in, so the screen can offer to repeat the erasure there - each repetition its own confirmed act in its own environment. It returns existence and never content, and it erases nothing.",
+        "tags": [
+          "responses"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "responses:erase"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "frm_intake"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "ses_abc123"
+            },
+            "required": true,
+            "name": "sessionId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The selected environment and the other environments to offer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureScopeResponse"
                 }
               }
             }

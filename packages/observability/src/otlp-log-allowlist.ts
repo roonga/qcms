@@ -151,6 +151,18 @@ const SAFE_ATTRIBUTES = new Set([
   "durationMs",
   "code",
   "errorId",
+  // The environment a per-environment job's line is about (ADR-40, SEC-13; task 067).
+  // The deliverer and the retention sweep each start once per process and iterate the
+  // live set, so every count they log is a count **in** one environment, and a line that
+  // dropped the name would report that an outbox is not draining without saying which
+  // one. Two of the event names above already describe this field as the point of their
+  // record and it did not travel until now.
+  //
+  // Safe to export for the reason `scheduler` is: the value is an operator's own name for
+  // a schema, read out of `control.environments`, matching `^[a-z][a-z0-9]*$`, chosen by
+  // the deployment rather than by any request, and carrying no answer, no token and no
+  // identity. It is the log half of the same decision `qcms.environment` is on spans.
+  "environment",
   "scheduler",
   "expiredCount",
   "redactedCount",

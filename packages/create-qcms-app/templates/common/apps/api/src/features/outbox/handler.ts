@@ -30,6 +30,7 @@ import {
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { endpointUrlFor } from "../webhooks/mask.js";
 import type { deadLettersRoute, deliveriesRoute, redeliverRoute } from "./route.js";
 import { isDeliveryId } from "./schema.js";
 
@@ -141,6 +142,12 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
       parsed.value,
       parseLimit(c.req.valid("query").limit),
     );
+    // Q58's masking reaches this list as well as the endpoint list, and it has to: it is
+    // the **same stored URL** reaching the **same role** by a second route, which is
+    // precisely the "a second client cannot see round it" the ruling is about. This row
+    // is `webhook: read` like the endpoint list, so the middleware classified it the same
+    // way and the handler applies the same answer.
+    const visibility = c.get("grantContext")?.endpointUrl;
     return c.json(
       {
         deliveries: rows.map((r) => ({
@@ -148,7 +155,7 @@ export function makeDeliveriesHandler(deps: Deps): RouteHandler<typeof deliverie
           eventId: r.outboxId,
           eventType: r.eventType,
           webhookId: r.webhookId,
-          url: r.url,
+          url: endpointUrlFor(r.url, visibility),
           status: deliveryStatus(r),
           attempts: r.attempts,
           lastError: r.lastError,

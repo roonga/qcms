@@ -20,9 +20,25 @@
  * second retention rule is a second thing to configure, mount, log and reason about,
  * for no behaviour a shared pass does not already give. One sweep with three jobs is
  * auditable; three sweeps drift.
+ *
+ * ## The two redaction windows are per environment (Q11, ADR-24's amendment, task 067)
+ *
+ * `control.environments` carries `delivery_snippet_ttl_ms` and `outbox_payload_ttl_ms`,
+ * either of which may be `NULL`, and `NULL` means the installation-wide typed value
+ * stands. This is the reader, because the sweep is what ages a row against them: a test
+ * environment that keeps a consumer's response body for seven days, or a second copy of a
+ * tester's answers for thirty, is a cost with no benefit.
+ *
+ * **The session TTL is not one of them**, and that is a decision rather than an omission:
+ * Q11's per-environment set is the retention TTLs and the challenge provider, and the
+ * session TTL stays installation-wide with the rate limits and the anti-abuse thresholds
+ * (finding 6). `sweepExpiredSessions` ages against each session's own `expires_at`, which
+ * was written from the installation-wide value when the session started, so there is
+ * nothing per environment for this pass to read for it even if there were a column.
  */
 
 import {
+  listEnvironmentRetention,
   redactAgedOutboxPayloads,
   redactAgedResponseSnippets,
   sweepExpiredSessions,
@@ -30,6 +46,41 @@ import {
 
 import type { Deps } from "../deps.js";
 import { createIntervalScheduler, type Scheduler } from "./scheduler.js";
+
+/** The two windows one environment's pass ages rows against, in milliseconds. */
+interface RetentionWindows {
+  readonly deliveryResponseSnippetMs: number;
+  readonly outboxPayloadMs: number;
+}
+
+/**
+ * The windows for every environment in the live set: the row's override where it has one,
+ * and the installation-wide typed value where it does not.
+ *
+ * Read once per pass, on the **control** pool, rather than once per environment: it is two
+ * numbers per environment out of one table, and the sweep already holds that connection
+ * before it picks an environment.
+ *
+ * **A failed read is not a silent fall back to the installation-wide values.** It throws,
+ * the scheduler logs the rejection and the whole pass is retried on the next tick. The
+ * alternative reads as resilience and is not: an environment configured to drop a
+ * consumer's response body at the next sweep would quietly keep it for seven days, and
+ * nothing anywhere would say that the policy an operator configured was not the policy
+ * that ran.
+ */
+async function windowsForEveryEnvironment(deps: Deps): Promise<Map<string, RetentionWindows>> {
+  const rows = await listEnvironmentRetention(deps.databases.control);
+  return new Map(
+    rows.map((row) => [
+      row.name,
+      {
+        deliveryResponseSnippetMs:
+          row.deliverySnippetTtlMs ?? deps.config.ttl.deliveryResponseSnippetMs,
+        outboxPayloadMs: row.outboxPayloadTtlMs ?? deps.config.ttl.outboxPayloadMs,
+      },
+    ]),
+  );
+}
 
 export function createRetentionSweepScheduler(deps: Deps): Scheduler {
   return createIntervalScheduler({
@@ -64,13 +115,28 @@ export function createRetentionSweepScheduler(deps: Deps): Scheduler {
  * done. `createIntervalScheduler` logs the rejection and keeps scheduling.
  */
 export async function sweepEveryEnvironment(deps: Deps, now: Date): Promise<void> {
+  const windows = await windowsForEveryEnvironment(deps);
   for (const environment of deps.databases.names) {
-    await sweepEnvironment(deps, environment, now);
+    // An environment this process holds a pool for but `control.environments` does not
+    // list cannot occur: task 064's criterion 6a refuses the boot when the two lists
+    // disagree, in both directions. The installation-wide pair is the fall back here
+    // rather than a throw because the alternative would make a disagreement this process
+    // has already refused to boot on into a second, later failure.
+    const window = windows.get(environment) ?? {
+      deliveryResponseSnippetMs: deps.config.ttl.deliveryResponseSnippetMs,
+      outboxPayloadMs: deps.config.ttl.outboxPayloadMs,
+    };
+    await sweepEnvironment(deps, environment, now, window);
   }
 }
 
 /** One environment's whole sweep: expiry, snippets, payloads. */
-async function sweepEnvironment(deps: Deps, environment: string, now: Date): Promise<void> {
+async function sweepEnvironment(
+  deps: Deps,
+  environment: string,
+  now: Date,
+  window: RetentionWindows,
+): Promise<void> {
   const exec = deps.databases.for(environment);
   const result = await sweepExpiredSessions(exec, now);
   if (result.expiredCount > 0) {
@@ -78,7 +144,7 @@ async function sweepEnvironment(deps: Deps, environment: string, now: Date): Pro
   }
   const snippets = await redactAgedResponseSnippets(
     exec,
-    new Date(now.getTime() - deps.config.ttl.deliveryResponseSnippetMs),
+    new Date(now.getTime() - window.deliveryResponseSnippetMs),
   );
   if (snippets.redactedCount > 0) {
     // A count, never a snippet: the whole point of the sweep is that these bytes
@@ -91,7 +157,7 @@ async function sweepEnvironment(deps: Deps, environment: string, now: Date): Pro
   }
   const payloads = await redactAgedOutboxPayloads(
     exec,
-    new Date(now.getTime() - deps.config.ttl.outboxPayloadMs),
+    new Date(now.getTime() - window.outboxPayloadMs),
   );
   if (payloads.redactedCount > 0) {
     // A count, never a payload: the member being dropped is the respondent's

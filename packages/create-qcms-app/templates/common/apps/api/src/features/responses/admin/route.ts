@@ -31,6 +31,7 @@ import type { Deps } from "../../../deps.js";
 import { errorResponses, jsonBody, withScopes } from "../../../openapi.js";
 import {
   makeEraseHandler,
+  makeErasureScopeHandler,
   makeExportHandler,
   makeGetResponseHandler,
   makeListErasuresHandler,
@@ -40,6 +41,7 @@ import {
 import {
   EraseBody,
   EraseResponse,
+  ErasureScopeResponse,
   ErasuresResponse,
   ExportQuery,
   FormIdParam,
@@ -126,6 +128,31 @@ export const eraseRoute = createRoute({
   ...withScopes("responses:erase"),
 });
 
+export const erasureScopeRoute = createRoute({
+  method: "get",
+  path: "/forms/{id}/responses/{sessionId}/erasure-scope",
+  summary:
+    "Which environment an erasure acts in, and where else this subject has something (admin)",
+  description:
+    "An erasure acts in the selected environment only (ADR-17, Q7). This read says " +
+    "which other environments in the live set hold something for the same subject " +
+    "identifier, narrowed to the ones the caller may erase in, so the screen can offer " +
+    "to repeat the erasure there - each repetition its own confirmed act in its own " +
+    "environment. It returns existence and never content, and it erases nothing.",
+  tags,
+  request: { params: FormSessionParams },
+  responses: {
+    200: {
+      description: "The selected environment and the other environments to offer",
+      content: { "application/json": { schema: ErasureScopeResponse } },
+    },
+    // 404: no such session in this form, in the selected environment. Same answer as a
+    // session of another form, for the reason the erase route gives (#305).
+    ...errorResponses(400, 401, 404),
+  },
+  ...withScopes("responses:erase"),
+});
+
 export const listErasuresRoute = createRoute({
   method: "get",
   path: "/erasures",
@@ -169,6 +196,7 @@ export const registerAdminResponses: SliceRegistrar = (group, deps: Deps): void 
   group.openapi(getResponseRoute, makeGetResponseHandler(deps));
   group.openapi(exportRoute, makeExportHandler(deps));
   group.openapi(eraseRoute, makeEraseHandler(deps));
+  group.openapi(erasureScopeRoute, makeErasureScopeHandler(deps));
   group.openapi(listErasuresRoute, makeListErasuresHandler(deps));
   group.openapi(unflagRoute, makeUnflagHandler(deps));
 };

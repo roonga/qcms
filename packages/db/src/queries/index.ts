@@ -239,13 +239,24 @@ export {
 // `ANSWER_DELETE_GUARD_SETTING`) stay internal to the package - retention imports
 // them by module path - so the sanctioned DELETE door cannot be opened by callers
 // outside `eraseSession`/`purgeExpired`.
-export { SessionNotFoundError, eraseSession } from "./erasure.js";
+//
+// `findSubjectPresence` is beside it rather than inside it: Q7's cross-environment offer
+// needs to know whether another environment holds anything for a subject, and that is a
+// **read** of existence that opens no door at all (task 067).
+export {
+  SessionNotFoundError,
+  type SubjectPresence,
+  eraseSession,
+  findSubjectPresence,
+} from "./erasure.js";
 
 // The live environment set (ADR-40, Q1): the source of which environments exist, read
 // by the admin's Q6 switcher and by every per-environment job that enumerates them.
 export {
+  type EnvironmentRetentionRow,
   type EnvironmentRow,
   getEnvironmentChallengeProvider,
+  listEnvironmentRetention,
   listEnvironments,
 } from "./environments.js";
 

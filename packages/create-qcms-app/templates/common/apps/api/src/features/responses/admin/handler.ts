@@ -36,6 +36,7 @@ import {
   enqueue,
   eraseSession,
   fetchResponsePage,
+  findSubjectPresence,
   getFormVersion,
   getResponse,
   getSessionInForm,
@@ -47,13 +48,15 @@ import {
   writeAccessAuditRow,
   type Executor,
 } from "@roonga/qcms-db";
-import { zipStream, type ZipEntry } from "@roonga/qcms-csv";
+import { responseExportFileName, zipStream, type ZipEntry } from "@roonga/qcms-csv";
 
 import type { Databases } from "../../../environments.js";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
 import type { GrantContext } from "../../membership/context.js";
+import { decideAccess } from "../../membership/policy.js";
+import { holdsInstallationClaim, resolveGrants } from "../../membership/resolver.js";
 import {
   csvDataRow,
   csvHeaderRow,
@@ -71,6 +74,7 @@ import {
 } from "./csv.js";
 import type {
   eraseRoute,
+  erasureScopeRoute,
   exportRoute,
   getResponseRoute,
   listErasuresRoute,
@@ -383,7 +387,14 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
         status: 200,
         headers: {
           "content-type": "application/json; charset=utf-8",
-          "content-disposition": `attachment; filename="${formId}-responses.json"`,
+          // The environment is in the name and in no column (Q8): a file can never mix
+          // two, so a column would change a file adopters parse for no information the
+          // name does not already carry.
+          "content-disposition": `attachment; filename="${responseExportFileName({
+            formId,
+            environment: auditExec.environment,
+            extension: "json",
+          })}"`,
         },
       });
     }
@@ -405,12 +416,19 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     const columns = responseColumns(definition, shape);
     const groups = shape === LONG_SHAPE ? groupFileColumns(definition) : [];
     const pageFilter = { formId, version, from: filter.from, to: filter.to };
-    const name = `${formId}-v${String(version)}-responses`;
+    const nameFor = (extension: "csv" | "zip"): string =>
+      responseExportFileName({
+        formId,
+        environment: auditExec.environment,
+        version,
+        extension,
+      });
 
     // The long shape of a version with at least one repeating group is more than
     // one file, so it downloads as a zip. A version with none downloads exactly
-    // the single file it always did - same bytes, same content type, same name -
-    // so no existing adopter's pipeline moves (Q17).
+    // the single file it always did - same bytes, same content type - so no existing
+    // adopter's pipeline moves (Q17). **The name moves**, once, because Q8 puts the
+    // environment in it; the columns do not (criterion 3).
     if (groups.length > 0) {
       return new Response(
         zipExportStream(
@@ -423,7 +441,7 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
           status: 200,
           headers: {
             "content-type": "application/zip",
-            "content-disposition": `attachment; filename="${name}.zip"`,
+            "content-disposition": `attachment; filename="${nameFor("zip")}"`,
           },
         },
       );
@@ -435,7 +453,7 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
         status: 200,
         headers: {
           "content-type": "text/csv; charset=utf-8",
-          "content-disposition": `attachment; filename="${name}.csv"`,
+          "content-disposition": `attachment; filename="${nameFor("csv")}"`,
         },
       },
     );
@@ -696,6 +714,106 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
       if (err instanceof SessionNotFoundError) throw fail.sessionNotFound();
       throw err;
     }
+  };
+}
+
+// --- GET /admin/forms/:id/responses/:sessionId/erasure-scope ----------------
+
+/**
+ * Where else the same subject identifier has something, and nothing else (Q7, ADR-17's
+ * Note; task 067, criterion 4).
+ *
+ * # It offers and never performs
+ *
+ * This is the half of Q7 that costs an implementer the most care, because the helpful
+ * version of it is the wrong one: an endpoint that erased everywhere on one confirmation
+ * would satisfy a reading of "offers to repeat" and would not be undoable. So this is a
+ * **`GET`**, it opens no transaction, it writes no audit row, and the only thing it can
+ * change is what a screen says. Each repetition is a separate `POST .../erase` against
+ * that environment, with its own type-to-confirm and its own confirmation restating which
+ * environment it is about.
+ *
+ * # Why it writes no SEC-15 row
+ *
+ * SEC-15's kinds are closed (read, export, erasure, grant, revoke, setting) and `read`
+ * means a **response** read. This reads no response: it answers whether a session id
+ * exists in a form in an environment, which is the same existence-without-content the
+ * tombstone list at `GET /admin/erasures` carries and which writes no row either. Adding
+ * one here would make the audit of who looked at whose answers noisier without recording
+ * a single additional look.
+ *
+ * # Why the subject identifier is the session id
+ *
+ * It is the identifier this screen has, and the design gives it no other. A link id names
+ * a link rather than a person and belongs to exactly one environment since task 066
+ * (`control.secure_links` carries `environment` `NOT NULL` with a global primary key), and
+ * nothing in the data model carries a respondent identity across environments by design -
+ * `docs/erasure.md` tells adopters in as many words not to encode PII in a link identity.
+ * A session id, on the other hand, is per environment: `data_<env>.sessions` is one table
+ * per schema with its own primary key, so the **same** id can exist in two environments,
+ * which is what happens when one environment was seeded or copied from another. That is
+ * exactly the case Q7 is about, and it is why this is the identifier the offer is keyed
+ * on. Recorded as a Code Owner question in this task's pull request, because Q7 says
+ * "subject identifier" and leaves the choice of which one to the build.
+ */
+export function makeErasureScopeHandler(
+  deps: Deps,
+): RouteHandler<typeof erasureScopeRoute, ApiEnv> {
+  return async (c) => {
+    const { id, sessionId: rawSession } = c.req.valid("param");
+    const formId = requireFormId(id);
+    const sessionId = requireSessionId(rawSession);
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
+
+    // 404 unless the selected environment holds this session or its tombstone, which is
+    // the same answer the erase route gives and for the same reason (#305): a screen that
+    // is not showing a response has nothing to offer a repetition of.
+    const here = await findSubjectPresence(request.exec, formId, sessionId);
+    if (!here.hasSession && !here.alreadyErased) throw fail.sessionNotFound();
+
+    const grant = c.get("grantContext");
+    const principal = c.get("adminPrincipal");
+    // The caller's grants, resolved once on the control pool. The middleware has already
+    // authorised the erasure in the **selected** environment; what is needed here is the
+    // same question asked of each other environment, so an offer the caller would be
+    // refused is never made and existence is never disclosed where they hold nothing.
+    const resolved =
+      grant?.workspaceId === undefined || principal === undefined
+        ? undefined
+        : await resolveGrants(deps.databases.control, {
+            userId: principal.userId,
+            workspaceId: grant.workspaceId,
+            claim: holdsInstallationClaim(principal.role),
+          });
+
+    const others: { environment: string; alreadyErased: boolean }[] = [];
+    for (const environment of deps.databases.names) {
+      if (environment === request.environment) continue;
+      const allowed =
+        resolved !== undefined &&
+        decideAccess({
+          memberRole: resolved.memberRole,
+          grants: resolved.grants,
+          request: { resource: "response", action: "erase", environment, formId },
+        }).allowed;
+      if (!allowed) continue;
+      const presence = await findSubjectPresence(deps.databases.for(environment), formId, sessionId);
+      // Nothing there is nothing to offer. An already-erased environment **is** offered,
+      // with the flag, because "already done there" is what an operator working through a
+      // data subject's request needs to read.
+      if (!presence.hasSession && !presence.alreadyErased) continue;
+      others.push({ environment, alreadyErased: presence.alreadyErased });
+    }
+
+    return c.json(
+      {
+        sessionId,
+        environment: request.environment,
+        alreadyErased: here.alreadyErased,
+        otherEnvironments: others,
+      },
+      200,
+    );
   };
 }
 

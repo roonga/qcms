@@ -97,6 +97,16 @@ const ALLOWED_ATTRIBUTES: ReadonlySet<string> = new Set([
   // The human-facing correlation token (P5): the id in the error envelope, the
   // response header, and the API's log line.
   "qcms.request_id",
+  // The environment the request was served from (ADR-40, SEC-13; task 067, criterion 6).
+  // One process serves every environment, so without this a `test` trace and a production
+  // one are indistinguishable in a backend - same route, same status, same timings - and
+  // "is production slow" becomes a question a trace cannot answer. The value is an
+  // operator's own name for a schema, out of `control.environments`, matching
+  // `^[a-z][a-z0-9]*$`: not derived from a respondent, the same handful of strings for
+  // every request in a deployment, and carrying no answer, no token and no identity. Set
+  // by `middleware/request-environment.ts`, which is the one place an environment is
+  // chosen, so no handler has to remember it.
+  "qcms.environment",
   // Exception events: the type, never the message or the stack (see the header).
   "exception.type",
   "exception.escaped",

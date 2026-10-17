@@ -44,12 +44,49 @@
  * fallback is the interim `prod` of Q53.
  */
 
+import { trace } from "@opentelemetry/api";
 import type { MiddlewareHandler } from "hono";
 
 import type { Deps } from "../deps.js";
 import { ApiError } from "../errors.js";
 import type { ApiEnv } from "../openapi.js";
 import type { SliceRegistrar } from "../app.js";
+
+/**
+ * The span attribute carrying the environment a request was served from (SEC-13's
+ * allowlist, criterion 6 of task 067).
+ *
+ * # Why a trace needs it, and why it is safe
+ *
+ * One process serves every environment (Q2), so without this a trace from a `test`
+ * respondent and a trace from a production one are indistinguishable in a backend: the
+ * route, the status and the timings are identical and the only thing that differs is which
+ * pool the span's database child ran on, which the `db.namespace` attribute reports as a
+ * schema name rather than as an environment. An operator asking "is production slow"
+ * cannot answer it from a trace that does not say.
+ *
+ * It **names no respondent**, which is the other half of the criterion. The value is an
+ * operator's own name for a schema, out of `control.environments`, matching
+ * `^[a-z][a-z0-9]*$` and validated against the live set before it reaches here. It is not
+ * derived from a respondent, it is the same handful of strings for every request in a
+ * deployment, and it carries no answer, no token and no identity - so it is an attribute
+ * on the allowlist rather than a value the allowlist exists to drop.
+ *
+ * Set here, in the two middlewares that decide the environment, rather than in each
+ * handler: `@opentelemetry/api` is a no-op when no SDK is registered, so the call costs
+ * nothing when tracing is off, and a handler that has to remember a span attribute is a
+ * handler that can forget one.
+ */
+export const ENVIRONMENT_ATTRIBUTE = "qcms.environment";
+
+/** Stash the request's environment and record it on the active span (SEC-13). */
+function selectEnvironment(
+  c: Parameters<MiddlewareHandler<ApiEnv>>[0],
+  environment: string,
+): void {
+  c.set("requestEnvironment", environment);
+  trace.getActiveSpan()?.setAttribute(ENVIRONMENT_ATTRIBUTE, environment);
+}
 
 /**
  * The header the admin shell's switcher sends on every API call (Q6).
@@ -82,7 +119,7 @@ export function requestEnvironment(deps: Deps): MiddlewareHandler<ApiEnv> {
           `This deployment serves no environment named ${named}`,
         );
       }
-      c.set("requestEnvironment", named);
+      selectEnvironment(c, named);
     }
     await next();
   };
@@ -103,7 +140,7 @@ export function requestEnvironment(deps: Deps): MiddlewareHandler<ApiEnv> {
  */
 export function fixedEnvironment(environment: string): MiddlewareHandler<ApiEnv> {
   return async (c, next) => {
-    c.set("requestEnvironment", environment);
+    selectEnvironment(c, environment);
     await next();
   };
 }

@@ -35,6 +35,7 @@ import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
 import { encryptWebhookSecret, generateWebhookSecret } from "./crypto.js";
+import { endpointUrlFor } from "./mask.js";
 import { checkWebhookUrl, type WebhookUrlRejection } from "./ssrf.js";
 import type {
   createWebhookRoute,
@@ -129,8 +130,19 @@ function requireAllowedUrl(deps: Deps, raw: string): string {
   return checked.url;
 }
 
-/** Map a stored row to the masked summary shape (never includes the secret). */
-function toSummary(row: WebhookRow): {
+/**
+ * Map a stored row to the summary shape (which never includes the secret).
+ *
+ * `urlVisibility` is Q58's: `"whole"` for a `forms.editor` and above, anything else for a
+ * `forms.viewer`, whose query string is replaced **in this response** rather than in the
+ * admin's rendering, so a second client of the same route sees the same masking. The
+ * middleware decided it, because that is the layer holding the caller's grants; this
+ * applies it, because this is what builds the body.
+ */
+function toSummary(
+  row: WebhookRow,
+  urlVisibility: "whole" | "masked" | undefined,
+): {
   webhookId: string;
   url: string;
   active: boolean;
@@ -141,7 +153,7 @@ function toSummary(row: WebhookRow): {
 } {
   return {
     webhookId: row.webhookId,
-    url: row.url,
+    url: endpointUrlFor(row.url, urlVisibility),
     active: row.active,
     hasSecret: true,
     deactivatedAt: row.deactivatedAt === null ? null : row.deactivatedAt.toISOString(),
@@ -200,7 +212,10 @@ export function makeListWebhooksHandler(
       deps.databases.forRequest(c.get("requestEnvironment")).exec,
       formId,
     );
-    return c.json({ webhooks: rows.map(toSummary) }, 200);
+    // Q58: the endpoint read is the one route that hands a stored URL to a caller who may
+    // not be allowed to set it, so it is the one route that masks.
+    const visibility = c.get("grantContext")?.endpointUrl;
+    return c.json({ webhooks: rows.map((row) => toSummary(row, visibility)) }, 200);
   };
 }
 

@@ -29,6 +29,26 @@ export interface GrantContext {
   readonly environment?: string;
   /** The role that allowed the act, for the audit row's detail and for a log line. */
   readonly role?: string;
+  /**
+   * How much of a webhook endpoint's URL this caller is shown (Q58, task 067): `"whole"`
+   * for a `forms.editor` and above, `"masked"` for a `forms.viewer`.
+   *
+   * # Why it is decided here and applied in the handler
+   *
+   * Q58 says **the API does the masking, in the response**, never the admin's rendering,
+   * so a second client of the same route cannot see round it. That splits the work in the
+   * one way this codebase already splits every other authorisation question: the
+   * **middleware** decides, because it is the layer that has the caller's grants in hand
+   * and the layer a handler cannot skip, and the **handler** applies it, because it is
+   * what builds the response body. A handler that resolved the caller's grants a second
+   * time would be a second chance to disagree, which is the thing this context exists to
+   * prevent.
+   *
+   * Set only on the rows where there is a URL to show, so an absent value is not a
+   * default meaning "whole": the one handler that reads it treats anything other than
+   * `"whole"` as masked, which is the fail-closed direction.
+   */
+  readonly endpointUrl?: "whole" | "masked";
 }
 
 /**

@@ -228,6 +228,58 @@ export const EraseResponse = z
   })
   .openapi("EraseResponse");
 
+/**
+ * `GET /admin/forms/:id/responses/:sessionId/erasure-scope` - which environment an erasure
+ * would act in, and where else the same subject identifier has something (Q7, task 067).
+ *
+ * # Why the answer is a list of offers rather than a cross-environment erasure
+ *
+ * ADR-17's Note: an erasure acts in **the selected environment only**, so no single act
+ * crosses a boundary and `prod` cannot be reached from `test` by accident. The cost is
+ * that a data subject's request is several deliberate acts; the benefit is that none of
+ * them is the wrong one. This read is what makes the cost visible instead of leaving an
+ * operator to remember it: the screen says where else there is something and offers to go
+ * and erase it there, each repetition its **own confirmed act in its own environment**.
+ *
+ * # Why each entry carries existence and nothing else
+ *
+ * `hasSession` and `alreadyErased` are the whole of what an offer needs, and they are the
+ * same existence-without-content the tombstone is built on. No answer, no version and no
+ * timestamp crosses an environment boundary here, so a `responses.eraser` scoped to
+ * `test` learns nothing about a production response beyond the fact that erasing in
+ * `test` has not finished the job.
+ *
+ * # Why an environment the caller cannot erase in is absent
+ *
+ * An offer the caller would be refused is worse than no offer: it reads as a product
+ * defect, and it discloses that something exists in an environment they hold no grant in.
+ * So the list is narrowed to the environments where this caller holds
+ * `response: erase` with this form in scope, by the same decision function the middleware
+ * uses, and an empty list means "nothing more that you can do", which is exactly what an
+ * operator needs to read.
+ */
+export const ErasureScopeResponse = z
+  .object({
+    sessionId: z.string().openapi({ example: "ses_abc123" }),
+    /** The environment an erasure performed from this screen would act in. */
+    environment: z.string().openapi({ example: "prod" }),
+    /** Whether this environment has already been erased, so the screen is a tombstone. */
+    alreadyErased: z.boolean().openapi({ example: false }),
+    /**
+     * The other environments holding something for this subject identifier, narrowed to
+     * the ones this caller may erase in. Each is an **offer**, never an act.
+     */
+    otherEnvironments: z
+      .array(
+        z.object({
+          environment: z.string().openapi({ example: "test" }),
+          alreadyErased: z.boolean().openapi({ example: false }),
+        }),
+      )
+      .openapi({ example: [{ environment: "test", alreadyErased: false }] }),
+  })
+  .openapi("ErasureScopeResponse");
+
 /** `POST /admin/forms/:id/responses/:sessionId/unflag` - whether a withheld response was released. */
 export const UnflagResponse = z
   .object({

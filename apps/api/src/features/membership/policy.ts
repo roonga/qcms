@@ -476,6 +476,53 @@ function refusalReason(request: AccessRequest): string {
 }
 
 /**
+ * Whether any grant the caller holds declares one (resource, action) **at all**, ignoring
+ * both scopes and the production split.
+ *
+ * # Why Q58's masking asks this question and not {@link decideAccess}
+ *
+ * Q58 masks an endpoint URL's query string for a **`forms.viewer`** and shows it whole to
+ * a **`forms.editor` and above**. That is a statement about which role the caller holds,
+ * not about an act they are performing: the read itself is workspace-wide and
+ * environment-agnostic, because authoring roles are workspace-wide and only the write
+ * actions are environment-scoped (the matrix's two read rows at the top).
+ *
+ * So the test is "does this caller hold `webhook: configure` anywhere in this workspace",
+ * which is exactly "is this caller more than a `forms.viewer`" expressed as a capability
+ * rather than as a list of role names. A list of names is the thing that goes stale when
+ * a seventh role arrives; a capability cannot, because a role that may configure an
+ * endpoint is a role that has already been shown the URL it is configuring.
+ *
+ * **Deliberately ignoring the environment scope** is the one judgement here, and it is the
+ * conservative reading of a ruling that names roles rather than scopes: a `forms.editor`
+ * scoped to `test` already reads every environment's endpoint configuration, production
+ * included, and masking the URL for that caller alone would invent a per-environment
+ * meaning for a read Q39 confirms has none. The production split is ignored for the same
+ * reason - it governs writes.
+ *
+ * Nothing authorises anything through this function. The act was authorised by the
+ * middleware before the handler ran, and this is only the question of how much of an
+ * already-authorised read's answer the caller is shown.
+ */
+export function holdsStatement(
+  input: {
+    readonly memberRole: string | undefined;
+    readonly grants: readonly HeldGrant[];
+  },
+  resource: Resource,
+  action: string,
+): boolean {
+  const declared: Readonly<Record<string, DeclaredRole | undefined>> = roles;
+  const names = [
+    ...(input.memberRole === undefined ? [] : [input.memberRole]),
+    ...input.grants.map((grant) => grant.role),
+  ];
+  return names.some(
+    (name) => declared[name]?.authorize({ [resource]: [action] }).success === true,
+  );
+}
+
+/**
  * Which roles hold one act, derived from the statements rather than tabulated.
  *
  * The matrix as data, for the section 3.2 extension's tests and for the admin's own

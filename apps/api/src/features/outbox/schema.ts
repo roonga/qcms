@@ -140,7 +140,19 @@ export const DeliveryItem = z
     eventId: z.string().openapi({ example: "a1b2c3d4-0000-0000-0000-000000000000" }),
     eventType: z.string().openapi({ example: "response.submitted" }),
     webhookId: z.string().openapi({ example: "whk_ab12cd34" }),
-    url: z.string().openapi({ example: "https://consumer.example.com/qcms-hook" }),
+    /**
+     * The endpoint this delivery was addressed to, with its **query string masked for a
+     * `forms.viewer`** and whole for a `forms.editor` and above (Q58, task 067).
+     *
+     * The same rule as the endpoint read, and for the reason that rule exists: this is
+     * the same stored URL reaching the same role by a second route.
+     */
+    url: z.string().openapi({
+      description:
+        "The endpoint URL. A caller holding only forms.viewer sees the query string " +
+        "replaced by (hidden); forms.editor and above see the whole URL.",
+      example: "https://consumer.example.com/qcms-hook",
+    }),
     status: DeliveryStatus,
     attempts: z.number().int().openapi({ example: 2 }),
     lastError: z.string().nullable().openapi({ example: "http_500" }),
