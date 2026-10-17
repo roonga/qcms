@@ -13,6 +13,7 @@ import { MODE_COOKIE, parseMode } from "@/lib/appearance";
 import { PROD_ENVIRONMENT } from "@/lib/environment";
 import { secureCookies } from "@/lib/server/config";
 import { listEnvironments, selectedEnvironment } from "@/lib/server/environments";
+import { environmentsHeld } from "@/lib/server/membership";
 import { t } from "@/lib/i18n/en";
 import { requireAdminSession } from "@/lib/server/session";
 
@@ -92,9 +93,17 @@ export default async function ShellLayout({
   // production rather than being carried into every screen's reads. A failed read leaves
   // one option, `prod`, which is the environment every deployment has: a switcher that
   // could not list the set must not offer a choice it cannot stand behind.
-  const set = await listEnvironments(session);
-  const environments =
-    set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT];
+  // Since task 069 the switcher offers **only the environments the caller holds in some
+  // grant** (Q25): a switcher that offered `prod` to somebody holding `test` would be
+  // offering a selection every screen behind it then refuses. The full set is the
+  // fallback, for a caller who holds no grant yet - an administrator who has just created
+  // a workspace, say - and `prod` is the fallback under that, because it is the
+  // environment every deployment has and a switcher that could not list the set must not
+  // offer a choice it cannot stand behind.
+  const [set, held] = await Promise.all([listEnvironments(session), environmentsHeld(session)]);
+  const full = set.ok ? set.data.map((option) => option.name) : [];
+  const offered = held.ok && held.data.length > 0 ? held.data : full;
+  const environments = offered.length > 0 ? offered : [PROD_ENVIRONMENT];
   const environment = await selectedEnvironment(environments);
 
   return (

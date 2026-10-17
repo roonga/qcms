@@ -2409,12 +2409,10 @@ export const messages = {
   "membership.groups.nameHelp":
     "A name is written <environments>.<role>[.<label>] and is a label rather than a mechanism: the role and the scope on the group decide what it grants, and a name out of step with them is refused on save. Nothing reads a name to authorise anything.",
   "membership.groups.derivedName": "Full name {fullName}, in a directory {directoryName}",
-  "membership.groups.columnName": "Name",
   "membership.groups.columnRole": "Role",
   "membership.groups.columnEnvironments": "Environments",
   "membership.groups.columnForms": "Forms",
   "membership.groups.columnHolders": "Holders",
-  "membership.groups.scopeAll": "All",
   "membership.groups.create": "Create an access group",
   "membership.groups.createName": "Name",
   "membership.groups.createRole": "Role",
@@ -2429,7 +2427,6 @@ export const messages = {
   "membership.groups.removed":
     "The group and every grant it carried were removed, and each removal is on the access audit.",
   "membership.groups.removeFailed": "The group was not removed: {message}",
-  "membership.groups.addHolder": "Grant to",
   "membership.groups.addHolderEmail": "Account address",
   "membership.groups.addHolderSubmit": "Grant",
   "membership.groups.holderAdded": "{email} now holds {name}.",
@@ -2440,7 +2437,6 @@ export const messages = {
   "membership.groups.noHolders": "Nobody",
 
   "membership.settings.heading": "Workspace settings",
-  "membership.settings.loadFailed": "The settings could not be read: {message}",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
     "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the holder of the installation-wide claim, has to make that grant. Off by default, because an installation with one account cannot satisfy the rule at all.",

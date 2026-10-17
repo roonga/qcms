@@ -346,3 +346,34 @@ export async function readMyAccess(session: AdminSession): Promise<ApiResult<MyA
     },
   };
 }
+
+/**
+ * The environments the signed-in administrator holds in some grant, in the live set's
+ * order (Q25).
+ *
+ * **What the Q6 switcher offers**, and the narrowing is the ruling's: "the Q6 switcher
+ * offers only the environments the caller holds in some grant". A switcher that offered
+ * `prod` to somebody holding `test` would be offering a selection every screen behind it
+ * then refuses.
+ *
+ * The union across workspaces, because the switcher is one control for the whole shell
+ * and a caller may hold `test` in one workspace and `prod` in another. `all` is already
+ * expanded against the live set by the capability endpoint, so this is a list of names
+ * rather than a token a second reader would have to expand.
+ *
+ * An **empty** answer is not "offer nothing": it means this caller holds no grant at all,
+ * and the layout falls back to the set the installation claim can see. That fallback is
+ * what keeps an administrator who has just created a workspace able to select an
+ * environment before they have granted themselves anything.
+ */
+export async function environmentsHeld(
+  session: AdminSession,
+): Promise<ApiResult<readonly string[]>> {
+  const result = await readMyAccess(session);
+  if (!result.ok) return result;
+  const held: string[] = [];
+  for (const workspace of result.data.workspaces) {
+    for (const name of workspace.environments) if (!held.includes(name)) held.push(name);
+  }
+  return { ok: true, data: held };
+}
