@@ -528,6 +528,126 @@ describe("refusals", () => {
     const res = await post(`/forms/frm_nosuchform/releases`, { environment: "test", version: 1 });
     expect(res.status).toBe(404);
   });
+
+  /**
+   * The race the 409 exists for, fired rather than reasoned about.
+   *
+   * Six releases of six **different** versions into one environment, started together, so
+   * the `ALREADY_RELEASED` pre-check cannot be what refuses any of them: under `READ
+   * COMMITTED` none of the six sees another's uncommitted row, every one of them reads the
+   * same `max(sequence)`, and every one of them tries to insert the same next sequence.
+   * The composite primary key `(form_id, environment, sequence)` lets one through per
+   * sequence and refuses the rest.
+   *
+   * What is asserted is the **contract**, not the arithmetic of who wins: at least one
+   * release lands, every refusal is a typed 409 `RELEASE_RACED`, nothing is a 5xx, and the
+   * history holds one row per sequence with no duplicate and no gap. A 500 here would be
+   * the real defect - a driver error reaching the caller as "something broke" when the
+   * honest answer is "someone else got there first, read the history and press again".
+   */
+  it("refuses the losers of a concurrent release with a typed 409, never a 5xx", async () => {
+    const { formId } = await seedForm("raced", 6);
+    const versions = [1, 2, 3, 4, 5, 6];
+
+    const results = await Promise.all(
+      versions.map(async (version) => {
+        const res = await post(`/forms/${formId}/releases`, { environment: "test", version });
+        const body = (await res.json()) as { error?: { code: string } };
+        return { status: res.status, code: body.error?.code };
+      }),
+    );
+
+    const won = results.filter((r) => r.status === 200);
+    const lost = results.filter((r) => r.status !== 200);
+    // Somebody has to win, or the guard is refusing work that should have landed.
+    expect(won.length).toBeGreaterThanOrEqual(1);
+    expect(won.length + lost.length).toBe(versions.length);
+    // Every loser is the typed refusal. No 5xx, and no other code either: a 400 here would
+    // mean the request was judged malformed, which it was not.
+    expect(lost.map((r) => [r.status, r.code])).toEqual(
+      lost.map(() => [409, "RELEASE_RACED"]),
+    );
+    expect(results.some((r) => r.status >= 500)).toBe(false);
+
+    // And the history is exactly the winners: one row per sequence, dense from 1, with the
+    // sequence unique per (form, environment) - which is the property the key enforces and
+    // the reason a loser cannot have quietly overwritten a winner.
+    const rows = await testDb.client.query<{ sequence: string; version: string }>(
+      `select sequence, version from control.form_releases
+        where form_id = $1 and environment = 'test' order by sequence`,
+      [formId],
+    );
+    const sequences = rows.rows.map((row) => Number(row.sequence));
+    expect(sequences).toEqual(won.map((_, index) => index + 1));
+    expect(new Set(sequences).size).toBe(sequences.length);
+    // One event per landed release, in the released environment's outbox (criterion 8).
+    expect(await releasedEvents("test", formId)).toBe(won.length);
+  });
+
+  /**
+   * The same refusal with the race forced rather than hoped for.
+   *
+   * The storm above asserts the contract whoever wins, but it cannot guarantee that any
+   * request *loses*: if Postgres happens to run the six inserts end to end, all six land
+   * and the 409 path is never entered. So this case holds the race open. A separate
+   * connection inserts sequence 1 and does **not** commit; the release request then reads
+   * no released version (the row is invisible to it), computes the same sequence 1, and
+   * blocks on the primary key's index entry. Committing the held row turns that block
+   * into a 23505, which is exactly the live race and the only way to see the 409
+   * deterministically.
+   *
+   * The wait is on `pg_locks` rather than a sleep: the request has to be *at* the lock
+   * before the commit, or it would read the committed row and legitimately take sequence
+   * 2 instead.
+   */
+  it("turns the key violation of a lost race into the 409, with the race held open", async () => {
+    const { formId } = await seedForm("racedheld", 2);
+
+    await testDb.client.query("begin");
+    try {
+      // The winner, uncommitted: invisible to the request below, and already holding the
+      // index entry for (form, 'test', 1).
+      await testDb.client.query(
+        `insert into control.form_releases (form_id, environment, version, sequence, released_by)
+         values ($1, 'test', 1, 1, 'usr_blocker')`,
+        [formId],
+      );
+
+      const racing = post(`/forms/${formId}/releases`, { environment: "test", version: 2 });
+
+      // Wait for that request to be blocked on the index entry. `pg_locks` reports the
+      // ungranted lock, so this is the request's own state and not a guess about timing.
+      const deadline = Date.now() + 10_000;
+      let blocked = false;
+      while (Date.now() < deadline && !blocked) {
+        const waiting = await testDb.client.query<{ n: string }>(
+          "select count(*) as n from pg_locks where not granted",
+        );
+        blocked = Number(waiting.rows[0]?.n ?? "0") > 0;
+        if (!blocked) await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(blocked).toBe(true);
+
+      await testDb.client.query("commit");
+
+      const res = await racing;
+      expect(res.status).toBe(409);
+      expect(((await res.json()) as { error: { code: string } }).error.code).toBe("RELEASE_RACED");
+    } finally {
+      // `commit` on an already-committed session is a no-op warning, which is the right
+      // shape for a failure path that may not have reached the commit above.
+      await testDb.client.query("rollback").catch(() => undefined);
+    }
+
+    // The loser left nothing behind: one row, the winner's, and no event for a release
+    // that never happened.
+    const rows = await testDb.client.query<{ n: string }>(
+      "select count(*) as n from control.form_releases where form_id = $1",
+      [formId],
+    );
+    expect(Number(rows.rows[0]?.n)).toBe(1);
+    expect(await releasedEvents("test", formId)).toBe(0);
+  });
 });
 
 describe("the switcher's environment steers an admin read (Q6)", () => {

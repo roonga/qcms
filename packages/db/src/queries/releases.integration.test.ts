@@ -156,6 +156,57 @@ describe("a release is a record and never a copy (criterion 2)", () => {
     expect(firstInProd.sequence).toBe(1);
   });
 
+  /**
+   * The uniqueness the docblock above claims, fired concurrently rather than argued.
+   *
+   * Six inserts of six different versions into one (form, environment), started together
+   * on six pool connections. `insertFormRelease` reads `max(sequence) + 1` in the same
+   * statement that inserts, and under `READ COMMITTED` none of the six sees another's
+   * uncommitted row, so they all compute the same next sequence. The composite primary key
+   * is what makes that safe: one insert per sequence lands and the rest are refused by
+   * name, so a sequence can never be handed to two rows. A nextval-style counter would
+   * accept them all and leave two rows claiming the same place in one history.
+   *
+   * The API turns that refusal into a 409 `RELEASE_RACED`; that half is asserted in
+   * `apps/api/src/features/releases/releases.integration.test.ts`.
+   */
+  it("hands a concurrent release a unique sequence, and refuses the loser by name", async () => {
+    const formId = await seedForm("concurrent", 6);
+    const attempts = await Promise.all(
+      [1, 2, 3, 4, 5, 6].map(async (version) => {
+        try {
+          const row = await insertFormRelease(testDb.db, {
+            formId,
+            environment: "test",
+            version,
+            releasedBy: "usr_alice",
+          });
+          return { sequence: row.sequence, constraint: undefined };
+        } catch (error) {
+          const cause = (error as { cause?: { constraint?: string } }).cause;
+          return { sequence: undefined, constraint: cause?.constraint ?? "unknown" };
+        }
+      }),
+    );
+
+    const landed = attempts.filter((a) => a.sequence !== undefined);
+    const refused = attempts.filter((a) => a.sequence === undefined);
+    expect(landed.length).toBeGreaterThanOrEqual(1);
+    // Every refusal is the key, not a deadlock or a serialization failure: this guard is
+    // the primary key doing its job, and a different error would mean a different story.
+    expect(refused.map((a) => a.constraint)).toEqual(
+      refused.map(() => "form_releases_form_id_environment_sequence_pk"),
+    );
+
+    // No sequence was handed out twice, and the history is dense from 1 - so the winners
+    // are a prefix of the history and no row was skipped over or overwritten.
+    const sequences = landed.map((a) => a.sequence as number).sort((a, b) => a - b);
+    expect(new Set(sequences).size).toBe(sequences.length);
+    expect(sequences).toEqual(landed.map((_, index) => index + 1));
+    const stored = await listFormReleases(testDb.db, formId, "test");
+    expect(stored.map((row) => row.sequence).sort((a, b) => a - b)).toEqual(sequences);
+  });
+
   it("refuses a release of a version that was never published", async () => {
     const formId = await seedForm("unpublished", 1);
     expect(

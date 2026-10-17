@@ -582,7 +582,6 @@ describe("secure links helpers", () => {
     // environment is not revocable from here any more than one in another form is.
     expect(await revokeSecureLink(testDb.db, linkId, ownerForm, "test")).toBeUndefined();
     expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
-    expect((await getSecureLink(testDb.db, linkId))?.revokedAt).toBeNull();
 
     // Positive: the owning form revokes it.
     expect(
