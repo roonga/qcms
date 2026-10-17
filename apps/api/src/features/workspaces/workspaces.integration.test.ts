@@ -37,10 +37,17 @@ import { FormId } from "@roonga/qcms-core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import type { Deps } from "../../deps.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
-import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
+import {
+  internalTokenFor,
+  makeDeps,
+  seedAdminSession,
+  seedGrants,
+  validEnv,
+} from "../../test-support.js";
 import { registerForms } from "../forms/route.js";
 import { registerQuestions } from "../questions/route.js";
 import { registerWorkspaces } from "./route.js";
@@ -52,6 +59,7 @@ let deps: Deps;
 let app: ReturnType<typeof createApp>;
 let internalToken: string;
 let adminSessionToken: string;
+let adminUserId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -61,6 +69,7 @@ beforeAll(async () => {
       admin: [
         registerAdminAuth,
         registerRequestEnvironment,
+        registerGrantCheck,
         registerWorkspaces,
         registerForms,
         registerQuestions,
@@ -68,7 +77,9 @@ beforeAll(async () => {
     },
   });
   internalToken = internalTokenFor(deps.config);
-  adminSessionToken = (await seedAdminSession(testDb.db)).token;
+  const admin = await seedAdminSession(testDb.db);
+  adminSessionToken = admin.token;
+  adminUserId = admin.userId;
 }, CONTAINER_BOOT_TIMEOUT_MS);
 
 afterAll(async () => {
@@ -111,10 +122,23 @@ const emptyDef = {} as unknown as FormDefinition;
 const emptyCompiled = {} as unknown as CompiledForm;
 
 /** A workspace created the way the product creates one: through the route. */
+/**
+ * A workspace, with this suite's administrator granted the authoring roles in it.
+ *
+ * The grants are the addition task 069 made (ADR-41): `createOrganization` writes the
+ * creator's `forms.owner` member row, and **`forms.owner` touches no form, release, link,
+ * webhook or response row at all** - an owner administers a workspace and does nothing
+ * inside it. So a suite that creates a workspace and then authors in it has to grant
+ * itself the authoring roles there, exactly as an operator does through the membership
+ * screen, or every act inside the new workspace is a 403 and the suite would be asserting
+ * the authorisation middleware rather than the workspace model.
+ */
 async function createWorkspace(slug: string): Promise<string> {
   const res = await send("POST", "/workspaces", { name: slug, slug });
   expect(res.status, await res.clone().text()).toBe(201);
-  return ((await res.json()) as WorkspaceBody).workspace.workspaceId;
+  const workspaceId = ((await res.json()) as WorkspaceBody).workspace.workspaceId;
+  await seedGrants(testDb.db, { userId: adminUserId, workspaceId });
+  return workspaceId;
 }
 
 /** A published form in one workspace, written straight to the database. */

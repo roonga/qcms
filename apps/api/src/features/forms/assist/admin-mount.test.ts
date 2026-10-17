@@ -10,13 +10,16 @@ import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
 import { loadConfig } from "../../../config.js";
+import { registerGrantCheck } from "../../membership/middleware.js";
 import { registerAdminAuth } from "../../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, validEnv } from "../../../test-support.js";
 import { registerForms } from "../route.js";
 import { registerFormsAssist } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
-const groups = { groups: { admin: [registerAdminAuth, registerForms, registerFormsAssist] } };
+const groups = {
+  groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms, registerFormsAssist] },
+};
 
 function appFor(env: Record<string, string | undefined>) {
   const deps = makeDeps({ env });

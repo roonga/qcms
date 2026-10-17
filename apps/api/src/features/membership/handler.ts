@@ -669,10 +669,93 @@ export function makeAddHolderHandler(deps: Deps): RouteHandler<typeof addHolderR
         detail: scopeDetail(group, `subject=${subject.userId} group=${group.name}`),
         occurredAt: deps.clock.now(),
       });
+      await seedTestDataGrant(tx, {
+        workspaceId,
+        role: group.role,
+        subjectId: subject.userId,
+        actorId: actor.userId,
+        at: deps.clock.now(),
+      });
     });
 
     return c.json({ group: await groupView(exec, workspace, group) }, 201);
   };
+}
+
+/**
+ * F17's optional seed grant: a `responses.viewer` on `dev` and `test` for a new
+ * `forms.editor` (Q39, Q57, criterion 15).
+ *
+ * # What it is and what it is not
+ *
+ * A **convenience**, driven by the workspace's own `seedNewEditorsWithTestData` setting,
+ * which defaults **off**. It creates an **ordinary, visible access group** like any other
+ * (finding 17), so the access it gives is a row somebody can read in the list and revoke,
+ * rather than something inferred from having been onboarded. That is the whole point:
+ * **an editor sees dev and test responses only through an explicit grant**, never by
+ * implication from an authoring role.
+ *
+ * And it is a grant on **personal data** (Q57): a test run can involve real respondents,
+ * so this is not a lesser thing than a production grant. It therefore writes its own
+ * SEC-15 `grant` row, in the same transaction as the editor grant that triggered it, and
+ * the admin's help text for the setting says what it hands over in those terms.
+ *
+ * # Why the scope is "whichever of dev and test exist"
+ *
+ * The design names `dev` and `test`, and a fresh database ships with `test` and `prod`
+ * (Q1): `dev` is an environment an operator creates. A grant naming an environment that
+ * does not exist is a grant on nothing and the write path refuses it, so the seed takes
+ * the intersection with the live set and writes a group scoped to what is there - in the
+ * environments table's order, so there is one spelling (Q42). With neither present it
+ * writes nothing at all, which is the honest answer rather than a refused onboarding.
+ */
+async function seedTestDataGrant(
+  exec: Executor,
+  input: {
+    readonly workspaceId: string;
+    readonly role: string;
+    readonly subjectId: string;
+    readonly actorId: string;
+    readonly at: Date;
+  },
+): Promise<void> {
+  if (input.role !== "forms.editor") return;
+  if ((await readSeedNewEditorsWithTestData(exec, input.workspaceId)) !== true) return;
+
+  const live = await listEnvironmentNames(exec);
+  const scope = normaliseEnvironmentScope(
+    live.filter((name) => name === "dev" || name === "test"),
+    live,
+  );
+  if (scope.length === 0) return;
+
+  const name = `${scope.join("-")}.responses.viewer`;
+  const existing = (await listAccessGroups(exec, input.workspaceId)).find(
+    (group) => group.name === name,
+  );
+  const group =
+    existing ??
+    (await createAccessGroup(exec, {
+      workspaceId: input.workspaceId,
+      name,
+      role: "responses.viewer",
+      environments: scope,
+      forms: ["all"],
+    }));
+
+  if (await holdsAccessGroup(exec, group.teamId, input.subjectId)) return;
+  await addAccessGroupHolder(exec, group.teamId, input.subjectId);
+  await writeAccessAuditRow(exec, {
+    actor: input.actorId,
+    workspaceId: input.workspaceId,
+    kind: "grant",
+    ...scopeColumns(group),
+    detail: scopeDetail(
+      group,
+      `subject=${input.subjectId} group=${group.name} seeded=seedNewEditorsWithTestData`,
+    ),
+    occurredAt: input.at,
+  });
 }
 
 // --- DELETE /admin/workspaces/:id/access-groups/:teamId/holders/:userId -----

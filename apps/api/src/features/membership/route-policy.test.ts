@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { ACTIONS, isEnvironmentScoped, isFormScoped, type Resource } from "./policy.js";
+import { ACTIONS, isEnvironmentScoped, isFormScoped } from "./policy.js";
 import { GRANT_EXEMPT_ROUTES, ROUTE_POLICIES, policyForRequest } from "./route-policy.js";
 
 /**
@@ -89,7 +89,7 @@ describe("every row names an action the policy declares", () => {
   it.each(ROUTE_POLICIES.map((row) => [`${row.method} ${row.path}`, row] as const))(
     "%s names a real (resource, action)",
     (_label, row) => {
-      const actions = ACTIONS[row.resource as Resource] as readonly string[] | undefined;
+      const actions: readonly string[] | undefined = ACTIONS[row.resource];
       expect(actions, `${row.resource} is not a declared resource`).toBeDefined();
       expect(actions).toContain(row.action);
     },

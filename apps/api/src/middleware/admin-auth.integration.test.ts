@@ -17,6 +17,7 @@
  */
 
 import { clearMustChangePassword } from "@roonga/qcms-db";
+import { registerGrantCheck } from "../features/membership/middleware.js";
 import { CONTAINER_BOOT_TIMEOUT_MS, startTestDb, type TestDb } from "@roonga/qcms-db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -57,7 +58,7 @@ interface Composed {
 function compose(env: Record<string, string | undefined> = validEnv()): Composed {
   const deps = makeDeps({ db: testDb.db, env });
   const app = createApp(deps, ADMIN_ONLY, {
-    groups: { admin: [registerAdminAuth, registerPrincipalProbe] },
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerPrincipalProbe] },
   });
   return { app, deps };
 }

@@ -45,6 +45,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
 import { FLAG_REASONS, FlagReason } from "../flag-reasons.js";
+import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
@@ -64,7 +65,7 @@ beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, env: validEnv() });
   app = createApp(deps, ADMIN_ONLY, {
-    groups: { admin: [registerAdminAuth, registerAdminResponses] },
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerAdminResponses] },
   });
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;

@@ -36,7 +36,7 @@
  * exactly this middleware, which is what criterion 10 asserts.
  */
 
-import { getForm, getQuestion, listActiveWorkspaces } from "@roonga/qcms-db";
+import { getForm, getQuestion } from "@roonga/qcms-db";
 import type { MiddlewareHandler } from "hono";
 
 import { parseFormId, parseQuestionId } from "@roonga/qcms-core";
@@ -45,7 +45,7 @@ import type { SliceRegistrar } from "../../app.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
-import type { GrantContext } from "./context.js";
+import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import type { AccessRequest } from "./policy.js";
 import { decideAccess } from "./policy.js";
 import {
@@ -55,6 +55,7 @@ import {
   resolveGrants,
   workspacesAllowing,
 } from "./resolver.js";
+import type { GrantContext } from "./context.js";
 import { GRANT_EXEMPT_ROUTES, type RoutePolicy, policyForRequest } from "./route-policy.js";
 
 const fail = {
@@ -78,8 +79,6 @@ const fail = {
   noWorkspace: (): ApiError => new ApiError("WORKSPACE_NOT_FOUND", 404, "No such workspace"),
   notFound: (what: string): ApiError =>
     new ApiError(`${what.toUpperCase()}_NOT_FOUND`, 404, `No such ${what}`),
-  malformed: (what: string): ApiError =>
-    new ApiError(`INVALID_${what.toUpperCase()}_ID`, 400, `Malformed ${what} id`),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
 } as const;
 
@@ -95,29 +94,20 @@ function segment(template: string, path: string, name: string): string | undefin
  * The workspace a `body` row acts in: the one the body names, or the installation's only
  * one.
  *
- * The same three outcomes task 068's `resolveWorkspaceForNewObject` gives a create - that
- * workspace, the only one, or a refusal naming the candidates - because this runs in
- * front of the handler that then calls it, and two different answers to one question
- * would be a request authorised against one workspace and written into another.
+ * **Task 068's own resolver**, called rather than reimplemented. Its three outcomes - that
+ * workspace, the only one, or a refusal naming the candidates - are what the create
+ * handler will give the caller a moment later, so calling it here means the request is
+ * authorised against exactly the workspace it is written into, and a refusal reads the
+ * same whichever of the two raised it. A second implementation would be a second answer
+ * to one question, which is how a request gets authorised against one workspace and
+ * written into another.
  */
 async function workspaceFromBody(deps: Deps, body: unknown): Promise<string> {
   const named = (body as { workspaceId?: unknown } | undefined)?.workspaceId;
-  if (typeof named === "string" && named !== "") return named;
-  const candidates = await listActiveWorkspaces(deps.databases.control);
-  const only = candidates[0];
-  if (only === undefined || candidates.length > 1) {
-    // The handler raises the legible refusal, with the candidates in it. Authorising the
-    // request against a workspace nobody named is the failure this avoids, so the act is
-    // refused here and the handler's own 400 or 409 is what the caller reads.
-    throw new ApiError(
-      "WORKSPACE_REQUIRED",
-      400,
-      candidates.length > 1
-        ? "More than one workspace exists, so the owning workspace has to be named"
-        : "This installation has no workspace to author in",
-    );
-  }
-  return only.id;
+  return resolveWorkspaceForNewObject(
+    deps.databases.control,
+    typeof named === "string" && named !== "" ? named : undefined,
+  );
 }
 
 /** Read the JSON body, if there is one. Hono caches it, so the validator reads the same copy. */
@@ -150,39 +140,69 @@ async function environmentFor(
   return deps.databases.forRequest(c.get("requestEnvironment")).environment;
 }
 
-/** The workspace a row's act is in, or `undefined` for an installation-wide row. */
+/**
+ * Where a row's act is, resolved.
+ *
+ *   - **`workspace`**: this workspace, and the act is judged against the grants in it.
+ *   - **`none`**: no workspace, for an installation-wide or a `caller` row.
+ *   - **`defer`**: the path segment is **not a well-formed id**, so there is no form or
+ *     question for it to name and no workspace to judge against. The route's own handler
+ *     answers, for the reason below.
+ */
+type WorkspaceResolution =
+  | { readonly kind: "workspace"; readonly id: string }
+  | { readonly kind: "none" }
+  | { readonly kind: "defer" };
+
+/**
+ * The workspace a row's act is in.
+ *
+ * # Why a malformed id defers to the handler rather than being refused here
+ *
+ * The two statuses a malformed form id gets are **both deliberate and they differ per
+ * route**: `GET /admin/forms/{id}/deliveries` answers 400 `INVALID_FORM_ID`, while
+ * `POST /admin/forms/{id}/deliveries/{deliveryId}/redeliver` answers **404**, because
+ * issue #310 took the 400 off that route so its document declares none and issue #305
+ * then made "malformed form", "no such delivery" and "not your form" one answer, so the
+ * response cannot be used to sort them. One middleware cannot answer both, and inventing
+ * a third shape would undo one of those decisions.
+ *
+ * So a malformed id **defers**: the handler parses it and raises its own slice's refusal.
+ * That is safe rather than a hole, because there is nothing to authorise - a string that
+ * cannot name a form names no form, in any workspace - and because every form-addressed
+ * handler parses its id before it reads or writes anything. An id that is well formed and
+ * **absent** is a 404 here, which is the answer every slice already gives it.
+ */
 async function workspaceFor(
   deps: Deps,
   c: Parameters<MiddlewareHandler<ApiEnv>>[0],
   policy: RoutePolicy,
   path: string,
-): Promise<string | undefined> {
+): Promise<WorkspaceResolution> {
   switch (policy.workspace) {
     case "installation":
     case "caller":
-      return undefined;
+      return { kind: "none" };
     case "path": {
       const id = segment(policy.path, path, "id");
       if (id === undefined || id === "") throw fail.noWorkspace();
-      return id;
+      return { kind: "workspace", id };
     }
     case "body":
-      return workspaceFromBody(deps, await readBody(c));
+      return { kind: "workspace", id: await workspaceFromBody(deps, await readBody(c)) };
     case "form": {
-      const raw = segment(policy.path, path, "id");
-      const parsed = parseFormId(raw ?? "");
-      if (!parsed.ok) throw fail.malformed("form");
+      const parsed = parseFormId(segment(policy.path, path, "id") ?? "");
+      if (!parsed.ok) return { kind: "defer" };
       const form = await getForm(deps.databases.control, parsed.value);
       if (form === undefined) throw fail.notFound("form");
-      return form.workspaceId;
+      return { kind: "workspace", id: form.workspaceId };
     }
     case "question": {
-      const raw = segment(policy.path, path, "id");
-      const parsed = parseQuestionId(raw ?? "");
-      if (!parsed.ok) throw fail.malformed("question");
+      const parsed = parseQuestionId(segment(policy.path, path, "id") ?? "");
+      if (!parsed.ok) return { kind: "defer" };
       const question = await getQuestion(deps.databases.control, parsed.value);
       if (question === undefined) throw fail.notFound("question");
-      return question.workspaceId;
+      return { kind: "workspace", id: question.workspaceId };
     }
   }
 }
@@ -204,12 +224,11 @@ export function grantCheck(deps: Deps): MiddlewareHandler<ApiEnv> {
 
     const method = c.req.method;
     const path = new URL(c.req.url).pathname;
-    const route = `${method} ${path}`;
 
     // The capability endpoint: everybody reads their own grants (Q35), so a grant check
     // in front of it would be a check on the thing it exists to tell you. Matched on the
     // concrete path because it takes no parameters.
-    if (GRANT_EXEMPT_ROUTES.includes(route)) {
+    if (GRANT_EXEMPT_ROUTES.includes(`${method} ${path}`)) {
       await next();
       return;
     }
@@ -228,71 +247,116 @@ export function grantCheck(deps: Deps): MiddlewareHandler<ApiEnv> {
       throw fail.undecided(method, path);
     }
 
-    const claim = holdsInstallationClaim(principal.role);
-    if (policy.installationOnly === true) {
-      if (!claim) throw fail.claimOnly();
-      c.set("grantContext", { policy, ...(await claimContext(deps, c, policy, path)) });
-      await next();
-      return;
-    }
-
-    const environment = await environmentFor(deps, c, policy);
-    const request: AccessRequest = {
-      resource: policy.resource,
-      action: policy.action,
-      ...(environment === undefined ? {} : { environment }),
-    };
-
-    if (policy.workspace === "caller") {
-      const resolved = await resolveCallerWorkspaces(deps.databases.control, {
-        userId: principal.userId,
-        claim,
-      });
-      const workspaceIds = workspacesAllowing(resolved, request);
-      if (workspaceIds.length === 0) {
-        throw fail.refused(
-          decideAccess({ memberRole: undefined, grants: [], request }).reason ?? "Refused",
-        );
-      }
-      c.set("grantContext", {
-        policy,
-        workspaceIds,
-        ...(environment === undefined ? {} : { environment }),
-      });
-      await next();
-      return;
-    }
-
-    const workspaceId = await workspaceFor(deps, c, policy, path);
-    if (workspaceId === undefined) throw fail.noWorkspace();
-
-    // The form scope's value, for the data family. The form is the `{id}` segment, and
-    // the row that names a form is always a form-addressed route.
-    const formId = policy.namesForm === true ? segment(policy.path, path, "id") : undefined;
-    const scoped: AccessRequest = {
-      ...request,
-      ...(formId === undefined ? {} : { formId }),
-    };
-
-    const resolved: ResolvedMembership = await resolveGrants(deps.databases.control, {
+    const context = await decideRequest(deps, c, {
+      policy,
+      path,
       userId: principal.userId,
-      workspaceId,
+      claim: holdsInstallationClaim(principal.role),
+    });
+    if (context !== undefined) c.set("grantContext", context);
+    await next();
+  };
+}
+
+/**
+ * Decide one request, and answer the context the handler reads.
+ *
+ * `undefined` means **defer**: the path carries an id that is not one, so there is
+ * nothing to authorise and the handler raises its slice's own refusal (`workspaceFor`
+ * says why that cannot be one status here). Every other outcome is either a context or a
+ * thrown refusal.
+ */
+async function decideRequest(
+  deps: Deps,
+  c: Parameters<MiddlewareHandler<ApiEnv>>[0],
+  input: {
+    readonly policy: RoutePolicy;
+    readonly path: string;
+    readonly userId: string;
+    readonly claim: boolean;
+  },
+): Promise<GrantContext | undefined> {
+  const { policy, path, claim } = input;
+
+  // The four acts the claim holds alone (Q29): creating a workspace, marking the shared
+  // one, the environment list and the installation-wide dead-letter list. No role reaches
+  // them, so a caller holding every grant in the installation is still refused.
+  if (policy.installationOnly === true) {
+    if (!claim) throw fail.claimOnly();
+    return { policy, ...(await claimContext(deps, c, policy, path)) };
+  }
+
+  const environment = await environmentFor(deps, c, policy);
+  const request: AccessRequest = {
+    resource: policy.resource,
+    action: policy.action,
+    ...(environment === undefined ? {} : { environment }),
+  };
+
+  // A library list: the answer is a filter rather than a yes, so the set of workspaces
+  // the caller holds the act in is resolved and the handler narrows its read to it.
+  if (policy.workspace === "caller") {
+    const resolved = await resolveCallerWorkspaces(deps.databases.control, {
+      userId: input.userId,
       claim,
     });
-    const decision = decideAccess({
-      memberRole: resolved.memberRole,
-      grants: resolved.grants,
-      request: scoped,
-    });
-    if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
+    const workspaceIds = workspacesAllowing(resolved, request);
+    if (workspaceIds.length === 0) {
+      throw fail.refused(
+        decideAccess({ memberRole: undefined, grants: [], request }).reason ?? "Refused",
+      );
+    }
+    return { policy, workspaceIds, ...(environment === undefined ? {} : { environment }) };
+  }
 
-    c.set("grantContext", {
-      policy,
-      workspaceId,
-      ...(environment === undefined ? {} : { environment }),
-      ...(decision.role === undefined ? {} : { role: decision.role }),
-    });
-    await next();
+  const where = await workspaceFor(deps, c, policy, path);
+  if (where.kind === "defer") return undefined;
+  if (where.kind === "none") throw fail.noWorkspace();
+  return decideInOneWorkspace(deps, {
+    policy,
+    path,
+    userId: input.userId,
+    claim,
+    workspaceId: where.id,
+    request,
+    ...(environment === undefined ? {} : { environment }),
+  });
+}
+
+/** Decide an act in one named workspace, and answer the context it leaves behind. */
+async function decideInOneWorkspace(
+  deps: Deps,
+  input: {
+    readonly policy: RoutePolicy;
+    readonly path: string;
+    readonly userId: string;
+    readonly claim: boolean;
+    readonly workspaceId: string;
+    readonly request: AccessRequest;
+    readonly environment?: string;
+  },
+): Promise<GrantContext> {
+  const { policy, path, workspaceId, request, environment } = input;
+  // The form scope's value, for the data family. The form is the `{id}` segment, and
+  // every row that names a form is a form-addressed route.
+  const formId = policy.namesForm === true ? segment(policy.path, path, "id") : undefined;
+  const resolved: ResolvedMembership = await resolveGrants(deps.databases.control, {
+    userId: input.userId,
+    workspaceId,
+    claim: input.claim,
+  });
+  const decision = decideAccess({
+    memberRole: resolved.memberRole,
+    grants: resolved.grants,
+    request: { ...request, ...(formId === undefined ? {} : { formId }) },
+  });
+  if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
+
+  return {
+    policy,
+    workspaceId,
+    ...(environment === undefined ? {} : { environment }),
+    ...(decision.role === undefined ? {} : { role: decision.role }),
   };
 }
 

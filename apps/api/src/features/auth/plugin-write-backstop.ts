@@ -58,7 +58,7 @@ function refuse(rule: string, detail: string): never {
 /** A value that should be a `string[]` scope, read off an untyped hook payload. */
 function readScope(value: unknown): readonly string[] | undefined {
   if (!Array.isArray(value)) return undefined;
-  return value.every((entry) => typeof entry === "string") ? (value as string[]) : undefined;
+  return value.every((entry) => typeof entry === "string") ? value : undefined;
 }
 
 /** The six role names plus the empty `member` name, which is the only other legal role. */
@@ -217,11 +217,12 @@ export function pluginWriteBackstop(exec: Executor): {
       // not a sanctioned path.
       await refuseTeamWrite(exec, team, organization);
     },
-    beforeAddMember: async ({ member, organization }) => {
+    beforeAddMember: ({ member, organization }) => {
       if (organization.archivedAt !== undefined && organization.archivedAt !== null) {
         refuse("archived workspace", "That workspace is archived, so nobody is added to it.");
       }
       refuseRole(member.role, "member");
+      return Promise.resolve();
     },
   };
 }

@@ -56,7 +56,7 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
-import { workspaceFilterFor } from "../membership/context.js";
+import { type GrantContext, workspaceFilterFor } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import {
@@ -307,13 +307,16 @@ export function makeDeprecateVersionHandler(
  * helper: finding 10's asymmetry is a QCMS domain rule and one rule belongs in one place,
  * which `features/workspaces/rules.ts` already says of the pin half of it.
  */
-async function withSharedWorkspace(
+async function readableWorkspaces(
   deps: Deps,
-  workspaceIds: readonly string[],
-): Promise<readonly string[]> {
+  grant: GrantContext | undefined,
+): Promise<{ workspaceIds?: readonly string[] }> {
+  const filter = workspaceFilterFor(grant);
+  const held = filter.workspaceIds;
+  if (held === undefined) return {};
   const shared = await getSharedWorkspace(deps.databases.control);
-  if (shared === undefined || workspaceIds.includes(shared.id)) return workspaceIds;
-  return [...workspaceIds, shared.id];
+  if (shared === undefined || held.includes(shared.id)) return { workspaceIds: held };
+  return { workspaceIds: [...held, shared.id] };
 }
 
 // --- GET /admin/questions ---------------------------------------------------
@@ -328,12 +331,9 @@ export function makeListQuestionsHandler(
     // its questions, and only its own members edit them, so the shared workspace is a
     // read surface to everybody else. A shared question's text is the one thing that
     // crosses a workspace boundary, and no response ever does.
-    const filter = workspaceFilterFor(c.get("grantContext"));
     const summaries = await listQuestions(
       deps.databases.control,
-      filter.workspaceIds === undefined
-        ? {}
-        : { workspaceIds: await withSharedWorkspace(deps, filter.workspaceIds) },
+      await readableWorkspaces(deps, c.get("grantContext")),
     );
 
     const byStatus =

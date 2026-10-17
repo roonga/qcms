@@ -235,6 +235,17 @@ export const roles = {
   owner: accessControl.newRole(emptyStatements),
 } as const;
 
+/**
+ * One declared role, narrowed to the one thing the resolver calls on it.
+ *
+ * `authorize` is the plugin's own function and the whole of what a decision needs; the
+ * nine roles' `statements` have nine different shapes, so a union of the declarations
+ * themselves would make the lookup below unassignable for no benefit.
+ */
+interface DeclaredRole {
+  authorize(request: Record<string, readonly string[]>): { readonly success: boolean };
+}
+
 /** The six role names, in the order ADR-41 lists them. */
 export const ROLE_NAMES = [
   "forms.viewer",
@@ -366,7 +377,11 @@ function scopeAllows(scope: readonly string[], value: string | undefined): boole
  * role is.
  */
 function grantAllows(grant: HeldGrant, request: AccessRequest): boolean {
-  const role = roles[grant.role as keyof typeof roles];
+  // A role name read off a database row, so it is a string and not a key of `roles`: a
+  // row carrying a name no configuration declares grants nothing, which is the
+  // fail-closed direction and the one a `team.role` written by hand would take.
+  const declared: Readonly<Record<string, DeclaredRole | undefined>> = roles;
+  const role = declared[grant.role];
   if (role === undefined) return false;
 
   // 1. The statements, through the plugin's own authorize function. Not its HTTP
@@ -469,7 +484,5 @@ function refusalReason(request: AccessRequest): string {
  * that function with an environment.
  */
 export function rolesHolding(resource: Resource, action: string): readonly RoleName[] {
-  return ROLE_NAMES.filter(
-    (name) => roles[name].authorize({ [resource]: [action] }).success === true,
-  );
+  return ROLE_NAMES.filter((name) => roles[name].authorize({ [resource]: [action] }).success);
 }

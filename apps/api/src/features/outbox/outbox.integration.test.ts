@@ -61,6 +61,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerOutboxOps } from "./route.js";
@@ -178,7 +179,9 @@ let erasedFormVersion: number;
 beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, env: validEnv() });
-  app = createApp(deps, ADMIN_ONLY, { groups: { admin: [registerAdminAuth, registerOutboxOps] } });
+  app = createApp(deps, ADMIN_ONLY, {
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerOutboxOps] },
+  });
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
 
   await createForm(testDb.db, {

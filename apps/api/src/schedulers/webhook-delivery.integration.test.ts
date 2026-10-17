@@ -65,6 +65,7 @@ import { systemClock } from "../clock.js";
 import type { Deps } from "../deps.js";
 import { encryptWebhookSecret } from "../features/webhooks/crypto.js";
 import { registerOutboxOps } from "../features/outbox/route.js";
+import { registerGrantCheck } from "../features/membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../middleware/admin-auth.js";
 import {
   type TestDepsOverrides,
@@ -264,7 +265,9 @@ function verify(secret: string, timestamp: string, body: string, signature: stri
 }
 
 function adminApp(): ReturnType<typeof createApp> {
-  return createApp(deps, ADMIN_ONLY, { groups: { admin: [registerAdminAuth, registerOutboxOps] } });
+  return createApp(deps, ADMIN_ONLY, {
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerOutboxOps] },
+  });
 }
 
 function adminHeaders(): Record<string, string> {

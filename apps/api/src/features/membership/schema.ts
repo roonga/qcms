@@ -122,7 +122,7 @@ export const UpdateAccessGroupBody = z
 export const AddHolderBody = z
   .strictObject({
     userId: z.string().min(1).max(64).optional().openapi({ example: "usr_0a1b2c" }),
-    email: z.string().email().max(320).optional().openapi({ example: "officer@qcms.test" }),
+    email: z.email().max(320).optional().openapi({ example: "officer@qcms.test" }),
   })
   .refine(
     (body) => (body.userId === undefined) !== (body.email === undefined),

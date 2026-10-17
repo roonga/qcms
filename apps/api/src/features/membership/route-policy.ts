@@ -606,9 +606,11 @@ export function policyForRequest(method: string, path: string): RoutePolicy | un
   const candidates = ROUTE_POLICIES.filter(
     (row) => row.method === method && matchesTemplate(row.path, path),
   );
-  if (candidates.length <= 1) return candidates[0];
-  return candidates.reduce((best, row) =>
-    literalSegments(row.path) > literalSegments(best.path) ? row : best,
+  const first = candidates[0];
+  if (first === undefined || candidates.length === 1) return first;
+  return candidates.reduce(
+    (best, row) => (literalSegments(row.path) > literalSegments(best.path) ? row : best),
+    first,
   );
 }
 

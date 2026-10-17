@@ -16,6 +16,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { decryptWebhookSecret } from "./crypto.js";
@@ -43,7 +44,7 @@ function buildApp(env: Record<string, string | undefined>): {
 } {
   const d = makeDeps({ db: testDb.db, env });
   const a = createApp(d, ADMIN_ONLY, {
-    groups: { admin: [registerAdminAuth, registerWebhooks] },
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerWebhooks] },
   });
   return { deps: d, app: a };
 }
