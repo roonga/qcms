@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import type { FormDefinition, FormId } from "@roonga/qcms-core";
@@ -78,8 +78,29 @@ export async function getForm(exec: Executor, formId: FormId): Promise<FormRow |
  * on the identity row), so ordered by `formId` for a stable listing. The admin
  * library list (022) joins each row against its draft/latest-version state.
  */
-export async function listForms(exec: Executor): Promise<FormRow[]> {
-  return exec.select().from(forms).orderBy(forms.formId);
+export async function listForms(
+  exec: Executor,
+  options: { readonly workspaceIds?: readonly string[] } = {},
+): Promise<FormRow[]> {
+  // `workspaceIds` is the confidentiality boundary ADR-41 draws between two groups
+  // sharing one installation (task 069): the library list is narrowed to the workspaces
+  // the caller holds `form: read` in, so a `forms.viewer` in one workspace never sees
+  // another group's forms. `undefined` is the whole installation, which is what the
+  // installation-wide claim and the operator CLIs read.
+  //
+  // An **empty** list is an empty result rather than the whole table, which is the
+  // fail-closed direction: a caller who holds the act nowhere sees nothing, and a filter
+  // that treated "no workspaces" as "every workspace" would be the one bug this argument
+  // exists to prevent.
+  if (options.workspaceIds === undefined) {
+    return exec.select().from(forms).orderBy(forms.formId);
+  }
+  if (options.workspaceIds.length === 0) return [];
+  return exec
+    .select()
+    .from(forms)
+    .where(inArray(forms.workspaceId, [...options.workspaceIds]))
+    .orderBy(forms.formId);
 }
 
 /**

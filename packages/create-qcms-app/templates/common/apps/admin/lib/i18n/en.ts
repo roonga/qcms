@@ -145,6 +145,7 @@ export const messages = {
   "nav.forms": "Forms",
   "nav.responses": "Responses",
   "nav.webhooks": "Webhooks",
+  "nav.workspaces": "Workspaces",
   "nav.settings": "Settings",
 
   "signIn.title": "Sign in to QCMS",
@@ -2347,6 +2348,144 @@ export const messages = {
   // The ordinal beside a step title. A separate string rather than a template at the
   // call site because a locale that numbers differently changes it here (ADR-27).
   "forms.rail.stepPosition": "{position}.",
+
+  // --- membership and the access audit (ADR-41, task 069) ---------------------
+  //
+  // ## One string in here is a control rather than copy
+  //
+  // `membership.settings.seedHelp` is the admin's help text for
+  // `seedNewEditorsWithTestData`, and Q57 does not leave its wording to taste: it says
+  // this record, the plan and **the admin's help text** state in those terms that a grant
+  // on `test` responses is a grant on **personal data**, because a test run can involve
+  // real respondents. A warning nobody renders is the failure mode, so the browser suite
+  // asserts this sentence is on screen rather than only in the catalog.
+  //
+  // ## What the names say, and what they deliberately do not
+  //
+  // An access group's name is a **label**: the role and the scope on the row are
+  // authoritative, nothing parses a name to authorise, and a name out of step with the
+  // fields is a validation error on save. So `membership.groups.nameHelp` explains the
+  // grammar and says the fields decide - it does not offer to fix a name, because the
+  // write path refuses one rather than rewriting it.
+  "membership.area.title": "Workspaces",
+  "membership.area.intro":
+    "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
+  "membership.area.noWorkspaces":
+    "You manage no workspace. Your own grants are on the access panel below.",
+  "membership.area.loadFailed": "The workspaces could not be read: {message}",
+  "membership.area.shared": "Shared question library",
+  "membership.area.archived": "Archived",
+  "membership.area.twoPerson": "Second approver required",
+  "membership.area.counts": "{forms} form(s), {questions} question(s)",
+  "membership.workspace.title": "{name}",
+  "membership.workspace.back": "All workspaces",
+  "membership.workspace.notFound":
+    "No such workspace, or you do not manage it. Your own grants are on /workspaces.",
+
+  "membership.members.heading": "Members",
+  "membership.members.intro":
+    "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the holder of the installation-wide claim can read this list.",
+  "membership.members.loadFailed": "The membership list could not be read: {message}",
+  "membership.members.none": "This workspace has no members yet.",
+  // The accessible name of each table, visually hidden, because a table needs one and
+  // the heading above it names the panel rather than the table (issue #616's siblings on
+  // every other admin table do the same).
+  "membership.members.table": "Members of this workspace and the access groups each holds",
+  "membership.audit.table": "The access audit for this workspace, newest first",
+  "membership.members.columnEmail": "Account",
+  "membership.members.columnRole": "Member row",
+  "membership.members.columnGroups": "Access groups",
+  "membership.members.noGroups": "None",
+  // The empty role, named rather than shown as a bare word: the row grants nothing and
+  // exists so a team grant is expressible, and a reader seeing `member` would reasonably
+  // read it as a rank.
+  "membership.members.emptyRole": "Member (grants nothing on its own)",
+  "membership.members.ownerRole": "Workspace owner",
+  "membership.members.makeOwner": "Make a workspace owner",
+  "membership.members.removeOwner": "Remove workspace owner",
+  "membership.members.roleChanged": "The member row is now {role}.",
+  "membership.members.roleFailed": "The member row was not changed: {message}",
+
+  "membership.groups.heading": "Access groups",
+  "membership.groups.intro":
+    "One group is one grant: a role and its scope. Team membership is the grant, so a group with no holders grants nobody anything.",
+  "membership.groups.loadFailed": "The access groups could not be read: {message}",
+  "membership.groups.none": "This workspace has no access groups yet.",
+  "membership.groups.nameHelp":
+    "A name is written <environments>.<role>[.<label>] and is a label rather than a mechanism: the role and the scope on the group decide what it grants, and a name out of step with them is refused on save. Nothing reads a name to authorise anything.",
+  "membership.groups.derivedName": "Full name {fullName}, in a directory {directoryName}",
+  "membership.groups.columnRole": "Role",
+  "membership.groups.columnEnvironments": "Environments",
+  "membership.groups.columnForms": "Forms",
+  "membership.groups.columnHolders": "Holders",
+  "membership.groups.create": "Create an access group",
+  "membership.groups.createName": "Name",
+  "membership.groups.createRole": "Role",
+  "membership.groups.createEnvironments": "Environments",
+  "membership.groups.createForms": "Forms (one id per line, or `all`)",
+  "membership.groups.createLabel": "Label (optional)",
+  "membership.groups.createSubmit": "Create group",
+  "membership.groups.created":
+    "The access group {name} was created. It grants nobody anything until somebody holds it.",
+  "membership.groups.createFailed": "The access group was not created: {message}",
+  "membership.groups.remove": "Remove group",
+  "membership.groups.removed":
+    "The group and every grant it carried were removed, and each removal is on the access audit.",
+  "membership.groups.removeFailed": "The group was not removed: {message}",
+  "membership.groups.addHolderEmail": "Account address",
+  "membership.groups.addHolderSubmit": "Grant",
+  "membership.groups.holderAdded": "{email} now holds {name}.",
+  "membership.groups.holderFailed": "The grant was not written: {message}",
+  "membership.groups.removeHolder": "Revoke",
+  // The accessible name of one holder's revoke control. The visible label is "Revoke" and
+  // this contains it, which is what WCAG 2.5.3 Label in Name requires of a name that says
+  // more than the text does; the email is what makes one of several buttons tellable
+  // apart. It is NOT the visible label, because an email in a button makes the button as
+  // wide as the address and the screen stops fitting a 320px viewport (SC 1.4.10).
+  "membership.groups.removeHolderFor": "Revoke this access group from {email}",
+  "membership.groups.holderRemoved":
+    "The grant was revoked, and the revoke is on the access audit.",
+  "membership.groups.noHolders": "Nobody",
+
+  "membership.settings.heading": "Workspace settings",
+  "membership.settings.twoPerson": "Require a second approver for production",
+  "membership.settings.twoPersonHelp":
+    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the holder of the installation-wide claim, has to make that grant. Off by default, because an installation with one account cannot satisfy the rule at all.",
+  "membership.settings.seed": "Seed a new editor with dev and test response access",
+  // Q57's sentence, and the wording is the ruling's rather than this screen's.
+  "membership.settings.seedHelp":
+    "A grant on test responses is a grant on personal data, because a test run can involve real respondents. With this on, onboarding a forms.editor also grants them a responses.viewer role on dev and test - an ordinary access group you can see in the list above and revoke. Off by default, and turning it on is written to the access audit.",
+  "membership.settings.save": "Save settings",
+  "membership.settings.saved": "The settings were saved, and the change is on the access audit.",
+  "membership.settings.saveFailed": "The settings were not saved: {message}",
+
+  "membership.audit.heading": "Access audit",
+  "membership.audit.intro":
+    "Every response read, export and erasure, every grant and revoke, and every change to the settings above. It records the act and not its subject matter: no answer value, no respondent identifier and no question text.",
+  "membership.audit.loadFailed": "The access audit could not be read: {message}",
+  "membership.audit.none": "Nothing has been recorded in this workspace yet.",
+  "membership.audit.columnWhen": "When",
+  "membership.audit.columnActor": "Account",
+  "membership.audit.columnKind": "Act",
+  "membership.audit.columnEnvironment": "Environment",
+  "membership.audit.columnForm": "Form",
+  "membership.audit.columnDetail": "Detail",
+  "membership.audit.empty": "-",
+  "membership.audit.total": "{total} row(s)",
+  // The actor is stored as an account id with no key to the account, deliberately: an
+  // audit row that cascades away with what it describes is not an audit row. So a row
+  // whose account has since been removed shows the id.
+  "membership.audit.unknownActor": "{actor} (account removed)",
+
+  "membership.mine.heading": "Your own access",
+  "membership.mine.intro":
+    "Which workspaces, roles, environments and forms you hold. Everybody can read their own grants; the membership list of a workspace is its owners' to see.",
+  "membership.mine.loadFailed": "Your access could not be read: {message}",
+  "membership.mine.installationAdmin":
+    "You hold the installation-wide claim: settings, accounts, memberships and environments, in every workspace. It grants no response read, export or erasure anywhere.",
+  "membership.mine.none": "You hold no grant in any workspace.",
+  "membership.mine.memberOnly": "A member row that grants nothing on its own",
+  "membership.mine.environments": "Environments: {environments}",
 } as const;
 
 export type MessageKey = keyof typeof messages;

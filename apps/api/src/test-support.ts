@@ -7,7 +7,16 @@
  * or above the config minimum length.
  */
 
-import { authSession, authUser } from "@roonga/qcms-db";
+import {
+  addAccessGroupHolder,
+  authSession,
+  authUser,
+  createAccessGroup,
+  ensureWorkspaceMember,
+  listAccessGroups,
+  listWorkspaces,
+  setMemberRole,
+} from "@roonga/qcms-db";
 
 import type { Config, MountFlags } from "./config.js";
 import { loadConfig } from "./config.js";
@@ -213,6 +222,25 @@ export function recordingLogger(): { logger: Logger; lines: Array<Record<string,
  * Timestamps are anchored to `at`, which defaults to {@link fixedClock}'s instant
  * so the seeded session is live under the same clock `makeDeps` gives the app.
  * No password hash is written: nothing here signs in, so no credential exists.
+ *
+ * # It also seeds the grants, and that is task 069's addition
+ *
+ * From ADR-41 an authenticated admin session is **necessary and not sufficient**: the
+ * installation-wide claim administers and authorises no authoring and no response read
+ * anywhere (Q29), so a session alone reaches the membership surface and nothing else. A
+ * fixture that seeded only a session would therefore be a fixture that tests the
+ * authorisation middleware rather than the slice it is about.
+ *
+ * So by default this seeds **a full-authority administrator**: a `forms.owner` member row
+ * on the installation's first workspace, and the four access groups
+ * `all.forms.editor`, `all.forms.approver`, `all.responses.viewer` and
+ * `all.responses.eraser` with this account as their holder. That is the shape a
+ * single-administrator installation has, which is what most of these suites are about.
+ *
+ * `grants` narrows it: a list of role names seeds those groups and nothing else, and `[]`
+ * seeds the member row's empty role alone - which is the caller criterion 5 and criterion
+ * 17 are about, the administrator who reaches nothing. `workspaceId` names the workspace,
+ * defaulting to the one the harness seeds.
  */
 export async function seedAdminSession(
   exec: Executor,
@@ -232,6 +260,32 @@ export async function seedAdminSession(
     readonly mustChangePassword?: boolean;
     /** Distinguishing suffix when a test needs two different admins. */
     readonly label?: string;
+    /**
+     * Which roles this account holds, as access groups scoped to `all`.
+     *
+     * Defaults to every role but `forms.owner`, which is the member row's and is set
+     * separately by {@link SeedAdminOptions.owner}. An empty list seeds no access group,
+     * so the account holds the member row's empty role and reaches nothing.
+     */
+    readonly grants?: readonly string[];
+    /** Whether the member row carries `forms.owner`. Defaults to true. */
+    readonly owner?: boolean;
+    /** The workspace the grants are in. Defaults to the installation's first. */
+    readonly workspaceId?: string;
+    /** Set false to seed no membership at all: no member row and no access group. */
+    readonly membership?: boolean;
+    /**
+     * Whether the account holds the installation-wide SEC-3 claim.
+     *
+     * Defaults **true**, because `user.role` is declared with the default `admin` and
+     * nothing in the product writes a second value, so every account a deployment has
+     * today holds it (ADR-41's Note). `false` writes a role that is not `admin`, which is
+     * the only thing "no claim" means - the check is an equality on that one value - and
+     * it is the shape criterion 5 probes: an administrator with no grant **and no claim**
+     * reaches nothing. It is also the shape a deployment issuing a second role value
+     * would have.
+     */
+    readonly claim?: boolean;
   } = {},
 ): Promise<{ token: string; userId: string }> {
   // Derived from `fixedClock`, not a second copy of the literal: the doc above
@@ -250,6 +304,7 @@ export async function seedAdminSession(
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
+    ...(options.claim === false ? { role: NO_CLAIM_ROLE } : {}),
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,
@@ -259,7 +314,92 @@ export async function seedAdminSession(
     updatedAt: at,
     expiresAt: new Date(at.getTime() + (options.expiresInMs ?? 60 * 60 * 1000)),
   });
+
+  if (options.membership !== false) {
+    await seedGrants(exec, {
+      userId,
+      ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
+      ...(options.grants === undefined ? {} : { grants: options.grants }),
+      ...(options.owner === undefined ? {} : { owner: options.owner }),
+    });
+  }
   return { token, userId };
+}
+
+/**
+ * The `user.role` value an account without the installation claim carries.
+ *
+ * The claim is an equality on `admin` (`features/membership/resolver.ts`), so "no claim"
+ * is any other value and the particular word is arbitrary. It is named rather than
+ * written inline so a reader of a fixture can see that the account's lack of the claim is
+ * the point rather than a typo.
+ */
+export const NO_CLAIM_ROLE = "staff";
+
+/** The roles a seeded administrator holds by default: every team role (ADR-41, Q38). */
+export const DEFAULT_SEEDED_GRANTS: readonly string[] = [
+  "forms.viewer",
+  "forms.editor",
+  "forms.approver",
+  "responses.viewer",
+  "responses.eraser",
+];
+
+/**
+ * Seed one account's membership in one workspace: the member row, and an access group per
+ * role scoped to `all`.
+ *
+ * Written through `@roonga/qcms-db`'s own helpers rather than with raw inserts, so a
+ * fixture and the product's write path agree about the shape of a grant - the member row
+ * finding G requires, the team's required fields, and the `teamMember` row that **is** the
+ * grant (Q32).
+ *
+ * It writes **no audit row**, deliberately: a fixture is not an act somebody performed,
+ * and a seeded `grant` row would make every count-based assertion in the suites start one
+ * row behind. The product's write path is what audits, and
+ * `membership.integration.test.ts` is where that is asserted.
+ */
+export async function seedGrants(
+  exec: Executor,
+  options: {
+    readonly userId: string;
+    readonly workspaceId?: string;
+    readonly grants?: readonly string[];
+    readonly owner?: boolean;
+  },
+): Promise<{ readonly workspaceId: string; readonly teamIds: Record<string, string> }> {
+  const workspaces = await listWorkspaces(exec);
+  const workspaceId = options.workspaceId ?? workspaces[0]?.id;
+  if (workspaceId === undefined) {
+    throw new Error(
+      "seedGrants needs a workspace: start the harness with its seeded workspace, or pass workspaceId",
+    );
+  }
+
+  await ensureWorkspaceMember(exec, workspaceId, options.userId);
+  if (options.owner !== false) {
+    await setMemberRole(exec, workspaceId, options.userId, "forms.owner");
+  }
+
+  const teamIds: Record<string, string> = {};
+  for (const role of options.grants ?? DEFAULT_SEEDED_GRANTS) {
+    const name = `all.${role}`;
+    const existing = (await listAccessGroups(exec, workspaceId)).find(
+      (group) => group.name === name,
+    );
+    const group =
+      existing ??
+      (await createAccessGroup(exec, {
+        workspaceId,
+        name,
+        role,
+        environments: ["all"],
+        forms: ["all"],
+      }));
+    await addAccessGroupHolder(exec, group.teamId, options.userId);
+    teamIds[role] = group.teamId;
+  }
+  return { workspaceId, teamIds };
 }
 
 export type { MountFlags };

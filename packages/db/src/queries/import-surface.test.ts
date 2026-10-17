@@ -207,6 +207,47 @@ describe("query helper import surface", () => {
     "clearAdminTwoFactor",
     "recordTwoFactorReset",
     "readConnectedRole",
+    // Membership and grants (ADR-41, Q32, Q45; task 069). These ARE writes to the auth
+    // tables, and they are the second recorded exception to the property above rather
+    // than a quiet widening of it: Q45 makes the QCMS endpoints the **only** grant write
+    // path, because that is where the validation and the SEC-15 rows live and because the
+    // plugin's removal cascades run below any endpoint this layer could gate. None of
+    // them writes a `session` row, returns a credential or touches a form version, so
+    // every property this list guards still holds. `grants.ts` carries the reasoning.
+    "resolveMembership",
+    "listGrantsForUser",
+    "listWorkspaceMembers",
+    "listMemberWorkspacesForUser",
+    "listAccessGroups",
+    "getAccessGroup",
+    "isAccessGroupNameTaken",
+    "listAccessGroupHolders",
+    "createAccessGroup",
+    "updateAccessGroupScope",
+    "deleteAccessGroup",
+    "ensureWorkspaceMember",
+    "setMemberRole",
+    "countWorkspaceOwners",
+    "addAccessGroupHolder",
+    "removeAccessGroupHolder",
+    "holdsAccessGroup",
+    "listGroupsNamingEnvironment",
+    "listEnvironmentNames",
+    "setSeedNewEditorsWithTestData",
+    "setRequireSecondApprover",
+    "readSeedNewEditorsWithTestData",
+    "findUserByEmail",
+    "findUsersByIds",
+    "isScopeAll",
+    // The SEC-15 access audit (Q31 with Q56, Q57, Q61; task 069). **One write and no
+    // update or delete beside it**, which is this control's own version of the absence
+    // the list above guards: the audit is append-only, the application roles hold no
+    // `UPDATE` or `DELETE` on it, and there is no helper here for a future caller to
+    // reach for. `writeAccessAuditRow` carries no `RETURNING`, because the same helper
+    // writes the rows for both pools and the environment role holds `INSERT` alone.
+    "writeAccessAuditRow",
+    "listAccessAudit",
+    "countAccessAuditByKind",
   ];
 
   it("exposes exactly the intended query-helper surface", () => {

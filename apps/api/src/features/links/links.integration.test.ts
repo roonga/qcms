@@ -28,6 +28,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import {
   fixedClock,
@@ -87,7 +88,7 @@ function buildApp(
   const a = createApp(d, ALL, {
     groups: {
       respondent: [registerLinkEntry],
-      admin: [registerAdminAuth, registerRequestEnvironment, registerLinks],
+      admin: [registerAdminAuth, registerRequestEnvironment, registerGrantCheck, registerLinks],
     },
   });
   return { deps: d, app: a };

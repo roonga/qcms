@@ -5,6 +5,7 @@ import pg from "pg";
 
 import { loadAdminAuthConfig } from "../../src/config.js";
 import { createAdminAuth, type AdminAuth } from "../../src/features/auth/instance.js";
+import { seedGrants } from "../../src/test-support.js";
 
 /**
  * Browser-suite account setup, on the API side of the seam (task 056).
@@ -111,6 +112,33 @@ export interface TestAdminInput {
    * state; the full-stack Compose suite gets it from the real `create-admin`.
    */
   readonly mustChangePassword?: boolean;
+
+  /**
+   * Which roles this account holds, as access groups scoped to `all` in the
+   * installation's first workspace. Defaults to **every team role**, plus `forms.owner`
+   * on the member row.
+   *
+   * # Why an account needs grants at all, from task 069
+   *
+   * ADR-41 makes an authenticated admin session **necessary and not sufficient**: the
+   * installation-wide claim administers settings, accounts, memberships and environments
+   * and **authorises no authoring and no response read anywhere** (Q29), and
+   * `forms.owner` touches no form, release, link, webhook or response row at all. So an
+   * account created by `signUpEmail` alone can reach the membership screens and nothing
+   * else, and thirty specs about forms, questions and responses would each be asserting
+   * the grant middleware rather than the screen they are named for.
+   *
+   * This helper stands in for an administrator who has been granted what their job needs,
+   * which is the same thing `mustChangePassword: false` above does for the credential. A
+   * spec that is **about** a narrower grant names one here.
+   *
+   * It writes **no audit row**, deliberately: a fixture is not an act somebody performed,
+   * and a seeded `grant` row would make every count-based assertion start one row behind.
+   */
+  readonly grants?: readonly string[];
+
+  /** Whether the member row carries `forms.owner`. Defaults to true. */
+  readonly owner?: boolean;
 }
 
 /**
@@ -131,12 +159,23 @@ export async function createTestAdmin(input: TestAdminInput): Promise<void> {
     body: { email: input.email, password: input.password, name: input.name ?? "E2E Admin" },
     asResponse: true,
   });
+  const body = (await created.json()) as { user?: { id?: unknown } };
+  const userId = body.user?.id;
+
+  // The grants, before the credential state: an account that is sent to the password
+  // change screen still needs them for the screens it reaches afterwards (task 069).
+  if (typeof userId === "string") {
+    await seedGrants(db, {
+      userId,
+      ...(input.grants === undefined ? {} : { grants: input.grants }),
+      ...(input.owner === undefined ? {} : { owner: input.owner }),
+    });
+  }
+
   if (input.mustChangePassword === true) return;
   // Clear what `signUpEmail` set (see `TestAdminInput.mustChangePassword`). The same
   // write the API's password-change hook makes, through the same helper, so this
   // harness cannot arrive at a state the product cannot.
-  const body = (await created.json()) as { user?: { id?: unknown } };
-  const userId = body.user?.id;
   if (typeof userId === "string") await clearMustChangePassword(db, userId);
 }
 

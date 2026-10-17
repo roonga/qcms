@@ -16,6 +16,8 @@
 
 import { z } from "@hono/zod-openapi";
 
+import type { GrantContext } from "./features/membership/context.js";
+
 /**
  * The authenticated admin principal an admin-group request carries once the
  * admin-auth middleware (021) has verified its session. The `scopes` list is
@@ -53,6 +55,16 @@ export interface ApiEnv {
      * to `prod`.
      */
     requestEnvironment?: string;
+    /**
+     * What the grant middleware decided, and the workspace it decided about (ADR-41,
+     * SEC-3, task 069). Set by `features/membership/middleware.ts`, which is mounted on
+     * the **admin group alone**, so it is absent on every respondent request.
+     *
+     * A handler reads this rather than resolving a workspace or a grant again: the act
+     * has already been authorised, and a second resolution is a second chance to
+     * disagree with the first.
+     */
+    grantContext?: GrantContext;
   };
 }
 

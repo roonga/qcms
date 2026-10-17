@@ -14,7 +14,7 @@ import type { DraftForm } from "./types.ts";
  * rather than inside it. That makes it a different React tree from the builder: nothing
  * renders both, so there is no component that could hold the draft and hand it down, and
  * the shell layout that renders both slots is shared by every screen in the app - putting a
- * builder provider there would make eighteen screens carry a context one of them uses.
+ * builder provider there would make twenty-one screens carry a context one of them uses.
  *
  * This is the same problem the Settings rail solved the same way (`lib/settings-panel.ts`),
  * and for the same reason: two client trees on one page import one instance of one module

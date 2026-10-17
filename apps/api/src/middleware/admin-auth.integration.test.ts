@@ -34,6 +34,13 @@ const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
 /**
  * A minimal admin slice: it exists only to observe what got past the gate, so a
  * pass/fail here is the middleware's verdict and nothing else's.
+ *
+ * `/admin/whoami` is a **fixture route**, not one the product serves, so it has no row in
+ * the permissions matrix and the grant middleware is deliberately **not** composed below
+ * (PR #1061's S2 fix made an unrouted-by-the-table admin route a 403 at runtime, which is
+ * exactly what this fixture would meet). The subject here is the admin-session gate; the
+ * grant gate has its own suites, and `membership.integration.test.ts` asserts the refusal
+ * this fixture would otherwise collect.
  */
 const registerPrincipalProbe: SliceRegistrar = (group) => {
   group.get("/whoami", (c) => c.json({ principal: c.get("adminPrincipal") }));

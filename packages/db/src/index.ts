@@ -50,11 +50,17 @@ export {
   refuseEnvironmentName,
 } from "./environment/command.js";
 
+// Access-group names and the role vocabulary (ADR-41, Q37, Q38, Q42; task 069). Pure
+// derivations over rows, so the API's write path, the admin's rendering and the drop
+// check's refusal all read the same four rules rather than each re-deriving them.
+export * from "./access-groups.js";
+
 export {
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   CONTROL_READ_TABLES_GUARDED_ON_EXISTENCE,
   DATA_PLANE_ENUM_TYPES,
+  grantAccessAuditStatements,
   environmentObjectNames,
   type EnvironmentObjectNames,
 } from "./environment/sql.js";

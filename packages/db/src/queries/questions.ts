@@ -290,8 +290,20 @@ export async function updateDraftDefinition(
  * List every question with a summary of its latest version (highest `version`).
  * Questions with no version yet are omitted (there is nothing to summarize).
  */
-export async function listQuestions(exec: Executor): Promise<QuestionSummary[]> {
-  const rows = await exec
+export async function listQuestions(
+  exec: Executor,
+  options: { readonly workspaceIds?: readonly string[] } = {},
+): Promise<QuestionSummary[]> {
+  // `workspaceIds` narrows the library list to the workspaces the caller holds
+  // `question: read` in (task 069, ADR-41), which is the confidentiality boundary between
+  // two groups sharing one installation. **The shared question library is the caller's
+  // to add**, not this helper's: finding 10 makes it a read surface to every workspace's
+  // editors, and the API is where that workspace id is looked up and put on the list, so
+  // one rule lives in one place rather than half of it here.
+  //
+  // `undefined` is the whole installation; an **empty** list is an empty result rather
+  // than the whole table, which is the fail-closed direction.
+  const base = exec
     .selectDistinctOn([questions.questionId], {
       questionId: questions.questionId,
       slug: questions.slug,
@@ -301,9 +313,15 @@ export async function listQuestions(exec: Executor): Promise<QuestionSummary[]> 
       publishedAt: questionVersions.publishedAt,
     })
     .from(questions)
-    .innerJoin(questionVersions, eq(questions.questionId, questionVersions.questionId))
+    .innerJoin(questionVersions, eq(questions.questionId, questionVersions.questionId));
+
+  if (options.workspaceIds === undefined) {
+    return base.orderBy(questions.questionId, desc(questionVersions.version));
+  }
+  if (options.workspaceIds.length === 0) return [];
+  return base
+    .where(inArray(questions.workspaceId, [...options.workspaceIds]))
     .orderBy(questions.questionId, desc(questionVersions.version));
-  return rows;
 }
 
 /** A question's owning workspace and whether that workspace is the shared library. */

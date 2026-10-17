@@ -18,6 +18,7 @@ import { registerAdminAuthProxy } from "./features/auth/route.js";
 import { registerFormsAssist } from "./features/forms/assist/route.js";
 import { registerForms } from "./features/forms/route.js";
 import { registerLinks } from "./features/links/route.js";
+import { registerMembership } from "./features/membership/route.js";
 import { registerOutboxOps } from "./features/outbox/route.js";
 import { registerQuestions } from "./features/questions/route.js";
 import { registerReleases } from "./features/releases/route.js";
@@ -31,6 +32,7 @@ import {
 import { registerSubmit } from "./features/responses/submit/route.js";
 import { registerWebhooks } from "./features/webhooks/route.js";
 import { registerWorkspaces } from "./features/workspaces/route.js";
+import { registerGrantCheck } from "./features/membership/middleware.js";
 import { registerAdminAuth } from "./middleware/admin-auth.js";
 import { registerRequestEnvironment } from "./middleware/request-environment.js";
 
@@ -65,6 +67,12 @@ export const appGroups: RouteGroups = {
   admin: [
     registerAdminAuth,
     registerRequestEnvironment,
+    // 069: the grant check (SEC-3, ADR-41). Third, and the order is the reasoning: an
+    // unauthenticated request is refused by the session gate rather than by a grant it
+    // does not hold, and an act's environment has to be resolved before it can be
+    // authorised for one. Every admin slice below sits behind it, and an admin route
+    // with no row in `features/membership/route-policy.ts` is refused rather than served.
+    registerGrantCheck,
     registerQuestions,
     registerForms,
     // 041: registers nothing when QCMS_FLAG_AGENT_AUTHORING=none (routes absent).
@@ -75,6 +83,10 @@ export const appGroups: RouteGroups = {
     // switch, the archive and the two ownership moves. It grants nothing; the membership
     // and grant endpoints are task 069's.
     registerWorkspaces,
+    // 069: the membership surface - the capability answer, the membership list, the
+    // access groups and their holders, the two per-workspace switches and the SEC-15
+    // audit read. These are the **only** grant write path (Q45).
+    registerMembership,
     registerLinks,
     registerWebhooks,
     registerOutboxOps,

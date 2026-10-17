@@ -75,10 +75,15 @@
 /**
  * The class each answer puts on the shell's content column.
  *
- * Five caps for eighteen screens, and the count is the POCs' rather than a taste: eleven
- * screens share the drawings' dominant 1600, three share 40rem, two share 1080, and two
- * are each the only screen drawn at their number. Collapsing a singleton onto a neighbour
- * would be this file deciding a width the drawing already decided.
+ * Five caps for twenty-one screens, and the count is the POCs' rather than a taste:
+ * twelve screens share the drawings' dominant 1600, three share 40rem, two share 1080, and
+ * two pairs share the remaining two numbers. Collapsing one onto a neighbour would be this
+ * file deciding a width the drawing already decided.
+ *
+ * **Four of the twenty-one are not drawings**, and the table says which: task 065's
+ * release screen and task 069's two membership screens have no POC, so each takes the cap
+ * of the screen it is shaped like rather than a number read off a file. Those rows are the
+ * first thing a POC for any of them corrects.
  *
  * IT WAS SIX UNTIL ISSUE 668, and `narrow` (45rem) is the one that left. It existed to
  * serve the three screens whose POC draws an inner element, at neither drawn number: 45rem
@@ -227,6 +232,25 @@ export const MEASURE_BY_ROUTE = {
    * route whose cap does not match its drawing.
    */
   "/webhooks": "wide",
+  /**
+   * **No POC draws these two** (ADR-41, task 069), and that is stated rather than papered
+   * over: the plan that adds membership has no drawing for it, so there is no number to
+   * read off one. The caps are chosen from what each screen IS, by the same reading the
+   * rows above apply to their own drawings.
+   *
+   * `/workspaces` is a short list and a panel of the reader's own grants, which is
+   * prose-and-list shaped like `/responses`, so it takes that screen's `ops` cap.
+   *
+   * `/workspaces/[workspaceId]` is four panels in one scroll, one of which is a wide
+   * six-column table (the access audit), so it takes the `log` cap `/responses/erasures`
+   * takes for the same reason: the widest thing on the screen is a log.
+   *
+   * When a POC for either arrives, these two rows are the first thing it corrects, and the
+   * absence of a file reference here is what makes that visible rather than looking like a
+   * number somebody read somewhere.
+   */
+  "/workspaces": "ops",
+  "/workspaces/[workspaceId]": "log",
 } as const satisfies Record<string, Measure>;
 
 /** A pathname or route pattern split into its segments, with empties dropped. */

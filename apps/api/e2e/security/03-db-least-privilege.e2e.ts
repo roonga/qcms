@@ -14,9 +14,18 @@
  *
  * | Role               | On `control`                                     | On `data_<env>`                        | On `reporting_<env>`        |
  * | ------------------ | ------------------------------------------------ | -------------------------------------- | --------------------------- |
- * | `qcms_app_control` | DML, with nothing at all on `two_factor_resets`  | `INSERT` on `outbox`, nothing else     | nothing                     |
+ * | `qcms_app_control` | DML, with two tables carved out (see below)      | `INSERT` on `outbox`, nothing else     | nothing                     |
  * | `qcms_app_<env>`   | `SELECT` on a named list, `UPDATE` on one table  | DML on its **own** schema only         | `USAGE` + `SELECT`, its own |
  * | `qcms_migrate`     | owner, DDL                                       | owner, DDL                             | owner, DDL                  |
+ *
+ * **The two carve-outs on `control`** are the audit tables, and their privilege sets
+ * differ because their writers do. `two_factor_resets` is **migrate-only**: no
+ * application role holds any of the four, because a break-glass is an operator act
+ * (issue #432). The SEC-15 `access_audit` is written by the application on an ordinary
+ * request, so it cannot be: `qcms_app_control` holds `SELECT` and `INSERT`, every
+ * `qcms_app_<env>` holds `INSERT` and nothing else, and **no application role holds
+ * `UPDATE` or `DELETE`** - which is the part that makes a row worth something (Q40 with
+ * Q56).
  *
  * ## Two properties this file exists to catch, both of which are silent
  *
@@ -49,6 +58,7 @@
 
 import { applyMigrations, CONTAINER_BOOT_TIMEOUT_MS } from "@roonga/qcms-db/testing";
 import {
+  ACCESS_AUDIT_TABLE,
   CONTROL_FORBIDDEN_TABLES,
   CONTROL_READ_TABLES,
   DATA_PLANE_ENUM_TYPES,
@@ -285,14 +295,20 @@ describe("the migration role is the only role that owns anything", () => {
 });
 
 describe("qcms_app_control: the control plane, and one grant in each data plane", () => {
-  it("holds DML on every control-plane table except the break-glass audit", async () => {
+  it("holds DML on every control-plane table except the two audits", async () => {
     const held = await tablePrivileges("control", CONTROL_ROLE);
     // `two_factor_resets` is absent entirely rather than present with fewer privileges:
     // the revoke takes all four, so the catalogue reports no row for it at all.
     expect(held["two_factor_resets"]).toBeUndefined();
+    // The SEC-15 audit is the other carve-out, and it is **present with two** rather than
+    // absent: this role reads the audit for a workspace's owners and writes the grant and
+    // revoke rows that are control-pool acts (Q56), and holds neither `UPDATE` nor
+    // `DELETE`, so it can add a row and change none.
+    expect([...(held["access_audit"] ?? [])].sort()).toEqual(["INSERT", "SELECT"]);
     // Every other control-plane table carries all four. An exact per-table comparison,
     // so a table that lost a privilege fails here as loudly as one that gained it.
     for (const [table, privileges] of Object.entries(held)) {
+      if (table === "access_audit") continue;
       expect([...privileges].sort(), `control.${table}`).toEqual([...DML].sort());
     }
     // And the floor under that loop: it has to have found the tables at all.
@@ -554,20 +570,25 @@ describe.each(ENVIRONMENTS)(
       expect(inserted.rows[0]?.nspname).toBe(`data_${environment}`);
     });
 
-    it("holds exactly the named SELECT list on `control`, and UPDATE on one table", async () => {
+    it("holds exactly the named SELECT list on `control`, one UPDATE and one INSERT", async () => {
       const held = await tablePrivileges("control", role);
-      // **Six**, `form_releases` included. Task 064 granted five because that table did
-      // not exist yet and its clause was guarded on the table existing; task 065's
+      // **Six** reads, `form_releases` included. Task 064 granted five because that table
+      // did not exist yet and its clause was guarded on the table existing; task 065's
       // migration creates it and grants it, to every environment role in the live set
       // rather than to the two shipped names. The list is the decision in both tasks and
       // this is the line that notices either way.
       const expectedReads = CONTROL_READ_TABLES;
       expect(expectedReads).toHaveLength(6);
-      expect(Object.keys(held).sort()).toEqual([...expectedReads].sort());
+      // **Seven tables, not six**, and the seventh carries no read at all: task 069's
+      // SEC-15 audit, on which this role holds `INSERT` and nothing else, so a response
+      // read's audit row commits in the same transaction as the read (Q40) and the role
+      // can neither read, change nor remove a row it wrote.
+      expect(Object.keys(held).sort()).toEqual([...expectedReads, ACCESS_AUDIT_TABLE].sort());
       for (const table of expectedReads) {
         const expected = table === "secure_links" ? ["SELECT", "UPDATE"] : ["SELECT"];
         expect([...(held[table] ?? [])].sort(), `control.${table}`).toEqual(expected);
       }
+      expect([...(held[ACCESS_AUDIT_TABLE] ?? [])]).toEqual(["INSERT"]);
     });
 
     it.each(CONTROL_FORBIDDEN_TABLES)(
@@ -744,6 +765,107 @@ describe("the migrate-only audit table (issue #432, Q40 finding B)", () => {
       `select * from control.two_factor_resets limit 1`,
     );
     expect(refusal).toMatch(/permission denied/i);
+  });
+});
+
+describe("the SEC-15 access audit's grants and revokes (task 069, Q40 with Q56)", () => {
+  it.each([CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES), UNSHIPPED_ROLE])(
+    "leaves %s no UPDATE and no DELETE on control.access_audit",
+    async (role) => {
+      // Written against the **prefix**, like `two_factor_resets`' revoke, and executed
+      // against a role name this project does not ship for the same reason: an
+      // installation that creates `qcms_app_staging` next week is covered by a migration
+      // written today.
+      for (const privilege of ["UPDATE", "DELETE"]) {
+        const res = await owner.query<{ has: boolean }>(
+          `select has_table_privilege($1, 'control.access_audit', $2) as has`,
+          [role, privilege],
+        );
+        expect(res.rows[0]?.has, `${role} must not hold ${privilege}`).toBe(false);
+      }
+    },
+  );
+
+  it.each(Object.values(ENVIRONMENT_ROLES))(
+    "gives %s INSERT on control.access_audit and nothing else on it",
+    async (role) => {
+      const held = await tablePrivileges("control", role);
+      expect([...(held["access_audit"] ?? [])]).toEqual(["INSERT"]);
+    },
+  );
+
+  it.each(ENVIRONMENTS)(
+    "lets qcms_app_%s write its own read's audit row in the read's transaction (Q40)",
+    async (environment) => {
+      // The property the ruling rests on: the read and its row commit or fail together,
+      // so a read that succeeded while its audit write failed cannot happen. The row's
+      // `actor` and `workspace` are values this role cannot verify - it holds no `SELECT`
+      // on `user` or `member` - and that is the no-foreign-key precedent working as
+      // intended rather than a gap.
+      const client = clients.get(ENVIRONMENT_ROLES[environment]);
+      expect(client).toBeDefined();
+      await (client as pg.Client).query("begin");
+      await (client as pg.Client).query(
+        `insert into control.access_audit (actor, workspace_id, environment, form_id, kind)
+         values ('usr_e2e', 'org_e2e', $1, 'frm_e2e', 'read')`,
+        [environment],
+      );
+      await (client as pg.Client).query("commit");
+
+      const counted = await owner.query<{ n: string }>(
+        `select count(*) as n from control.access_audit where environment = $1`,
+        [environment],
+      );
+      expect(Number(counted.rows[0]?.n)).toBeGreaterThan(0);
+    },
+  );
+
+  it.each(ENVIRONMENTS)(
+    "refuses qcms_app_%s a RETURNING on that insert, which is why the helper carries none (criterion 21)",
+    async (environment) => {
+      // **The assertion the rule is stated as.** One helper writes the audit rows for
+      // both pools, and this role holds `INSERT` on the table and nothing else, so a
+      // `RETURNING` - which is a read - is refused for it. Asserting this as
+      // `qcms_app_control` would prove nothing, because that role holds `SELECT` here and
+      // the statement would succeed; for the control-pool path the assertion is from the
+      // source, where `writeAccessAuditRow` is the only write and names no `returning`.
+      const refusal = await refusalFor(
+        clients.get(ENVIRONMENT_ROLES[environment])!,
+        `insert into control.access_audit (actor, workspace_id, kind)
+         values ('usr_e2e', 'org_e2e', 'read') returning id`,
+      );
+      expect(refusal).toMatch(/permission denied/i);
+    },
+  );
+
+  it.each(Object.values(ENVIRONMENT_ROLES))("refuses %s a read of an audit row", async (role) => {
+    const refusal = await refusalFor(
+      clients.get(role)!,
+      `select * from control.access_audit limit 1`,
+    );
+    expect(refusal).toMatch(/permission denied/i);
+  });
+
+  it("refuses every application role an UPDATE and a DELETE at the statement, not only the bit", async () => {
+    for (const role of [CONTROL_ROLE, ...Object.values(ENVIRONMENT_ROLES)]) {
+      expect(
+        await refusalFor(clients.get(role)!, `update control.access_audit set kind = 'read'`),
+      ).toMatch(/permission denied/i);
+      expect(await refusalFor(clients.get(role)!, `delete from control.access_audit`)).toMatch(
+        /permission denied/i,
+      );
+    }
+  });
+
+  it("carries no foreign key, so no row cascades away with what it describes", async () => {
+    // The precedent's second property, asserted out of the catalogue rather than read off
+    // the migration: an audit row that cascades away with the account, the workspace or
+    // the form it names is not an audit row, and this task must not close that with a key.
+    const keys = await owner.query<{ conname: string }>(
+      `select conname from pg_constraint
+        where conrelid = 'control.access_audit'::regclass and contype = 'f'`,
+    );
+    expect(keys.rows).toEqual([]);
   });
 });
 

@@ -44,6 +44,8 @@ import {
   listTombstones,
   type ReportingResponseRow,
   SessionNotFoundError,
+  writeAccessAuditRow,
+  type Executor,
 } from "@roonga/qcms-db";
 import { zipStream, type ZipEntry } from "@roonga/qcms-csv";
 
@@ -51,6 +53,7 @@ import type { Databases } from "../../../environments.js";
 import type { Deps } from "../../../deps.js";
 import { ApiError } from "../../../errors.js";
 import type { ApiEnv } from "../../../openapi.js";
+import type { GrantContext } from "../../membership/context.js";
 import {
   csvDataRow,
   csvHeaderRow,
@@ -167,6 +170,69 @@ function parseFilter(q: {
   };
 }
 
+/**
+ * The SEC-15 row a response read, export or erasure writes (Q31, Q40; task 069).
+ *
+ * # Why it rides the read's own transaction
+ *
+ * The read runs under the **environment** pool (ADR-40), and an audit row written on the
+ * control pool would be a second connection and a second transaction - so a read that
+ * succeeded while its audit write failed would leave no record of itself, which is the
+ * one failure an audit may not have. Commit or fail together is the only version of this
+ * control worth having, so every caller below opens one transaction on the environment
+ * pool and does both inside it.
+ *
+ * # Two values the writing role cannot verify, and no key closes that
+ *
+ * `actor` and `workspaceId` are established **here**, before the write, from the admin
+ * session and from the grant middleware's own resolution. `qcms_app_<env>` holds no
+ * `SELECT` on `user` or `member`, so it cannot check either, and that is the
+ * `two_factor_resets` precedent working as intended: an audit row carrying a foreign key
+ * into what it describes is an audit row that cascades away with it. **This task must not
+ * add such a key.**
+ *
+ * # What the row does not carry
+ *
+ * No answer value, no respondent identifier and no question text. On these three kinds
+ * `detail` is empty and the other six fields are populated (Q61), because the row records
+ * the **act** and not its subject matter - existence without content, the reasoning
+ * ADR-17's tombstone uses one table over.
+ */
+async function recordResponseAccess(
+  exec: Executor,
+  input: {
+    readonly grant: GrantContext | undefined;
+    readonly actorId: string | undefined;
+    readonly environment: string;
+    readonly formId: string;
+    readonly kind: "read" | "export" | "erasure";
+    readonly at: Date;
+  },
+): Promise<void> {
+  // The grant middleware authorised this act in a workspace and left it on the context,
+  // so the row names the workspace the act was judged against rather than one this
+  // handler resolved a second time. Both are absent only on a composition with no admin
+  // group, where no response route is mounted at all.
+  const workspaceId = input.grant?.workspaceId;
+  if (workspaceId === undefined || input.actorId === undefined) {
+    throw new ApiError(
+      "AUDIT_ACTOR_UNRESOLVED",
+      500,
+      "A response access could not be audited, so it is refused: SEC-15 records every " +
+        "read, export and erasure, and a read without its row is the one failure this " +
+        "control may not have.",
+    );
+  }
+  await writeAccessAuditRow(exec, {
+    actor: input.actorId,
+    workspaceId,
+    environment: input.environment,
+    formId: input.formId,
+    kind: input.kind,
+    occurredAt: input.at,
+  });
+}
+
 // --- GET /admin/forms/:id/responses -----------------------------------------
 
 export function makeListResponsesHandler(
@@ -179,12 +245,24 @@ export function makeListResponsesHandler(
     const { page, pageSize, limit, offset } = pageWindow(q.page, q.pageSize);
 
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
-    const { rows, total } = await listResponses(request.exec, request.environment, {
-      formId,
-      ...filter,
-      ...(q.flagged !== undefined ? { flagged: q.flagged === "true" } : {}),
-      limit,
-      offset,
+    // The audit row and the read, in one transaction on the environment pool (SEC-15,
+    // Q40). The row is written first so a read can never be served without one.
+    const { rows, total } = await request.exec.transaction(async (tx) => {
+      await recordResponseAccess(tx, {
+        grant: c.get("grantContext"),
+        actorId: c.get("adminPrincipal")?.userId,
+        environment: request.environment,
+        formId,
+        kind: "read",
+        at: deps.clock.now(),
+      });
+      return listResponses(tx, request.environment, {
+        formId,
+        ...filter,
+        ...(q.flagged !== undefined ? { flagged: q.flagged === "true" } : {}),
+        limit,
+        offset,
+      });
     });
 
     return c.json(
@@ -217,15 +295,29 @@ export function makeGetResponseHandler(deps: Deps): RouteHandler<typeof getRespo
     // Reads the reporting view: an erased session is absent (tombstone anti-join)
     // → undefined → 404. Detail cannot bypass the exclusion.
     const request = deps.databases.forRequest(c.get("requestEnvironment"));
-    const detail = await getResponse(request.exec, request.environment, formId, sessionId);
-    if (detail === undefined) throw fail.responseNotFound();
-
-    // The append-only answer ledger - the audit history (every revision, oldest
-    // first). Present because the session is non-erased (erasure deletes it).
-    const ledger = await answerLedger(
-      deps.databases.forRequest(c.get("requestEnvironment")).exec,
-      sessionId,
-    );
+    // One transaction for the audit row, the detail and the ledger: the row records the
+    // act of reading this response, and the two reads are that one act.
+    const read = await request.exec.transaction(async (tx) => {
+      await recordResponseAccess(tx, {
+        grant: c.get("grantContext"),
+        actorId: c.get("adminPrincipal")?.userId,
+        environment: request.environment,
+        formId,
+        kind: "read",
+        at: deps.clock.now(),
+      });
+      // A read that found nothing is still a read, and its row stays: the transaction
+      // commits either way, so "who looked for this person's answers" is answerable
+      // even when the answer was that there were none. The same honesty
+      // `two_factor_resets` has when a reset cleared no factor.
+      const found = await getResponse(tx, request.environment, formId, sessionId);
+      if (found === undefined) return undefined;
+      // The append-only answer ledger - the audit history (every revision, oldest
+      // first). Present because the session is non-erased (erasure deletes it).
+      return { detail: found, ledger: await answerLedger(tx, sessionId) };
+    });
+    if (read === undefined) throw fail.responseNotFound();
+    const { detail, ledger } = read;
 
     return c.json(
       {
@@ -259,6 +351,27 @@ export function makeExportHandler(deps: Deps): RouteHandler<typeof exportRoute, 
     const q = c.req.valid("query");
     const format = q.format ?? "csv";
     const filter = parseFilter(q);
+
+    // The export's audit row, written **before** a byte leaves (SEC-15, criterion 8).
+    //
+    // An export is a stream, and a stream outlives any transaction: it pulls bounded
+    // keyset pages, each its own statement, so there is no single transaction for the row
+    // to ride. So the row is written first, in its own transaction on the environment
+    // pool, and a failure to write it **refuses the export**. That is the property
+    // criterion 8 asks for - no path exports without a row - achieved the only way a
+    // streamed response allows, and it is stated here rather than left as a difference
+    // somebody discovers between this handler and the two reads above.
+    const auditExec = deps.databases.forRequest(c.get("requestEnvironment"));
+    await auditExec.exec.transaction(async (tx) => {
+      await recordResponseAccess(tx, {
+        grant: c.get("grantContext"),
+        actorId: c.get("adminPrincipal")?.userId,
+        environment: auditExec.environment,
+        formId,
+        kind: "export",
+        at: deps.clock.now(),
+      });
+    });
 
     if (format === "json") {
       // JSON may span versions (no version filter required).
@@ -542,6 +655,7 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
     const sessionId = requireSessionId(rawSession);
     const { reason } = c.req.valid("json");
 
+    const request = deps.databases.forRequest(c.get("requestEnvironment"));
     try {
       // eraseSession is idempotent (returns the existing tombstone with
       // alreadyErased:true) and owns its own transaction (016).
@@ -550,12 +664,23 @@ export function makeEraseHandler(deps: Deps): RouteHandler<typeof eraseRoute, Ap
       // both the tombstone lookup and the session lookup, rather than being compared
       // against the outcome here. That ordering is the point - a comparison after
       // the fact would run once the deletes had already happened.
-      const outcome = await eraseSession(
-        deps.databases.forRequest(c.get("requestEnvironment")).exec,
-        formId,
-        sessionId,
-        reason,
-      );
+      //
+      // The SEC-15 row rides the **same** transaction (Q40): the erasure's own
+      // transaction becomes a savepoint inside this one, so the deletes and the record
+      // of who performed them commit or fail together. An erasure that happened with no
+      // record of itself is the one failure this control may not have, and an erasure is
+      // the act of the three that cannot be repeated to produce the record afterwards.
+      const outcome = await request.exec.transaction(async (tx) => {
+        await recordResponseAccess(tx, {
+          grant: c.get("grantContext"),
+          actorId: c.get("adminPrincipal")?.userId,
+          environment: request.environment,
+          formId,
+          kind: "erasure",
+          at: deps.clock.now(),
+        });
+        return eraseSession(tx, formId, sessionId, reason);
+      });
       return c.json(
         {
           sessionId: outcome.sessionId,

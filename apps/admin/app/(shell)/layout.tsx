@@ -92,6 +92,12 @@ export default async function ShellLayout({
   // production rather than being carried into every screen's reads. A failed read leaves
   // one option, `prod`, which is the environment every deployment has: a switcher that
   // could not list the set must not offer a choice it cannot stand behind.
+  // Since task 069 this read is already narrowed to **the environments the caller holds
+  // in some grant** (Q25), by the API rather than here: a switcher is one client of that
+  // route, and a second client reading the whole set would see round a narrowing done in
+  // the first. `prod` stays the fallback for a read that failed, because it is the
+  // environment every deployment has and a switcher that could not list the set must not
+  // offer a choice it cannot stand behind.
   const set = await listEnvironments(session);
   const environments =
     set.ok && set.data.length > 0 ? set.data.map((option) => option.name) : [PROD_ENVIRONMENT];

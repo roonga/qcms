@@ -43,6 +43,7 @@ import {
 } from "drizzle-orm/pg-core";
 
 import { reportingViewStatements } from "../reporting-views.js";
+import { ACCESS_AUDIT_TABLE } from "../schema/control/access-audit.js";
 import {
   APPLICATION_ROLE_PREFIX,
   CONTROL_ROLE,
@@ -471,6 +472,15 @@ export function grantEnvironmentStatements(environment: string): string[] {
         `GRANT SELECT ON ${quote(CONTROL_SCHEMA)}.${quote(table)} TO ${quote(role)}`,
       ]),
     ),
+    // The SEC-15 access audit (task 069). The grant is owed **twice** and this is the
+    // second half: task 069's migration covers the environments that already exist when
+    // it runs, and this covers every environment created afterwards. Guarded on the table
+    // existing for the reason `form_releases` is - the baseline calls this function
+    // before the migration that creates it - and `INSERT` and nothing else, so an
+    // environment role may add a row and may not read, change or remove one (Q40, Q56).
+    guardedOnRoleAndTable(role, CONTROL_SCHEMA, ACCESS_AUDIT_TABLE, [
+      `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO ${quote(role)}`,
+    ]),
     guardedOnRole(CONTROL_ROLE, controlRoleGrants),
     // `two_factor_resets` stays migrate-only for EVERY `qcms_app%` role, the control
     // role included (Q40, finding B). Emitted per environment as well as in the
@@ -528,6 +538,96 @@ export function grantControlTableStatements(table: string): string[] {
     statements.push(grantControlReadToEnvironmentRolesStatement(table));
   }
   return statements;
+}
+
+/**
+ * The grants and the revokes for the SEC-15 access audit (Q40 as widened by Q56, SEC-15).
+ *
+ * `grantControlTableStatements` above is the shape for an ordinary new control-plane
+ * table: DML for the control role, and `SELECT` for the environment roles when the table
+ * is on the read list. This table is neither, so it has its own emitter rather than an
+ * option on that one.
+ *
+ * Four statements, and each is a decision rather than a tidy-up:
+ *
+ *   1. **`SELECT` and `INSERT` for `qcms_app_control`**, and no `UPDATE` or `DELETE`. The
+ *      `SELECT` is the read a workspace owner and the installation administrator make
+ *      through the authoring surface; the `INSERT` is Q56's, because a grant write and
+ *      its audit row are both control-pool acts.
+ *   2. **`INSERT` for every `qcms_app_<env>` in the live set**, enumerated from
+ *      `control.environments` rather than written out, for the reason
+ *      {@link grantControlReadToEnvironmentRolesStatement} enumerates: an operator may
+ *      have created a third environment before this migration runs, and a response read
+ *      in it has to be able to write its own audit row.
+ *   3. **`UPDATE` and `DELETE` revoked from every `qcms_app%` role**, the control role
+ *      included. It has to be a revoke rather than a narrower grant for statement 1's
+ *      sake only in part: `GRANT ... ON ALL TABLES IN SCHEMA control` in the baseline is
+ *      what hands the control role DML on the tables that existed then, and this table
+ *      did not, so the revoke is what makes the rule hold for a role an operator creates
+ *      later and grants their own way. It is written against the **prefix**, so an
+ *      installation that creates `qcms_app_staging` next week gets the same control.
+ *
+ * **Both `INSERT` paths are plain inserts with no `RETURNING`**, and the reason is the
+ * helper rather than either role's own grants: one helper writes both roles' audit rows
+ * (`queries/access-audit.ts`), and `qcms_app_<env>` holds `INSERT` here and nothing else,
+ * so a `RETURNING`, being a read, is refused for it. The rule is asserted as the
+ * environment role, because asserting it as the control role would prove nothing - that
+ * role holds `SELECT` here and the statement would succeed.
+ *
+ * The statements are **checked in** as part of the migration, because a migration is a
+ * file the migrator reads; `control-table-grants.test.ts` asserts the checked-in text is
+ * still what this function emits.
+ */
+export function grantAccessAuditStatements(): string[] {
+  const table = `${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)}`;
+  return [
+    guardedOnRole(CONTROL_ROLE, [`GRANT SELECT, INSERT ON ${table} TO ${quote(CONTROL_ROLE)}`]),
+    grantAccessAuditInsertToEnvironmentRolesStatement(),
+    revokeAccessAuditWritesStatement(),
+  ];
+}
+
+/** `INSERT` on the access audit to every environment role in the live set. */
+function grantAccessAuditInsertToEnvironmentRolesStatement(): string {
+  const grant = `GRANT INSERT ON ${quote(CONTROL_SCHEMA)}.${quote(ACCESS_AUDIT_TABLE)} TO %I`;
+  return `DO $$
+DECLARE environment_role text;
+BEGIN
+\tFOR environment_role IN
+\t\tSELECT ${literal(`${APPLICATION_ROLE_PREFIX}_`)} || environment.name
+\t\t\tFROM ${CONTROL_SCHEMA}.environments AS environment
+\t\t\tWHERE EXISTS (
+\t\t\t\tSELECT 1 FROM pg_roles
+\t\t\t\t WHERE rolname = ${literal(`${APPLICATION_ROLE_PREFIX}_`)} || environment.name)
+\tLOOP
+\t\tEXECUTE format(${literal(grant)}, environment_role);
+\tEND LOOP;
+END
+$$;`;
+}
+
+/**
+ * Take `UPDATE` and `DELETE` on the access audit back from every `qcms_app%` role.
+ *
+ * The sibling of {@link revokeMigrateOnlyStatement}, and narrower: that one takes all
+ * four privileges on `two_factor_resets`, because that table is migrate-only. Here the
+ * application roles keep the writes they need - `INSERT` for both, `SELECT` for the
+ * control role - and lose the two that would let a credential serving traffic rewrite the
+ * record of what it did.
+ */
+function revokeAccessAuditWritesStatement(): string {
+  return `DO $$
+DECLARE application_role text;
+BEGIN
+\tFOR application_role IN
+\t\tSELECT rolname FROM pg_roles WHERE rolname LIKE 'qcms\\_app%'
+\tLOOP
+\t\tEXECUTE format(
+\t\t\t'REVOKE UPDATE, DELETE ON TABLE ${CONTROL_SCHEMA}.${ACCESS_AUDIT_TABLE} FROM %I',
+\t\t\tapplication_role);
+\tEND LOOP;
+END
+$$;`;
 }
 
 /**
@@ -666,7 +766,8 @@ $$;`;
  * Postgres. The grant lands and is taken back.
  *
  * The SEC-15 access audit's own grants and revokes are **task 069's migration**, which
- * is the migration that creates that table; this one has nothing to act on there.
+ * is the migration that creates that table, and {@link grantAccessAuditStatements} is
+ * what emits them; this statement has nothing to act on there.
  */
 export function revokeMigrateOnlyStatement(): string {
   return `DO $$

@@ -14,7 +14,7 @@ import {
 /**
  * The route-to-cap table is the mechanism, so these are its tests (issues 558, 648, 657).
  *
- * Each of the eighteen screens takes the cap its own POC draws, and the acceptance asks
+ * Each of the twenty-one screens takes the cap its own POC draws, or - for the four with no POC - the cap of the screen it is shaped like, and the acceptance asks
  * that adding one more make its cap an obvious one-line decision. Issue 685 is the first
  * time that promise was called in: `/forms/new` arrived and its cap was one row. A table
  * only earns
@@ -83,9 +83,15 @@ describe("the route-to-cap table", () => {
     expect(count("wide")).toBe(12);
     expect(count("prose")).toBe(3);
     expect(count("list")).toBe(2);
-    expect(count("ops")).toBe(1);
-    expect(count("log")).toBe(1);
-    expect(measures).toHaveLength(19);
+    // Two each since task 069's membership screens, and **neither is a drawing**: no POC
+    // draws either, so each takes the cap of the screen it is shaped like - a list and a
+    // reader's own grants at `/responses`' width, and four panels whose widest member is a
+    // six-column log at the erasure log's. The counts are restated here rather than
+    // derived for the reason the comment above gives, and these two are the rows a POC for
+    // either screen corrects first.
+    expect(count("ops")).toBe(2);
+    expect(count("log")).toBe(2);
+    expect(measures).toHaveLength(21);
   });
 
   it("offers no cap that no route can take, which is what issue 668 left behind", () => {

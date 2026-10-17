@@ -26,16 +26,20 @@ import {
   getForm,
   getFormVersion,
   getReleasedVersion,
+  isScopeAll,
+  listEnvironmentNames,
   listEnvironments,
   listFormReleases,
+  listGrantsForUser,
 } from "@roonga/qcms-db";
-import type { FormReleaseHistoryRow } from "@roonga/qcms-db";
+import type { Executor, FormReleaseHistoryRow } from "@roonga/qcms-db";
 
 import { FormId, parseFormId } from "@roonga/qcms-core";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
 import type { ApiEnv } from "../../openapi.js";
+import { holdsInstallationClaim } from "../membership/resolver.js";
 import { recordRelease } from "./release.js";
 import type { environmentSetRoute, releaseHistoryRoute, releaseVersionRoute } from "./route.js";
 
@@ -271,13 +275,55 @@ export function makeEnvironmentSetHandler(
     // refuses that disagreement (task 064, criterion 6a), and the intersection is what
     // keeps this read honest if the boot check is ever made non-fatal.
     const rows = await listEnvironments(deps.databases.control);
+    const served = rows.filter((row) => deps.databases.names.includes(row.name));
+
+    // **Narrowed to the environments the caller holds in some grant** (Q25, task 069).
+    // The ruling's own words are that the Q6 switcher offers only those, and the API is
+    // where that happens rather than the admin: a switcher is one client of this route,
+    // and a second client reading the whole set would see round a narrowing done in the
+    // first. The installation claim is served the set whole, because administering
+    // environments across every workspace is what the claim is for (Q29), and a caller
+    // holding neither a grant nor the claim gets an empty list - which is the same
+    // "reaches nothing" every other refusal gives them, in the shape this route has.
+    const principal = c.get("adminPrincipal");
+    const claim = holdsInstallationClaim(principal?.role);
+    const held = claim
+      ? undefined
+      : await heldEnvironments(deps.databases.control, principal?.userId);
+
     return c.json(
       {
-        environments: rows
-          .filter((row) => deps.databases.names.includes(row.name))
+        environments: served
+          .filter((row) => held === undefined || held.has(row.name))
           .map((row) => ({ name: row.name, position: row.position })),
       },
       200,
     );
   };
+}
+
+/**
+ * The environments one caller holds in some grant, with `all` expanded against the live
+ * set (Q25).
+ *
+ * A set rather than a list, because the only question asked of it is membership, and the
+ * **order** of the answer is the environments table's: the caller's grants decide which
+ * rows survive and never the order they come back in, which is what keeps a combined
+ * environment set spelled one way everywhere (Q42).
+ */
+async function heldEnvironments(
+  exec: Executor,
+  userId: string | undefined,
+): Promise<ReadonlySet<string>> {
+  if (userId === undefined) return new Set();
+  const [grants, live] = await Promise.all([
+    listGrantsForUser(exec, userId),
+    listEnvironmentNames(exec),
+  ]);
+  const held = new Set<string>();
+  for (const grant of grants) {
+    if (isScopeAll(grant.environments)) for (const name of live) held.add(name);
+    else for (const name of grant.environments) held.add(name);
+  }
+  return held;
 }

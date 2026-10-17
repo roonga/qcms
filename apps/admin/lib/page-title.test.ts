@@ -28,7 +28,7 @@ import { formSectionName, pageMetadata } from "./page-title.ts";
  *
  * ## Slot pages are not routes
  *
- * `app/(shell)/@rail/**` has a page for all eighteen screens (that is the property
+ * `app/(shell)/@rail/**` has a page for all twenty-one screens (that is the property
  * `rail-routes.test.ts` pins) and none of them is a document. Next resolves metadata from
  * the matched segment's own `page.tsx`, so a `generateMetadata` in a parallel-route slot
  * would be dead code claiming to be a title. Skipped by the same `@` rule the sibling
@@ -125,6 +125,12 @@ describe("every route titles its own browser tab", () => {
       "/two-factor/recovery",
       "/two-factor/recovery-codes",
       "/webhooks",
+      // Membership and the access audit (ADR-41, task 069). Both title their own tab:
+      // the list names the area and the workspace page names the workspace, because an
+      // operator working two workspaces side by side cannot tell two tabs apart otherwise
+      // (issue #536's whole reason).
+      "/workspaces",
+      "/workspaces/[workspaceId]",
     ]);
   });
 

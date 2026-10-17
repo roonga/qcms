@@ -599,12 +599,12 @@ one-shot migration step and never by a process serving traffic. And since ADR-40
 runtime half is split again, so an author never reads a production answer and the
 anonymous respondent path holds no privilege on the tables that decide who may read one.
 
-| Role               | Held by                               | What it gets                                                                                                                                                                                                                                                                                                                   |
-| ------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `qcms_migrate`     | the migration step, and nothing else  | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                                  |
-| `qcms_app_control` | the API's **control** pool            | DML on `control`, with **nothing at all** on `two_factor_resets`; **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases and closes.                                                             |
-| `qcms_app_<env>`   | the API's pool for that environment   | DML on its **own** `data_<env>`; `USAGE` and `SELECT` on its **own** `reporting_<env>`; on `control`, `SELECT` on a named list and `UPDATE` on `secure_links`. **No privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`. |
-| `qcms_reporting`   | BI/ETL consumers (optional, separate) | `SELECT` on one environment's `reporting_<env>` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                                                                                                        |
+| Role               | Held by                               | What it gets                                                                                                                                                                                                                                                                                                                                                                                 |
+| ------------------ | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `qcms_migrate`     | the migration step, and nothing else  | Owns `control`, every `data_<env>` and every `reporting_<env>`, plus `CREATE` on the database so it can add them. The DDL rights `drizzle-kit migrate` needs, for the length of one run. It is also what the environment command and `qcms:reset-2fa` run as.                                                                                                                                |
+| `qcms_app_control` | the API's **control** pool            | DML on `control`, with **two tables carved out**: **nothing at all** on `two_factor_resets`, and **`SELECT` and `INSERT` only** on the SEC-15 `access_audit`. **`INSERT` on each `data_<env>.outbox` and no other privilege of any kind in any data schema**; nothing on any `reporting_<env>`. It serves better-auth, authoring, grants, releases, closes and the audit read.               |
+| `qcms_app_<env>`   | the API's pool for that environment   | DML on its **own** `data_<env>`; `USAGE` and `SELECT` on its **own** `reporting_<env>`; on `control`, `SELECT` on a named list, `UPDATE` on `secure_links` and **`INSERT`, and nothing else, on the SEC-15 `access_audit`**. **No privilege of any kind** on `user`, `session`, `account`, `verification`, `twoFactor`, `two_factor_resets`, `invitation`, `member`, `team` or `teamMember`. |
+| `qcms_reporting`   | BI/ETL consumers (optional, separate) | `SELECT` on one environment's `reporting_<env>` schema and nothing else. Its own recipe is in `docs/reporting-view.md`.                                                                                                                                                                                                                                                                      |
 
 The second row is the point, and the third and fourth are what ADR-40 added to it.
 Before the first split one credential did both jobs, so the process serving respondent
@@ -715,6 +715,40 @@ and whose clause here and in the environment-create command is guarded on the ta
 existing - because the baseline runs before that migration and the command runs after it,
 and one emission has to be correct in both positions.
 
+**The SEC-15 access audit is the other carve-out, and its privilege set is different
+because its writer is** (Q40 with Q56, task 069).
+`control.access_audit` records every response read, export and erasure, every grant and
+every revoke, and every change to the per-workspace test-data setting.
+Unlike the break-glass table above it is written by the **application**, on an ordinary
+request, so it cannot be migrate-only.
+
+What it holds instead:
+
+- **`qcms_app_control`: `SELECT` and `INSERT`.** The read is the audit a workspace's
+  owners and the installation administrator see through the authoring surface; the insert
+  is there because a grant write and its audit row are both control-pool acts.
+- **Every `qcms_app_<env>`: `INSERT`, and nothing else on the table.** A response read
+  runs on the environment's pool, and its audit row commits in the **same transaction** as
+  the read: a row written on a second connection would be a second transaction, so a read
+  that succeeded while its audit write failed would leave no record of itself. That role
+  may add a row and may not read, change or remove one.
+- **No application role holds `UPDATE` or `DELETE`**, the control role included. Only
+  `qcms_migrate` can alter an audit row, which is the part that makes a row worth
+  something against an attacker holding the serving credential.
+
+Both inserts are **plain inserts with no `RETURNING`**, and the reason is the helper
+rather than either role: one helper writes the rows for both pools, and the environment
+role - holding `INSERT` alone - is the one a `RETURNING`, being a read, is refused for.
+
+**Its grants and its revoke live in the migration that creates the table** (task 069's),
+for the rule the break-glass revoke already follows, and **the grant is owed twice**: that
+migration covers the environments that exist when it runs, and the environment-create
+command covers every environment created afterwards. The command's clause is **guarded on
+the table existing**, like `form_releases`', because the baseline runs before that
+migration and the command runs after it, and one emission has to be correct in both
+positions. Task 064 set **no `ALTER DEFAULT PRIVILEGES`**, so a control-plane table's
+grants are explicit or absent.
+
 **If you renamed the application roles entirely, this revoke is still yours to check.**
 The prefix is `qcms_app`, so a deployment that calls its roles something else keeps all
 four privileges on the audit table. That is a real limit and not an oversight: a
@@ -725,10 +759,10 @@ one does not.
 
 The **SEC-15 access audit** is a different case and does not arrive with this one.
 It is written by the application on an ordinary request, so it cannot be migrate-only:
-each environment role holds `INSERT`, the control role holds `SELECT`, and neither holds
-`UPDATE` or `DELETE`.
+each environment role holds `INSERT`, the control role holds `SELECT` **and `INSERT`**
+(Q56), and no application role holds `UPDATE` or `DELETE`.
 Those grants and that revoke live in **task 069's migration**, which is the migration
-that creates that table.
+that creates that table, and the section above is what they say.
 This baseline has nothing to act on there.
 
 **What each role is granted (Code Owner, Q40 as amended by Q48, Q49, Q52, Q54 and Q56).**
@@ -768,8 +802,8 @@ made.
 `qcms_app_control` holds `USAGE` on `control` and DML in it, with `two_factor_resets`
 carved out entirely
 and the SEC-15 audit carved down to `SELECT` **and `INSERT`**, never `UPDATE` or
-`DELETE`, because a grant write and its audit row are both control-pool acts (Q56); those
-clauses arrive with task 069's migration, which creates that table.
+`DELETE`, because a grant write and its audit row are both control-pool acts (Q56). Those
+clauses are **task 069's migration's**, which is the migration that creates that table.
 In the data schemas it holds **`USAGE` on each `data_<env>` and `INSERT` on its `outbox`,
 and no other table privilege there**: no `SELECT`, no `UPDATE`, no `DELETE` on `outbox`,
 and nothing of any kind on any other data-plane table.

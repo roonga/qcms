@@ -93,6 +93,7 @@ import type { Executor, FormDraftRow, FormVersionRow, QuestionOwnership } from "
 import { challengeEnforceable } from "../../config.js";
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { workspaceFilterFor } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { recordRelease } from "../releases/release.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
@@ -663,7 +664,14 @@ export function makeCreateFormHandler(deps: Deps): RouteHandler<typeof createFor
 export function makeListFormsHandler(deps: Deps): RouteHandler<typeof listFormsRoute, ApiEnv> {
   return async (c) => {
     const { status, search, sort } = c.req.valid("query");
-    const rows = await listForms(deps.databases.control);
+    // Narrowed to the workspaces the caller holds `form: read` in (ADR-41, task 069).
+    // The grant middleware resolved that set before this handler ran, so the list cannot
+    // show a form an act on that form would be refused for, and two groups sharing one
+    // installation do not see each other's forms. `undefined` is the installation-wide
+    // claim's answer, which is every workspace.
+    const rows = await listForms(deps.databases.control, {
+      ...workspaceFilterFor(c.get("grantContext")),
+    });
     // The status is **per environment** and derived since task 066 (Q18): the Q6
     // switcher's environment, read as one query for the whole list rather than one per
     // form, because the list is the one screen that asks the question N times. A form
@@ -1819,6 +1827,14 @@ export function makePublishFormHandler(deps: Deps): RouteHandler<typeof publishF
  * holds the version, the draft deletion, the release record and the `form.released` event,
  * so a failed release leaves no published version behind to explain. That is the whole
  * reason the publish core is split into `freezeDraft` and `writeVersion` above.
+ *
+ * **Two cells of the permissions matrix, and the gate evaluates both.** This handler makes
+ * no policy call, and that is now correct rather than an omission: the route's row in
+ * `route-policy.ts` carries `form: publish` **and** `release: create`, the second in
+ * `also`, both judged against the environment the body names before this function runs.
+ * The first version left the release half to this handler on the strength of a comment,
+ * and the review of PR #1061 probed it: a `forms.editor` scoped to `test` got past the
+ * gate to a production release.
  */
 export function makePublishAndReleaseFormHandler(
   deps: Deps,

@@ -11,10 +11,10 @@ import { submitResponse } from "./support/ops.js";
  * screens whose POC draws something narrower inside the column carry that as a second layer.
  * Issues 558, 648, 657, 668 and 675.
  *
- * Each of the eighteen authenticated screens takes the cap its own POC draws.
+ * Each of the twenty-one authenticated screens takes the cap its own POC draws.
  * `lib/measure.ts` holds that as one table and `measure.test.ts` proves the table covers
  * exactly the route tree. Neither of those checks that the cap reaches the browser, which
- * is what this spec is for: it opens all eighteen screens and measures the shell's content
+ * is what this spec is for: it opens all twenty-one screens and measures the shell's content
  * column.
  *
  * ## What is asserted, and why it is four things rather than one
@@ -29,9 +29,9 @@ import { submitResponse } from "./support/ops.js";
  *   That is issue 657's acceptance in the only terms a reviewer can check.
  * - At **1280** the column's left edge is the **left of the space it has**: the rail's
  *   right edge where a rail is beside it, and the viewport's origin where there is none.
- *   That is issue 648's acceptance, and it is asserted on all eighteen rather than sampled
+ *   That is issue 648's acceptance, and it is asserted on all twenty-one rather than sampled
  *   because a single `mx-auto` reintroduced anywhere puts one screen back.
- * - At **390** every one of the eighteen measures the SAME width. It is a property of the
+ * - At **390** every one of the twenty-one measures the SAME width. It is a property of the
  *   mechanism rather than of the values: a cap is fluid below itself, so no breakpoint is
  *   involved at any width, and a phone sees none of this change.
  *
@@ -58,6 +58,8 @@ const EMAIL = uniqueAdminEmail("measure558");
 const FORM_ID = "frm_auto_quote";
 const SLUG = "auto";
 const QUESTION_ID = "q_at_fault_accident";
+/** The workspace a bootstrapped installation is seeded with (ADR-41, task 068). */
+const WORKSPACE_ID = "org_default_workspace";
 /** Answering the accident question `true` reveals this one, which is then required. */
 const COUNT_ID = "q_accident_count";
 
@@ -92,7 +94,7 @@ type Cap = keyof typeof CAP_PX;
 type Screen = { readonly path: string; readonly cap: Cap };
 
 /**
- * All eighteen authenticated screens, in route order.
+ * All twenty-one authenticated screens, in route order.
  *
  * The response detail path is filled in once a response exists; everything else is
  * reachable from the seed. The screens are opened by URL rather than by clicking through,
@@ -126,6 +128,12 @@ function screens(sessionId: string): readonly Screen[] {
     { path: "/responses/erasures", cap: "log" },
     { path: "/settings", cap: "prose" },
     { path: "/webhooks", cap: "wide" },
+    // Membership and the access audit (ADR-41, task 069). No POC draws either, so each
+    // takes the cap of the screen it is shaped like: a list and a reader's own grants at
+    // the `/responses` width, and four panels whose widest member is a six-column log at
+    // the erasure log's. `lib/measure.ts` carries the same reading.
+    { path: "/workspaces", cap: "ops" },
+    { path: `/workspaces/${WORKSPACE_ID}`, cap: "log" },
   ];
 }
 
@@ -213,7 +221,7 @@ test("657 caps each screen at the width its own POC draws, at 1280", async ({ pa
   await page.setViewportSize({ width: 1280, height: 900 });
   for (const screen of screens(sessionId)) {
     const measured = await measure(page, screen.path);
-    // Soft, so one sweep reports all eighteen verdicts instead of stopping at the first
+    // Soft, so one sweep reports all twenty-one verdicts instead of stopping at the first
     // screen that disagrees. The test still fails on any of them; what changes is that a
     // reviewer reading the failure sees the whole table rather than its first row.
     expect
@@ -490,5 +498,5 @@ test("657 leaves every screen the same width at 390, because a cap is fluid belo
     expect.soft(measured.width, `${screen.path} is fluid at 390`).toBe(measured.available);
     widths.set(screen.path, measured.width);
   }
-  expect(new Set(widths.values()).size, "all eighteen screens measure one width at 390").toBe(1);
+  expect(new Set(widths.values()).size, "all twenty-one screens measure one width at 390").toBe(1);
 });

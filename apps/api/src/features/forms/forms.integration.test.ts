@@ -53,6 +53,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
 import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps, seedAdminSession, validEnv } from "../../test-support.js";
 import { registerForms } from "./route.js";
@@ -71,7 +72,9 @@ let adminSessionToken: string;
 beforeAll(async () => {
   testDb = await startTestDb();
   deps = makeDeps({ db: testDb.db, env: validEnv() });
-  app = createApp(deps, ADMIN_ONLY, { groups: { admin: [registerAdminAuth, registerForms] } });
+  app = createApp(deps, ADMIN_ONLY, {
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms] },
+  });
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
 }, CONTAINER_BOOT_TIMEOUT_MS);
@@ -1821,7 +1824,7 @@ describe("GET /admin/forms - search, status filter and sort", () => {
         },
       }),
       ADMIN_ONLY,
-      { groups: { admin: [registerAdminAuth, registerForms] } },
+      { groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms] } },
     );
 
     await seedPublishedQuestion("q_lst_one", "One");

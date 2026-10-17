@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { ACTIONS, ROLE_NAMES } from "../../src/features/membership/policy.js";
+import { ROUTE_POLICIES } from "../../src/features/membership/route-policy.js";
 import { type MatrixRow, SURFACES } from "./surfaces.js";
 
 const SECURITY_DESIGN = fileURLToPath(
@@ -60,17 +62,30 @@ const DOCUMENTED_ROWS: Readonly<Record<string, MatrixRow>> = {
   "Responses read/export": "responses-read",
   Erasure: "erasure",
   "Links mint/revoke, webhook config": "links-webhooks",
+  // Task 069's rows. The credential table gains one Action row covering the membership
+  // surface, because what that table is about is credential shapes and every route on
+  // that surface has the same answer in every one of its columns: an admin session and
+  // nothing less. Who may then call which route is the role table below it.
+  "Membership, grants and the access audit": "membership",
   "Health/ready": "health",
 };
 
 /**
- * Pull the Action cell of every data row in the §3.2 table out of the shipped
- * document. Deliberately not a markdown library: the table is a fixed shape and
- * a hand parser fails loudly when that changes, which is the desired behaviour.
+ * Pull the Action cell of every data row of one table out of the shipped document.
+ *
+ * Deliberately not a markdown library: the table is a fixed shape and a hand parser fails
+ * loudly when that changes, which is the desired behaviour.
+ *
+ * `heading` is where to start looking, because section 3.2 carries **two** tables since
+ * task 069: the credential-shape matrix this file has always walked, and the two role
+ * families beneath it. They are two tables rather than one because the dimensions are
+ * different - one is about what a caller presents and the other about what they were
+ * granted - and a single table would have carried empty cells meaning "not applicable"
+ * in a document where an empty cell means **no**.
  */
-function parseMatrixActions(markdown: string): string[] {
-  const start = markdown.indexOf("### 3.2 Authorization matrix");
-  if (start === -1) throw new Error("SECURITY_DESIGN.md has no section 3.2 heading");
+function parseMatrixActions(markdown: string, heading: string): string[] {
+  const start = markdown.indexOf(heading);
+  if (start === -1) throw new Error(`SECURITY_DESIGN.md has no ${heading} heading`);
   const lines = markdown.slice(start).split("\n");
   const actions: string[] = [];
   let seenHeader = false;
@@ -92,7 +107,9 @@ function parseMatrixActions(markdown: string): string[] {
   return actions;
 }
 
-const actions = parseMatrixActions(readFileSync(SECURITY_DESIGN, "utf8"));
+const securityDesign = readFileSync(SECURITY_DESIGN, "utf8");
+const actions = parseMatrixActions(securityDesign, "### 3.2 Authorization matrix");
+const roleActions = parseMatrixActions(securityDesign, "#### The two role families");
 
 describe("the §3.2 matrix and the probe inventory stay in step", () => {
   it("parsed a table that looks like the one in the document (the fixture is real)", () => {
@@ -183,11 +200,111 @@ describe("the §3.2 matrix and the probe inventory stay in step", () => {
       // form, so `/admin/forms` would not cover it and the slice could lose its probe
       // without this backstop noticing. Added by task 066, which found the gap.
       "/admin/environments",
+      // The membership slice (ADR-41, task 069). Three prefixes rather than one, because
+      // the slice is three things a gate could be forgotten on independently: the
+      // caller's own grants, the member rows, and the access groups with their holders.
+      "/admin/me/access",
+      "/admin/workspaces/{id}/members",
+      "/admin/workspaces/{id}/access-groups",
     ]) {
       expect(
         adminPaths.some((path) => path.includes(slice)),
         `no probe covers ${slice}`,
       ).toBe(true);
     }
+  });
+});
+
+/**
+ * The role table's rows, mapped to the (resource, action) the route table says they are.
+ *
+ * Keyed on the document's exact wording, like `DOCUMENTED_ROWS` above and for the same
+ * reason: reword a row and this map stops matching, which fails the parse assertion
+ * rather than silently dropping the row.
+ *
+ * Several rows differ only by environment - "Release to dev or test" and "Release to
+ * prod" are one `release: create` cell split by the production rule - so the mapping is
+ * many-to-one and the assertion is that every documented row has a route that performs
+ * it, not that every row is its own route.
+ */
+const DOCUMENTED_ROLE_ROWS: Readonly<Record<string, readonly [string, string]>> = {
+  "See drafts, published versions and release history": ["form", "read"],
+  "See link and endpoint configuration (viewer: URL query string masked, Q58)": ["link", "read"],
+  "Draft and edit questions and forms, pin shared questions, preview": ["form", "write"],
+  "Publish a version (releases nowhere)": ["form", "publish"],
+  "Release to dev or test": ["release", "create"],
+  "Release to prod": ["release", "create"],
+  "Approve a prod release under the two-person switch": ["release", "create"],
+  "Close or reopen, dev or test": ["form", "close"],
+  "Close or reopen, prod": ["form", "close"],
+  "Mint or revoke links, dev or test": ["link", "mint"],
+  "Mint or revoke links, prod": ["link", "mint"],
+  "Configure webhook endpoint, dev or test": ["webhook", "configure"],
+  "Configure webhook endpoint, prod": ["webhook", "configure"],
+  "View and export responses": ["response", "read"],
+  "Erase a response": ["response", "erase"],
+  "See the membership list and grants": ["membership", "read"],
+  "Manage membership and grants (every write audited; self-grant rule, Q56)": [
+    "membership",
+    "write",
+  ],
+  "Workspace settings: two-person switch, archive": ["workspace", "update"],
+  "Read the access audit": ["audit", "read"],
+  "Create workspaces, mark the shared one, environment settings, user accounts": [
+    "workspace",
+    "update",
+  ],
+  "Read any response anywhere": ["response", "read"],
+};
+
+describe("the two role families and the route table stay in step (task 069)", () => {
+  it("parsed a table that looks like the one in the document (the fixture is real)", () => {
+    expect(roleActions.length).toBeGreaterThanOrEqual(21);
+    expect(roleActions).toContain("Read any response anywhere");
+    expect(roleActions).toContain("Read the access audit");
+  });
+
+  it("maps every documented role row to a (resource, action) the policy declares", () => {
+    const unmapped = roleActions.filter((action) => DOCUMENTED_ROLE_ROWS[action] === undefined);
+    expect(
+      unmapped,
+      "the role table gained or reworded a row; decide which (resource, action) it is and add it to DOCUMENTED_ROLE_ROWS",
+    ).toEqual([]);
+    for (const action of roleActions) {
+      const cell = DOCUMENTED_ROLE_ROWS[action];
+      if (cell === undefined) continue;
+      const [resource, verb] = cell;
+      const declared = ACTIONS[resource as keyof typeof ACTIONS] as readonly string[] | undefined;
+      expect(declared, `${resource} is not a declared resource`).toBeDefined();
+      expect(declared, `${resource}: ${verb} is not a declared action`).toContain(verb);
+    }
+  });
+
+  it("has a route that performs every documented role row", () => {
+    // The other direction from `route-policy.test.ts`, which asserts every route has a
+    // row: this asserts every row of the document has a route. A documented act nothing
+    // serves is a promise with no surface behind it.
+    const performed = new Set(ROUTE_POLICIES.map((row) => `${row.resource}:${row.action}`));
+    const unserved = roleActions
+      .map((action) => DOCUMENTED_ROLE_ROWS[action])
+      .filter((cell): cell is readonly [string, string] => cell !== undefined)
+      .map(([resource, verb]) => `${resource}:${verb}`)
+      .filter((cell) => !performed.has(cell));
+    expect([...new Set(unserved)], "a role-table row has no route that performs it").toEqual([]);
+  });
+
+  it("gives every role in the document a declaration, and no role a declaration the document lacks", () => {
+    // The columns, not the rows. A seventh role in the code with no column here would be
+    // a role nobody could look up; a column with no declaration would be a promise.
+    const header = securityDesign
+      .slice(securityDesign.indexOf("#### The two role families"))
+      .split("\n")
+      .find((line) => line.startsWith("| Action"));
+    expect(header, "the role table has no header row").toBeDefined();
+    const columns = (header as string)
+      .split("|")
+      .map((cell) => cell.trim())
+      .filter((cell) => cell !== "" && cell !== "Action");
+    expect(columns).toEqual([...ROLE_NAMES, "installation admin"]);
   });
 });

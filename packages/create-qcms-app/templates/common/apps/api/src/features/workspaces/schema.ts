@@ -10,7 +10,8 @@ import { WORKSPACE_SLUG_MAX_LENGTH, WORKSPACE_SLUG_PATTERN } from "./rules.js";
  *   - **No role, no membership and no grant anywhere in this file.** Task 068 builds the
  *     container; the six roles, the scope and the access-group names are 069's, and a
  *     body here that accepted a role would be inventing part of that task's contract.
- *   - **No `requireSecondApprover`.** The field exists on the row and defaults off
+ *   - **No `requireSecondApprover`** on a request body here. The field exists on the row
+ *     and defaults off
  *     (Q13), and task 070 is what reads it. Nothing in this task writes it, so no body
  *     carries it - a switch a client can set before anything acts on it is a switch that
  *     reads as working.
@@ -73,6 +74,15 @@ export const WorkspaceView = z
      * through any route in this task**, and nothing reads it until task 070.
      */
     requireSecondApprover: z.boolean(),
+    /**
+     * F17's optional seed, read by task 069 (Q39, Q57).
+     *
+     * On the view because the admin's settings panel has to open on the value it has:
+     * that switch is a statement about **personal data** - a grant on `test` responses is
+     * a grant on it - and a screen that guessed `false` would present the statement as
+     * though nobody had chosen it.
+     */
+    seedNewEditorsWithTestData: z.boolean(),
     /** When this workspace was archived, or null. A workspace is never deleted (Q15). */
     archivedAt: z.iso.datetime().nullable(),
     /** What it owns, so a list can say why an archive would be refused. */
