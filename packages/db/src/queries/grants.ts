@@ -177,6 +177,42 @@ export async function listGrantsForUser(
     .orderBy(asc(authOrganization.slug), asc(authTeam.name));
 }
 
+/** One workspace a caller has a `member` row in, with that row's role. */
+export interface MemberWorkspace {
+  readonly workspaceId: string;
+  readonly slug: string;
+  readonly name: string;
+  readonly role: string;
+  readonly archived: boolean;
+}
+
+/**
+ * Every workspace one caller has a `member` row in.
+ *
+ * The companion of {@link listGrantsForUser}: that one answers the team grants and this
+ * one answers the member row, and a caller may hold either without the other - an owner
+ * with no access group, and a grant holder whose member row carries the empty role
+ * (finding G). The resolver needs both to decide an act, and the capability endpoint
+ * needs both to answer a caller's own grants.
+ */
+export async function listMemberWorkspacesForUser(
+  exec: Executor,
+  userId: string,
+): Promise<readonly MemberWorkspace[]> {
+  return exec
+    .select({
+      workspaceId: authMember.organizationId,
+      slug: authOrganization.slug,
+      name: authOrganization.name,
+      role: authMember.role,
+      archived: sql<boolean>`${authOrganization.archivedAt} is not null`,
+    })
+    .from(authMember)
+    .innerJoin(authOrganization, eq(authOrganization.id, authMember.organizationId))
+    .where(eq(authMember.userId, userId))
+    .orderBy(asc(authOrganization.slug));
+}
+
 /** One member row as the membership list reports it. */
 export interface WorkspaceMemberRow {
   readonly userId: string;
@@ -558,6 +594,31 @@ export async function setSeedNewEditorsWithTestData(
     .set({ seedNewEditorsWithTestData: value })
     .where(eq(authOrganization.id, workspaceId))
     .returning({ value: authOrganization.seedNewEditorsWithTestData });
+  return rows[0]?.value;
+}
+
+/**
+ * Turn the per-workspace two-person switch on or off (Q13, Q30, Q51, Q56).
+ *
+ * `requireSecondApprover` is `input: false` on the plugin's side and **had no write path
+ * at all** until task 069: task 068 declared it off by default and task 070 reads it for
+ * the two-person rule at a `prod` release and a `prod` endpoint change. This task reads
+ * it too, for Q56's self-grant rule, which is why the one switch gives an installation
+ * the whole two-person posture.
+ *
+ * Turning it on or off **writes a SEC-15 row of kind `setting`** (Q61). That row is the
+ * API slice's, written in the same transaction as this update.
+ */
+export async function setRequireSecondApprover(
+  exec: Executor,
+  workspaceId: string,
+  value: boolean,
+): Promise<boolean | undefined> {
+  const rows = await exec
+    .update(authOrganization)
+    .set({ requireSecondApprover: value })
+    .where(eq(authOrganization.id, workspaceId))
+    .returning({ value: authOrganization.requireSecondApprover });
   return rows[0]?.value;
 }
 

@@ -210,14 +210,6 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     audit: "revoke",
   },
   {
-    method: "POST",
-    path: "/admin/workspaces/{id}/access-groups/{teamId}/confirm",
-    resource: "membership",
-    action: "write",
-    workspace: "path",
-    audit: "grant",
-  },
-  {
     method: "PUT",
     path: "/admin/workspaces/{id}/settings",
     resource: "workspace",

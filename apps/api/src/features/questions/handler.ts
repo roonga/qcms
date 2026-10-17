@@ -46,6 +46,7 @@ import {
   getQuestion,
   getQuestionVersion,
   listQuestionVersions,
+  getSharedWorkspace,
   listQuestions,
   listVersionsForQuestions,
   publishQuestionVersion,
@@ -55,6 +56,7 @@ import type { QuestionStatus, QuestionVersionRow } from "@roonga/qcms-db";
 
 import type { Deps } from "../../deps.js";
 import { ApiError } from "../../errors.js";
+import { workspaceFilterFor } from "../membership/context.js";
 import type { ApiEnv } from "../../openapi.js";
 import { resolveWorkspaceForNewObject } from "../workspaces/resolve.js";
 import {
@@ -298,6 +300,22 @@ export function makeDeprecateVersionHandler(
   };
 }
 
+/**
+ * The caller's workspaces, plus the shared question library if there is one.
+ *
+ * The shared workspace is added **here**, in the API, rather than inside the query
+ * helper: finding 10's asymmetry is a QCMS domain rule and one rule belongs in one place,
+ * which `features/workspaces/rules.ts` already says of the pin half of it.
+ */
+async function withSharedWorkspace(
+  deps: Deps,
+  workspaceIds: readonly string[],
+): Promise<readonly string[]> {
+  const shared = await getSharedWorkspace(deps.databases.control);
+  if (shared === undefined || workspaceIds.includes(shared.id)) return workspaceIds;
+  return [...workspaceIds, shared.id];
+}
+
 // --- GET /admin/questions ---------------------------------------------------
 
 export function makeListQuestionsHandler(
@@ -305,7 +323,18 @@ export function makeListQuestionsHandler(
 ): RouteHandler<typeof listQuestionsRoute, ApiEnv> {
   return async (c) => {
     const { status, type, search, versions } = c.req.valid("query");
-    const summaries = await listQuestions(deps.databases.control);
+    // Narrowed to the workspaces the caller holds `question: read` in, **plus the shared
+    // question library** (ADR-41, finding 10): every workspace's editors see and may pin
+    // its questions, and only its own members edit them, so the shared workspace is a
+    // read surface to everybody else. A shared question's text is the one thing that
+    // crosses a workspace boundary, and no response ever does.
+    const filter = workspaceFilterFor(c.get("grantContext"));
+    const summaries = await listQuestions(
+      deps.databases.control,
+      filter.workspaceIds === undefined
+        ? {}
+        : { workspaceIds: await withSharedWorkspace(deps, filter.workspaceIds) },
+    );
 
     const byStatus =
       status === undefined ? summaries : summaries.filter((s) => s.latestStatus === status);
