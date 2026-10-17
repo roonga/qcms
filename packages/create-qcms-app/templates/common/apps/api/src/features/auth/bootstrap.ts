@@ -5,6 +5,7 @@ import {
   countAdminUsers,
   createAccessGroup,
   listWorkspaces,
+  writeAccessAuditRow,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
@@ -297,13 +298,22 @@ async function seedFirstWorkspace(
  * name, role and scope (finding 17's rule that a convenience is never an implication), so
  * an operator can read what their account holds and revoke either one.
  *
- * # No audit row
+ * # One audit row per seeded group
  *
- * A seed is not an act somebody performed: there is no actor but the command, and the
- * installation did not exist a moment before. SEC-15 records grant **writes** made through
- * the membership endpoints, and the first-run seed is the installation coming into
- * existence rather than a change to it - the same reason `two_factor_resets` records a
- * reset and not the creation of the account.
+ * The first version wrote none, on the reading that a seed is not an act somebody
+ * performed. The Code Owner ruled the other way (Code Owner, 2026-10-18, PR #1061):
+ * **Q56's "every grant write is a SEC-15 row" is meant literally**, so the seed writes one
+ * `grant` row per group with the created account as actor and a detail that says
+ * `qcms:create-admin` seeded it.
+ *
+ * It costs one insert and it keeps the first page of the audit honest: an operator reading
+ * the log sees where the account's two groups came from, rather than finding two grants
+ * nobody granted and having to know that the bootstrap is the answer. The actor is the
+ * created account because it is the account the grants are for and the only identity the
+ * installation has; the detail is what says it was the command and not that account.
+ *
+ * Q61's columns apply as they do to any grant row: the scope goes in `detail`, and
+ * `environment` and `form` stay empty because the act names neither.
  */
 async function seedFirstAdminGrants(
   exec: Executor,
@@ -320,15 +330,35 @@ async function seedFirstAdminGrants(
       forms: ["all"],
     });
     await addAccessGroupHolder(exec, group.teamId, userId);
+    await writeAccessAuditRow(exec, {
+      actor: userId,
+      workspaceId,
+      kind: "grant",
+      detail: `${SEED_AUDIT_DETAIL_PREFIX} group=${name} role=${role} environments=all forms=all`,
+    });
   }
 }
+
+/**
+ * What a seeded `grant` row's detail begins with, so a reader and a test can both tell a
+ * seeded grant from one somebody performed through the membership screen.
+ */
+export const SEED_AUDIT_DETAIL_PREFIX = "seeded by qcms:create-admin";
 
 /**
  * The roles the first administrator is seeded with: the authoring family, and no
  * `responses.*` grant.
  *
+ * **Accepted as built** (Code Owner, 2026-10-18, PR #1061), with the two consequences the
+ * review named stated rather than left implicit: the scope is `all`, which for
+ * `forms.approver` includes `prod`, so the first account can release to production alone -
+ * the single-administrator case Q13 already accepts; and no response data is readable until
+ * somebody grants it, which is Q29's deliberate act.
+ *
  * Exported so the bootstrap's own test asserts the list rather than restating it, and so
- * the absence of a response grant is a thing a reader can see.
+ * the absence of a response grant is a thing a reader can see. That test is
+ * `bootstrap.integration.test.ts`'s "the first administrator's seeded grants" block, which
+ * the first version of this comment promised and did not have (PR #1061's review, S4).
  */
 export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.approver"];
 
