@@ -484,8 +484,6 @@ export async function dropEnvironment(
       accessGroups: groups,
     };
   }
-    };
-  }
 
   await exec.transaction(async (tx) => {
     // Two `DROP SCHEMA` statements over a name that is a row in `control.environments`

@@ -30,9 +30,14 @@ const MIGRATION = fileURLToPath(
   new URL("../../migrations/0001_form_releases.sql", import.meta.url),
 );
 
-/** The migration that creates the SEC-15 access audit (task 069). */
+/**
+ * The migration that creates the SEC-15 access audit (task 069).
+ *
+ * 0004 rather than 0003 because task 066 took that number for the per-environment closed
+ * state. The number is `db:generate`'s and is hard-coded nowhere else.
+ */
 const AUDIT_MIGRATION = fileURLToPath(
-  new URL("../../migrations/0003_access_audit.sql", import.meta.url),
+  new URL("../../migrations/0004_access_audit.sql", import.meta.url),
 );
 
 describe("the `form_releases` grants", () => {

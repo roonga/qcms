@@ -93,16 +93,16 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 <!-- BEGIN GENERATED: ownership-seam (pnpm qcms:sync-templates) -->
 
-### Scaffolded paths (424 files common to both shapes)
+### Scaffolded paths (445 files common to both shapes)
 
 | Path                                                                 | Files |
 | -------------------------------------------------------------------- | ----- |
 | `(project root)`                                                     | 8     |
-| `apps/`                                                              | 413   |
-| `apps/admin/`                                                        | 247   |
-| `apps/admin/app/`                                                    | 71    |
-| `apps/admin/app/(shell)/`                                            | 53    |
-| `apps/admin/app/(shell)/@rail/`                                      | 22    |
+| `apps/`                                                              | 434   |
+| `apps/admin/`                                                        | 259   |
+| `apps/admin/app/`                                                    | 76    |
+| `apps/admin/app/(shell)/`                                            | 58    |
+| `apps/admin/app/(shell)/@rail/`                                      | 24    |
 | `apps/admin/app/(shell)/@rail/forms/`                                | 13    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/`                       | 11    |
 | `apps/admin/app/(shell)/@rail/forms/[formId]/links/`                 | 1     |
@@ -122,6 +122,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/@rail/responses/erasures/`                   | 1     |
 | `apps/admin/app/(shell)/@rail/settings/`                             | 1     |
 | `apps/admin/app/(shell)/@rail/webhooks/`                             | 1     |
+| `apps/admin/app/(shell)/@rail/workspaces/`                           | 2     |
+| `apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/`             | 1     |
 | `apps/admin/app/(shell)/forms/`                                      | 18    |
 | `apps/admin/app/(shell)/forms/[formId]/`                             | 12    |
 | `apps/admin/app/(shell)/forms/[formId]/assist/`                      | 1     |
@@ -145,6 +147,8 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/(shell)/settings/password/`                          | 1     |
 | `apps/admin/app/(shell)/settings/recovery-codes/`                    | 1     |
 | `apps/admin/app/(shell)/webhooks/`                                   | 2     |
+| `apps/admin/app/(shell)/workspaces/`                                 | 3     |
+| `apps/admin/app/(shell)/workspaces/[workspaceId]/`                   | 2     |
 | `apps/admin/app/change-password/`                                    | 2     |
 | `apps/admin/app/change-password/submit/`                             | 1     |
 | `apps/admin/app/healthz/`                                            | 1     |
@@ -160,24 +164,27 @@ regeneration and `git add` the result rather than merging two sets of counts.
 | `apps/admin/app/two-factor/recovery-codes/`                          | 2     |
 | `apps/admin/app/two-factor/recovery-codes/confirm/`                  | 1     |
 | `apps/admin/app/two-factor/recovery/verify/`                         | 1     |
-| `apps/admin/components/`                                             | 79    |
+| `apps/admin/components/`                                             | 84    |
 | `apps/admin/components/forms/`                                       | 33    |
+| `apps/admin/components/membership/`                                  | 5     |
 | `apps/admin/components/ops/`                                         | 7     |
 | `apps/admin/components/questions/`                                   | 11    |
 | `apps/admin/components/test-support/`                                | 2     |
-| `apps/admin/lib/`                                                    | 90    |
+| `apps/admin/lib/`                                                    | 92    |
 | `apps/admin/lib/forms/`                                              | 25    |
 | `apps/admin/lib/i18n/`                                               | 2     |
+| `apps/admin/lib/membership/`                                         | 1     |
 | `apps/admin/lib/ops/`                                                | 10    |
 | `apps/admin/lib/questions/`                                          | 8     |
-| `apps/admin/lib/server/`                                             | 26    |
-| `apps/api/`                                                          | 95    |
-| `apps/api/src/`                                                      | 92    |
-| `apps/api/src/features/`                                             | 60    |
-| `apps/api/src/features/auth/`                                        | 4     |
+| `apps/admin/lib/server/`                                             | 27    |
+| `apps/api/`                                                          | 104   |
+| `apps/api/src/`                                                      | 101   |
+| `apps/api/src/features/`                                             | 69    |
+| `apps/api/src/features/auth/`                                        | 5     |
 | `apps/api/src/features/forms/`                                       | 12    |
 | `apps/api/src/features/forms/assist/`                                | 9     |
 | `apps/api/src/features/links/`                                       | 3     |
+| `apps/api/src/features/membership/`                                  | 8     |
 | `apps/api/src/features/outbox/`                                      | 3     |
 | `apps/api/src/features/questions/`                                   | 4     |
 | `apps/api/src/features/releases/`                                    | 4     |
@@ -234,7 +241,7 @@ regeneration and `git add` the result rather than merging two sets of counts.
 
 ### QCMS-internal references in the scaffolded source
 
-`2691` lines across `379` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
+`2801` lines across `398` scaffolded files cite a QCMS issue, ADR, SEC control, plan task or repository path.
 
 These are comments, and they stay (issue #457, tier 3). They are the engineering
 rationale for code you now own, which is worth more to you than a tidy file, and
@@ -249,7 +256,7 @@ rather than documented: the images no longer claim to be built from this
 repository, and no scaffolded message names a script your project does not define.
 
 <details>
-<summary>Every scaffolded file (424)</summary>
+<summary>Every scaffolded file (445)</summary>
 
 ```
 .dockerignore
@@ -279,6 +286,8 @@ apps/admin/app/(shell)/@rail/responses/erasures/page.tsx
 apps/admin/app/(shell)/@rail/responses/page.tsx
 apps/admin/app/(shell)/@rail/settings/page.tsx
 apps/admin/app/(shell)/@rail/webhooks/page.tsx
+apps/admin/app/(shell)/@rail/workspaces/[workspaceId]/page.tsx
+apps/admin/app/(shell)/@rail/workspaces/page.tsx
 apps/admin/app/(shell)/forms/[formId]/assist/route.ts
 apps/admin/app/(shell)/forms/[formId]/export/route.ts
 apps/admin/app/(shell)/forms/[formId]/links/page.tsx
@@ -310,6 +319,9 @@ apps/admin/app/(shell)/settings/password/route.ts
 apps/admin/app/(shell)/settings/recovery-codes/route.ts
 apps/admin/app/(shell)/webhooks/actions.ts
 apps/admin/app/(shell)/webhooks/page.tsx
+apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts
+apps/admin/app/(shell)/workspaces/[workspaceId]/page.tsx
+apps/admin/app/(shell)/workspaces/page.tsx
 apps/admin/app/change-password/page.tsx
 apps/admin/app/change-password/submit/route.ts
 apps/admin/app/globals.css
@@ -374,6 +386,11 @@ apps/admin/components/forms/version-view.tsx
 apps/admin/components/hydration-marker.tsx
 apps/admin/components/kit.tsx
 apps/admin/components/measured-main.tsx
+apps/admin/components/membership/access-groups-panel.tsx
+apps/admin/components/membership/audit-panel.tsx
+apps/admin/components/membership/members-panel.tsx
+apps/admin/components/membership/my-access-panel.tsx
+apps/admin/components/membership/workspace-settings-panel.tsx
 apps/admin/components/menu-slots.ts
 apps/admin/components/mode-glyph.tsx
 apps/admin/components/operator-time.tsx
@@ -446,6 +463,7 @@ apps/admin/lib/i18n/format.ts
 apps/admin/lib/initials.ts
 apps/admin/lib/library-search.ts
 apps/admin/lib/measure.ts
+apps/admin/lib/membership/types.ts
 apps/admin/lib/ops/answers.ts
 apps/admin/lib/ops/browse.ts
 apps/admin/lib/ops/erasure.ts
@@ -483,6 +501,7 @@ apps/admin/lib/server/form-verdict.ts
 apps/admin/lib/server/forms.ts
 apps/admin/lib/server/links.ts
 apps/admin/lib/server/logger.ts
+apps/admin/lib/server/membership.ts
 apps/admin/lib/server/origin-belt-log.ts
 apps/admin/lib/server/password-refusal.ts
 apps/admin/lib/server/question-rail.ts
@@ -514,6 +533,7 @@ apps/api/src/environments.ts
 apps/api/src/errors.ts
 apps/api/src/features/auth/bootstrap.ts
 apps/api/src/features/auth/instance.ts
+apps/api/src/features/auth/plugin-write-backstop.ts
 apps/api/src/features/auth/reset-two-factor.ts
 apps/api/src/features/auth/route.ts
 apps/api/src/features/forms/assist/assistant.ts
@@ -531,6 +551,14 @@ apps/api/src/features/forms/schema.ts
 apps/api/src/features/links/handler.ts
 apps/api/src/features/links/route.ts
 apps/api/src/features/links/schema.ts
+apps/api/src/features/membership/context.ts
+apps/api/src/features/membership/handler.ts
+apps/api/src/features/membership/middleware.ts
+apps/api/src/features/membership/policy.ts
+apps/api/src/features/membership/resolver.ts
+apps/api/src/features/membership/route-policy.ts
+apps/api/src/features/membership/route.ts
+apps/api/src/features/membership/schema.ts
 apps/api/src/features/outbox/handler.ts
 apps/api/src/features/outbox/route.ts
 apps/api/src/features/outbox/schema.ts
