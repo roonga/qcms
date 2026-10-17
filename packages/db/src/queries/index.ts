@@ -101,6 +101,55 @@ export {
   ensureSeedWorkspace,
 } from "./workspaces.js";
 
+// Membership and grants (ADR-41, Q32, Q45; task 069). QCMS owns every write to the
+// plugin's `member`, `team` and `teamMember` rows, because the QCMS endpoints are where
+// the validation and the SEC-15 rows live and the plugin's removal cascades run below any
+// endpoint this layer could gate. `grants.js` records the whole reasoning.
+export {
+  type AccessGroupRow,
+  type EnvironmentNamingGroup,
+  type HeldGrant,
+  type Membership,
+  type NewAccessGroup,
+  type WorkspaceMemberRow,
+  EMPTY_MEMBER_ROLE,
+  OWNER_MEMBER_ROLE,
+  addAccessGroupHolder,
+  countWorkspaceOwners,
+  createAccessGroup,
+  deleteAccessGroup,
+  ensureWorkspaceMember,
+  findUserByEmail,
+  findUsersByIds,
+  getAccessGroup,
+  holdsAccessGroup,
+  isAccessGroupNameTaken,
+  isScopeAll,
+  listAccessGroupHolders,
+  listAccessGroups,
+  listEnvironmentNames,
+  listGrantsForUser,
+  listGroupsNamingEnvironment,
+  listWorkspaceMembers,
+  readSeedNewEditorsWithTestData,
+  removeAccessGroupHolder,
+  resolveMembership,
+  setMemberRole,
+  setSeedNewEditorsWithTestData,
+  updateAccessGroupScope,
+} from "./grants.js";
+
+// The SEC-15 access audit (Q31, Q56, Q57, Q61; task 069). One helper writes the rows for
+// both pools, which is what makes the no-`RETURNING` rule the helper's rather than either
+// role's; `access-audit.js` records why.
+export {
+  type AccessAuditEntry,
+  type AccessAuditRow,
+  countAccessAuditByKind,
+  listAccessAudit,
+  writeAccessAuditRow,
+} from "./access-audit.js";
+
 export {
   type SessionRow,
   type SessionStatus,

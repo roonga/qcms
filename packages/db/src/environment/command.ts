@@ -37,7 +37,9 @@
 
 import { sql } from "drizzle-orm";
 
+import { accessGroupFullName } from "../access-groups.js";
 import type { Executor } from "../queries/executor.js";
+import { listGroupsNamingEnvironment } from "../queries/grants.js";
 import {
   CONTROL_SCHEMA,
   ENVIRONMENT_NAME_PREFIXES,
@@ -303,7 +305,10 @@ export async function createEnvironment(
   });
 }
 
-/** Why a drop was refused: the open forms and the session count, never a bare no. */
+/**
+ * Why a drop was refused: the open forms, the session count and the access groups that
+ * name the environment, never a bare no.
+ */
 export interface DropRefusal {
   readonly reason: string;
   readonly openForms: readonly string[];
@@ -321,6 +326,15 @@ export interface DropRefusal {
    * rows turns a constraint violation into a refusal that says what happened.
    */
   readonly releaseCount: number;
+  /**
+   * The access groups whose environment scope names this environment, as the derived
+   * full name `<workspace>.<team>` (Q37), so an operator reads which grants the drop
+   * would silence (Q43, Q44).
+   *
+   * Empty on every other refusal, and empty on a refusal from a database whose `team`
+   * table has no row - which is every refusal before task 069 wrote one.
+   */
+  readonly accessGroups: readonly string[];
 }
 
 /**
@@ -333,8 +347,19 @@ export interface DropRefusal {
  * and never archives** (Q43): an archive would be this command silently editing state an
  * operator wrote.
  *
- * **The access-group half of the check is task 069's** (Q44), because a team carrying an
- * `environments` field exists only from then.
+ * **The access-group half of the check is this task's** (Q44, task 069): the drop refuses
+ * while any access group's environment scope **names** this environment, and the refusal
+ * carries those groups by their derived full name `<workspace>.<team>` the way
+ * `dev:seed:clear` names what it leaves, so an operator sees which grants the drop would
+ * silence rather than discovering it afterwards. **It refuses and never archives** (Q43):
+ * a command that quietly re-scoped a grant an owner wrote would be editing the
+ * authorisation model as a side effect of an operator act. The operator removes or
+ * re-scopes the groups first, then drops.
+ *
+ * **A group scoped to `all` does not block**, deliberately. `all` names no environment,
+ * so dropping one narrows what `all` means rather than silencing that grant - which is
+ * what `all` is for, and the same line Q61 draws one control over, where a grant scoped to
+ * `all` leaves the audit row's `environment` empty because the act names none.
  *
  * ## Why the narrowness is the whole point
  *
@@ -369,6 +394,7 @@ export async function dropEnvironment(
       openForms: [],
       sessionCount: 0,
       releaseCount: 0,
+      accessGroups: [],
     };
   }
 
@@ -413,19 +439,47 @@ export async function dropEnvironment(
   );
   const releaseCount = releases.rows[0]?.count ?? 0;
 
-  if (sessionCount > 0 || open.length > 0 || releaseCount > 0) {
+  // The access-group half (Q44). Read through `listGroupsNamingEnvironment`, so the one
+  // `environments` predicate lives beside the rows it reads rather than being written a
+  // second time here.
+  const naming = await listGroupsNamingEnvironment(exec, name);
+  const groups = naming.map((group) => accessGroupFullName(group.workspaceSlug, group.name));
+
+  if (sessionCount > 0 || open.length > 0 || releaseCount > 0 || groups.length > 0) {
+    // One refusal per blocker, joined, because an operator who has been refused needs to
+    // know every thing standing in the way rather than the first of them: two of these
+    // are repairable (close the forms, re-scope the groups) and one is not (Q68), and
+    // reading only the repairable one would send somebody to do work that cannot help.
+    const reasons: string[] = [];
+    if (sessionCount > 0 || open.length > 0) {
+      reasons.push(
+        `it holds ${String(sessionCount)} session(s)` +
+          (open.length > 0 ? ` and these forms are still open in it: ${open.join(", ")}` : "") +
+          ". Close the forms and let retention empty the environment, then drop it",
+      );
+    }
+    if (releaseCount > 0) {
+      reasons.push(
+        `${String(releaseCount)} release record(s) name it, and the release history is ` +
+          "append-only, so there is no door to remove them: an environment anything was " +
+          "ever released to cannot be dropped",
+      );
+    }
+    if (groups.length > 0) {
+      reasons.push(
+        `these access groups name it in their scope: ${groups.join(", ")}. ` +
+          "Remove or re-scope them first; the drop refuses rather than silencing a grant " +
+          "somebody wrote",
+      );
+    }
     return {
-      reason:
-        `${name} cannot be dropped: it holds ${String(sessionCount)} session(s)` +
-        (open.length > 0 ? ` and these forms are still open in it: ${open.join(", ")}` : "") +
-        (releaseCount > 0
-          ? `. ${String(releaseCount)} release record(s) name it, and the release history is` +
-            " append-only, so there is no door to remove them: an environment anything was" +
-            " ever released to cannot be dropped"
-          : ". Close the forms and let retention empty the environment, then drop it."),
+      reason: `${name} cannot be dropped: ${reasons.join("; and ")}.`,
       openForms: open,
       sessionCount,
       releaseCount,
+      accessGroups: groups,
+    };
+  }
     };
   }
 

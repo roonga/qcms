@@ -29,6 +29,7 @@ export * from "./environments.js";
 export * from "./releases.js";
 export * from "./auth.js";
 export * from "./two-factor-resets.js";
+export * from "./access-audit.js";
 
 import * as environmentsModule from "./environments.js";
 import * as authModule from "./auth.js";
@@ -37,6 +38,7 @@ import * as questionsModule from "./questions.js";
 import * as releasesModule from "./releases.js";
 import * as secureLinksModule from "./secure-links.js";
 import * as twoFactorResetsModule from "./two-factor-resets.js";
+import * as accessAuditModule from "./access-audit.js";
 
 /** Every Drizzle table object this module declares, in declaration order. */
 const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
@@ -59,6 +61,7 @@ const CONTROL_TABLE_OBJECTS: readonly PgTable[] = [
   authModule.authTeam,
   authModule.authTeamMember,
   twoFactorResetsModule.twoFactorResets,
+  accessAuditModule.accessAudit,
 ];
 
 /**
