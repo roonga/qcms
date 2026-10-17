@@ -274,6 +274,18 @@ export async function seedAdminSession(
     readonly workspaceId?: string;
     /** Set false to seed no membership at all: no member row and no access group. */
     readonly membership?: boolean;
+    /**
+     * Whether the account holds the installation-wide SEC-3 claim.
+     *
+     * Defaults **true**, because `user.role` is declared with the default `admin` and
+     * nothing in the product writes a second value, so every account a deployment has
+     * today holds it (ADR-41's Note). `false` writes a role that is not `admin`, which is
+     * the only thing "no claim" means - the check is an equality on that one value - and
+     * it is the shape criterion 5 probes: an administrator with no grant **and no claim**
+     * reaches nothing. It is also the shape a deployment issuing a second role value
+     * would have.
+     */
+    readonly claim?: boolean;
   } = {},
 ): Promise<{ token: string; userId: string }> {
   // Derived from `fixedClock`, not a second copy of the literal: the doc above
@@ -292,6 +304,7 @@ export async function seedAdminSession(
     updatedAt: at,
     twoFactorEnabled: options.twoFactorEnabled ?? true,
     mustChangePassword: options.mustChangePassword ?? false,
+    ...(options.claim === false ? { role: NO_CLAIM_ROLE } : {}),
   });
   await exec.insert(authSession).values({
     id: `ss_${synthSecret().slice(0, 16)}`,
@@ -312,6 +325,16 @@ export async function seedAdminSession(
   }
   return { token, userId };
 }
+
+/**
+ * The `user.role` value an account without the installation claim carries.
+ *
+ * The claim is an equality on `admin` (`features/membership/resolver.ts`), so "no claim"
+ * is any other value and the particular word is arbitrary. It is named rather than
+ * written inline so a reader of a fixture can see that the account's lack of the claim is
+ * the point rather than a typo.
+ */
+export const NO_CLAIM_ROLE = "staff";
 
 /** The roles a seeded administrator holds by default: every team role (ADR-41, Q38). */
 export const DEFAULT_SEEDED_GRANTS: readonly string[] = [
