@@ -67,11 +67,46 @@ export interface RoutePolicy {
   readonly action: string;
   readonly workspace: WorkspaceSource;
   /**
-   * True when the act names an environment, which the Q6 switcher's header carries. The
-   * policy refuses an environment-scoped act that names none, so this and
-   * `isEnvironmentScoped` have to agree - `route-policy.test.ts` asserts they do.
+   * True when the act names an environment. The policy refuses an environment-scoped act
+   * that names none, so this and `isEnvironmentScoped` have to agree -
+   * `route-policy.test.ts` asserts they do.
    */
   readonly namesEnvironment?: true;
+  /**
+   * **Where that environment comes from**, which every `namesEnvironment` row states.
+   *
+   * `"body"` for a route whose declared request body carries `environment` and whose
+   * handler reads it; `"switcher"` for a route whose handler reads the Q6 switcher's
+   * header. The rule it exists to keep is the one PR #1061's review broke with a probe:
+   * **the environment the policy checks is exactly the environment the handler acts in**.
+   *
+   * Reading the body first and falling back to the switcher looked equivalent and was not.
+   * Four of these routes declare **no body**, and `@hono/zod-openapi` validates only what
+   * a route declares, so a `forms.editor` scoped to `test` could send
+   * `x-qcms-environment: prod` with `{"environment":"test"}`, be authorised against
+   * `test`, and have the handler revoke a **production** link.
+   *
+   * `route-policy.test.ts` asserts every row's answer against the **shipped OpenAPI
+   * document** - a `"body"` row's schema carries `environment` and a `"switcher"` row's
+   * does not - so a row that claims the wrong source is a red test rather than a bypass.
+   */
+  readonly environmentFrom?: "body" | "switcher";
+  /**
+   * A **second** cell this route also requires, evaluated against the same workspace and
+   * the same environment.
+   *
+   * One route needs it: `POST /forms/{id}/publish-and-release` is F2's convenience, and it
+   * is **two** acts - a publish and a release into the environment its body names. The
+   * first version gave it the publish cell alone and left the release half to the handler,
+   * which never asked, so a `forms.editor` reached a production release through the
+   * route F2 added to make releasing convenient (PR #1061's review).
+   *
+   * It lives on the row rather than in the handler for the reason the whole table does: a
+   * handler that has to remember a check is a handler that can forget one, and the
+   * forgetting is silent. Here both cells are evaluated before any handler runs, and the
+   * refusal names whichever one failed.
+   */
+  readonly also?: { readonly resource: Resource; readonly action: string };
   /** True when the act names a form, so the data family's form scope can narrow it. */
   readonly namesForm?: true;
   /**
@@ -363,13 +398,27 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     workspace: "form",
   },
   {
-    // F2's churn mitigation: one intent, one act. It is **two** cells of the matrix, so
-    // the handler asks for the release half as well and this row is the publish half.
+    // F2's churn mitigation: one intent, one act, and **two cells of the matrix**. The
+    // first version of this row carried the publish half and said "the handler asks for
+    // the release half as well"; the handler never asked, and PR #1061's review probed
+    // it: a `forms.editor` scoped to `test` got past the gate to a **production** release
+    // through the route F2 added to make releasing convenient, which is the row "Release
+    // to prod: `forms.approver`, prod in scope" and a pre-emption of task 070's
+    // two-person rule.
+    //
+    // So the release half is on the row, in `also`, where the middleware evaluates it
+    // before any handler runs. A handler that has to remember a check is a handler that
+    // can forget one, and this is what forgetting looked like.
     method: "POST",
     path: "/admin/forms/{id}/publish-and-release",
     resource: "form",
     action: "publish",
     workspace: "form",
+    also: { resource: "release", action: "create" },
+    // The release half is environment-scoped and the body is where this route's
+    // environment comes from, exactly as `POST /releases` takes it.
+    namesEnvironment: true,
+    environmentFrom: "body",
   },
   {
     method: "GET",
@@ -385,6 +434,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "create",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "body",
   },
   {
     method: "POST",
@@ -393,6 +443,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "close",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "body",
   },
   {
     method: "POST",
@@ -401,6 +452,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "close",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "body",
   },
   {
     method: "POST",
@@ -425,6 +477,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "mint",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "body",
   },
   {
     method: "POST",
@@ -433,6 +486,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "revoke",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
   },
 
   // --- webhooks and the outbox ---------------------------------------------------
@@ -450,6 +504,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "configure",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "PUT",
@@ -458,6 +513,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "configure",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "DELETE",
@@ -466,6 +522,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "configure",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     method: "GET",
@@ -481,6 +538,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "configure",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
   },
   {
     // The installation-wide dead-letter list. It names no form, so no workspace owns it,
@@ -503,6 +561,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "read",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
     namesForm: true,
     audit: "read",
   },
@@ -513,6 +572,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "read",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
     namesForm: true,
     audit: "read",
   },
@@ -523,6 +583,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "export",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
     namesForm: true,
     audit: "export",
   },
@@ -533,6 +594,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "erase",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
     namesForm: true,
     audit: "erasure",
   },
@@ -547,6 +609,7 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
     action: "dispose",
     workspace: "form",
     namesEnvironment: true,
+    environmentFrom: "switcher",
     namesForm: true,
   },
   {

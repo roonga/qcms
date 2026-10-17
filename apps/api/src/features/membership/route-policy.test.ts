@@ -96,15 +96,85 @@ describe("every row names an action the policy declares", () => {
     },
   );
 
-  it("agrees with the policy about which acts name an environment", () => {
-    // Two places could disagree: a row that forgot `namesEnvironment` on a scoped act
-    // would be refused on every request (the policy refuses a scoped act that names no
-    // environment), and a row that claimed one on an unscoped act would read as though
-    // the environment mattered when nothing narrows by it.
+  it("declares where every environment-naming row takes its environment from", () => {
+    // **The rule PR #1061's review broke with a probe**: the environment the policy
+    // checks is exactly the environment the handler acts in. A row says which source it
+    // reads, and this compares that claim against the **shipped document** rather than
+    // against a list somebody typed: a `"body"` row's declared request body carries
+    // `environment`, and a `"switcher"` row's either declares no body or declares one
+    // without it.
+    //
+    // Four routes are the reason: link revoke, webhook delete, redeliver and unflag
+    // declare no body at all, and `@hono/zod-openapi` validates only what a route
+    // declares - so the first version, which read the body first and fell back to the
+    // switcher, authorised a `test`-scoped editor against `test` while the handler
+    // revoked a **production** link.
+    const document = JSON.parse(readFileSync(ADMIN_OPENAPI, "utf8")) as {
+      paths: Record<string, Record<string, unknown>>;
+      components?: { schemas?: Record<string, { properties?: Record<string, unknown> }> };
+    };
+
+    /** Whether this route's declared JSON request body carries an `environment` field. */
+    const declaresEnvironment = (row: (typeof ROUTE_POLICIES)[number]): boolean => {
+      const operation = document.paths[row.path]?.[row.method.toLowerCase()] as
+        | {
+            requestBody?: {
+              content?: {
+                "application/json"?: {
+                  schema?: { $ref?: string; properties?: Record<string, unknown> };
+                };
+              };
+            };
+          }
+        | undefined;
+      const schema = operation?.requestBody?.content?.["application/json"]?.schema;
+      if (schema === undefined) return false;
+      const resolved =
+        schema.$ref === undefined
+          ? schema
+          : document.components?.schemas?.[schema.$ref.split("/").pop() ?? ""];
+      return resolved?.properties !== undefined && "environment" in resolved.properties;
+    };
+
     for (const row of ROUTE_POLICIES) {
-      const scoped = isEnvironmentScoped(row.resource, row.action);
+      const label = `${row.method} ${row.path}`;
+      if (row.namesEnvironment !== true) {
+        expect(row.environmentFrom, `${label} names no environment`).toBeUndefined();
+        continue;
+      }
+      expect(row.environmentFrom, `${label} must say where its environment comes from`).toBeDefined();
+      expect(row.environmentFrom === "body", `${label}: environmentFrom vs its OpenAPI body`).toBe(
+        declaresEnvironment(row),
+      );
+    }
+  });
+
+  it("names an environment exactly when one of its cells is environment-scoped", () => {
+    // `publish-and-release` is why this is "one of its cells" rather than "its cell": its
+    // primary act is `form: publish`, which is environment-agnostic because publishing
+    // releases a version nowhere, and its `also` act is `release: create`, which is not.
+    for (const row of ROUTE_POLICIES) {
+      const scoped =
+        isEnvironmentScoped(row.resource, row.action) ||
+        (row.also !== undefined && isEnvironmentScoped(row.also.resource, row.also.action));
       expect(row.namesEnvironment === true, `${row.method} ${row.path}`).toBe(scoped);
     }
+  });
+
+  it("gives `publish-and-release` both of its cells, and nothing else a second one", () => {
+    // F2's convenience is two acts, and the review found the release half unasked: the
+    // row said the handler would ask for it and the handler never did, so a
+    // `test`-scoped editor reached a production release. One route has an `also`; a
+    // second would be a route somebody should argue for.
+    const withSecond = ROUTE_POLICIES.filter((row) => row.also !== undefined);
+    expect(withSecond.map((row) => `${row.method} ${row.path}`)).toEqual([
+      "POST /admin/forms/{id}/publish-and-release",
+    ]);
+    const combined = policyForRequest("POST", "/admin/forms/frm_x/publish-and-release");
+    expect(combined?.resource).toBe("form");
+    expect(combined?.action).toBe("publish");
+    expect(combined?.also).toEqual({ resource: "release", action: "create" });
+    expect(combined?.environmentFrom).toBe("body");
   });
 
   it("agrees with the policy about which acts name a form", () => {

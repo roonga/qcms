@@ -43,6 +43,7 @@ import {
   ensureWorkspaceMember,
 } from "@roonga/qcms-db";
 
+import { REQUEST_ENVIRONMENT_HEADER } from "../../src/middleware/request-environment.js";
 import { seedAdminSession, seedGrants, synthSecret } from "../../src/test-support.js";
 import {
   adminLogin,
@@ -981,5 +982,202 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(res.status).toBe(200);
     const body = (await res.json()) as { forms: { formId: string }[] };
     expect(body.forms.map((form) => form.formId)).not.toContain(ctx.formId);
+  });
+});
+
+// --- 12. the environment a request is authorised for is the one it acts in ----
+
+/**
+ * The two bypasses PR #1061's first review found by probe, as regression tests.
+ *
+ * Both let a `forms.editor` scoped to `test` perform a **production** write the matrix
+ * gives only to a `forms.approver` holding `prod` in scope, and neither was visible to the
+ * criterion 4 probe above: that one uses the release route, whose body **is** the
+ * handler's source of the environment, so the one route where body and handler already
+ * agreed was the one being tested.
+ *
+ * **B1.** Four environment-naming routes declare no request body at all, so their handler
+ * takes the environment from the Q6 switcher. The middleware read the body first and fell
+ * back to the switcher, and `@hono/zod-openapi` validates only what a route declares - so
+ * a body of `{"environment":"test"}` with `x-qcms-environment: prod` was authorised
+ * against `test` and performed in `prod`.
+ *
+ * **B2.** `publish-and-release` was gated as the publish half alone, with the release half
+ * left to a handler that never asked for it.
+ *
+ * Each case asserts the refusal **and the effect**: a status alone would pass against a
+ * handler that refused for an unrelated reason, and what makes this a bypass test is that
+ * the production object is untouched afterwards.
+ */
+describe("the environment a request is authorised for is the environment it acts in", () => {
+  /** The editor this block probes with: one grant, `test` only, no claim, no owner row. */
+  let testEditor = "";
+  /** A production link and a production webhook on the seeded form, minted as the admin. */
+  let prodLinkId = "";
+  let prodWebhookId = "";
+
+  function headersFor(token: string, environment: string, json = false): Record<string, string> {
+    return {
+      ...(json ? { "content-type": "application/json" } : {}),
+      [INTERNAL_TOKEN_HEADER]: internalToken,
+      [ADMIN_SESSION_HEADER]: token,
+      [REQUEST_ENVIRONMENT_HEADER]: environment,
+    };
+  }
+
+  beforeAll(async () => {
+    const editor = await seedAdminSession(testDb.db, {
+      label: "forged-body-editor",
+      claim: false,
+      owner: false,
+      grants: [],
+    });
+    testEditor = editor.token;
+    const group = await createAccessGroup(testDb.db, {
+      workspaceId: SEED_WORKSPACE_ID,
+      name: "test.forms.editor.forged",
+      role: "forms.editor",
+      environments: ["test"],
+      forms: ["all"],
+    });
+    await ensureWorkspaceMember(testDb.db, SEED_WORKSPACE_ID, editor.userId);
+    await addAccessGroupHolder(testDb.db, group.teamId, editor.userId);
+
+    // The production objects the editor must not reach. Minted by the fully credentialed
+    // admin, in `prod`, which is the environment the interim switcher resolves to.
+    const minted = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+      method: "POST",
+      headers: headersFor(adminToken, "prod", true),
+      body: JSON.stringify({ environment: "prod", expiresAt: "2099-01-01T00:00:00.000Z" }),
+    });
+    expect(minted.status, await minted.clone().text()).toBe(201);
+    prodLinkId =
+      ((await minted.json()) as { links: { linkId: string }[] }).links[0]?.linkId ?? "";
+    expect(prodLinkId).not.toBe("");
+
+    const created = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      method: "POST",
+      headers: headersFor(adminToken, "prod", true),
+      body: JSON.stringify({ url: "https://consumer.example/forged" }),
+    });
+    expect(created.status, await created.clone().text()).toBe(201);
+    prodWebhookId = ((await created.json()) as { webhookId: string }).webhookId;
+  });
+
+  /** Whether the production link is still active, read as the fully credentialed admin. */
+  async function prodLinkIsActive(): Promise<boolean> {
+    const listed = await all.app.request(`/admin/forms/${ctx.formId}/links`, {
+      headers: headersFor(adminToken, "prod"),
+    });
+    const body = (await listed.json()) as { links: { linkId: string; state: string }[] };
+    return body.links.some((link) => link.linkId === prodLinkId && link.state === "active");
+  }
+
+  /** Whether the production webhook is still active. */
+  async function prodWebhookIsActive(): Promise<boolean> {
+    const listed = await all.app.request(`/admin/forms/${ctx.formId}/webhooks`, {
+      headers: headersFor(adminToken, "prod"),
+    });
+    const body = (await listed.json()) as { webhooks: { webhookId: string; active: boolean }[] };
+    return body.webhooks.some((hook) => hook.webhookId === prodWebhookId && hook.active);
+  }
+
+  it.each([
+    [
+      "link revoke",
+      "POST",
+      (): string => `/admin/forms/${ctx.formId}/links/${prodLinkId}/revoke`,
+    ],
+    [
+      "webhook delete",
+      "DELETE",
+      (): string => `/admin/forms/${ctx.formId}/webhooks/${prodWebhookId}`,
+    ],
+    [
+      "redeliver",
+      "POST",
+      (): string => `/admin/forms/${ctx.formId}/deliveries/${ctx.deliveryId}/redeliver`,
+    ],
+    [
+      "unflag",
+      "POST",
+      (): string => `/admin/forms/${ctx.formId}/responses/${ctx.sessionId}/unflag`,
+    ],
+  ])(
+    "%s refuses a test-scoped editor whether or not the body forges an environment (B1)",
+    async (_label, method, path) => {
+      // Without a body: the matrix, as criterion 4 states it.
+      const plain = await all.app.request(path(), {
+        method,
+        headers: headersFor(testEditor, "prod"),
+      });
+      expect(plain.status).toBe(403);
+      expectNoPayload(await plain.text());
+
+      // With one: the request names `test` to the gate and `prod` to the handler. Refused,
+      // and the refusal is the route's own - it takes its environment from the switcher,
+      // so a body naming one is a key nobody can have meant.
+      const forged = await all.app.request(path(), {
+        method,
+        headers: headersFor(testEditor, "prod", true),
+        body: JSON.stringify({ environment: "test" }),
+      });
+      expect(
+        [400, 403],
+        `a forged body was served on ${_label}: ${String(forged.status)}`,
+      ).toContain(forged.status);
+      expectNoPayload(await forged.text());
+    },
+  );
+
+  it("leaves the production link and webhook exactly as they were (B1's effect)", async () => {
+    // The assertion that makes the four cases above a bypass test rather than a status
+    // test: at the first review both of these came back false, because the editor's
+    // forged body had revoked the link and deactivated the webhook.
+    expect(await prodLinkIsActive(), "the prod link was revoked by a test-scoped editor").toBe(
+      true,
+    );
+    expect(
+      await prodWebhookIsActive(),
+      "the prod webhook was deactivated by a test-scoped editor",
+    ).toBe(true);
+  });
+
+  it("refuses a test-scoped editor `publish-and-release` into prod (B2)", async () => {
+    // The combined route is two cells of the matrix, and the release half is the one the
+    // first version left to a handler that never asked. The refusal has to be the gate's
+    // 403 rather than the handler's 409: a 409 means the request reached a handler that
+    // would have released to production had a draft been there.
+    const refused = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
+      method: "POST",
+      headers: headersFor(testEditor, "test", true),
+      body: JSON.stringify({ environment: "prod" }),
+    });
+    expect(refused.status, await refused.clone().text()).toBe(403);
+    expect(await refused.text()).toContain("release: create");
+  });
+
+  it("allows the same route to `test`, where that editor does hold the release half", async () => {
+    // The positive control, and it is the discriminator: without it the refusal above
+    // would also pass against a row that refused everybody. Whatever the handler then
+    // says about the draft, it is not a 403.
+    const allowed = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
+      method: "POST",
+      headers: headersFor(testEditor, "test", true),
+      body: JSON.stringify({ environment: "test" }),
+    });
+    expect(allowed.status).not.toBe(403);
+  });
+
+  it("refuses a body that names no environment on a route whose body carries it", async () => {
+    // The other half of the per-row rule: a `body` row authorises against the body, so a
+    // body naming nothing is refused here rather than falling back to the switcher, which
+    // would authorise against an environment the handler is not going to use.
+    const empty = await all.app.request(`/admin/forms/${ctx.formId}/publish-and-release`, {
+      method: "POST",
+      headers: headersFor(testEditor, "test", true),
+      body: JSON.stringify({}),
+    });
+    expect(empty.status).toBe(400);
   });
 });

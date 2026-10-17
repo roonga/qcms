@@ -38,6 +38,7 @@
 
 import { getForm, getQuestion } from "@roonga/qcms-db";
 import type { MiddlewareHandler } from "hono";
+import { matchedRoutes } from "hono/route";
 
 import { parseFormId, parseQuestionId } from "@roonga/qcms-core";
 
@@ -80,6 +81,36 @@ const fail = {
   notFound: (what: string): ApiError =>
     new ApiError(`${what.toUpperCase()}_NOT_FOUND`, 404, `No such ${what}`),
   noPrincipal: (): ApiError => new ApiError("unauthorized", 401, "Admin authentication required"),
+  /**
+   * A route whose own body carries the environment was sent one that names none.
+   *
+   * The field is required on every such route, so the validator refuses the request a
+   * moment later anyway; this is the earlier half of the same answer, and it exists
+   * because the alternative - falling back to the switcher - would authorise against an
+   * environment the handler is not going to use.
+   */
+  environmentMissing: (): ApiError =>
+    new ApiError(
+      "INVALID_REQUEST",
+      400,
+      "This route acts in the environment its body names, so the body has to name one.",
+    ),
+  /**
+   * A route that takes its environment from the switcher was sent a body naming one.
+   *
+   * Refused rather than ignored (PR #1061's review). Such a route declares no
+   * `environment` field, so a body carrying one is a key nobody can have meant - and the
+   * one caller who would send it is a caller trying to be authorised against one
+   * environment while the handler acts in another.
+   */
+  environmentNotInBody: (): ApiError =>
+    new ApiError(
+      "INVALID_REQUEST",
+      400,
+      "This route acts in the environment the switcher selects, so its body must not name " +
+        "one. The environment a request is authorised for is the environment it is " +
+        "performed in.",
+    ),
 } as const;
 
 /** The `{id}` segment of a path, by the position the template puts it in. */
@@ -122,22 +153,61 @@ async function readBody(c: Parameters<MiddlewareHandler<ApiEnv>>[0]): Promise<un
   }
 }
 
-/** The environment an act names, from the body where the route carries it, else the switcher. */
+/**
+ * The environment an act names, read from **the source its own row declares**.
+ *
+ * # Why the source is per row rather than "body, else the switcher"
+ *
+ * The first version of this read the body first and fell back to the switcher, and the
+ * review of PR #1061 broke it with a probe: four environment-naming routes **declare no
+ * request body at all**, so their handler takes the environment from the switcher alone,
+ * and `@hono/zod-openapi` validates only what a route declares - so nothing refused an
+ * undeclared key. A `forms.editor` scoped to `test` sent `x-qcms-environment: prod` with
+ * a body of `{"environment":"test"}`, was authorised against `test`, and the handler
+ * revoked a **production** link. The same shape deactivated a production webhook,
+ * redelivered a production delivery and unflagged a production response.
+ *
+ * The rule that closes it is the one the defect broke: **the environment the policy
+ * checks is exactly the environment the handler acts in**. That is a property of the
+ * route, not of a request, so the route says which: `environmentFrom: "body"` for a route
+ * whose declared body carries `environment` and whose handler reads it, `"switcher"` for a
+ * route whose handler reads `c.get("requestEnvironment")`. `route-policy.test.ts` asserts
+ * each row's answer against the **shipped OpenAPI document**, so a row that claims the
+ * wrong source is red rather than exploitable.
+ *
+ * # And a body naming an environment on a `switcher` row is refused outright
+ *
+ * Belt, and it is cheap: such a route declares no `environment`, so a body carrying one is
+ * a key nobody can have meant. Ignoring it silently would leave the attack invisible,
+ * which is how this defect survived a first review - the probe got a 200 and nothing said
+ * why. The refusal names the key.
+ */
 async function environmentFor(
   deps: Deps,
   c: Parameters<MiddlewareHandler<ApiEnv>>[0],
   policy: RoutePolicy,
 ): Promise<string | undefined> {
   if (policy.namesEnvironment !== true) return undefined;
-  const body = await readBody(c);
-  const named = (body as { environment?: unknown } | undefined)?.environment;
-  if (typeof named === "string" && named !== "") return named;
+
   // The Q6 switcher's value, resolved through the same fallback the handler's own pool
   // selection uses, so the environment an act is authorised for is the environment it is
-  // performed in. Until task 066 that fallback is the interim `prod` of Q53, which means
-  // a close, a mint and an endpoint change are production acts today - and the matrix
-  // gives a production act to a `forms.approver`.
-  return deps.databases.forRequest(c.get("requestEnvironment")).environment;
+  // performed in.
+  const switcher = deps.databases.forRequest(c.get("requestEnvironment")).environment;
+  const named = (await readBody(c)) as { environment?: unknown } | undefined;
+  const inBody = typeof named?.environment === "string" ? named.environment : undefined;
+
+  if (policy.environmentFrom === "body") {
+    // The handler reads the body, so the body is what is authorised. A body that names
+    // nothing is the validator's refusal to report, not this middleware's: the field is
+    // required on every one of these routes, so the request fails validation a moment
+    // later. Authorising against the switcher here instead would be this middleware
+    // picking an environment the handler will not use.
+    if (inBody === undefined || inBody === "") throw fail.environmentMissing();
+    return inBody;
+  }
+
+  if (inBody !== undefined) throw fail.environmentNotInBody();
+  return switcher;
 }
 
 /**
@@ -235,12 +305,21 @@ export function grantCheck(deps: Deps): MiddlewareHandler<ApiEnv> {
 
     const policy = policyForRequest(method, path);
     if (policy === undefined) {
+      // **Refused, unless the router serves nothing here.**
+      //
       // Not every unmatched path is an undecided route: a path the API does not serve at
-      // all should 404 from the router rather than 403 from here. `app.ts` mounts this
-      // group's routes after this middleware, so the only way to tell them apart is to
-      // let the router answer - which it does, because an unrouted path never reaches a
-      // handler. So the refusal is raised only for a path the router will serve.
-      if (!isMountedAdminPath(path)) {
+      // all should 404 from the router rather than 403 from here, and a 403 on a path that
+      // does not exist is an answer about authorisation to a question about routing.
+      //
+      // The first version told the two apart by asking whether any ROW matched the path on
+      // any method, which is circular: a route with no row on any method looked like an
+      // unrouted path and was served. PR #1061's review found it, and four documents
+      // described this as a runtime refusal while the code did not do it.
+      //
+      // Hono knows the answer: `c.req.matchedRoutes` carries the handlers this request
+      // matched, so a path the router will serve is one that matched something past the
+      // middleware. That is what is asked now, and an admin path with no row is refused.
+      if (!isRoutedAdminPath(c, path)) {
         await next();
         return;
       }
@@ -345,12 +424,26 @@ async function decideInOneWorkspace(
     workspaceId,
     claim: input.claim,
   });
+  const scoped = { ...request, ...(formId === undefined ? {} : { formId }) };
   const decision = decideAccess({
     memberRole: resolved.memberRole,
     grants: resolved.grants,
-    request: { ...request, ...(formId === undefined ? {} : { formId }) },
+    request: scoped,
   });
   if (!decision.allowed) throw fail.refused(decision.reason ?? "Refused");
+
+  // The second cell, where a row has one: `publish-and-release` is a publish **and** a
+  // release, and both are evaluated before any handler runs (PR #1061's review found the
+  // release half unasked). Judged against the same workspace and the same environment,
+  // and the refusal names whichever cell failed.
+  if (policy.also !== undefined) {
+    const second = decideAccess({
+      memberRole: resolved.memberRole,
+      grants: resolved.grants,
+      request: { ...scoped, resource: policy.also.resource, action: policy.also.action },
+    });
+    if (!second.allowed) throw fail.refused(second.reason ?? "Refused");
+  }
 
   return {
     policy,
@@ -380,18 +473,27 @@ async function claimContext(
 }
 
 /**
- * Whether the router will serve this path at all.
+ * Whether the router will serve this path, on this method, past this middleware.
  *
- * Derived from the route table's own templates: every admin path the API serves has a row
- * (`route-policy.test.ts` asserts it against the shipped document), so a path matching no
- * template on **any** method is a path the router will 404. The distinction matters
- * because a 403 on a path that does not exist is an answer about authorisation to a
- * question about routing.
+ * `matchedRoutes` from `hono/route` is Hono's own answer: it carries every handler this
+ * request matched, middleware included. So a routed path has **at least one** match whose
+ * own `path` is not a middleware wildcard, and an unrouted one has only the middleware
+ * that is asking. The route table is not consulted at all, which is the point - asking
+ * the table whether a path is routed is how the first version came to serve a route the
+ * table had never heard of (PR #1061's review).
+ *
+ * The helper rather than `c.req.matchedRoutes`, which Hono deprecated in favour of it.
+ *
+ * The fallback, when the helper answers with nothing at all, is to **refuse** every
+ * `/admin/` path: one this middleware cannot classify is one nobody decided who may call,
+ * which is the direction the whole table fails in. `matchedRoutes` is typed as always
+ * returning an array, so that branch is a guard against a future version rather than a
+ * case reachable today, and it is written as a length test for that reason.
  */
-function isMountedAdminPath(path: string): boolean {
-  return ["GET", "POST", "PUT", "PATCH", "DELETE"].some(
-    (method) => policyForRequest(method, path) !== undefined,
-  );
+function isRoutedAdminPath(c: Parameters<MiddlewareHandler<ApiEnv>>[0], path: string): boolean {
+  const matched: readonly { readonly path?: string }[] = matchedRoutes(c) ?? [];
+  if (matched.length === 0) return path.startsWith("/admin/");
+  return matched.some((route) => route.path !== undefined && !route.path.endsWith("*"));
 }
 
 /**
