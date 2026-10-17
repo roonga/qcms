@@ -68,6 +68,8 @@ const SLUG = "auto";
 const QUESTION_ID = "q_at_fault_accident";
 /** Answering the accident question `true` reveals this one, which is then required. */
 const COUNT_ID = "q_accident_count";
+/** The workspace a bootstrapped installation is seeded with (ADR-41, task 068). */
+const WORKSPACE_ID = "org_default_workspace";
 
 /** The authenticated route group, read from disk rather than restated. */
 const SHELL = fileURLToPath(new URL("../app/(shell)", import.meta.url));
@@ -106,6 +108,10 @@ function livePath(pattern: string, sessionId: string): string {
     "[questionId]": QUESTION_ID,
     "[sessionId]": sessionId,
     "[version]": "1",
+    // Task 069's membership screen. The workspace a bootstrapped installation is seeded
+    // with, which is the one every fixture here belongs to anyway: `forms.workspace_id`
+    // is `NOT NULL`, so the seeded form and question above are already in it.
+    "[workspaceId]": WORKSPACE_ID,
   };
   return pattern
     .split("/")

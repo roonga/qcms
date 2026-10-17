@@ -36,6 +36,7 @@ export type MatrixRow =
   | "responses-read"
   | "erasure"
   | "links-webhooks"
+  | "membership"
   | "health";
 
 /** Which mounted group carries the surface (ADR-09: an unmounted group is 404, not 403). */
@@ -77,6 +78,10 @@ export interface PathContext {
   readonly questionId: string;
   /** The workspace the seeded form and questions belong to (ADR-41, task 068). */
   readonly workspaceId: string;
+  /** An access group in that workspace, for the membership probes (task 069). */
+  readonly teamId: string;
+  /** An account that holds a grant in it, for the holder probes (task 069). */
+  readonly holderId: string;
 }
 
 /**
@@ -326,6 +331,121 @@ export const SURFACES: readonly Surface[] = [
     path: (ctx) => `/admin/questions/${ctx.questionId}/workspace`,
     body: { workspaceId: "org_probe_target" },
     anonymousReachable: false,
+  },
+  // The membership slice (ADR-41, task 069). One entry per route rather than one
+  // representative, because what each would do if a gate ever let a caller through
+  // differs: the capability answer is a read of the caller's own grants, the membership
+  // list is another department's information (Q35), and the five writes each change what
+  // somebody may do. Tasks 065 and 068 each added an admin route and missed this
+  // inventory, so the whole slice goes in with the task that adds it.
+  //
+  // `GET /admin/me/access` is the one admin route that needs no grant - it **is** the
+  // answer to what the caller holds (Q35) - so it is a `readControl` and is also the one
+  // route the grant middleware exempts.
+  {
+    name: "GET /admin/me/access",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: () => "/admin/me/access",
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/members",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/members`,
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/members/{userId}",
+    row: "membership",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/members/${ctx.holderId}`,
+    body: { role: "member" },
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/access-groups",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups`,
+    anonymousReachable: false,
+    readControl: true,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/access-groups",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups`,
+    // The shape only has to survive the gate, not the handler.
+    body: {
+      name: "prod.responses.viewer.probe",
+      role: "responses.viewer",
+      environments: ["prod"],
+      forms: ["all"],
+      label: "probe",
+    },
+    anonymousReachable: false,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/access-groups/{teamId}",
+    row: "membership",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}`,
+    body: { name: "all.responses.viewer", environments: ["all"], forms: ["all"] },
+    anonymousReachable: false,
+  },
+  {
+    name: "DELETE /admin/workspaces/{id}/access-groups/{teamId}",
+    row: "membership",
+    group: "admin",
+    method: "DELETE",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}`,
+    anonymousReachable: false,
+  },
+  {
+    name: "POST /admin/workspaces/{id}/access-groups/{teamId}/holders",
+    row: "membership",
+    group: "admin",
+    method: "POST",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}/holders`,
+    body: { email: "nobody@qcms.invalid" },
+    anonymousReachable: false,
+  },
+  {
+    name: "DELETE /admin/workspaces/{id}/access-groups/{teamId}/holders/{userId}",
+    row: "membership",
+    group: "admin",
+    method: "DELETE",
+    path: (ctx) =>
+      `/admin/workspaces/${ctx.workspaceId}/access-groups/${ctx.teamId}/holders/${ctx.holderId}`,
+    anonymousReachable: false,
+  },
+  {
+    name: "PUT /admin/workspaces/{id}/settings",
+    row: "membership",
+    group: "admin",
+    method: "PUT",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/settings`,
+    body: { seedNewEditorsWithTestData: false },
+    anonymousReachable: false,
+  },
+  {
+    name: "GET /admin/workspaces/{id}/audit",
+    row: "membership",
+    group: "admin",
+    method: "GET",
+    path: (ctx) => `/admin/workspaces/${ctx.workspaceId}/audit`,
+    anonymousReachable: false,
+    readControl: true,
   },
   {
     name: "GET /admin/forms/{id}/responses",

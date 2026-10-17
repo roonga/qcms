@@ -440,6 +440,11 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
+      // Task 069's membership writes. On the admin, which is the case R-B2 left alone:
+      // the app is unreachable without JavaScript, and every one of these actions is a
+      // thin proxy to a QCMS endpoint whose own grant check is the authority. A belt here
+      // would guard the proxy and not the act.
+      "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
     ]);
   });
 
@@ -454,6 +459,12 @@ describe("task 073: a Server Action carries the belt too (R-B2)", () => {
       "apps/admin/app/(shell)/questions/actions.ts",
       "apps/admin/app/(shell)/responses/actions.ts",
       "apps/admin/app/(shell)/webhooks/actions.ts",
+      // Task 069's membership writes, on the admin: grants, revokes, a member row's role
+      // and the two workspace settings. Each is a proxy to the QCMS endpoint that owns
+      // the act, and the API's grant middleware is what authorises it (SEC-3), so a
+      // caller who reached this action without a grant is refused by the API rather than
+      // by the admin.
+      "apps/admin/app/(shell)/workspaces/[workspaceId]/actions.ts",
       // The no-JS Add and Remove of a repeating group (task 073, ADR-43 as amended).
       // The one action in this repository reachable WITHOUT scripting, which is the
       // whole of why the portal's referrer policy had to move.

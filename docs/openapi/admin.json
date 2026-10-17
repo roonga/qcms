@@ -1620,6 +1620,9 @@
           "requireSecondApprover": {
             "type": "boolean"
           },
+          "seedNewEditorsWithTestData": {
+            "type": "boolean"
+          },
           "archivedAt": {
             "type": "string",
             "nullable": true,
@@ -1642,6 +1645,7 @@
           "slug",
           "isShared",
           "requireSecondApprover",
+          "seedNewEditorsWithTestData",
           "archivedAt",
           "forms",
           "questions"
@@ -1724,6 +1728,558 @@
           "workspaceId"
         ],
         "additionalProperties": false
+      },
+      "MyAccessResponse": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "installationAdmin": {
+            "type": "boolean"
+          },
+          "workspaces": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "workspaceId": {
+                  "type": "string"
+                },
+                "slug": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "archived": {
+                  "type": "boolean"
+                },
+                "memberRole": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "grants": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "role": {
+                        "type": "string"
+                      },
+                      "environments": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "forms": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "role",
+                      "environments",
+                      "forms"
+                    ]
+                  }
+                },
+                "environments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "workspaceId",
+                "slug",
+                "name",
+                "archived",
+                "memberRole",
+                "grants",
+                "environments"
+              ]
+            }
+          }
+        },
+        "required": [
+          "userId",
+          "installationAdmin",
+          "workspaces"
+        ]
+      },
+      "WorkspaceMemberListResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "userId": {
+                  "type": "string"
+                },
+                "email": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "groups": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "userId",
+                "email",
+                "name",
+                "role",
+                "groups"
+              ]
+            }
+          }
+        },
+        "required": [
+          "workspaceId",
+          "members"
+        ]
+      },
+      "WorkspaceMemberResponse": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "userId",
+          "role"
+        ]
+      },
+      "SetMemberRoleBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "forms.owner",
+              "member"
+            ],
+            "example": "forms.owner"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "AccessGroupListResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "teamId": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "fullName": {
+                  "type": "string"
+                },
+                "directoryName": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "environments": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "forms": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "externalGroupId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "holders": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "userId": {
+                        "type": "string"
+                      },
+                      "email": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "userId",
+                      "email"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "teamId",
+                "name",
+                "fullName",
+                "directoryName",
+                "role",
+                "environments",
+                "forms",
+                "externalGroupId",
+                "holders"
+              ]
+            }
+          },
+          "scopeNote": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "groups",
+          "scopeNote"
+        ]
+      },
+      "AccessGroupResponse": {
+        "type": "object",
+        "properties": {
+          "group": {
+            "type": "object",
+            "properties": {
+              "teamId": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "fullName": {
+                "type": "string"
+              },
+              "directoryName": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "environments": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "forms": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "externalGroupId": {
+                "type": "string",
+                "nullable": true
+              },
+              "holders": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "userId": {
+                      "type": "string"
+                    },
+                    "email": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "userId",
+                    "email"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "teamId",
+              "name",
+              "fullName",
+              "directoryName",
+              "role",
+              "environments",
+              "forms",
+              "externalGroupId",
+              "holders"
+            ]
+          }
+        },
+        "required": [
+          "group"
+        ]
+      },
+      "CreateAccessGroupBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120,
+            "example": "test.responses.viewer"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "forms.viewer",
+              "forms.editor",
+              "forms.approver",
+              "responses.viewer",
+              "responses.eraser"
+            ],
+            "example": "responses.viewer"
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 53,
+              "pattern": "^[a-z][a-z0-9]*$"
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "example": [
+              "test"
+            ]
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "minItems": 1,
+            "maxItems": 256,
+            "example": [
+              "all"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "example": "claims"
+          }
+        },
+        "required": [
+          "name",
+          "role",
+          "environments",
+          "forms"
+        ],
+        "additionalProperties": false
+      },
+      "UpdateAccessGroupBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 120,
+            "example": "test-dev.responses.viewer"
+          },
+          "environments": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 53,
+              "pattern": "^[a-z][a-z0-9]*$"
+            },
+            "minItems": 1,
+            "maxItems": 32,
+            "example": [
+              "test"
+            ]
+          },
+          "forms": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "minItems": 1,
+            "maxItems": 256,
+            "example": [
+              "all"
+            ]
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 48,
+            "pattern": "^[a-z0-9][a-z0-9-]*$",
+            "example": "claims"
+          }
+        },
+        "required": [
+          "name",
+          "environments",
+          "forms"
+        ],
+        "additionalProperties": false
+      },
+      "AddHolderBody": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "usr_0a1b2c"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "format": "email",
+            "example": "officer@qcms.test"
+          }
+        },
+        "additionalProperties": false
+      },
+      "WorkspaceSettingsResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "requireSecondApprover": {
+            "type": "boolean"
+          },
+          "seedNewEditorsWithTestData": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "requireSecondApprover",
+          "seedNewEditorsWithTestData"
+        ]
+      },
+      "WorkspaceSettingsBody": {
+        "type": "object",
+        "properties": {
+          "requireSecondApprover": {
+            "type": "boolean"
+          },
+          "seedNewEditorsWithTestData": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AuditListResponse": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string"
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "actor": {
+                  "type": "string"
+                },
+                "actorEmail": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "environment": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "formId": {
+                  "type": "string",
+                  "nullable": true
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string"
+                },
+                "detail": {
+                  "type": "string",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "id",
+                "actor",
+                "actorEmail",
+                "environment",
+                "formId",
+                "kind",
+                "occurredAt",
+                "detail"
+              ]
+            }
+          },
+          "page": {
+            "type": "integer"
+          },
+          "pageSize": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "workspaceId",
+          "rows",
+          "page",
+          "pageSize",
+          "total"
+        ]
       },
       "MintLinksResponse": {
         "type": "object",
@@ -5298,6 +5854,952 @@
           },
           "409": {
             "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/me/access": {
+      "get": {
+        "summary": "Which workspaces, roles, environments and forms the caller holds (admin)",
+        "description": "Every caller's own grants and nobody else's. It is how everybody who is not an owner or the installation administrator learns what they hold, since the membership list itself is theirs alone to see. `environments` per workspace is what the environment switcher offers: only the environments the caller holds in some grant, with `all` expanded against the live set.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The caller's grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MyAccessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/members": {
+      "get": {
+        "summary": "The workspace's membership list and the groups each member holds (admin)",
+        "description": "Readable by the workspace's owners and by the installation administrator, and by nobody else: in a deployment where departments share an installation the membership list is itself information about another department. Everybody else reads their own grants at GET /admin/me/access.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The members and their grants",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMemberListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/members/{userId}": {
+      "put": {
+        "summary": "Make somebody a workspace owner, or take the role away (admin)",
+        "description": "`forms.owner` is the one role that lives on the member row rather than on an access group. Both directions write an access-audit row. The workspace's last owner cannot be demoted, because a workspace with no owner is one nobody can administer.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "usr_0a1b2c"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMemberRoleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member row as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceMemberResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/access-groups": {
+      "get": {
+        "summary": "The workspace's access groups, with their scope and their holders (admin)",
+        "description": "An access group is one grant: a role and its scope. The stored name is shown inside a workspace page and the derived full name in cross-workspace lists; neither derived name is stored, so renaming a workspace slug changes display only.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The access groups",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupListResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create an access group (admin)",
+        "description": "The role and the scope are the grant and the name is a label kept in step with them: a name out of step with the fields is refused on save, and nothing parses a name to authorise. Names are unique within a workspace. A combined environment set is written in the order of the environments table, so `dev-test` is the one spelling. A group with no holders grants nobody anything, so creating one writes no audit row; adding a holder does.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAccessGroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The access group just created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/access-groups/{teamId}": {
+      "put": {
+        "summary": "Rename or re-scope an access group (admin)",
+        "description": "The role is not changeable: a different role is a different grant, and moving one would change what the group grants under the people holding it. Delete the group and create the one you meant, which is two audited acts rather than one unaudited change of meaning. A re-scope writes one audit row per holder.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "tm_0a1b2c"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAccessGroupBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The access group as it now stands",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove an access group and every grant it carried (admin)",
+        "description": "The holders' rows go with it. They are read first and one revoke row is written per holder, in the same transaction as the removal, which is why no removal may originate at the organisation plugin's own endpoint: its cascade runs below any hook and would leave the removals invisible.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "tm_0a1b2c"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/access-groups/{teamId}/holders": {
+      "post": {
+        "summary": "Grant an access group to somebody (admin)",
+        "description": "Team membership is the grant, so this is where a grant is written. The holder gets a workspace member row carrying the empty role if they have none, because the organisation plugin's own team queries assume a team member is a member of the workspace. A self-grant of a responses role is refused while the workspace requires a second approver, and then a second owner or the installation administrator makes the grant; with that switch off it is allowed and audited.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "tm_0a1b2c"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddHolderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The access group, with its holders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccessGroupResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/access-groups/{teamId}/holders/{userId}": {
+      "delete": {
+        "summary": "Revoke an access group from somebody (admin)",
+        "description": "One grant row and one access-audit revoke row, in the same transaction.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "tm_0a1b2c"
+            },
+            "required": true,
+            "name": "teamId",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "example": "usr_0a1b2c"
+            },
+            "required": true,
+            "name": "userId",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked"
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/settings": {
+      "put": {
+        "summary": "The workspace's two switches: the second approver and the test-data seed (admin)",
+        "description": "Both default off. The second-approver switch governs the two-person rule for a production release and a production endpoint change, and the self-grant rule for a responses role, so an installation turns on one thing and gets the whole two-person posture. The seed switch decides whether a new editor is also granted a responses viewer role on dev and test, and a grant on test responses is a grant on personal data, because a test run can involve real respondents. Turning either on or off writes an access-audit row of kind `setting`.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:write"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceSettingsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The settings as they now stand",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkspaceSettingsResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/admin/workspaces/{id}/audit": {
+      "get": {
+        "summary": "The access audit for this workspace (admin)",
+        "description": "Every response read, export and erasure, every grant and revoke, and every change to the seed setting, newest first. Readable by the workspace's owners and by the installation administrator: an audit only the operator can see does not answer a department's own question about its own data. It carries no answer value, no respondent identifier and no question text - the act, not its subject matter.",
+        "tags": [
+          "membership"
+        ],
+        "security": [
+          {
+            "MachineToken": [
+              "forms:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "example": "org_default_workspace"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "read",
+                "export",
+                "erasure",
+                "grant",
+                "revoke",
+                "setting"
+              ]
+            },
+            "required": false,
+            "name": "kind",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "page",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "required": false,
+            "name": "pageSize",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The audit rows",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditListResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid credentials",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found",
             "content": {
               "application/json": {
                 "schema": {

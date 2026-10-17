@@ -1,8 +1,11 @@
 import {
   SEED_WORKSPACE_NAME,
   SEED_WORKSPACE_SLUG,
+  addAccessGroupHolder,
   countAdminUsers,
+  createAccessGroup,
   listWorkspaces,
+  writeAccessAuditRow,
 } from "@roonga/qcms-db";
 import type { Executor } from "@roonga/qcms-db";
 
@@ -255,8 +258,109 @@ async function seedFirstWorkspace(
   const created = await auth.api.createOrganization({
     body: { name: SEED_WORKSPACE_NAME, slug: SEED_WORKSPACE_SLUG, userId },
   });
+  await seedFirstAdminGrants(exec, created.id, userId);
   return { id: created.id, slug: created.slug };
 }
+
+/**
+ * The access groups the first administrator is seeded with (task 069).
+ *
+ * # Why a bootstrapped installation needs them at all
+ *
+ * From ADR-41 the installation-wide claim **administers and authorises nothing inside a
+ * workspace** (Q29): authoring needs a `forms.` grant in that form's workspace, and
+ * `forms.owner` - which `createOrganization` puts on the member row above - touches no
+ * form, release, link, webhook or response row at all. So an installation seeded with the
+ * claim and the owner row alone is one whose single administrator can administer the
+ * workspace and **cannot author in it**.
+ *
+ * That is correct as a model and wrong as a first run. A bootstrapped deployment has one
+ * account, and Q13 already rules on this shape once - the two-person switch defaults off
+ * precisely because "an installation with one administrator cannot satisfy the rule at
+ * all, so defaulting it on would teach an operator the feature by teaching them to switch
+ * it off". The same reasoning reaches here: a first run that cannot create a form teaches
+ * nothing except how to get round the model.
+ *
+ * # What is seeded and what is not
+ *
+ * **Seeded:** `all.forms.editor` and `all.forms.approver`, so the first administrator can
+ * draft, publish, release, close, mint a link and configure an endpoint, in every
+ * environment, exactly as they could before this task.
+ *
+ * **Not seeded:** any `responses.*` grant. Reading, exporting and erasing response data
+ * stays a **deliberate act** somebody performs and the audit records (Q29, Q56, Q57): the
+ * first administrator grants it to themselves through the membership screen, which with
+ * the two-person switch off is allowed and audited, and which is what keeps a one-account
+ * installation able to read its own responses without that access being something nobody
+ * chose.
+ *
+ * Each seeded group is an **ordinary visible access group** in the list, with its own
+ * name, role and scope (finding 17's rule that a convenience is never an implication), so
+ * an operator can read what their account holds and revoke either one.
+ *
+ * # One audit row per seeded group
+ *
+ * The first version wrote none, on the reading that a seed is not an act somebody
+ * performed. The Code Owner ruled the other way (Code Owner, 2026-10-18, PR #1061):
+ * **Q56's "every grant write is a SEC-15 row" is meant literally**, so the seed writes one
+ * `grant` row per group with the created account as actor and a detail that says
+ * `qcms:create-admin` seeded it.
+ *
+ * It costs one insert and it keeps the first page of the audit honest: an operator reading
+ * the log sees where the account's two groups came from, rather than finding two grants
+ * nobody granted and having to know that the bootstrap is the answer. The actor is the
+ * created account because it is the account the grants are for and the only identity the
+ * installation has; the detail is what says it was the command and not that account.
+ *
+ * Q61's columns apply as they do to any grant row: the scope goes in `detail`, and
+ * `environment` and `form` stay empty because the act names neither.
+ */
+async function seedFirstAdminGrants(
+  exec: Executor,
+  workspaceId: string,
+  userId: string,
+): Promise<void> {
+  for (const role of SEEDED_FIRST_ADMIN_ROLES) {
+    const name = `all.${role}`;
+    const group = await createAccessGroup(exec, {
+      workspaceId,
+      name,
+      role,
+      environments: ["all"],
+      forms: ["all"],
+    });
+    await addAccessGroupHolder(exec, group.teamId, userId);
+    await writeAccessAuditRow(exec, {
+      actor: userId,
+      workspaceId,
+      kind: "grant",
+      detail: `${SEED_AUDIT_DETAIL_PREFIX} group=${name} role=${role} environments=all forms=all`,
+    });
+  }
+}
+
+/**
+ * What a seeded `grant` row's detail begins with, so a reader and a test can both tell a
+ * seeded grant from one somebody performed through the membership screen.
+ */
+export const SEED_AUDIT_DETAIL_PREFIX = "seeded by qcms:create-admin";
+
+/**
+ * The roles the first administrator is seeded with: the authoring family, and no
+ * `responses.*` grant.
+ *
+ * **Accepted as built** (Code Owner, 2026-10-18, PR #1061), with the two consequences the
+ * review named stated rather than left implicit: the scope is `all`, which for
+ * `forms.approver` includes `prod`, so the first account can release to production alone -
+ * the single-administrator case Q13 already accepts; and no response data is readable until
+ * somebody grants it, which is Q29's deliberate act.
+ *
+ * Exported so the bootstrap's own test asserts the list rather than restating it, and so
+ * the absence of a response grant is a thing a reader can see. That test is
+ * `bootstrap.integration.test.ts`'s "the first administrator's seeded grants" block, which
+ * the first version of this comment promised and did not have (PR #1061's review, S4).
+ */
+export const SEEDED_FIRST_ADMIN_ROLES: readonly string[] = ["forms.editor", "forms.approver"];
 
 /** A one-line, value-free explanation of a refusal, safe to print (SEC-8). */
 export function describeRefusal(refusal: BootstrapRefusal): string {

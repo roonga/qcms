@@ -26,6 +26,12 @@ const ITEMS = [
   { href: "/forms", label: t("nav.forms") },
   { href: "/responses", label: t("nav.responses") },
   { href: "/webhooks", label: t("nav.webhooks") },
+  // Membership and the access audit (ADR-41, task 069). Its own item rather than a
+  // Settings panel, for the reason Settings itself gives: that area is "account, change
+  // password, 2FA, nothing else", and a workspace's membership is neither an account
+  // setting nor one administrator's. It also is not form-scoped, so it has no home on a
+  // form screen.
+  { href: "/workspaces", label: t("nav.workspaces") },
   { href: "/settings", label: t("nav.settings") },
 ] as const;
 

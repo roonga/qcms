@@ -364,6 +364,54 @@ describe("a scaffolded QCMS deployment", () => {
     );
     expect(submitted["ok"]).toBe(true);
 
+    // 5a. Grant this account a `responses.viewer` role, because reading a response is
+    //     not something the bootstrap hands anybody (ADR-41, task 069).
+    //
+    //     `qcms:create-admin` seeds the first administrator's authoring groups and **no**
+    //     `responses.*` grant: the installation-wide claim administers and reads no
+    //     response data anywhere (Q29), and `forms.owner` touches no response row at all.
+    //     So reading answers is a deliberate act somebody performs, and with the
+    //     workspace's two-person switch off - which is its default (Q13) - a self-grant
+    //     of it is **allowed and audited** (Q56), which is exactly what keeps a
+    //     one-account installation able to read its own responses.
+    //
+    //     Three calls, and they are the loop this task adds rather than a fixture: the
+    //     workspace, an access group carrying the role and its scope, and a holder, which
+    //     is the grant. Doing it here means a scaffolded deployment proves the membership
+    //     surface works, in the same run that proves the respondent loop does.
+    const workspaces = (await json(
+      `${API}/admin/workspaces`,
+      { headers: adminHeaders() },
+      [200],
+    )) as { workspaces?: { workspaceId?: string }[] };
+    const workspaceId = workspaces.workspaces?.[0]?.workspaceId;
+    expect(typeof workspaceId).toBe("string");
+
+    const group = (await json(
+      `${API}/admin/workspaces/${String(workspaceId)}/access-groups`,
+      {
+        method: "POST",
+        headers: adminHeaders(),
+        body: JSON.stringify({
+          // `<environments>.<role>` with no label, which is the name the group's own
+          // fields imply; a name out of step with them is refused on save (Q37).
+          name: "all.responses.viewer",
+          role: "responses.viewer",
+          environments: ["all"],
+          forms: ["all"],
+        }),
+      },
+      [201],
+    )) as { group?: { teamId?: string } };
+    const teamId = group.group?.teamId;
+    expect(typeof teamId).toBe("string");
+
+    await json(
+      `${API}/admin/workspaces/${String(workspaceId)}/access-groups/${String(teamId)}/holders`,
+      { method: "POST", headers: adminHeaders(), body: JSON.stringify({ email: ADMIN_EMAIL }) },
+      [201],
+    );
+
     // 6. Read it back through the admin API. This is the whole loop closed: the
     //    answer a respondent gave through one container is visible to an author
     //    through another, over a database a third one migrated.

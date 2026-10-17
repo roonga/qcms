@@ -442,10 +442,19 @@ const allSurfaces = createApp(
 // body (`StartLinkSessionBody`), which is the split SEC-14's 404 claim rests on; close
 // and reopen each gained a body naming the environment whose intake they act on
 // (`FormEnvironmentBody`, Q18). Every one is a `z.strictObject`.
+//
+// Task 069 moves the admin count from 20 to 25 and the all-surfaces one from 28 to 33:
+// the membership surface adds five request bodies - the member row's role, an access
+// group's creation and its re-scope, a holder, and the two per-workspace settings
+// (`SetMemberRoleBody`, `CreateAccessGroupBody`, `UpdateAccessGroupBody`, `AddHolderBody`,
+// `WorkspaceSettingsBody`). Every one is a `z.strictObject`, which is what keeps
+// `externalGroupId` a key the API refuses rather than strips (Q39, criterion 15): a body
+// that stripped it would answer 200 to a caller who thought they had set the directory
+// mapping's join key.
 const WALKED: ReadonlyArray<readonly [string, OpenApiDocument, number]> = [
   ["respondent", readCommitted("respondent"), 6],
-  ["admin", committedAdmin, 20],
-  ["all surfaces with every flag on", allSurfaces, 28],
+  ["admin", committedAdmin, 25],
+  ["all surfaces with every flag on", allSurfaces, 33],
 ];
 
 describe("every request body rejects unknown keys (issue #893)", () => {

@@ -31,6 +31,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
 import type { Deps } from "../../../deps.js";
+import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
 import {
   internalTokenFor,
@@ -89,7 +90,7 @@ beforeAll(async () => {
     }),
   });
   app = createApp(deps, ADMIN_ONLY, {
-    groups: { admin: [registerAdminAuth, registerForms, registerFormsAssist] },
+    groups: { admin: [registerAdminAuth, registerGrantCheck, registerForms, registerFormsAssist] },
   });
   internalToken = internalTokenFor(deps.config);
   adminSessionToken = (await seedAdminSession(testDb.db)).token;
@@ -683,7 +684,9 @@ describe("the assist slice when the flag is none", () => {
     async () => {
       const offDeps = makeDeps({ db: testDb.db, env: validEnv() });
       const offApp = createApp(offDeps, ADMIN_ONLY, {
-        groups: { admin: [registerAdminAuth, registerForms, registerFormsAssist] },
+        groups: {
+          admin: [registerAdminAuth, registerGrantCheck, registerForms, registerFormsAssist],
+        },
       });
       const headers = {
         "content-type": "application/json",

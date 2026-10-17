@@ -15,13 +15,16 @@
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps } from "../../test-support.js";
 import { registerOutboxOps } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
-const adminGroups = { groups: { admin: [registerAdminAuth, registerOutboxOps] } };
+const adminGroups = {
+  groups: { admin: [registerAdminAuth, registerGrantCheck, registerOutboxOps] },
+};
 
 const DELIVERY_ID = "d290f1ee-6c54-4b01-90e6-d701748f0851";
 

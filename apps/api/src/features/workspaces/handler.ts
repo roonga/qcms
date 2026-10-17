@@ -10,6 +10,7 @@ import {
   listWorkspaces,
   moveFormToWorkspace,
   moveQuestionToWorkspace,
+  readSeedNewEditorsWithTestData,
   setWorkspaceShared,
 } from "@roonga/qcms-db";
 import type { ArchiveBlockers, WorkspaceRow } from "@roonga/qcms-db";
@@ -172,6 +173,7 @@ async function workspaceView(
   slug: string;
   isShared: boolean;
   requireSecondApprover: boolean;
+  seedNewEditorsWithTestData: boolean;
   archivedAt: string | null;
   forms: number;
   questions: number;
@@ -183,6 +185,12 @@ async function workspaceView(
     slug: row.slug,
     isShared: row.isShared,
     requireSecondApprover: row.requireSecondApprover,
+    // F17's optional seed (Q39, Q57), on the list because the screen that writes it has
+    // to open on the value it has: a panel that guessed `false` would present a statement
+    // about personal data as though nobody had chosen it. Task 069 is what reads it for a
+    // decision and what writes it.
+    seedNewEditorsWithTestData:
+      (await readSeedNewEditorsWithTestData(deps.databases.control, row.id)) ?? false,
     archivedAt: row.archivedAt === null ? null : row.archivedAt.toISOString(),
     forms: contents.forms,
     questions: contents.questions,

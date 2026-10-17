@@ -17,6 +17,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../app.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { registerAdminAuth } from "../../middleware/admin-auth.js";
 import { registerRequestEnvironment } from "../../middleware/request-environment.js";
 import { internalTokenFor, makeDeps } from "../../test-support.js";
@@ -25,7 +26,9 @@ import { registerWorkspaces } from "./route.js";
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
 const adminGroups = {
-  groups: { admin: [registerAdminAuth, registerRequestEnvironment, registerWorkspaces] },
+  groups: {
+    admin: [registerAdminAuth, registerRequestEnvironment, registerGrantCheck, registerWorkspaces],
+  },
 };
 
 interface ErrBody {

@@ -73,6 +73,7 @@ import {
 import { createApp } from "../../app.js";
 import type { Databases } from "../../environments.js";
 import type { Deps } from "../../deps.js";
+import { registerGrantCheck } from "../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../middleware/admin-auth.js";
 import {
   REQUEST_ENVIRONMENT_HEADER,
@@ -160,7 +161,13 @@ beforeAll(async () => {
     groups: {
       anonymous: [registerAnonymousEntry],
       respondent: [registerLinkEntry, registerSessionStatus],
-      admin: [registerAdminAuth, registerRequestEnvironment, registerForms, registerReleases],
+      admin: [
+        registerAdminAuth,
+        registerRequestEnvironment,
+        registerGrantCheck,
+        registerForms,
+        registerReleases,
+      ],
     },
   });
 }, CONTAINER_BOOT_TIMEOUT_MS);

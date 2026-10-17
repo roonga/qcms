@@ -12,13 +12,16 @@
 import { describe, expect, it } from "vitest";
 
 import { createApp } from "../../../app.js";
+import { registerGrantCheck } from "../../membership/middleware.js";
 import { ADMIN_SESSION_HEADER, registerAdminAuth } from "../../../middleware/admin-auth.js";
 import { internalTokenFor, makeDeps } from "../../../test-support.js";
 import { registerAdminResponses } from "./route.js";
 
 const ADMIN_ONLY = { public: false, internal: false, admin: true } as const;
 const PUBLIC_ONLY = { public: true, internal: false, admin: false } as const;
-const adminGroups = { groups: { admin: [registerAdminAuth, registerAdminResponses] } };
+const adminGroups = {
+  groups: { admin: [registerAdminAuth, registerGrantCheck, registerAdminResponses] },
+};
 
 interface ErrBody {
   error: { code: string; message: string };
