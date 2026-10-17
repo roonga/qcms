@@ -2371,7 +2371,7 @@ export const messages = {
   "membership.area.intro":
     "A workspace owns forms and questions, and its membership is what authorises work on them. A grant is a role and its scope, and a person holds as many grants as their job needs.",
   "membership.area.noWorkspaces":
-    "You administer no workspace. Your own grants are on the access panel below.",
+    "You manage no workspace. Your own grants are on the access panel below.",
   "membership.area.loadFailed": "The workspaces could not be read: {message}",
   "membership.area.shared": "Shared question library",
   "membership.area.archived": "Archived",
@@ -2380,11 +2380,11 @@ export const messages = {
   "membership.workspace.title": "{name}",
   "membership.workspace.back": "All workspaces",
   "membership.workspace.notFound":
-    "No such workspace, or you do not administer it. Your own grants are on /workspaces.",
+    "No such workspace, or you do not manage it. Your own grants are on /workspaces.",
 
   "membership.members.heading": "Members",
   "membership.members.intro":
-    "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the installation administrator can read this list.",
+    "Who is a member of this workspace, and which access groups each one holds. Only this workspace's owners and the holder of the installation-wide claim can read this list.",
   "membership.members.loadFailed": "The membership list could not be read: {message}",
   "membership.members.none": "This workspace has no members yet.",
   "membership.members.columnEmail": "Account",
@@ -2443,7 +2443,7 @@ export const messages = {
   "membership.settings.loadFailed": "The settings could not be read: {message}",
   "membership.settings.twoPerson": "Require a second approver for production",
   "membership.settings.twoPersonHelp":
-    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the installation administrator, has to make that grant. Off by default, because an installation with one administrator cannot satisfy the rule at all.",
+    "One switch, three effects. A release to production is refused for the account that published the version; a production endpoint change takes a second approver's confirmation; and nobody can grant themselves a responses role - a second workspace owner, or the holder of the installation-wide claim, has to make that grant. Off by default, because an installation with one account cannot satisfy the rule at all.",
   "membership.settings.seed": "Seed a new editor with dev and test response access",
   // Q57's sentence, and the wording is the ruling's rather than this screen's.
   "membership.settings.seedHelp":
@@ -2475,7 +2475,7 @@ export const messages = {
     "Which workspaces, roles, environments and forms you hold. Everybody can read their own grants; the membership list of a workspace is its owners' to see.",
   "membership.mine.loadFailed": "Your access could not be read: {message}",
   "membership.mine.installationAdmin":
-    "You hold the installation-wide administrator claim: settings, accounts, memberships and environments, in every workspace. It grants no response read, export or erasure anywhere.",
+    "You hold the installation-wide claim: settings, accounts, memberships and environments, in every workspace. It grants no response read, export or erasure anywhere.",
   "membership.mine.none": "You hold no grant in any workspace.",
   "membership.mine.memberOnly": "A member row that grants nothing on its own",
   "membership.mine.environments": "Environments: {environments}",

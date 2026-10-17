@@ -54,7 +54,7 @@ test("the membership area is reachable from the shell's navigation", async ({ pa
   // reads their own grants, because a workspace's membership list is its owners' to see.
   await expect(page.getByRole("heading", { level: 2, name: "Your own access" })).toBeVisible();
   await expect(
-    page.getByText("You hold the installation-wide administrator claim", { exact: false }),
+    page.getByText("You hold the installation-wide claim", { exact: false }),
   ).toBeVisible();
   // And what that claim does NOT grant is on the same line, because an administrator who
   // meets a refused response screen should be able to read why where they read what they
