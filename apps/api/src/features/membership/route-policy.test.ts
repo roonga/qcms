@@ -77,11 +77,12 @@ describe("the route table and the mounted admin surface stay in step", () => {
     expect(orphans, "ROUTE_POLICIES names a route the admin document does not serve").toEqual([]);
   });
 
-  it("exempts exactly one route from needing a grant, and it is the capability endpoint", () => {
-    // Q35 gives everybody their own grants, so a grant check in front of that answer
-    // would be a check on the thing it exists to tell you. An exemption list is the thing
-    // that grows, so its length is asserted rather than its contents alone.
-    expect([...GRANT_EXEMPT_ROUTES]).toEqual(["GET /admin/me/access"]);
+  it("exempts exactly two routes from needing a grant, and names both", () => {
+    // Both are answers about what the caller holds rather than acts on anything: their own
+    // grants (Q35), and the environments those grants reach (Q25). An exemption list is
+    // the thing that grows, so the names and the count are both asserted and a third
+    // member is a change somebody reviews.
+    expect([...GRANT_EXEMPT_ROUTES]).toEqual(["GET /admin/me/access", "GET /admin/environments"]);
   });
 });
 

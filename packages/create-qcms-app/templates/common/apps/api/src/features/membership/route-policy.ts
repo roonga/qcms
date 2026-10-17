@@ -98,18 +98,6 @@ export interface RoutePolicy {
 export const ROUTE_POLICIES: readonly RoutePolicy[] = [
   // --- the installation claim's four rows (Q29) ----------------------------------
   {
-    // The live environment set, which the Q6 switcher offers. The **switcher narrows it
-    // to the environments the caller holds in some grant** (Q25), and that narrowing is
-    // the handler's: the route itself is the installation's environment configuration,
-    // which is the claim's.
-    method: "GET",
-    path: "/admin/environments",
-    resource: "workspace",
-    action: "read",
-    workspace: "installation",
-    installationOnly: true,
-  },
-  {
     method: "POST",
     path: "/admin/workspaces",
     resource: "workspace",
@@ -576,12 +564,29 @@ export const ROUTE_POLICIES: readonly RoutePolicy[] = [
 ];
 
 /**
- * The one admin route that needs no grant: a caller's own capability answer (Q35).
+ * The two admin routes that need no grant, each because it **is** an answer about what the
+ * caller holds rather than an act on anything.
  *
- * Exactly one, and `route-policy.test.ts` asserts that. An exemption list is the thing
- * that grows, so it is a constant with a reason beside it rather than a flag on a row.
+ * `GET /admin/me/access` is the capability answer (Q35): everybody reads their own grants,
+ * so a grant check in front of it would be a check on the thing it exists to tell you.
+ *
+ * `GET /admin/environments` is the live set, narrowed by its own handler to **the
+ * environments the caller holds in some grant** (Q25) and served whole to the installation
+ * claim. It is here rather than as a row because the matrix has no cell for it: every
+ * role needs to know which environments it can act in - an approver to choose a release
+ * target, a `responses.viewer` to choose whose responses to read, an owner to scope an
+ * access group - and the matrix's environment row is about **settings**, which are the
+ * operator command's and never reach HTTP at all. A caller holding nothing gets an empty
+ * list, which is the same "reaches nothing" every other refusal gives them.
+ *
+ * **Two, and `route-policy.test.ts` asserts both the count and the names.** An exemption
+ * list is the thing that grows, so each member carries its reason here rather than a flag
+ * on a row, and a third is a change somebody reviews.
  */
-export const GRANT_EXEMPT_ROUTES: readonly string[] = ["GET /admin/me/access"];
+export const GRANT_EXEMPT_ROUTES: readonly string[] = [
+  "GET /admin/me/access",
+  "GET /admin/environments",
+];
 
 /** Whether a concrete path matches a template, segment by segment. */
 function matchesTemplate(template: string, path: string): boolean {

@@ -1620,6 +1620,9 @@
           "requireSecondApprover": {
             "type": "boolean"
           },
+          "seedNewEditorsWithTestData": {
+            "type": "boolean"
+          },
           "archivedAt": {
             "type": "string",
             "nullable": true,
@@ -1642,6 +1645,7 @@
           "slug",
           "isShared",
           "requireSecondApprover",
+          "seedNewEditorsWithTestData",
           "archivedAt",
           "forms",
           "questions"

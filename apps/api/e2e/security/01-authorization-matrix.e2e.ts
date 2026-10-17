@@ -918,7 +918,13 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
     expect(
       (await get(claimOnly.token, `/admin/workspaces/${ctx.workspaceId}/members`)).status,
     ).toBe(200);
-    expect((await get(claimOnly.token, "/admin/environments")).status).toBe(200);
+    // The live set, served whole to the claim: administering environments across every
+    // workspace is what the claim is for.
+    const environments = await get(claimOnly.token, "/admin/environments");
+    expect(environments.status).toBe(200);
+    expect(
+      ((await environments.json()) as { environments: unknown[] }).environments.length,
+    ).toBeGreaterThan(0);
     expect((await get(claimOnly.token, `/admin/forms/${ctx.formId}/responses`)).status).toBe(403);
     expect(
       (await get(claimOnly.token, `/admin/forms/${ctx.formId}/export?format=csv&version=1`)).status,
@@ -948,12 +954,23 @@ describe("the two role families refuse across each other (criteria 2 to 5)", () 
       `/admin/forms/${ctx.formId}`,
       `/admin/forms/${ctx.formId}/responses`,
       `/admin/workspaces/${ctx.workspaceId}/members`,
-      "/admin/environments",
     ]) {
       const res = await get(nobody.token, path);
       expect(res.status, `${path} was served to an account holding nothing`).toBe(403);
       expectNoPayload(await res.text());
     }
+
+    // The environment list is the one admin read this account is **served**, and what it
+    // is served is **nothing**: the route answers the environments the caller holds in
+    // some grant (Q25), so an account holding none gets an empty list rather than a
+    // refusal. Same outcome, different shape, and the shape is the route's: a caller has
+    // to be able to learn which environments they can act in without first holding a
+    // grant to ask.
+    const environments = await get(nobody.token, "/admin/environments");
+    expect(environments.status).toBe(200);
+    expect((await environments.json()) as { environments: unknown[] }).toEqual({
+      environments: [],
+    });
   });
 
   it("narrows the library lists to the caller's own workspaces (ADR-41's premise)", async () => {

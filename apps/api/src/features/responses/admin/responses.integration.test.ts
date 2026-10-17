@@ -27,6 +27,8 @@ import type { AnswerValue, LockedSubmission } from "@roonga/qcms-core";
 import type { CompiledForm } from "@roonga/qcms-a2ui-compiler";
 import {
   SEED_WORKSPACE_ID,
+  countAccessAuditByKind,
+  listAccessAudit,
   addInstances,
   createForm,
   createSession,
@@ -1167,5 +1169,105 @@ describe("CSV export of a repeating group, both shapes (cases 46 to 48)", () => 
       { instance_id: "ins_pax_a", q_name: "Ada", q_meal: ["opt_vegan"] },
       { instance_id: "ins_pax_b", q_name: "Lovelace, Grace", q_meal: ["opt_halal", "opt_kosher"] },
     ]);
+  });
+});
+
+// --- criterion 8: SEC-15's row on every read, export and erasure -------------
+
+describe("every response read, export and erasure writes one audit row (criterion 8)", () => {
+  /**
+   * SEC-15, as a count and as a row.
+   *
+   * Two properties, and the first is the one a single assertion would miss: **no path
+   * reads or exports without a row**. So each case counts the rows before and after rather
+   * than only looking for one, which is what fails when a fourth read path is added later
+   * and forgets its row.
+   *
+   * The row's fields are Q61's: on these three kinds `detail` is **empty** and the other
+   * six are populated. `environment` is the interim `prod` of Q53 until task 066 gives a
+   * request an environment of its own, and `workspace` is the one the grant middleware
+   * authorised the act in - a value the writing role cannot verify, because the row
+   * commits on the environment pool and that role holds no `SELECT` on `user` or `member`.
+   */
+  const FORM = "frm_audit_eight";
+
+  async function counts(): Promise<Readonly<Record<string, number>>> {
+    return countAccessAuditByKind(testDb.db, SEED_WORKSPACE_ID);
+  }
+
+  beforeAll(async () => {
+    const formId = await seedForm(FORM, [["stp_a", ["q_name"]]]);
+    await seedSubmitted({
+      formId,
+      sessionId: "ses_audit8_one",
+      entries: [{ questionId: "q_name", value: "Ada" }],
+      submittedAt: new Date("2026-03-01T00:00:00.000Z"),
+    });
+    await seedSubmitted({
+      formId,
+      sessionId: "ses_audit8_two",
+      entries: [{ questionId: "q_name", value: "Grace" }],
+      submittedAt: new Date("2026-03-02T00:00:00.000Z"),
+    });
+  });
+
+  it("writes one `read` row for a list and one for a detail, and none without", async () => {
+    const before = await counts();
+    expect((await get(`/forms/${FORM}/responses`)).status).toBe(200);
+    expect((await counts()).read ?? 0).toBe((before.read ?? 0) + 1);
+
+    expect((await get(`/forms/${FORM}/responses/ses_audit8_one`)).status).toBe(200);
+    expect((await counts()).read ?? 0).toBe((before.read ?? 0) + 2);
+  });
+
+  it("writes the row even when the read found nothing, because the act happened", async () => {
+    // The honesty `two_factor_resets` already has when a reset cleared no factor: "who
+    // looked for this person's answers" is answerable even when the answer was none.
+    const before = await counts();
+    const res = await get(`/forms/${FORM}/responses/ses_000000000000000000000000000a`);
+    expect(res.status).toBe(404);
+    expect((await counts()).read ?? 0).toBe((before.read ?? 0) + 1);
+  });
+
+  it("writes one `export` row before a byte leaves", async () => {
+    const before = await counts();
+    const res = await get(`/forms/${FORM}/export?format=csv&version=1`);
+    expect(res.status).toBe(200);
+    await res.text();
+    expect((await counts()).export ?? 0).toBe((before.export ?? 0) + 1);
+  });
+
+  it("carries the seven SEC-15 fields, with `detail` empty on a read (Q61)", async () => {
+    expect((await get(`/forms/${FORM}/responses`)).status).toBe(200);
+    const { rows } = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "read" });
+    // Found by form rather than taken as the newest row: this suite runs under a fixed
+    // clock, so every row in it carries the same instant and "newest" is not an order.
+    const row = rows.find((entry) => entry.formId === FORM);
+    expect(row).toBeDefined();
+    expect(row?.workspaceId).toBe(SEED_WORKSPACE_ID);
+    expect(row?.actor.length).toBeGreaterThan(0);
+    // The interim `prod` of Q53: until task 066 a request names no environment of its
+    // own, so the pool's is what the row carries.
+    expect(row?.environment).toBe(DEFAULT_TEST_ENVIRONMENT);
+    expect(row?.formId).toBe(FORM);
+    expect(row?.kind).toBe("read");
+    expect(row?.occurredAt).toBeInstanceOf(Date);
+    // Empty on a read, an export and an erasure: the scope only has somewhere to go on a
+    // grant, a revoke or a setting row.
+    expect(row?.detail).toBeNull();
+  });
+
+  it("writes one `erasure` row in the erasure's own transaction", async () => {
+    const before = await counts();
+    const res = await post(`/forms/${FORM}/responses/ses_audit8_two/erase`, {
+      reason: "criterion 8",
+    });
+    expect(res.status).toBe(200);
+    expect((await counts()).erasure ?? 0).toBe((before.erasure ?? 0) + 1);
+    const { rows } = await listAccessAudit(testDb.db, SEED_WORKSPACE_ID, { kind: "erasure" });
+    const row = rows.find((entry) => entry.formId === FORM);
+    expect(row).toBeDefined();
+    expect(row?.environment).toBe(DEFAULT_TEST_ENVIRONMENT);
+    expect(row?.detail).toBeNull();
   });
 });
