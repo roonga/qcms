@@ -9,6 +9,14 @@ import {
 } from "../testing/harness.js";
 
 import {
+  createAccessGroup,
+  deleteAccessGroup,
+  getAccessGroup,
+  listAccessGroups,
+  updateAccessGroupScope,
+} from "../queries/grants.js";
+
+import {
   RESERVED_ENVIRONMENT_NAMES,
   createEnvironment,
   dropEnvironment,
@@ -261,6 +269,91 @@ describe("dropping an environment (Q24, Q43)", { timeout: COMMAND_TIMEOUT_MS }, 
     await expect(dropEnvironment(testDb.db, "nosuch")).rejects.toThrow(/does not exist/);
   });
 });
+
+describe(
+  "the access-group half of the drop check (criterion 18, Q43 and Q44)",
+  { timeout: COMMAND_TIMEOUT_MS },
+  () => {
+    /**
+     * The clause Q44 moved here from task 064, because a team carrying an `environments`
+     * field exists only from task 069.
+     *
+     * The drop **refuses** while any access group names the environment, and **names
+     * those groups** the way `dev:seed:clear` names what it leaves, so an operator sees
+     * which grants the drop would silence rather than discovering it afterwards. It
+     * refuses and never archives (Q43): a command that quietly re-scoped a grant an owner
+     * wrote would be editing the authorisation model as a side effect of an operator act.
+     */
+    it("refuses while a group names the environment, and names it by its derived full name", async () => {
+      await createEnvironment(testDb.db, { name: "scratch" });
+      const group = await createAccessGroup(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        name: "scratch.responses.viewer",
+        role: "responses.viewer",
+        environments: ["scratch"],
+        forms: ["all"],
+      });
+
+      const refusal = await dropEnvironment(testDb.db, "scratch");
+      expect(refusal?.accessGroups).toEqual(["default.scratch.responses.viewer"]);
+      // The **derived** full name, `<workspace>.<team>`, which is what an operator reads
+      // in a cross-workspace list and what the directory name at task C3 is built from.
+      // Neither derived form is stored.
+      expect(refusal?.reason).toContain("default.scratch.responses.viewer");
+      expect(refusal?.reason).toContain("Remove or re-scope");
+      // It holds no session and no open form, so the group is the only reason.
+      expect(refusal?.sessionCount).toBe(0);
+      expect(refusal?.openForms).toEqual([]);
+      // And it refuses rather than archiving: the group is exactly as it was.
+      const after = await getAccessGroup(testDb.db, group.teamId);
+      expect([...(after?.environments ?? [])]).toEqual(["scratch"]);
+    });
+
+    it("succeeds once the group is removed", async () => {
+      const groups = await listAccessGroups(testDb.db, SEED_WORKSPACE_ID);
+      const naming = groups.find((group) => group.name === "scratch.responses.viewer");
+      expect(naming).toBeDefined();
+      await deleteAccessGroup(testDb.db, (naming as { teamId: string }).teamId);
+      expect(await dropEnvironment(testDb.db, "scratch")).toBeUndefined();
+    });
+
+    it("succeeds once the group is re-scoped off the environment", async () => {
+      await createEnvironment(testDb.db, { name: "scratchtwo" });
+      const group = await createAccessGroup(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        name: "scratchtwo.responses.eraser",
+        role: "responses.eraser",
+        environments: ["scratchtwo"],
+        forms: ["all"],
+      });
+      expect((await dropEnvironment(testDb.db, "scratchtwo"))?.accessGroups).toHaveLength(1);
+
+      // Re-scoped rather than removed, which is the operator's other way out.
+      await updateAccessGroupScope(testDb.db, group.teamId, {
+        name: "prod.responses.eraser",
+        environments: ["prod"],
+        forms: ["all"],
+        updatedAt: new Date("2026-10-17T00:00:00.000Z"),
+      });
+      expect(await dropEnvironment(testDb.db, "scratchtwo")).toBeUndefined();
+    });
+
+    it("does not block on a group scoped to `all`, which names no environment", async () => {
+      // `all` names no environment, so dropping one narrows what `all` means rather than
+      // silencing that grant - which is what `all` is for, and the same line Q61 draws
+      // where a grant scoped to `all` leaves the audit row's `environment` empty.
+      await createEnvironment(testDb.db, { name: "scratchthree" });
+      await createAccessGroup(testDb.db, {
+        workspaceId: SEED_WORKSPACE_ID,
+        name: "all.forms.viewer",
+        role: "forms.viewer",
+        environments: ["all"],
+        forms: ["all"],
+      });
+      expect(await dropEnvironment(testDb.db, "scratchthree")).toBeUndefined();
+    });
+  },
+);
 
 describe("the SEC-10 guard", { timeout: COMMAND_TIMEOUT_MS }, () => {
   it("reads ownership of the control schema rather than a role name", async () => {

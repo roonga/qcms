@@ -72,7 +72,6 @@ let editorToken: string;
 let editorId: string;
 /** An account with a member row carrying the empty role and nothing else (criterion 17). */
 let nobodyToken: string;
-let nobodyId: string;
 
 beforeAll(async () => {
   testDb = await startTestDb();
@@ -120,7 +119,6 @@ beforeAll(async () => {
     grants: [],
   });
   nobodyToken = nobody.token;
-  nobodyId = nobody.userId;
 
   // A third environment, so Q42's combined-set ordering has a set to be out of order:
   // the shipped set is `test` then `prod`, and `dev` lands third.
