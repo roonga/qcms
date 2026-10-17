@@ -110,6 +110,10 @@ export const RESERVED_ENVIRONMENT_NAMES: readonly string[] = [
   // an environment named `workspaces` would make `/workspaces/...` two addresses the way
   // `environments` would. The derivation test in `scripts/` is what asked for this entry.
   "workspaces",
+  // Task 069's. `GET /admin/me/access` is the capability answer every caller reads, so
+  // an environment named `me` would make `/me/...` two addresses. The same derivation
+  // test asked for this one.
+  "me",
   "health",
   "ready",
   "internal",
